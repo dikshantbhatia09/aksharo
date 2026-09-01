@@ -1,8 +1,12 @@
 import { defineConfig, mergeConfig } from "vitest/config";
 
-import { vitestBaseConfig } from "@montaj/config/vitest";
+import { coverageThresholds, vitestBaseConfig } from "@montaj/config/vitest";
 
+// CONTRACTS §9: packages/caption-styles is a 90/85 package.
 export default mergeConfig(
-  defineConfig(vitestBaseConfig),
-  defineConfig({ test: { name: "@montaj/caption-styles" } }),
+  mergeConfig(
+    defineConfig(vitestBaseConfig),
+    defineConfig(coverageThresholds({ lines: 90, branches: 85 })),
+  ),
+  defineConfig({ test: { name: "@montaj/caption-styles", coverage: { exclude: ["**/.tmp/**"] } } }),
 );

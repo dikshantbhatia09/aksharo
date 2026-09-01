@@ -1,21 +1,13 @@
 /**
- * `@montaj/edg` — EDG v2 types, Zod schemas, the EdgOp union, rebase transforms and migrations.
+ * `@montaj/edg` — the EDG v2 document: Zod schemas, inferred types, the `EdgOp`
+ * union, id helpers, fractional ordering and the projection validator.
  *
- * A01 ships the package skeleton only; the real implementation lands in A02 (types + schemas), A02b (ops engine).
- * See README.md for what belongs here and docs/PLAN.md for scheduling.
+ * The shapes are frozen in `docs/CONTRACTS.md` §2 and described in
+ * `03-architecture/05-system-architecture.md` §4. A02b adds the rebase transform
+ * table, compare-and-swap persistence, snapshots and `schemaVersion` migrations.
  */
-
-/** Build-time identity of this package, used by diagnostics bundles and the admin console. */
-export interface PackageInfo {
-  readonly name: `@montaj/${string}`;
-  /** Work package(s) that implement it. */
-  readonly implementedBy: string;
-  /** `false` until the owning work package lands. */
-  readonly implemented: boolean;
-}
-
-export const PACKAGE_INFO: PackageInfo = {
-  name: "@montaj/edg",
-  implementedBy: "A02 (types + schemas), A02b (ops engine)",
-  implemented: false,
-};
+export * from "./schemas/index.js";
+export * from "./ids.js";
+export * from "./seq.js";
+export * from "./transcript-index.js";
+export * from "./validate.js";

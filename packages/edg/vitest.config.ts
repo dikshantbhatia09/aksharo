@@ -1,8 +1,26 @@
 import { defineConfig, mergeConfig } from "vitest/config";
 
-import { vitestBaseConfig } from "@montaj/config/vitest";
+import { coverageThresholds, vitestBaseConfig } from "@montaj/config/vitest";
 
+// CONTRACTS §9: packages/edg is a 90/85 package. Build tooling (the JSON Schema
+// generator and the ESM marker) is excluded — it is exercised by running the
+// build, not by unit tests; `scripts/schema-files.ts` stays in because the
+// "schemas are up to date" test drives it.
 export default mergeConfig(
-  defineConfig(vitestBaseConfig),
-  defineConfig({ test: { name: "@montaj/edg" } }),
+  mergeConfig(
+    defineConfig(vitestBaseConfig),
+    defineConfig(coverageThresholds({ lines: 90, branches: 85 })),
+  ),
+  defineConfig({
+    test: {
+      name: "@montaj/edg",
+      coverage: {
+        exclude: [
+          "**/.tmp/**",
+          "scripts/generate-json-schemas.ts",
+          "scripts/finalise-esm-build.mjs",
+        ],
+      },
+    },
+  }),
 );

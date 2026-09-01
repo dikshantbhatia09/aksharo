@@ -58,6 +58,32 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     `pgvector/pgvector:pg16` asserting all 68 tables against `information_schema`,
     the named indexes and constraints, seed idempotency, and a segment round trip
     in fractional `seq` order.
+- **A02 — `@montaj/edg` v2 and `@montaj/caption-styles` v2 schemas + fixtures.**
+  - `@montaj/edg`: Zod schemas and inferred types for the whole EDG v2 document —
+    `WordId`, `Word`, `TranscriptChunk`, `TranscriptManifest`, `Segment`, `Pass`,
+    `PassItem` (a discriminated union with a typed payload per `kind`), `EdgHot` and
+    `EdgProjection` — plus the complete 16-member `EdgOp` union and the
+    `OpBatchRequest`/`OpBatchResponse`/`OpConflict` envelopes from CONTRACTS section 2.
+  - `@montaj/edg` helpers: a monotonic ULID factory, `makeWordId`/`parseWordId`,
+    base-62 fractional ordering for `Segment.seq` (`seqBetween`, proved with
+    fast-check), `buildWordIndex`/`wordsBetween` over transcript chunks, and
+    `validateProjection` for the document invariants.
+  - `@montaj/edg` artefacts: `schemas/edg-v2.json` and `schemas/edg-ops-v2.json`
+    generated from the Zod schemas at build time and guarded by an "up to date" test;
+    `fixtures/sample-project.json` (90 s, 3-speaker Hinglish, 12 segments, an autocut
+    pass with 4 cut items and a reframe pass with 1 zoom item) with its matching
+    transcript, validated by Ajv against the generated schema.
+  - `@montaj/edg` build: CommonJS in `dist/` and ES modules in `dist/esm/`, each with
+    declarations, behind the `.`, `./schemas` and `./seq` subpath exports.
+  - `@montaj/caption-styles`: the `StyleDoc` v2 schema (typography, colours, box,
+    stroke, shadow, layout, animation, emphasis presets, `minPlan`, CI-written parity
+    flags), the D64 naming-rule validator with an admin-extendable deny-list in
+    `src/naming/denylist.json`, seven system styles (`punch-pop`, `hype-bold`,
+    `vertical-clean`, `karaoke-fill`, `podcast-duo`, `word-pop`,
+    `minimal-lower-third`), a 30-style `styles/registry.json` and
+    `loadSystemStyles()`, which A03's database seed loads.
+  - Coverage gates per CONTRACTS section 9: 90/85 on both packages.
+
 - **A01 — Monorepo scaffold, tooling, CI, docker-compose, env.**
   - pnpm 9 workspaces (`apps/*`, `packages/*`, `plugins/*`, `engine/*`) driven by
     Turborepo 2, with cached `build`, `lint`, `typecheck`, `test`, `test:e2e`,
