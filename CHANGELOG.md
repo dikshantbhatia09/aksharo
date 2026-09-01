@@ -167,6 +167,49 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     `.node-version`, `CODEOWNERS`, `LICENSE`, the pull-request Definition-of-Done
     template, and `docs/adr/0001-monorepo-tooling.md`.
 
+- **X05 — Infrastructure as code (staging/prod skeleton, no apply).**
+  - `infra/terraform`: root modules `envs/staging` and `envs/prod` over nine
+    reusable modules — `network` (VPC, three subnet tiers, NAT, S3 gateway
+    endpoint, flow logs), `eks` (control plane, managed node groups with an
+    optional GPU pool, addons, IRSA, access entries), `rds-postgres16` (PITR,
+    KMS-encrypted, `pg_stat_statements` preloaded, `vector` allow-listed for
+    A03's pgvector column), `elasticache-redis7` (`maxmemory-policy noeviction`,
+    a BullMQ correctness requirement), `s3-raw` (`ap-south-1`, SSE, versioning
+    with 7-day non-current expiry, 1-day abort-incomplete-multipart, CORS for
+    presigned PUT from `WEB_ORIGIN`), `r2-derived` (bucket, CORS, and a
+    multipart-abort rule on the `ws/` root — plan retention is swept by the
+    scheduler in B16, not by lifecycle, because CONTRACTS section 6 keys are
+    frozen), `secrets` (KMS plus one SSM parameter per
+    CONTRACTS section 1 variable), `dns-cdn` (`aksharo.ai`, `app.`, `api.`,
+    zone TLS settings, null-MX/SPF/DMARC) and `github-oidc` (keyless deploy
+    role). `backend.tf` is a partial S3 backend with native locking; every
+    variable is documented; no credential is committed.
+  - `infra/gpu`: RunPod serverless endpoint definition with a warm floor of one
+    per region and queue-delay autoscaling (decision D15), the model-server
+    Dockerfile with large-v3-turbo, forced alignment and pyannote community-1
+    pre-baked, a Modal equivalent, and `COST.md` showing the arithmetic behind
+    the `05 §12` cost band rather than restating it.
+  - `infra/k8s/montaj`: Helm chart for `api`, `web`, `realtime`, `worker-media`,
+    `worker-ai`, `render` and `scheduler`, with HPAs on CPU for the
+    request-serving components, KEDA ScaledObjects on BullMQ queue depth for the
+    workers, PodDisruptionBudgets, default-deny network policies plus an optional
+    Cilium FQDN allow-list, external-secrets pulling all 31 contract variables
+    from SSM, TLS ingress, resource requests and limits, and
+    `values-staging.yaml` / `values-prod.yaml`.
+  - `infra/observability`: `METRICS.md` defining the OTel metric contract
+    (names, units, labels, cardinality rules); two Grafana dashboards covering
+    API latency, queue depth per queue, job success rate, GPU utilisation and
+    COGS per credit; and a `PrometheusRule` with 4 recording rules and 24 alerts.
+  - `docs/runbooks/`: deploy, rollback, rotate secrets, restore from PITR, scale
+    GPU, DLQ replay and a breach first-hour checklist wired to THREAT-MODEL.
+  - `.github/workflows/infra.yml`: the `infra-validate` job — `terraform fmt`,
+    `terraform validate` against a mock backend for every module and both
+    environments, `tflint`, `helm lint`, `kubeconform -strict`,
+    `promtool check rules`, plus checks that the SSM map and the chart match
+    CONTRACTS section 1 exactly, that the lifecycle rules encode the retention
+    contract, that worker egress is denied by default, and that nothing
+    credential-shaped is committed.
+
 ### Changed
 
 - **A03** — `docker-compose.yml` now runs `pgvector/pgvector:pg16` instead of

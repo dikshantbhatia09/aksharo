@@ -1,0 +1,44 @@
+{{ .Chart.Name }} {{ .Chart.Version }} (app {{ .Chart.AppVersion }}) released as
+{{ .Release.Name }} in namespace {{ .Release.Namespace }} — environment {{ .Values.environment }}.
+
+Components:
+{{- range $name, $spec := .Values.components }}
+{{- if $spec.enabled }}
+  - {{ $name }} ({{ $spec.kind | default "worker" }}){{ if $spec.hpa }}{{ if $spec.hpa.enabled }}, HPA {{ $spec.hpa.minReplicas }}-{{ $spec.hpa.maxReplicas }} on CPU{{ end }}{{ end }}{{ if $spec.keda }}{{ if $spec.keda.enabled }}, KEDA {{ $spec.keda.minReplicaCount }}-{{ $spec.keda.maxReplicaCount }} on queue depth{{ end }}{{ end }}
+{{- end }}
+{{- end }}
+
+Check the release:
+
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "montaj.fullname" . }}-api
+{{- if .Values.externalSecrets.enabled }}
+  kubectl -n {{ .Release.Namespace }} get externalsecret {{ include "montaj.envSecretName" . }}
+{{- end }}
+{{- if .Values.keda.enabled }}
+  kubectl -n {{ .Release.Namespace }} get scaledobject
+{{- end }}
+
+{{- if .Values.externalSecrets.enabled }}
+
+The Secret is projected from SSM at {{ .Values.externalSecrets.parameterPath }}/*.
+If the ExternalSecret is not Ready, the usual cause is a parameter still holding
+its Terraform placeholder — see the [H] list in infra/README.md.
+{{- end }}
+
+{{- if not .Values.redis.address }}
+
+WARNING: redis.address is empty, so no KEDA_REDIS_ADDRESS reaches the pods and
+every ScaledObject will fail to read its queue depth. Set it to the ElastiCache
+primary endpoint (host:port) from `terraform output redis_url`.
+{{- end }}
+
+{{- if and .Values.networkPolicy.enabled (not .Values.networkPolicy.fqdn.enabled) }}
+
+NOTE: FQDN egress enforcement is off (needs Cilium). Worker egress to the ASR
+and LLM providers is currently allowed as "TCP 443 to any public address"; the
+hostname allow-list in values.yaml documents intent but is enforced by the
+egress proxy, not by the cluster. See docs/runbooks/deploy.md.
+{{- end }}
+
+Runbooks: docs/runbooks/ (deploy, rollback, rotate-secrets, restore-from-pitr,
+scale-gpu, dlq-replay, breach-first-hour).

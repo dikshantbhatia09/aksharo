@@ -1,0 +1,57 @@
+# Terraform working files. None of these may ever be committed; the CI job
+# infra-validate fails the build if one is.
+
+# Provider plugins and module cache.
+.terraform/
+.terraform.lock.hcl.bak
+
+# State. Lives in the S3 backend, never in git: it contains resource ids,
+# endpoints, ARNs and anything a provider marks non-sensitive but we would
+# rather not publish.
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+
+# Saved plans. A plan file contains the full resource diff, values included.
+*.tfplan
+tfplan
+plan.out
+
+# Real values. The .example files next to them are the committed templates.
+terraform.tfvars
+*.auto.tfvars
+backend.hcl
+
+# Crash logs can contain variable values.
+crash.log
+crash.*.log
+
+# Override files are a local escape hatch, never a shared one.
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Only a ROOT module consumes a lock file. `terraform init` leaves one in every
+# child module it is run from (CI validates each module separately); those are
+# noise. envs/*/.terraform.lock.hcl IS committed, with hashes for every platform
+# the team and CI run on.
+modules/*/.terraform.lock.hcl
+
+# ---------------------------------------------------------------------------
+# The `secrets` Terraform module is source code, not a secret store.
+#
+# The repository root .gitignore carries `secrets/` (meant for a local directory
+# of credentials), and that pattern matches at any depth — so it silently
+# excluded every file under modules/secrets/, including the SSM parameter map
+# that is the whole point of the module. Nothing warned: `terraform validate`
+# reads the working tree, so it passed while the files were untracked.
+#
+# Git cannot re-include a file whose parent directory is excluded, so the
+# directory itself has to be negated first. Deeper .gitignore files win over
+# shallower ones, which is why this works from here.
+# ---------------------------------------------------------------------------
+# Narrow on purpose: `!modules/secrets/**` would also re-include the provider
+# binaries under .terraform/, which are hundreds of megabytes.
+!modules/secrets/
+!modules/secrets/*.tf
