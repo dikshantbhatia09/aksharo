@@ -1,7 +1,7 @@
 import { Injectable, Logger, type OnModuleDestroy } from "@nestjs/common";
 import { Queue } from "bullmq";
 
-import { queuePrefix, retryPolicyFor } from "./jobs.config.js";
+import { queuePolicyFor, queuePrefix } from "./jobs.config.js";
 import { RedisService } from "../common/redis/redis.service.js";
 
 import type { QueueName } from "./contracts/queue-names.js";
@@ -55,14 +55,22 @@ export class QueueRegistry implements OnModuleDestroy {
     readonly attemptId: string;
     readonly priority: number;
   }): JobsOptions {
-    const policy = retryPolicyFor(input.queueName);
+    const policy = queuePolicyFor(input.queueName);
     return {
       jobId: bullJobId(input.jobId, input.attemptId),
       priority: input.priority,
       attempts: policy.attempts,
-      backoff: { type: "exponential", delay: policy.backoffMs },
-      // The `jobs` table is the record of what happened; Redis only needs the
-      // recent tail for the dashboard and for A08b's dead-letter copy.
+      // Jitter is the difference between a provider outage that recovers and one
+      // that retries its whole backlog into the same dead provider at the same
+      // millisecond (`jobs.config.ts` §QueuePolicy).
+      backoff: {
+        type: "exponential",
+        delay: policy.backoffMs,
+        jitter: policy.backoffJitter,
+      },
+      // The `jobs` table is the record of what happened, and `dlq` is the record
+      // of what failed for good; Redis only needs the recent tail for the
+      // dashboard and for the operator looking at a live incident.
       removeOnComplete: { age: 3_600, count: 1_000 },
       removeOnFail: { age: 7 * 24 * 3_600, count: 5_000 },
     };

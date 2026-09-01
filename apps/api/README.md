@@ -4,9 +4,10 @@ NestJS modular monolith — one feature module per work package
 (`05-system-architecture.md` section 3). Postgres via Prisma, Redis/BullMQ for jobs,
 OpenAPI as the contract that generates `@montaj/api-client`.
 
-**Status:** A08 — schema and base modules (A03), plus jobs, the realtime gateway,
-the signed internal callback surface and the no-op `CreditsFacade`. Auth is A04,
-projects and media are A06, the real credit ledger is B02.
+**Status:** A08b — schema and base modules (A03), jobs, the realtime gateway,
+the signed internal callback surface, the no-op `CreditsFacade`, and the
+dead-letter queue with admin replay. Auth is A04, projects and media are A06, the
+real credit ledger is B02, the admin console is B13.
 
 ## Run
 
@@ -27,6 +28,8 @@ pnpm --filter @montaj/api dev              # http://localhost:3001
 | `GET /jobs/{id}`         | one job                                                           |
 | `GET /jobs/{id}/events`  | the job's event log (rows expire after 30 days)                   |
 | `POST /jobs/{id}/cancel` | cancel a queued or running job and release its hold               |
+| `/admin/dlq`             | the dead-letter queue; admins only (A08b)                         |
+| `GET /internal/metrics`  | Prometheus exposition of the `METRICS.md` counters                |
 | `/realtime`              | WebSocket push (`src/realtime/README.md`)                         |
 
 ## Configuration
@@ -106,6 +109,34 @@ because a frozen contract or a shipped package says otherwise:
 `CommonModule` imports all of them and is imported once by `AppModule`; the
 sub-modules are `@Global()`, so a feature module injects `PrismaService` or `ENV`
 without importing anything.
+
+### Metrics
+
+`GET /internal/metrics` renders the Prometheus exposition format from an
+in-process registry (`src/common/metrics`). Names follow
+`infra/observability/METRICS.md`, which the shipped dashboards and the
+`MontajDlqNonEmpty` / `MontajDlqGrowing` alert rules query:
+
+| Metric                               | Type      | Labels             |
+| ------------------------------------ | --------- | ------------------ |
+| `montaj_job_completed_total`         | counter   | `queue`, `status`  |
+| `montaj_queue_dlq_depth`             | gauge     | `queue`            |
+| `montaj_queue_wait_duration_seconds` | histogram | `queue`            |
+| `montaj_job_attempts`                | histogram | `queue`            |
+| `montaj_dlq_resolved_total`          | counter   | `queue`, `outcome` |
+
+The A08b brief names three of these differently, so those names are emitted too,
+as **aliases of the same data**: `montaj_jobs_failed_total{queue}`,
+`montaj_dlq_depth{queue}` and `montaj_job_queue_wait_ms`. Retiring one set is an
+ADR, not a refactor — METRICS.md is explicit that a name there is as frozen as an
+API route.
+
+Every record also goes to the OpenTelemetry metrics API, which is a no-op until a
+`MeterProvider` is registered, exactly as tracing is a no-op with no OTLP
+endpoint. `MONTAJ_METRICS_TOKEN`, when set, requires
+`Authorization: Bearer <token>` on the endpoint; unset, it is open, which is the
+right default behind the chart's NetworkPolicy given that METRICS.md forbids
+workspace, project, job and user ids as labels.
 
 ### Validating a request body
 
@@ -216,6 +247,76 @@ which is how you tell the roll is finished.
 The whole `/internal` surface is `@ApiExcludeController`, so it never reaches
 `/docs` or `@montaj/api-client`.
 
+### Retry, stall and dead-letter policy (A08b)
+
+`src/jobs/jobs.config.ts` holds one policy per queue family, with per-queue
+overrides for the long ones:
+
+| Family   | Attempts | Backoff (exponential) | Jitter | Lock  | Stall check |
+| -------- | -------- | --------------------- | ------ | ----- | ----------- |
+| `media`  | 3        | 5 s                   | 0.2    | 2 min | 30 s        |
+| `ai`     | 2        | 15 s                  | 0.3    | 2 min | 30 s        |
+| `render` | 2        | 30 s                  | 0.3    | 5 min | 60 s        |
+| `notify` | 5        | 2 s                   | 0.5    | 30 s  | 15 s        |
+
+| Queue override                 | Lock   |
+| ------------------------------ | ------ |
+| `ai.transcribe`, `ai.diarise`  | 10 min |
+| `ai.align`                     | 5 min  |
+| `render.video`                 | 10 min |
+
+Jitter is not decoration: a provider outage fails every in-flight job at almost
+the same instant, and an un-jittered exponential backoff retries them all at
+almost the same instant too.
+
+`attempts` and `backoff` travel to the worker inside the BullMQ job options.
+`lockDurationMs`, `stalledIntervalMs` and `maxStalledCount` are `Worker`
+constructor options and have to be **read** from this table by each worker
+package. `heartbeatIntervalMs(queue)` is a third of the lock, and the heartbeat IS
+the progress callback — which is why a progress call on a `queued` job promotes it
+to `running`.
+
+### Dead letters (`src/jobs/dlq.service.ts`, `src/admin/dlq`)
+
+When the last attempt fails — the worker sets `finalAttempt`, or declares the
+error unretryable — the job is copied into `dlq` and `jobs.dlq` is set. The copy
+is taken from the row **before** the completion update, so it still remembers the
+credit hold a later replay has to reserve again. It is idempotent on
+`(jobId, attemptId)`, so an at-least-once callback writes one row.
+
+| Route                          | What it does                                          |
+| ------------------------------ | ----------------------------------------------------- |
+| `GET /admin/dlq`               | filter by queue, status, workspace, error text, dates |
+| `GET /admin/dlq/stats`         | per queue: how many, since when, distinct errors      |
+| `GET /admin/dlq/{id}`          | one entry, by entry id **or** job id                  |
+| `POST /admin/dlq/{id}/replay`  | re-enqueue with a fresh attempt                       |
+| `POST /admin/dlq/{id}/discard` | release the hold, record why                          |
+| `POST /admin/dlq/replay`       | bulk, by ids or filter; **dry run by default**        |
+| `POST /admin/dlq/discard`      | bulk; `discardReason` mandatory                       |
+
+Everything is behind `AdminGuard`, which reads `users.is_admin` from the database
+on every request — the flag is not in the token claim set (CONTRACTS section 5 is
+frozen), and one indexed lookup is the price of revocation taking effect at once.
+A non-admin is 403 `common/forbidden`. Admin routes are **not** workspace-scoped,
+which is why every replay and discard writes an `audit_log` row (THREAT-MODEL
+T20).
+
+**Replay semantics.** The dead letter is claimed first with a conditional update,
+so two concurrent replays produce one. The **same `jobs` row** is reused, so the
+job id a client is polling never changes and `jobKey` still holds; a **fresh
+`attemptId`** ULID is minted and `attemptNo` incremented, which makes the old
+attempt's late callback a `stale_attempt` no-op. Credits are reserved again, and
+the BullMQ job is added last — so a failure at any earlier step unwinds with
+nothing enqueued. Nothing is re-signed: workers sign their own callbacks.
+
+### Retention
+
+`job_events` rows carry `data.retainUntil`, 30 days out (D47), and
+`jobs.event-retention` (nightly, 03:25) deletes on it in batches of 5 000,
+falling back to `at < now() - 30 days` for rows written before the marker
+existed. `dlq` rows are **never** purged: once resolved they are the record of
+what the system could not do.
+
 ### Credits
 
 `CREDITS_FACADE` is the only way to touch credits (CONTRACTS section 4). A08 binds
@@ -243,7 +344,7 @@ dependencies from this package, so they run with plain `node` from anywhere.
 | Script                          | What it does                                                |
 | ------------------------------- | ----------------------------------------------------------- |
 | `tools/runbooks/queue-drain.js` | Pause a queue and wait for its active jobs to finish (A08). |
-| `tools/runbooks/dlq-replay.js`  | Re-enqueue or discard dead-lettered jobs (A08b).            |
+| `tools/runbooks/dlq-replay.js`  | Inspect, replay and discard dead-lettered jobs (A08b).      |
 
 ```bash
 node tools/runbooks/queue-drain.js ai.transcribe --timeout=300000
@@ -256,6 +357,22 @@ untouched), polls until `active` reaches zero or the timeout expires, and prints
 the counts. It leaves the queue **paused**, which is the point of draining, and
 exits non-zero if jobs were still running when it gave up. `--help` lists every
 option.
+
+```bash
+export API_ORIGIN=http://localhost:3001 MONTAJ_ADMIN_TOKEN=<admin access token>
+node tools/runbooks/dlq-replay.js stats
+node tools/runbooks/dlq-replay.js list --queue=ai.transcribe --show-error
+node tools/runbooks/dlq-replay.js replay --queue=ai.transcribe --since=2026-09-02T08:00:00Z
+node tools/runbooks/dlq-replay.js replay --job=<job or entry id> --confirm
+node tools/runbooks/dlq-replay.js discard --ids=a,b --reason="unsupported input" --confirm
+```
+
+`dlq-replay` talks to `/admin/dlq` over HTTP rather than to Postgres, because a
+replay has to reserve credits, mint an attempt, enqueue and audit, and all of that
+policy lives in `DlqService`. `replay` and `discard` are **dry runs unless you
+pass `--confirm`**, and both refuse to run with no target at all.
+[`docs/runbooks/dlq-replay.md`](../../docs/runbooks/dlq-replay.md) is the
+procedure these commands belong to.
 
 ## Tests
 
@@ -271,9 +388,11 @@ environment so tests never depend on a developer's `.env`.
 `test/database.e2e-spec.ts` needs a PostgreSQL **with pgvector**. It uses
 `TEST_DATABASE_URL` if set, otherwise starts `pgvector/pgvector:pg16` through
 testcontainers, and skips with an explanation when Docker is unavailable
-(`MONTAJ_SKIP_DB_TESTS=1` skips it deliberately). `test/jobs.e2e-spec.ts` needs
-that database **and** a Redis, because its whole point is that real BullMQ can read
-the envelope a real producer wrote; `MONTAJ_SKIP_REDIS_TESTS=1` skips it. Every
+(`MONTAJ_SKIP_DB_TESTS=1` skips it deliberately). `test/jobs.e2e-spec.ts` and
+`test/dlq.e2e-spec.ts` need that database **and** a Redis, because their whole
+point is that real BullMQ can read the envelope a real producer wrote — including
+the one an admin replay writes under a fresh attempt id;
+`MONTAJ_SKIP_REDIS_TESTS=1` skips them. Every
 other suite runs with no infrastructure at all: `test/app-harness.ts` substitutes
 Prisma, Redis and the realtime bus, and `test/fakes.ts` holds the in-memory Prisma
 and queue stubs the unit suites share.
@@ -284,6 +403,7 @@ Two variables shape a test run:
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MONTAJ_QUEUE_PREFIX`       | Redis key prefix for BullMQ and realtime. `setup-env.ts` sets a per-process value so two runs never share keys; a deployment leaves it at `bull`, which is what the workers expect. |
 | `MONTAJ_SCHEDULER_DISABLED` | `1` stops this process running the scheduler worker. Set in tests, which call `ScheduledTasksService.runNow(name)` instead.                                                         |
+| `MONTAJ_METRICS_TOKEN`      | When set, `GET /internal/metrics` requires `Authorization: Bearer <token>`. Unset, the endpoint is open (A08b).                                                                    |
 
 ## Adding a module
 
