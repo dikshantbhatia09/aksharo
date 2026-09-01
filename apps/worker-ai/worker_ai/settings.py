@@ -12,20 +12,54 @@ framework; only ``python-dotenv`` is used, to find the repository's single
 
 from __future__ import annotations
 
+import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 
 __all__ = [
     "CONTRACT_ENV_VARS",
+    "DEFAULT_CONCURRENCY",
+    "DEFAULT_CONTROL_PORT",
     "REQUIRED_ENV_VARS",
+    "WORKER_ENV_VARS",
+    "BucketSettings",
     "EnvValidationError",
     "Settings",
     "load_repo_dotenv",
     "load_settings",
 ]
+
+#: Concurrent jobs per queue. Tuned against the serverless-GPU pool in A10.
+DEFAULT_CONCURRENCY = 4
+
+#: Control app port; pod-internal only, never exposed publicly.
+#: 8091 rather than the more common 8081, which collides on many dev machines.
+DEFAULT_CONTROL_PORT = 8091
+
+#: Deployment naming this worker reads straight from the process environment.
+#:
+#: None of these are in CONTRACTS section 1, which is the frozen list of
+#: *product* configuration. They follow the precedent the API set for
+#: ``MONTAJ_QUEUE_PREFIX`` and the OpenTelemetry variables: infrastructure naming
+#: lives with the service that reads it and is documented in its README.
+WORKER_ENV_VARS: tuple[str, ...] = (
+    "MONTAJ_QUEUE_PREFIX",
+    "WORKER_AI_CONCURRENCY",
+    "WORKER_AI_PORT",
+    "WORKER_AI_QUEUES",
+    "WORKER_AI_ROUTING_FILE",
+    "WORKER_AI_VAD_MODEL",
+    "WORKER_AI_WHISPER_MODEL",
+    "WORKER_AI_ALLOW_MOCK",
+    "GPU_PROVIDER_URL",
+    "GPU_PROVIDER_TOKEN",
+    "FFMPEG_BIN",
+    "FFPROBE_BIN",
+)
 
 #: Every variable in CONTRACTS section 1, in contract order.
 CONTRACT_ENV_VARS: tuple[str, ...] = (
@@ -87,6 +121,22 @@ class EnvValidationError(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
+class BucketSettings:
+    """One object store: raw uploads (S3) or derived media (R2), CONTRACTS section 6."""
+
+    endpoint: str
+    region: str
+    bucket: str
+    access_key: str
+    secret_key: str
+
+    @property
+    def configured(self) -> bool:
+        """True when every field needed to build a client is present."""
+        return bool(self.endpoint and self.bucket and self.access_key and self.secret_key)
+
+
+@dataclass(frozen=True, slots=True)
 class Settings:
     """Validated settings for the AI worker."""
 
@@ -102,6 +152,22 @@ class Settings:
     anthropic_api_key: str
     openai_api_key: str
     sentry_dsn: str
+    #: Object stores. Derived media (``audio16k.wav``) is what this worker reads.
+    raw_bucket: BucketSettings
+    derived_bucket: BucketSettings
+    #: Deployment naming (see :data:`WORKER_ENV_VARS`).
+    queue_prefix: str = "bull"
+    concurrency: int = DEFAULT_CONCURRENCY
+    control_port: int = DEFAULT_CONTROL_PORT
+    #: Queues this process consumes; empty means "every ai.* queue".
+    queues: tuple[str, ...] = ()
+    routing_file: str = ""
+    vad_model_path: str = ""
+    whisper_model: str = "small"
+    gpu_provider_url: str = ""
+    gpu_provider_token: str = ""
+    allow_mock: bool | None = None
+    feature_flags: dict[str, Any] = field(default_factory=dict)
 
     @property
     def has_any_asr_provider(self) -> bool:
@@ -113,6 +179,31 @@ class Settings:
         return any(
             (self.sarvam_api_key, self.elevenlabs_api_key, self.assemblyai_api_key),
         )
+
+    @property
+    def mock_allowed(self) -> bool:
+        """Whether routing may fall back to the deterministic mock provider.
+
+        Explicit ``WORKER_AI_ALLOW_MOCK`` wins; otherwise the mock is allowed
+        exactly when no cloud ASR credential and no GPU endpoint is configured,
+        which is the state of every developer machine and of CI.
+        """
+        if self.allow_mock is not None:
+            return self.allow_mock
+        return not self.has_any_asr_provider and not self.gpu_provider_url
+
+    def flag(self, name: str, default: bool = True) -> bool:
+        """Read a boolean feature flag from ``FEATURE_FLAGS_JSON``.
+
+        Unknown flags take ``default`` so a provider is never silently disabled
+        by a flag nobody has written yet.
+        """
+        value = self.feature_flags.get(name, default)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(value)
 
 
 def load_repo_dotenv(start: Path | None = None) -> Path | None:
@@ -173,12 +264,32 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
     if gpu_provider not in _VALID_GPU_PROVIDERS:
         problems.append(f"GPU_PROVIDER: must be one of {', '.join(sorted(_VALID_GPU_PROVIDERS))}")
 
+    gpu_provider_url = env.get("GPU_PROVIDER_URL", "").strip()
+    if gpu_provider_url and not gpu_provider_url.startswith(("http://", "https://")):
+        problems.append("GPU_PROVIDER_URL: must be an http(s) URL")
+
+    flags_raw = env.get("FEATURE_FLAGS_JSON", "").strip()
+    feature_flags: dict[str, Any] = {}
+    if flags_raw:
+        try:
+            parsed = json.loads(flags_raw)
+        except ValueError:
+            problems.append("FEATURE_FLAGS_JSON: must be a JSON object")
+        else:
+            if isinstance(parsed, dict):
+                feature_flags = {str(key): value for key, value in parsed.items()}
+            else:
+                problems.append("FEATURE_FLAGS_JSON: must be a JSON object")
+
+    concurrency = _positive_int(env, "WORKER_AI_CONCURRENCY", DEFAULT_CONCURRENCY, problems)
+    control_port = _positive_int(env, "WORKER_AI_PORT", DEFAULT_CONTROL_PORT, problems)
+
     if problems:
         raise EnvValidationError(sorted(set(problems)))
 
     return Settings(
         redis_url=redis_url,
-        api_origin=api_origin,
+        api_origin=api_origin.rstrip("/"),
         internal_callback_secret=callback_secret,
         llm_provider=llm_provider,
         gpu_provider=gpu_provider,
@@ -188,4 +299,56 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
         anthropic_api_key=env.get("ANTHROPIC_API_KEY", "").strip(),
         openai_api_key=env.get("OPENAI_API_KEY", "").strip(),
         sentry_dsn=env.get("SENTRY_DSN", "").strip(),
+        raw_bucket=BucketSettings(
+            endpoint=env.get("S3_ENDPOINT", "").strip(),
+            region=env.get("S3_REGION", "auto").strip() or "auto",
+            bucket=env.get("S3_BUCKET_RAW", "").strip(),
+            access_key=env.get("S3_ACCESS_KEY", "").strip(),
+            secret_key=env.get("S3_SECRET_KEY", "").strip(),
+        ),
+        derived_bucket=BucketSettings(
+            endpoint=env.get("R2_ENDPOINT", "").strip(),
+            # R2 has one region; MinIO in compose ignores it. `auto` is what the
+            # Cloudflare SDK documents and what the Node side sends.
+            region=env.get("R2_REGION", "auto").strip() or "auto",
+            bucket=env.get("R2_BUCKET_DERIVED", "").strip(),
+            access_key=env.get("R2_ACCESS_KEY", "").strip(),
+            secret_key=env.get("R2_SECRET_KEY", "").strip(),
+        ),
+        queue_prefix=env.get("MONTAJ_QUEUE_PREFIX", "").strip() or "bull",
+        concurrency=concurrency,
+        control_port=control_port,
+        queues=tuple(
+            name.strip() for name in env.get("WORKER_AI_QUEUES", "").split(",") if name.strip()
+        ),
+        routing_file=env.get("WORKER_AI_ROUTING_FILE", "").strip(),
+        vad_model_path=env.get("WORKER_AI_VAD_MODEL", "").strip(),
+        whisper_model=env.get("WORKER_AI_WHISPER_MODEL", "").strip() or "small",
+        gpu_provider_url=gpu_provider_url.rstrip("/"),
+        gpu_provider_token=env.get("GPU_PROVIDER_TOKEN", "").strip(),
+        allow_mock=_optional_bool(env.get("WORKER_AI_ALLOW_MOCK")),
+        feature_flags=feature_flags,
     )
+
+
+def _positive_int(env: dict[str, str], name: str, default: int, problems: list[str]) -> int:
+    """Parse a positive integer, recording a problem rather than raising."""
+    raw = env.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        problems.append(f"{name}: must be a positive integer")
+        return default
+    if value <= 0:
+        problems.append(f"{name}: must be a positive integer")
+        return default
+    return value
+
+
+def _optional_bool(raw: str | None) -> bool | None:
+    """Tri-state: unset stays ``None`` so the caller can pick its own default."""
+    if raw is None or not raw.strip():
+        return None
+    return raw.strip().lower() in {"1", "true", "yes", "on"}

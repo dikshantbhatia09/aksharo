@@ -1,9 +1,10 @@
 """The provider interface every ASR / alignment / diarisation adapter implements.
 
-A01 defines **signatures only**. A09 adds the mock provider and the serverless
-faster-whisper adapter; A10 adds ElevenLabs Scribe v2, Sarvam Saaras v4 (Batch)
-and AssemblyAI behind the same interface, plus the routing weights that choose
-between them.
+A01 defined the signatures. **A09** adds the capability record, the cost estimate
+and the provider-submission trail, and ships the mock, local faster-whisper and
+serverless-GPU adapters. **A10** adds ElevenLabs Scribe v2, Sarvam Saaras v4
+(Batch) and AssemblyAI behind this same interface, plus the routing weights that
+choose between them.
 
 Design rules that the interface encodes:
 
@@ -14,6 +15,9 @@ Design rules that the interface encodes:
   subprocess-bound.
 * Providers never write to storage or the database; they return data and the
   caller persists it, so a provider can be swapped or shadow-run for evals (D08).
+* Every external call is declared as a :class:`ProviderSubmission` so the API can
+  write a ``provider_submissions`` row and honour a later erasure request
+  (`06 §Invariant 5`).
 * Nothing from a provider response is trusted as an instruction: transcript text
   reaches an LLM only inside a delimited data block (THREAT-MODEL T19).
 """
@@ -29,9 +33,13 @@ __all__ = [
     "DiarisationRequest",
     "DiarisedSpeaker",
     "Provider",
+    "ProviderCapabilities",
     "ProviderCapability",
+    "ProviderCost",
     "ProviderError",
+    "ProviderSubmission",
     "ProviderUsage",
+    "ScriptName",
     "TranscriptionRequest",
     "TranscriptionResult",
     "Word",
@@ -79,6 +87,87 @@ class Word:
     scripts: dict[ScriptName, str] = field(default_factory=dict)
     filler: bool = False
 
+    def shifted(self, offset_ms: int) -> Word:
+        """The same word moved by ``offset_ms`` — how chunk timings become file timings."""
+        return Word(
+            s=self.s + offset_ms,
+            e=self.e + offset_ms,
+            t=self.t,
+            c=self.c,
+            sp=self.sp,
+            scripts=dict(self.scripts),
+            filler=self.filler,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderCapabilities:
+    """What an adapter can do, as data the registry and ``/providers`` can read."""
+
+    #: Which of transcribe / align / diarise this adapter implements.
+    supported: frozenset[ProviderCapability] = frozenset()
+    #: Returns per-word timings without a separate alignment pass.
+    word_timestamps: bool = False
+    #: Returns speaker labels.
+    diarisation: bool = False
+    #: Longest single request the vendor accepts, in seconds (``None`` = unbounded).
+    max_duration_s: int | None = None
+    #: Submit-and-poll rather than request-response (Sarvam Batch, `09 §1`).
+    batch: bool = False
+    #: BCP-47 tags or families the adapter covers; empty means "any".
+    languages: tuple[str, ...] = ()
+
+    def to_wire(self) -> dict[str, Any]:
+        return {
+            "supported": sorted(self.supported),
+            "wordTimestamps": self.word_timestamps,
+            "diarisation": self.diarisation,
+            "maxDurationS": self.max_duration_s,
+            "batch": self.batch,
+            "languages": list(self.languages),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderCost:
+    """An estimate, in minor units. INR paise for every vendor in `09 §10`."""
+
+    minor: int
+    currency: str = "INR"
+
+    def to_wire(self) -> dict[str, Any]:
+        return {"minor": self.minor, "currency": self.currency}
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderSubmission:
+    """One external call, recorded so the API can write ``provider_submissions``.
+
+    ``artefact`` is what left the building — ``audio16k.wav``, a chunk of it, or a
+    transcript — because an erasure request has to be able to find it again.
+    """
+
+    provider: str
+    endpoint: str
+    artefact: str
+    external_ref: str | None = None
+    region: str | None = None
+    retention_class: str | None = None
+
+    def to_wire(self) -> dict[str, Any]:
+        wire: dict[str, Any] = {
+            "provider": self.provider,
+            "endpoint": self.endpoint,
+            "artefact": self.artefact,
+        }
+        if self.external_ref is not None:
+            wire["externalRef"] = self.external_ref
+        if self.region is not None:
+            wire["region"] = self.region
+        if self.retention_class is not None:
+            wire["retentionClass"] = self.retention_class
+        return wire
+
 
 @dataclass(frozen=True, slots=True)
 class ProviderUsage:
@@ -102,12 +191,14 @@ class TranscriptionRequest:
     audio_uri: str
     #: BCP-47 tag, or ``None`` to let the provider detect the language.
     language: str | None = None
-    #: Ask for word-level timestamps. Always true in the Montaj pipeline.
+    #: Ask for word-level timestamps. Always true in the pipeline.
     word_timestamps: bool = True
     #: Domain terms to boost (glossary, B09).
     hints: tuple[str, ...] = ()
     #: Offset added to every returned timestamp when transcribing a chunk.
     offset_ms: int = 0
+    #: Vendor-specific knobs (Sarvam ``mode=codemix``, Whisper ``beam_size``, ...).
+    options: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,6 +211,9 @@ class TranscriptionResult:
     #: Language-identification confidence, 0..1.
     language_confidence: float | None = None
     usage: ProviderUsage | None = None
+    #: Segment-level text where the provider gives no word timings (Sarvam REST).
+    segments: tuple[tuple[int, int, str], ...] = ()
+    submissions: tuple[ProviderSubmission, ...] = ()
     raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -132,6 +226,9 @@ class AlignmentRequest:
     words: tuple[str, ...]
     language: str
     offset_ms: int = 0
+    #: The span the words belong to, when aligning one segment rather than a file.
+    start_ms: int = 0
+    end_ms: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,6 +240,16 @@ class DiarisedSpeaker:
     end_ms: int
     confidence: float | None = None
 
+    def to_wire(self) -> dict[str, Any]:
+        wire: dict[str, Any] = {
+            "speakerId": self.speaker_id,
+            "startMs": self.start_ms,
+            "endMs": self.end_ms,
+        }
+        if self.confidence is not None:
+            wire["confidence"] = self.confidence
+        return wire
+
 
 @dataclass(frozen=True, slots=True)
 class DiarisationRequest:
@@ -153,6 +260,8 @@ class DiarisationRequest:
     num_speakers: int | None = None
     min_speakers: int | None = None
     max_speakers: int | None = None
+    #: Speech regions from VAD, so a diariser need not run its own.
+    regions: tuple[tuple[int, int], ...] = ()
 
 
 class Provider(ABC):
@@ -167,7 +276,14 @@ class Provider(ABC):
     name: str = "abstract"
 
     #: What this adapter can do.
-    capabilities: frozenset[ProviderCapability] = frozenset()
+    capabilities: ProviderCapabilities = ProviderCapabilities()
+
+    #: List price in ₹ per media minute (`09 §1`, `05 §12`); 0 for local models.
+    cost_per_minute_inr: float = 0.0
+
+    #: False for adapters that synthesise a result and never open the audio file,
+    #: which is what lets the eval sets ship before their media does.
+    reads_audio: bool = True
 
     @abstractmethod
     async def transcribe(self, request: TranscriptionRequest) -> TranscriptionResult:
@@ -195,4 +311,19 @@ class Provider(ABC):
 
     def supports(self, capability: ProviderCapability) -> bool:
         """True when this adapter implements ``capability``."""
-        return capability in self.capabilities
+        return capability in self.capabilities.supported
+
+    def cost_estimate(self, seconds: float) -> ProviderCost:
+        """List price for ``seconds`` of media, rounded up to the paisa.
+
+        An estimate, not a bill: it feeds ``usage.costMinor`` for margin analysis
+        (`05 §11`) and the eval leaderboard's cost column.
+        """
+        if seconds < 0:
+            raise ValueError("seconds must not be negative")
+        paise = self.cost_per_minute_inr * 100.0 * seconds / 60.0
+        return ProviderCost(minor=int(paise + 0.999999), currency="INR")
+
+    async def aclose(self) -> None:
+        """Release any client the adapter holds. Idempotent; the default is a no-op."""
+        return None

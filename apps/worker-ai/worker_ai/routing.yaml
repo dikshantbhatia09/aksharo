@@ -1,0 +1,140 @@
+# Routing table v2 — the table in `03-architecture/09-ai-pipeline.md` §1.3 and
+# decision D12, as data.
+#
+# The worker only READS this file. Weights become admin-editable later, and
+# `09 §8` is explicit that they are NOT frozen until the Hinglish eval set exists
+# (A00-05): no vendor publishes a code-switch WER, so the numbers below are the
+# research ordering, not a measurement.
+#
+# lanes are matched in order; the first whose `languages` contains the detected
+# tag (or its base subtag) wins, and `default` catches everything else.
+#
+# candidate fields
+#   provider   registry name (worker_ai/providers/registry.py)
+#   model      vendor model id, echoed into `usage.model`
+#   mode       vendor-specific mode; `codemix` is what makes Saaras a code-mix lane
+#   api        `rest` or `batch` — Sarvam is batch-only (30 s REST cap, `09 §1`)
+#   alignment  `required` when the vendor returns no word timings, else `optional`
+#   weight     relative share once shadow routing starts; ties break on order
+#   costPerMinuteInr  list price, for the estimate written into `usage.costMinor`
+
+version: 2
+default: global
+
+lanes:
+  - id: hinglish
+    label: Hinglish / code-mixed hi-en
+    languages: ["hi-en", "hinglish", "hi_en", "en-hi"]
+    codeMix: true
+    candidates:
+      - provider: sarvam
+        model: saaras-v4
+        mode: codemix
+        api: batch
+        alignment: required
+        weight: 100
+        costPerMinuteInr: 0.53
+      - provider: elevenlabs
+        model: scribe-v2
+        alignment: optional
+        weight: 0
+        costPerMinuteInr: 0.35
+      - provider: serverless-whisper
+        model: large-v3-turbo
+        alignment: optional
+        weight: 0
+        costPerMinuteInr: 0.11
+
+  - id: hindi
+    label: Hindi (pure)
+    languages: ["hi", "hi-IN"]
+    candidates:
+      - provider: elevenlabs
+        model: scribe-v2
+        alignment: optional
+        weight: 100
+        costPerMinuteInr: 0.35
+      - provider: sarvam
+        model: saaras-v4
+        api: batch
+        alignment: required
+        weight: 0
+        costPerMinuteInr: 0.53
+      - provider: serverless-whisper
+        model: large-v3-turbo
+        alignment: optional
+        weight: 0
+        costPerMinuteInr: 0.11
+
+  - id: indian-english
+    label: Indian English
+    languages: ["en-IN"]
+    candidates:
+      - provider: elevenlabs
+        model: scribe-v2
+        alignment: optional
+        weight: 60
+        costPerMinuteInr: 0.35
+      - provider: assemblyai
+        model: universal-2
+        alignment: optional
+        weight: 40
+        costPerMinuteInr: 0.24
+      - provider: serverless-whisper
+        model: large-v3-turbo
+        alignment: optional
+        weight: 0
+        costPerMinuteInr: 0.11
+
+  - id: indic-scribe
+    label: Indic languages Scribe covers
+    languages:
+      ["ta", "te", "kn", "ml", "bn", "mr", "gu", "or", "ne", "as", "pa"]
+    candidates:
+      - provider: elevenlabs
+        model: scribe-v2
+        alignment: optional
+        weight: 100
+        costPerMinuteInr: 0.35
+      - provider: sarvam
+        model: saaras-v4
+        api: batch
+        alignment: required
+        weight: 0
+        costPerMinuteInr: 0.53
+
+  - id: indic-sarvam
+    label: Indic languages Scribe does not cover
+    languages: ["ur", "sd", "kok", "ks", "sa", "sat", "mni", "brx", "mai", "doi"]
+    candidates:
+      - provider: sarvam
+        model: saaras-v4
+        api: batch
+        alignment: required
+        weight: 100
+        costPerMinuteInr: 0.53
+      - provider: elevenlabs
+        model: scribe-v2
+        alignment: optional
+        weight: 0
+        costPerMinuteInr: 0.35
+
+  - id: global
+    label: Global languages
+    languages: []
+    candidates:
+      - provider: serverless-whisper
+        model: large-v3-turbo
+        alignment: optional
+        weight: 100
+        costPerMinuteInr: 0.11
+      - provider: assemblyai
+        model: universal-2
+        alignment: optional
+        weight: 0
+        costPerMinuteInr: 0.24
+      - provider: local-whisper
+        model: small
+        alignment: optional
+        weight: 0
+        costPerMinuteInr: 0.0
