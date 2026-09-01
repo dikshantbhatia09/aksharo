@@ -1,0 +1,25 @@
+{{/* A Service only for components that listen on a port. Workers do not. */}}
+{{- range $name, $spec := .Values.components }}
+{{- if and $spec.enabled $spec.port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "montaj.componentFullname" (dict "root" $ "component" $name) }}
+  labels:
+    {{- include "montaj.componentLabels" (dict "root" $ "component" $name) | nindent 4 }}
+  {{- with $.Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ $spec.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "montaj.componentSelectorLabels" (dict "root" $ "component" $name) | nindent 4 }}
+{{- end }}
+{{- end }}

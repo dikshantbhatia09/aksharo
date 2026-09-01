@@ -1019,13 +1019,16 @@ model EdgDocument {
   @@map("edg_documents")
 }
 
-/// `seq` is the fractional index that orders segments (06: `numeric`). CONTRACTS §2
-/// types it as a string on the wire because JSON numbers lose precision; the API
-/// serialises this NUMERIC as a decimal string. `(edg_id, seq)` is the read path.
+/// `seq` is the base-62 fractional index that orders segments (CONTRACTS §2, D28).
+/// It is a STRING, not a number: `seqBetween()` in `@montaj/edg` produces keys like
+/// `1B` and `Zz`, which no NUMERIC column can hold. The digits `0-9A-Za-z` are in
+/// ASCII order, so ordering is plain byte comparison — hence
+/// `COLLATE "C"` on the column (see `prisma/migrations/…_edg_segment_seq_text`).
+/// Prisma cannot express a collation, so `test/database.e2e-spec.ts` asserts it.
 model EdgSegment {
   id            String  @id @db.Char(26)
   edgId         String  @map("edg_id") @db.Char(26)
-  seq           Decimal @db.Decimal(65, 30)
+  seq           String  @db.Text
   startWordId   String  @map("start_word_id")
   endWordId     String  @map("end_word_id")
   startMs       Int     @map("start_ms")

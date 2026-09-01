@@ -1,0 +1,30 @@
+# Staging variables that cannot have a committed default.
+#
+#   cp terraform.tfvars.example terraform.tfvars   # terraform.tfvars is gitignored
+#
+# None of these is a credential — they are account and zone identifiers — but
+# they are account-specific, so they are not committed. Real credentials reach
+# Terraform only through the environment:
+#
+#   AWS_PROFILE=montaj-staging
+#   CLOUDFLARE_API_TOKEN=...   (scoped to R2 admin + DNS edit on the zone)
+#
+# Never put either of those in a .tfvars file.
+
+cloudflare_account_id = "REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID"
+cloudflare_zone_id    = "REPLACE_WITH_ZONE_ID_FOR_aksharo.ai"
+
+github_owner      = "aksharo"
+github_repository = "montaj"
+
+# Restrict the Kubernetes API endpoint. 0.0.0.0/0 is the module default and is
+# wrong for any environment that holds real data.
+kubernetes_api_allowed_cidrs = [
+  "203.0.113.0/24", # office egress   REPLACE
+  "198.51.100.7/32" # VPN             REPLACE
+]
+
+# Staging talks to no external LLM by default, so a test run cannot send a
+# transcript to a third party (THREAT-MODEL T18).
+llm_provider = "mock"
+gpu_provider = "runpod"

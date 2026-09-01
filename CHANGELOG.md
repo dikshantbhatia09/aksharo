@@ -57,6 +57,55 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     live word exactly once inside its limits, deterministically. Benchmarks:
     1,000 ops on a 9,000-segment document in 18 ms (budget 200 ms) and 54,000
     words segmented in 189 ms (budget 500 ms).
+
+- **A03b — api: seq is a base-62 string; style loader hardened.**
+  - `edg_segments.seq` becomes `text COLLATE "C"` (migration
+    `20260902010000_edg_segment_seq_text`). A03 read 06's "seq numeric" literally;
+    A02 has since shipped `seqBetween()` in `@montaj/edg`, which returns base-62
+    keys such as `1B` and `Zz` that no NUMERIC column can hold. The alphabet
+    `0-9A-Za-z` is in ASCII order so that `ORDER BY seq` is the comparison
+    `compareSeqKeys()` makes, which holds only under byte collation — pinned on the
+    column because managed Postgres usually defaults to a linguistic one, and
+    asserted by a test that inserts `1`, `1B`, `2`, `Zz`, `a`, `zzzV`.
+  - `edg_segments_live_seq_idx` becomes UNIQUE: two _live_ segments may not share a
+    fractional key. Partial rather than a plain unique constraint, because a
+    tombstoned segment keeps its key and a later edit may legitimately reclaim it.
+  - The seed's style loader takes an injected module loader, so the fixtures and
+    placeholder tiers stay testable now that `@montaj/caption-styles` always
+    resolves; the fixtures tier accepts only documents that parse as StyleDoc v2
+    with an `id`, so `styles/registry.json` — the catalogue index A02 ships
+    alongside the styles — is no longer seeded as a style.
+  - `pnpm db:seed` now reports `source: package` and seeds A02's seven system
+    styles.
+
+- **A02c — `@montaj/timemap`: source ↔ output time mapping (D30).**
+  - `buildTimeMap({sourceDurationMs, edits, fps?, snapCutsToFrames?})` turns a list of
+    `cut`, `speed` and `hold` edits into a frozen, ordered span list covering both
+    clocks, with `O(log n)` lookups either way: `toOutput` (`null` strictly inside a
+    cut), `toSource` (total — the inverse used for scrubbing), `locateSource` /
+    `locateOutput` for the same answers with `insideCut`, `held` and `clamped` attached,
+    and `mapRange` for a source range split by cuts.
+  - Sample-accurate boundary rules: a cut removes the half-open source range, both its
+    edges map to the one output splice, and `toSource` of that splice is the frame after
+    the cut. Cuts win every conflict — overlapping and touching cuts merge, speed ranges
+    are clipped out of them, holds strictly inside one are dropped — and structurally
+    invalid edits raise a typed `TimeMapError` with a stable `code`.
+  - Caption helpers: `mapSegment` (a segment whose live words all fall in cuts is
+    hidden, partial overlaps are clipped, tombstoned words ignored) and `mapWord`;
+    `mapKeyframes`, which drops keyframes inside cuts and pins the curve with an edge
+    keyframe at each side of every splice it crosses, optionally interpolated.
+  - `fromAcceptedItems(items, {sourceDurationMs, …})` builds a map from accepted `cut`
+    pass items and ignores every other kind; `serialize()` / `parseTimeMap()` are a
+    versioned JSON fixed point; `snapToFrame`/`frameDurationMs`/`frameAt` work on the
+    exact frame grid, and `snapCutsToFrames` puts every cut edge on a boundary.
+  - Guarantees proved with fast-check: monotonicity both ways, exact inverse on retained
+    source when nothing is retimed (and a stable round trip on both clocks for every
+    map), `outputDurationMs === sourceDurationMs − Σcuts + Σholds`, and `mapRange` pieces
+    that are ordered, disjoint and cover exactly the retained part of the input range.
+  - Pure and browser-safe (no Node-only imports, asserted against the build output);
+    CommonJS in `dist/` and ES modules in `dist/esm/` with declarations for both.
+    149 tests, 100% lines / 99.6% branches against the CONTRACTS section 9 gate (90/85).
+    5,000 cuts on a six-hour source: 100,000 `toOutput` lookups in ~15 ms.
 - **A03 — api: Prisma schema v2, hand SQL, migrations, seed, base modules.**
   - `apps/api/prisma/schema.prisma`: 68 models covering every table in
     `03-architecture/06-data-model.md` — identity and tenancy, media and editing
@@ -165,6 +214,49 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   - Repo hygiene: `.editorconfig`, `.gitattributes`, `.gitignore`, `.nvmrc`,
     `.node-version`, `CODEOWNERS`, `LICENSE`, the pull-request Definition-of-Done
     template, and `docs/adr/0001-monorepo-tooling.md`.
+
+- **X05 — Infrastructure as code (staging/prod skeleton, no apply).**
+  - `infra/terraform`: root modules `envs/staging` and `envs/prod` over nine
+    reusable modules — `network` (VPC, three subnet tiers, NAT, S3 gateway
+    endpoint, flow logs), `eks` (control plane, managed node groups with an
+    optional GPU pool, addons, IRSA, access entries), `rds-postgres16` (PITR,
+    KMS-encrypted, `pg_stat_statements` preloaded, `vector` allow-listed for
+    A03's pgvector column), `elasticache-redis7` (`maxmemory-policy noeviction`,
+    a BullMQ correctness requirement), `s3-raw` (`ap-south-1`, SSE, versioning
+    with 7-day non-current expiry, 1-day abort-incomplete-multipart, CORS for
+    presigned PUT from `WEB_ORIGIN`), `r2-derived` (bucket, CORS, and a
+    multipart-abort rule on the `ws/` root — plan retention is swept by the
+    scheduler in B16, not by lifecycle, because CONTRACTS section 6 keys are
+    frozen), `secrets` (KMS plus one SSM parameter per
+    CONTRACTS section 1 variable), `dns-cdn` (`aksharo.ai`, `app.`, `api.`,
+    zone TLS settings, null-MX/SPF/DMARC) and `github-oidc` (keyless deploy
+    role). `backend.tf` is a partial S3 backend with native locking; every
+    variable is documented; no credential is committed.
+  - `infra/gpu`: RunPod serverless endpoint definition with a warm floor of one
+    per region and queue-delay autoscaling (decision D15), the model-server
+    Dockerfile with large-v3-turbo, forced alignment and pyannote community-1
+    pre-baked, a Modal equivalent, and `COST.md` showing the arithmetic behind
+    the `05 §12` cost band rather than restating it.
+  - `infra/k8s/montaj`: Helm chart for `api`, `web`, `realtime`, `worker-media`,
+    `worker-ai`, `render` and `scheduler`, with HPAs on CPU for the
+    request-serving components, KEDA ScaledObjects on BullMQ queue depth for the
+    workers, PodDisruptionBudgets, default-deny network policies plus an optional
+    Cilium FQDN allow-list, external-secrets pulling all 31 contract variables
+    from SSM, TLS ingress, resource requests and limits, and
+    `values-staging.yaml` / `values-prod.yaml`.
+  - `infra/observability`: `METRICS.md` defining the OTel metric contract
+    (names, units, labels, cardinality rules); two Grafana dashboards covering
+    API latency, queue depth per queue, job success rate, GPU utilisation and
+    COGS per credit; and a `PrometheusRule` with 4 recording rules and 24 alerts.
+  - `docs/runbooks/`: deploy, rollback, rotate secrets, restore from PITR, scale
+    GPU, DLQ replay and a breach first-hour checklist wired to THREAT-MODEL.
+  - `.github/workflows/infra.yml`: the `infra-validate` job — `terraform fmt`,
+    `terraform validate` against a mock backend for every module and both
+    environments, `tflint`, `helm lint`, `kubeconform -strict`,
+    `promtool check rules`, plus checks that the SSM map and the chart match
+    CONTRACTS section 1 exactly, that the lifecycle rules encode the retention
+    contract, that worker egress is denied by default, and that nothing
+    credential-shaped is committed.
 
 ### Changed
 

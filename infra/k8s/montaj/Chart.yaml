@@ -1,0 +1,31 @@
+apiVersion: v2
+name: montaj
+description: >-
+  The Aksharo platform (engineering codename montaj): api, web, realtime
+  gateway, media and AI workers, cloud render and scheduler. CPU workloads only
+  — GPU inference runs on the serverless provider in infra/gpu (decision D15).
+type: application
+
+# Chart version moves with the chart; appVersion moves with the application
+# images and is overridden per release by the deploy workflow.
+version: 0.1.0
+appVersion: "0.1.0"
+
+kubeVersion: ">=1.30.0-0"
+
+keywords:
+  - captions
+  - video
+  - transcription
+
+home: https://aksharo.ai
+sources:
+  - https://github.com/aksharo/montaj
+
+maintainers:
+  - name: Aksharo platform
+    email: platform@aksharo.ai
+
+annotations:
+  montaj.ai/work-package: X05
+  montaj.ai/contracts: docs/CONTRACTS.md

@@ -15,3 +15,7 @@ apps/api/prisma/migrations
 docs/PLAN.md
 docs/CONTRACTS.md
 docs/THREAT-MODEL.md
+
+# Helm templates are Go templates, not YAML: prettier cannot parse `{{ ... }}`
+# where a key or a list item is expected. Added by X05.
+infra/k8s/montaj/templates
