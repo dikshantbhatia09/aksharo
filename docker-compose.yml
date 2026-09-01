@@ -14,7 +14,10 @@ name: montaj
 
 services:
   postgres:
-    image: postgres:16
+    # pgvector/pgvector:pg16 is stock Postgres 16 plus the `vector` extension.
+    # 06-data-model.md gives audio_assets an `embedding vector(512)` column, so the
+    # extension has to exist before the first migration runs (A03).
+    image: pgvector/pgvector:pg16
     container_name: montaj-postgres
     restart: unless-stopped
     environment:
