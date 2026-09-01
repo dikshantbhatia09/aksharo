@@ -15,9 +15,9 @@ import { JobsModule } from "../jobs/jobs.module.js";
  * A08b lands one controller — the dead-letter queue. B13 builds the admin console
  * on top and adds the rest.
  *
- * Only `JobsModule` is imported: `AccessTokenGuard`, which {@link AdminGuard}
- * composes, comes from the `@Global()` `RealtimeModule`, and `PrismaService` from
- * the global `PrismaModule`.
+ * Only `JobsModule` is imported: A04's `JwtAuthGuard`, which {@link AdminGuard}
+ * composes, comes from the `@Global()` `AuthModule`, and `PrismaService` from the
+ * global `PrismaModule`.
  */
 @Module({
   imports: [JobsModule],

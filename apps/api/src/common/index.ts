@@ -15,6 +15,9 @@ export {
 export type { ErrorCode } from "./errors/error-codes.js";
 export { HttpExceptionFilter } from "./errors/http-exception.filter.js";
 export type { ErrorEnvelope } from "./errors/http-exception.filter.js";
+// Guards, decorators and the rate limiter (A04). Re-exported so a feature module
+// keeps importing one path; the implementations live in `./guards/`.
+export * from "./guards/index.js";
 export {
   LoggingModule,
   pinoHttpOptions,

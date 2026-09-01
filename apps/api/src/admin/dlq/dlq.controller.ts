@@ -26,7 +26,7 @@ import {
 import { DlqService } from "../../jobs/dlq.service.js";
 import { AdminGuard, adminOf } from "../admin.guard.js";
 
-import type { AuthenticatedRequest } from "../../realtime/auth/access-token.guard.js";
+import type { AuthenticatedRequest } from "../../common/guards/principal.js";
 
 /**
  * The dead-letter queue, for platform staff (A08b).

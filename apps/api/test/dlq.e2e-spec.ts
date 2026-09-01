@@ -51,6 +51,8 @@ if (!CAN_RUN) {
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const PEM_PUBLIC = publicKey.export({ type: "spki", format: "pem" }).toString();
+const PEM_PRIVATE = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+const ISSUER = "http://localhost:3001";
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 function crockford(value: number, length: number): string {
@@ -88,6 +90,8 @@ function accessToken(sub: string): string {
     jti: id("JT1"),
     iat: now,
     exp: now + 900,
+    // A04's `TokenService` pins the issuer to `API_ORIGIN`.
+    iss: ISSUER,
   };
   const b64 = (value: unknown): string =>
     Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
@@ -228,7 +232,9 @@ beforeAll(async () => {
     .overrideProvider(ENV)
     .useValue({
       ...resolveEnv(),
+      API_ORIGIN: ISSUER,
       JWT_PUBLIC_KEY: PEM_PUBLIC,
+      JWT_PRIVATE_KEY: PEM_PRIVATE,
       INTERNAL_CALLBACK_SECRET: CALLBACK_SECRET,
     } as Env)
     .compile();

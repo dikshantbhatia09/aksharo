@@ -11,7 +11,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { compareSeqKeys, seqBetween } from "@montaj/edg";
+import { compareSeqKeys, ItemStateSchema, PassStatusSchema, seqBetween } from "@montaj/edg";
 
 import { createTestDatabase, isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { seed } from "../prisma/seed.js";
@@ -250,6 +250,29 @@ describe.skipIf(!available)("database schema and seed", () => {
       const rows = await prisma.$queryRaw<{ description: string | null }[]>`
         SELECT obj_description('job_events'::regclass, 'pg_class') AS description`;
       expect(rows[0]?.description).toMatch(/30 days/i);
+    });
+
+    it("keeps the EDG enums identical to @montaj/edg, the source of truth", async () => {
+      // A03 wrote `PassStatus.succeeded` by analogy with `JobStatus`; the package
+      // says `ready`, because a pass whose job succeeded is not finished — its
+      // items are awaiting review. Comparing as SETS, because a PostgreSQL enum
+      // carries a sort order that `ALTER TYPE … RENAME VALUE` preserves in place
+      // and Prisma does not model.
+      const labelsOf = async (typeName: string): Promise<string[]> => {
+        const rows = await prisma.$queryRaw<{ enumlabel: string }[]>`
+          SELECT e.enumlabel FROM pg_enum e
+          JOIN pg_type t ON t.oid = e.enumtypid
+          WHERE t.typname = ${typeName}`;
+        return rows.map((row) => row.enumlabel).sort();
+      };
+
+      expect(await labelsOf("PassStatus")).toEqual([...PassStatusSchema.options].sort());
+      expect(await labelsOf("ItemState")).toEqual([...ItemStateSchema.options].sort());
+
+      // JobStatus is a different lifecycle and keeps `succeeded`: it mirrors the
+      // completion callback of CONTRACTS §3, not the pass review state.
+      expect(await labelsOf("JobStatus")).toContain("succeeded");
+      expect(await labelsOf("PassStatus")).not.toContain("succeeded");
     });
 
     it("stores timestamps as timestamptz, never timestamp", async () => {

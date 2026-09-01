@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": "Build used only by `pnpm gen:client`. NestJS DI needs the `design:paramtypes` metadata that tsc emits and esbuild (tsx) cannot, so the generator is compiled rather than executed from source.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./",
+    "outDir": "./.openapi",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "incremental": false
+  },
+  "include": ["src/**/*.ts", "scripts/export-openapi.ts"],
+  "exclude": ["node_modules", "dist", ".turbo", ".openapi", "src/**/*.test.ts"]
+}
