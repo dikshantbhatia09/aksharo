@@ -215,13 +215,15 @@ enum ItemState {
   modified
 }
 
-/// Not enumerated in 06 (`edg_passes.status`).
+/// Not enumerated in 06 (`edg_passes.status`); `@montaj/edg`'s `PassStatusSchema`
+/// is the source of truth. `ready` means the items are on the table for review,
+/// `merged` that a `MergePass` op landed them.
 enum PassStatus {
   queued
   running
-  succeeded
-  failed
+  ready
   merged
+  failed
   cancelled
 }
 
