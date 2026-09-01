@@ -31,27 +31,73 @@ Roles: **Fable 5.1** designs, decides, writes briefs, verifies gates. **Opus 5 a
 | A02 | `@montaj/edg` v2 + `@montaj/caption-styles` v2 schemas + fixtures | A01 | Opus | in-progress |
 | A02b | EDG ops engine (rebase table, CAS, snapshots, migrations, property tests) | A02 | Opus | briefed |
 | A02c | `@montaj/timemap` | A02 | Opus | briefed |
-| A03 | api: Prisma schema v2 + hand SQL, migrations, seed, base modules | A01 | Opus | in-progress |
+| A03 | api: Prisma schema v2 + hand SQL, migrations, seed, base modules | A01 | Opus | done |
 | X05 | infra: Terraform, staging env, dashboards | A01 | Opus | in-progress |
 | X06 | Threat model → checklist (docs/THREAT-MODEL.md) | — | Fable | done |
-| A04 | api: auth (families, device code, token exchange) | A03, X06 | Opus | briefed |
+| A04 | api: auth (families, device code, token exchange) | A03, X06 | Opus | in-progress |
 | A05 | api: users, workspaces (tax profile), memberships | A04 | Opus | briefed |
 | A06 | api: projects + media (S3 raw, R2 derived) | A05 | Opus | briefed |
 | A07 | worker-media: probe, 16k/48k audio, proxy, waveform, thumbs | A03, A06 | Opus | briefed |
-| A08 | api: jobs, WS gateway, idempotent completion, CreditsFacade (no-op), admission control | A03 | Opus | briefed |
+| A08 | api: jobs, WS gateway, idempotent completion, CreditsFacade (no-op), admission control | A03 | Opus | in-progress |
 | A08b | DLQ + admin replay | A08 | Opus | briefed |
 | A09 | worker-ai skeleton (BullMQ Python, mock provider, serverless Whisper adapter, VAD, alignment registry) | A08 | Opus | briefed |
 
 Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 
-## Wave 2 — Core loop
-A10, A11, A12, A13, A14, A15, A16, A17, A18a, A18b, A19, A20, A21, A22, A23, A24 (see 10-build-plan §4). **Gate A** at the end (+ X02 load test).
+## Wave 2 — Core loop (all briefs ready in `05-build/_orchestration/`)
+| WP | Title | Deps | Status |
+|---|---|---|---|
+| A10 | worker-ai vendor adapters, LID, routing, alignment registry, diarisation | A09 | briefed |
+| A11 | api transcripts, post-processing, segmentation → EDG init | A02b, A08, A09 | briefed |
+| A12 | api EDG module (ops, rebase, CAS, revisions, realtime) | A02b, A08 | briefed |
+| A13 | web shell + `@montaj/ui` + auth pages + onboarding + settings | A04, A05 | briefed |
+| A14 | web Home + Projects + upload engine | A06, A08, A13 | briefed |
+| A15 | web Editor transcript column + EDG client store | A12, A13 | briefed |
+| A16 | render-core + render-canvaskit + 30 styles + panels | A02, A02c | briefed |
+| A17 | web Timeline | A15, A16 | briefed |
+| A18a | ass-exporter + parity gate | A16, A20 | briefed |
+| A18b | fonts pipeline | A06, A07 | briefed |
+| A19 | web browser export + export dialog | A16, A21, A02c | briefed |
+| A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | briefed |
+| A21 | api exports module (manifests, cloud jobs) | A08, A20 | briefed |
+| A22 | scripts + translation | A10, A11, A12 | briefed |
+| A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | briefed |
+| A24 | marketing site v1 | A16 | briefed |
+Sub-wave order: {A10, A11, A12, A13, A16, A18b, A20} → {A14, A15, A21, A22, A24} → {A17, A18a, A19} → {A23 + Gate A}.
 
-## Wave 3 — Monetisation
-B01–B09, B16, B17.
+## Wave 3 — Monetisation (all briefs ready in `05-build/_orchestration/`)
+| WP | Title | Deps | Status |
+|---|---|---|---|
+| B01 | api billing core: `BillingProvider`, Razorpay subscriptions/orders, mandate cap + ₹15,000 UPI rule, half-yearly Studio, idempotent webhooks, dunning primitives | A03, A08 | briefed |
+| B02 | api credits: lots, atomic conditional reserve, holds/settle/release/reversal, grants/expiry, entitlements engine, real `CreditsFacade`, concurrency property test | A03, A08 | briefed |
+| B03 | web Subscription pages (overview, plans, methods/mandates, invoices, usage), checkout sheet with tax-profile step, `UpgradeGate` | B01, B02, B05, A13 | briefed |
+| B04 | Offers: signup-gift export, ₹9 clean export, ₹59 week pass, pay-once, ₹149 Free top-up; export-dialog upsell | B01, B02, A21 | briefed |
+| B05 | api invoices (Rule 46, series, credit notes, export under LUT, PDF + signature, IRN hook) + tax engine + FIRC records | B01 | briefed |
+| B06 | Streak experiment engine (holdout flag, freezes, pause-not-reset, rewards) + widget | B01, B02, A21 | briefed |
+| B07 | Affiliate v2: apply with PAN, 60-day cookie + code attribution, rate tiers, TDS accumulator, RazorpayX payouts, dashboard | B01, B02, B05 | briefed |
+| B07b | Give-get referral loop (30/30 credits on first export, caps, abuse rules, prompt) | B02, A21 | briefed |
+| B08 | Team/Agency workspaces, seat billing, pooled credits, client tags, devices/leases, licence keys | B01, B02, A05 | briefed |
+| B09 | Memory & glossary (opt-in): spelling/timing/style entries, provider hints, matcher, settings page | A11, A15, A17 | briefed |
+| B16 | Scheduler tasks (retention, renewals/dunning, grants/expiry, commissions, provider deletions), audit completion, privacy module (erasure cascade, DSR, export, breach, access logs) | B01, B02, B07 | briefed |
+| B17 | Onboarding completion (defaults, language hints, source + code), sample project, coach marks, attribution events, Hindi strings | A13, B07, B07b | briefed |
+Sub-wave order: {B01, B02, B05, B09} → {B03, B04, B06, B07, B07b, B08} → {B16, B17} → Gate B preparation (Wave 4 finishes Gate B).
 
-## Wave 4 — Growth, passes, plugin foundations
-B10–B15, B18–B20, C00, C01, C02. **Gate B**.
+## Wave 4 — Growth, passes, plugin foundations (all briefs ready in `05-build/_orchestration/`)
+| WP | Title | Deps | Status |
+|---|---|---|---|
+| B10 | Audio clean: 48 kHz deep-filter path, loudness targets, A/B preview, applied in browser + cloud exports | A09, A20, A19 | briefed |
+| B11 | LLM features (chapters, summary, hooks) + `packages/prompts` registry, region pinning, evals, Insights tab | A11, B02 | briefed |
+| B12 | Academy tracks + rewards, Changelog + What's new, Help centre, support tickets with diagnostics | A13, B02 | briefed |
+| B13 | Admin console: roles + step-up, users/credits/refunds, flags, styles/parity, routing weights, jobs/DLQ, mandates, TDS, affiliate review, DSR/breach, share reports, metrics | B01–B12, B16 | briefed |
+| B14 | Public API v1 + scoped API keys + signed webhooks + SSRF-guarded URL import + developer docs | B02, A21, A06 | briefed |
+| B15 | Share/review links (view/comment/approve, hygiene), comments, batch, replace media (re-align), import transcript & align | A12, A21, A10, B08 | briefed |
+| B18 | Autocut pass (silences, filler lexicons, retakes, protection, pacing) → pass items | A10, A11, A02c | briefed |
+| B19 | Reframe & zoom pass (scene detection, subject tracking, cues, packed keyframes) | A07, A11, B18 | briefed |
+| B20 | Proposal review UI + exports apply cuts/zooms via `timemap` (browser + cloud) + parity fixtures | A17, A19, A20, B18, B19 | briefed |
+| C00 | Signing & release pipeline (notarytool + 24 h buffer, cloud-HSM Windows signing, `.ccx`, ZXP, Resolve bundle, channels, SBOM); dry-run until A00-03 | A01 | briefed |
+| C01 | Local bridge v2: `bridge-core` + Node SEA app, relay-first WSS, loopback HTTPS + per-install cert, pairing, 12 h pair tokens, api relay module | A04, A08, B08 | briefed |
+| C02 | Desktop shell: Electron loading the hosted web app (decision D71), deep links, updater with channels, tray, embedded bridge, hardened defaults | A13, C00, C01 | briefed |
+Sub-wave order: {B10, B11, B18, C00} → {B12, B14, B15, B19, C01} → {B13, B20, C02} → **Gate B**.
 
 ## Wave 5 — Plugins
 C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.

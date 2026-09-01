@@ -10,6 +10,54 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A03 — api: Prisma schema v2, hand SQL, migrations, seed, base modules.**
+  - `apps/api/prisma/schema.prisma`: 68 models covering every table in
+    `03-architecture/06-data-model.md` — identity and tenancy, media and editing
+    (EDG v2, including `transcript_chunks`, the six `edg_*` tables, `style_presets`,
+    `brand_kits`, `fonts`, `memory_entries`, `comments`, `share_links`,
+    `share_reports`), jobs and outputs (with `provider_submissions` and
+    `export_manifests`), billing and credits (`mandates`, Rule 46 `invoices`,
+    `payments`, `firc_records`, `tax_registrations`, and the four credit tables),
+    growth and the content/ops tables. ULID `char(26)` ids, `timestamptz`
+    throughout, money as integer minor units beside a currency, credits as integer
+    tenths, snake_case columns, and every JSONB column commented with the Zod
+    schema that validates it.
+  - `apps/api/prisma/sql/`: hand-maintained DDL applied straight after
+    `prisma migrate deploy` — the `vector` extension, 31 partial and vector indexes
+    (lot consumption order with `NULLS LAST`, retention sweeps, live-session and
+    pending-device-code slices, an HNSW cosine index on `audio_assets.embedding`,
+    and NULL-safe uniqueness for system style presets), 13 CHECK constraints
+    holding the invariants of 06 (no UPI mandate above ₹15,000, no negative credit
+    balance or over-consumed lot, a State code on every Indian invoice), and table
+    comments recording the retention rules where `\d+` shows them.
+  - `pnpm --filter @montaj/api db:migrate` (migrate deploy + idempotent hand SQL,
+    tracked in `_montaj_sql_applied`), `db:seed`, `db:reset`, `db:sql`;
+    `prisma generate` wired into `postinstall` and `build`; the CONTRACTS section 9
+    coverage gate for `apps/api` (75/70).
+  - `prisma/seed.ts`: the five plans of `04 §Plans` with INR/USD prices, monthly
+    credit grants and entitlements whose operation gating is **derived** from the
+    burn-rate table in `@montaj/config`; the system caption styles with their
+    parity flags left at the pessimistic defaults only the A18a gate may write;
+    four feature flags, all off; an admin user and a demo personal workspace with a
+    credit account, lot and ledger row that satisfy invariant 1, and a free-plan
+    subscription. Idempotent: every row is keyed on a natural key or a
+    deterministic ULID.
+  - `apps/api/src/common`: `PrismaService` (eager connect, shutdown hooks,
+    `withTransaction`), `RedisService`, pino logging with request-id correlation
+    and redaction of secrets and emails (THREAT-MODEL T21), an AsyncLocalStorage
+    `RequestContext` carrying `requestId`/`userId`/`workspaceId`, a global
+    exception filter producing the CONTRACTS section 8 envelope, a thin Zod
+    validation pipe with `zodDto()`, and an OpenTelemetry bootstrap that is a
+    genuine no-op when no OTLP endpoint is configured.
+  - `GET /health/ready` reports Postgres, Redis and object-store reachability and
+    answers 503 when any of them is down; `GET /health` stays dependency-free.
+  - 109 tests: unit suites for redaction, request context, error codes, the
+    exception filter, the validation pipe, telemetry and the health service; HTTP
+    e2e for the error envelope (unknown route and validation failure) with no
+    infrastructure; and an integration suite on a testcontainers
+    `pgvector/pgvector:pg16` asserting all 68 tables against `information_schema`,
+    the named indexes and constraints, seed idempotency, and a segment round trip
+    in fractional `seq` order.
 - **A02 — `@montaj/edg` v2 and `@montaj/caption-styles` v2 schemas + fixtures.**
   - `@montaj/edg`: Zod schemas and inferred types for the whole EDG v2 document —
     `WordId`, `Word`, `TranscriptChunk`, `TranscriptManifest`, `Segment`, `Pass`,
@@ -70,5 +118,16 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   - Repo hygiene: `.editorconfig`, `.gitattributes`, `.gitignore`, `.nvmrc`,
     `.node-version`, `CODEOWNERS`, `LICENSE`, the pull-request Definition-of-Done
     template, and `docs/adr/0001-monorepo-tooling.md`.
+
+### Changed
+
+- **A03** — `docker-compose.yml` now runs `pgvector/pgvector:pg16` instead of
+  `postgres:16`. `audio_assets.embedding` is a `vector(512)` column, so stock
+  Postgres cannot apply the first migration. Managed Postgres needs `vector` on
+  its extension allow-list (X05).
+- **A03** — `@typescript-eslint/consistent-type-imports` is off for
+  `apps/api/src/**`. A constructor parameter's type is the DI token NestJS resolves
+  from `design:paramtypes`, and `import type` erases it to `Object`, so the
+  provider fails to resolve at runtime while the code still type-checks.
 
 [Unreleased]: https://github.com/aksharo/montaj/compare/main...HEAD

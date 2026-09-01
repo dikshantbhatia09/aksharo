@@ -1,0 +1,565 @@
+/**
+ * Seed data: plans, feature flags and the system caption styles.
+ *
+ * Kept beside `seed.ts` rather than inside it so the constants can be read (and
+ * asserted) without running a database transaction. Nothing here invents a price,
+ * a credit allowance or a burn rate: prices come from `04-pricing-and-monetization
+ * .md §Plans`, and everything credit-related is derived from `@montaj/config`, the
+ * single source of truth named in CONTRACTS §4.
+ */
+import { createHash } from "node:crypto";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+
+import {
+  BURN_RATES,
+  CREDIT_OPERATIONS,
+  TENTHS_PER_CREDIT,
+  type CreditOperation,
+  type PlanTier,
+} from "@montaj/config";
+
+import type { Prisma } from "@prisma/client";
+
+// ---------------------------------------------------------------------------
+// Deterministic ids
+// ---------------------------------------------------------------------------
+
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/**
+ * A ULID that is stable across runs, derived from a name.
+ *
+ * The seed has to be idempotent (acceptance criterion 1), and most rows are found
+ * by a natural key — but a few (the demo workspace's credit lot and its ledger
+ * row) have none. Hashing their name into the ULID's random field gives them a
+ * fixed id, so a second run updates the same row instead of inserting a twin.
+ * The timestamp field is a fixed epoch for the same reason.
+ */
+export function seedUlid(name: string): string {
+  const SEED_EPOCH_MS = Date.UTC(2026, 0, 1);
+
+  let time = SEED_EPOCH_MS;
+  let timePart = "";
+  for (let i = 0; i < 10; i += 1) {
+    timePart = `${CROCKFORD[time % 32] ?? "0"}${timePart}`;
+    time = Math.floor(time / 32);
+  }
+
+  const digest = createHash("sha256").update(`montaj-seed:${name}`).digest();
+  let randomPart = "";
+  let bits = 0;
+  let acc = 0;
+  for (let i = 0; randomPart.length < 16; i += 1) {
+    acc = (acc << 8) | (digest[i % digest.length] ?? 0);
+    bits += 8;
+    while (bits >= 5 && randomPart.length < 16) {
+      bits -= 5;
+      randomPart += CROCKFORD[(acc >> bits) & 31] ?? "0";
+    }
+  }
+
+  return timePart + randomPart;
+}
+
+// ---------------------------------------------------------------------------
+// Plans (04 §Plans)
+// ---------------------------------------------------------------------------
+
+/** Plans in ladder order; index doubles as the tier comparison for entitlements. */
+export const PLAN_LADDER = ["free", "starter", "creator", "studio", "agency"] as const;
+export type PlanKeyName = (typeof PLAN_LADDER)[number];
+
+/** True when `plan` is at least as high on the ladder as `minimum`. */
+export function planMeets(plan: PlanKeyName, minimum: PlanTier | null): boolean {
+  if (minimum === null) return true;
+  return PLAN_LADDER.indexOf(plan) >= PLAN_LADDER.indexOf(minimum as PlanKeyName);
+}
+
+/**
+ * Which credit-consuming operations a plan may run, derived from the `minimumPlan`
+ * column of the burn-rate table in `@montaj/config`. Deriving it means a change to
+ * a burn rate's gating cannot drift from the seeded entitlements.
+ */
+export function operationsFor(plan: PlanKeyName): Record<CreditOperation, boolean> {
+  const entries = CREDIT_OPERATIONS.map((operation) => [
+    operation,
+    planMeets(plan, BURN_RATES[operation].minimumPlan),
+  ]);
+  return Object.fromEntries(entries) as Record<CreditOperation, boolean>;
+}
+
+const GB = 1024 ** 3;
+const MB = 1024 ** 2;
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+
+export interface PlanSeed {
+  readonly key: PlanKeyName;
+  readonly name: string;
+  /** Minor units (paise / cents), inclusive of 18% GST for INR (04 §Tax). */
+  readonly prices: Prisma.InputJsonValue;
+  /** Monthly grant in TENTHS of a credit (CONTRACTS §0). */
+  readonly creditsPerMonthTenths: number;
+  readonly seatPrice: Prisma.InputJsonValue | null;
+  readonly entitlements: Prisma.InputJsonValue;
+}
+
+/** Credits per month as printed in 04 §Plans, converted to tenths. */
+const CREDITS_PER_MONTH: Record<PlanKeyName, number> = {
+  free: 20,
+  starter: 150,
+  creator: 500,
+  studio: 1_800,
+  agency: 900,
+};
+
+export const PLAN_SEEDS: readonly PlanSeed[] = [
+  {
+    key: "free",
+    name: "Free",
+    prices: { INR: { month: 0, year: 0 }, USD: { month: 0, year: 0 } },
+    creditsPerMonthTenths: CREDITS_PER_MONTH.free * TENTHS_PER_CREDIT,
+    seatPrice: null,
+    entitlements: {
+      watermark: "after_first_clean_export",
+      signupGift: { exports: 1, maxResolution: "1080p", maxDurationMs: 10 * MINUTE_MS },
+      maxExportResolution: "1080p",
+      browserRenderOnly: true,
+      maxFileBytes: 500 * MB,
+      maxDurationMs: 20 * MINUTE_MS,
+      subtitleFormats: ["srt", "vtt", "txt"],
+      customFonts: 0,
+      brandKits: 0,
+      translation: "none",
+      audioClean: false,
+      passes: {
+        autocut: false,
+        reframeZoom: false,
+        sfxMusic: false,
+        textFx: false,
+        prompted: false,
+        proEngine: false,
+      },
+      chaptersHook: false,
+      plugins: "preview_3_clean_renders",
+      localMode: false,
+      activeDevices: 1,
+      seatsIncluded: 0,
+      extraSeatPrice: null,
+      clientSeparation: "none",
+      partnerAudioLibrary: false,
+      retentionDays: 7,
+      queuePriority: "standard",
+      apiAccess: false,
+      operations: operationsFor("free"),
+    },
+  },
+  {
+    key: "starter",
+    name: "Starter",
+    prices: { INR: { month: 29_900, year: 298_800 }, USD: { month: 800, year: 8_040 } },
+    creditsPerMonthTenths: CREDITS_PER_MONTH.starter * TENTHS_PER_CREDIT,
+    seatPrice: null,
+    entitlements: {
+      watermark: "none",
+      signupGift: null,
+      maxExportResolution: "1080p",
+      browserRenderOnly: false,
+      maxFileBytes: 2 * GB,
+      maxDurationMs: 60 * MINUTE_MS,
+      subtitleFormats: ["srt", "vtt", "txt", "ass"],
+      customFonts: 5,
+      brandKits: 0,
+      translation: "english",
+      audioClean: false,
+      passes: {
+        autocut: false,
+        reframeZoom: false,
+        sfxMusic: false,
+        textFx: false,
+        prompted: false,
+        proEngine: false,
+      },
+      chaptersHook: false,
+      plugins: "burnin_and_srt",
+      localMode: true,
+      activeDevices: 1,
+      seatsIncluded: 0,
+      extraSeatPrice: null,
+      clientSeparation: "none",
+      partnerAudioLibrary: false,
+      retentionDays: 30,
+      queuePriority: "standard",
+      apiAccess: false,
+      operations: operationsFor("starter"),
+    },
+  },
+  {
+    key: "creator",
+    name: "Creator",
+    prices: { INR: { month: 69_900, year: 698_400 }, USD: { month: 1_900, year: 18_960 } },
+    creditsPerMonthTenths: CREDITS_PER_MONTH.creator * TENTHS_PER_CREDIT,
+    seatPrice: null,
+    entitlements: {
+      watermark: "none",
+      signupGift: null,
+      maxExportResolution: "4k",
+      browserRenderOnly: false,
+      maxFileBytes: 4 * GB,
+      maxDurationMs: 3 * HOUR_MS,
+      subtitleFormats: ["srt", "vtt", "txt", "ass", "docx", "md"],
+      customFonts: 15,
+      brandKits: 1,
+      translation: "all",
+      audioClean: true,
+      passes: {
+        autocut: true,
+        reframeZoom: true,
+        sfxMusic: false,
+        textFx: false,
+        prompted: true,
+        proEngine: false,
+      },
+      chaptersHook: true,
+      plugins: "full",
+      localMode: true,
+      activeDevices: 2,
+      seatsIncluded: 0,
+      extraSeatPrice: null,
+      clientSeparation: "none",
+      partnerAudioLibrary: false,
+      retentionDays: 90,
+      queuePriority: "high",
+      apiAccess: false,
+      operations: operationsFor("creator"),
+    },
+  },
+  {
+    key: "studio",
+    name: "Studio",
+    prices: {
+      INR: { month: 199_900, year: 1_999_200, halfyear: 999_600 },
+      USD: { month: 4_900, year: 49_200 },
+    },
+    creditsPerMonthTenths: CREDITS_PER_MONTH.studio * TENTHS_PER_CREDIT,
+    seatPrice: { INR: 39_900, USD: 700 },
+    entitlements: {
+      watermark: "none",
+      signupGift: null,
+      maxExportResolution: "4k",
+      browserRenderOnly: false,
+      maxFileBytes: 8 * GB,
+      maxDurationMs: 6 * HOUR_MS,
+      subtitleFormats: ["srt", "vtt", "txt", "ass", "docx", "md"],
+      customFonts: 50,
+      brandKits: 3,
+      translation: "all",
+      audioClean: true,
+      passes: {
+        autocut: true,
+        reframeZoom: true,
+        sfxMusic: true,
+        textFx: true,
+        prompted: true,
+        proEngine: true,
+      },
+      chaptersHook: true,
+      plugins: "full",
+      localMode: true,
+      activeDevices: 5,
+      seatsIncluded: 3,
+      extraSeatPrice: { INR: 39_900, USD: 700 },
+      clientSeparation: "folders",
+      partnerAudioLibrary: true,
+      retentionDays: 365,
+      queuePriority: "highest",
+      apiAccess: true,
+      operations: operationsFor("studio"),
+    },
+  },
+  {
+    key: "agency",
+    name: "Agency",
+    prices: { INR: { month: 119_900, year: 1_198_800 }, USD: { month: 2_900, year: 28_800 } },
+    creditsPerMonthTenths: CREDITS_PER_MONTH.agency * TENTHS_PER_CREDIT,
+    seatPrice: { INR: 119_900, USD: 2_900 },
+    entitlements: {
+      watermark: "none",
+      signupGift: null,
+      maxExportResolution: "4k",
+      browserRenderOnly: false,
+      maxFileBytes: 8 * GB,
+      maxDurationMs: 6 * HOUR_MS,
+      subtitleFormats: ["srt", "vtt", "txt", "ass", "docx", "md"],
+      customFonts: 50,
+      brandKits: "per_client",
+      translation: "all",
+      audioClean: true,
+      passes: {
+        autocut: true,
+        reframeZoom: true,
+        sfxMusic: true,
+        textFx: true,
+        prompted: true,
+        proEngine: true,
+      },
+      chaptersHook: true,
+      plugins: "full",
+      localMode: true,
+      /// Per seat, not per workspace (04 §Plans).
+      activeDevices: 3,
+      perSeat: true,
+      seatsIncluded: 1,
+      extraSeatPrice: { INR: 119_900, USD: 2_900 },
+      clientSeparation: "client_tags",
+      partnerAudioLibrary: true,
+      retentionDays: 365,
+      queuePriority: "highest",
+      apiAccess: true,
+      operations: operationsFor("agency"),
+    },
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Feature flags
+// ---------------------------------------------------------------------------
+
+export interface FeatureFlagSeed {
+  readonly key: string;
+  readonly description: string;
+}
+
+/** All off by default: each one gates work that is not built or not cleared yet. */
+export const FEATURE_FLAG_SEEDS: readonly FeatureFlagSeed[] = [
+  {
+    key: "streak_experiment",
+    description:
+      "Streak levels, freezes and renewal discounts (04 §Streak rewards). Runs against a holdout; design pending RR-10.",
+  },
+  {
+    key: "local_mode",
+    description:
+      "Desktop local transcription and render through the bundled engine (Starter+). Off until C03a ships a signed sidecar.",
+  },
+  {
+    key: "partner_audio",
+    description:
+      "Partner music and SFX catalogues (Epidemic, Soundstripe, Storyblocks). Off until the contracts in A00-11 are signed (D04b).",
+  },
+  {
+    key: "provider_bhashini",
+    description:
+      "Route Indic ASR to Bhashini. Off until the enquiry in A00-06 and an eval on the A00-05 sets both pass.",
+  },
+];
+
+// ---------------------------------------------------------------------------
+// System caption styles
+// ---------------------------------------------------------------------------
+
+export interface StyleSeed {
+  readonly key: string;
+  readonly name: string;
+  readonly category: string;
+  readonly minPlan: PlanKeyName;
+  readonly doc: Prisma.InputJsonValue;
+}
+
+/** Where the fixtures came from, so the seed can say so out loud. */
+export type StyleSource = "package" | "fixtures" | "fallback";
+
+export interface LoadedStyles {
+  readonly source: StyleSource;
+  readonly styles: readonly StyleSeed[];
+}
+
+/**
+ * A minimal but complete StyleDoc v2, in the shape 03 §F-305 describes: typography,
+ * colours, box, stroke, shadow, animation (in/out/highlight), position and per-word
+ * rules. These are placeholders with the right structure, not the finished looks —
+ * A16 writes the real 30+ styles and A18a writes the parity flags.
+ */
+function fallbackDoc(overrides: Record<string, unknown>): Prisma.InputJsonValue {
+  return {
+    schemaVersion: 2,
+    typography: {
+      fontFamily: "Inter",
+      fontWeight: 800,
+      fontSizePx: 72,
+      lineHeight: 1.1,
+      letterSpacing: 0,
+      uppercase: false,
+      maxCharsPerLine: 22,
+      maxLines: 2,
+    },
+    colours: { fill: "#FFFFFF", highlight: "#FFD400", background: null },
+    box: { enabled: false, padding: 16, radius: 12, colour: "#000000CC" },
+    stroke: { enabled: true, widthPx: 6, colour: "#000000" },
+    shadow: { enabled: true, offsetX: 0, offsetY: 4, blur: 12, colour: "#00000099" },
+    animation: { in: "fade", out: "fade", highlight: "none", durationMs: 120 },
+    position: { anchor: "bottom-center", x: 0.5, y: 0.82, safeAreaPct: 0.06 },
+    perWord: { mode: "line", activeScale: 1.0, inactiveOpacity: 1.0 },
+    ...overrides,
+  } as Prisma.InputJsonValue;
+}
+
+/**
+ * The five system styles seeded when `@montaj/caption-styles` has no fixtures yet.
+ * Names describe the look — never a person, creator or brand (F-305 naming rule).
+ */
+const FALLBACK_STYLES: readonly StyleSeed[] = [
+  {
+    key: "punch-pop",
+    name: "Punch Pop",
+    category: "energetic",
+    minPlan: "free",
+    doc: fallbackDoc({
+      perWord: { mode: "word", activeScale: 1.12, inactiveOpacity: 0.55 },
+      animation: { in: "pop", out: "fade", highlight: "scale", durationMs: 90 },
+    }),
+  },
+  {
+    key: "hype-bold",
+    name: "Hype Bold",
+    category: "energetic",
+    minPlan: "free",
+    doc: fallbackDoc({
+      typography: {
+        fontFamily: "Inter",
+        fontWeight: 900,
+        fontSizePx: 84,
+        lineHeight: 1.05,
+        letterSpacing: -1,
+        uppercase: true,
+        maxCharsPerLine: 18,
+        maxLines: 2,
+      },
+      colours: { fill: "#FFFFFF", highlight: "#00E5FF", background: null },
+    }),
+  },
+  {
+    key: "karaoke-fill",
+    name: "Karaoke Fill",
+    category: "karaoke",
+    minPlan: "free",
+    doc: fallbackDoc({
+      perWord: { mode: "fill", activeScale: 1.0, inactiveOpacity: 0.4 },
+      animation: { in: "none", out: "none", highlight: "fill", durationMs: 0 },
+    }),
+  },
+  {
+    key: "word-pop",
+    name: "Word Pop",
+    category: "energetic",
+    minPlan: "free",
+    doc: fallbackDoc({
+      perWord: { mode: "word", activeScale: 1.2, inactiveOpacity: 0 },
+      typography: {
+        fontFamily: "Inter",
+        fontWeight: 800,
+        fontSizePx: 96,
+        lineHeight: 1,
+        letterSpacing: 0,
+        uppercase: true,
+        maxCharsPerLine: 12,
+        maxLines: 1,
+      },
+    }),
+  },
+  {
+    key: "minimal-lower-third",
+    name: "Minimal Lower Third",
+    category: "clean",
+    minPlan: "free",
+    doc: fallbackDoc({
+      box: { enabled: true, padding: 20, radius: 8, colour: "#000000B3" },
+      stroke: { enabled: false, widthPx: 0, colour: "#000000" },
+      position: { anchor: "bottom-left", x: 0.08, y: 0.86, safeAreaPct: 0.06 },
+      typography: {
+        fontFamily: "Inter",
+        fontWeight: 600,
+        fontSizePx: 48,
+        lineHeight: 1.25,
+        letterSpacing: 0,
+        uppercase: false,
+        maxCharsPerLine: 34,
+        maxLines: 2,
+      },
+    }),
+  },
+];
+
+interface CaptionStylesModule {
+  loadSystemStyles?: () => readonly {
+    key?: string;
+    id?: string;
+    name?: string;
+    category?: string;
+    minPlan?: string;
+    doc?: unknown;
+  }[];
+}
+
+function normalise(raw: Record<string, unknown>, fallbackKey: string): StyleSeed | undefined {
+  const key =
+    typeof raw["key"] === "string"
+      ? raw["key"]
+      : typeof raw["id"] === "string"
+        ? raw["id"]
+        : fallbackKey;
+  if (key === "") return undefined;
+  const minPlan = PLAN_LADDER.find((candidate) => candidate === raw["minPlan"]) ?? "free";
+  return {
+    key,
+    name: typeof raw["name"] === "string" ? raw["name"] : key,
+    category: typeof raw["category"] === "string" ? raw["category"] : "general",
+    minPlan,
+    // A style file may be the StyleDoc itself or wrap it under `doc`.
+    doc: (raw["doc"] ?? raw) as Prisma.InputJsonValue satisfies Prisma.InputJsonValue,
+  };
+}
+
+/**
+ * System styles, from the best source available.
+ *
+ * A02 owns `@montaj/caption-styles` and is built in parallel with A03, so the
+ * lookup degrades rather than failing: the package's own `loadSystemStyles()`
+ * first, then raw fixtures in `packages/caption-styles/styles/*.json`, then the
+ * five placeholders above. The chosen source is reported by the seed so nobody
+ * mistakes placeholders for the real catalogue.
+ */
+export function loadSystemStyles(repoRoot = resolve(__dirname, "..", "..", "..")): LoadedStyles {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require("@montaj/caption-styles") as CaptionStylesModule;
+    if (typeof mod.loadSystemStyles === "function") {
+      const loaded = mod.loadSystemStyles();
+      const styles = loaded
+        .map((raw, index) => normalise(raw as Record<string, unknown>, `style-${index}`))
+        .filter((style): style is StyleSeed => style !== undefined);
+      if (styles.length > 0) return { source: "package", styles };
+    }
+  } catch {
+    // A02 has not landed yet; fall through.
+  }
+
+  const fixtureDir = join(repoRoot, "packages", "caption-styles", "styles");
+  if (existsSync(fixtureDir)) {
+    const styles = readdirSync(fixtureDir)
+      .filter((file) => file.endsWith(".json"))
+      .sort((a, b) => a.localeCompare(b, "en"))
+      .map((file) => {
+        const raw = JSON.parse(readFileSync(join(fixtureDir, file), "utf8")) as Record<
+          string,
+          unknown
+        >;
+        return normalise(raw, file.replace(/\.json$/, ""));
+      })
+      .filter((style): style is StyleSeed => style !== undefined);
+    if (styles.length > 0) return { source: "fixtures", styles };
+  }
+
+  return { source: "fallback", styles: FALLBACK_STYLES };
+}
