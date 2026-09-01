@@ -36,13 +36,14 @@ function sort<T extends Row>(rows: T[], orderBy: Row | undefined): T[] {
   return [...rows].sort((a, b) => {
     const left = a[field];
     const right = b[field];
-    const cmp = left instanceof Date && right instanceof Date
-      ? left.getTime() - right.getTime()
-      : String(left) < String(right)
-        ? -1
-        : String(left) > String(right)
-          ? 1
-          : 0;
+    const cmp =
+      left instanceof Date && right instanceof Date
+        ? left.getTime() - right.getTime()
+        : String(left) < String(right)
+          ? -1
+          : String(left) > String(right)
+            ? 1
+            : 0;
     return direction === "desc" ? -cmp : cmp;
   });
 }
@@ -137,7 +138,13 @@ export function createFakePrisma(db: FakeDb) {
         db.jobs.set(next.id, next);
         return next;
       },
-      updateMany: async ({ where, data }: { where: Row; data: Row }): Promise<{ count: number }> => {
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: Row;
+        data: Row;
+      }): Promise<{ count: number }> => {
         let count = 0;
         for (const job of jobRows()) {
           if (!matches(job as unknown as Row, where)) continue;
@@ -172,7 +179,9 @@ export function createFakePrisma(db: FakeDb) {
       count: async (args: Row): Promise<number> =>
         jobRows().filter((job) => matches(job as unknown as Row, args["where"] as Row)).length,
       aggregate: async (args: Row): Promise<{ _sum: { creditsChargedTenths: number | null } }> => {
-        const rows = jobRows().filter((job) => matches(job as unknown as Row, args["where"] as Row));
+        const rows = jobRows().filter((job) =>
+          matches(job as unknown as Row, args["where"] as Row),
+        );
         if (rows.length === 0) return { _sum: { creditsChargedTenths: null } };
         return {
           _sum: {

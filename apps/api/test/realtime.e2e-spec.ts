@@ -32,7 +32,6 @@ import {
 import { RealtimePublisher } from "../src/realtime/realtime.publisher.js";
 import { RoomAccessService } from "../src/realtime/room-access.service.js";
 
-
 const WS_ID = "01JCWS0000000000000000000A";
 const OTHER_WS = "01JCWS0000000000000000000B";
 const USER = "01JCUSER00000000000000000A";
@@ -271,7 +270,10 @@ describe("rooms", () => {
       rooms: [workspaceRoom(OTHER_WS), projectRoom(OTHER_PROJECT), "bridge:whatever"],
     });
 
-    const frame = (await client.next()) as { rooms: string[]; refused: { room: string; reason: string }[] };
+    const frame = (await client.next()) as unknown as {
+      rooms: string[];
+      refused: { room: string; reason: string }[];
+    };
     expect(frame.rooms).toEqual([]);
     expect(frame.refused).toEqual([
       { room: workspaceRoom(OTHER_WS), reason: "forbidden" },

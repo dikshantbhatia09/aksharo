@@ -4,6 +4,7 @@ import { ScheduledTasksService } from "./scheduled-tasks.service.js";
 import { SCHEDULER_QUEUE, schedulerEnabled } from "./scheduler.types.js";
 import { createFakeRedis } from "../../../test/fakes.js";
 
+import type { ScheduledTaskContext } from "./scheduler.types.js";
 import type { RedisService } from "../redis/redis.service.js";
 
 let scheduler: ScheduledTasksService;
@@ -43,7 +44,7 @@ describe("register", () => {
 
 describe("runNow", () => {
   it("runs a task in this process, bypassing the queue", async () => {
-    const run = vi.fn(async () => undefined);
+    const run = vi.fn<(context: ScheduledTaskContext) => Promise<void>>(async () => undefined);
     scheduler.register({ name: "a.one", everyMs: 1_000, run });
 
     await scheduler.runNow("a.one");

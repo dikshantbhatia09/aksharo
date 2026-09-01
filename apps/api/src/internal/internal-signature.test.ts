@@ -34,7 +34,9 @@ describe("signInternalRequest (CONTRACTS §3)", () => {
     const expected = createHmac("sha256", SECRET)
       .update(`${String(TIMESTAMP)}.${BODY}`)
       .digest("hex");
-    expect(signInternalRequest({ secret: SECRET, timestamp: TIMESTAMP, body: BODY })).toBe(expected);
+    expect(signInternalRequest({ secret: SECRET, timestamp: TIMESTAMP, body: BODY })).toBe(
+      expected,
+    );
   });
 
   it("signs raw bytes, so a Buffer and its string are the same signature", () => {
@@ -45,9 +47,15 @@ describe("signInternalRequest (CONTRACTS §3)", () => {
 
   it("changes with the body, the timestamp and the secret", () => {
     const base = signInternalRequest({ secret: SECRET, timestamp: TIMESTAMP, body: BODY });
-    expect(signInternalRequest({ secret: SECRET, timestamp: TIMESTAMP, body: `${BODY} ` })).not.toBe(base);
-    expect(signInternalRequest({ secret: SECRET, timestamp: TIMESTAMP + 1, body: BODY })).not.toBe(base);
-    expect(signInternalRequest({ secret: `${SECRET}x`, timestamp: TIMESTAMP, body: BODY })).not.toBe(base);
+    expect(
+      signInternalRequest({ secret: SECRET, timestamp: TIMESTAMP, body: `${BODY} ` }),
+    ).not.toBe(base);
+    expect(signInternalRequest({ secret: SECRET, timestamp: TIMESTAMP + 1, body: BODY })).not.toBe(
+      base,
+    );
+    expect(
+      signInternalRequest({ secret: `${SECRET}x`, timestamp: TIMESTAMP, body: BODY }),
+    ).not.toBe(base);
   });
 
   it("cannot be forged by moving a character across the separator", () => {
@@ -125,7 +133,13 @@ describe("verifyInternalSignature (THREAT-MODEL T8)", () => {
 
   it("rejects a signature signed with another secret", () => {
     expect(
-      ok({ signature: signInternalRequest({ secret: "another-secret", timestamp: TIMESTAMP, body: BODY }) }),
+      ok({
+        signature: signInternalRequest({
+          secret: "another-secret",
+          timestamp: TIMESTAMP,
+          body: BODY,
+        }),
+      }),
     ).toEqual({ ok: false, failure: "signature_mismatch" });
   });
 
@@ -135,12 +149,21 @@ describe("verifyInternalSignature (THREAT-MODEL T8)", () => {
   });
 
   it("rejects a replay outside the window", () => {
-    expect(ok({ now: NOW + SIGNATURE_SKEW_MS + 1 })).toEqual({ ok: false, failure: "timestamp_skew" });
-    expect(ok({ now: NOW - SIGNATURE_SKEW_MS - 1 })).toEqual({ ok: false, failure: "timestamp_skew" });
+    expect(ok({ now: NOW + SIGNATURE_SKEW_MS + 1 })).toEqual({
+      ok: false,
+      failure: "timestamp_skew",
+    });
+    expect(ok({ now: NOW - SIGNATURE_SKEW_MS - 1 })).toEqual({
+      ok: false,
+      failure: "timestamp_skew",
+    });
   });
 
   it("rejects a non-numeric timestamp", () => {
-    expect(ok({ timestamp: "not-a-number" })).toEqual({ ok: false, failure: "malformed_timestamp" });
+    expect(ok({ timestamp: "not-a-number" })).toEqual({
+      ok: false,
+      failure: "malformed_timestamp",
+    });
     expect(ok({ timestamp: "-1" })).toEqual({ ok: false, failure: "malformed_timestamp" });
   });
 

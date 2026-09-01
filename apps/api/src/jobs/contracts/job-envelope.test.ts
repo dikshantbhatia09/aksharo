@@ -59,7 +59,7 @@ describe("isJobEnvelope", () => {
   });
 
   it("rejects a missing or mistyped field", () => {
-    const envelope = buildJobEnvelope(BASE) as Record<string, unknown>;
+    const envelope = buildJobEnvelope(BASE) as unknown as Record<string, unknown>;
     expect(isJobEnvelope({ ...envelope, jobId: undefined })).toBe(false);
     expect(isJobEnvelope({ ...envelope, attemptId: 7 })).toBe(false);
     expect(isJobEnvelope({ ...envelope, payload: "not an object" })).toBe(false);

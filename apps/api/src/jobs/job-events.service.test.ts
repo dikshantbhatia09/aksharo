@@ -44,7 +44,10 @@ describe("row", () => {
   });
 
   it("mints ids that sort in write order, which is what the cursor relies on", () => {
-    const ids = Array.from({ length: 50 }, () => events.row({ jobId: "j", name: "job.progress" }).id);
+    const ids = Array.from(
+      { length: 50 },
+      () => events.row({ jobId: "j", name: "job.progress" }).id,
+    );
     expect([...ids].sort()).toEqual(ids);
   });
 });

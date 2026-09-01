@@ -133,9 +133,7 @@ describe("extractBearer", () => {
   });
 
   it("reads the WebSocket subprotocol a browser can actually set", () => {
-    expect(
-      extractBearer({ subprotocols: ["aksharo.v1", "bearer.abc"], bearerPrefix }),
-    ).toBe("abc");
+    expect(extractBearer({ subprotocols: ["aksharo.v1", "bearer.abc"], bearerPrefix })).toBe("abc");
   });
 
   it("prefers the header when both are present", () => {

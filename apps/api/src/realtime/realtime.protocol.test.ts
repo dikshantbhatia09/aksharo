@@ -82,9 +82,9 @@ describe("client frames", () => {
         rooms: Array.from({ length: 33 }, () => "workspace:x"),
       }).success,
     ).toBe(false);
-    expect(
-      ClientFrameSchema.safeParse({ t: "subscribe", rooms: ["x".repeat(65)] }).success,
-    ).toBe(false);
+    expect(ClientFrameSchema.safeParse({ t: "subscribe", rooms: ["x".repeat(65)] }).success).toBe(
+      false,
+    );
   });
 });
 

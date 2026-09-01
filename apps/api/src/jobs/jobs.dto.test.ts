@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { JOB_STATUSES, ListEventsQueryDto, ListJobsQueryDto, toJobDto, toJobEventDto } from "./jobs.dto.js";
+import {
+  JOB_STATUSES,
+  ListEventsQueryDto,
+  ListJobsQueryDto,
+  toJobDto,
+  toJobEventDto,
+} from "./jobs.dto.js";
 import { FakeDb } from "../../test/fakes.js";
 
 const db = new FakeDb();

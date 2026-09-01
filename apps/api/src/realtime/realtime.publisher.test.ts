@@ -51,10 +51,13 @@ describe("job events", () => {
   });
 
   it("publishes only to the workspace room when the job has no project", async () => {
-    await publisher.jobCompleted({ workspaceId: WS, projectId: null }, {
-      jobId: "job-1",
-      status: "succeeded",
-    });
+    await publisher.jobCompleted(
+      { workspaceId: WS, projectId: null },
+      {
+        jobId: "job-1",
+        status: "succeeded",
+      },
+    );
     expect(received).toHaveLength(1);
     expect(received[0]?.channel).toBe(channel(`workspace:${WS}`));
   });
@@ -74,7 +77,11 @@ describe("job events", () => {
 
 describe("the events other work packages emit", () => {
   it("publishes edg.ops to the project room", async () => {
-    await publisher.edgOps(PROJECT, { revision: 7, ops: [{ op: "SetSegmentText" }], source: "web" });
+    await publisher.edgOps(PROJECT, {
+      revision: 7,
+      ops: [{ op: "SetSegmentText" }],
+      source: "web",
+    });
     expect(received[0]).toMatchObject({
       channel: channel(`project:${PROJECT}`),
       message: { event: "edg.ops", data: { revision: 7, source: "web" } },

@@ -12,7 +12,7 @@
  */
 import { createSign, generateKeyPairSync } from "node:crypto";
 
-import { type PrismaClient , type Job } from "@prisma/client";
+import { type PrismaClient, type Job } from "@prisma/client";
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
 import request from "supertest";
@@ -45,11 +45,8 @@ import {
   projectRoom,
 } from "../src/realtime/realtime.protocol.js";
 
-
 import type { TestDatabase } from "./db-harness.js";
 import type { INestApplication } from "@nestjs/common";
-
-
 
 const CALLBACK_SECRET = "test-callback-secret-at-least-32-characters-long";
 const PREFIX = process.env["MONTAJ_QUEUE_PREFIX"] ?? "bull";
@@ -425,7 +422,9 @@ describe.skipIf(!CAN_RUN)("jobs (e2e)", () => {
       expect(replay.status).toBe(200);
       expect(replay.body).toMatchObject({ applied: false, reason: "already_completed" });
       expect(settle).not.toHaveBeenCalled();
-      expect((await prisma.job.findUniqueOrThrow({ where: { id: job.id } })).creditsChargedTenths).toBe(60);
+      expect(
+        (await prisma.job.findUniqueOrThrow({ where: { id: job.id } })).creditsChargedTenths,
+      ).toBe(60);
       settle.mockRestore();
     } finally {
       client.close();
