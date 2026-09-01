@@ -107,7 +107,7 @@ C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machines).
 
 ## Wave 7 — Remaining
-D04b (contract-gated), D07, C09, X03, X04. **Gate D**.
+D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for prod — chart variant exists from X05; prod-hardening item before Gate C). **Gate D**.
 
 ## Gate definitions
 - **Gate A:** new user captions a Hinglish sample end to end in the browser; cloud render works; parity gate green; X02 passes.
