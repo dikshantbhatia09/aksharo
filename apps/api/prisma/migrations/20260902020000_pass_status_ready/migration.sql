@@ -1,0 +1,24 @@
+-- A03c — `PassStatus.succeeded` becomes `ready`.
+--
+-- `@montaj/edg`'s `PassStatusSchema` is the source of truth for the pass
+-- lifecycle, and it says `queued | running | ready | merged | failed | cancelled`.
+-- A03 wrote `succeeded` by analogy with `JobStatus`, but the two are not the same
+-- state: a job succeeds, whereas a pass whose job succeeded is `ready` — its items
+-- are on the table awaiting review, and only a `MergePass` op moves it to `merged`.
+-- `JobStatus.succeeded` is untouched; it mirrors the completion callback of
+-- CONTRACTS §3.
+--
+-- RENAME VALUE rather than add-and-backfill: it rewrites no rows, keeps the
+-- value's sort position, and cannot leave a row on a status that no longer exists.
+-- It is not transactional in the sense of being reversible mid-flight, but it is
+-- atomic, so a failure leaves the type untouched.
+--
+-- Keeping the position does mean the type's sort order stays
+-- `queued, running, ready, failed, merged, cancelled`, while the package declares
+-- `… ready, merged, failed …`. Only `ORDER BY status` on the enum column would
+-- notice, nothing does that, and matching the order would mean dropping and
+-- recreating the type — a column rewrite for a cosmetic difference. Prisma
+-- compares enum values as a set, so `migrate diff` stays empty either way, and
+-- `test/database.e2e-spec.ts` compares the two as sets for the same reason.
+
+ALTER TYPE "PassStatus" RENAME VALUE 'succeeded' TO 'ready';

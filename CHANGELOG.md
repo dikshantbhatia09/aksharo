@@ -51,6 +51,17 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   - New optional environment variables: `INTERNAL_CALLBACK_SECRET_NEXT`
     (CONTRACTS section 1, rotation), and the non-contract `MONTAJ_QUEUE_PREFIX`
     (defaults to BullMQ's own `bull`) and `MONTAJ_SCHEDULER_DISABLED`.
+- **A03c — api: `PassStatus.succeeded` becomes `ready`.**
+  - `@montaj/edg`'s `PassStatusSchema` is the source of truth for the pass
+    lifecycle; A03 had written `succeeded` by analogy with `JobStatus`, but a pass
+    whose job succeeded is not finished — its items are `ready` for review, and
+    only a `MergePass` op moves it to `merged`. Migration
+    `20260902020000_pass_status_ready` renames the value in place (no row rewrite);
+    `JobStatus.succeeded` is untouched, since it mirrors the completion callback of
+    CONTRACTS section 3.
+  - The integration suite now compares `PassStatus` and `ItemState` in the database
+    against the package's own enums, so this class of drift fails a test instead of
+    reaching a client.
 
 - **A03b — api: seq is a base-62 string; style loader hardened.**
   - `edg_segments.seq` becomes `text COLLATE "C"` (migration
