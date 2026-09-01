@@ -1,0 +1,25 @@
+# Terraform S3 backend configuration for the staging environment.
+#
+#   cp backend.hcl.example backend.hcl     # backend.hcl is gitignored
+#   terraform init -backend-config=backend.hcl
+#
+# The state bucket is created once, by hand, before any environment exists.
+# See infra/README.md, "Bootstrap order", step 1 [H].
+
+bucket = "montaj-tfstate-ap-south-1"
+key    = "envs/staging/terraform.tfstate"
+region = "ap-south-1"
+
+# Native S3 state locking (Terraform 1.11+). No DynamoDB table.
+use_lockfile = true
+
+# The state file contains resource ids, endpoints and ARNs. Encrypt it with the
+# same customer-managed key that protects the bucket.
+encrypt  = true
+kms_key_id = "alias/montaj-tfstate"
+
+# Optional: assume a role in the target account instead of using ambient
+# credentials. Uncomment and set for a multi-account layout.
+# assume_role = {
+#   role_arn = "arn:aws:iam::000000000000:role/montaj-terraform-staging"
+# }

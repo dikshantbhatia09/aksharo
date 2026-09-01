@@ -1,0 +1,181 @@
+{{/*
+=============================================================================
+Network policy. X05 acceptance criterion 4: worker egress is denied by default,
+with documented allow-lists.
+
+The shape is:
+
+  1  default-deny        every pod in the namespace, both directions
+  2  allow-dns           every pod may resolve names through CoreDNS
+  3  per component       exactly the destinations that component needs
+
+A compromised worker (THREAT-MODEL: "compromised worker or provider") therefore
+starts with no route anywhere: not to the internet, not to the API, not to
+another worker's pod. It gets Redis and Postgres inside the VPC because it
+cannot do its job without them, and — when Cilium is the CNI — the named
+provider hostnames and nothing else.
+
+Two honest limits, both worth stating plainly:
+
+  * A Kubernetes NetworkPolicy matches IP ranges, never hostnames. With the
+    stock AWS VPC CNI the FQDN allow-list below cannot be enforced in-cluster:
+    a component that needs a provider gets TCP 443 to the internet, and the real
+    enforcement point is the egress proxy in docs/runbooks/deploy.md. Setting
+    networkPolicy.fqdn.enabled=true on a Cilium cluster moves enforcement here
+    (see networkpolicy-fqdn.yaml).
+
+  * The VPC CIDR allowance covers RDS, ElastiCache and the S3 gateway endpoint,
+    which share that range. It is narrowed by port: 5432 and 6379 only, plus 443
+    for the S3 endpoint.
+=============================================================================
+*/}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "montaj.fullname" . }}-default-deny
+  labels:
+    {{- include "montaj.labels" . | nindent 4 }}
+  annotations:
+    montaj.ai/rationale: >-
+      Baseline for the namespace. Every allowance below is additive, so a
+      component with no policy of its own can reach nothing.
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "montaj.fullname" . }}-allow-dns
+  labels:
+    {{- include "montaj.labels" . | nindent 4 }}
+  annotations:
+    montaj.ai/rationale: >-
+      Name resolution for every pod. Without this the default-deny above breaks
+      even in-cluster service discovery.
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dns.namespace }}
+          podSelector:
+            matchLabels:
+              {{ .Values.networkPolicy.dns.selectorLabel }}: {{ .Values.networkPolicy.dns.selectorValue }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- range $name, $spec := .Values.components }}
+{{- if $spec.enabled }}
+{{- $net := $spec.network | default dict }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "montaj.componentFullname" (dict "root" $ "component" $name) }}
+  labels:
+    {{- include "montaj.componentLabels" (dict "root" $ "component" $name) | nindent 4 }}
+  {{- $reasons := list
+      (printf "%s: data tier inside the VPC (5432, 6379, 443) always" $name)
+      (ternary "unrestricted HTTPS egress (payment and identity providers)" "no unrestricted HTTPS egress" (default false $net.allowInternetHttps))
+      (ternary "provider allow-list on 443 (networkPolicy.providerAllowlist)" "no provider egress" (default false $net.allowProviderEgress))
+      (ternary "ingress from the ingress controller" "no ingress from outside the cluster" (default false $net.allowIngressFromIngressController))
+      (ternary "ingress from other montaj components" "no ingress from other montaj components" (default false $net.allowIngressFromCluster))
+      "scrape ingress from the observability namespace" }}
+  annotations:
+    montaj.ai/rationale: {{ join "; " $reasons | quote }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "montaj.componentSelectorLabels" (dict "root" $ "component" $name) | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- if $net.allowIngressFromIngressController }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $.Values.networkPolicy.ingressControllerNamespace }}
+      {{- if $spec.port }}
+      ports:
+        - protocol: TCP
+          port: {{ $spec.port }}
+      {{- end }}
+    {{- end }}
+    {{- if $net.allowIngressFromCluster }}
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "montaj.commonSelectorLabels" $ | nindent 14 }}
+      {{- if $spec.port }}
+      ports:
+        - protocol: TCP
+          port: {{ $spec.port }}
+      {{- end }}
+    {{- end }}
+    {{- /* Prometheus and the OTel collector scrape every component. */}}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $.Values.networkPolicy.observabilityNamespace }}
+  egress:
+    # --- data tier inside the VPC -----------------------------------------
+    - to:
+        - ipBlock:
+            cidr: {{ $.Values.networkPolicy.vpcCidr }}
+      ports:
+        - protocol: TCP
+          port: 5432 # PostgreSQL
+        - protocol: TCP
+          port: 6379 # Redis (BullMQ, pub/sub, cache)
+        - protocol: TCP
+          port: 443 # S3 gateway endpoint, SSM, KMS
+    # --- other montaj components ------------------------------------------
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "montaj.commonSelectorLabels" $ | nindent 14 }}
+    # --- telemetry ---------------------------------------------------------
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $.Values.networkPolicy.observabilityNamespace }}
+      ports:
+        - protocol: TCP
+          port: 4317
+        - protocol: TCP
+          port: 4318
+    {{- if or $net.allowInternetHttps (and $net.allowProviderEgress (not $.Values.networkPolicy.fqdn.enabled)) }}
+    # --- outbound HTTPS ----------------------------------------------------
+    # {{ if $net.allowInternetHttps }}Unrestricted: this component talks to
+    # Razorpay and Google, whose address ranges are not stable enough to pin.
+    # {{ else }}Provider allow-list, enforced by hostname only where Cilium is
+    # available; here it degrades to "443 to anywhere off the private ranges".
+    # {{ end }}RFC1918, loopback, link-local and the IMDS address are excluded
+    # so this rule can never become an SSRF path back into the VPC
+    # (THREAT-MODEL T6).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 127.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 443
+    {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

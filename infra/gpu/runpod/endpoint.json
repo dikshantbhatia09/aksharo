@@ -1,0 +1,57 @@
+{
+  "$schema": "./endpoint.schema.json",
+  "name": "montaj-asr-{{ENVIRONMENT}}",
+  "description": "Whisper large-v3-turbo + forced alignment + pyannote community-1, co-resident in one model server (decision D15). Serves ai.transcribe, ai.align and ai.diarise.",
+  "templateId": "{{TEMPLATE_ID}}",
+  "template": {
+    "name": "montaj-ai-worker-{{ENVIRONMENT}}",
+    "imageName": "{{REGISTRY}}/montaj/gpu-model-server:{{IMAGE_TAG}}",
+    "containerDiskInGb": 60,
+    "volumeInGb": 0,
+    "volumeMountPath": "/runpod-volume",
+    "dockerArgs": "",
+    "isServerless": true,
+    "readme": "Models are baked into the image, not downloaded at boot: a cold start that pulls 3 GB of weights costs more in GPU-seconds than the image layer cache costs in storage.",
+    "env": {
+      "MODEL_WHISPER": "large-v3-turbo",
+      "MODEL_ALIGNER": "wav2vec2-multilingual",
+      "MODEL_DIARISER": "pyannote/speaker-diarization-community-1",
+      "COMPUTE_TYPE": "float16",
+      "HF_HOME": "/models/hf",
+      "HF_HUB_OFFLINE": "1",
+      "TRANSFORMERS_OFFLINE": "1",
+      "OMP_NUM_THREADS": "4",
+      "MONTAJ_ENVIRONMENT": "{{ENVIRONMENT}}"
+    }
+  },
+
+  "gpuIds": "ADA_24,AMPERE_24",
+  "gpuCount": 1,
+  "allowedCudaVersions": ["12.4", "12.6", "12.8"],
+
+  "locations": "AP,EU-RO-1,US-OR-1",
+
+  "workersMin": 1,
+  "workersMax": 20,
+
+  "idleTimeout": 30,
+  "executionTimeoutMs": 1800000,
+
+  "scalerType": "QUEUE_DELAY",
+  "scalerValue": 20,
+
+  "flashboot": true,
+  "networkVolumeId": null,
+
+  "_notes": {
+    "workersMin": "Decision D15: a warm floor of one instance per region. A cold start on this image is 25-40 s; the first transcript of the morning must not pay it. One warm 24 GB GPU is roughly USD 290 a month at on-demand serverless rates, which is the single largest fixed line in the AI budget - see ../COST.md.",
+    "workersMax": "Ceiling, not a target. Raise only with the credit admission control in mind (THREAT-MODEL T23): unbounded GPU autoscaling is unbounded spend.",
+    "scalerType": "QUEUE_DELAY scales on how long a request has been waiting, which maps directly onto the transcript latency targets in 05 section 5.1 (p95 <= 120 s on the Scribe path). REQUEST_COUNT would scale on arrival rate and miss a slow queue.",
+    "scalerValue": "Add a worker when the oldest queued request has waited 20 s.",
+    "idleTimeout": "Seconds a worker stays alive after its last request. 30 s bridges the gap between chunks of the same media file without holding the GPU across jobs.",
+    "executionTimeoutMs": "30 minutes. A 3-hour source is chunked at VAD boundaries into ~10-minute pieces (05 section 5.1), so no single request should come close.",
+    "gpuIds": "24 GB Ada (L4, A5000) or Ampere (A10, 3090). large-v3-turbo plus the aligner and the diariser co-resident need about 11 GB; 24 GB leaves room for a second concurrent stream.",
+    "locations": "AP first for Indian users and for the residency story in 05 section 9. EU and US are listed for overflow only; the routing layer must not send Indian media there while the transfer impact assessment (05 section 8) is outstanding.",
+    "flashboot": "RunPod keeps the container image warm across scale-to-zero. Halves the cold start at no extra cost."
+  }
+}

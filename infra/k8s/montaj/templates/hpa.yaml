@@ -1,0 +1,63 @@
+{{/*
+HPA on CPU (and optionally memory) for the request-serving components. Workers
+scale on queue depth instead — see scaledobject.yaml — because CPU is a lagging
+signal for a queue: by the time the workers are hot, the queue is already long.
+*/}}
+{{- range $name, $spec := .Values.components }}
+{{- if and $spec.enabled $spec.hpa }}
+{{- if $spec.hpa.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "montaj.componentFullname" (dict "root" $ "component" $name) }}
+  labels:
+    {{- include "montaj.componentLabels" (dict "root" $ "component" $name) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "montaj.componentFullname" (dict "root" $ "component" $name) }}
+  minReplicas: {{ $spec.hpa.minReplicas }}
+  maxReplicas: {{ $spec.hpa.maxReplicas }}
+  metrics:
+    {{- if $spec.hpa.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $spec.hpa.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if $spec.hpa.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $spec.hpa.targetMemoryUtilizationPercentage }}
+    {{- end }}
+  behavior:
+    scaleUp:
+      # React quickly: a traffic spike that waits five minutes for capacity has
+      # already blown the p95 SLO in 05 section 10.
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 4
+          periodSeconds: 30
+      selectPolicy: Max
+    scaleDown:
+      # Come down slowly so a lull between bursts does not cause a thundering
+      # cold start on the next one.
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 60
+{{- end }}
+{{- end }}
+{{- end }}

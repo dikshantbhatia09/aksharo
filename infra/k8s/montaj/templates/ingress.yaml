@@ -1,0 +1,80 @@
+{{/*
+Ingress. Two hosts: the studio (WEB_ORIGIN) and the API (API_ORIGIN).
+
+The realtime gateway shares the API host under /ws (CONTRACTS section 7), so a
+browser needs one origin and one certificate rather than two. Paths are grouped
+per host, longest first, because ingress-nginx matches in the order given.
+
+TLS certificates come from cert-manager through the cluster issuer named in
+ingress.annotations; nothing in this chart holds a key.
+*/}}
+{{- if .Values.ingress.enabled }}
+{{- $root := . }}
+{{- $byHost := dict }}
+{{- range $name, $spec := .Values.components }}
+{{- if and $spec.enabled $spec.ingress }}
+{{- if $spec.ingress.enabled }}
+{{- $host := index $root.Values.ingress.hosts $spec.ingress.host }}
+{{- $existing := index $byHost $host | default list }}
+{{- $_ := set $byHost $host (append $existing (dict "component" $name "spec" $spec)) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- range $host, $entries := $byHost }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "montaj.fullname" $root }}-{{ $host | replace "." "-" }}
+  labels:
+    {{- include "montaj.labels" $root | nindent 4 }}
+  annotations:
+    {{- with $root.Values.commonAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with $root.Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if eq $host (index $root.Values.ingress.hosts "api") }}
+    {{- with $root.Values.ingress.apiAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- end }}
+spec:
+  ingressClassName: {{ $root.Values.ingress.className }}
+  {{- if $root.Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ $host | quote }}
+      secretName: {{ include "montaj.fullname" $root }}-tls-{{ $host | replace "." "-" }}
+  {{- end }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          {{- /* Specific paths first: ingress-nginx matches in order, so /ws
+                 must appear before / or the studio would swallow it. */}}
+          {{- range $entry := $entries }}
+          {{- if ne $entry.spec.ingress.path "/" }}
+          - path: {{ $entry.spec.ingress.path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "montaj.componentFullname" (dict "root" $root "component" $entry.component) }}
+                port:
+                  name: http
+          {{- end }}
+          {{- end }}
+          {{- range $entry := $entries }}
+          {{- if eq $entry.spec.ingress.path "/" }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "montaj.componentFullname" (dict "root" $root "component" $entry.component) }}
+                port:
+                  name: http
+          {{- end }}
+          {{- end }}
+{{- end }}
+{{- end }}
