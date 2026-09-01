@@ -21,7 +21,10 @@ export async function bootstrap(): Promise<INestApplication> {
   // (in CommonModule) shuts it down again through the application's own hooks.
   await startTelemetry({ serviceVersion: APP_VERSION });
 
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  // `rawBody` keeps the exact request bytes on `req.rawBody`. The worker → API
+  // callbacks are HMAC'd over the body as sent (CONTRACTS §3), and a re-serialised
+  // body would not reproduce the signature a Python worker computed.
+  const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
   app.useLogger(app.get(PinoLogger));
 
   const env = app.get<Env>(ENV);
