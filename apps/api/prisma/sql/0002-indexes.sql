@@ -119,9 +119,16 @@ CREATE INDEX IF NOT EXISTS edg_pass_items_proposed_idx
   ON edg_pass_items (edg_id, start_ms)
   WHERE state = 'proposed';
 
--- Live (non-tombstoned) segments in document order. Complements the plain
--- `(edg_id, seq)` index declared in schema.prisma, which the editor pages through.
-CREATE INDEX IF NOT EXISTS edg_segments_live_seq_idx
+-- Live (non-tombstoned) segments in document order, and the uniqueness that goes
+-- with it: `seq` is a fractional index, so two LIVE segments sharing a key means
+-- two segments claiming one position, and the document has no defined order.
+--
+-- Partial rather than a plain UNIQUE on `(edg_id, seq)`: a tombstoned segment
+-- keeps its key (word and segment ids are never reused, 06 invariant 4), and a
+-- later insert between its neighbours may legitimately land on the freed key.
+-- Constraining the tombstones too would reject a correct edit. The full
+-- `(edg_id, seq)` index in schema.prisma stays as the read path over all rows.
+CREATE UNIQUE INDEX IF NOT EXISTS edg_segments_live_seq_idx
   ON edg_segments (edg_id, seq)
   WHERE deleted_at_rev IS NULL;
 

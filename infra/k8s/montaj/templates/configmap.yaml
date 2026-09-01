@@ -1,0 +1,26 @@
+{{/*
+Non-secret configuration. Anything in CONTRACTS section 1 lives in the Secret
+that external-secrets projects from SSM; this ConfigMap holds only operational
+settings that are safe to read from `kubectl get cm -o yaml`.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "montaj.configMapName" . }}
+  labels:
+    {{- include "montaj.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  {{- range $key, $value := .Values.config }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- if .Values.redis.address }}
+  # host:port for the KEDA redis scaler. Not a credential and not part of
+  # CONTRACTS section 1: REDIS_URL carries the rediss:// form the applications
+  # use, and KEDA's scaler wants a bare address.
+  KEDA_REDIS_ADDRESS: {{ .Values.redis.address | quote }}
+  {{- end }}
+  MONTAJ_ENVIRONMENT: {{ .Values.environment | quote }}

@@ -11,6 +11,8 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { compareSeqKeys, seqBetween } from "@montaj/edg";
+
 import { createTestDatabase, isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { seed } from "../prisma/seed.js";
 
@@ -123,8 +125,10 @@ const REQUIRED_INDEXES = [
   "invoices_series_fiscal_year_number_key",
   // From the brief, hand SQL (NULLS LAST is not expressible in Prisma):
   "credit_lots_consumption_order_idx",
-  // Uniqueness PostgreSQL cannot give with a NULLable column:
+  // Uniqueness PostgreSQL cannot give with a NULLable column, or with a
+  // predicate (one live segment per fractional key):
   "style_presets_system_key_key",
+  "edg_segments_live_seq_idx",
   // pgvector:
   "audio_assets_embedding_hnsw_idx",
 ] as const;
@@ -480,12 +484,20 @@ describe.skipIf(!available)("database schema and seed", () => {
         },
       });
 
-      // Inserted out of order on purpose, with fractional `seq` values between
-      // each other — that is the ordering scheme, not the insertion order.
+      // Real keys from `@montaj/edg`, inserted out of order on purpose: `seq` is
+      // what defines document order, not insertion order. `seqBetween(a, b)` is
+      // the operation that has to keep working — inserting between two
+      // neighbours must not renumber either of them.
+      const first = seqBetween();
+      const third = seqBetween(first);
+      const second = seqBetween(first, third);
+      expect(compareSeqKeys(first, second)).toBeLessThan(0);
+      expect(compareSeqKeys(second, third)).toBeLessThan(0);
+
       const segments: [string, string, number, number][] = [
-        [id("G2"), "2", 2_000, 3_000],
-        [id("G3"), "1.5", 1_000, 2_000],
-        [id("G1"), "1", 0, 1_000],
+        [id("G2"), third, 2_000, 3_000],
+        [id("G3"), second, 1_000, 2_000],
+        [id("G1"), first, 0, 1_000],
       ];
       for (const [segmentId, seq, startMs, endMs] of segments) {
         await prisma.edgSegment.create({
@@ -507,11 +519,102 @@ describe.skipIf(!available)("database schema and seed", () => {
       });
 
       expect(read).toHaveLength(3);
-      expect(read.map((segment) => segment.seq.toString())).toEqual(["1", "1.5", "2"]);
+      expect(read.map((segment) => segment.seq)).toEqual([first, second, third]);
       expect(read.map((segment) => segment.startMs)).toEqual([0, 1_000, 2_000]);
       // A fractional index has to survive the round trip exactly, or reordering
       // silently corrupts the document.
       expect(read[1]?.id).toBe(id("G3"));
+    });
+
+    it("orders seq by bytes, exactly as @montaj/edg compares keys", async () => {
+      const { project } = await makeProject(prisma, "co");
+      const edg = await prisma.edgDocument.create({
+        data: { id: id("E3"), projectId: project.id },
+      });
+
+      // These six keys separate byte order from a linguistic one. Measured on the
+      // very image this suite runs (`pgvector/pgvector:pg16`, whose database
+      // default is en_US.utf8, NOT C):
+      //
+      //   ORDER BY seq                -> 1 1B 2 a Zz zzzV
+      //   ORDER BY seq COLLATE "C"    -> 1 1B 2 Zz a zzzV
+      //
+      // So a column that inherited the database default fails here, and nowhere
+      // else until a user reports their captions coming out shuffled.
+      const keys = ["1", "1B", "2", "Zz", "a", "zzzV"];
+      let index = 0;
+      for (const seq of [...keys].reverse()) {
+        index += 1;
+        await prisma.edgSegment.create({
+          data: {
+            id: id(`H${index}`),
+            edgId: edg.id,
+            seq,
+            startWordId: "0:0",
+            endWordId: "0:1",
+            startMs: 0,
+            endMs: 1_000,
+          },
+        });
+      }
+
+      const read = await prisma.edgSegment.findMany({
+        where: { edgId: edg.id },
+        orderBy: { seq: "asc" },
+        select: { seq: true },
+      });
+
+      const expected = [...keys].sort(compareSeqKeys);
+      expect(read.map((segment) => segment.seq)).toEqual(expected);
+      // …and the sort the package would do is the identity on this input, so the
+      // assertion above really is "Postgres agrees with @montaj/edg".
+      expect(expected).toEqual(keys);
+    });
+
+    it('pins COLLATE "C" on the column, not on the database default', async () => {
+      // Managed Postgres usually defaults to a linguistic collation, and so does
+      // the image this suite runs on. `collation_name` is NULL for a column that
+      // inherits the database default, so this is not a tautology: it is `C` only
+      // because the migration pins it.
+      const rows = await prisma.$queryRaw<{ collation_name: string | null }[]>`
+        SELECT collation_name FROM information_schema.columns
+        WHERE table_name = 'edg_segments' AND column_name = 'seq'`;
+      expect(rows[0]?.collation_name).toBe("C");
+    });
+
+    it("refuses two live segments on the same seq", async () => {
+      const { project } = await makeProject(prisma, "uq");
+      const edg = await prisma.edgDocument.create({
+        data: { id: id("E4"), projectId: project.id },
+      });
+      const row = (segmentId: string, seq: string, deletedAtRev: number | null) => ({
+        id: segmentId,
+        edgId: edg.id,
+        seq,
+        startWordId: "0:0",
+        endWordId: "0:1",
+        startMs: 0,
+        endMs: 1_000,
+        deletedAtRev,
+      });
+
+      await prisma.edgSegment.create({ data: row(id("J1"), "V", null) });
+      // Two live segments claiming one position leaves the document with no
+      // defined order.
+      await expect(prisma.edgSegment.create({ data: row(id("J2"), "V", null) })).rejects.toThrow(
+        /edg_segments_live_seq_idx|Unique constraint/,
+      );
+
+      // A tombstone on the same key is fine: ids are never reused, so a deleted
+      // segment keeps its key while a later edit may legitimately reclaim it.
+      await prisma.edgSegment.update({
+        where: { id: id("J1") },
+        data: { deletedAtRev: 7 },
+      });
+      await expect(
+        prisma.edgSegment.create({ data: row(id("J3"), "V", null) }),
+      ).resolves.toBeTruthy();
+      await expect(prisma.edgSegment.create({ data: row(id("J4"), "V", 9) })).resolves.toBeTruthy();
     });
 
     it("cascades a project delete to its EDG document and segments", async () => {

@@ -1,0 +1,141 @@
+# =============================================================================
+# Staging overrides.
+#
+#   helm upgrade --install montaj infra/k8s/montaj \
+#     -n montaj --create-namespace \
+#     -f infra/k8s/montaj/values-staging.yaml
+#
+# Every value here comes from `terraform output` in infra/terraform/envs/staging.
+# No secret ever appears in this file.
+# =============================================================================
+
+environment: staging
+
+image:
+  # `terraform output` does not produce this: it is the ECR registry for the
+  # account, filled in by the deploy workflow. [H] on first deploy.
+  registry: ""
+  pullPolicy: IfNotPresent
+
+externalSecrets:
+  enabled: true
+  region: ap-south-1
+  # terraform output ssm_parameter_path
+  parameterPath: /montaj/staging
+
+config:
+  NODE_ENV: production
+  LOG_LEVEL: debug
+  OTEL_TRACES_SAMPLER_ARG: "1.0"
+
+redis:
+  # terraform output redis_url, without the scheme
+  address: ""
+  enableTLS: true
+
+networkPolicy:
+  enabled: true
+  # terraform output vpc_cidr_block
+  vpcCidr: 10.20.0.0/16
+  fqdn:
+    # Staging runs the stock AWS VPC CNI, so hostname egress rules cannot be
+    # enforced here. See templates/networkpolicy.yaml for what that means.
+    enabled: false
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    web: staging-app.aksharo.ai
+    api: staging-api.aksharo.ai
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/proxy-body-size: 32m
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+# Staging runs one of everything and scales to zero when idle: it exists to
+# prove the code path, not to absorb load.
+components:
+  api:
+    replicas: 1
+    resources:
+      requests: { cpu: 100m, memory: 384Mi }
+      limits: { memory: 768Mi }
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 3
+      targetCPUUtilizationPercentage: 75
+    pdb:
+      enabled: false
+
+  web:
+    replicas: 1
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { memory: 512Mi }
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 3
+    pdb:
+      enabled: false
+
+  realtime:
+    replicas: 1
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { memory: 512Mi }
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 2
+    pdb:
+      enabled: false
+
+  worker-media:
+    resources:
+      requests: { cpu: 500m, memory: 1Gi }
+      limits: { cpu: "2", memory: 3Gi }
+    scratchVolume:
+      enabled: true
+      sizeLimit: 20Gi
+      mountPath: /scratch
+    keda:
+      enabled: true
+      minReplicaCount: 0
+      maxReplicaCount: 3
+    pdb:
+      enabled: false
+
+  worker-ai:
+    resources:
+      requests: { cpu: 250m, memory: 1Gi }
+      limits: { cpu: "1", memory: 2Gi }
+    keda:
+      enabled: true
+      minReplicaCount: 0
+      maxReplicaCount: 4
+    pdb:
+      enabled: false
+
+  render:
+    resources:
+      requests: { cpu: "1", memory: 2Gi }
+      limits: { cpu: "2", memory: 4Gi }
+    scratchVolume:
+      enabled: true
+      sizeLimit: 40Gi
+      mountPath: /scratch
+    keda:
+      enabled: true
+      minReplicaCount: 0
+      maxReplicaCount: 2
+    pdb:
+      enabled: false
+
+  scheduler:
+    resources:
+      requests: { cpu: 50m, memory: 192Mi }
+      limits: { memory: 384Mi }

@@ -1,0 +1,181 @@
+{{/*
+One Deployment per enabled component. Web components take traffic through the
+ingress; workers consume BullMQ queues and expose no service; the scheduler is a
+singleton.
+
+Every pod runs as a non-root user with a read-only root filesystem and no
+capabilities. Media workers need scratch space, so they get an emptyDir rather
+than a writable root.
+*/}}
+{{- range $name, $spec := .Values.components }}
+{{- if $spec.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "montaj.componentFullname" (dict "root" $ "component" $name) }}
+  labels:
+    {{- include "montaj.componentLabels" (dict "root" $ "component" $name) | nindent 4 }}
+  {{- with $.Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- /* Replica count is owned by the HPA or the KEDA ScaledObject once one exists. */}}
+  {{- if not (or (and $spec.hpa $spec.hpa.enabled) (and $spec.keda $spec.keda.enabled $.Values.keda.enabled)) }}
+  replicas: {{ $spec.replicas | default 1 }}
+  {{- end }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      {{- include "montaj.componentSelectorLabels" (dict "root" $ "component" $name) | nindent 6 }}
+  strategy:
+    {{- if eq ($spec.kind | default "worker") "cron" }}
+    {{- /* A singleton must never overlap with itself: stop the old pod first. */}}
+    type: Recreate
+    {{- else }}
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "montaj.componentLabels" (dict "root" $ "component" $name) | nindent 8 }}
+      annotations:
+        {{- with $.Values.commonAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- /* Restart pods when non-secret config changes. Secret changes are
+               picked up by the application on its own refresh. */}}
+        checksum/config: {{ toYaml $.Values.config | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "montaj.componentFullname" (dict "root" $ "component" $name) }}
+      automountServiceAccountToken: false
+      {{- with $.Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ $spec.terminationGracePeriodSeconds | default $.Values.terminationGracePeriodSeconds }}
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if and $.Values.topologySpreadDefault (ne ($spec.kind | default "worker") "cron") }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "montaj.componentSelectorLabels" (dict "root" $ "component" $name) | nindent 14 }}
+      {{- end }}
+      containers:
+        - name: {{ $name }}
+          image: {{ include "montaj.image" (dict "root" $ "spec" $spec) }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          {{- with $spec.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $spec.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if $spec.port }}
+          ports:
+            - name: http
+              containerPort: {{ $spec.port }}
+              protocol: TCP
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "montaj.configMapName" $ }}
+            {{- if $.Values.externalSecrets.enabled }}
+            - secretRef:
+                name: {{ include "montaj.envSecretName" $ }}
+            {{- end }}
+          env:
+            - name: MONTAJ_COMPONENT
+              value: {{ $name | quote }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            {{- if $spec.scratchVolume }}
+            {{- if $spec.scratchVolume.enabled }}
+            - name: MONTAJ_SCRATCH_DIR
+              value: {{ $spec.scratchVolume.mountPath | quote }}
+            - name: TMPDIR
+              value: {{ $spec.scratchVolume.mountPath | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with $spec.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml $spec.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+          {{- if $spec.probes }}
+          {{- with $spec.probes.liveness }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $spec.probes.readiness }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $spec.probes.startup }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          volumeMounts:
+            {{- /* readOnlyRootFilesystem is on, so anything that writes needs a
+                   volume: /tmp for every process, plus scratch for ffmpeg. */}}
+            - name: tmp
+              mountPath: /tmp
+            {{- if $spec.scratchVolume }}
+            {{- if $spec.scratchVolume.enabled }}
+            - name: scratch
+              mountPath: {{ $spec.scratchVolume.mountPath }}
+            {{- end }}
+            {{- end }}
+            {{- with $spec.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 512Mi
+        {{- if $spec.scratchVolume }}
+        {{- if $spec.scratchVolume.enabled }}
+        - name: scratch
+          emptyDir:
+            sizeLimit: {{ $spec.scratchVolume.sizeLimit }}
+        {{- end }}
+        {{- end }}
+        {{- with $spec.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+{{- end }}
+{{- end }}

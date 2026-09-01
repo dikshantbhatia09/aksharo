@@ -1,0 +1,36 @@
+{{/*
+PodDisruptionBudgets. A node drain during a cluster upgrade must not take a
+whole component with it.
+
+The scheduler has none on purpose: it is a singleton, so any budget would either
+be vacuous (maxUnavailable 1) or block every drain forever (minAvailable 1).
+*/}}
+{{- range $name, $spec := .Values.components }}
+{{- if and $spec.enabled $spec.pdb }}
+{{- if $spec.pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "montaj.componentFullname" (dict "root" $ "component" $name) }}
+  labels:
+    {{- include "montaj.componentLabels" (dict "root" $ "component" $name) | nindent 4 }}
+spec:
+  {{- if $spec.pdb.minAvailable }}
+  minAvailable: {{ $spec.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ $spec.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  {{- if $spec.keda }}
+  {{- if and $spec.keda.enabled (eq (int $spec.keda.minReplicaCount) 0) }}
+  # A component that legitimately scales to zero must not block a drain when it
+  # has done so.
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  {{- end }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "montaj.componentSelectorLabels" (dict "root" $ "component" $name) | nindent 6 }}
+{{- end }}
+{{- end }}
+{{- end }}

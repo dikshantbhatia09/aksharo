@@ -6,7 +6,7 @@
 - IDs: ULID strings. Times: `timestamptz` in DB, ISO-8601 in JSON, milliseconds (`*Ms`) for media time. Money: integer minor units + ISO currency. Credits: integer tenths (`*Tenths`).
 
 ## 1. Environment variables (`.env.example` must list all)
-`DATABASE_URL`, `REDIS_URL`, `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET_RAW`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `R2_ENDPOINT`, `R2_BUCKET_DERIVED`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, `INTERNAL_CALLBACK_SECRET`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `WEB_ORIGIN`, `API_ORIGIN`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `SARVAM_API_KEY`, `ELEVENLABS_API_KEY`, `ASSEMBLYAI_API_KEY`, `LLM_PROVIDER`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GPU_PROVIDER`, `SENTRY_DSN`, `POSTHOG_KEY`, `FEATURE_FLAGS_JSON`.
+`DATABASE_URL`, `REDIS_URL`, `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET_RAW`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `R2_ENDPOINT`, `R2_BUCKET_DERIVED`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, `INTERNAL_CALLBACK_SECRET`, `INTERNAL_CALLBACK_SECRET_NEXT` (optional; second valid verification key during rotation — added 2026-09-02 after X05), `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `WEB_ORIGIN`, `API_ORIGIN`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `SARVAM_API_KEY`, `ELEVENLABS_API_KEY`, `ASSEMBLYAI_API_KEY`, `LLM_PROVIDER`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GPU_PROVIDER`, `SENTRY_DSN`, `POSTHOG_KEY`, `FEATURE_FLAGS_JSON`.
 
 ## 2. EDG v2 core types (`@montaj/edg`)
 ```ts
@@ -37,7 +37,7 @@ export interface EdgHot { meta: { edgId: string; projectId: string; revision: nu
 ## 3. Queue contracts (BullMQ; Redis)
 Queue names: `media.probe`, `media.proxy`, `ai.vad`, `ai.transcribe`, `ai.align`, `ai.diarise`, `ai.translate`, `ai.transliterate`, `ai.clean`, `ai.pass`, `ai.llm`, `render.video`, `render.subtitle`, `notify`.
 Envelope (every job data): `{ jobId, attemptId, workspaceId, projectId?, priority, jobKey, createdAt, payload }`.
-Completion callback: `POST {API_ORIGIN}/internal/jobs/{jobId}/complete` with headers `X-Montaj-Attempt: <attemptId>`, `X-Montaj-Timestamp`, `X-Montaj-Signature: hex(hmac_sha256(INTERNAL_CALLBACK_SECRET, timestamp + "." + body))`; body `{ status: "succeeded"|"failed", result?, error?, usage?: { mediaSeconds?, outputSeconds?, provider?, model?, costMinor?, egressBytes? } }`. Replays return 200 without side effects. Progress: `POST /internal/jobs/{jobId}/progress {progress, etaMs, message}` (same signature).
+Completion callback: `POST {API_ORIGIN}/internal/jobs/{jobId}/complete` with headers `X-Montaj-Attempt: <attemptId>`, `X-Montaj-Timestamp`, `X-Montaj-Signature: hex(hmac_sha256(INTERNAL_CALLBACK_SECRET, timestamp + "." + body))`; body `{ status: "succeeded"|"failed", result?, error?, usage?: { mediaSeconds?, outputSeconds?, provider?, model?, costMinor?, egressBytes? } }`. The API verifies the signature against `INTERNAL_CALLBACK_SECRET` first and, when set, against `INTERNAL_CALLBACK_SECRET_NEXT` (two-key rotation); workers always sign with the primary they were given. Replays return 200 without side effects. Progress: `POST /internal/jobs/{jobId}/progress {progress, etaMs, message}` (same signature).
 Python worker uses the official `bullmq` package pinned in `apps/worker-ai/pyproject.toml`; unsupported features (documented): flow producers, repeatable jobs, sandboxed processors — not used.
 
 ## 4. CreditsFacade (api-internal interface; Wave 1 no-op, Wave 3 real)

@@ -1,0 +1,512 @@
+# =============================================================================
+# montaj chart — defaults.
+#
+# These defaults are the shape of the deployment, not a deployable environment:
+# values-staging.yaml and values-prod.yaml supply hostnames, registry, sizes and
+# the SSM path. Never put a secret in any values file — every credential in
+# CONTRACTS section 1 arrives through external-secrets from SSM Parameter Store
+# (THREAT-MODEL T21).
+# =============================================================================
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Environment slug. Appears in labels and in the SSM parameter path.
+environment: staging
+
+image:
+  # Container registry holding every montaj image. Set per environment.
+  registry: ""
+  # Empty tag falls back to Chart.appVersion, which the deploy workflow
+  # overrides with the release SHA.
+  tag: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# Labels and annotations added to every object in the chart.
+commonLabels: {}
+commonAnnotations: {}
+
+# -----------------------------------------------------------------------------
+# Secrets: SSM Parameter Store -> Kubernetes Secret, via external-secrets.
+# -----------------------------------------------------------------------------
+externalSecrets:
+  enabled: true
+
+  # external-secrets promoted these to v1 in 0.15. Override if the cluster still
+  # runs an older controller.
+  apiVersion: external-secrets.io/v1
+
+  # Create a namespaced SecretStore pointing at SSM in this account and region.
+  # Set false when a cluster-wide ClusterSecretStore already exists.
+  createStore: true
+  storeKind: SecretStore
+  storeName: montaj-ssm
+
+  region: ap-south-1
+
+  # Service account external-secrets runs as, annotated with the IRSA role from
+  # `terraform output external_secrets_role_arn`.
+  serviceAccount:
+    name: external-secrets
+    namespace: external-secrets
+
+  # SSM path prefix: `terraform output ssm_parameter_path`.
+  parameterPath: /montaj/staging
+
+  # Kubernetes Secret the ExternalSecret materialises. Every component mounts it
+  # with envFrom.
+  secretName: montaj-env
+
+  refreshInterval: 1h
+
+  # -------------------------------------------------------------------------
+  # The frozen environment contract: docs/CONTRACTS.md section 1, in order.
+  # The infra-validate CI job diffs this list against CONTRACTS section 1, so a
+  # variable added to the contract without being added here fails the build
+  # (X05 acceptance criterion 2).
+  # -------------------------------------------------------------------------
+  variables:
+    - DATABASE_URL
+    - REDIS_URL
+    - S3_ENDPOINT
+    - S3_REGION
+    - S3_BUCKET_RAW
+    - S3_ACCESS_KEY
+    - S3_SECRET_KEY
+    - R2_ENDPOINT
+    - R2_BUCKET_DERIVED
+    - R2_ACCESS_KEY
+    - R2_SECRET_KEY
+    - JWT_PRIVATE_KEY
+    - JWT_PUBLIC_KEY
+    - INTERNAL_CALLBACK_SECRET
+    - INTERNAL_CALLBACK_SECRET_NEXT
+    - GOOGLE_OAUTH_CLIENT_ID
+    - GOOGLE_OAUTH_CLIENT_SECRET
+    - WEB_ORIGIN
+    - API_ORIGIN
+    - RAZORPAY_KEY_ID
+    - RAZORPAY_KEY_SECRET
+    - RAZORPAY_WEBHOOK_SECRET
+    - SARVAM_API_KEY
+    - ELEVENLABS_API_KEY
+    - ASSEMBLYAI_API_KEY
+    - LLM_PROVIDER
+    - ANTHROPIC_API_KEY
+    - OPENAI_API_KEY
+    - GPU_PROVIDER
+    - SENTRY_DSN
+    - POSTHOG_KEY
+    - FEATURE_FLAGS_JSON
+
+# -----------------------------------------------------------------------------
+# Non-secret configuration, mounted as a ConfigMap alongside the secret.
+# -----------------------------------------------------------------------------
+config:
+  NODE_ENV: production
+  LOG_LEVEL: info
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://opentelemetry-collector.observability.svc.cluster.local:4318
+  OTEL_TRACES_SAMPLER: parentbased_traceidratio
+  OTEL_TRACES_SAMPLER_ARG: "0.1"
+
+# host:port of the Redis endpoint, for the KEDA scalers. KEDA reads it from the
+# scale target's environment, and its redis scaler wants host:port rather than
+# the rediss:// URL that REDIS_URL (CONTRACTS section 1) carries.
+redis:
+  address: ""
+  enableTLS: true
+  databaseIndex: 0
+
+# -----------------------------------------------------------------------------
+# Autoscaling on queue depth (KEDA).
+# -----------------------------------------------------------------------------
+keda:
+  enabled: true
+  apiVersion: keda.sh/v1alpha1
+
+  # BullMQ stores waiting jobs in a Redis list at <prefix>:<queue>:wait.
+  queuePrefix: bull
+
+  pollingInterval: 15
+  cooldownPeriod: 180
+
+# -----------------------------------------------------------------------------
+# Ingress. TLS certificates come from cert-manager.
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx
+
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 32m
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+  tls:
+    enabled: true
+
+  hosts:
+    web: app.aksharo.ai
+    api: api.aksharo.ai
+
+  # Extra annotations only on the API ingress: the realtime gateway needs long
+  # read timeouts for WebSocket upgrades (CONTRACTS section 7).
+  apiAnnotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+# -----------------------------------------------------------------------------
+# Network policy. Default deny, then named allowances.
+#
+# A NetworkPolicy selects by IP, never by hostname, so the provider allow-list
+# below documents intent and drives the optional CiliumNetworkPolicy, which CAN
+# match FQDNs. Without Cilium, worker egress to the internet is allowed on 443
+# only when allowInternetHttps is true for that component, and the real
+# enforcement point is the egress proxy named in the runbooks.
+# -----------------------------------------------------------------------------
+networkPolicy:
+  enabled: true
+
+  # CIDR of the VPC: RDS, ElastiCache and the S3 gateway endpoint all live here.
+  # `terraform output vpc_cidr_block`.
+  vpcCidr: 10.20.0.0/16
+
+  # Namespace and selector for CoreDNS.
+  dns:
+    namespace: kube-system
+    selectorLabel: k8s-app
+    selectorValue: kube-dns
+
+  # Namespace the ingress controller runs in.
+  ingressControllerNamespace: ingress-nginx
+
+  # Namespace the metrics/telemetry collector runs in.
+  observabilityNamespace: observability
+
+  # FQDN egress enforcement. Requires Cilium as the CNI; the AWS VPC CNI cannot
+  # express this. Off by default so the chart installs on a stock EKS cluster.
+  fqdn:
+    enabled: false
+
+  # The provider allow-list. Every hostname a worker is permitted to reach, with
+  # the reason, so a reviewer can tell an ASR vendor from an exfiltration path.
+  providerAllowlist:
+    - host: api.elevenlabs.io
+      reason: ElevenLabs Scribe v2 ASR (CONTRACTS ELEVENLABS_API_KEY)
+    - host: api.sarvam.ai
+      reason: Sarvam Saaras v4 ASR (CONTRACTS SARVAM_API_KEY)
+    - host: api.assemblyai.com
+      reason: AssemblyAI Universal-2 ASR (CONTRACTS ASSEMBLYAI_API_KEY)
+    - host: api.anthropic.com
+      reason: LLM extras when LLM_PROVIDER=anthropic
+    - host: api.openai.com
+      reason: LLM extras when LLM_PROVIDER=openai
+    - host: api.runpod.ai
+      reason: Serverless GPU control plane (decision D15)
+    - host: api.runpod.io
+      reason: Serverless GPU job submission
+  # Prefixes matched as suffixes rather than exact hosts.
+  providerAllowlistSuffixes:
+    - host: ".r2.cloudflarestorage.com"
+      reason: Derived object storage (R2_ENDPOINT)
+    - host: ".ingest.sentry.io"
+      reason: Error reporting (SENTRY_DSN)
+
+# -----------------------------------------------------------------------------
+# Pod-level defaults applied to every component.
+# -----------------------------------------------------------------------------
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  privileged: false
+  capabilities:
+    drop:
+      - ALL
+
+priorityClassName: ""
+nodeSelector: {}
+tolerations: []
+topologySpreadDefault: true
+
+terminationGracePeriodSeconds: 60
+
+# -----------------------------------------------------------------------------
+# Components.
+#
+# kind:
+#   web      HTTP service, ingress-facing, HPA on CPU
+#   worker   queue consumer, no service, KEDA on queue depth
+#   cron     singleton, no autoscaling
+# -----------------------------------------------------------------------------
+components:
+  api:
+    enabled: true
+    kind: web
+    repository: montaj/api
+    replicas: 2
+    port: 3001
+    ingress:
+      enabled: true
+      host: api
+      path: /
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }
+      limits: { memory: 1Gi }
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 12
+      targetCPUUtilizationPercentage: 65
+      targetMemoryUtilizationPercentage: 80
+    pdb:
+      enabled: true
+      minAvailable: 1
+    probes:
+      liveness:
+        httpGet: { path: /health, port: http }
+        initialDelaySeconds: 15
+        periodSeconds: 20
+        timeoutSeconds: 3
+        failureThreshold: 3
+      readiness:
+        httpGet: { path: /health, port: http }
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 3
+        failureThreshold: 3
+      startup:
+        httpGet: { path: /health, port: http }
+        periodSeconds: 5
+        failureThreshold: 30
+    network:
+      # The API is the only component that talks to a payment provider and an
+      # identity provider, so it is the only one with broad HTTPS egress.
+      allowInternetHttps: true
+      allowIngressFromIngressController: true
+      allowIngressFromCluster: true
+
+  web:
+    enabled: true
+    kind: web
+    repository: montaj/web
+    replicas: 2
+    port: 3000
+    ingress:
+      enabled: true
+      host: web
+      path: /
+    resources:
+      requests: { cpu: 150m, memory: 384Mi }
+      limits: { memory: 768Mi }
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    pdb:
+      enabled: true
+      minAvailable: 1
+    probes:
+      liveness:
+        httpGet: { path: /health, port: http }
+        initialDelaySeconds: 15
+        periodSeconds: 20
+      readiness:
+        httpGet: { path: /health, port: http }
+        initialDelaySeconds: 5
+        periodSeconds: 5
+    network:
+      # Server-side rendering calls the API over the cluster network only.
+      allowInternetHttps: false
+      allowIngressFromIngressController: true
+      allowIngressFromCluster: false
+
+  realtime:
+    enabled: true
+    kind: web
+    repository: montaj/api
+    # The realtime gateway is the api image started in gateway mode: same code,
+    # different process, so WebSocket fan-out scales without dragging REST
+    # traffic with it (CONTRACTS section 7).
+    command: ["node", "dist/main.js", "--role=realtime"]
+    replicas: 2
+    port: 3002
+    ingress:
+      enabled: true
+      host: api
+      path: /ws
+    resources:
+      requests: { cpu: 200m, memory: 512Mi }
+      limits: { memory: 1Gi }
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 60
+    pdb:
+      enabled: true
+      minAvailable: 1
+    probes:
+      liveness:
+        httpGet: { path: /health, port: http }
+        initialDelaySeconds: 15
+        periodSeconds: 20
+      readiness:
+        httpGet: { path: /health, port: http }
+        initialDelaySeconds: 5
+        periodSeconds: 5
+    network:
+      allowInternetHttps: false
+      allowIngressFromIngressController: true
+      allowIngressFromCluster: true
+
+  worker-media:
+    enabled: true
+    kind: worker
+    repository: montaj/worker-media
+    replicas: 1
+    # ffmpeg is CPU-bound and happily uses every core it is given.
+    resources:
+      requests: { cpu: "1", memory: 2Gi }
+      limits: { cpu: "2", memory: 4Gi }
+    # Scratch space for proxies and extracted audio. Sized for a 6-hour source.
+    scratchVolume:
+      enabled: true
+      sizeLimit: 40Gi
+      mountPath: /scratch
+    keda:
+      enabled: true
+      minReplicaCount: 0
+      maxReplicaCount: 12
+      queues:
+        - name: media.probe
+          listLength: 4
+        - name: media.proxy
+          listLength: 2
+    pdb:
+      enabled: true
+      maxUnavailable: 1
+    network:
+      allowInternetHttps: false
+      allowIngressFromIngressController: false
+      allowIngressFromCluster: false
+
+  worker-ai:
+    enabled: true
+    kind: worker
+    repository: montaj/worker-ai
+    replicas: 1
+    # The CPU variant: VAD, chunking, routing and the vendor ASR calls. Whisper
+    # inference itself runs on the serverless GPU provider (decision D15).
+    port: 8000
+    resources:
+      requests: { cpu: 500m, memory: 1.5Gi }
+      limits: { cpu: "2", memory: 3Gi }
+    scratchVolume:
+      enabled: true
+      sizeLimit: 20Gi
+      mountPath: /scratch
+    probes:
+      liveness:
+        httpGet: { path: /health, port: http }
+        initialDelaySeconds: 20
+        periodSeconds: 30
+      readiness:
+        httpGet: { path: /health, port: http }
+        initialDelaySeconds: 10
+        periodSeconds: 10
+    keda:
+      enabled: true
+      minReplicaCount: 0
+      maxReplicaCount: 20
+      queues:
+        - name: ai.vad
+          listLength: 8
+        - name: ai.transcribe
+          listLength: 2
+        - name: ai.align
+          listLength: 4
+        - name: ai.diarise
+          listLength: 4
+        - name: ai.translate
+          listLength: 4
+        - name: ai.transliterate
+          listLength: 8
+        - name: ai.clean
+          listLength: 4
+        - name: ai.pass
+          listLength: 4
+        - name: ai.llm
+          listLength: 4
+    pdb:
+      enabled: true
+      maxUnavailable: 1
+    network:
+      # Egress to the ASR, LLM and GPU providers only. The allow-list is
+      # networkPolicy.providerAllowlist; without Cilium it is enforced by the
+      # egress proxy, not by this policy.
+      allowInternetHttps: false
+      allowProviderEgress: true
+      allowIngressFromIngressController: false
+      allowIngressFromCluster: false
+
+  render:
+    enabled: true
+    kind: worker
+    repository: montaj/render
+    replicas: 0
+    # Skia draw commands plus ffmpeg overlay and x264: the most CPU-hungry
+    # workload in the cluster (05 section 5.2).
+    resources:
+      requests: { cpu: "2", memory: 4Gi }
+      limits: { cpu: "4", memory: 8Gi }
+    scratchVolume:
+      enabled: true
+      sizeLimit: 80Gi
+      mountPath: /scratch
+    keda:
+      enabled: true
+      minReplicaCount: 0
+      maxReplicaCount: 16
+      queues:
+        - name: render.video
+          listLength: 1
+        - name: render.subtitle
+          listLength: 8
+    pdb:
+      enabled: true
+      maxUnavailable: 1
+    # A render in flight is expensive to abandon: let it finish.
+    terminationGracePeriodSeconds: 600
+    network:
+      allowInternetHttps: false
+      allowIngressFromIngressController: false
+      allowIngressFromCluster: false
+
+  scheduler:
+    enabled: true
+    kind: cron
+    repository: montaj/api
+    command: ["node", "dist/main.js", "--role=scheduler"]
+    # Exactly one: retention sweeps, the daily COGS rollup and the dunning ladder
+    # must not run twice.
+    replicas: 1
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { memory: 512Mi }
+    pdb:
+      enabled: false
+    network:
+      allowInternetHttps: false
+      allowIngressFromIngressController: false
+      allowIngressFromCluster: false

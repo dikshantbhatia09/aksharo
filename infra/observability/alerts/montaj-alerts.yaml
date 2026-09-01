@@ -1,0 +1,375 @@
+# =============================================================================
+# Prometheus alert rules for montaj / Aksharo.
+#
+# Applied as a PrometheusRule custom resource (kube-prometheus-stack):
+#
+#   kubectl -n observability apply -f infra/observability/alerts/montaj-alerts.yaml
+#
+# Every metric name is the Prometheus form of a metric in
+# infra/observability/METRICS.md. Every rule carries a runbook_url, because an
+# alert without a runbook is a page that ends in someone reading dashboards at
+# 3 a.m.
+#
+# Severity contract:
+#   critical  users are affected now, or money is leaking now. Pages.
+#   warning   a trend that will become critical. Ticket, business hours.
+#   info      worth knowing, never pages.
+# =============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: montaj
+  labels:
+    app.kubernetes.io/name: montaj
+    app.kubernetes.io/component: alerts
+    montaj.ai/work-package: X05
+    # kube-prometheus-stack selects rules by this label.
+    release: kube-prometheus-stack
+spec:
+  groups:
+    # =========================================================================
+    - name: montaj.recording
+      interval: 1m
+      rules:
+        # COGS per credit is a ratio of two counters over the same window, so it
+        # is recorded once and reused by the dashboard and the alerts below.
+        - record: montaj:cogs_per_credit_minor
+          expr: |
+            sum by (deployment_environment) (rate(montaj_cogs_minor_total[1h]))
+              /
+            clamp_min(sum by (deployment_environment) (rate(montaj_credits_settled_tenths_total[1h])) / 10, 0.001)
+
+        - record: montaj:job_success_ratio
+          expr: |
+            sum by (deployment_environment, queue) (rate(montaj_job_completed_total{status="succeeded"}[30m]))
+              /
+            clamp_min(sum by (deployment_environment, queue) (rate(montaj_job_completed_total{status=~"succeeded|failed|expired"}[30m])), 0.001)
+
+        - record: montaj:http_5xx_ratio
+          expr: |
+            sum by (deployment_environment) (rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m]))
+              /
+            clamp_min(sum by (deployment_environment) (rate(http_server_request_duration_seconds_count[5m])), 0.001)
+
+        - record: montaj:http_p95_seconds
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (deployment_environment, le) (rate(http_server_request_duration_seconds_bucket[5m]))
+            )
+
+    # =========================================================================
+    - name: montaj.api
+      rules:
+        - alert: MontajApiHigh5xxRate
+          expr: montaj:http_5xx_ratio > 0.02
+          for: 5m
+          labels:
+            severity: critical
+            component: api
+          annotations:
+            summary: "API 5xx rate above 2% in {{ $labels.deployment_environment }}"
+            description: >-
+              {{ $value | humanizePercentage }} of requests are failing with a 5xx.
+              Check the API latency dashboard, then recent deploys.
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/rollback.md
+
+        - alert: MontajApiElevated5xxRate
+          expr: montaj:http_5xx_ratio > 0.005
+          for: 15m
+          labels:
+            severity: warning
+            component: api
+          annotations:
+            summary: "API 5xx rate above 0.5% in {{ $labels.deployment_environment }}"
+            description: "{{ $value | humanizePercentage }} of requests failing. Not yet user-visible at scale, but trending."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/rollback.md
+
+        - alert: MontajApiLatencySloBreach
+          # 05 section 10: API p95 < 300 ms.
+          expr: montaj:http_p95_seconds > 0.3
+          for: 10m
+          labels:
+            severity: warning
+            component: api
+          annotations:
+            summary: "API p95 above the 300 ms SLO in {{ $labels.deployment_environment }}"
+            description: "p95 is {{ $value | humanizeDuration }}. Usual causes: a slow query (check pg_stat_statements), a cold cache after a deploy, or an undersized node group."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/deploy.md
+
+        - alert: MontajApiLatencySevere
+          expr: montaj:http_p95_seconds > 1
+          for: 5m
+          labels:
+            severity: critical
+            component: api
+          annotations:
+            summary: "API p95 above 1 s in {{ $labels.deployment_environment }}"
+            description: "p95 is {{ $value | humanizeDuration }}, more than three times the SLO."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/rollback.md
+
+        - alert: MontajAdmissionControlSustained
+          # A 429 under load is correct (THREAT-MODEL T23). A sustained one is
+          # under-capacity dressed up as a policy decision.
+          expr: sum by (deployment_environment) (rate(montaj_http_admission_rejected_total[10m])) > 1
+          for: 30m
+          labels:
+            severity: warning
+            component: api
+          annotations:
+            summary: "Admission control has been rejecting requests for 30 minutes"
+            description: '{{ $value | printf "%.2f" }} rejections per second. Either capacity is short or a single workspace is hammering the queue.'
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/scale-gpu.md
+
+    # =========================================================================
+    - name: montaj.jobs
+      rules:
+        - alert: MontajJobFailureRateHigh
+          # 05 section 10: job success >= 99.5%.
+          expr: montaj:job_success_ratio < 0.95
+          for: 15m
+          labels:
+            severity: critical
+            component: jobs
+          annotations:
+            summary: "Job success below 95% on {{ $labels.queue }} in {{ $labels.deployment_environment }}"
+            description: "{{ $value | humanizePercentage }} of {{ $labels.queue }} jobs are succeeding. Every failure releases a credit hold, so a sustained failure rate is also a revenue hole."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/dlq-replay.md
+
+        - alert: MontajJobSuccessBelowSlo
+          expr: montaj:job_success_ratio < 0.995
+          for: 60m
+          labels:
+            severity: warning
+            component: jobs
+          annotations:
+            summary: "Job success below the 99.5% SLO on {{ $labels.queue }}"
+            description: "{{ $value | humanizePercentage }} succeeding over the last hour."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/dlq-replay.md
+
+        - alert: MontajDlqNonEmpty
+          expr: sum by (deployment_environment, queue) (montaj_queue_dlq_depth) > 0
+          for: 30m
+          labels:
+            severity: warning
+            component: jobs
+          annotations:
+            summary: "{{ $value }} job(s) in the {{ $labels.queue }} dead-letter queue"
+            description: "A DLQ entry is a job that exhausted its retries. Someone must decide to replay or discard it; nothing does so automatically."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/dlq-replay.md
+
+        - alert: MontajDlqGrowing
+          expr: sum by (deployment_environment, queue) (montaj_queue_dlq_depth) > 50
+          for: 10m
+          labels:
+            severity: critical
+            component: jobs
+          annotations:
+            summary: "Dead-letter queue {{ $labels.queue }} above 50 jobs"
+            description: "This is a systemic failure, not a few bad inputs. Stop the bleeding before replaying."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/dlq-replay.md
+
+        - alert: MontajCallbackForgerySuspected
+          # THREAT-MODEL T8.
+          expr: sum by (deployment_environment) (rate(montaj_job_callback_rejected_total{reason=~"bad_signature|attempt_mismatch"}[5m])) > 0.1
+          for: 10m
+          labels:
+            severity: critical
+            component: security
+          annotations:
+            summary: "Completion callbacks are being rejected for bad signatures"
+            description: >-
+              {{ $value | printf "%.2f" }} rejections per second with reason
+              bad_signature or attempt_mismatch. Either INTERNAL_CALLBACK_SECRET
+              is out of sync after a rotation, or someone is forging callbacks.
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/breach-first-hour.md
+
+    # =========================================================================
+    - name: montaj.queues
+      rules:
+        - alert: MontajQueueWaitHigh
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (deployment_environment, queue, le) (rate(montaj_queue_wait_duration_seconds_bucket[10m]))
+            ) > 300
+          for: 10m
+          labels:
+            severity: warning
+            component: queues
+          annotations:
+            summary: "p95 queue wait on {{ $labels.queue }} above 5 minutes"
+            description: "Users are watching a spinner. Check whether KEDA is scaling (kubectl get scaledobject) and whether the GPU endpoint is saturated."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/scale-gpu.md
+
+        - alert: MontajQueueStalled
+          # Depth alone lies. An old job with a short queue is the real signal.
+          expr: max by (deployment_environment, queue) (montaj_queue_oldest_age_seconds) > 1800
+          for: 5m
+          labels:
+            severity: critical
+            component: queues
+          annotations:
+            summary: "Oldest job on {{ $labels.queue }} has waited over 30 minutes"
+            description: "A consumer is almost certainly dead or wedged, not merely busy. Check the deployment and the KEDA ScaledObject before scaling anything."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/dlq-replay.md
+
+        - alert: MontajQueueDepthGrowing
+          expr: |
+            sum by (deployment_environment, queue) (montaj_queue_depth{state="waiting"}) > 500
+            and
+            deriv(sum by (deployment_environment, queue) (montaj_queue_depth{state="waiting"})[30m:1m]) > 0
+          for: 15m
+          labels:
+            severity: warning
+            component: queues
+          annotations:
+            summary: "{{ $labels.queue }} is above 500 waiting jobs and still growing"
+            description: "Arrival rate exceeds service rate. Raise the KEDA ceiling or the GPU worker maximum, in that order."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/scale-gpu.md
+
+    # =========================================================================
+    - name: montaj.gpu
+      rules:
+        - alert: MontajGpuNoWarmWorker
+          # Decision D15: a warm floor of one per region.
+          expr: sum by (deployment_environment, region) (montaj_gpu_workers_idle + montaj_gpu_workers_active) < 1
+          for: 10m
+          labels:
+            severity: warning
+            component: gpu
+          annotations:
+            summary: "No GPU worker in {{ $labels.region }}"
+            description: "The D15 warm floor is one per region. Every transcript is now paying a 25-40 s cold start."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/scale-gpu.md
+
+        - alert: MontajGpuColdStartsFrequent
+          expr: sum by (deployment_environment, region) (rate(montaj_gpu_cold_starts_total[15m])) * 60 > 2
+          for: 20m
+          labels:
+            severity: warning
+            component: gpu
+          annotations:
+            summary: "More than two GPU cold starts a minute in {{ $labels.region }}"
+            description: "The warm floor is too low for this traffic shape, or the idle timeout is too short. Both are one field in infra/gpu/runpod/endpoint.json."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/scale-gpu.md
+
+        - alert: MontajGpuDutyCycleHigh
+          # Not an incident: a signal that the D15 crossover to reserved GPU is
+          # worth re-running.
+          expr: avg by (deployment_environment) (avg_over_time(montaj_gpu_utilization[24h])) > 0.6
+          for: 24h
+          labels:
+            severity: info
+            component: gpu
+          annotations:
+            summary: "GPU duty cycle above 60% for a day"
+            description: "infra/gpu/COST.md section 5: reserved capacity becomes cheaper than serverless around here. Re-run the crossover with measured numbers."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/scale-gpu.md
+
+    # =========================================================================
+    - name: montaj.cost
+      rules:
+        - alert: MontajCogsPerCreditAboveMarginFloor
+          # 05 section 12: net revenue per credit is about 116 paise.
+          expr: montaj:cogs_per_credit_minor > 58
+          for: 2h
+          labels:
+            severity: warning
+            component: cost
+          annotations:
+            summary: 'COGS per credit is {{ $value | printf "%.1f" }} paise, above the 50% margin floor'
+            description: "Check the cost-by-component panel: usually a routing change sending traffic to an expensive ASR path, or a GPU warm floor left running in an idle region."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/scale-gpu.md
+
+        - alert: MontajCogsExceedsRevenue
+          # The admin throttle in 05 section 11 fires at 2x revenue.
+          expr: montaj:cogs_per_credit_minor > 232
+          for: 30m
+          labels:
+            severity: critical
+            component: cost
+          annotations:
+            summary: "COGS per credit is more than twice net revenue"
+            description: "Every credit spent now loses money. 05 section 11 calls for the admin throttle at this point."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/scale-gpu.md
+
+        - alert: MontajRawBucketEgress
+          # Decision D35: client-facing objects come from R2, not S3.
+          expr: sum by (deployment_environment, bucket) (rate(montaj_storage_egress_bytes_total{tier="raw"}[1h])) > 1048576
+          for: 1h
+          labels:
+            severity: warning
+            component: cost
+          annotations:
+            summary: "Raw S3 bucket is serving egress"
+            description: "Derived and client-facing objects belong on R2 where egress is free (decision D35). Sustained S3 egress means something is reading raw media directly."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/deploy.md
+
+    # =========================================================================
+    - name: montaj.infrastructure
+      rules:
+        - alert: MontajPostgresDiskFilling
+          expr: aws_rds_free_storage_space_average < 21474836480
+          for: 15m
+          labels:
+            severity: warning
+            component: database
+          annotations:
+            summary: "Less than 20 GiB free on the PostgreSQL instance"
+            description: "Storage autoscaling should handle this, but a runaway table or a stuck WAL will outrun it. Check the largest relations before raising max_allocated_storage."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/restore-from-pitr.md
+
+        - alert: MontajPostgresDiskCritical
+          expr: aws_rds_free_storage_space_average < 5368709120
+          for: 5m
+          labels:
+            severity: critical
+            component: database
+          annotations:
+            summary: "Less than 5 GiB free on the PostgreSQL instance"
+            description: "A full disk takes PostgreSQL read-only and every write path with it."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/restore-from-pitr.md
+
+        - alert: MontajRedisMemoryHigh
+          # maxmemory-policy is noeviction (BullMQ correctness). Full memory
+          # means writes start failing, which is loud but not silent data loss.
+          expr: aws_elasticache_database_memory_usage_percentage_average > 80
+          for: 10m
+          labels:
+            severity: warning
+            component: redis
+          annotations:
+            summary: "Redis memory above 80%"
+            description: "maxmemory-policy is noeviction on purpose, so at 100% BullMQ writes fail rather than jobs disappearing. Find the queue that is not draining."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/dlq-replay.md
+
+        - alert: MontajNodeDiskPressure
+          expr: |
+            (
+              node_filesystem_avail_bytes{mountpoint="/", fstype!="tmpfs"}
+                /
+              node_filesystem_size_bytes{mountpoint="/", fstype!="tmpfs"}
+            ) < 0.15
+          for: 15m
+          labels:
+            severity: warning
+            component: kubernetes
+          annotations:
+            summary: "Node {{ $labels.instance }} is below 15% free disk"
+            description: "Render and media workers write large scratch files. Check the emptyDir size limits in the chart before growing the node volume."
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/deploy.md
+
+        - alert: MontajExternalSecretNotReady
+          expr: externalsecret_status_condition{condition="Ready", status="false"} > 0
+          for: 15m
+          labels:
+            severity: critical
+            component: secrets
+          annotations:
+            summary: "ExternalSecret {{ $labels.name }} is not Ready"
+            description: >-
+              The pod environment is stale or missing. The usual cause is an SSM
+              parameter still holding its Terraform placeholder: see the [H] list
+              in infra/README.md.
+            runbook_url: https://github.com/aksharo/montaj/blob/main/docs/runbooks/rotate-secrets.md

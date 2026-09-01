@@ -491,7 +491,8 @@ const FALLBACK_STYLES: readonly StyleSeed[] = [
   },
 ];
 
-interface CaptionStylesModule {
+/** The slice of `@montaj/caption-styles` this seed uses. */
+export interface CaptionStylesModule {
   loadSystemStyles?: () => readonly {
     key?: string;
     id?: string;
@@ -500,6 +501,34 @@ interface CaptionStylesModule {
     minPlan?: string;
     doc?: unknown;
   }[];
+}
+
+/**
+ * How {@link loadSystemStyles} reaches the package.
+ *
+ * Injected rather than hard-wired so the two degraded paths stay testable. They
+ * are not hypothetical: the fixtures path is what a consumer that has the files
+ * but not a built `dist/` falls back to, and the placeholder path is what runs
+ * before A02-class work lands in a fresh checkout. A test that can only exercise
+ * the happy path is not testing the fallback at all.
+ */
+export type StylesModuleLoader = () => CaptionStylesModule | undefined;
+
+/** Production loader: the real package, or `undefined` when it cannot be resolved. */
+export const requireCaptionStyles: StylesModuleLoader = () => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require("@montaj/caption-styles") as CaptionStylesModule;
+  } catch {
+    return undefined;
+  }
+};
+
+/** A style file is a StyleDoc v2 when it declares an `id` and `version: 2`. */
+function isStyleDocV2(raw: unknown): raw is Record<string, unknown> {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const record = raw as Record<string, unknown>;
+  return typeof record["id"] === "string" && record["id"] !== "" && record["version"] === 2;
 }
 
 function normalise(raw: Record<string, unknown>, fallbackKey: string): StyleSeed | undefined {
@@ -524,25 +553,27 @@ function normalise(raw: Record<string, unknown>, fallbackKey: string): StyleSeed
 /**
  * System styles, from the best source available.
  *
- * A02 owns `@montaj/caption-styles` and is built in parallel with A03, so the
- * lookup degrades rather than failing: the package's own `loadSystemStyles()`
- * first, then raw fixtures in `packages/caption-styles/styles/*.json`, then the
- * five placeholders above. The chosen source is reported by the seed so nobody
- * mistakes placeholders for the real catalogue.
+ * Three tiers, tried in order:
+ *   1. `@montaj/caption-styles`' own `loadSystemStyles()` — the real catalogue,
+ *      schema-validated by the package including the D64 naming rule;
+ *   2. the raw JSON in `packages/caption-styles/styles/` — for a checkout where
+ *      the package exists but its `dist/` has not been built;
+ *   3. the placeholders above.
+ *
+ * The chosen source is reported by the seed so nobody mistakes placeholders for
+ * the real catalogue.
  */
-export function loadSystemStyles(repoRoot = resolve(__dirname, "..", "..", "..")): LoadedStyles {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require("@montaj/caption-styles") as CaptionStylesModule;
-    if (typeof mod.loadSystemStyles === "function") {
-      const loaded = mod.loadSystemStyles();
-      const styles = loaded
-        .map((raw, index) => normalise(raw as Record<string, unknown>, `style-${index}`))
-        .filter((style): style is StyleSeed => style !== undefined);
-      if (styles.length > 0) return { source: "package", styles };
-    }
-  } catch {
-    // A02 has not landed yet; fall through.
+export function loadSystemStyles(
+  repoRoot = resolve(__dirname, "..", "..", ".."),
+  loadStylesModule: StylesModuleLoader = requireCaptionStyles,
+): LoadedStyles {
+  const mod = loadStylesModule();
+  if (typeof mod?.loadSystemStyles === "function") {
+    const styles = mod
+      .loadSystemStyles()
+      .map((raw, index) => normalise(raw as Record<string, unknown>, `style-${index}`))
+      .filter((style): style is StyleSeed => style !== undefined);
+    if (styles.length > 0) return { source: "package", styles };
   }
 
   const fixtureDir = join(repoRoot, "packages", "caption-styles", "styles");
@@ -551,10 +582,17 @@ export function loadSystemStyles(repoRoot = resolve(__dirname, "..", "..", "..")
       .filter((file) => file.endsWith(".json"))
       .sort((a, b) => a.localeCompare(b, "en"))
       .map((file) => {
-        const raw = JSON.parse(readFileSync(join(fixtureDir, file), "utf8")) as Record<
-          string,
-          unknown
-        >;
+        let raw: unknown;
+        try {
+          raw = JSON.parse(readFileSync(join(fixtureDir, file), "utf8"));
+        } catch {
+          return undefined;
+        }
+        // `styles/` also holds `registry.json`, the catalogue index, which is not
+        // a style. Rather than name that one file, accept only documents that
+        // actually look like StyleDoc v2 — a roadmap file added later cannot then
+        // silently become a style preset.
+        if (!isStyleDocV2(raw)) return undefined;
         return normalise(raw, file.replace(/\.json$/, ""));
       })
       .filter((style): style is StyleSeed => style !== undefined);

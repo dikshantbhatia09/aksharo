@@ -16,6 +16,8 @@ import {
   seedUlid,
 } from "./seed-data.js";
 
+import type { StylesModuleLoader } from "./seed-data.js";
+
 describe("seedUlid", () => {
   it("is a 26-character ULID", () => {
     expect(seedUlid("plan:free")).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
@@ -144,11 +146,28 @@ describe("FEATURE_FLAG_SEEDS", () => {
 });
 
 describe("loadSystemStyles", () => {
-  it("falls back to five placeholder styles when A02 has no fixtures", () => {
+  /** A loader that behaves as if `@montaj/caption-styles` cannot be resolved. */
+  const noPackage: StylesModuleLoader = () => undefined;
+
+  it("prefers the package catalogue, which is what production uses", () => {
+    // The real `@montaj/caption-styles`, resolved exactly as the seed resolves it.
+    const { source, styles } = loadSystemStyles();
+
+    expect(source).toBe("package");
+    // A02 ships seven styles today; A16 adds the rest of the 30+ (F-305).
+    expect(styles.length).toBeGreaterThanOrEqual(7);
+    expect(styles.map((style) => style.key)).toContain("punch-pop");
+    // `registry.json` is the catalogue index, never a style.
+    expect(styles.map((style) => style.key)).not.toContain("registry");
+    // The whole StyleDoc lands in `style_presets.doc`.
+    expect(styles[0]?.doc).toMatchObject({ version: 2 });
+  });
+
+  it("falls back to the placeholders when the package cannot be resolved", () => {
     // An empty temp directory stands in for a repo root without
     // `packages/caption-styles/styles`.
     const empty = mkdtempSync(join(tmpdir(), "montaj-styles-"));
-    const { source, styles } = loadSystemStyles(empty);
+    const { source, styles } = loadSystemStyles(empty, noPackage);
 
     expect(source).toBe("fallback");
     expect(styles).toHaveLength(5);
@@ -161,35 +180,81 @@ describe("loadSystemStyles", () => {
     ]);
   });
 
+  it("falls back when the package resolves but exports no loader", () => {
+    // What a checkout with an unbuilt `dist/` looks like from here.
+    const empty = mkdtempSync(join(tmpdir(), "montaj-styles-"));
+    expect(loadSystemStyles(empty, () => ({})).source).toBe("fallback");
+  });
+
+  it("falls back when the package exports an empty catalogue", () => {
+    const empty = mkdtempSync(join(tmpdir(), "montaj-styles-"));
+    const emptyCatalogue: StylesModuleLoader = () => ({ loadSystemStyles: () => [] });
+    expect(loadSystemStyles(empty, emptyCatalogue).source).toBe("fallback");
+  });
+
   it("names styles after the look, never a person or a brand (F-305)", () => {
     const empty = mkdtempSync(join(tmpdir(), "montaj-styles-"));
-    for (const style of loadSystemStyles(empty).styles) {
+    for (const style of loadSystemStyles(empty, noPackage).styles) {
+      expect(style.key).toMatch(/^[a-z][a-z0-9-]*$/);
+    }
+    // The same rule holds for the real catalogue, which the package enforces (D64).
+    for (const style of loadSystemStyles().styles) {
       expect(style.key).toMatch(/^[a-z][a-z0-9-]*$/);
     }
   });
 
-  it("reads packages/caption-styles/styles/*.json when A02 has landed", () => {
+  it("reads packages/caption-styles/styles/*.json when the package is unavailable", () => {
     const root = mkdtempSync(join(tmpdir(), "montaj-repo-"));
     const dir = join(root, "packages", "caption-styles", "styles");
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       join(dir, "bubble.json"),
-      JSON.stringify({
-        key: "bubble",
-        name: "Bubble",
-        category: "playful",
-        doc: { schemaVersion: 2 },
-      }),
+      JSON.stringify({ id: "bubble", version: 2, name: "Bubble", category: "playful" }),
     );
-    // A file that is the StyleDoc itself, with the key taken from the filename.
-    writeFileSync(join(dir, "glow.json"), JSON.stringify({ schemaVersion: 2, typography: {} }));
+    // No `name`: the key falls back to the filename.
+    writeFileSync(join(dir, "glow.json"), JSON.stringify({ id: "glow", version: 2 }));
 
-    const { source, styles } = loadSystemStyles(root);
+    const { source, styles } = loadSystemStyles(root, noPackage);
 
     expect(source).toBe("fixtures");
     expect(styles.map((style) => style.key)).toEqual(["bubble", "glow"]);
     expect(styles[0]?.name).toBe("Bubble");
     expect(styles[1]?.name).toBe("glow");
-    expect(styles[1]?.doc).toMatchObject({ schemaVersion: 2 });
+    expect(styles[1]?.doc).toMatchObject({ id: "glow", version: 2 });
+  });
+
+  it("skips registry.json and anything else that is not a StyleDoc v2", () => {
+    const root = mkdtempSync(join(tmpdir(), "montaj-repo-"));
+    const dir = join(root, "packages", "caption-styles", "styles");
+    mkdirSync(dir, { recursive: true });
+
+    writeFileSync(
+      join(dir, "bubble.json"),
+      JSON.stringify({ id: "bubble", version: 2, name: "Bubble", category: "playful" }),
+    );
+    // The catalogue index that A02 ships alongside the styles.
+    writeFileSync(
+      join(dir, "registry.json"),
+      JSON.stringify({ version: 1, styles: [{ id: "bubble", status: "shipped" }] }),
+    );
+    // A v1 document, an id-less one, and a file that is not JSON at all.
+    writeFileSync(join(dir, "legacy.json"), JSON.stringify({ id: "legacy", version: 1 }));
+    writeFileSync(join(dir, "anonymous.json"), JSON.stringify({ version: 2 }));
+    writeFileSync(join(dir, "broken.json"), "{ not json");
+
+    const { source, styles } = loadSystemStyles(root, noPackage);
+
+    expect(source).toBe("fixtures");
+    expect(styles.map((style) => style.key)).toEqual(["bubble"]);
+  });
+
+  it("falls back when the directory holds nothing but a registry", () => {
+    const root = mkdtempSync(join(tmpdir(), "montaj-repo-"));
+    const dir = join(root, "packages", "caption-styles", "styles");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "registry.json"), JSON.stringify({ version: 1, styles: [] }));
+
+    // Nothing usable is not the same as "a catalogue of one registry".
+    expect(loadSystemStyles(root, noPackage).source).toBe("fallback");
   });
 });

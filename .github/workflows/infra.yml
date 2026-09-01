@@ -1,0 +1,290 @@
+name: Infra
+
+on:
+  push:
+    branches: ["main", "wave/**", "wp/**"]
+    paths:
+      - "infra/**"
+      - "docs/CONTRACTS.md"
+      - ".github/workflows/infra.yml"
+  pull_request:
+    branches: ["main", "wave/**"]
+    paths:
+      - "infra/**"
+      - "docs/CONTRACTS.md"
+      - ".github/workflows/infra.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: infra-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# Read-only. This workflow validates infrastructure; it never touches a cloud
+# account, and it holds no credentials that could let it (THREAT-MODEL T21).
+permissions:
+  contents: read
+
+env:
+  TERRAFORM_VERSION: "1.16.0"
+  TFLINT_VERSION: "v0.64.0"
+  HELM_VERSION: "v3.19.0"
+  KUBECONFORM_VERSION: "0.8.0"
+  KUBERNETES_VERSION: "1.33.0"
+  # Schemas for the CRDs the chart uses: KEDA, external-secrets, Cilium,
+  # Prometheus Operator.
+  CRD_SCHEMAS: "https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
+
+jobs:
+  infra-validate:
+    name: infra-validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Terraform
+      # -----------------------------------------------------------------------
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive -diff infra/terraform
+
+      - name: terraform validate (modules)
+        run: |
+          set -euo pipefail
+          for dir in infra/terraform/modules/*/; do
+            echo "::group::validate ${dir}"
+            terraform -chdir="${dir}" init -backend=false -input=false -no-color
+            terraform -chdir="${dir}" validate -no-color
+            echo "::endgroup::"
+          done
+
+      - name: terraform validate (environments)
+        # -backend=false is the mock backend: backend.tf declares a partial S3
+        # backend whose values arrive at init time, so validation needs neither
+        # a state bucket nor credentials.
+        run: |
+          set -euo pipefail
+          for env in staging prod; do
+            echo "::group::validate envs/${env}"
+            terraform -chdir="infra/terraform/envs/${env}" init -backend=false -input=false -no-color
+            terraform -chdir="infra/terraform/envs/${env}" validate -no-color
+            echo "::endgroup::"
+          done
+
+      - name: Install tflint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+
+      - name: tflint
+        run: |
+          set -euo pipefail
+          cd infra/terraform
+          tflint --init
+          tflint --recursive --config "$(pwd)/.tflint.hcl" --format compact
+
+      # -----------------------------------------------------------------------
+      # Helm and Kubernetes
+      # -----------------------------------------------------------------------
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Install kubeconform
+        run: |
+          set -euo pipefail
+          curl -sSLo /tmp/kubeconform.tar.gz \
+            "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp kubeconform
+          sudo install -m 0755 /tmp/kubeconform /usr/local/bin/kubeconform
+          kubeconform -v
+
+      - name: helm lint
+        run: |
+          set -euo pipefail
+          helm lint infra/k8s/montaj
+          helm lint infra/k8s/montaj -f infra/k8s/montaj/values-staging.yaml
+          helm lint infra/k8s/montaj -f infra/k8s/montaj/values-prod.yaml
+
+      - name: kubeconform (rendered chart)
+        run: |
+          set -euo pipefail
+          for env in staging prod; do
+            echo "::group::kubeconform ${env}"
+            helm template montaj infra/k8s/montaj \
+              -f "infra/k8s/montaj/values-${env}.yaml" > "/tmp/montaj-${env}.yaml"
+            kubeconform -strict -summary \
+              -kubernetes-version "${KUBERNETES_VERSION}" \
+              -schema-location default \
+              -schema-location "${CRD_SCHEMAS}" \
+              "/tmp/montaj-${env}.yaml"
+            echo "::endgroup::"
+          done
+
+      - name: kubeconform (Cilium FQDN egress variant)
+        # The FQDN policy is off by default, so it would otherwise never be
+        # rendered or validated.
+        run: |
+          set -euo pipefail
+          helm template montaj infra/k8s/montaj \
+            -f infra/k8s/montaj/values-prod.yaml \
+            --set networkPolicy.fqdn.enabled=true > /tmp/montaj-fqdn.yaml
+          kubeconform -strict -summary \
+            -kubernetes-version "${KUBERNETES_VERSION}" \
+            -schema-location default \
+            -schema-location "${CRD_SCHEMAS}" \
+            /tmp/montaj-fqdn.yaml
+
+      - name: kubeconform (observability)
+        run: |
+          set -euo pipefail
+          kubeconform -strict -summary \
+            -kubernetes-version "${KUBERNETES_VERSION}" \
+            -schema-location default \
+            -schema-location "${CRD_SCHEMAS}" \
+            infra/observability/alerts/
+
+      # -----------------------------------------------------------------------
+      # Contract checks
+      # -----------------------------------------------------------------------
+      - name: Install Python dependencies
+        run: python3 -m pip install --quiet --disable-pip-version-check pyyaml
+
+      - name: CONTRACTS parity (env vars and queues)
+        # X05 acceptance criteria 2. docs/CONTRACTS.md is the source of truth;
+        # the Terraform SSM map and the chart's ExternalSecret must cover it
+        # exactly, with no extras. Drift in either direction fails the build.
+        run: python3 infra/scripts/check-contracts-parity.py
+
+      - name: Storage lifecycle rules match the ruling
+        # X05 acceptance criterion 3, as amended by Fable's ruling of 2026-09-02:
+        # CONTRACTS section 6 keys are frozen, so plan retention is enforced by
+        # the scheduler (B16) and NOT by R2 lifecycle. What must hold:
+        #   S3  non-current expiry 7 d, abort-incomplete-multipart 1 d
+        #   R2  retention_prefixes empty, multipart abort on the ws/ root
+        # A retention prefix that is not a real section 6 prefix is worse than
+        # none: it reads as enforcement and deletes nothing.
+        run: |
+          set -euo pipefail
+          fail=0
+          for env in staging prod; do
+            f="infra/terraform/envs/${env}/main.tf"
+
+            grep -qE 'noncurrent_version_expiration_days *= *7' "$f" ||
+              { echo "::error file=$f::S3 non-current expiry must be 7 days"; fail=1; }
+            grep -qE 'abort_incomplete_multipart_days *= *1' "$f" ||
+              { echo "::error file=$f::S3/R2 abort-incomplete-multipart must be 1 day"; fail=1; }
+
+            grep -qE 'retention_prefixes *= *\{\}' "$f" ||
+              { echo "::error file=$f::R2 retention_prefixes must be empty — plan retention belongs to the scheduler (B16)"; fail=1; }
+            grep -qE 'multipart_abort_prefixes *= *\["ws/"\]' "$f" ||
+              { echo "::error file=$f::R2 multipart abort must cover the ws/ root (CONTRACTS section 6)"; fail=1; }
+          done
+
+          # Belt and braces: no retention prefix anywhere may sit outside ws/.
+          if grep -rnE '"r(7|30|90|365)/"' infra/terraform/; then
+            echo "::error::retention-class key prefixes are not permitted — CONTRACTS section 6 is frozen"
+            fail=1
+          fi
+          exit $fail
+
+      - name: Worker egress is denied by default
+        # X05 acceptance criterion 4. Checked on both environments and on the
+        # Cilium variant, since each renders a different set of policies.
+        run: |
+          set -euo pipefail
+          for manifest in /tmp/montaj-staging.yaml /tmp/montaj-prod.yaml /tmp/montaj-fqdn.yaml; do
+            echo "::group::network policy $(basename "$manifest")"
+            python3 infra/scripts/check-network-policy.py "$manifest"
+            echo "::endgroup::"
+          done
+
+      # -----------------------------------------------------------------------
+      # Observability
+      # -----------------------------------------------------------------------
+      - name: Install promtool
+        run: |
+          set -euo pipefail
+          version=$(curl -sSf https://api.github.com/repos/prometheus/prometheus/releases/latest \
+                    | grep -oE '"tag_name": *"v[^"]+"' | head -1 | sed 's/.*"v\(.*\)"/\1/')
+          curl -sSLo /tmp/prom.tar.gz \
+            "https://github.com/prometheus/prometheus/releases/download/v${version}/prometheus-${version}.linux-amd64.tar.gz"
+          tar -xzf /tmp/prom.tar.gz -C /tmp
+          sudo install -m 0755 "/tmp/prometheus-${version}.linux-amd64/promtool" /usr/local/bin/promtool
+          promtool --version
+
+      - name: promtool check rules
+        run: |
+          set -euo pipefail
+          python3 infra/observability/scripts/extract-rules.py \
+            infra/observability/alerts/montaj-alerts.yaml > /tmp/rules.yaml
+          promtool check rules /tmp/rules.yaml
+
+      - name: Grafana dashboards are valid JSON with unique uids
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib, sys
+
+          seen, failed = {}, False
+          for path in sorted(pathlib.Path("infra/observability/dashboards").glob("*.json")):
+              try:
+                  dashboard = json.loads(path.read_text(encoding="utf-8"))
+              except json.JSONDecodeError as exc:
+                  print(f"::error file={path}::invalid JSON: {exc}")
+                  failed = True
+                  continue
+
+              for field in ("uid", "title", "panels"):
+                  if field not in dashboard:
+                      print(f"::error file={path}::missing required field '{field}'")
+                      failed = True
+
+              uid = dashboard.get("uid")
+              if uid in seen:
+                  print(f"::error file={path}::uid '{uid}' already used by {seen[uid]}")
+                  failed = True
+              seen[uid] = path
+
+              print(f"OK {path}: {len(dashboard.get('panels', []))} panels")
+
+          sys.exit(1 if failed else 0)
+          PY
+
+      - name: RunPod endpoint definition is valid JSON
+        run: python3 -c "import json; json.load(open('infra/gpu/runpod/endpoint.json'))"
+
+      # -----------------------------------------------------------------------
+      # Nothing committed may look like a credential
+      # -----------------------------------------------------------------------
+      - name: No credentials in infra
+        # THREAT-MODEL T21. Deliberately blunt: a false positive costs a minute,
+        # a committed key costs a rotation and a disclosure.
+        run: |
+          set -euo pipefail
+          patterns='AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|rzp_(live|test)_[A-Za-z0-9]+|sk-[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]+|ghp_[A-Za-z0-9]{36}'
+          if grep -rInE "$patterns" infra/ docs/runbooks/ .github/workflows/infra.yml; then
+            echo "::error::something that looks like a credential is committed under infra/"
+            exit 1
+          fi
+          echo "OK: no credential-shaped strings."
+
+      - name: No Terraform state, tfvars or backend config committed
+        run: |
+          set -euo pipefail
+          found=$(git ls-files 'infra/**' \
+                  | grep -E '(\.tfstate|\.tfstate\.backup|/\.terraform/|terraform\.tfvars$|backend\.hcl$|\.tfplan$)' || true)
+          if [ -n "$found" ]; then
+            echo "::error::these must never be committed:"
+            echo "$found"
+            exit 1
+          fi
+          echo "OK: no state, tfvars or backend config in git."
