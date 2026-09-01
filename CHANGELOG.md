@@ -10,6 +10,59 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A05 — api: users, workspaces (tax profile), memberships, consent, privacy.**
+  - `apps/api/src/users/`: `GET`/`PATCH /me` (name, avatar, locale, onboarding
+    state, marketing opt-in, with a change to the opt-in also appending a
+    `consent_records` row); `GET /me/data`, the DPDP access and portability right
+    — a `dsr_requests` row of kind `export`, a JSON bundle of every row the
+    account holds, and a single-use download link carrying 256 bits of entropy
+    that expires in an hour; `DELETE /me`, the erasure right — a `dsr_requests`
+    row of kind `erasure`, the account marked deleted, the address anonymised to
+    an RFC 2606 `.invalid` mailbox and every session revoked in one transaction
+    (the cascade over media and transcripts is B16). Both stamp `dueAt` 30 days
+    out (DPDP Rule 14). The module also owns `AuditService`, the `audit_log` +
+    `access_logs` writer every other A05 module uses.
+  - `apps/api/src/workspaces/`: `GET`/`POST /workspaces`, `GET`/`PATCH`/`DELETE
+/workspaces/{id}` (settings merged rather than replaced; a personal workspace
+    that is the caller's only one cannot be deleted); `PUT
+/workspaces/{id}/tax-profile` with the D41 rules — India requires a State code
+    from the 36 live GST codes, an optional GSTIN is checked against its base-36
+    check digit and must name that same State, currency is derived
+    (`IN → INR`, else `USD`) and locked once a subscription exists, and confirming
+    a profile stamps the new `billingCountryConfirmedAt` that B01 requires before a
+    checkout; `GET /workspaces/{id}/entitlement`, the Free-plan stub cached in
+    Redis for 60 seconds (B02 computes it for real); members
+    (`GET`/`POST /workspaces/{id}/members`, `PATCH`/`DELETE .../{membershipId}`)
+    with exactly one immutable owner, no granting a role above your own, and every
+    session of a removed member revoked at once; and `/invitations` — accepted from
+    the invitee's own verified address, so the id in the mail is a lookup key
+    rather than a bearer secret.
+  - `WorkspaceMemberGuard` on **every** `/workspaces/:id` route (THREAT-MODEL T4):
+    the id in the path must be the token's `ws` claim, an active membership must
+    still exist, and the principal's role is replaced with the one in the database
+    so a demotion bites on the next request rather than at the end of the token's
+    fifteen minutes. `test/workspace-guard.e2e-spec.ts` enumerates the shipped
+    route table from the router and drives every `:id` route as a stranger, as a
+    removed member and with no token, so a route added without the guard fails
+    without anybody editing the test.
+  - `apps/api/src/consents/`: `GET`/`POST /consents` over an append-only
+    `consent_records` log (a refusal is a row, a withdrawal closes the grants it
+    supersedes, and `users.marketingOptIn` / `analyticsConsentAt` /
+    `memoryConsentAt` are mirrored in the same transaction); `reconsentRequired`
+    reports an answer given against an older notice (D61, D62).
+  - `apps/api/src/privacy/`: `GET /privacy/notice`, the itemised notice's version
+    and purpose list, public because a person has to read it before creating an
+    account; and `GET /privacy/parental-waitlist` for platform administrators,
+    authorised from a `privacy.platformAdmins` entry in `FEATURE_FLAGS_JSON` and
+    closed to everyone when that is absent, until B13 ships the admin application.
+  - **Schema:** `workspaces.billing_country_confirmed_at` (the sign-up default is a
+    guess, not a statement the customer made) and the `parental_waitlist` table
+    (`sha256(address)`, jurisdiction, age bracket, `notifiedAt`), which
+    `ParentalWaitlistService` drains A04's Redis hash into at boot. Migration
+    `20260902030000_a05_billing_country_confirmed_and_parental_waitlist`.
+  - No new environment variables; `pnpm gen:client` regenerated
+    `packages/api-client` (46 operations).
+
 - **A04 — api: auth (email/password, Google PKCE, magic link, refresh families,
   device grant, token exchange, sessions).**
   - `apps/api/src/auth/`: sign-up with the D60 age gate (India under 18 and the EU

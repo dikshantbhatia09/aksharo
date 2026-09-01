@@ -59,6 +59,9 @@ export class FakeGoogleProvider implements GoogleOAuthProvider {
   }
 }
 
+/** The address `FEATURE_FLAGS_JSON` names as a platform administrator (A05). */
+export const PLATFORM_ADMIN_EMAIL = "platform-admin@example.test";
+
 export interface AuthTestContext {
   readonly app: INestApplication;
   readonly prisma: PrismaClient;
@@ -122,13 +125,18 @@ const TABLES = [
   "audit_log",
   "access_logs",
   "consent_records",
+  "dsr_requests",
   "device_codes",
   "sessions",
   "identities",
   "memberships",
   "api_keys",
+  "subscriptions",
   "workspaces",
   "users",
+  // A05: the parental waiting list is not a child of `users` (the entries exist
+  // precisely because no account was created), so `CASCADE` never reaches it.
+  "parental_waitlist",
 ];
 
 export async function createAuthTestContext(): Promise<AuthTestContext | null> {
@@ -155,6 +163,11 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
   process.env["JWT_PUBLIC_KEY"] = keys.publicKey;
   process.env["GOOGLE_OAUTH_CLIENT_ID"] = "test-client-id.apps.googleusercontent.com";
   process.env["GOOGLE_OAUTH_CLIENT_SECRET"] = "test-client-secret";
+  // A05: `PlatformAdminGuard` is closed by default, so the suite that asserts the
+  // parental-waitlist route has to name somebody. Nothing else reads this key.
+  process.env["FEATURE_FLAGS_JSON"] = JSON.stringify({
+    "privacy.platformAdmins": [PLATFORM_ADMIN_EMAIL],
+  });
   // The suite drives the per-IP buckets through `X-Forwarded-For`, which the API
   // only honours when an operator says a proxy rewrites it.
   process.env["TRUST_PROXY"] = "1";

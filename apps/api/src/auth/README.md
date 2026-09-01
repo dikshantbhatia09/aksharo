@@ -22,7 +22,7 @@ Design references: `docs/CONTRACTS.md` §5 and §8, `docs/THREAT-MODEL.md` T1–
 | `POST`   | `/auth/token/exchange`         | bearer | Switch workspace. Re-checks membership, mints a new session.      |
 | `GET`    | `/auth/sessions`               | bearer | Live sessions, the caller's marked `current`.                     |
 | `DELETE` | `/auth/sessions/{sessionId}`   | bearer | Revokes the family. Somebody else's session is a 404.             |
-| `POST`   | `/auth/parental-waitlist`      | public | Offered to a sign-up the age gate blocked.                        |
+| `POST`   | `/auth/parental-waitlist`      | public | Offered to a sign-up the age gate blocked. A05 gave it a table.   |
 | `GET`    | `/auth/oauth/google/start`     | public | 302 to Google. `?client=web\|desktop\|bridge`.                    |
 | `GET`    | `/auth/oauth/google/callback`  | public | 302 onward with a single-use handoff code.                        |
 | `GET`    | `/auth/desktop-landing`        | public | https page that triggers `aksharo://auth-callback`.               |
@@ -125,6 +125,8 @@ callback as `status=registration` and the account is only created once
 Consent is captured per purpose into `consent_records` — `analytics`, `memory`,
 `marketing`, all default false — and a **refusal is written as a row**, because
 the notice-and-choice record has to show what was asked as well as what was agreed.
+A05 adds `GET`/`POST /consents` for changing those answers later, and
+`GET /privacy/notice` for the version they are recorded against.
 
 ## Threat-model coverage (T1–T4)
 
@@ -162,10 +164,12 @@ against, but no route wears it yet.
    production, pushes it onto a Redis list the e2e suite reads. In production it
    logs a warning and delivers nothing. A08 or B12 needs to own real delivery
    before anyone can verify an address on a deployed environment.
-2. **Parental waitlist storage.** `06-data-model.md` has no table for it, and the
-   Prisma schema is frozen outside A03, so entries live in the Redis hash
-   `montaj:auth:parental-waitlist` keyed by `sha256(email)`. A durable table
-   belongs with the parental-consent flow itself (due before May 2027).
+2. ~~**Parental waitlist storage.**~~ **Resolved by A05.** Entries live in the
+   `parental_waitlist` table (`sha256(address)`, jurisdiction, age bracket,
+   `notifiedAt`); `ParentalWaitlistService` drains whatever the old Redis hash
+   `montaj:auth:parental-waitlist` still holds at boot, and the endpoint gained an
+   optional `jurisdiction` so the refused sign-up form can carry over what it
+   already knows. See [`src/workspaces/README.md`](../workspaces/README.md).
 3. **Coarse geo.** Only what an edge already resolved (`cf-ipcountry` and
    friends) is available; there is no geo-IP database and no environment variable
    for one. The approval screen says "unknown" rather than guessing.

@@ -4,9 +4,10 @@ NestJS modular monolith — one feature module per work package
 (`05-system-architecture.md` section 3). Postgres via Prisma, Redis/BullMQ for jobs,
 OpenAPI as the contract that generates `@montaj/api-client`.
 
-**Status:** A08 — schema and base modules (A03), auth (A04), plus jobs, the
-realtime gateway, the signed internal callback surface and the no-op
-`CreditsFacade`. Projects and media are A06, the real credit ledger is B02.
+**Status:** A05 — schema and base modules (A03), auth (A04), jobs, the realtime
+gateway, the signed internal callback surface and the no-op `CreditsFacade`
+(A08), plus accounts, workspaces, memberships, consent and the privacy surface.
+Projects and media are A06, the real credit ledger is B02.
 
 ## Run
 
@@ -17,18 +18,19 @@ pnpm --filter @montaj/api db:seed          # plans, styles, flags, demo workspac
 pnpm --filter @montaj/api dev              # http://localhost:3001
 ```
 
-| Endpoint                 | Purpose                                                                    |
-| ------------------------ | -------------------------------------------------------------------------- |
-| `GET /health`            | liveness: `{ "status": "ok", "version": "0.1.0" }`                         |
-| `GET /health/ready`      | readiness: Postgres, Redis and object store; 503 when any is down          |
-| `GET /docs`              | Swagger UI                                                                 |
-| `GET /docs-json`         | OpenAPI JSON — the source `@montaj/api-client` is generated from           |
-| `/auth/*`                | sign-in, sessions, the device grant — see [`src/auth`](src/auth/README.md) |
-| `GET /jobs`              | the workspace's jobs, newest first, cursor-paginated                       |
-| `GET /jobs/{id}`         | one job                                                                    |
-| `GET /jobs/{id}/events`  | the job's event log (rows expire after 30 days)                            |
-| `POST /jobs/{id}/cancel` | cancel a queued or running job and release its hold                        |
-| `/realtime`              | WebSocket push (`src/realtime/README.md`)                                  |
+| Endpoint                                                      | Purpose                                                                                                   |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `GET /health`                                                 | liveness: `{ "status": "ok", "version": "0.1.0" }`                                                        |
+| `GET /health/ready`                                           | readiness: Postgres, Redis and object store; 503 when any is down                                         |
+| `GET /docs`                                                   | Swagger UI                                                                                                |
+| `GET /docs-json`                                              | OpenAPI JSON — the source `@montaj/api-client` is generated from                                          |
+| `/auth/*`                                                     | sign-in, sessions, the device grant — see [`src/auth`](src/auth/README.md)                                |
+| `/me`, `/consents`, `/privacy`, `/workspaces`, `/invitations` | accounts, tenancy, the tax profile, consent and rights — see [`src/workspaces`](src/workspaces/README.md) |
+| `GET /jobs`                                                   | the workspace's jobs, newest first, cursor-paginated                                                      |
+| `GET /jobs/{id}`                                              | one job                                                                                                   |
+| `GET /jobs/{id}/events`                                       | the job's event log (rows expire after 30 days)                                                           |
+| `POST /jobs/{id}/cancel`                                      | cancel a queued or running job and release its hold                                                       |
+| `/realtime`                                                   | WebSocket push (`src/realtime/README.md`)                                                                 |
 
 ## Configuration
 
@@ -71,6 +73,8 @@ because a frozen contract or a shipped package says otherwise:
 | What                                                    | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `edg_segments.seq` is `text COLLATE "C"`, not `numeric` | 06 says `numeric`, but CONTRACTS section 2 and `@montaj/edg` define `seq` as a base-62 fractional key over `0-9A-Za-z` (`seqBetween()` returns `1B`, `Zz`, `zzzV`). No NUMERIC column can hold those. The alphabet is in ASCII order so that string comparison IS key comparison, which holds only under byte collation — hence `COLLATE "C"`, pinned on the column because managed Postgres usually defaults to a linguistic one. Prisma cannot express a collation, so the integration suite asserts it. |
+| `parental_waitlist` is not in 06                        | D60 offers a waiting list to a sign-up the age gate refuses, and 06 has no table for it. A04 had to park the entries in a Redis hash; A05 adds the table and drains the hash at boot. Only `sha256(address)` is stored.                                                                                                                                                                                                                                                                                    |
+| `workspaces.billingCountryConfirmedAt` is not in 06     | Sign-up guesses the billing country from the declared jurisdiction, which is not a statement the customer made. The column separates the guess from the confirmation, and B01 refuses to open a checkout while it is null (D41).                                                                                                                                                                                                                                                                           |
 | `projects.folderId` has no FK                           | 06 lists the column but has no `folders` table; A06 adds one and converts it.                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `jobs.type` is `String`, not an enum                    | The closed set is the queue table in CONTRACTS section 3, owned by A08.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Credit columns carry `*Tenths`                          | CONTRACTS section 0 is frozen and says credits are integer tenths; 06's `creditsPerMonth` / `creditsCharged` would leave the unit ambiguous at call sites.                                                                                                                                                                                                                                                                                                                                                 |
@@ -278,11 +282,21 @@ Vitest runs through `unplugin-swc` because NestJS DI needs `emitDecoratorMetadat
 which esbuild cannot produce. `test/setup-env.ts` seeds a complete valid
 environment so tests never depend on a developer's `.env`.
 
-`test/auth.e2e-spec.ts` needs a PostgreSQL **and** a Redis; it reuses
-`TEST_DATABASE_URL` / `TEST_REDIS_URL` when they are set and otherwise starts both
-through testcontainers. Auth is the one module that cannot be tested against
-substituted infrastructure: refresh families are a database invariant and the
-rotation grace is a Redis entry.
+`test/auth.e2e-spec.ts`, `test/users-workspaces.e2e-spec.ts` and
+`test/workspace-guard.e2e-spec.ts` need a PostgreSQL **and** a Redis; each starts
+its own pair through testcontainers, which is what keeps them isolated when Vitest
+runs the files in parallel. They reuse `TEST_DATABASE_URL` / `TEST_REDIS_URL` when
+those are set — useful for one suite at a time, but the three of them share and
+truncate whatever they are pointed at, so do not set those variables for a whole
+run. These modules cannot be tested against substituted infrastructure: a refresh
+family is a database invariant, the rotation grace is a Redis entry, an
+append-only consent log is an ordering property, and the entitlement cache is a
+TTL.
+
+`test/workspace-guard.e2e-spec.ts` is the THREAT-MODEL T4 contract test. It reads
+the shipped route table out of the Express router, filters it to the
+`/workspaces/:id` routes, and drives every one of them as a non-member, so a route
+added without `WorkspaceMemberGuard` fails without anybody editing the test.
 
 `test/database.e2e-spec.ts` needs a PostgreSQL **with pgvector**. It uses
 `TEST_DATABASE_URL` if set, otherwise starts `pgvector/pgvector:pg16` through
