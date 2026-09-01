@@ -44,8 +44,26 @@ Roles: **Fable 5.1** designs, decides, writes briefs, verifies gates. **Opus 5 a
 
 Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 
-## Wave 2 — Core loop
-A10, A11, A12, A13, A14, A15, A16, A17, A18a, A18b, A19, A20, A21, A22, A23, A24 (see 10-build-plan §4). **Gate A** at the end (+ X02 load test).
+## Wave 2 — Core loop (all briefs ready in `05-build/_orchestration/`)
+| WP | Title | Deps | Status |
+|---|---|---|---|
+| A10 | worker-ai vendor adapters, LID, routing, alignment registry, diarisation | A09 | briefed |
+| A11 | api transcripts, post-processing, segmentation → EDG init | A02b, A08, A09 | briefed |
+| A12 | api EDG module (ops, rebase, CAS, revisions, realtime) | A02b, A08 | briefed |
+| A13 | web shell + `@montaj/ui` + auth pages + onboarding + settings | A04, A05 | briefed |
+| A14 | web Home + Projects + upload engine | A06, A08, A13 | briefed |
+| A15 | web Editor transcript column + EDG client store | A12, A13 | briefed |
+| A16 | render-core + render-canvaskit + 30 styles + panels | A02, A02c | briefed |
+| A17 | web Timeline | A15, A16 | briefed |
+| A18a | ass-exporter + parity gate | A16, A20 | briefed |
+| A18b | fonts pipeline | A06, A07 | briefed |
+| A19 | web browser export + export dialog | A16, A21, A02c | briefed |
+| A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | briefed |
+| A21 | api exports module (manifests, cloud jobs) | A08, A20 | briefed |
+| A22 | scripts + translation | A10, A11, A12 | briefed |
+| A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | briefed |
+| A24 | marketing site v1 | A16 | briefed |
+Sub-wave order: {A10, A11, A12, A13, A16, A18b, A20} → {A14, A15, A21, A22, A24} → {A17, A18a, A19} → {A23 + Gate A}.
 
 ## Wave 3 — Monetisation
 B01–B09, B16, B17.
