@@ -10,6 +10,26 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A03b — api: seq is a base-62 string; style loader hardened.**
+  - `edg_segments.seq` becomes `text COLLATE "C"` (migration
+    `20260902010000_edg_segment_seq_text`). A03 read 06's "seq numeric" literally;
+    A02 has since shipped `seqBetween()` in `@montaj/edg`, which returns base-62
+    keys such as `1B` and `Zz` that no NUMERIC column can hold. The alphabet
+    `0-9A-Za-z` is in ASCII order so that `ORDER BY seq` is the comparison
+    `compareSeqKeys()` makes, which holds only under byte collation — pinned on the
+    column because managed Postgres usually defaults to a linguistic one, and
+    asserted by a test that inserts `1`, `1B`, `2`, `Zz`, `a`, `zzzV`.
+  - `edg_segments_live_seq_idx` becomes UNIQUE: two _live_ segments may not share a
+    fractional key. Partial rather than a plain unique constraint, because a
+    tombstoned segment keeps its key and a later edit may legitimately reclaim it.
+  - The seed's style loader takes an injected module loader, so the fixtures and
+    placeholder tiers stay testable now that `@montaj/caption-styles` always
+    resolves; the fixtures tier accepts only documents that parse as StyleDoc v2
+    with an `id`, so `styles/registry.json` — the catalogue index A02 ships
+    alongside the styles — is no longer seeded as a style.
+  - `pnpm db:seed` now reports `source: package` and seeds A02's seven system
+    styles.
+
 - **A03 — api: Prisma schema v2, hand SQL, migrations, seed, base modules.**
   - `apps/api/prisma/schema.prisma`: 68 models covering every table in
     `03-architecture/06-data-model.md` — identity and tenancy, media and editing
