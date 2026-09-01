@@ -222,12 +222,36 @@ export const OpBatchRequestSchema = z
   .meta({ id: "OpBatchRequest", title: "OpBatchRequest" });
 
 /**
- * Why an op was dropped. `stale` is an op against a tombstoned or superseded id,
- * `conflict` a concurrent edit of the same word (D29). Extend this list from the
- * ops engine (A02b) rather than sending free text.
+ * Why an op was dropped (D29). A closed enum: the engine never sends free text.
+ *
+ * | Reason                  | Raised by | Meaning                                                         |
+ * | ----------------------- | --------- | --------------------------------------------------------------- |
+ * | `stale`                 | both      | the target id is tombstoned, or its word was deleted             |
+ * | `conflict`              | rebase    | another writer edited the same word (409 carries both texts)     |
+ * | `invalid`              | apply     | the op payload is self-inconsistent (bad scope, duplicate ids)   |
+ * | `invalid-range`         | apply     | a time or word range does not fit the document                   |
+ * | `not-contiguous`        | apply     | `MergeSegments` over segments that are not neighbours            |
+ * | `unknown-id`            | apply     | the segment, word, item or pass id is not in the document        |
+ * | `invariant`             | apply     | applying would break a document invariant (id reuse, empty range)|
+ * | `rebased-away`          | rebase    | a later revision already wrote the same `(target, field)`         |
+ * | `stale-after-resegment` | rebase    | `Resegment` since `baseRevision` replaced every segment id        |
+ * | `forbidden`             | apply     | the writer may not submit this op (`MergePass` is worker-only)    |
+ * | `rate-limited`          | API       | the workspace write budget is spent                              |
  */
 export const OpRejectionReasonSchema = z
-  .enum(["stale", "conflict", "invalid", "unknown-id", "forbidden", "rate-limited"])
+  .enum([
+    "stale",
+    "conflict",
+    "invalid",
+    "invalid-range",
+    "not-contiguous",
+    "unknown-id",
+    "invariant",
+    "rebased-away",
+    "stale-after-resegment",
+    "forbidden",
+    "rate-limited",
+  ])
   .meta({ id: "OpRejectionReason", title: "OpRejectionReason" });
 
 export const OpRejectionSchema = z
@@ -263,12 +287,20 @@ export const OpConflictSchema = z
   })
   .meta({ id: "OpConflict", title: "OpConflict" });
 
+/**
+ * Which surface wrote a revision (`edg_revisions.source`). `worker` is the only
+ * source allowed to submit `MergePass`.
+ */
+export const EdgSourceSchema = z
+  .enum(["web", "desktop", "premiere", "ae", "resolve", "worker"])
+  .meta({ id: "EdgSource", title: "EdgSource" });
+
 /** Realtime `edg.ops` payload (CONTRACTS §7). */
 export const EdgOpsEventSchema = z
   .object({
     revision: z.number().int().min(0),
     ops: z.array(EdgOpSchema),
-    source: z.enum(["web", "desktop", "premiere", "ae", "resolve", "worker"]),
+    source: EdgSourceSchema,
   })
   .meta({ id: "EdgOpsEvent", title: "EdgOpsEvent" });
 
@@ -296,3 +328,4 @@ export type OpBatchRequest = z.infer<typeof OpBatchRequestSchema>;
 export type OpBatchResponse = z.infer<typeof OpBatchResponseSchema>;
 export type OpConflict = z.infer<typeof OpConflictSchema>;
 export type EdgOpsEvent = z.infer<typeof EdgOpsEventSchema>;
+export type EdgSource = z.infer<typeof EdgSourceSchema>;

@@ -1226,7 +1226,19 @@
     },
     "OpRejectionReason": {
       "type": "string",
-      "enum": ["stale", "conflict", "invalid", "unknown-id", "forbidden", "rate-limited"],
+      "enum": [
+        "stale",
+        "conflict",
+        "invalid",
+        "invalid-range",
+        "not-contiguous",
+        "unknown-id",
+        "invariant",
+        "rebased-away",
+        "stale-after-resegment",
+        "forbidden",
+        "rate-limited"
+      ],
       "title": "OpRejectionReason"
     },
     "OpConflict": {
@@ -1263,13 +1275,17 @@
           }
         },
         "source": {
-          "type": "string",
-          "enum": ["web", "desktop", "premiere", "ae", "resolve", "worker"]
+          "$ref": "#/$defs/EdgSource"
         }
       },
       "required": ["revision", "ops", "source"],
       "additionalProperties": false,
       "title": "EdgOpsEvent"
+    },
+    "EdgSource": {
+      "type": "string",
+      "enum": ["web", "desktop", "premiere", "ae", "resolve", "worker"],
+      "title": "EdgSource"
     }
   }
 }

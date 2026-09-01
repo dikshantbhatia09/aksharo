@@ -3,8 +3,9 @@
 EDG v2 types, Zod schemas, the `EdgOp` union, id helpers, fractional ordering and the
 projection validator.
 
-**Status:** schemas and helpers landed by A02. **Next:** A02b (rebase transform table,
-compare-and-swap persistence, snapshots, `schemaVersion` migrations).
+**Status:** schemas and helpers landed by A02; the ops engine, the segmenter, snapshots
+and `schemaVersion` migrations by A02b. The package is pure TypeScript with no database
+access, so the API module (A12) and the browser client run the identical code.
 
 The shapes are frozen in `docs/CONTRACTS.md` §2 and described in
 `03-architecture/05-system-architecture.md` §4 (decisions D28, D29). Nothing outside this
@@ -42,14 +43,17 @@ segment and pass rows joined back in — the shape of `edg_snapshots.snapshot`, 
 
 ## Exports
 
-| Subpath                                    | Contents                                             |
-| ------------------------------------------ | ---------------------------------------------------- |
-| `@montaj/edg`                              | everything below                                     |
-| `@montaj/edg/schemas`                      | the Zod schemas and their inferred types             |
-| `@montaj/edg/seq`                          | fractional ordering (`seqBetween`, `compareSeqKeys`) |
-| `@montaj/edg/schemas/edg-v2.json`          | generated JSON Schema for the document               |
-| `@montaj/edg/schemas/edg-ops-v2.json`      | generated JSON Schema for the op union               |
-| `@montaj/edg/fixtures/sample-project.json` | the sample projection                                |
+| Subpath                                    | Contents                                                        |
+| ------------------------------------------ | --------------------------------------------------------------- |
+| `@montaj/edg`                              | everything below                                                |
+| `@montaj/edg/schemas`                      | the Zod schemas and their inferred types                        |
+| `@montaj/edg/seq`                          | fractional ordering (`seqBetween`, `compareSeqKeys`)            |
+| `@montaj/edg/ops`                          | `EdgState`, `applyOps`, `rebaseOps`, snapshots, `EdgRepository` |
+| `@montaj/edg/segmenter`                    | `segmentWords` and the per-script limits                        |
+| `@montaj/edg/migrations`                   | `migrate` and the registered `v1` to `v2` step                  |
+| `@montaj/edg/schemas/edg-v2.json`          | generated JSON Schema for the document                          |
+| `@montaj/edg/schemas/edg-ops-v2.json`      | generated JSON Schema for the op union                          |
+| `@montaj/edg/fixtures/sample-project.json` | the sample projection                                           |
 
 The build emits both formats: CommonJS in `dist/` (the monorepo default, so NestJS and
 the BullMQ workers can `require` it) and ES modules in `dist/esm/`, each with its own
@@ -125,15 +129,165 @@ makes retries idempotent. `OpBatchRequestSchema` / `OpBatchResponseSchema` /
 `OpConflictSchema` are the `POST /projects/{id}/edg/ops` envelopes, and `EdgOpsEventSchema`
 is the realtime `edg.ops` payload.
 
-`OpRejectionReasonSchema` is a closed enum (`stale`, `conflict`, `invalid`, `unknown-id`,
-`forbidden`, `rate-limited`). A02b should extend that enum rather than send free text.
+`OpRejectionReasonSchema` is a **closed enum** — the engine never sends free text, and a
+new reason means extending the enum (and the generated `edg-ops-v2.json`):
+
+| Reason                  | Raised by     | Meaning                                                                                    |
+| ----------------------- | ------------- | ------------------------------------------------------------------------------------------ |
+| `stale`                 | apply, rebase | the target id is tombstoned, or its word was deleted since the base revision               |
+| `conflict`              | rebase        | another writer edited the same word; the API answers 409 with both texts                   |
+| `invalid`               | apply         | the op payload is self-inconsistent (a `segment` scope with no `segmentId`, a repeated id) |
+| `invalid-range`         | apply         | a time or word range does not fit the document                                             |
+| `not-contiguous`        | apply         | `MergeSegments` named segments that are not neighbours                                     |
+| `unknown-id`            | apply         | the segment, word, item or pass id is not in the document                                  |
+| `invariant`             | apply         | applying would break a document invariant (id reuse, a word id below `nextWordSeq`)        |
+| `rebased-away`          | rebase        | a later revision already wrote the same `(target, field)`                                  |
+| `stale-after-resegment` | rebase        | a `Resegment` since the base revision replaced every segment id                            |
+| `forbidden`             | apply         | the writer may not submit this op — `MergePass` is worker-only                             |
+| `rate-limited`          | API           | the workspace write budget is spent (A12 raises it, never the engine)                      |
+
+## The ops engine
+
+```ts
+import { applyOps, fromProjection, rebaseOps, toProjection } from "@montaj/edg/ops";
+
+const state = fromProjection(projection, { chunks });
+const { rebased, rejected } = rebaseOps(incoming, opsSince); // only when the client is behind
+const result = applyOps(state, rebased, { source: "web", revision: 42 });
+// result.state, result.applied[], result.rejected[{opId, reason}], result.skipped[]
+```
+
+`EdgState` is the document in memory: `hot`, `segments` by id with `segmentOrder` in `seq`
+order, `passes` and `items` (items live **once**, and `toProjection` nests them back under
+their pass), the transcript `words` index, the `chunks` bounds, the `tombstones` that make
+an op against a dead id `stale`, and the `appliedOpIds` idempotency window — the last
+10,000 accepted `opId`s, oldest evicted first.
+
+`applyOps` is pure and **per-op atomic**: it copies what the batch touches, and each
+handler validates everything before it writes anything, so one rejected op never rolls the
+others back. An `opId` already inside the window is reported as applied without editing the
+document again, which is what makes a retried batch safe. `toProjection` is **canonical** —
+segments by `seq`, passes by `passId`, items by `(startMs, itemId)`, and empty optional
+fields dropped — so two clients that applied the same commuting ops in a different order
+serialise the same bytes.
+
+Op semantics worth knowing, because CONTRACTS §2 fixes the shape but not the meaning:
+
+- **SplitSegment** cuts _before_ `atWordId`: the head keeps the id and the `textOverrides`
+  (they described a line that is now the head), the tail gets `newSegmentId` and a `seq`
+  from `seqBetween`. Emphasis follows the words.
+- **MergeSegments** joins neighbours only, keeps the first segment's style, position and
+  `seq`, concatenates emphasis, and keeps a per-script override only when **every** merged
+  segment had one. `newSegmentId` must be an id the document has never seen.
+- **DeleteWord** tombstones the word; a segment whose range started or ended on it shrinks
+  to the neighbouring live word, and one with no live words left is hidden rather than
+  deleted. Emphasis pushed outside the new range goes with it.
+- **InsertWordAfter** requires an id in the anchor's chunk, past every `n` the chunk has
+  used (D28: ids are never reused), timed inside the gap between its neighbours.
+- **Resegment** re-runs the segmenter over the live words, tombstones every previous
+  segment id, re-homes emphasis by word id, and inherits style, position and `hidden` from
+  the old segment that overlaps a new one by at least half its words.
+- **SetStyle** with `scope: "doc"` sets `styles.defaultStyleId` and writes its `overrides`
+  as the reserved inline document `styles.inline.doc`; with `scope: "segment"` it
+  _replaces_ the segment's `styleRef`/`overrides` (an empty `overrides` clears them).
+- **MergePass** is worker-only (`ctx.source === "worker"`, otherwise `forbidden`) and
+  idempotent by `passId`.
+- **EditWord** with `script: "translated"` is `invalid`: `Word.scripts` has only
+  `roman`/`native`/`en` slots (CONTRACTS §2).
+
+### The rebase transform table
+
+`rebaseOps(incoming, opsSince)` runs before `applyOps` when the client's `baseRevision` is
+behind. It reads **only ops** — never the document — so the browser can run it too. Rules
+fire in this order:
+
+| #   | `opsSince` contains            | Incoming op                                                                           | Outcome                                                            |
+| --- | ------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| 1   | `Resegment`                    | any segment-addressed op                                                              | `stale-after-resegment`                                            |
+| 1   | `Resegment`                    | word- or document-level op                                                            | kept                                                               |
+| 2   | `DeleteWord{w}`                | any op naming `w`                                                                     | `stale`                                                            |
+| 3   | `EditWord{w}`                  | `EditWord{w}`                                                                         | `conflict` (409 carries both texts)                                |
+| 3   | `EditWord{w}`                  | `EditWord{other}`                                                                     | kept                                                               |
+| 4   | `MergeSegments{[A,B] -> AB}`   | `SetEmphasis`, `SetSegmentPosition`, `HideSegment`, `SetStyle`, `SplitSegment` on `A` | remapped to `AB` (chained merges are followed to the end)          |
+| 4   | `MergeSegments{[A,B] -> AB}`   | `SetSegmentText`, `SetSegmentBounds` on `A`                                           | `stale` — the merged line is a different line                      |
+| 4   | `MergeSegments{[A,B] -> AB}`   | `MergeSegments{[A,B]}`                                                                | `rebased-away` (nothing left to join)                              |
+| 4   | `SplitSegment{A -> A,C}`       | `MergeSegments{[A, ...]}`                                                             | list grows to `[A, C, ...]`, so the ids are neighbours again       |
+| 5   | any write to `(target, field)` | a write to the **same** field                                                         | `rebased-away` (last writer wins: the applied revision is later)   |
+| 5   | any write to `(target, field)` | a write to another field, script, word or segment                                     | kept                                                               |
+| 5   | `DecideItems`                  | `DecideItems` overlapping it                                                          | narrowed to the undecided items; `rebased-away` when none are left |
+| 5   | `SetAudio`                     | `SetAudio` overlapping it                                                             | narrowed to the half nobody set; `rebased-away` when both are set  |
+| 6   | anything                       | an op still naming a dead id                                                          | `stale` — a rebased batch can never resurrect an id                |
+
+Fields are `text:<script>`, `bounds`, `emphasis:<wordId>`, `position`, `hidden` and `style`
+per segment; `doc:style`, `doc:segments` (`Resegment`), `doc:audio:<key>` and
+`doc:render:presets` per document; `item:<itemId>` and `pass:<passId>`. A `SplitSegment` in
+`opsSince` counts as a write to its parent's `bounds`.
+
+### Segmentation
+
+```ts
+import { segmentWords, SCRIPT_LIMITS } from "@montaj/edg/segmenter";
+
+const segments = segmentWords(liveWords, { maxLines: 2 }, { dropFillers: true });
+```
+
+One deterministic left-to-right pass, then one merge pass that absorbs runs shorter than
+`minMs`. A break only ever falls **between** words:
+
+- **hard** — the speaker changed;
+- **forced** — one more word would need another line, run past `maxMs`, or push the
+  reading speed past the script's ceiling;
+- **preferred** — the previous word ended a sentence, or the pause before this word is at
+  least `mergeGapMs` (150 ms); shorter gaps are never break points, which is what "merge
+  gaps < 150 ms" in `09 §3` means. Preferred breaks wait until the caption has reached
+  `minMs`, so the segmenter never manufactures a caption too short to read.
+
+Limits come from the script the words are written in, detected per word by Unicode block
+(`09 §3`): Latin 32 characters a line at 20 CPS, Devanagari 24 at 15, Tamil 22 at 15,
+anything else 26 at 15. **A "character" is a base code point** — combining marks do not
+count — which is the character count for Latin and the grapheme-cluster count for Indic
+scripts, and is what makes a 24-character Devanagari line comparable to a 32-character
+Latin one.
+
+`fixtures/segmenter-golden.json` holds three transcripts (Roman Hinglish, Devanagari Hindi,
+Tamil) with the segments, wrapped lines, per-line character counts and reading speeds the
+segmenter must produce. Regenerate it with `pnpm --filter @montaj/edg golden:build`, which
+prints the table to read before committing.
+
+### Snapshots, migrations and persistence
+
+```ts
+import { migrate } from "@montaj/edg/migrations";
+import { replay, restore, snapshot } from "@montaj/edg/ops";
+
+const stored = snapshot(state); // {schemaVersion: 2, projection, chunks?}
+const reopened = restore(stored);
+const { state: latest } = replay(stored, opsSinceTheSnapshot);
+const carried = migrate(legacyDocument); // v1 to v2
+```
+
+A snapshot is the projection plus, optionally, the transcript chunks — the API loads those
+from their own table, but an exported snapshot carries them so `restore` and `replay` can
+resolve word ids without a database. Migrations transform **snapshots**, never op logs: a
+revision's ops only ever replay against a snapshot of their own generation (D28). The
+registered `v1` to `v2` step turns v1's flat word array and index-addressed
+`wordRange: [i, j]` segments into transcript chunks with stable word ids, deriving the
+chunk index from the cumulative `chunkSizes` v1 stored (or from 10-minute windows when it
+did not). Segment texts and timings come through unchanged.
+
+`EdgRepository` in `@montaj/edg/ops` is the **types-only** persistence surface A12
+implements: `loadHot`, `loadSegments(cursor)`, `loadItems(passId)`, `appendRevision` —
+which either returns the new revision or the `{latestRevision, opsSince}` conflict, never
+the document — and `snapshotEvery = 100`.
 
 ## Fixtures
 
-| File                              | What it is                                                                                                          |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `fixtures/sample-project.json`    | 90 s, 3-speaker Hinglish projection: 12 segments, an autocut pass with 4 cut items, a reframe pass with 1 zoom item |
-| `fixtures/sample-transcript.json` | the matching `{manifest, chunks}` — 119 words in one chunk, with `roman`/`native` scripts                           |
+| File                               | What it is                                                                                                          |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `fixtures/sample-project.json`     | 90 s, 3-speaker Hinglish projection: 12 segments, an autocut pass with 4 cut items, a reframe pass with 1 zoom item |
+| `fixtures/sample-transcript.json`  | the matching `{manifest, chunks}` — 119 words in one chunk, with `roman`/`native` scripts                           |
+| `fixtures/segmenter-golden.json`   | the three segmenter golden cases: Roman Hinglish, Devanagari Hindi, Tamil, with lines and line lengths              |
+| `fixtures/legacy-v1-document.json` | a v1 EDG document (flat words, `wordRange` segments, `chunkSizes`) for the migration test                           |
 
 They are hand-maintainable JSON, validated on every run by `src/schemas/schemas.test.ts`
 (schema + invariants) and `src/schemas/json-schema.test.ts` (Ajv against the generated
@@ -142,14 +296,18 @@ JSON Schema).
 ## Layout
 
 ```
-src/schemas/*.ts       Zod schemas, inferred types, JSON Schema emission
-src/ids.ts             ULID factory, word ids
-src/seq.ts             fractional ordering
+src/schemas/*.ts        Zod schemas, inferred types, JSON Schema emission
+src/ids.ts              ULID factory, word ids
+src/seq.ts              fractional ordering
 src/transcript-index.ts word index and range queries
-src/validate.ts        projection invariants
-scripts/               JSON Schema generator, ESM build marker
-schemas/               generated JSON Schema documents (committed)
-fixtures/              sample projection and transcript (committed)
+src/validate.ts         projection invariants
+src/ops/                state, applyOps, rebaseOps, snapshots, repository types
+src/segmenter/          script detection and segmentWords
+src/migrations/         the migration registry and the v1 step
+src/testing.ts          fixture builders for the tests (not shipped)
+scripts/                JSON Schema generator, golden builder, ESM build marker
+schemas/                generated JSON Schema documents (committed)
+fixtures/               sample projection, transcript, goldens, v1 document (committed)
 ```
 
 ## Scripts
@@ -158,6 +316,7 @@ fixtures/              sample projection and transcript (committed)
 | ----------------------------------------- | -------------------------------------------------------- |
 | `pnpm --filter @montaj/edg build`         | regenerate JSON Schemas, then `tsc` to CJS + ESM + types |
 | `pnpm --filter @montaj/edg schemas:build` | regenerate `schemas/*.json` only                         |
+| `pnpm --filter @montaj/edg golden:build`  | regenerate the segmenter golden fixture and print it     |
 | `pnpm --filter @montaj/edg typecheck`     | type-check sources, tests and scripts                    |
 | `pnpm --filter @montaj/edg lint`          | ESLint flat config from `@montaj/config/eslint`          |
 | `pnpm --filter @montaj/edg test`          | Vitest (builds `dist/` first if it is missing)           |
