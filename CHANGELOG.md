@@ -30,6 +30,34 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   - `pnpm db:seed` now reports `source: package` and seeds A02's seven system
     styles.
 
+- **A02c — `@montaj/timemap`: source ↔ output time mapping (D30).**
+  - `buildTimeMap({sourceDurationMs, edits, fps?, snapCutsToFrames?})` turns a list of
+    `cut`, `speed` and `hold` edits into a frozen, ordered span list covering both
+    clocks, with `O(log n)` lookups either way: `toOutput` (`null` strictly inside a
+    cut), `toSource` (total — the inverse used for scrubbing), `locateSource` /
+    `locateOutput` for the same answers with `insideCut`, `held` and `clamped` attached,
+    and `mapRange` for a source range split by cuts.
+  - Sample-accurate boundary rules: a cut removes the half-open source range, both its
+    edges map to the one output splice, and `toSource` of that splice is the frame after
+    the cut. Cuts win every conflict — overlapping and touching cuts merge, speed ranges
+    are clipped out of them, holds strictly inside one are dropped — and structurally
+    invalid edits raise a typed `TimeMapError` with a stable `code`.
+  - Caption helpers: `mapSegment` (a segment whose live words all fall in cuts is
+    hidden, partial overlaps are clipped, tombstoned words ignored) and `mapWord`;
+    `mapKeyframes`, which drops keyframes inside cuts and pins the curve with an edge
+    keyframe at each side of every splice it crosses, optionally interpolated.
+  - `fromAcceptedItems(items, {sourceDurationMs, …})` builds a map from accepted `cut`
+    pass items and ignores every other kind; `serialize()` / `parseTimeMap()` are a
+    versioned JSON fixed point; `snapToFrame`/`frameDurationMs`/`frameAt` work on the
+    exact frame grid, and `snapCutsToFrames` puts every cut edge on a boundary.
+  - Guarantees proved with fast-check: monotonicity both ways, exact inverse on retained
+    source when nothing is retimed (and a stable round trip on both clocks for every
+    map), `outputDurationMs === sourceDurationMs − Σcuts + Σholds`, and `mapRange` pieces
+    that are ordered, disjoint and cover exactly the retained part of the input range.
+  - Pure and browser-safe (no Node-only imports, asserted against the build output);
+    CommonJS in `dist/` and ES modules in `dist/esm/` with declarations for both.
+    149 tests, 100% lines / 99.6% branches against the CONTRACTS section 9 gate (90/85).
+    5,000 cuts on a six-hour source: 100,000 `toOutput` lookups in ~15 ms.
 - **A03 — api: Prisma schema v2, hand SQL, migrations, seed, base modules.**
   - `apps/api/prisma/schema.prisma`: 68 models covering every table in
     `03-architecture/06-data-model.md` — identity and tenancy, media and editing
