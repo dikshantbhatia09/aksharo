@@ -36,3 +36,15 @@ const TEST_ENV: Record<string, string> = {
 for (const [key, value] of Object.entries(TEST_ENV)) {
   process.env[key] ??= value;
 }
+
+/**
+ * Silence Nest's console logger during tests.
+ *
+ * Several suites deliberately drive the failure paths (`HttpExceptionFilter`
+ * logging a 500, for one), and their stack traces would otherwise scroll past the
+ * real results and read like failures. Assertions cover the behaviour; the console
+ * output adds nothing.
+ */
+import { Logger } from "@nestjs/common";
+
+Logger.overrideLogger(false);

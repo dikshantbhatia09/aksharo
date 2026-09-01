@@ -1,12 +1,21 @@
-// Prisma schema for the Montaj API.
+// Prisma schema for the Montaj (codename) / Aksharo API.
 //
-// A01 ships this file EMPTY on purpose: the data model is designed in A03 from
-// 03-architecture/06-data-model.md. Adding a model here before A03 would fork
-// the design, so leave it alone and raise an ADR if you disagree.
+// Source of truth: `03-architecture/06-data-model.md` (v2). Every table in that
+// document exists here; deviations are listed in the A03 report and must carry an
+// ADR before they change. Conventions (docs/CONTRACTS.md §0):
 //
-// Anything Prisma cannot express (partial and expression indexes, generated
-// columns, RLS, pgvector, triggers, partitions) lives as hand-maintained DDL in
-// ./sql/ and is applied from a migration — see ./sql/README.md.
+//   * ids        ULID strings, `@id @db.Char(26)`
+//   * times      `timestamptz` (`@db.Timestamptz(6)`), never `timestamp`
+//   * money      integer MINOR units (paise / cents) + an ISO currency column
+//   * credits    integer TENTHS of a credit (`*Tenths`)
+//   * media time milliseconds (`*Ms`)
+//   * JSONB      `Json @db.JsonB`; every such column names its Zod schema in a comment
+//   * columns    snake_case in the database, camelCase in the client (`@map`)
+//
+// Anything Prisma cannot express lives in `prisma/sql/` and is applied by
+// `pnpm db:migrate` after `prisma migrate deploy`. Those objects are invisible to
+// `prisma db pull`, so each one is also recorded as a comment on the model it
+// belongs to — see `prisma/sql/README.md`.
 
 generator client {
   provider = "prisma-client-js"
@@ -15,4 +24,2252 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums — closed sets named in 06-data-model.md
+// ---------------------------------------------------------------------------
+
+enum Jurisdiction {
+  IN
+  EU
+  OTHER
+}
+
+enum AgeBracket {
+  adult
+  minor
+}
+
+enum ConsentPurpose {
+  analytics
+  memory
+  marketing
+  share_upload
+  affiliate
+}
+
+enum DsrKind {
+  access
+  erasure
+  export
+  correction
+}
+
+/// Not enumerated in 06 (`status`); the lifecycle the DPDP 30-day clock needs.
+enum DsrStatus {
+  received
+  verifying
+  in_progress
+  completed
+  rejected
+}
+
+/// Not enumerated in 06 (`status`); mirrors the breach runbook (A00-13).
+enum BreachStatus {
+  detected
+  investigating
+  contained
+  notified
+  closed
+}
+
+enum IdentityProvider {
+  google
+  email
+  magic
+}
+
+/// CONTRACTS §5 `kind` claim.
+enum ClientKind {
+  web
+  desktop
+  bridge
+  premiere
+  ae
+  resolve
+  api
+}
+
+enum WorkspaceType {
+  personal
+  team
+  agency
+}
+
+enum Region {
+  in
+  eu
+  us
+}
+
+enum Currency {
+  INR
+  USD
+}
+
+enum MembershipRole {
+  owner
+  admin
+  editor
+  viewer
+}
+
+/// Not enumerated in 06 (`status`); the invite lifecycle A05 needs.
+enum MembershipStatus {
+  invited
+  active
+  suspended
+  removed
+}
+
+/// Host application a device or pairing belongs to (06 `devices.host`).
+enum HostApp {
+  web
+  desktop
+  premiere
+  ae
+  resolve
+}
+
+enum ApiKeyScope {
+  read
+  jobs
+  webhooks
+}
+
+/// Not enumerated in 06 (`status`); the device-code flow of 07 §Auth.
+enum DeviceCodeStatus {
+  pending
+  approved
+  denied
+  expired
+  consumed
+}
+
+enum MediaRole {
+  primary
+  broll
+  audio
+  font
+  image
+}
+
+/// Which object store holds the bytes (CONTRACTS §6).
+enum StorageBucket {
+  s3
+  r2
+}
+
+/// Not enumerated in 06 (`status`); the upload/probe lifecycle A06/A07 drive.
+enum MediaStatus {
+  pending
+  uploading
+  uploaded
+  probing
+  ready
+  failed
+  purged
+}
+
+/// Not enumerated in 06 (`status`).
+enum ProjectStatus {
+  draft
+  active
+  archived
+}
+
+/// CONTRACTS §2 `EdgHot.canvas.aspect`.
+enum Aspect {
+  r9x16 @map("9:16")
+  r16x9 @map("16:9")
+  r1x1  @map("1:1")
+  r4x5  @map("4:5")
+}
+
+/// CONTRACTS §2 `PassType`.
+enum PassType {
+  autocut
+  reframe
+  sfx
+  music
+  textfx
+  prompted
+}
+
+/// CONTRACTS §2 `ItemKind`.
+enum ItemKind {
+  cut
+  zoom
+  reframe
+  sfx
+  music
+  title
+}
+
+/// CONTRACTS §2 `ItemState`.
+enum ItemState {
+  proposed
+  accepted
+  rejected
+  modified
+}
+
+/// Not enumerated in 06 (`edg_passes.status`).
+enum PassStatus {
+  queued
+  running
+  succeeded
+  failed
+  merged
+  cancelled
+}
+
+/// 06 `edg_revisions.source`.
+enum EdgSource {
+  web
+  desktop
+  premiere
+  ae
+  resolve
+  worker
+}
+
+/// Not enumerated in 06 (`jobs.status`).
+enum JobStatus {
+  queued
+  running
+  succeeded
+  failed
+  cancelled
+}
+
+/// Not enumerated in 06 (`job_events.level`).
+enum LogLevel {
+  debug
+  info
+  warn
+  error
+}
+
+/// THREAT-MODEL T18: what the provider is contractually allowed to keep.
+enum RetentionClass {
+  zero_retention
+  short_retention
+  vendor_default
+}
+
+/// Not enumerated in 06 (`exports.kind`); the formats of 04 §Plans.
+enum ExportKind {
+  mp4
+  mov
+  srt
+  vtt
+  ass
+  txt
+  docx
+  md
+}
+
+/// 07 §Exports `mode`.
+enum RenderMode {
+  browser
+  cloud
+}
+
+enum PlanKey {
+  free
+  starter
+  creator
+  studio
+  agency
+}
+
+enum BillingProvider {
+  razorpay
+  none
+}
+
+/// Not enumerated in 06 (`subscriptions.status`); the dunning ladder of 04.
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  paused
+  cancelled
+  expired
+}
+
+enum BillingInterval {
+  month
+  year
+  halfyear
+  once
+}
+
+enum MandateMethod {
+  upi_autopay
+  card
+  enach
+}
+
+/// Not enumerated in 06 (`mandates.status`).
+enum MandateStatus {
+  pending
+  active
+  paused
+  revoked
+  expired
+}
+
+enum PassPurchaseKind {
+  first_export
+  week_pass
+  pay_once
+  topup
+}
+
+enum InvoiceDocType {
+  tax_invoice
+  export_invoice
+  bill_of_supply
+  credit_note
+  debit_note
+  self_invoice
+}
+
+enum SupplyType {
+  intra_state
+  inter_state
+  export
+  sez
+  import_rcm
+}
+
+/// Not enumerated in 06 (`invoices.status`).
+enum InvoiceStatus {
+  draft
+  issued
+  paid
+  cancelled
+  void
+}
+
+enum PaymentMethod {
+  upi
+  upi_autopay
+  card
+  netbanking
+  wallet
+  emandate
+}
+
+/// Not enumerated in 06 (`payments.status`); Razorpay's payment lifecycle.
+enum PaymentStatus {
+  created
+  authorized
+  captured
+  failed
+  refunded
+}
+
+/// Not enumerated in 06 (`firc_records.edpmsStatus`).
+enum EdpmsStatus {
+  pending
+  reported
+  closed
+}
+
+enum CreditLotSource {
+  grant
+  topup
+  pass
+  referral
+  adjust
+  reversal
+}
+
+enum CreditHoldStatus {
+  held
+  settled
+  released
+  partially_settled
+}
+
+enum CreditLedgerKind {
+  grant
+  purchase
+  hold
+  settle
+  release
+  reversal
+  refund
+  adjust
+  expire
+  referral_bonus
+}
+
+/// Not enumerated in 06 (`affiliates.status`).
+enum AffiliateStatus {
+  pending
+  approved
+  suspended
+  rejected
+}
+
+/// Not enumerated in 06 (`referrals.status`).
+enum ReferralStatus {
+  pending
+  attributed
+  converted
+  rejected
+}
+
+enum CommissionStatus {
+  pending
+  payable
+  paid
+  clawed_back
+}
+
+/// 06 `commissions.tdsSection`; only s.194H applies at launch (04 §Affiliate).
+enum TdsSection {
+  s194H @map("194H")
+  s194O @map("194O")
+}
+
+enum PayoutRail {
+  neft
+  imps
+  rtgs
+  upi
+}
+
+/// Not enumerated in 06 (`payouts.status`).
+enum PayoutStatus {
+  pending
+  processing
+  paid
+  failed
+  reversed
+}
+
+/// Not enumerated in 04 §Referral loop (`referral_rewards`).
+enum ReferralRewardStatus {
+  pending
+  granted
+  revoked
+}
+
+/// 06 `share_reports.category` (`nciI` there is a typo for NCII).
+enum ShareReportCategory {
+  ncii
+  impersonation
+  copyright
+  other
+}
+
+enum AudioAssetKind {
+  sfx
+  music
+}
+
+enum AudioProvider {
+  owned
+  epidemic
+  soundstripe
+  storyblocks
+  beatoven
+  hoopr
+}
+
+enum CatalogueMode {
+  mirrored
+  live_fetch
+}
+
+enum ClearanceMethod {
+  none
+  channel_safelist
+  per_video_code
+  platform_covered
+}
+
+enum AssetSurface {
+  cloud_render
+  panel
+  desktop
+  api
+}
+
+enum AssetScope {
+  channel
+  video
+}
+
+/// Not enumerated in 06 (`asset_clearance_grants.status`).
+enum ClearanceGrantStatus {
+  pending
+  active
+  revoked
+  expired
+}
+
+/// Not enumerated in 06 (`webhook_deliveries`).
+enum WebhookDeliveryStatus {
+  pending
+  delivered
+  failed
+  dead
+}
+
+// ===========================================================================
+// Identity & tenancy — 06 §Identity & tenancy
+// ===========================================================================
+
+model User {
+  id                 String       @id @db.Char(26)
+  email              String       @unique
+  emailVerifiedAt    DateTime?    @map("email_verified_at") @db.Timestamptz(6)
+  name               String?
+  avatarUrl          String?      @map("avatar_url")
+  locale             String       @default("en-IN")
+  passwordHash       String?      @map("password_hash")
+  mfaSecret          String?      @map("mfa_secret")
+  /// DPDP under-18 rule (D47/D70). Date only; no time component is collected.
+  dateOfBirth        DateTime?    @map("date_of_birth") @db.Date
+  jurisdiction       Jurisdiction @default(OTHER)
+  ageBracket         AgeBracket   @default(adult) @map("age_bracket")
+  parentalConsentRef String?      @map("parental_consent_ref")
+  ageAssuredAt       DateTime?    @map("age_assured_at") @db.Timestamptz(6)
+  marketingOptIn     Boolean      @default(false) @map("marketing_opt_in")
+  analyticsConsentAt DateTime?    @map("analytics_consent_at") @db.Timestamptz(6)
+  memoryConsentAt    DateTime?    @map("memory_consent_at") @db.Timestamptz(6)
+  /// Zod: `OnboardingStateSchema` (users module, A05).
+  onboarding         Json         @default("{}") @db.JsonB
+  lastSeenAt         DateTime?    @map("last_seen_at") @db.Timestamptz(6)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt          DateTime?    @map("deleted_at") @db.Timestamptz(6)
+
+  identities      Identity[]
+  sessions        Session[]
+  memberships     Membership[]
+  ownedWorkspaces Workspace[]           @relation("WorkspaceOwner")
+  consentRecords  ConsentRecord[]
+  dsrRequests     DsrRequest[]
+  devices         Device[]
+  affiliate       Affiliate?
+  memoryEntries   MemoryEntry[]
+  lessonProgress  LessonProgress[]
+  comments        Comment[]
+  clearanceGrants AssetClearanceGrant[]
+
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model ConsentRecord {
+  id            String         @id @db.Char(26)
+  userId        String         @map("user_id") @db.Char(26)
+  workspaceId   String?        @map("workspace_id") @db.Char(26)
+  purpose       ConsentPurpose
+  version       String
+  granted       Boolean        @default(true)
+  grantedAt     DateTime       @default(now()) @map("granted_at") @db.Timestamptz(6)
+  withdrawnAt   DateTime?      @map("withdrawn_at") @db.Timestamptz(6)
+  ip            String?
+  ua            String?
+  noticeVersion String         @map("notice_version")
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace     Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  memoryEntries MemoryEntry[]
+
+  @@index([userId])
+  @@index([purpose])
+  @@index([userId, purpose, grantedAt])
+  @@map("consent_records")
+}
+
+model DsrRequest {
+  id          String    @id @db.Char(26)
+  userId      String    @map("user_id") @db.Char(26)
+  kind        DsrKind
+  receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  /// Statutory completion deadline (DPDP: 30 days from `receivedAt`).
+  dueAt       DateTime  @map("due_at") @db.Timestamptz(6)
+  status      DsrStatus @default(received)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  evidenceKey String?   @map("evidence_key")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([receivedAt])
+  @@map("dsr_requests")
+}
+
+model BreachIncident {
+  id              String       @id @db.Char(26)
+  detectedAt      DateTime     @default(now()) @map("detected_at") @db.Timestamptz(6)
+  /// Zod: `BreachScopeSchema` — systems, data categories, jurisdictions.
+  scope           Json         @default("{}") @db.JsonB
+  affectedCount   Int          @default(0) @map("affected_count")
+  /// Data Protection Board of India, within 72 h of `detectedAt`.
+  boardNotifiedAt DateTime?    @map("board_notified_at") @db.Timestamptz(6)
+  usersNotifiedAt DateTime?    @map("users_notified_at") @db.Timestamptz(6)
+  status          BreachStatus @default(detected)
+  postmortemKey   String?      @map("postmortem_key")
+
+  @@index([detectedAt])
+  @@map("breach_incidents")
+}
+
+/// Retained at least 1 year, then purged by the retention job (D70).
+model AccessLog {
+  id          String   @id @db.Char(26)
+  actorId     String?  @map("actor_id") @db.Char(26)
+  workspaceId String?  @map("workspace_id") @db.Char(26)
+  resource    String
+  action      String
+  ip          String?
+  at          DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([at])
+  @@index([actorId, at])
+  @@index([workspaceId, at])
+  @@map("access_logs")
+}
+
+model Identity {
+  id         String           @id @db.Char(26)
+  userId     String           @map("user_id") @db.Char(26)
+  provider   IdentityProvider
+  providerId String           @map("provider_id")
+  /// Zod: `OAuthProfileSchema` — raw provider profile, never rendered to a user.
+  raw        Json             @default("{}") @db.JsonB
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@index([userId])
+  @@map("identities")
+}
+
+/// Refresh-token families (THREAT-MODEL T2). Reuse of a rotated hash revokes the
+/// whole family. `prisma/sql/0003-indexes.sql` adds the live-session partial index.
+model Session {
+  id               String     @id @db.Char(26)
+  userId           String     @map("user_id") @db.Char(26)
+  /// Bound into the access token (CONTRACTS §5); switching workspaces mints a new session.
+  workspaceId      String     @map("workspace_id") @db.Char(26)
+  kind             ClientKind
+  familyId         String     @map("family_id") @db.Char(26)
+  refreshTokenHash String     @unique @map("refresh_token_hash")
+  previousHash     String?    @map("previous_hash")
+  rotatedAt        DateTime?  @map("rotated_at") @db.Timestamptz(6)
+  deviceId         String?    @map("device_id") @db.Char(26)
+  ip               String?
+  ua               String?
+  expiresAt        DateTime   @map("expires_at") @db.Timestamptz(6)
+  revokedAt        DateTime?  @map("revoked_at") @db.Timestamptz(6)
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  device    Device?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([workspaceId])
+  @@map("sessions")
+}
+
+model Workspace {
+  id               String        @id @db.Char(26)
+  slug             String        @unique
+  name             String
+  type             WorkspaceType @default(personal)
+  ownerId          String        @map("owner_id") @db.Char(26)
+  /// Data residency (THREAT-MODEL T24): raw media and DB pinned per workspace.
+  region           Region        @default(in)
+  /// Derived from `billingCountry` and locked for the life of a subscription (04 §3).
+  currency         Currency      @default(INR)
+  billingCountry   String        @map("billing_country") @db.Char(2)
+  /// GST state code, mandatory for India (Circular 242/36/2024-GST, D41).
+  billingStateCode String?       @map("billing_state_code") @db.VarChar(2)
+  gstin            String?
+  gstinVerifiedAt  DateTime?     @map("gstin_verified_at") @db.Timestamptz(6)
+  legalName        String?       @map("legal_name")
+  /// Zod: `PostalAddressSchema`.
+  billingAddress   Json          @default("{}") @map("billing_address") @db.JsonB
+  /// Zod: `WorkspaceSettingsSchema`.
+  settings         Json          @default("{}") @db.JsonB
+  /// Project retention in days, taken from the plan (04 §Plans).
+  retentionDays    Int           @default(7) @map("retention_days")
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt        DateTime?     @map("deleted_at") @db.Timestamptz(6)
+
+  owner               User                  @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  memberships         Membership[]
+  projects            Project[]
+  devices             Device[]
+  licenseKeys         LicenseKey[]
+  apiKeys             ApiKey[]
+  sessions            Session[]
+  bridgePairings      BridgePairing[]
+  consentRecords      ConsentRecord[]
+  creditAccount       CreditAccount?
+  subscriptions       Subscription[]
+  mandates            Mandate[]
+  passesPurchased     PassPurchase[]
+  invoices            Invoice[]
+  jobs                Job[]
+  providerSubmissions ProviderSubmission[]
+  exportManifests     ExportManifest[]
+  stylePresets        StylePreset[]
+  brandKits           BrandKit[]
+  fonts               Font[]
+  memoryEntries       MemoryEntry[]
+  streakExperiment    StreakExperiment?
+  publishEvents       PublishEvent[]
+  referral            Referral?
+  referralRewards     ReferralReward[]
+  assetUsages         AssetUsage[]
+  clearanceGrants     AssetClearanceGrant[]
+  webhookEndpoints    WebhookEndpoint[]
+  auditEntries        AuditLog[]
+
+  @@index([ownerId])
+  @@index([billingCountry])
+  @@map("workspaces")
+}
+
+model Membership {
+  id           String           @id @db.Char(26)
+  workspaceId  String           @map("workspace_id") @db.Char(26)
+  userId       String?          @map("user_id") @db.Char(26)
+  role         MembershipRole   @default(viewer)
+  seatBilled   Boolean          @default(false) @map("seat_billed")
+  invitedEmail String?          @map("invited_email")
+  status       MembershipStatus @default(invited)
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+model Device {
+  id           String    @id @db.Char(26)
+  workspaceId  String    @map("workspace_id") @db.Char(26)
+  userId       String    @map("user_id") @db.Char(26)
+  name         String
+  platform     String
+  host         HostApp
+  hostVersion  String?   @map("host_version")
+  appVersion   String?   @map("app_version")
+  fingerprint  String
+  lastActiveAt DateTime? @map("last_active_at") @db.Timestamptz(6)
+  /// Entitlement lease, 7 days, renewed by heartbeat (04 §Entitlement enforcement).
+  leaseUntil   DateTime? @map("lease_until") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions       Session[]
+  bridgePairings BridgePairing[]
+
+  @@unique([workspaceId, fingerprint])
+  @@index([workspaceId])
+  @@index([fingerprint])
+  @@map("devices")
+}
+
+model LicenseKey {
+  id               String    @id @db.Char(26)
+  workspaceId      String    @map("workspace_id") @db.Char(26)
+  key              String    @unique
+  label            String?
+  maxActivations   Int       @default(1) @map("max_activations")
+  /// Zod: `ActivationListSchema` — `[{deviceId, fingerprint, activatedAt}]`.
+  activations      Json      @default("[]") @db.JsonB
+  /// Offline grace, 7 days (THREAT-MODEL T15).
+  offlineUntil     DateTime? @map("offline_until") @db.Timestamptz(6)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revocationSerial Int       @default(0) @map("revocation_serial")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("license_keys")
+}
+
+model ApiKey {
+  id          String        @id @db.Char(26)
+  workspaceId String        @map("workspace_id") @db.Char(26)
+  prefix      String        @unique
+  hash        String
+  scopes      ApiKeyScope[]
+  rateLimit   Int           @default(60) @map("rate_limit")
+  lastUsedAt  DateTime?     @map("last_used_at") @db.Timestamptz(6)
+  revokedAt   DateTime?     @map("revoked_at") @db.Timestamptz(6)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("api_keys")
+}
+
+/// Device-code grant (07 §Auth, THREAT-MODEL T3). TTL at most 10 minutes.
+model DeviceCode {
+  id         String           @id @db.Char(26)
+  deviceCode String           @unique @map("device_code")
+  /// 8 characters, no ambiguous glyphs (CONTRACTS §5).
+  userCode   String           @unique @map("user_code")
+  clientKind ClientKind       @map("client_kind")
+  hostApp    HostApp?         @map("host_app")
+  /// Zod: `DeviceInfoSchema` — os, appVersion, approximate location for the approval screen.
+  deviceInfo Json             @default("{}") @map("device_info") @db.JsonB
+  ip         String?
+  status     DeviceCodeStatus @default(pending)
+  approvedBy String?          @map("approved_by") @db.Char(26)
+  expiresAt  DateTime         @map("expires_at") @db.Timestamptz(6)
+  pollCount  Int              @default(0) @map("poll_count")
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([expiresAt])
+  @@map("device_codes")
+}
+
+/// Scoped 12 h tokens handed to a panel by the local bridge (THREAT-MODEL T13).
+model BridgePairing {
+  id          String    @id @db.Char(26)
+  workspaceId String    @map("workspace_id") @db.Char(26)
+  deviceId    String?   @map("device_id") @db.Char(26)
+  hostApp     HostApp   @map("host_app")
+  tokenHash   String    @unique @map("token_hash")
+  /// Zod: `BridgeScopeSchema` — `{hostApp}` today.
+  scope       Json      @default("{}") @db.JsonB
+  issuedAt    DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  device    Device?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([expiresAt])
+  @@map("bridge_pairings")
+}
+
+// ===========================================================================
+// Media & editing (EDG v2) — 06 §Media & editing
+// ===========================================================================
+
+model Project {
+  id             String        @id @db.Char(26)
+  workspaceId    String        @map("workspace_id") @db.Char(26)
+  title          String
+  /// 06 has no `folders` table yet; A06 introduces one and turns this into an FK.
+  folderId       String?       @map("folder_id") @db.Char(26)
+  /// Agency client separation (04 §Plans).
+  clientTag      String?       @map("client_tag")
+  sourceLanguage String?       @map("source_language")
+  /// Scripts present in the transcript: roman | native | en | translated.
+  scripts        String[]      @default([])
+  aspect         Aspect        @default(r9x16)
+  status         ProjectStatus @default(draft)
+  thumbnailKey   String?       @map("thumbnail_key")
+  durationMs     Int?          @map("duration_ms")
+  lastActivityAt DateTime      @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  /// Plan retention (04 §Plans). Purged by the daily retention job (D47).
+  retentionUntil DateTime?     @map("retention_until") @db.Timestamptz(6)
+  createdBy      String?       @map("created_by") @db.Char(26)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt      DateTime?     @map("deleted_at") @db.Timestamptz(6)
+
+  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  mediaAssets         MediaAsset[]
+  transcripts         Transcript[]
+  edgDocument         EdgDocument?
+  jobs                Job[]
+  exports             Export[]
+  exportManifests     ExportManifest[]
+  providerSubmissions ProviderSubmission[]
+  shareLinks          ShareLink[]
+  comments            Comment[]
+  assetUsages         AssetUsage[]
+  publishEvents       PublishEvent[]
+
+  @@index([workspaceId])
+  @@index([lastActivityAt])
+  @@index([retentionUntil])
+  @@index([workspaceId, status, lastActivityAt])
+  @@map("projects")
+}
+
+model MediaAsset {
+  id             String        @id @db.Char(26)
+  projectId      String        @map("project_id") @db.Char(26)
+  role           MediaRole     @default(primary)
+  bucket         StorageBucket @default(s3)
+  storageKey     String        @map("storage_key")
+  sizeBytes      BigInt?       @map("size_bytes")
+  contentHash    String?       @map("content_hash")
+  mime           String?
+  durationMs     Int?          @map("duration_ms")
+  fps            Float?
+  width          Int?
+  height         Int?
+  audioChannels  Int?          @map("audio_channels")
+  proxyKey       String?       @map("proxy_key")
+  audio16kKey    String?       @map("audio16k_key")
+  audio48kKey    String?       @map("audio48k_key")
+  waveformKey    String?       @map("waveform_key")
+  status         MediaStatus   @default(pending)
+  uploadedAt     DateTime?     @map("uploaded_at") @db.Timestamptz(6)
+  /// Raw uploads purge 7 days after the last job (D47).
+  rawPurgeAt     DateTime?     @map("raw_purge_at") @db.Timestamptz(6)
+  /// Proxy, 16 kHz audio and waveform live for the plan retention period (D47).
+  derivedPurgeAt DateTime?     @map("derived_purge_at") @db.Timestamptz(6)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project             Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  providerSubmissions ProviderSubmission[]
+
+  @@index([projectId])
+  @@index([contentHash])
+  @@map("media_assets")
+}
+
+model Transcript {
+  id                String   @id @db.Char(26)
+  projectId         String   @map("project_id") @db.Char(26)
+  language          String
+  /// Zod: `DetectedLanguagesSchema` — `[{language, confidence}]`.
+  detectedLanguages Json     @default("[]") @map("detected_languages") @db.JsonB
+  provider          String?
+  model             String?
+  alignerModel      String?  @map("aligner_model")
+  diariser          String?
+  currentRevision   Int      @default(1) @map("current_revision")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chunks  TranscriptChunk[]
+
+  @@index([projectId])
+  @@map("transcripts")
+}
+
+/// A new revision copies only touched chunks; the manifest row (`chunkIdx = -1`)
+/// lists the chunk ids that make up a revision.
+model TranscriptChunk {
+  id           String   @id @db.Char(26)
+  transcriptId String   @map("transcript_id") @db.Char(26)
+  revision     Int
+  chunkIdx     Int      @map("chunk_idx")
+  startMs      Int      @map("start_ms")
+  endMs        Int      @map("end_ms")
+  /// Zod: `WordSchema[]` from `@montaj/edg` —
+  /// `[{wid:"<chunk>:<n>", s, e, t, c, sp, scripts:{roman,native,en}, filler?, deleted?}]`.
+  words        Json     @default("[]") @db.JsonB
+  /// Next `n` for a `wid` in this chunk; word ids are never reused (06 invariant 4).
+  nextWordSeq  Int      @default(0) @map("next_word_seq")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  transcript Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
+
+  @@unique([transcriptId, revision, chunkIdx])
+  @@index([transcriptId])
+  @@index([transcriptId, revision])
+  @@map("transcript_chunks")
+}
+
+/// The hot EDG document (< 64 KB): meta, media, transcript ref, canvas, styles,
+/// audio, render. Segments and pass items are rows, not JSON (CONTRACTS §2).
+model EdgDocument {
+  id            String   @id @db.Char(26)
+  projectId     String   @unique @map("project_id") @db.Char(26)
+  /// Increases by exactly 1 per accepted op batch, by compare-and-swap (06 invariant 3).
+  revision      Int      @default(0)
+  schemaVersion Int      @default(2) @map("schema_version")
+  /// Zod: `EdgHotSchema` from `@montaj/edg`.
+  doc           Json     @default("{}") @db.JsonB
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy     String?  @map("updated_by") @db.Char(26)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  segments  EdgSegment[]
+  passes    EdgPass[]
+  items     EdgPassItem[]
+  revisions EdgRevision[]
+  snapshots EdgSnapshot[]
+
+  @@map("edg_documents")
+}
+
+/// `seq` is the fractional index that orders segments (06: `numeric`). CONTRACTS §2
+/// types it as a string on the wire because JSON numbers lose precision; the API
+/// serialises this NUMERIC as a decimal string. `(edg_id, seq)` is the read path.
+model EdgSegment {
+  id            String  @id @db.Char(26)
+  edgId         String  @map("edg_id") @db.Char(26)
+  seq           Decimal @db.Decimal(65, 30)
+  startWordId   String  @map("start_word_id")
+  endWordId     String  @map("end_word_id")
+  startMs       Int     @map("start_ms")
+  endMs         Int     @map("end_ms")
+  styleRef      String? @map("style_ref")
+  /// Zod: `Record<script, string>` — per-script text overrides.
+  textOverrides Json    @default("{}") @map("text_overrides") @db.JsonB
+  /// Zod: `[{wordId, presetId}]`.
+  emphasis      Json    @default("[]") @db.JsonB
+  /// Zod: `{x, y, anchor}`.
+  position      Json?   @db.JsonB
+  /// Zod: `StyleOverridesSchema` from `@montaj/caption-styles`.
+  overrides     Json?   @db.JsonB
+  hidden        Boolean @default(false)
+  updatedAtRev  Int     @default(0) @map("updated_at_rev")
+  /// Tombstone: the revision that deleted the segment. Ids are never reused.
+  deletedAtRev  Int?    @map("deleted_at_rev")
+
+  edg EdgDocument @relation(fields: [edgId], references: [id], onDelete: Cascade)
+
+  @@index([edgId])
+  @@index([edgId, seq])
+  @@index([edgId, startMs])
+  @@map("edg_segments")
+}
+
+model EdgPass {
+  id        String     @id @db.Char(26)
+  edgId     String     @map("edg_id") @db.Char(26)
+  type      PassType
+  engine    String     @default("flash")
+  /// Zod: `PassParamsSchema` per `type`.
+  params    Json       @default("{}") @db.JsonB
+  status    PassStatus @default(queued)
+  jobId     String?    @map("job_id") @db.Char(26)
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  edg   EdgDocument   @relation(fields: [edgId], references: [id], onDelete: Cascade)
+  job   Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  items EdgPassItem[]
+
+  @@index([edgId])
+  @@map("edg_passes")
+}
+
+model EdgPassItem {
+  id              String    @id @db.Char(26)
+  passId          String    @map("pass_id") @db.Char(26)
+  edgId           String    @map("edg_id") @db.Char(26)
+  kind            ItemKind
+  startMs         Int       @map("start_ms")
+  endMs           Int       @map("end_ms")
+  /// Zod: `ItemPayloadSchema` per `kind` (07 §Item payloads). Asset ids are Montaj
+  /// ULIDs; provider URLs never enter the EDG (D44).
+  payload         Json      @default("{}") @db.JsonB
+  /// Packed float32 `[tMs, x, y, w, h]` keyframes.
+  keyframes       Bytes?
+  confidence      Float?
+  reason          String?
+  state           ItemState @default(proposed)
+  /// Zod: `LicenceSnapshotSchema` — the licence as it stood when the item was accepted (D44).
+  licenceSnapshot Json?     @map("licence_snapshot") @db.JsonB
+  decidedAt       DateTime? @map("decided_at") @db.Timestamptz(6)
+  decidedBy       String?   @map("decided_by") @db.Char(26)
+
+  pass EdgPass     @relation(fields: [passId], references: [id], onDelete: Cascade)
+  edg  EdgDocument @relation(fields: [edgId], references: [id], onDelete: Cascade)
+
+  @@index([passId])
+  @@index([edgId])
+  @@index([startMs])
+  @@index([state])
+  @@map("edg_pass_items")
+}
+
+model EdgRevision {
+  id          String    @id @db.Char(26)
+  edgId       String    @map("edg_id") @db.Char(26)
+  revision    Int
+  /// Zod: `EdgOp[]` from `@montaj/edg` — semantic ops, id-addressed, never indices.
+  ops         Json      @default("[]") @db.JsonB
+  /// Client ULIDs, used to make an op batch idempotent (06 invariant 3).
+  clientOpIds String[]  @default([]) @map("client_op_ids")
+  author      String?   @db.Char(26)
+  source      EdgSource @default(web)
+  at          DateTime  @default(now()) @db.Timestamptz(6)
+
+  edg EdgDocument @relation(fields: [edgId], references: [id], onDelete: Cascade)
+
+  @@unique([edgId, revision])
+  @@index([edgId])
+  @@map("edg_revisions")
+}
+
+/// Full projection written every 100 revisions so replay stays bounded.
+model EdgSnapshot {
+  id            String   @id @db.Char(26)
+  edgId         String   @map("edg_id") @db.Char(26)
+  revision      Int
+  schemaVersion Int      @default(2) @map("schema_version")
+  /// Zod: `EdgSnapshotSchema` — hot doc plus every live segment and pass item.
+  snapshot      Json     @default("{}") @db.JsonB
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  edg EdgDocument @relation(fields: [edgId], references: [id], onDelete: Cascade)
+
+  @@unique([edgId, revision])
+  @@index([edgId])
+  @@map("edg_snapshots")
+}
+
+/// System styles have `workspaceId = null`; workspace styles are user templates.
+/// The three parity flags and `parityScore` are written by the A18a parity gate,
+/// never by hand (D33).
+model StylePreset {
+  id                    String   @id @db.Char(26)
+  workspaceId           String?  @map("workspace_id") @db.Char(26)
+  key                   String
+  name                  String
+  category              String   @default("general")
+  /// Zod: `StyleDocSchema` v2 from `@montaj/caption-styles`.
+  doc                   Json     @default("{}") @db.JsonB
+  previewKey            String?  @map("preview_key")
+  assRenderable         Boolean  @default(false) @map("ass_renderable")
+  assExportable         Boolean  @default(false) @map("ass_exportable")
+  requiresLayoutMetrics Boolean  @default(true) @map("requires_layout_metrics")
+  parityScore           Float?   @map("parity_score")
+  minPlan               PlanKey  @default(free) @map("min_plan")
+  version               Int      @default(1)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
+  @@index([key])
+  @@map("style_presets")
+}
+
+model BrandKit {
+  id          String   @id @db.Char(26)
+  workspaceId String   @map("workspace_id") @db.Char(26)
+  name        String
+  /// Zod: `BrandKitSchema` — palette, fonts, logo keys, caption defaults.
+  doc         Json     @default("{}") @db.JsonB
+  logoKey     String?  @map("logo_key")
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+  @@map("brand_kits")
+}
+
+/// Uploaded fonts carry a licence warranty and are served only to the owning
+/// workspace (D70, THREAT-MODEL T7).
+model Font {
+  id                    String    @id @db.Char(26)
+  workspaceId           String    @map("workspace_id") @db.Char(26)
+  family                String
+  style                 String    @default("regular")
+  storageKey            String    @map("storage_key")
+  subsetKey             String?   @map("subset_key")
+  sizeBytes             BigInt?   @map("size_bytes")
+  /// Zod: `FontMetricsSchema` — ascent, descent, unitsPerEm, coverage.
+  metrics               Json      @default("{}") @db.JsonB
+  licenceAttestedBy     String?   @map("licence_attested_by") @db.Char(26)
+  attestedAt            DateTime? @map("attested_at") @db.Timestamptz(6)
+  licenceNote           String?   @map("licence_note")
+  servedOnlyToWorkspace Boolean   @default(true) @map("served_only_to_workspace")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("fonts")
+}
+
+/// Personalisation memory. Requires an explicit consent record, expires on a
+/// 12-month rolling window, and is purged by retention and by erasure (D70).
+model MemoryEntry {
+  id          String    @id @db.Char(26)
+  workspaceId String    @map("workspace_id") @db.Char(26)
+  userId      String?   @map("user_id") @db.Char(26)
+  consentId   String    @map("consent_id") @db.Char(26)
+  kind        String
+  /// Zod: `MemoryEntrySchema` — glossary terms, name spellings, style preferences.
+  value       Json      @default("{}") @db.JsonB
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(6)
+  lastUsedAt  DateTime? @map("last_used_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consent   ConsentRecord @relation(fields: [consentId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([consentId])
+  @@index([expiresAt])
+  @@map("memory_entries")
+}
+
+model ShareLink {
+  id                 String    @id @db.Char(26)
+  projectId          String    @map("project_id") @db.Char(26)
+  token              String    @unique
+  /// Review links are never indexable (D70).
+  indexable          Boolean   @default(false)
+  passwordHash       String?   @map("password_hash")
+  expiresAt          DateTime? @map("expires_at") @db.Timestamptz(6)
+  acceptedAupVersion String?   @map("accepted_aup_version")
+  reportCount        Int       @default(0) @map("report_count")
+  createdBy          String?   @map("created_by") @db.Char(26)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedAt          DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reports  ShareReport[]
+  comments Comment[]
+
+  @@index([projectId])
+  @@index([expiresAt])
+  @@map("share_links")
+}
+
+/// Public report intake for a share link. `dueAt` is 3 h for NCII, 36 h otherwise
+/// (IT Rules); the resolution action is recorded for the transparency report.
+model ShareReport {
+  id              String              @id @db.Char(26)
+  shareLinkId     String              @map("share_link_id") @db.Char(26)
+  reporterContact String?             @map("reporter_contact")
+  category        ShareReportCategory @default(other)
+  receivedAt      DateTime            @default(now()) @map("received_at") @db.Timestamptz(6)
+  dueAt           DateTime            @map("due_at") @db.Timestamptz(6)
+  resolvedAt      DateTime?           @map("resolved_at") @db.Timestamptz(6)
+  action          String?
+
+  shareLink ShareLink @relation(fields: [shareLinkId], references: [id], onDelete: Cascade)
+
+  @@index([shareLinkId])
+  @@index([receivedAt])
+  @@map("share_reports")
+}
+
+/// Review comments on a project or a share link (CONTRACTS §7 `comment.added`).
+model Comment {
+  id          String    @id @db.Char(26)
+  projectId   String    @map("project_id") @db.Char(26)
+  shareLinkId String?   @map("share_link_id") @db.Char(26)
+  authorId    String?   @map("author_id") @db.Char(26)
+  /// Set when an anonymous reviewer comments through a share link.
+  authorName  String?   @map("author_name")
+  body        String
+  atMs        Int?      @map("at_ms")
+  segmentId   String?   @map("segment_id") @db.Char(26)
+  parentId    String?   @map("parent_id") @db.Char(26)
+  resolvedAt  DateTime? @map("resolved_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shareLink ShareLink? @relation(fields: [shareLinkId], references: [id], onDelete: SetNull)
+  author    User?      @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  parent    Comment?   @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]  @relation("CommentThread")
+
+  @@index([projectId])
+  @@index([shareLinkId])
+  @@index([projectId, atMs])
+  @@map("comments")
+}
+
+// ===========================================================================
+// Jobs & outputs — 06 §Jobs & outputs
+// ===========================================================================
+
+/// `type` stays a free string: the closed set is the queue table in CONTRACTS §3
+/// and A08 owns it, so pinning it as an enum here would fork that contract.
+model Job {
+  id                   String    @id @db.Char(26)
+  workspaceId          String    @map("workspace_id") @db.Char(26)
+  projectId            String?   @map("project_id") @db.Char(26)
+  type                 String
+  status               JobStatus @default(queued)
+  priority             Int       @default(0)
+  /// Zod: the queue payload for `type` (CONTRACTS §3).
+  params               Json      @default("{}") @db.JsonB
+  /// Zod: the completion `result` for `type`.
+  result               Json?     @db.JsonB
+  progress             Int       @default(0)
+  etaMs                Int?      @map("eta_ms")
+  creditHoldId         String?   @map("credit_hold_id") @db.Char(26)
+  creditsChargedTenths Int       @default(0) @map("credits_charged_tenths")
+  provider             String?
+  model                String?
+  costMinor            Int?      @map("cost_minor")
+  egressBytes          BigInt?   @map("egress_bytes")
+  /// Zod: `JobErrorSchema` — `{code, message, retryable}`.
+  error                Json?     @db.JsonB
+  queuedAt             DateTime  @default(now()) @map("queued_at") @db.Timestamptz(6)
+  startedAt            DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt           DateTime? @map("finished_at") @db.Timestamptz(6)
+  /// Deduplication key: one live job per (workspace, unit of work).
+  jobKey               String    @map("job_key")
+  attemptId            String?   @map("attempt_id") @db.Char(26)
+  /// Admission control (THREAT-MODEL T23): exceeding it fails the job and releases the hold.
+  maxQueueWaitMs       Int?      @map("max_queue_wait_ms")
+
+  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project             Project?             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  events              JobEvent[]
+  providerSubmissions ProviderSubmission[]
+  exports             Export[]
+  passes              EdgPass[]
+  creditHold          CreditHold?
+
+  @@index([workspaceId])
+  @@index([projectId])
+  @@index([type])
+  @@index([status])
+  @@index([jobKey])
+  @@index([workspaceId, status, queuedAt])
+  @@map("jobs")
+}
+
+/// `data` is purged after 30 days by the daily retention job (D47).
+model JobEvent {
+  id      String   @id @db.Char(26)
+  jobId   String   @map("job_id") @db.Char(26)
+  at      DateTime @default(now()) @db.Timestamptz(6)
+  level   LogLevel @default(info)
+  message String
+  /// Zod: free-form structured context. Purged after 30 days.
+  data    Json?    @db.JsonB
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([at])
+  @@map("job_events")
+}
+
+/// Which provider received which artefact, and whether deletion was requested and
+/// confirmed. Erasure requests cascade through this registry (D47, THREAT-MODEL T18).
+model ProviderSubmission {
+  id                String         @id @db.Char(26)
+  jobId             String?        @map("job_id") @db.Char(26)
+  workspaceId       String         @map("workspace_id") @db.Char(26)
+  projectId         String?        @map("project_id") @db.Char(26)
+  mediaId           String?        @map("media_id") @db.Char(26)
+  provider          String
+  endpoint          String?
+  region            String?
+  externalRef       String?        @map("external_ref")
+  artefactKind      String         @map("artefact_kind")
+  submittedAt       DateTime       @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  retentionClass    RetentionClass @default(vendor_default) @map("retention_class")
+  deleteRequestedAt DateTime?      @map("delete_requested_at") @db.Timestamptz(6)
+  deleteConfirmedAt DateTime?      @map("delete_confirmed_at") @db.Timestamptz(6)
+
+  job       Job?        @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  media     MediaAsset? @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+
+  @@index([jobId])
+  @@index([workspaceId])
+  @@index([provider])
+  @@map("provider_submissions")
+}
+
+/// Server-signed browser-render manifest (THREAT-MODEL T10). Single use: the nonce
+/// is consumed by `POST /exports/manifests/{id}/complete`.
+model ExportManifest {
+  id          String     @id @db.Char(26)
+  workspaceId String     @map("workspace_id") @db.Char(26)
+  projectId   String     @map("project_id") @db.Char(26)
+  nonce       String     @unique
+  mode        RenderMode @default(browser)
+  watermark   Boolean    @default(true)
+  /// Zod: `ManifestCapsSchema` — `{maxRes, maxDurationMs}`.
+  caps        Json       @default("{}") @db.JsonB
+  /// Zod: `CodecLadderSchema` — ordered codec/container preferences.
+  codecLadder Json       @default("[]") @map("codec_ladder") @db.JsonB
+  issuedAt    DateTime   @default(now()) @map("issued_at") @db.Timestamptz(6)
+  expiresAt   DateTime   @map("expires_at") @db.Timestamptz(6)
+  consumedAt  DateTime?  @map("consumed_at") @db.Timestamptz(6)
+  signature   String
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  exports   Export[]
+
+  @@index([workspaceId])
+  @@index([projectId])
+  @@index([expiresAt])
+  @@map("export_manifests")
+}
+
+model Export {
+  id          String        @id @db.Char(26)
+  projectId   String        @map("project_id") @db.Char(26)
+  jobId       String?       @map("job_id") @db.Char(26)
+  manifestId  String?       @map("manifest_id") @db.Char(26)
+  kind        ExportKind    @default(mp4)
+  preset      String?
+  bucket      StorageBucket @default(r2)
+  storageKey  String?       @map("storage_key")
+  sizeBytes   BigInt?       @map("size_bytes")
+  watermarked Boolean       @default(true)
+  resolution  String?
+  durationMs  Int?          @map("duration_ms")
+  /// Exports live 7 days (D47).
+  expiresAt   DateTime?     @map("expires_at") @db.Timestamptz(6)
+  downloads   Int           @default(0)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  job         Job?            @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  manifest    ExportManifest? @relation(fields: [manifestId], references: [id], onDelete: SetNull)
+  assetUsages AssetUsage[]
+
+  @@index([projectId])
+  @@index([expiresAt])
+  @@map("exports")
+}
+
+// ===========================================================================
+// Billing & credits (v2) — 06 §Billing & credits, D32, D40, D41
+// ===========================================================================
+
+model Plan {
+  id                    String   @id @db.Char(26)
+  key                   PlanKey  @unique
+  name                  String
+  /// Zod: `PlanPricesSchema` — `{INR:{month,year,halfyear?}, USD:{...}}` in minor units.
+  prices                Json     @default("{}") @db.JsonB
+  /// Monthly grant in tenths of a credit (CONTRACTS §0).
+  creditsPerMonthTenths Int      @default(0) @map("credits_per_month_tenths")
+  /// Zod: `SeatPriceSchema` — per-seat add-on price per currency, minor units.
+  seatPrice             Json?    @map("seat_price") @db.JsonB
+  /// Zod: `PlanEntitlementsSchema` — the 04 §Plans row for this plan.
+  entitlements          Json     @default("{}") @db.JsonB
+  active                Boolean  @default(true)
+  version               Int      @default(1)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                 String             @id @db.Char(26)
+  workspaceId        String             @map("workspace_id") @db.Char(26)
+  planId             String             @map("plan_id") @db.Char(26)
+  provider           BillingProvider    @default(none)
+  providerSubId      String?            @unique @map("provider_sub_id")
+  status             SubscriptionStatus @default(active)
+  interval           BillingInterval    @default(month)
+  currency           Currency           @default(INR)
+  listPriceMinor     Int                @default(0) @map("list_price_minor")
+  priceLockedAt      DateTime?          @map("price_locked_at") @db.Timestamptz(6)
+  taxInclusive       Boolean            @default(true) @map("tax_inclusive")
+  currentPeriodStart DateTime           @default(now()) @map("current_period_start") @db.Timestamptz(6)
+  currentPeriodEnd   DateTime           @map("current_period_end") @db.Timestamptz(6)
+  /// At least 48 h before `currentPeriodEnd` (D40): 24 h RBI pre-debit notice plus headroom.
+  renewalInitiateAt  DateTime?          @map("renewal_initiate_at") @db.Timestamptz(6)
+  /// 3-day entitlement grace so a notification delay never locks out a payer (D40).
+  graceUntil         DateTime?          @map("grace_until") @db.Timestamptz(6)
+  cancelAtPeriodEnd  Boolean            @default(false) @map("cancel_at_period_end")
+  pausedUntil        DateTime?          @map("paused_until") @db.Timestamptz(6)
+  seats              Int                @default(1)
+  mandateId          String?            @map("mandate_id") @db.Char(26)
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan      Plan      @relation(fields: [planId], references: [id])
+  mandate   Mandate?  @relation("SubscriptionMandate", fields: [mandateId], references: [id], onDelete: SetNull)
+  mandates  Mandate[] @relation("MandateSubscription")
+  invoices  Invoice[]
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([currentPeriodEnd])
+  @@index([renewalInitiateAt])
+  @@map("subscriptions")
+}
+
+/// Variable-amount mandate capped at the undiscounted list price (D40).
+/// `prisma/sql/0004-checks.sql` enforces the UPI cap of Rs 15,000 (06 invariant 6).
+model Mandate {
+  id                  String          @id @db.Char(26)
+  workspaceId         String          @map("workspace_id") @db.Char(26)
+  subscriptionId      String?         @map("subscription_id") @db.Char(26)
+  provider            BillingProvider @default(razorpay)
+  providerMandateId   String?         @unique @map("provider_mandate_id")
+  method              MandateMethod
+  /// List-price cap in minor units. UPI Autopay may not exceed 1_500_000 paise.
+  maxAmountMinor      Int             @map("max_amount_minor")
+  currency            Currency        @default(INR)
+  frequency           BillingInterval @default(month)
+  validFrom           DateTime        @default(now()) @map("valid_from") @db.Timestamptz(6)
+  validUntil          DateTime?       @map("valid_until") @db.Timestamptz(6)
+  status              MandateStatus   @default(pending)
+  afaRequiredPerDebit Boolean         @default(false) @map("afa_required_per_debit")
+  registeredAt        DateTime?       @map("registered_at") @db.Timestamptz(6)
+  revokedAt           DateTime?       @map("revoked_at") @db.Timestamptz(6)
+  lastNotificationAt  DateTime?       @map("last_notification_at") @db.Timestamptz(6)
+  /// Zod: the provider payload, stored verbatim for dispute evidence.
+  raw                 Json            @default("{}") @db.JsonB
+  createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  subscription  Subscription?  @relation("MandateSubscription", fields: [subscriptionId], references: [id], onDelete: SetNull)
+  subscriptions Subscription[] @relation("SubscriptionMandate")
+  payments      Payment[]
+
+  @@index([workspaceId])
+  @@map("mandates")
+}
+
+model PassPurchase {
+  id                   String           @id @db.Char(26)
+  workspaceId          String           @map("workspace_id") @db.Char(26)
+  kind                 PassPurchaseKind
+  provider             BillingProvider  @default(razorpay)
+  providerOrderId      String?          @map("provider_order_id")
+  startsAt             DateTime         @default(now()) @map("starts_at") @db.Timestamptz(6)
+  endsAt               DateTime?        @map("ends_at") @db.Timestamptz(6)
+  /// Tenths of a credit granted by this purchase.
+  creditsGrantedTenths Int              @default(0) @map("credits_granted_tenths")
+  lotId                String?          @map("lot_id") @db.Char(26)
+  consumedAt           DateTime?        @map("consumed_at") @db.Timestamptz(6)
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lot       CreditLot? @relation(fields: [lotId], references: [id], onDelete: SetNull)
+  invoices  Invoice[]
+
+  @@index([workspaceId])
+  @@index([endsAt])
+  @@map("passes_purchased")
+}
+
+/// Rule 46 compliant (D41). Retained 72 months and exempt from every project or
+/// erasure purge. `(series, fiscal_year, number)` is unique; `number` is at most
+/// 16 characters. `prisma/sql/0004-checks.sql` requires a state code for India.
+model Invoice {
+  id                     String         @id @db.Char(26)
+  workspaceId            String         @map("workspace_id") @db.Char(26)
+  subscriptionId         String?        @map("subscription_id") @db.Char(26)
+  passPurchaseId         String?        @map("pass_purchase_id") @db.Char(26)
+  docType                InvoiceDocType @default(tax_invoice) @map("doc_type")
+  series                 String         @db.VarChar(8)
+  number                 String         @db.VarChar(16)
+  fiscalYear             String         @map("fiscal_year") @db.VarChar(9)
+  issuedAt               DateTime       @default(now()) @map("issued_at") @db.Timestamptz(6)
+  dueAt                  DateTime?      @map("due_at") @db.Timestamptz(6)
+  paidAt                 DateTime?      @map("paid_at") @db.Timestamptz(6)
+  supplierLegalName      String         @map("supplier_legal_name")
+  /// Zod: `PostalAddressSchema`.
+  supplierAddress        Json           @default("{}") @map("supplier_address") @db.JsonB
+  supplierGstin          String?        @map("supplier_gstin")
+  supplierStateCode      String?        @map("supplier_state_code") @db.VarChar(2)
+  supplierPan            String?        @map("supplier_pan")
+  recipientLegalName     String         @map("recipient_legal_name")
+  recipientEmail         String?        @map("recipient_email")
+  recipientGstin         String?        @map("recipient_gstin")
+  /// Zod: `PostalAddressSchema`.
+  recipientAddress       Json           @default("{}") @map("recipient_address") @db.JsonB
+  recipientStateCode     String?        @map("recipient_state_code") @db.VarChar(2)
+  recipientCountry       String         @map("recipient_country") @db.Char(2)
+  recipientTaxIdType     String?        @map("recipient_tax_id_type")
+  recipientTaxId         String?        @map("recipient_tax_id")
+  placeOfSupplyStateCode String?        @map("place_of_supply_state_code") @db.VarChar(2)
+  placeOfSupplyCountry   String         @map("place_of_supply_country") @db.Char(2)
+  supplyType             SupplyType     @map("supply_type")
+  sacCode                String         @map("sac_code") @db.VarChar(8)
+  itemDescription        String         @map("item_description")
+  reverseCharge          Boolean        @default(false) @map("reverse_charge")
+  currency               Currency       @default(INR)
+  exchangeRateToInr      Decimal?       @map("exchange_rate_to_inr") @db.Decimal(18, 6)
+  exchangeRateAt         DateTime?      @map("exchange_rate_at") @db.Timestamptz(6)
+  taxableValueMinor      Int            @default(0) @map("taxable_value_minor")
+  discountMinor          Int            @default(0) @map("discount_minor")
+  couponCode             String?        @map("coupon_code")
+  taxRateBps             Int            @default(1800) @map("tax_rate_bps")
+  cgstMinor              Int            @default(0) @map("cgst_minor")
+  sgstMinor              Int            @default(0) @map("sgst_minor")
+  igstMinor              Int            @default(0) @map("igst_minor")
+  cessMinor              Int            @default(0) @map("cess_minor")
+  totalTaxMinor          Int            @default(0) @map("total_tax_minor")
+  totalMinor             Int            @default(0) @map("total_minor")
+  taxInclusiveDisplay    Boolean        @default(true) @map("tax_inclusive_display")
+  roundOffMinor          Int            @default(0) @map("round_off_minor")
+  lutNumber              String?        @map("lut_number")
+  exportEndorsementText  String?        @map("export_endorsement_text")
+  irn                    String?
+  irnAckNo               String?        @map("irn_ack_no")
+  irnAckDate             DateTime?      @map("irn_ack_date") @db.Timestamptz(6)
+  signedQrPayload        String?        @map("signed_qr_payload")
+  relatedInvoiceId       String?        @map("related_invoice_id") @db.Char(26)
+  reasonCode             String?        @map("reason_code")
+  signatureKey           String?        @map("signature_key")
+  pdfKey                 String?        @map("pdf_key")
+  status                 InvoiceStatus  @default(draft)
+  gstr1Period            String?        @map("gstr1_period") @db.VarChar(7)
+  gstr1ReportedAt        DateTime?      @map("gstr1_reported_at") @db.Timestamptz(6)
+  createdAt              DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  passPurchase   PassPurchase? @relation(fields: [passPurchaseId], references: [id], onDelete: SetNull)
+  relatedInvoice Invoice?      @relation("InvoiceCorrection", fields: [relatedInvoiceId], references: [id], onDelete: SetNull)
+  corrections    Invoice[]     @relation("InvoiceCorrection")
+  payments       Payment[]
+  commissions    Commission[]
+  creditLots     CreditLot[]
+
+  @@unique([series, fiscalYear, number])
+  @@index([workspaceId])
+  @@index([fiscalYear])
+  @@index([number])
+  @@map("invoices")
+}
+
+model Payment {
+  id                 String          @id @db.Char(26)
+  invoiceId          String?         @map("invoice_id") @db.Char(26)
+  provider           BillingProvider @default(razorpay)
+  providerPaymentId  String?         @unique @map("provider_payment_id")
+  method             PaymentMethod
+  mandateId          String?         @map("mandate_id") @db.Char(26)
+  amountMinor        Int             @map("amount_minor")
+  feeMinor           Int             @default(0) @map("fee_minor")
+  feeTaxMinor        Int             @default(0) @map("fee_tax_minor")
+  status             PaymentStatus   @default(created)
+  /// 24 h RBI pre-debit notice (D40).
+  preDebitNotifiedAt DateTime?       @map("pre_debit_notified_at") @db.Timestamptz(6)
+  scheduledChargeAt  DateTime?       @map("scheduled_charge_at") @db.Timestamptz(6)
+  attemptNo          Int             @default(1) @map("attempt_no")
+  declineCode        String?         @map("decline_code")
+  /// Zod: the provider webhook payload, stored verbatim for reconciliation.
+  raw                Json            @default("{}") @db.JsonB
+  at                 DateTime        @default(now()) @db.Timestamptz(6)
+
+  invoice     Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  mandate     Mandate?     @relation(fields: [mandateId], references: [id], onDelete: SetNull)
+  fircRecords FircRecord[]
+
+  @@index([invoiceId])
+  @@index([mandateId])
+  @@map("payments")
+}
+
+/// Foreign inward remittance certificate per settlement (04 §Tax): export of
+/// services under LUT must be paid in convertible foreign exchange.
+model FircRecord {
+  id                 String      @id @db.Char(26)
+  paymentId          String      @map("payment_id") @db.Char(26)
+  provider           String      @default("razorpay")
+  firaKey            String?     @map("fira_key")
+  foreignCurrency    String      @map("foreign_currency") @db.Char(3)
+  foreignAmountMinor Int         @map("foreign_amount_minor")
+  inrAmountMinor     Int         @map("inr_amount_minor")
+  remittanceDate     DateTime    @map("remittance_date") @db.Date
+  edfRef             String?     @map("edf_ref")
+  edpmsStatus        EdpmsStatus @default(pending) @map("edpms_status")
+  createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@map("firc_records")
+}
+
+model TaxRegistration {
+  id            String    @id @db.Char(26)
+  jurisdiction  String    @db.Char(2)
+  taxIdType     String    @map("tax_id_type")
+  taxId         String    @map("tax_id")
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  filingCadence String    @default("monthly") @map("filing_cadence")
+  lutNumber     String?   @map("lut_number")
+  lutValidTo    DateTime? @map("lut_valid_to") @db.Date
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([jurisdiction, taxIdType, taxId])
+  @@map("tax_registrations")
+}
+
+/// `balanceTenths` is a CACHE of the sum of live lot remainders (06 invariant 1);
+/// the ledger is the record. `prisma/sql/0004-checks.sql` forbids a negative balance.
+model CreditAccount {
+  id                 String    @id @db.Char(26)
+  workspaceId        String    @unique @map("workspace_id") @db.Char(26)
+  balanceTenths      Int       @default(0) @map("balance_tenths")
+  monthlyGrantTenths Int       @default(0) @map("monthly_grant_tenths")
+  grantResetAt       DateTime? @map("grant_reset_at") @db.Timestamptz(6)
+  negativeAllowed    Boolean   @default(false) @map("negative_allowed")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lots      CreditLot[]
+  holds     CreditHold[]
+  ledger    CreditLedger[]
+
+  @@index([grantResetAt])
+  @@map("credit_accounts")
+}
+
+/// Consumed soonest-expiring first, then FIFO (D32). Grants expire at the period
+/// end; top-ups, pass and referral credits have `expiresAt = NULL`.
+model CreditLot {
+  id              String          @id @db.Char(26)
+  accountId       String          @map("account_id") @db.Char(26)
+  source          CreditLotSource
+  grantedTenths   Int             @map("granted_tenths")
+  remainingTenths Int             @map("remaining_tenths")
+  currency        Currency?
+  amountMinor     Int?            @map("amount_minor")
+  fxRate          Decimal?        @map("fx_rate") @db.Decimal(18, 6)
+  invoiceId       String?         @map("invoice_id") @db.Char(26)
+  expiresAt       DateTime?       @map("expires_at") @db.Timestamptz(6)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  account       CreditAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  invoice       Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  ledgerEntries CreditLedger[]
+  passPurchases PassPurchase[]
+
+  @@index([accountId])
+  @@index([expiresAt])
+  @@map("credit_lots")
+}
+
+/// Exactly one hold per job; settlement is `UPDATE ... WHERE status = 'held'` so a
+/// replayed completion callback cannot charge twice (D32, THREAT-MODEL T8/T9).
+model CreditHold {
+  id             String           @id @db.Char(26)
+  accountId      String           @map("account_id") @db.Char(26)
+  jobId          String           @unique @map("job_id") @db.Char(26)
+  amountTenths   Int              @map("amount_tenths")
+  /// Zod: `LotAllocationsSchema` — `[{lotId, tenths}]`, the lots this hold drew from.
+  lotAllocations Json             @default("[]") @map("lot_allocations") @db.JsonB
+  status         CreditHoldStatus @default(held)
+  settledTenths  Int              @default(0) @map("settled_tenths")
+  at             DateTime         @default(now()) @db.Timestamptz(6)
+
+  account CreditAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  job     Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@map("credit_holds")
+}
+
+/// Append-only. Written in the same transaction as the balance update, with
+/// `balanceAfter` taken from the `RETURNING` clause (06 invariant 1).
+model CreditLedger {
+  id                 String           @id @db.Char(26)
+  accountId          String           @map("account_id") @db.Char(26)
+  deltaTenths        Int              @map("delta_tenths")
+  kind               CreditLedgerKind
+  refType            String           @map("ref_type")
+  refId              String?          @map("ref_id") @db.Char(26)
+  lotId              String?          @map("lot_id") @db.Char(26)
+  balanceAfterTenths Int              @map("balance_after_tenths")
+  at                 DateTime         @default(now()) @db.Timestamptz(6)
+
+  account CreditAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  lot     CreditLot?    @relation(fields: [lotId], references: [id], onDelete: SetNull)
+
+  @@index([accountId])
+  @@index([refId])
+  @@index([at])
+  @@map("credit_ledger")
+}
+
+// ===========================================================================
+// Growth — 06 §Growth
+// ===========================================================================
+
+/// Feature-flagged experiment with a holdout (04 §Streak rewards, RR-10 pending).
+model StreakExperiment {
+  id               String   @id @db.Char(26)
+  workspaceId      String   @unique @map("workspace_id") @db.Char(26)
+  level            Int      @default(1)
+  weekWindowStart  DateTime @map("week_window_start") @db.Date
+  /// Zod: `PublishDaysSchema` — the ISO dates counted in the current window.
+  publishDays      Json     @default("[]") @map("publish_days") @db.JsonB
+  consecutiveWeeks Int      @default(0) @map("consecutive_weeks")
+  frozen           Int      @default(0)
+  /// Holdout arm, so the experiment can be measured against a control.
+  holdout          Boolean  @default(false)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("streak_experiments")
+}
+
+/// A publish day is at least one export or plugin apply (04 §Streak rewards).
+model PublishEvent {
+  id          String   @id @db.Char(26)
+  workspaceId String   @map("workspace_id") @db.Char(26)
+  projectId   String?  @map("project_id") @db.Char(26)
+  surface     String   @default("web")
+  exportId    String?  @map("export_id") @db.Char(26)
+  at          DateTime @default(now()) @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, at])
+  @@map("publish_events")
+}
+
+model Coupon {
+  id             String    @id @db.Char(26)
+  code           String    @unique
+  /// `percent` or `amount`.
+  kind           String    @default("percent")
+  percentOff     Int?      @map("percent_off")
+  amountOffMinor Int?      @map("amount_off_minor")
+  currency       Currency?
+  /// Plan keys the coupon applies to; empty means every plan.
+  appliesToPlans PlanKey[] @default([]) @map("applies_to_plans")
+  maxRedemptions Int?      @map("max_redemptions")
+  redemptions    Int       @default(0)
+  validFrom      DateTime  @default(now()) @map("valid_from") @db.Timestamptz(6)
+  validUntil     DateTime? @map("valid_until") @db.Timestamptz(6)
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("coupons")
+}
+
+/// India only at launch; PAN is stored encrypted at the application layer (04 §Affiliate).
+model Affiliate {
+  id            String          @id @db.Char(26)
+  userId        String          @unique @map("user_id") @db.Char(26)
+  code          String          @unique
+  status        AffiliateStatus @default(pending)
+  country       String          @default("IN") @db.Char(2)
+  legalName     String?         @map("legal_name")
+  /// Encrypted at rest by the application; never logged (THREAT-MODEL T21).
+  pan           String?
+  panVerifiedAt DateTime?       @map("pan_verified_at") @db.Timestamptz(6)
+  gstin         String?
+  /// Zod: `PayoutMethodSchema` — UPI VPA or bank details, tokenised.
+  payoutMethod  Json            @default("{}") @map("payout_method") @db.JsonB
+  balanceMinor  Int             @default(0) @map("balance_minor")
+  currency      Currency        @default(INR)
+  approvedAt    DateTime?       @map("approved_at") @db.Timestamptz(6)
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referrals Referral[]
+  payouts   Payout[]
+  fyTotals  AffiliateFyTotal[]
+
+  @@map("affiliates")
+}
+
+model Referral {
+  id                  String         @id @db.Char(26)
+  affiliateId         String         @map("affiliate_id") @db.Char(26)
+  referredWorkspaceId String         @unique @map("referred_workspace_id") @db.Char(26)
+  /// `cookie` (60-day last click) or `code` (04 §Attribution).
+  source              String         @default("code")
+  firstPaidAt         DateTime?      @map("first_paid_at") @db.Timestamptz(6)
+  status              ReferralStatus @default(pending)
+  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  affiliate         Affiliate    @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  referredWorkspace Workspace    @relation(fields: [referredWorkspaceId], references: [id], onDelete: Cascade)
+  commissions       Commission[]
+
+  @@index([affiliateId])
+  @@map("referrals")
+}
+
+model Commission {
+  id                   String           @id @db.Char(26)
+  referralId           String           @map("referral_id") @db.Char(26)
+  invoiceId            String           @map("invoice_id") @db.Char(26)
+  grossMinor           Int              @map("gross_minor")
+  /// Commission rate in basis points (40% = 4000).
+  rate                 Int
+  fyLabel              String           @map("fy_label") @db.VarChar(9)
+  tdsSection           TdsSection       @default(s194H) @map("tds_section")
+  tdsRateBps           Int              @default(200) @map("tds_rate_bps")
+  tdsAmountMinor       Int              @default(0) @map("tds_amount_minor")
+  netPayableMinor      Int              @default(0) @map("net_payable_minor")
+  gstOnCommissionMinor Int              @default(0) @map("gst_on_commission_minor")
+  status               CommissionStatus @default(pending)
+  /// 30-day maturation hold; refunds and chargebacks claw back the gross (04 §Payouts).
+  availableAt          DateTime?        @map("available_at") @db.Timestamptz(6)
+  payoutId             String?          @map("payout_id") @db.Char(26)
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  referral Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  invoice  Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  payout   Payout?  @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+
+  @@unique([referralId, invoiceId])
+  @@index([referralId])
+  @@index([invoiceId])
+  @@index([fyLabel])
+  @@map("commissions")
+}
+
+/// TDS threshold accumulator: s.194H applies once cumulative commission crosses
+/// Rs 20,000 in a financial year (04 §Tax).
+model AffiliateFyTotal {
+  id          String @id @db.Char(26)
+  affiliateId String @map("affiliate_id") @db.Char(26)
+  fyLabel     String @map("fy_label") @db.VarChar(9)
+  grossMinor  Int    @default(0) @map("gross_minor")
+  tdsMinor    Int    @default(0) @map("tds_minor")
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@unique([affiliateId, fyLabel])
+  @@index([affiliateId])
+  @@index([fyLabel])
+  @@map("affiliate_fy_totals")
+}
+
+model Payout {
+  id               String       @id @db.Char(26)
+  affiliateId      String       @map("affiliate_id") @db.Char(26)
+  amountMinor      Int          @map("amount_minor")
+  tdsTotalMinor    Int          @default(0) @map("tds_total_minor")
+  challanRef       String?      @map("challan_ref")
+  form16aKey       String?      @map("form16a_key")
+  rail             PayoutRail   @default(upi)
+  providerRef      String?      @map("provider_ref")
+  providerFeeMinor Int          @default(0) @map("provider_fee_minor")
+  status           PayoutStatus @default(pending)
+  at               DateTime     @default(now()) @db.Timestamptz(6)
+
+  affiliate   Affiliate    @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  commissions Commission[]
+
+  @@index([affiliateId])
+  @@map("payouts")
+}
+
+/// User-to-user referral: give 30 credits, get 30 credits on the referred user's
+/// first export. Product currency only, so no KYC or tax handling (04 §Referral loop).
+model ReferralReward {
+  id                String               @id @db.Char(26)
+  workspaceId       String               @map("workspace_id") @db.Char(26)
+  referredEmailHash String?              @map("referred_email_hash")
+  code              String
+  /// Tenths of a credit granted to each side.
+  creditsTenths     Int                  @default(300) @map("credits_tenths")
+  status            ReferralRewardStatus @default(pending)
+  lotId             String?              @map("lot_id") @db.Char(26)
+  grantedAt         DateTime?            @map("granted_at") @db.Timestamptz(6)
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([code])
+  @@map("referral_rewards")
+}
+
+// ===========================================================================
+// Content & ops — 06 §Content & ops
+// ===========================================================================
+
+model AcademyLesson {
+  id          String   @id @db.Char(26)
+  slug        String   @unique
+  title       String
+  summary     String?
+  /// Zod: `LessonBodySchema` — MDX blocks and asset refs.
+  body        Json     @default("{}") @db.JsonB
+  durationMin Int      @default(5) @map("duration_min")
+  order       Int      @default(0)
+  locale      String   @default("en")
+  published   Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  progress LessonProgress[]
+
+  @@map("academy_lessons")
+}
+
+model LessonProgress {
+  id          String    @id @db.Char(26)
+  lessonId    String    @map("lesson_id") @db.Char(26)
+  userId      String    @map("user_id") @db.Char(26)
+  progressPct Int       @default(0) @map("progress_pct")
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  lesson AcademyLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, userId])
+  @@index([userId])
+  @@map("lesson_progress")
+}
+
+model ChangelogEntry {
+  id          String    @id @db.Char(26)
+  slug        String    @unique
+  title       String
+  /// Zod: `ChangelogBodySchema`.
+  body        Json      @default("{}") @db.JsonB
+  version     String?
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([publishedAt])
+  @@map("changelog_entries")
+}
+
+model HelpArticle {
+  id        String   @id @db.Char(26)
+  slug      String   @unique
+  title     String
+  category  String   @default("general")
+  /// Zod: `HelpBodySchema`.
+  body      Json     @default("{}") @db.JsonB
+  locale    String   @default("en")
+  published Boolean  @default(false)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([category])
+  @@map("help_articles")
+}
+
+/// Server-side flags. `FEATURE_FLAGS_JSON` (CONTRACTS §1) overrides a row at boot
+/// for local development; this table is the deployed source of truth.
+model FeatureFlag {
+  id          String   @id @db.Char(26)
+  key         String   @unique
+  description String?
+  enabled     Boolean  @default(false)
+  /// Percentage rollout, 0-100, applied after the allow-list.
+  rolloutPct  Int      @default(0) @map("rollout_pct")
+  /// Zod: `FlagTargetsSchema` — workspace ids, plan keys, regions.
+  targets     Json     @default("{}") @db.JsonB
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("feature_flags")
+}
+
+/// Append-only administrative trail (THREAT-MODEL T20). Erasure writes tombstones
+/// here rather than deleting rows.
+model AuditLog {
+  id          String   @id @db.Char(26)
+  workspaceId String?  @map("workspace_id") @db.Char(26)
+  actorId     String?  @map("actor_id") @db.Char(26)
+  actorKind   String   @default("user") @map("actor_kind")
+  action      String
+  resource    String
+  resourceId  String?  @map("resource_id") @db.Char(26)
+  /// Zod: `AuditDiffSchema` — before/after for the changed fields only.
+  data        Json?    @db.JsonB
+  ip          String?
+  at          DateTime @default(now()) @db.Timestamptz(6)
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, at])
+  @@index([actorId, at])
+  @@index([resourceId])
+  @@map("audit_log")
+}
+
+model WebhookEndpoint {
+  id           String    @id @db.Char(26)
+  workspaceId  String    @map("workspace_id") @db.Char(26)
+  url          String
+  /// HMAC secret for outbound signatures; never returned by the API after creation.
+  secret       String
+  events       String[]  @default([])
+  active       Boolean   @default(true)
+  failureCount Int       @default(0) @map("failure_count")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  disabledAt   DateTime? @map("disabled_at") @db.Timestamptz(6)
+
+  workspace  Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([workspaceId])
+  @@map("webhook_endpoints")
+}
+
+model WebhookDelivery {
+  id           String                @id @db.Char(26)
+  endpointId   String                @map("endpoint_id") @db.Char(26)
+  event        String
+  /// Zod: the event payload as sent.
+  payload      Json                  @default("{}") @db.JsonB
+  status       WebhookDeliveryStatus @default(pending)
+  attempt      Int                   @default(1)
+  responseCode Int?                  @map("response_code")
+  error        String?
+  nextRetryAt  DateTime?             @map("next_retry_at") @db.Timestamptz(6)
+  deliveredAt  DateTime?             @map("delivered_at") @db.Timestamptz(6)
+  createdAt    DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId])
+  @@index([nextRetryAt])
+  @@map("webhook_deliveries")
+}
+
+/// SFX and music in one table, split by `kind` (D44). Licence terms are typed
+/// columns, not JSON, so retrieval can filter by surface, plan, territory and
+/// clearance BEFORE ranking. `embedding` is a pgvector column Prisma cannot type:
+/// it is declared `Unsupported` here and indexed (HNSW, cosine) in
+/// `prisma/sql/0003-indexes.sql`.
+model AudioAsset {
+  id                    String                      @id @db.Char(26)
+  kind                  AudioAssetKind
+  provider              AudioProvider               @default(owned)
+  providerAssetId       String?                     @map("provider_asset_id")
+  catalogueMode         CatalogueMode               @default(mirrored) @map("catalogue_mode")
+  licenceType           String?                     @map("licence_type")
+  licensor              String?
+  licenceRef            String?                     @map("licence_ref")
+  licenceVersion        String?                     @map("licence_version")
+  territory             String[]                    @default(["WORLD"])
+  termStart             DateTime?                   @map("term_start") @db.Date
+  termEnd               DateTime?                   @map("term_end") @db.Date
+  allowsCommercialUse   Boolean                     @default(false) @map("allows_commercial_use")
+  allowsMonetisation    Boolean                     @default(false) @map("allows_monetisation")
+  allowsPaidAds         Boolean                     @default(false) @map("allows_paid_ads")
+  allowsBroadcast       Boolean                     @default(false) @map("allows_broadcast")
+  /// Only owned assets may be delivered as raw files into an NLE timeline (D44).
+  allowsRawFileDelivery Boolean                     @default(false) @map("allows_raw_file_delivery")
+  allowsOfflineCache    Boolean                     @default(false) @map("allows_offline_cache")
+  allowsEmbeddingIndex  Boolean                     @default(false) @map("allows_embedding_index")
+  allowsAiTraining      Boolean                     @default(false) @map("allows_ai_training")
+  requiresAttribution   Boolean                     @default(false) @map("requires_attribution")
+  attributionText       String?                     @map("attribution_text")
+  clearanceMethod       ClearanceMethod             @default(none) @map("clearance_method")
+  contentIdRegistered   Boolean                     @default(false) @map("content_id_registered")
+  requiresUsageReport   Boolean                     @default(false) @map("requires_usage_report")
+  reportEndpoint        String?                     @map("report_endpoint")
+  maxQuality            String?                     @map("max_quality")
+  streamUrlTtlSeconds   Int?                        @map("stream_url_ttl_seconds")
+  costModel             String?                     @map("cost_model")
+  licenceProofKey       String?                     @map("licence_proof_key")
+  title                 String
+  tags                  String[]                    @default([])
+  mood                  String[]                    @default([])
+  /// SFX only: the functional cue name (never a meme name, D44).
+  cueType               String?                     @map("cue_type")
+  bpm                   Int?
+  musicalKey            String?                     @map("musical_key")
+  energy                Float?
+  hasStems              Boolean                     @default(false) @map("has_stems")
+  stemKeys              String[]                    @default([]) @map("stem_keys")
+  introMs               Int?                        @map("intro_ms")
+  outroMs               Int?                        @map("outro_ms")
+  vocalType             String?                     @map("vocal_type")
+  transientOffsetMs     Int?                        @map("transient_offset_ms")
+  tailMs                Int?                        @map("tail_ms")
+  integratedLufs        Float?                      @map("integrated_lufs")
+  truePeakDb            Float?                      @map("true_peak_db")
+  durationMs            Int?                        @map("duration_ms")
+  /// Owned assets only; partner catalogues are streamed from the provider.
+  storageKey            String?                     @map("storage_key")
+  /// pgvector `vector(512)` — CLAP audio embedding. Read and written by raw SQL.
+  embedding             Unsupported("vector(512)")?
+  createdAt             DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  usages AssetUsage[]
+
+  @@unique([provider, providerAssetId])
+  @@index([kind])
+  @@index([providerAssetId])
+  @@map("audio_assets")
+}
+
+/// Append-only usage record; partner reporting and clearance audits read it (D44).
+model AssetUsage {
+  id               String        @id @db.Char(26)
+  workspaceId      String        @map("workspace_id") @db.Char(26)
+  projectId        String        @map("project_id") @db.Char(26)
+  exportId         String?       @map("export_id") @db.Char(26)
+  assetId          String        @map("asset_id") @db.Char(26)
+  provider         AudioProvider
+  providerAssetId  String?       @map("provider_asset_id")
+  surface          AssetSurface
+  placedAt         DateTime      @default(now()) @map("placed_at") @db.Timestamptz(6)
+  exportedAt       DateTime?     @map("exported_at") @db.Timestamptz(6)
+  clearanceGrantId String?       @map("clearance_grant_id") @db.Char(26)
+  reportedAt       DateTime?     @map("reported_at") @db.Timestamptz(6)
+  reportRef        String?       @map("report_ref")
+
+  workspace      Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  export         Export?              @relation(fields: [exportId], references: [id], onDelete: SetNull)
+  asset          AudioAsset           @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  clearanceGrant AssetClearanceGrant? @relation(fields: [clearanceGrantId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([projectId])
+  @@index([assetId])
+  @@map("asset_usages")
+}
+
+/// Export-time clearance: the creator connects a channel and the partner issues a
+/// licence for that channel or video (D44).
+model AssetClearanceGrant {
+  id                String               @id @db.Char(26)
+  workspaceId       String               @map("workspace_id") @db.Char(26)
+  userId            String?              @map("user_id") @db.Char(26)
+  provider          AudioProvider
+  providerLicenceId String?              @map("provider_licence_id")
+  platform          String
+  assetScope        AssetScope           @map("asset_scope")
+  publicUrl         String?              @map("public_url")
+  partnerUserId     String?              @map("partner_user_id")
+  status            ClearanceGrantStatus @default(pending)
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt         DateTime?            @map("expires_at") @db.Timestamptz(6)
+  revokedAt         DateTime?            @map("revoked_at") @db.Timestamptz(6)
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  usages    AssetUsage[]
+
+  @@index([workspaceId])
+  @@index([providerLicenceId])
+  @@index([expiresAt])
+  @@map("asset_clearance_grants")
 }
