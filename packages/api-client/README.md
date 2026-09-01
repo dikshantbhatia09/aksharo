@@ -2,16 +2,23 @@
 
 OpenAPI-generated API client and TanStack Query hooks.
 
-**Status:** skeleton (scaffolded by A01). **Implemented by:** A03 (spec), A13 (hooks).
+**Status:** the spec and the operation index are generated; the fetch layer and the
+TanStack Query hooks land in A13.
 
-Generated from the NestJS OpenAPI document served at `/docs-json`. Regenerate whenever
-the spec changes; the contract test compares client and spec (10-build-plan §5).
+Generated from the NestJS OpenAPI document served at `/docs-json`. Run `pnpm gen:client`
+from the repository root whenever the spec changes; the contract test in
+`src/index.test.ts` asserts the operation index still covers the routes consumers call
+(10-build-plan §5).
 
 ## Layout
 
 ```
-src/index.ts   public surface (placeholder today)
+openapi.json                 the whole OpenAPI document (generated)
+src/generated/operations.ts  typed index of every operation (generated)
+src/index.ts                 public surface
 ```
+
+Nothing under `src/generated/` is hand-edited — `pnpm gen:client` overwrites it.
 
 ## Scripts
 

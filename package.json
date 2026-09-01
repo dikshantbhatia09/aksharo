@@ -23,6 +23,7 @@
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e",
     "db:migrate": "turbo run db:migrate",
+    "gen:client": "pnpm --filter @montaj/api gen:client",
     "db:seed": "turbo run db:seed",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}\"",
