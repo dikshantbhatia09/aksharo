@@ -1,0 +1,210 @@
+import { z } from "zod";
+
+import {
+  AspectSchema,
+  ConfidenceSchema,
+  GainDbSchema,
+  IsoDateTimeSchema,
+  JsonObjectSchema,
+  KeyframesRefSchema,
+  MsSchema,
+  OffsetMsSchema,
+  PresetIdSchema,
+  StyleRefSchema,
+  UlidSchema,
+} from "./primitives.js";
+import { PositionSchema } from "./segment.js";
+
+/** Pass families (CONTRACTS §2). */
+export const PassTypeSchema = z
+  .enum(["autocut", "reframe", "sfx", "music", "textfx", "prompted"])
+  .meta({ id: "PassType", title: "PassType" });
+
+/** Item kinds a pass can propose (CONTRACTS §2). */
+export const ItemKindSchema = z
+  .enum(["cut", "zoom", "reframe", "sfx", "music", "title"])
+  .meta({ id: "ItemKind", title: "ItemKind" });
+
+/** Review state of a proposal (CONTRACTS §2). */
+export const ItemStateSchema = z
+  .enum(["proposed", "accepted", "rejected", "modified"])
+  .meta({ id: "ItemState", title: "ItemState" });
+
+/**
+ * Lifecycle of a pass, mirroring the job that produces it: `ready` means the
+ * items are on the table for review, `merged` that a `MergePass` op landed them.
+ */
+export const PassStatusSchema = z
+  .enum(["queued", "running", "ready", "merged", "failed", "cancelled"])
+  .meta({ id: "PassStatus", title: "PassStatus" });
+
+/** Interpolation for a zoom ramp: `velocity` follows speech energy, `easeInOut` is symmetric. */
+export const EasingSchema = z
+  .enum(["velocity", "easeInOut"])
+  .meta({ id: "Easing", title: "Easing" });
+
+/** Normalised source rectangle, fractions of the frame. */
+export const RectSchema = z
+  .object({
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    w: z.number().gt(0).max(1),
+    h: z.number().gt(0).max(1),
+  })
+  .meta({ id: "Rect", title: "Rect" });
+
+/** `cut` carries no payload: the item's `startMs`/`endMs` is the removed range. */
+export const CutPayloadSchema = z.object({}).meta({ id: "CutPayload", title: "CutPayload" });
+
+export const ZoomPayloadSchema = z
+  .object({
+    /** Where the zoom lands, normalised to the source frame. */
+    target: RectSchema,
+    scaleFrom: z.number().gt(0),
+    scaleTo: z.number().gt(0),
+    easing: EasingSchema,
+    keyframesRef: KeyframesRefSchema.optional(),
+  })
+  .meta({ id: "ZoomPayload", title: "ZoomPayload" });
+
+export const ReframePayloadSchema = z
+  .object({
+    aspect: AspectSchema,
+    /** Packed float32 `[tMs, x, y, w, h]` rows (07 §EDG JSON schema). */
+    keyframesRef: KeyframesRefSchema,
+  })
+  .meta({ id: "ReframePayload", title: "ReframePayload" });
+
+export const SfxPayloadSchema = z
+  .object({
+    /** Library asset ULID; provider ids and URLs never enter the EDG (07). */
+    assetId: UlidSchema,
+    gainDb: GainDbSchema,
+    /** Signed offset from the item start. */
+    offsetMs: OffsetMsSchema,
+  })
+  .meta({ id: "SfxPayload", title: "SfxPayload" });
+
+export const MusicPayloadSchema = z
+  .object({
+    assetId: UlidSchema,
+    gainDb: GainDbSchema,
+    /** Gain applied while speech is present; negative ducks the bed. */
+    duckDb: z.number().min(-60).max(0),
+    fadeInMs: MsSchema,
+    fadeOutMs: MsSchema,
+  })
+  .meta({ id: "MusicPayload", title: "MusicPayload" });
+
+export const TitlePayloadSchema = z
+  .object({
+    text: z.string().min(1),
+    styleRef: StyleRefSchema,
+    position: PositionSchema,
+    /** Animation preset ids resolved by `render-core`. */
+    animIn: PresetIdSchema,
+    animOut: PresetIdSchema,
+  })
+  .meta({ id: "TitlePayload", title: "TitlePayload" });
+
+const passItemBase = {
+  itemId: UlidSchema,
+  passId: UlidSchema,
+  startMs: MsSchema,
+  endMs: MsSchema,
+  /** Dense curve for this item, stored as packed float32 rows (D28). */
+  keyframesRef: KeyframesRefSchema.optional(),
+  confidence: ConfidenceSchema.optional(),
+  /** Human-readable justification shown in the review UI. */
+  reason: z.string().max(500).optional(),
+  state: ItemStateSchema,
+  /** Licence terms captured when an sfx/music asset was chosen. */
+  licenceSnapshot: JsonObjectSchema.optional(),
+};
+
+export const CutPassItemSchema = z.object({
+  ...passItemBase,
+  kind: z.literal("cut"),
+  payload: CutPayloadSchema,
+});
+export const ZoomPassItemSchema = z.object({
+  ...passItemBase,
+  kind: z.literal("zoom"),
+  payload: ZoomPayloadSchema,
+});
+export const ReframePassItemSchema = z.object({
+  ...passItemBase,
+  kind: z.literal("reframe"),
+  payload: ReframePayloadSchema,
+});
+export const SfxPassItemSchema = z.object({
+  ...passItemBase,
+  kind: z.literal("sfx"),
+  payload: SfxPayloadSchema,
+});
+export const MusicPassItemSchema = z.object({
+  ...passItemBase,
+  kind: z.literal("music"),
+  payload: MusicPayloadSchema,
+});
+export const TitlePassItemSchema = z.object({
+  ...passItemBase,
+  kind: z.literal("title"),
+  payload: TitlePayloadSchema,
+});
+
+/**
+ * One AI proposal (`edg_pass_items`). The union is discriminated on `kind`, which
+ * is what turns CONTRACTS' `payload: Record<string, unknown>` into a checked shape.
+ */
+export const PassItemSchema = z
+  .discriminatedUnion("kind", [
+    CutPassItemSchema,
+    ZoomPassItemSchema,
+    ReframePassItemSchema,
+    SfxPassItemSchema,
+    MusicPassItemSchema,
+    TitlePassItemSchema,
+  ])
+  .meta({
+    id: "PassItem",
+    title: "PassItem",
+    description: "An AI proposal with a per-kind payload (CONTRACTS §2)",
+  });
+
+/** A pass and the items it proposed (`edg_passes` + `edg_pass_items`). */
+export const PassSchema = z
+  .object({
+    passId: UlidSchema,
+    type: PassTypeSchema,
+    /** Engine that produced the pass, e.g. `autocut@2` or a model id. */
+    engine: z.string().min(1).max(120),
+    /** Engine parameters as submitted to `POST /projects/{id}/passes`. */
+    params: JsonObjectSchema,
+    status: PassStatusSchema,
+    jobId: UlidSchema.optional(),
+    createdAt: IsoDateTimeSchema.optional(),
+    items: z.array(PassItemSchema),
+  })
+  .meta({ id: "Pass", title: "Pass" });
+
+export type PassType = z.infer<typeof PassTypeSchema>;
+export type ItemKind = z.infer<typeof ItemKindSchema>;
+export type ItemState = z.infer<typeof ItemStateSchema>;
+export type PassStatus = z.infer<typeof PassStatusSchema>;
+export type Easing = z.infer<typeof EasingSchema>;
+export type Rect = z.infer<typeof RectSchema>;
+export type CutPayload = z.infer<typeof CutPayloadSchema>;
+export type ZoomPayload = z.infer<typeof ZoomPayloadSchema>;
+export type ReframePayload = z.infer<typeof ReframePayloadSchema>;
+export type SfxPayload = z.infer<typeof SfxPayloadSchema>;
+export type MusicPayload = z.infer<typeof MusicPayloadSchema>;
+export type TitlePayload = z.infer<typeof TitlePayloadSchema>;
+export type CutPassItem = z.infer<typeof CutPassItemSchema>;
+export type ZoomPassItem = z.infer<typeof ZoomPassItemSchema>;
+export type ReframePassItem = z.infer<typeof ReframePassItemSchema>;
+export type SfxPassItem = z.infer<typeof SfxPassItemSchema>;
+export type MusicPassItem = z.infer<typeof MusicPassItemSchema>;
+export type TitlePassItem = z.infer<typeof TitlePassItemSchema>;
+export type PassItem = z.infer<typeof PassItemSchema>;
+export type Pass = z.infer<typeof PassSchema>;

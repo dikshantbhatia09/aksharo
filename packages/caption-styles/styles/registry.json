@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "styles": [
+    {
+      "id": "punch-pop",
+      "name": "Punch Pop",
+      "category": "bold",
+      "status": "shipped"
+    },
+    {
+      "id": "hype-bold",
+      "name": "Hype Bold",
+      "category": "bold",
+      "status": "shipped"
+    },
+    {
+      "id": "vertical-clean",
+      "name": "Vertical Clean",
+      "category": "clean",
+      "status": "shipped"
+    },
+    {
+      "id": "karaoke-fill",
+      "name": "Karaoke Fill",
+      "category": "karaoke",
+      "status": "shipped"
+    },
+    {
+      "id": "podcast-duo",
+      "name": "Podcast Duo",
+      "category": "podcast",
+      "status": "shipped"
+    },
+    {
+      "id": "word-pop",
+      "name": "Word Pop",
+      "category": "playful",
+      "status": "shipped"
+    },
+    {
+      "id": "bubble-soft",
+      "name": "Bubble Soft",
+      "category": "playful",
+      "status": "planned"
+    },
+    {
+      "id": "neon-glow",
+      "name": "Neon Glow",
+      "category": "bold",
+      "status": "planned"
+    },
+    {
+      "id": "glitch-shift",
+      "name": "Glitch Shift",
+      "category": "gaming",
+      "status": "planned"
+    },
+    {
+      "id": "prism-split",
+      "name": "Prism Split",
+      "category": "bold",
+      "status": "planned"
+    },
+    {
+      "id": "minimal-lower-third",
+      "name": "Minimal Lower Third",
+      "category": "minimal",
+      "status": "shipped"
+    },
+    {
+      "id": "bold-drop",
+      "name": "Bold Drop",
+      "category": "bold",
+      "status": "planned"
+    },
+    {
+      "id": "liquid-glass",
+      "name": "Liquid Glass",
+      "category": "minimal",
+      "status": "planned"
+    },
+    {
+      "id": "outline-only",
+      "name": "Outline Only",
+      "category": "clean",
+      "status": "planned"
+    },
+    {
+      "id": "box-block",
+      "name": "Box Block",
+      "category": "clean",
+      "status": "planned"
+    },
+    {
+      "id": "typewriter-mono",
+      "name": "Typewriter Mono",
+      "category": "retro",
+      "status": "planned"
+    },
+    {
+      "id": "caption-card",
+      "name": "Caption Card",
+      "category": "clean",
+      "status": "planned"
+    },
+    {
+      "id": "gradient-sweep",
+      "name": "Gradient Sweep",
+      "category": "playful",
+      "status": "planned"
+    },
+    {
+      "id": "highlight-marker",
+      "name": "Highlight Marker",
+      "category": "education",
+      "status": "planned"
+    },
+    {
+      "id": "subtitle-classic",
+      "name": "Subtitle Classic",
+      "category": "minimal",
+      "status": "planned"
+    },
+    {
+      "id": "impact-shout",
+      "name": "Impact Shout",
+      "category": "bold",
+      "status": "planned"
+    },
+    {
+      "id": "soft-serif",
+      "name": "Soft Serif",
+      "category": "cinematic",
+      "status": "planned"
+    },
+    {
+      "id": "news-ticker",
+      "name": "News Ticker",
+      "category": "education",
+      "status": "planned"
+    },
+    {
+      "id": "quote-frame",
+      "name": "Quote Frame",
+      "category": "cinematic",
+      "status": "planned"
+    },
+    {
+      "id": "stroke-heavy",
+      "name": "Stroke Heavy",
+      "category": "bold",
+      "status": "planned"
+    },
+    {
+      "id": "duo-tone",
+      "name": "Duo Tone",
+      "category": "playful",
+      "status": "planned"
+    },
+    {
+      "id": "tape-retro",
+      "name": "Tape Retro",
+      "category": "retro",
+      "status": "planned"
+    },
+    {
+      "id": "arcade-pixel",
+      "name": "Arcade Pixel",
+      "category": "gaming",
+      "status": "planned"
+    },
+    {
+      "id": "whisper-thin",
+      "name": "Whisper Thin",
+      "category": "minimal",
+      "status": "planned"
+    },
+    {
+      "id": "spotlight-word",
+      "name": "Spotlight Word",
+      "category": "karaoke",
+      "status": "planned"
+    }
+  ]
+}

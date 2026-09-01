@@ -1,0 +1,314 @@
+{
+  "meta": {
+    "edgId": "01KF0FV49Y5XZB11BZX5QKS937",
+    "projectId": "01KF0FV4E7G8APCCPA8G2Y4MEJ",
+    "revision": 14,
+    "schemaVersion": 2,
+    "engineVersions": {
+      "asr": "sarvam-saarika-v2",
+      "aligner": "montaj-align@1",
+      "renderCore": "render-core@0.1.0"
+    }
+  },
+  "media": [
+    {
+      "mediaId": "01KF0FV4JGVKN1QQ1NKVD9FZSX",
+      "role": "primary",
+      "durationMs": 90000,
+      "fps": 30,
+      "width": 1080,
+      "height": 1920
+    }
+  ],
+  "transcript": {
+    "transcriptId": "01KF0FV4PS6Y0C22C0Y6RMTA48",
+    "revision": 3,
+    "language": "hi-Latn",
+    "scripts": ["roman", "native", "en"],
+    "speakers": [
+      {
+        "id": "sp1",
+        "name": "Aarav",
+        "color": "#f2a541"
+      },
+      {
+        "id": "sp2",
+        "name": "Priya",
+        "color": "#3fa7d6"
+      },
+      {
+        "id": "sp3",
+        "name": "Rohan",
+        "color": "#8ac926"
+      }
+    ]
+  },
+  "canvas": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920
+  },
+  "styles": {
+    "defaultStyleId": "punch-pop"
+  },
+  "audio": {
+    "clean": {
+      "enabled": true,
+      "preset": "podcast",
+      "targetLufs": -14
+    },
+    "ducking": {
+      "enabled": true,
+      "duckDb": -9
+    }
+  },
+  "render": {
+    "presets": ["social-1080x1920"]
+  },
+  "segments": [
+    {
+      "id": "01KF0FV2E0B35H77H53BXSZF9D",
+      "seq": "V",
+      "startWordId": "0:0",
+      "endWordId": "0:9",
+      "startMs": 320,
+      "endMs": 5200,
+      "styleRef": "punch-pop",
+      "textOverrides": {
+        "en": "Brother, today we will talk about video editing"
+      }
+    },
+    {
+      "id": "01KF0FV2J9PEGWJJWGEP84ATMR",
+      "seq": "l",
+      "startWordId": "0:10",
+      "endWordId": "0:19",
+      "startMs": 5400,
+      "endMs": 11000,
+      "textOverrides": {
+        "en": "I mean the thing everyone asks about every day"
+      }
+    },
+    {
+      "id": "01KF0FV2PJ1SV7XX7VS1KFN5Z3",
+      "seq": "t",
+      "startWordId": "0:20",
+      "endWordId": "0:29",
+      "startMs": 11400,
+      "endMs": 17200,
+      "textOverrides": {
+        "en": "Yes friend, I want to learn too but I get no time"
+      }
+    },
+    {
+      "id": "01KF0FV2TVC46J88J64CYT0GAE",
+      "seq": "x",
+      "startWordId": "0:30",
+      "endWordId": "0:39",
+      "startMs": 17500,
+      "endMs": 23000,
+      "textOverrides": {
+        "en": "Umm, I mean editing feels very difficult"
+      },
+      "emphasis": [
+        {
+          "wordId": "0:36",
+          "presetId": "pop"
+        }
+      ]
+    },
+    {
+      "id": "01KF0FV2Z4QFHXKKXHFQ95BVNS",
+      "seq": "z",
+      "startWordId": "0:40",
+      "endWordId": "0:47",
+      "startMs": 23400,
+      "endMs": 29500,
+      "textOverrides": {
+        "en": "Look, first get the transcript, then cut, simple"
+      }
+    },
+    {
+      "id": "01KF0FV33D2TW8YY8WT2MGP604",
+      "seq": "zV",
+      "startWordId": "0:48",
+      "endWordId": "0:57",
+      "startMs": 30000,
+      "endMs": 36200,
+      "textOverrides": {
+        "en": "I never upload without captions"
+      }
+    },
+    {
+      "id": "01KF0FV37PD57K99K75DZV1HBF",
+      "seq": "zl",
+      "startWordId": "0:58",
+      "endWordId": "0:66",
+      "startMs": 36500,
+      "endMs": 43000,
+      "textOverrides": {
+        "en": "Because half the people watch video without sound"
+      }
+    },
+    {
+      "id": "01KF0FV3BZRGJYMMYJGRA6CWPT",
+      "seq": "zt",
+      "startWordId": "0:67",
+      "endWordId": "0:75",
+      "startMs": 43400,
+      "endMs": 49500,
+      "textOverrides": {
+        "en": "Well said, that is why captions are the first job"
+      }
+    },
+    {
+      "id": "01KF0FV3G83VX9ZZ9XV3NHQ715",
+      "seq": "zx",
+      "startWordId": "0:76",
+      "endWordId": "0:86",
+      "startMs": 50000,
+      "endMs": 56800,
+      "textOverrides": {
+        "en": "Come on, let us take a small clip and make a short"
+      },
+      "emphasis": [
+        {
+          "wordId": "0:79",
+          "presetId": "glow"
+        }
+      ]
+    },
+    {
+      "id": "01KF0FV3MHE68MAAM86E0W2JCG",
+      "seq": "zz",
+      "startWordId": "0:87",
+      "endWordId": "0:96",
+      "startMs": 57200,
+      "endMs": 64000,
+      "textOverrides": {
+        "en": "Keep in mind, when you zoom, stay towards the face"
+      }
+    },
+    {
+      "id": "01KF0FV3RTSHKZNNZKHSB7DXQV",
+      "seq": "zzV",
+      "startWordId": "0:97",
+      "endWordId": "0:106",
+      "startMs": 64500,
+      "endMs": 71500,
+      "textOverrides": {
+        "en": "Fine, if it were this easy nobody would run away"
+      }
+    },
+    {
+      "id": "01KF0FV3X34WYA00AYW4PJR826",
+      "seq": "zzl",
+      "startWordId": "0:107",
+      "endWordId": "0:118",
+      "startMs": 72000,
+      "endMs": 79500,
+      "textOverrides": {
+        "en": "Just practice is needed, thanks to both, do not forget tomorrow's episode"
+      },
+      "position": {
+        "x": 0.5,
+        "y": 0.78,
+        "anchor": "bottom-center"
+      }
+    }
+  ],
+  "passes": [
+    {
+      "passId": "01KF0FV41CF79NBBN97F1X3KDH",
+      "type": "autocut",
+      "engine": "autocut@2",
+      "params": {
+        "pacing": "tight",
+        "keepPunchlines": true
+      },
+      "status": "ready",
+      "jobId": "01KF0FV4V2H9BQDDQB9H3Z5NFK",
+      "createdAt": "2026-01-15T09:30:12.000Z",
+      "items": [
+        {
+          "itemId": "01KF0FV4ZBWMP2RR2PMWEAG0TY",
+          "passId": "01KF0FV41CF79NBBN97F1X3KDH",
+          "kind": "cut",
+          "startMs": 17500,
+          "endMs": 18140,
+          "payload": {},
+          "confidence": 0.93,
+          "reason": "filler word: umm",
+          "state": "accepted"
+        },
+        {
+          "itemId": "01KF0FV53M7Z1D33D1Z7SNVB59",
+          "passId": "01KF0FV41CF79NBBN97F1X3KDH",
+          "kind": "cut",
+          "startMs": 29500,
+          "endMs": 30000,
+          "payload": {},
+          "confidence": 0.88,
+          "reason": "silence longer than 400 ms",
+          "state": "accepted"
+        },
+        {
+          "itemId": "01KF0FV57XJACREERCAJ406PGM",
+          "passId": "01KF0FV41CF79NBBN97F1X3KDH",
+          "kind": "cut",
+          "startMs": 49500,
+          "endMs": 50000,
+          "payload": {},
+          "confidence": 0.81,
+          "reason": "silence longer than 400 ms",
+          "state": "proposed"
+        },
+        {
+          "itemId": "01KF0FV5C6XNQ3SS3QNXFBH1VZ",
+          "passId": "01KF0FV41CF79NBBN97F1X3KDH",
+          "kind": "cut",
+          "startMs": 71500,
+          "endMs": 72000,
+          "payload": {},
+          "confidence": 0.76,
+          "reason": "false start before the closing line",
+          "state": "rejected"
+        }
+      ]
+    },
+    {
+      "passId": "01KF0FV45NTJM0PP0MJTC8EYRW",
+      "type": "reframe",
+      "engine": "punch-zoom@1",
+      "params": {
+        "intensity": "medium"
+      },
+      "status": "ready",
+      "jobId": "01KF0FV5GF802E44E208TPWC6A",
+      "createdAt": "2026-01-15T09:31:04.000Z",
+      "items": [
+        {
+          "itemId": "01KF0FV5MRKBDSFFSDBK517QHN",
+          "passId": "01KF0FV45NTJM0PP0MJTC8EYRW",
+          "kind": "zoom",
+          "startMs": 57200,
+          "endMs": 61000,
+          "payload": {
+            "target": {
+              "x": 0.28,
+              "y": 0.16,
+              "w": 0.44,
+              "h": 0.44
+            },
+            "scaleFrom": 1,
+            "scaleTo": 1.35,
+            "easing": "velocity"
+          },
+          "confidence": 0.71,
+          "reason": "energy peak on the advice line",
+          "state": "proposed"
+        }
+      ]
+    }
+  ]
+}

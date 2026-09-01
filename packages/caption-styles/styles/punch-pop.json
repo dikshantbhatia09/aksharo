@@ -1,0 +1,95 @@
+{
+  "id": "punch-pop",
+  "name": "Punch Pop",
+  "version": 2,
+  "category": "bold",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Inter",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 900,
+    "italic": false,
+    "sizePct": 6.4,
+    "lineHeight": 1.1,
+    "letterSpacingEm": -0.01,
+    "textTransform": "uppercase"
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#ffd400",
+    "accent": "#ff2e63"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 18,
+    "radiusPct": 24,
+    "opacity": 0.75
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#0b0b0f",
+    "widthPct": 9
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 6,
+    "blurPct": 10,
+    "opacity": 0.55
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.72,
+    "align": "center",
+    "maxWidthPct": 86,
+    "maxLines": 2,
+    "wordsPerCue": 4,
+    "safeAreaPct": 12
+  },
+  "animation": {
+    "in": {
+      "type": "pop",
+      "durationMs": 140
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 120
+    },
+    "wordHighlight": {
+      "type": "scale",
+      "durationMs": 120,
+      "scale": 1.18
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "pop",
+      "label": "Pop",
+      "color": "#ffd400",
+      "scale": 1.22,
+      "effect": "none"
+    },
+    {
+      "id": "shout",
+      "label": "Shout",
+      "color": "#ff2e63",
+      "scale": 1.35,
+      "weight": 900,
+      "effect": "shake"
+    },
+    {
+      "id": "mark",
+      "label": "Marker",
+      "color": "#0b0b0f",
+      "effect": "highlight"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/punch-pop.mp4"
+}

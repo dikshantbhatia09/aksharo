@@ -1,0 +1,89 @@
+{
+  "id": "word-pop",
+  "name": "Word Pop",
+  "version": 2,
+  "category": "playful",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Poppins",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 800,
+    "italic": false,
+    "sizePct": 8.2,
+    "lineHeight": 1.05,
+    "letterSpacingEm": -0.02,
+    "textTransform": "uppercase"
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#ffe066",
+    "accent": "#ff5d8f"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "word",
+    "paddingPct": 16,
+    "radiusPct": 30,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#101018",
+    "widthPct": 10
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 5,
+    "blurPct": 8,
+    "opacity": 0.5
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.56,
+    "align": "center",
+    "maxWidthPct": 88,
+    "maxLines": 1,
+    "wordsPerCue": 1,
+    "safeAreaPct": 12
+  },
+  "animation": {
+    "in": {
+      "type": "pop",
+      "durationMs": 110
+    },
+    "out": {
+      "type": "none",
+      "durationMs": 0
+    },
+    "wordHighlight": {
+      "type": "scale",
+      "durationMs": 100,
+      "scale": 1.3
+    },
+    "perWord": true
+  },
+  "emphasisPresets": [
+    {
+      "id": "pop",
+      "label": "Pop",
+      "color": "#ffe066",
+      "scale": 1.3,
+      "effect": "none"
+    },
+    {
+      "id": "shout",
+      "label": "Shout",
+      "color": "#ff5d8f",
+      "scale": 1.45,
+      "weight": 900,
+      "effect": "shake"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/word-pop.mp4"
+}

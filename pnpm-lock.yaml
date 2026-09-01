@@ -265,6 +265,10 @@ importers:
         version: 3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)
 
   packages/caption-styles:
+    dependencies:
+      zod:
+        specifier: ^4.5.4
+        version: 4.5.4
     devDependencies:
       '@montaj/config':
         specifier: workspace:*
@@ -272,6 +276,9 @@ importers:
       '@types/node':
         specifier: ^22.19.2
         version: 22.20.1
+      '@vitest/coverage-v8':
+        specifier: ^3.2.7
+        version: 3.2.7(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13))
       eslint:
         specifier: ^9.39.5
         version: 9.39.5(jiti@2.7.0)
@@ -320,6 +327,10 @@ importers:
         version: 3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)
 
   packages/edg:
+    dependencies:
+      zod:
+        specifier: ^4.5.4
+        version: 4.5.4
     devDependencies:
       '@montaj/config':
         specifier: workspace:*
@@ -327,9 +338,24 @@ importers:
       '@types/node':
         specifier: ^22.19.2
         version: 22.20.1
+      '@vitest/coverage-v8':
+        specifier: ^3.2.7
+        version: 3.2.7(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13))
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
       eslint:
         specifier: ^9.39.5
         version: 9.39.5(jiti@2.7.0)
+      fast-check:
+        specifier: ^3.23.2
+        version: 3.23.2
+      prettier:
+        specifier: ^3.9.6
+        version: 3.9.6
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
