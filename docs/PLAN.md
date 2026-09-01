@@ -33,6 +33,7 @@ Roles: **Fable 5.1** designs, decides, writes briefs, verifies gates. **Opus 5 a
 | A02c | `@montaj/timemap` | A02 | Opus | done |
 | A03 | api: Prisma schema v2 + hand SQL, migrations, seed, base modules | A01 | Opus | done |
 | A03b | api: seed loader injection, `registry.json` exclusion, `edg_segments.seq` → `text COLLATE "C"` migration (A02/A03 reconciliation) | A02, A03 | Opus | done |
+| A03c | api: `PassStatus` enum `succeeded` → `ready` migration (package is source of truth) | A02b, A03b | Opus | in-progress |
 | X05 | infra: Terraform, staging env, dashboards | A01 | Opus | done |
 | X06 | Threat model → checklist (docs/THREAT-MODEL.md) | — | Fable | done |
 | A04 | api: auth (families, device code, token exchange) | A03, X06 | Opus | in-progress |
