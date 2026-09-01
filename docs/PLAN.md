@@ -52,10 +52,10 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A10 | worker-ai vendor adapters, LID, routing, alignment registry, diarisation | A09 | briefed |
 | A11 | api transcripts, post-processing, segmentation → EDG init | A02b, A08, A09 | briefed |
 | A12 | api EDG module (ops, rebase, CAS, revisions, realtime) | A02b, A08 | briefed |
-| A13 | web shell + `@montaj/ui` + auth pages + onboarding + settings | A04, A05 | briefed |
+| A13 | web shell + `@montaj/ui` + auth pages + onboarding + settings | A04, A05 | in-progress |
 | A14 | web Home + Projects + upload engine | A06, A08, A13 | briefed |
 | A15 | web Editor transcript column + EDG client store | A12, A13 | briefed |
-| A16 | render-core + render-canvaskit + 30 styles + panels | A02, A02c | briefed |
+| A16 | render-core + render-canvaskit + 30 styles + panels | A02, A02c | in-progress |
 | A17 | web Timeline | A15, A16 | briefed |
 | A18a | ass-exporter + parity gate | A16, A20 | briefed |
 | A18b | fonts pipeline | A06, A07 | briefed |
@@ -65,7 +65,7 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A22 | scripts + translation | A10, A11, A12 | briefed |
 | A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | briefed |
 | A24 | marketing site v1 | A16 | briefed |
-| A25 | notify consumer: transactional email (SES via IRSA / SMTP / dev outbox), templates en+hi, suppression, in-app notifications | A04, A08 | briefed |
+| A25 | notify consumer: transactional email (SES via IRSA / SMTP / dev outbox), templates en+hi, suppression, in-app notifications | A04, A08 | in-progress |
 Sub-wave order: {A10, A11, A12, A13, A16, A18b, A20, A25} → {A14, A15, A21, A22, A24} → {A17, A18a, A19} → {A23 + Gate A}.
 
 ## Wave 3 — Monetisation (all briefs ready in `05-build/_orchestration/`)
