@@ -44,14 +44,46 @@
         "default": "./dist/seq.js"
       }
     },
+    "./ops": {
+      "import": {
+        "types": "./dist/esm/ops/index.d.ts",
+        "default": "./dist/esm/ops/index.js"
+      },
+      "require": {
+        "types": "./dist/ops/index.d.ts",
+        "default": "./dist/ops/index.js"
+      }
+    },
+    "./segmenter": {
+      "import": {
+        "types": "./dist/esm/segmenter/index.d.ts",
+        "default": "./dist/esm/segmenter/index.js"
+      },
+      "require": {
+        "types": "./dist/segmenter/index.d.ts",
+        "default": "./dist/segmenter/index.js"
+      }
+    },
+    "./migrations": {
+      "import": {
+        "types": "./dist/esm/migrations/index.d.ts",
+        "default": "./dist/esm/migrations/index.js"
+      },
+      "require": {
+        "types": "./dist/migrations/index.d.ts",
+        "default": "./dist/migrations/index.js"
+      }
+    },
     "./schemas/edg-v2.json": "./schemas/edg-v2.json",
     "./schemas/edg-ops-v2.json": "./schemas/edg-ops-v2.json",
     "./fixtures/sample-project.json": "./fixtures/sample-project.json",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./fixtures/segmenter-golden.json": "./fixtures/segmenter-golden.json"
   },
   "scripts": {
     "build": "pnpm run schemas:build && tsc -p tsconfig.build.json && tsc -p tsconfig.esm.json && node scripts/finalise-esm-build.mjs",
     "schemas:build": "tsx scripts/generate-json-schemas.ts",
+    "golden:build": "tsx scripts/build-segmenter-golden.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
