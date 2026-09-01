@@ -25,13 +25,49 @@ function reasons(rejected: { reason: OpRejectionReason }[]): OpRejectionReason[]
 }
 
 describe("last writer wins per (segment, field)", () => {
-  it("drops an incoming write to a field a later revision already wrote", () => {
+  it("drops an incoming write to a scalar field a later revision already wrote", () => {
+    const incoming = [op("HideSegment", { segmentId: A, hidden: true })];
+    const { rebased, rejected } = rebaseOps(incoming, [
+      op("HideSegment", { segmentId: A, hidden: false }),
+    ]);
+    expect(rebased).toEqual([]);
+    expect(reasons(rejected)).toEqual(["rebased-away"]);
+  });
+
+  it("raises a conflict rather than dropping a caption text somebody else rewrote", () => {
     const incoming = [op("SetSegmentText", { segmentId: A, script: "en", text: "mine" })];
     const { rebased, rejected } = rebaseOps(incoming, [
       op("SetSegmentText", { segmentId: A, script: "en", text: "theirs" }),
     ]);
     expect(rebased).toEqual([]);
-    expect(reasons(rejected)).toEqual(["rebased-away"]);
+    expect(reasons(rejected)).toEqual(["conflict"]);
+    expect(rejected[0]?.message).toContain("en");
+  });
+
+  it("only conflicts on the script that was rewritten", () => {
+    const since = [op("SetSegmentText", { segmentId: A, script: "en", text: "theirs" })];
+    const other = rebaseOps(
+      [op("SetSegmentText", { segmentId: A, script: "native", text: "mine" })],
+      since,
+    );
+    expect(other.rebased).toHaveLength(1);
+    expect(other.rejected).toEqual([]);
+    const elsewhere = rebaseOps(
+      [op("SetSegmentText", { segmentId: B, script: "en", text: "mine" })],
+      since,
+    );
+    expect(elsewhere.rebased).toHaveLength(1);
+  });
+
+  it("prefers stale over conflict when the segment itself is gone", () => {
+    const { rejected } = rebaseOps(
+      [op("SetSegmentText", { segmentId: A, script: "en", text: "mine" })],
+      [
+        op("SetSegmentText", { segmentId: A, script: "en", text: "theirs" }),
+        op("MergeSegments", { segmentIds: [A, B], newSegmentId: AB }),
+      ],
+    );
+    expect(reasons(rejected)).toEqual(["stale"]);
   });
 
   it("keeps a write to another script, another field or another segment", () => {

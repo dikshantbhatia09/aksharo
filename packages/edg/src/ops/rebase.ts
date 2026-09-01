@@ -16,8 +16,10 @@ import { type EdgOp, type OpRejection, type OpRejectionReason } from "../schemas
  *    segment-addressed op is `stale-after-resegment`. Word-level and
  *    document-level ops survive it.
  * 2. **A word deleted since the base** makes any op naming it `stale`.
- * 3. **`EditWord` on a word another writer edited** is a `conflict`; the API
- *    turns that into the 409 that carries both texts.
+ * 3. **A concurrent edit of the same text** is a `conflict`, never a silent
+ *    drop: `EditWord` on a word another writer edited, and `SetSegmentText` on a
+ *    `(segment, script)` another writer wrote. The API turns both into the 409
+ *    that carries the two texts, and the client decides which survives.
  * 4. **A segment merged away since the base** is remapped onto the segment that
  *    swallowed it where the op still means something (`SetEmphasis`,
  *    `SetSegmentPosition`, `HideSegment`, `SetStyle`, `SplitSegment`,
@@ -29,6 +31,8 @@ import { type EdgOp, type OpRejection, type OpRejectionReason } from "../schemas
  *    when every field it writes was already written by a later revision. Ops on
  *    other fields of the same segment survive untouched. `DecideItems` and
  *    `SetAudio` are narrowed instead of dropped when only part of them lost.
+ *    Caption text is the exception: dropping it would throw away what the user
+ *    just typed, so a `SetSegmentText` that lost is a `conflict` (rule 3).
  * 6. Anything that would still name a tombstoned id after all that is `stale`,
  *    so a rebased batch can never resurrect a dead id.
  */
@@ -384,7 +388,18 @@ export function rebaseOps(incoming: readonly EdgOp[], opsSince: readonly EdgOp[]
 
     const fields = writtenFields(moved);
     if (fields.length > 0 && fields.every((field) => since.fields.has(field))) {
-      reject(rejected, op, "rebased-away", "a later revision already wrote the same field");
+      if (moved.type === "SetSegmentText") {
+        // Text is the one field a silent last-writer-wins would lose real work
+        // on, so the client is told and resolves it; the 409 carries both texts.
+        reject(
+          rejected,
+          op,
+          "conflict",
+          `segment ${moved.segmentId} was edited in ${moved.script} by another writer`,
+        );
+      } else {
+        reject(rejected, op, "rebased-away", "a later revision already wrote the same field");
+      }
       continue;
     }
 

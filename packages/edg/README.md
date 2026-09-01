@@ -132,19 +132,19 @@ is the realtime `edg.ops` payload.
 `OpRejectionReasonSchema` is a **closed enum** — the engine never sends free text, and a
 new reason means extending the enum (and the generated `edg-ops-v2.json`):
 
-| Reason                  | Raised by     | Meaning                                                                                    |
-| ----------------------- | ------------- | ------------------------------------------------------------------------------------------ |
-| `stale`                 | apply, rebase | the target id is tombstoned, or its word was deleted since the base revision               |
-| `conflict`              | rebase        | another writer edited the same word; the API answers 409 with both texts                   |
-| `invalid`               | apply         | the op payload is self-inconsistent (a `segment` scope with no `segmentId`, a repeated id) |
-| `invalid-range`         | apply         | a time or word range does not fit the document                                             |
-| `not-contiguous`        | apply         | `MergeSegments` named segments that are not neighbours                                     |
-| `unknown-id`            | apply         | the segment, word, item or pass id is not in the document                                  |
-| `invariant`             | apply         | applying would break a document invariant (id reuse, a word id below `nextWordSeq`)        |
-| `rebased-away`          | rebase        | a later revision already wrote the same `(target, field)`                                  |
-| `stale-after-resegment` | rebase        | a `Resegment` since the base revision replaced every segment id                            |
-| `forbidden`             | apply         | the writer may not submit this op — `MergePass` is worker-only                             |
-| `rate-limited`          | API           | the workspace write budget is spent (A12 raises it, never the engine)                      |
+| Reason                  | Raised by     | Meaning                                                                                            |
+| ----------------------- | ------------- | -------------------------------------------------------------------------------------------------- |
+| `stale`                 | apply, rebase | the target id is tombstoned, or its word was deleted since the base revision                       |
+| `conflict`              | rebase        | another writer edited the same word, or the same caption text; the API answers 409 with both texts |
+| `invalid`               | apply         | the op payload is self-inconsistent (a `segment` scope with no `segmentId`, a repeated id)         |
+| `invalid-range`         | apply         | a time or word range does not fit the document                                                     |
+| `not-contiguous`        | apply         | `MergeSegments` named segments that are not neighbours                                             |
+| `unknown-id`            | apply         | the segment, word, item or pass id is not in the document                                          |
+| `invariant`             | apply         | applying would break a document invariant (id reuse, a word id below `nextWordSeq`)                |
+| `rebased-away`          | rebase        | a later revision already wrote the same `(target, field)`                                          |
+| `stale-after-resegment` | rebase        | a `Resegment` since the base revision replaced every segment id                                    |
+| `forbidden`             | apply         | the writer may not submit this op — `MergePass` is worker-only                                     |
+| `rate-limited`          | API           | the workspace write budget is spent (A12 raises it, never the engine)                              |
 
 ## The ops engine
 
@@ -166,7 +166,11 @@ an op against a dead id `stale`, and the `appliedOpIds` idempotency window — t
 `applyOps` is pure and **per-op atomic**: it copies what the batch touches, and each
 handler validates everything before it writes anything, so one rejected op never rolls the
 others back. An `opId` already inside the window is reported as applied without editing the
-document again, which is what makes a retried batch safe. `toProjection` is **canonical** —
+document again, which is what makes a retried batch safe. A **rejected** op is not
+remembered: a retry judges it again against the document it now faces, so an op that was
+`not-contiguous` against one revision can land against the next. That is deliberate — the
+verdict belongs to the attempt, not to the id — and it is the reason a replayed batch is
+only byte-for-byte idempotent when nothing in it was rejected. `toProjection` is **canonical** —
 segments by `seq`, passes by `passId`, items by `(startMs, itemId)`, and empty optional
 fields dropped — so two clients that applied the same commuting ops in a different order
 serialise the same bytes.
@@ -201,22 +205,31 @@ Op semantics worth knowing, because CONTRACTS §2 fixes the shape but not the me
 behind. It reads **only ops** — never the document — so the browser can run it too. Rules
 fire in this order:
 
-| #   | `opsSince` contains            | Incoming op                                                                           | Outcome                                                            |
-| --- | ------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| 1   | `Resegment`                    | any segment-addressed op                                                              | `stale-after-resegment`                                            |
-| 1   | `Resegment`                    | word- or document-level op                                                            | kept                                                               |
-| 2   | `DeleteWord{w}`                | any op naming `w`                                                                     | `stale`                                                            |
-| 3   | `EditWord{w}`                  | `EditWord{w}`                                                                         | `conflict` (409 carries both texts)                                |
-| 3   | `EditWord{w}`                  | `EditWord{other}`                                                                     | kept                                                               |
-| 4   | `MergeSegments{[A,B] -> AB}`   | `SetEmphasis`, `SetSegmentPosition`, `HideSegment`, `SetStyle`, `SplitSegment` on `A` | remapped to `AB` (chained merges are followed to the end)          |
-| 4   | `MergeSegments{[A,B] -> AB}`   | `SetSegmentText`, `SetSegmentBounds` on `A`                                           | `stale` — the merged line is a different line                      |
-| 4   | `MergeSegments{[A,B] -> AB}`   | `MergeSegments{[A,B]}`                                                                | `rebased-away` (nothing left to join)                              |
-| 4   | `SplitSegment{A -> A,C}`       | `MergeSegments{[A, ...]}`                                                             | list grows to `[A, C, ...]`, so the ids are neighbours again       |
-| 5   | any write to `(target, field)` | a write to the **same** field                                                         | `rebased-away` (last writer wins: the applied revision is later)   |
-| 5   | any write to `(target, field)` | a write to another field, script, word or segment                                     | kept                                                               |
-| 5   | `DecideItems`                  | `DecideItems` overlapping it                                                          | narrowed to the undecided items; `rebased-away` when none are left |
-| 5   | `SetAudio`                     | `SetAudio` overlapping it                                                             | narrowed to the half nobody set; `rebased-away` when both are set  |
-| 6   | anything                       | an op still naming a dead id                                                          | `stale` — a rebased batch can never resurrect an id                |
+| #   | `opsSince` contains            | Incoming op                                                                           | Outcome                                                                               |
+| --- | ------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 1   | `Resegment`                    | any segment-addressed op                                                              | `stale-after-resegment`                                                               |
+| 1   | `Resegment`                    | word- or document-level op                                                            | kept                                                                                  |
+| 2   | `DeleteWord{w}`                | any op naming `w`                                                                     | `stale`                                                                               |
+| 3   | `EditWord{w}`                  | `EditWord{w}`                                                                         | `conflict` (409 carries both texts)                                                   |
+| 3   | `EditWord{w}`                  | `EditWord{other}`                                                                     | kept                                                                                  |
+| 4   | `MergeSegments{[A,B] -> AB}`   | `SetEmphasis`, `SetSegmentPosition`, `HideSegment`, `SetStyle`, `SplitSegment` on `A` | remapped to `AB` (chained merges are followed to the end)                             |
+| 4   | `MergeSegments{[A,B] -> AB}`   | `SetSegmentText`, `SetSegmentBounds` on `A`                                           | `stale` — the merged line is a different line                                         |
+| 4   | `MergeSegments{[A,B] -> AB}`   | `MergeSegments{[A,B]}`                                                                | `rebased-away` (nothing left to join)                                                 |
+| 4   | `SplitSegment{A -> A,C}`       | `MergeSegments{[A, ...]}`                                                             | list grows to `[A, C, ...]`, so the ids are neighbours again                          |
+| 5   | `SetSegmentText{s, script}`    | `SetSegmentText{s, script}`                                                           | `conflict` — caption text is never dropped silently                                   |
+| 5   | any write to `(target, field)` | a write to the **same** field                                                         | `rebased-away` (last writer wins: the applied revision is later) — except text, above |
+| 5   | any write to `(target, field)` | a write to another field, script, word or segment                                     | kept                                                                                  |
+| 5   | `DecideItems`                  | `DecideItems` overlapping it                                                          | narrowed to the undecided items; `rebased-away` when none are left                    |
+| 5   | `SetAudio`                     | `SetAudio` overlapping it                                                             | narrowed to the half nobody set; `rebased-away` when both are set                     |
+| 6   | anything                       | an op still naming a dead id                                                          | `stale` — a rebased batch can never resurrect an id                                   |
+
+Last writer wins is for the **scalar** fields — bounds, emphasis, position, hidden, style
+and the document-level fields — where the loser is a setting the user can see and set
+again. Caption text is the exception: a `SetSegmentText` that lost its
+`(segment, script)` to a later revision comes back as a `conflict`, not
+`rebased-away`, so the keystrokes the user just typed reach the client instead of
+disappearing. The 409 carries both texts and the client resolves it, exactly as it does
+for `EditWord`.
 
 Fields are `text:<script>`, `bounds`, `emphasis:<wordId>`, `position`, `hidden` and `style`
 per segment; `doc:style`, `doc:segments` (`Resegment`), `doc:audio:<key>` and

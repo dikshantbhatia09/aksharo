@@ -54,8 +54,9 @@ interface World {
 /** A document with segments, a transcript and one pass to decide on. */
 function world(): World {
   const fixture = buildFixture();
-  const passId = mint();
-  const itemIds = [mint(), mint()];
+  const worldIds = idFactory(1_000_000);
+  const passId = worldIds();
+  const itemIds = [worldIds(), worldIds()];
   const projection = { ...fixture.projection, passes: [seededPass(passId, itemIds)] };
   return {
     state: fromProjection(projection, { chunks: fixture.chunks }),
@@ -67,8 +68,33 @@ function world(): World {
 
 const base = world();
 
+/**
+ * An op **without** its `opId` and without the ids it mints. An arbitrary has to
+ * be pure — fast-check may read a generated value more than once — so the ids are
+ * stamped on afterwards, by `materialise`, inside the property itself.
+ */
+type OpSpec = Record<string, unknown>;
+
+let mintedWordSeq = 500;
+
+/** Stamps an `opId`, and the ids a creating op needs, onto generated specs. */
+function materialise(specs: readonly OpSpec[]): EdgOp[] {
+  return specs.map((spec) => {
+    const op: Record<string, unknown> = { opId: mint(), ...spec };
+    // Ops that create something need an id the document has never seen.
+    if (op["type"] === "SplitSegment" || op["type"] === "MergeSegments") {
+      op["newSegmentId"] = mint();
+    }
+    if (op["type"] === "InsertWordAfter") {
+      mintedWordSeq += 1;
+      op["newWordId"] = `0:${String(mintedWordSeq)}`;
+    }
+    return op as unknown as EdgOp;
+  });
+}
+
 /** Any op a client could plausibly send at this document, valid or not. */
-function anyOp({ segmentIds, wordIds, itemIds }: World): fc.Arbitrary<EdgOp> {
+function anyOp({ segmentIds, wordIds, itemIds }: World): fc.Arbitrary<OpSpec> {
   const segmentId = fc.constantFrom(...segmentIds);
   const wordId = fc.constantFrom(...wordIds);
   const script = fc.constantFrom("roman" as const, "native" as const, "en" as const);
@@ -152,30 +178,122 @@ function anyOp({ segmentIds, wordIds, itemIds }: World): fc.Arbitrary<EdgOp> {
         presets: fc.array(fc.constantFrom("social", "broadcast"), { maxLength: 2 }),
       }),
     )
-    .map((generated) => {
-      const op = { opId: mint(), ...generated } as Record<string, unknown>;
-      // Ops that create something need an id the document has never seen.
-      if (op["type"] === "SplitSegment" || op["type"] === "MergeSegments") {
-        op["newSegmentId"] = mint();
-      }
-      if (op["type"] === "InsertWordAfter") {
-        op["newWordId"] =
-          `0:${String(500 + Number(String(op["opId"]).slice(-3).replace(/\D/gu, "0")))}`;
-      }
-      return op as unknown as EdgOp;
-    });
+    .map((generated) => generated as OpSpec);
 }
 
 const anyBatch = fc.array(anyOp(base), { minLength: 1, maxLength: 8 });
 
+/**
+ * Ops that are always applicable to the fixture: they address ids that exist,
+ * stay inside their segment, and cannot invalidate one another. Anything that
+ * tombstones an id is deliberately absent, so a batch of these must apply whole.
+ */
+function validOp({ segmentIds, wordIds, itemIds }: World): fc.Arbitrary<OpSpec> {
+  const WORDS_PER_SEGMENT = 4;
+  const segmentIndex = fc.integer({ min: 0, max: segmentIds.length - 1 });
+  const inSegment = segmentIndex.chain((index) =>
+    fc.record({
+      segmentId: fc.constant(segmentIds[index] ?? ""),
+      wordId: fc.constantFrom(
+        ...wordIds.slice(index * WORDS_PER_SEGMENT, (index + 1) * WORDS_PER_SEGMENT),
+      ),
+    }),
+  );
+  const segmentId = segmentIndex.map((index) => segmentIds[index] ?? "");
+  return fc
+    .oneof(
+      fc.record({
+        type: fc.constant("SetSegmentText" as const),
+        segmentId,
+        script: fc.constantFrom("roman" as const, "native" as const, "en" as const),
+        text: fc.string({ maxLength: 24 }),
+      }),
+      fc.record({ type: fc.constant("HideSegment" as const), segmentId, hidden: fc.boolean() }),
+      fc.record({
+        type: fc.constant("SetSegmentPosition" as const),
+        segmentId,
+        position: fc.constantFrom(null, { x: 0.5, y: 0.8, anchor: "bottom-center" }),
+      }),
+      fc.record({
+        type: fc.constant("SetStyle" as const),
+        scope: fc.constant("segment" as const),
+        segmentId,
+        styleRef: fc.constantFrom("punch-pop", "clean-caption"),
+      }),
+      fc.record({
+        type: fc.constant("SetStyle" as const),
+        scope: fc.constant("doc" as const),
+        styleRef: fc.constantFrom("punch-pop", "clean-caption"),
+      }),
+      inSegment.map((pair) => ({
+        type: "SetEmphasis" as const,
+        segmentId: pair.segmentId,
+        wordId: pair.wordId,
+        presetId: "pop",
+      })),
+      fc.record({
+        type: fc.constant("EditWord" as const),
+        wordId: fc.constantFrom(...wordIds),
+        text: fc.string({ minLength: 1, maxLength: 12 }),
+      }),
+      fc.record({
+        type: fc.constant("DecideItems" as const),
+        itemIds: fc.uniqueArray(fc.constantFrom(...itemIds), { minLength: 1 }),
+        state: fc.constantFrom("accepted" as const, "rejected" as const),
+      }),
+      fc.record({
+        type: fc.constant("SetAudio" as const),
+        clean: fc.record({ enabled: fc.boolean() }),
+      }),
+      fc.record({
+        type: fc.constant("SetRender" as const),
+        presets: fc.array(fc.constantFrom("social", "broadcast"), { maxLength: 2 }),
+      }),
+    )
+    .map((generated) => generated as OpSpec);
+}
+
+const validBatch = fc.array(validOp(base), { minLength: 1, maxLength: 8 });
+
 describe("applyOps is idempotent", () => {
-  it("leaves the document untouched when the same batch arrives twice", () => {
+  it("never applies an op that already landed, however the batch is replayed", () => {
     fc.assert(
-      fc.property(anyBatch, (ops) => {
+      fc.property(anyBatch, (specs) => {
+        const ops = materialise(specs);
         const once = applyOps(world().state, ops, { source: "worker" });
+        const twice = applyOps(once.state, ops, { source: "worker" });
+        // Everything that landed comes back as a retry, in the same order, and
+        // edits nothing. An op the first pass *rejected* is judged again against
+        // the document it now faces, which is the point of a per-op verdict.
+        expect(twice.skipped).toEqual(once.applied);
+        // A replay never loses an op that landed, and the only ops it can add
+        // are ones the first pass rejected against a document that has since
+        // moved on — never a second application of something already in.
+        const landed = new Set(once.applied);
+        const refused = new Set(once.rejected.map((rejection) => rejection.opId));
+        for (const opId of once.applied) expect(twice.applied).toContain(opId);
+        for (const opId of twice.applied) {
+          if (!landed.has(opId)) expect(refused.has(opId)).toBe(true);
+        }
+        if (once.rejected.length === 0) {
+          expect(twice.applied).toEqual(once.applied);
+          expect(toProjection(twice.state)).toEqual(toProjection(once.state));
+          expect([...twice.state.words.entries()]).toEqual([...once.state.words.entries()]);
+        }
+      }),
+    );
+  });
+
+  it("leaves the document untouched when a batch that fully applied arrives twice", () => {
+    fc.assert(
+      fc.property(validBatch, (specs) => {
+        const ops = materialise(specs);
+        const once = applyOps(world().state, ops, { source: "worker" });
+        expect(once.rejected).toEqual([]);
         const twice = applyOps(once.state, ops, { source: "worker" });
         expect(twice.applied).toEqual(once.applied);
         expect(twice.skipped).toEqual(once.applied);
+        expect(twice.rejected).toEqual([]);
         expect(toProjection(twice.state)).toEqual(toProjection(once.state));
         expect([...twice.state.words.entries()]).toEqual([...once.state.words.entries()]);
       }),
@@ -265,7 +383,9 @@ describe("commuting ops converge", () => {
 describe("the document stays valid", () => {
   it("holds every projection invariant after any sequence of ops", () => {
     fc.assert(
-      fc.property(anyBatch, anyBatch, (first, second) => {
+      fc.property(anyBatch, anyBatch, (firstSpecs, secondSpecs) => {
+        const first = materialise(firstSpecs);
+        const second = materialise(secondSpecs);
         const start = world().state;
         const once = applyOps(start, first, { source: "worker" });
         const twice = applyOps(once.state, second, { source: "worker" });
@@ -286,7 +406,9 @@ describe("the document stays valid", () => {
 describe("rebaseOps never resurrects a dead id", () => {
   it("produces no op naming a segment merged away or a word deleted since the base", () => {
     fc.assert(
-      fc.property(anyBatch, anyBatch, (incoming, opsSince) => {
+      fc.property(anyBatch, anyBatch, (incomingSpecs, sinceSpecs) => {
+        const incoming = materialise(incomingSpecs);
+        const opsSince = materialise(sinceSpecs);
         const { rebased, rejected } = rebaseOps(incoming, opsSince);
         const since = analyseOpsSince(opsSince);
         expect(rebased.length + rejected.length).toBe(incoming.length);
@@ -303,9 +425,28 @@ describe("rebaseOps never resurrects a dead id", () => {
     );
   });
 
+  it("never drops a caption-text edit silently", () => {
+    fc.assert(
+      fc.property(anyBatch, anyBatch, (incomingSpecs, sinceSpecs) => {
+        const incoming = materialise(incomingSpecs);
+        const opsSince = materialise(sinceSpecs);
+        const { rejected } = rebaseOps(incoming, opsSince);
+        const byOpId = new Map(incoming.map((op) => [op.opId, op]));
+        for (const rejection of rejected) {
+          if (byOpId.get(rejection.opId)?.type !== "SetSegmentText") continue;
+          // Losing the field is a conflict for the client to resolve; the other
+          // reasons mean the segment itself is gone, which the client can see.
+          expect(["conflict", "stale", "stale-after-resegment"]).toContain(rejection.reason);
+        }
+      }),
+    );
+  });
+
   it("keeps every rebased op applicable, or rejects it with a reason", () => {
     fc.assert(
-      fc.property(anyBatch, anyBatch, (incoming, opsSince) => {
+      fc.property(anyBatch, anyBatch, (incomingSpecs, sinceSpecs) => {
+        const incoming = materialise(incomingSpecs);
+        const opsSince = materialise(sinceSpecs);
         const start = world().state;
         const applied = applyOps(start, opsSince, { source: "worker" });
         const { rebased } = rebaseOps(incoming, opsSince);

@@ -686,3 +686,45 @@ describe("times recomputed from the words never run backwards", () => {
     expect(result.state.segments.get(first)).toMatchObject({ startMs: 100, endMs: 200 });
   });
 });
+
+describe("MergeSegments spans word ranges that seq order does not", () => {
+  it("takes the outermost words, not the first and last segment's own ends", () => {
+    const { state, segmentIds, wordIds } = setup();
+    const [first = "", second = ""] = segmentIds;
+    // A client may point a caption at words that sit after its neighbour's:
+    // `seq` decides what shows when, and does not have to follow the transcript.
+    const crossed = apply(state, [
+      op("SetSegmentBounds", {
+        segmentId: first,
+        startMs: 4000,
+        endMs: 5950,
+        startWordId: wordIds[8] ?? "0:8",
+        endWordId: wordIds[11] ?? "0:11",
+      }),
+    ]);
+    const result = apply(crossed.state, [
+      op("MergeSegments", { segmentIds: [first, second], newSegmentId: idFactory(960)() }),
+    ]);
+    const merged = segment(result.state, result.state.segmentOrder[0] ?? "");
+    expect(merged).toMatchObject({
+      startWordId: "0:4",
+      endWordId: "0:11",
+      startMs: 2000,
+      endMs: 5950,
+    });
+  });
+
+  it("keeps the seq-order ends when the transcript is not loaded", () => {
+    const fixture = buildFixture();
+    const state = fromProjection(fixture.projection);
+    const [first = "", second = ""] = fixture.segmentIds;
+    const result = applyOps(state, [
+      op("MergeSegments", { segmentIds: [first, second], newSegmentId: idFactory(961)() }),
+    ]);
+    expect(result.rejected).toEqual([]);
+    expect(result.state.segments.get(result.state.segmentOrder[0] ?? "")).toMatchObject({
+      startWordId: "0:0",
+      endWordId: "0:7",
+    });
+  });
+});

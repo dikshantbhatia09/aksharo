@@ -275,6 +275,39 @@ function mergeTextOverrides(segments: readonly Segment[]): Record<string, string
   return merged;
 }
 
+/**
+ * The first (or last) word any of these segments reaches, in document order.
+ *
+ * Not simply the first segment's `startWordId`: `seq` orders captions on screen
+ * and a client may set bounds that do not follow it, so two neighbours can hold
+ * word ranges the other way round. The merged caption has to span them all, the
+ * same way its times take the minimum and the maximum.
+ *
+ * `undefined` when the transcript is not loaded, and the caller keeps the ends
+ * that `seq` order suggests.
+ */
+function outermostWord(
+  draft: EdgDraft,
+  segments: readonly Segment[],
+  edge: "start" | "end",
+): WordId | undefined {
+  let chosen: WordId | undefined;
+  let chosenPosition: number | undefined;
+  for (const segment of segments) {
+    const wordId = edge === "start" ? segment.startWordId : segment.endWordId;
+    const position = positionOf(draft, wordId);
+    if (position === undefined) return undefined;
+    if (
+      chosenPosition === undefined ||
+      (edge === "start" ? position < chosenPosition : position > chosenPosition)
+    ) {
+      chosen = wordId;
+      chosenPosition = position;
+    }
+  }
+  return chosen;
+}
+
 function applyMergeSegments(draft: EdgDraft, op: MergeSegmentsOp): void {
   if (new Set(op.segmentIds).size !== op.segmentIds.length) {
     fail("invalid", "segmentIds repeats an id");
@@ -312,8 +345,8 @@ function applyMergeSegments(draft: EdgDraft, op: MergeSegmentsOp): void {
     ...first,
     id: op.newSegmentId,
     seq: first.seq,
-    startWordId: first.startWordId,
-    endWordId: last.endWordId,
+    startWordId: outermostWord(draft, segments, "start") ?? first.startWordId,
+    endWordId: outermostWord(draft, segments, "end") ?? last.endWordId,
     startMs: Math.min(...segments.map((segment) => segment.startMs)),
     endMs: Math.max(...segments.map((segment) => segment.endMs)),
     textOverrides: mergeTextOverrides(segments),
