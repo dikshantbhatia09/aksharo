@@ -63,4 +63,7 @@ Rooms `project:{projectId}`, `workspace:{workspaceId}`; events `edg.ops {revisio
 `{ error: { code, message, details?, requestId } }`; codes are `namespace/slug` (see `03-architecture/07`).
 
 ## 9. Testing conventions
-Unit: vitest (TS) / pytest (Py). Integration: testcontainers. E2E: Playwright (chromium + webkit). Property tests: fast-check (TS) / hypothesis (Py) for credits and EDG ops. Coverage gates per package in `turbo.json` tasks.
+Unit: vitest (TS) / pytest (Py). Integration: testcontainers. E2E: Playwright (chromium + webkit). Property tests: fast-check (TS) / hypothesis (Py) for credits and EDG ops. **Coverage thresholds** (lines/branches) enforced via `coverageThresholds()` from `@montaj/config`: `packages/edg`, `packages/timemap`, `packages/caption-styles`, `packages/render-core`, `packages/ass-exporter` = 90/85; `apps/api`, `apps/worker-media`, `apps/render`, `apps/worker-ai` = 75/70; `apps/web` = 60/50 (UI); generated code excluded. Each WP that creates a package adds its threshold.
+
+## 10. Toolchain policy
+Version pins chosen in A01 (Node 22, pnpm 9.15.9, TS 5.9, ESLint 9, NestJS 11, Next 15, Prisma 6, Vitest 3, Python 3.12) are the floor **until Gate A**; no WP upgrades majors. A dedicated upgrade WP (X07) runs after Gate A. `prisma generate` is wired into `apps/api` build/postinstall by A03.
