@@ -25,6 +25,11 @@ import { AppModule } from "../src/app.module.js";
 import { PrismaService } from "../src/common/prisma/prisma.service.js";
 import { RedisService } from "../src/common/redis/redis.service.js";
 import { openApiDocumentConfig } from "../src/openapi.js";
+import {
+  InMemoryRealtimeBroker,
+  InMemoryRealtimeBus,
+  REALTIME_BUS,
+} from "../src/realtime/realtime.bus.js";
 
 /**
  * `pnpm run` sets the working directory to the package root, and the compiled
@@ -44,6 +49,10 @@ const OPERATIONS_PATH = resolve(CLIENT_DIR, "src/generated/operations.ts");
  */
 const PLACEHOLDER_ENV: Record<string, string> = {
   NODE_ENV: "development",
+  // A08: without this the scheduler starts a BullMQ worker that blocks on Redis
+  // and the generator never exits.
+  MONTAJ_SCHEDULER_DISABLED: "1",
+  MONTAJ_QUEUE_PREFIX: "montaj-gen-client",
   DATABASE_URL: "postgresql://localhost:5432/unused?schema=public",
   REDIS_URL: "redis://localhost:6379",
   S3_ENDPOINT: "http://localhost:9000",
@@ -145,6 +154,26 @@ export function findOperation(operationId: ApiOperationId): ApiOperation | undef
 `;
 }
 
+/** Enough of `RedisService` for the module graph to construct; nothing dials out. */
+function fakeRedis() {
+  const client = {
+    status: "ready" as const,
+    on: () => client,
+    publish: async () => 1,
+    subscribe: async () => 1,
+    unsubscribe: async () => 1,
+    duplicate: () => client,
+    disconnect: () => undefined,
+    quit: async () => "OK",
+    ping: async () => "PONG",
+  };
+  return {
+    client,
+    ping: async (): Promise<void> => undefined,
+    onModuleDestroy: async (): Promise<void> => undefined,
+  };
+}
+
 async function main(): Promise<void> {
   if (!existsSync(resolve(API_DIR, "prisma/schema.prisma"))) {
     throw new Error(`run this from apps/api (cwd is ${API_DIR})`);
@@ -158,7 +187,10 @@ async function main(): Promise<void> {
     .overrideProvider(PrismaService)
     .useValue({ $connect: async () => undefined, $disconnect: async () => undefined })
     .overrideProvider(RedisService)
-    .useValue({ ping: async () => undefined, onModuleDestroy: async () => undefined })
+    .useValue(fakeRedis())
+    // A08's gateway would otherwise open a real pub/sub connection.
+    .overrideProvider(REALTIME_BUS)
+    .useValue(new InMemoryRealtimeBus(new InMemoryRealtimeBroker()))
     .compile();
 
   const app = moduleRef.createNestApplication({ logger: false });
@@ -183,6 +215,10 @@ async function main(): Promise<void> {
     `[gen:client] ${String(operations.length)} operations -> ` +
       `packages/api-client (openapi.json, src/generated/operations.ts)`,
   );
+
+  // The files are written; a queue client or a socket that outlived `app.close()`
+  // must not keep a codegen step alive.
+  process.exit(0);
 }
 
 main().catch((error: unknown) => {

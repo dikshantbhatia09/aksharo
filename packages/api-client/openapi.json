@@ -1,60 +1,6 @@
 {
   "openapi": "3.0.0",
   "paths": {
-    "/health": {
-      "get": {
-        "operationId": "getHealth",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Liveness probe",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/ready": {
-      "get": {
-        "operationId": "getReadiness",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadinessResponseDto"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "A dependency is down.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadinessResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Readiness probe (db, redis, storage)",
-        "tags": [
-          "health"
-        ]
-      }
-    },
     "/auth/signup": {
       "post": {
         "description": "Always answers the same way, whether or not the address is already registered: a registration form that says 'already taken' is a free account checker. Blocked by the age gate (403 auth/age_restricted) for India under 18 and the EU under 16.",
@@ -1404,6 +1350,222 @@
           "auth"
         ]
       }
+    },
+    "/jobs": {
+      "get": {
+        "description": "Cursor pagination: pass the previous page's `nextCursor` as `cursor`. Ids are ULIDs, so the cursor is stable and ordered by creation time.",
+        "operationId": "listJobs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List the workspace's jobs, newest first",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/jobs/{id}": {
+      "get": {
+        "operationId": "getJob",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`jobs/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Fetch one job",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/jobs/{id}/events": {
+      "get": {
+        "description": "Rows are purged 30 days after they are written (`data.retainUntil`).",
+        "operationId": "listJobEvents",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobEventPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`jobs/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The job's event log, oldest first",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/jobs/{id}/cancel": {
+      "post": {
+        "description": "Releases the credit hold. A finished job is `jobs/invalid_state` (409).",
+        "operationId": "cancelJob",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`jobs/not_found`."
+          },
+          "409": {
+            "description": "`jobs/invalid_state`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Cancel a queued or running job",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Liveness probe",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "getReadiness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Readiness probe (db, redis, storage)",
+        "tags": [
+          "health"
+        ]
+      }
     }
   },
   "info": {
@@ -1428,6 +1590,194 @@
       }
     },
     "schemas": {
+      "JobDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "01JBZ0Q4T7R8N4H1V0J9K2M3P5",
+            "description": "ULID."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "media.probe",
+              "media.proxy",
+              "ai.vad",
+              "ai.transcribe",
+              "ai.align",
+              "ai.diarise",
+              "ai.translate",
+              "ai.transliterate",
+              "ai.clean",
+              "ai.pass",
+              "ai.llm",
+              "render.video",
+              "render.subtitle",
+              "notify"
+            ],
+            "description": "Queue name (CONTRACTS §3)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "priority": {
+            "type": "number",
+            "description": "Lower runs first; derived from the workspace's plan."
+          },
+          "progress": {
+            "type": "number",
+            "description": "0–100."
+          },
+          "etaMs": {
+            "type": "object",
+            "nullable": true,
+            "description": "Estimated milliseconds remaining."
+          },
+          "projectId": {
+            "type": "object",
+            "nullable": true
+          },
+          "jobKey": {
+            "type": "string",
+            "description": "Deduplication key: one live job per (workspace, key)."
+          },
+          "attemptId": {
+            "type": "object",
+            "nullable": true,
+            "description": "Identifies this run of the job."
+          },
+          "creditsChargedTenths": {
+            "type": "number",
+            "description": "Credits in tenths: the hold while running, the charge once finished."
+          },
+          "maxQueueWaitMs": {
+            "type": "object",
+            "nullable": true,
+            "description": "Milliseconds this job may wait in `queued`."
+          },
+          "result": {
+            "type": "object",
+            "nullable": true,
+            "description": "Completion result."
+          },
+          "error": {
+            "type": "object",
+            "nullable": true,
+            "description": "`{code, message, retryable}`."
+          },
+          "provider": {
+            "type": "object",
+            "nullable": true
+          },
+          "model": {
+            "type": "object",
+            "nullable": true
+          },
+          "queuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "priority",
+          "progress",
+          "jobKey",
+          "creditsChargedTenths",
+          "queuedAt"
+        ]
+      },
+      "JobPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobDto"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true,
+            "description": "Pass as `cursor` for the next page."
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "JobEventDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "debug",
+              "info",
+              "warn",
+              "error"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "level",
+          "message"
+        ]
+      },
+      "JobEventPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobEventDto"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
       "HealthResponseDto": {
         "type": "object",
         "properties": {

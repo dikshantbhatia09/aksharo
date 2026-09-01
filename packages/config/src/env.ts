@@ -27,6 +27,7 @@ export const CONTRACT_ENV_VARS = [
   "JWT_PRIVATE_KEY",
   "JWT_PUBLIC_KEY",
   "INTERNAL_CALLBACK_SECRET",
+  "INTERNAL_CALLBACK_SECRET_NEXT",
   "GOOGLE_OAUTH_CLIENT_ID",
   "GOOGLE_OAUTH_CLIENT_SECRET",
   "WEB_ORIGIN",
@@ -129,6 +130,13 @@ export const envSchema = z.object({
   INTERNAL_CALLBACK_SECRET: nonEmpty("INTERNAL_CALLBACK_SECRET").refine(
     (value) => value.length >= 32,
     "INTERNAL_CALLBACK_SECRET must be at least 32 characters (32 random bytes, hex-encoded)",
+  ),
+  // Rotation: set the incoming secret here, roll every worker onto it, then
+  // promote it to INTERNAL_CALLBACK_SECRET and clear this. The API accepts a
+  // signature from either while both are set, so no callback is lost mid-roll.
+  INTERNAL_CALLBACK_SECRET_NEXT: optionalSecret().refine(
+    (value) => value === undefined || value.length >= 32,
+    "INTERNAL_CALLBACK_SECRET_NEXT must be at least 32 characters (32 random bytes, hex-encoded)",
   ),
   GOOGLE_OAUTH_CLIENT_ID: optionalSecret(),
   GOOGLE_OAUTH_CLIENT_SECRET: optionalSecret(),

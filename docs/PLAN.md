@@ -33,15 +33,16 @@ Roles: **Fable 5.1** designs, decides, writes briefs, verifies gates. **Opus 5 a
 | A02c | `@montaj/timemap` | A02 | Opus | done |
 | A03 | api: Prisma schema v2 + hand SQL, migrations, seed, base modules | A01 | Opus | done |
 | A03b | api: seed loader injection, `registry.json` exclusion, `edg_segments.seq` → `text COLLATE "C"` migration (A02/A03 reconciliation) | A02, A03 | Opus | done |
+| A03c | api: `PassStatus` enum `succeeded` → `ready` migration (package is source of truth) | A02b, A03b | Opus | in-progress |
 | X05 | infra: Terraform, staging env, dashboards | A01 | Opus | done |
 | X06 | Threat model → checklist (docs/THREAT-MODEL.md) | — | Fable | done |
 | A04 | api: auth (families, device code, token exchange) | A03, X06 | Opus | in-progress |
 | A05 | api: users, workspaces (tax profile), memberships | A04 | Opus | briefed |
 | A06 | api: projects + media (S3 raw, R2 derived) | A05 | Opus | briefed |
 | A07 | worker-media: probe, 16k/48k audio, proxy, waveform, thumbs | A03, A06 | Opus | briefed |
-| A08 | api: jobs, WS gateway, idempotent completion, CreditsFacade (no-op), admission control | A03 | Opus | in-progress |
-| A08b | DLQ + admin replay | A08 | Opus | briefed |
-| A09 | worker-ai skeleton (BullMQ Python, mock provider, serverless Whisper adapter, VAD, alignment registry) | A08 | Opus | briefed |
+| A08 | api: jobs, WS gateway, idempotent completion, CreditsFacade (no-op), admission control | A03 | Opus | done |
+| A08b | DLQ + admin replay | A08 | Opus | in-progress |
+| A09 | worker-ai skeleton (BullMQ Python, mock provider, serverless Whisper adapter, VAD, alignment registry) | A08 | Opus | in-progress |
 
 Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 

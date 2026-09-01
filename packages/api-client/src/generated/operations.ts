@@ -96,6 +96,13 @@ export const API_OPERATIONS = [
     summary: "Confirm an email address with a single-use token",
   },
   {
+    operationId: "cancelJob",
+    method: "POST",
+    path: "/jobs/{id}/cancel",
+    tags: ["jobs"],
+    summary: "Cancel a queued or running job",
+  },
+  {
     operationId: "DeviceController_decide",
     method: "POST",
     path: "/auth/device/approve",
@@ -131,11 +138,32 @@ export const API_OPERATIONS = [
     summary: "Liveness probe",
   },
   {
+    operationId: "getJob",
+    method: "GET",
+    path: "/jobs/{id}",
+    tags: ["jobs"],
+    summary: "Fetch one job",
+  },
+  {
     operationId: "getReadiness",
     method: "GET",
     path: "/health/ready",
     tags: ["health"],
     summary: "Readiness probe (db, redis, storage)",
+  },
+  {
+    operationId: "listJobEvents",
+    method: "GET",
+    path: "/jobs/{id}/events",
+    tags: ["jobs"],
+    summary: "The job's event log, oldest first",
+  },
+  {
+    operationId: "listJobs",
+    method: "GET",
+    path: "/jobs",
+    tags: ["jobs"],
+    summary: "List the workspace's jobs, newest first",
   },
   {
     operationId: "OAuthController_callback",

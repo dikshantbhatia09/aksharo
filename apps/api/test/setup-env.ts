@@ -10,6 +10,13 @@
  */
 const TEST_ENV: Record<string, string> = {
   NODE_ENV: "test",
+  // A08: the scheduler's BullMQ worker would dial Redis the moment a Nest app
+  // boots. Suites drive scheduled tasks through `ScheduledTasksService.runNow`.
+  MONTAJ_SCHEDULER_DISABLED: "1",
+  // A08: partition every BullMQ key and realtime channel this suite touches. The
+  // pid keeps two suites — or two agents sharing one Redis — from colliding, and
+  // the integration suite deletes its own keys when it is done.
+  MONTAJ_QUEUE_PREFIX: `montaj-test-${String(process.pid)}`,
   DATABASE_URL: "postgresql://montaj:montaj@localhost:5432/montaj_test?schema=public",
   REDIS_URL: "redis://localhost:6379",
   S3_ENDPOINT: "http://localhost:9000",

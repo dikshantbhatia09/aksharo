@@ -166,7 +166,9 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
     .useValue(google)
     .compile();
 
-  const app = moduleRef.createNestApplication({ logger: false });
+  // `rawBody` mirrors `main.ts` (A08 signs the internal callbacks over the bytes
+  // as sent), so this suite boots the shipped wiring rather than a variant of it.
+  const app = moduleRef.createNestApplication({ logger: false, rawBody: true });
   app.useGlobalFilters(new HttpExceptionFilter());
   setupOpenApi(app);
   await app.init();

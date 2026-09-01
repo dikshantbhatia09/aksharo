@@ -44,6 +44,51 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     unit suites for the token service, the password policy, the guards, the age
     gate and the token primitives. THREAT-MODEL T1–T4 are mapped to evidence in
     `apps/api/src/auth/README.md`.
+  - Fixed `apps/api/vitest.config.ts`: `mergeConfig` takes two configs and a
+    boolean, so the four-argument call had been silently dropping the CONTRACTS
+    section 9 coverage gate and the exclude list.
+
+- **A08 — api: jobs module, realtime gateway, idempotent completion callbacks,
+  no-op `CreditsFacade`, admission control.**
+  - `apps/api/src/jobs`: `JobsService` — the producer for every queue in
+    CONTRACTS section 3 — with the enqueue order that makes the whole thing safe
+    (dedupe by `jobKey`, admission control, `jobs` row, `CreditsFacade.reserve`,
+    BullMQ add, `job_events`), so a job that reaches Redis always has a row and a
+    credit hold behind it and every earlier failure unwinds cleanly. Cursor-paged
+    `GET /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/events` and
+    `POST /jobs/{id}/cancel`, all scoped to the token's workspace, with another
+    workspace's job answering 404 rather than 403 (THREAT-MODEL T5).
+  - **Admission control** (THREAT-MODEL T23): per-workspace enqueued-credit cap
+    (429 `jobs/enqueue_cap`), concurrency lane (429 `jobs/concurrency_cap`),
+    per-plan `maxQueueWaitMs` swept every 30 s into `jobs/queue_timeout` with the
+    hold released, and the free-tier daily allowance enforced in the facade.
+  - `apps/api/src/internal`: the signed worker callbacks —
+    `POST /internal/jobs/{id}/progress`, `/complete`, `/enqueue-child` and
+    `PATCH /internal/media/{id}` — behind `X-Montaj-Signature`
+    (`hmac_sha256(secret, timestamp + "." + rawBody)`), a five-minute skew window
+    and constant-time comparison. Completion is idempotent on `(jobId, attemptId)`
+    through a conditional `UPDATE ... WHERE status IN ('queued','running')`, so a
+    replay answers 200 and settles nothing (THREAT-MODEL T8/T9). Two-key rotation
+    via the new optional `INTERNAL_CALLBACK_SECRET_NEXT`. The whole surface is
+    excluded from `/docs`.
+  - `apps/api/src/realtime`: `/realtime` over plain `ws` — authentication at the
+    upgrade (`Sec-WebSocket-Protocol: aksharo.v1, bearer.<token>`, or an
+    `Authorization` header), rooms `project:{id}` / `workspace:{id}` authorised
+    against the token's workspace _and_ a live membership, Redis pub/sub fan-out
+    with reference-counted subscriptions, a 30-second heartbeat and documented
+    reconnection semantics (`apps/api/src/realtime/README.md`). The four events of
+    CONTRACTS section 7 are typed now; A12 and B15 emit two of them later.
+  - `apps/api/src/credits`: the CONTRACTS section 4 `CreditsFacade` interface plus
+    a `grantLot` signature for Wave 3, and `NoopCreditsFacade` — real shape, real
+    idempotency, no ledger. B02 changes one `useClass`.
+  - `apps/api/src/common/scheduler`: `ScheduledTasksService`, cron for the API on
+    BullMQ job schedulers, so periodic work is one registration rather than a
+    timer per module. `jobs.queue-timeout` is its first task.
+  - `tools/runbooks/queue-drain.js`: pause a queue, wait for its active jobs to
+    drain with a timeout, print the counts; `--status`, `--resume`, `--json`.
+  - New optional environment variables: `INTERNAL_CALLBACK_SECRET_NEXT`
+    (CONTRACTS section 1, rotation), and the non-contract `MONTAJ_QUEUE_PREFIX`
+    (defaults to BullMQ's own `bull`) and `MONTAJ_SCHEDULER_DISABLED`.
 
 - **A03b — api: seq is a base-62 string; style loader hardened.**
   - `edg_segments.seq` becomes `text COLLATE "C"` (migration
