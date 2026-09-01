@@ -5,24 +5,26 @@ import { ConfigModule } from "../config/config.module.js";
 import { LoggingModule } from "./logging/logging.module.js";
 import { PrismaModule } from "./prisma/prisma.module.js";
 import { RedisModule } from "./redis/redis.module.js";
+import { SchedulerModule } from "./scheduler/scheduler.module.js";
 import { TelemetryService } from "./telemetry/telemetry.service.js";
 import { ZodValidationPipe } from "./validation/zod-validation.pipe.js";
 
 /**
  * Everything a feature module may assume is present: validated configuration,
- * the database, Redis, request-correlated logging and request validation.
+ * the database, Redis, request-correlated logging, request validation and the
+ * scheduler primitive periodic work registers with.
  *
- * All four sub-modules are `@Global()`, so importing `CommonModule` once in
- * `AppModule` is enough — feature modules inject `ENV`, `PrismaService` or
- * `RedisService` without importing anything.
+ * All five sub-modules are `@Global()`, so importing `CommonModule` once in
+ * `AppModule` is enough — feature modules inject `ENV`, `PrismaService`,
+ * `RedisService` or `ScheduledTasksService` without importing anything.
  *
  * The exception filter is NOT registered here. It is bound in `main.ts` with
  * `app.useGlobalFilters()` so that it also catches failures raised before the
  * router runs, which an `APP_FILTER` provider does not.
  */
 @Module({
-  imports: [ConfigModule, LoggingModule, PrismaModule, RedisModule],
+  imports: [ConfigModule, LoggingModule, PrismaModule, RedisModule, SchedulerModule],
   providers: [{ provide: APP_PIPE, useClass: ZodValidationPipe }, TelemetryService],
-  exports: [ConfigModule, LoggingModule, PrismaModule, RedisModule],
+  exports: [ConfigModule, LoggingModule, PrismaModule, RedisModule, SchedulerModule],
 })
 export class CommonModule {}

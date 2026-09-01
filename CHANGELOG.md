@@ -67,6 +67,97 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     document in ~20 ms (budget 200 ms) and 54,000 words segmented in ~205 ms
     (budget 500 ms).
 
+- **A04 — api: auth (email/password, Google PKCE, magic link, refresh families,
+  device grant, token exchange, sessions).**
+  - `apps/api/src/auth/`: sign-up with the D60 age gate (India under 18 and the EU
+    under 16 are refused with `auth/age_restricted` and offered a parental-consent
+    waitlist) and per-purpose consent written into `consent_records`; email
+    verification and magic links as single-use Redis tokens; login over argon2id
+    (64 MiB, t=3, p=1) with a feature-flagged, fail-open breached-password check
+    against HIBP's k-anonymity range API; Google sign-in with PKCE, a single-use
+    state entry and a handoff code so no token ever rides in a redirect URL, plus
+    the https `/auth/desktop-landing` page that triggers the deep-link scheme for
+    desktop and panel clients; the RFC 8628 device grant with an 8-character
+    unambiguous user code, a 10-minute TTL, a five-per-address cap on flows in
+    flight, a server-enforced poll interval and an approval screen naming the host
+    application, the device, the address and a coarse location; RS256 access
+    tokens carrying exactly the CONTRACTS section 5 claims; refresh-token families
+    rotated in place with a 60-second grace that replays the same pair, and reuse
+    outside the window revoking the whole family and auditing it; workspace token
+    exchange, session listing and session revocation.
+  - `apps/api/src/common/guards/`: `JwtAuthGuard`, `RolesGuard`, `ApiKeyGuard`
+    (B14 issues the keys; the guard and the scope check ship now), `@Public()`,
+    `@Roles()`, `@CurrentUser()`, `@CurrentWorkspace()`, and a Redis token-bucket
+    rate limiter behind `@RateLimit(...)` that answers 429 with `Retry-After`.
+  - `apps/api/src/users/`: the minimal accounts surface auth needs — create a user
+    with a personal workspace, an owner membership and the consent rows in one
+    transaction, look one up, and answer membership questions.
+  - `pnpm gen:client` regenerates `packages/api-client/openapi.json` and
+    `src/generated/operations.ts` from the API's own OpenAPI document.
+  - `TRUST_PROXY` (local process setting, not part of CONTRACTS section 1): the API
+    reads the client address from `X-Forwarded-For` only when it is `1`, so per-IP
+    rate limits cannot be side-stepped by setting the header.
+  - Tests: 53 e2e cases against a real PostgreSQL and Redis (testcontainers) plus
+    unit suites for the token service, the password policy, the guards, the age
+    gate and the token primitives. THREAT-MODEL T1–T4 are mapped to evidence in
+    `apps/api/src/auth/README.md`.
+  - Fixed `apps/api/vitest.config.ts`: `mergeConfig` takes two configs and a
+    boolean, so the four-argument call had been silently dropping the CONTRACTS
+    section 9 coverage gate and the exclude list.
+
+- **A08 — api: jobs module, realtime gateway, idempotent completion callbacks,
+  no-op `CreditsFacade`, admission control.**
+  - `apps/api/src/jobs`: `JobsService` — the producer for every queue in
+    CONTRACTS section 3 — with the enqueue order that makes the whole thing safe
+    (dedupe by `jobKey`, admission control, `jobs` row, `CreditsFacade.reserve`,
+    BullMQ add, `job_events`), so a job that reaches Redis always has a row and a
+    credit hold behind it and every earlier failure unwinds cleanly. Cursor-paged
+    `GET /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/events` and
+    `POST /jobs/{id}/cancel`, all scoped to the token's workspace, with another
+    workspace's job answering 404 rather than 403 (THREAT-MODEL T5).
+  - **Admission control** (THREAT-MODEL T23): per-workspace enqueued-credit cap
+    (429 `jobs/enqueue_cap`), concurrency lane (429 `jobs/concurrency_cap`),
+    per-plan `maxQueueWaitMs` swept every 30 s into `jobs/queue_timeout` with the
+    hold released, and the free-tier daily allowance enforced in the facade.
+  - `apps/api/src/internal`: the signed worker callbacks —
+    `POST /internal/jobs/{id}/progress`, `/complete`, `/enqueue-child` and
+    `PATCH /internal/media/{id}` — behind `X-Montaj-Signature`
+    (`hmac_sha256(secret, timestamp + "." + rawBody)`), a five-minute skew window
+    and constant-time comparison. Completion is idempotent on `(jobId, attemptId)`
+    through a conditional `UPDATE ... WHERE status IN ('queued','running')`, so a
+    replay answers 200 and settles nothing (THREAT-MODEL T8/T9). Two-key rotation
+    via the new optional `INTERNAL_CALLBACK_SECRET_NEXT`. The whole surface is
+    excluded from `/docs`.
+  - `apps/api/src/realtime`: `/realtime` over plain `ws` — authentication at the
+    upgrade (`Sec-WebSocket-Protocol: aksharo.v1, bearer.<token>`, or an
+    `Authorization` header), rooms `project:{id}` / `workspace:{id}` authorised
+    against the token's workspace _and_ a live membership, Redis pub/sub fan-out
+    with reference-counted subscriptions, a 30-second heartbeat and documented
+    reconnection semantics (`apps/api/src/realtime/README.md`). The four events of
+    CONTRACTS section 7 are typed now; A12 and B15 emit two of them later.
+  - `apps/api/src/credits`: the CONTRACTS section 4 `CreditsFacade` interface plus
+    a `grantLot` signature for Wave 3, and `NoopCreditsFacade` — real shape, real
+    idempotency, no ledger. B02 changes one `useClass`.
+  - `apps/api/src/common/scheduler`: `ScheduledTasksService`, cron for the API on
+    BullMQ job schedulers, so periodic work is one registration rather than a
+    timer per module. `jobs.queue-timeout` is its first task.
+  - `tools/runbooks/queue-drain.js`: pause a queue, wait for its active jobs to
+    drain with a timeout, print the counts; `--status`, `--resume`, `--json`.
+  - New optional environment variables: `INTERNAL_CALLBACK_SECRET_NEXT`
+    (CONTRACTS section 1, rotation), and the non-contract `MONTAJ_QUEUE_PREFIX`
+    (defaults to BullMQ's own `bull`) and `MONTAJ_SCHEDULER_DISABLED`.
+- **A03c — api: `PassStatus.succeeded` becomes `ready`.**
+  - `@montaj/edg`'s `PassStatusSchema` is the source of truth for the pass
+    lifecycle; A03 had written `succeeded` by analogy with `JobStatus`, but a pass
+    whose job succeeded is not finished — its items are `ready` for review, and
+    only a `MergePass` op moves it to `merged`. Migration
+    `20260902020000_pass_status_ready` renames the value in place (no row rewrite);
+    `JobStatus.succeeded` is untouched, since it mirrors the completion callback of
+    CONTRACTS section 3.
+  - The integration suite now compares `PassStatus` and `ItemState` in the database
+    against the package's own enums, so this class of drift fails a test instead of
+    reaching a client.
+
 - **A03b — api: seq is a base-62 string; style loader hardened.**
   - `edg_segments.seq` becomes `text COLLATE "C"` (migration
     `20260902010000_edg_segment_seq_text`). A03 read 06's "seq numeric" literally;

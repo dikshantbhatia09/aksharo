@@ -4,8 +4,9 @@ NestJS modular monolith — one feature module per work package
 (`05-system-architecture.md` section 3). Postgres via Prisma, Redis/BullMQ for jobs,
 OpenAPI as the contract that generates `@montaj/api-client`.
 
-**Status:** A03 — schema, migrations, seed and the base modules. No business
-endpoints yet: auth is A04, projects and media are A06, jobs are A08.
+**Status:** A08 — schema and base modules (A03), auth (A04), plus jobs, the
+realtime gateway, the signed internal callback surface and the no-op
+`CreditsFacade`. Projects and media are A06, the real credit ledger is B02.
 
 ## Run
 
@@ -16,12 +17,18 @@ pnpm --filter @montaj/api db:seed          # plans, styles, flags, demo workspac
 pnpm --filter @montaj/api dev              # http://localhost:3001
 ```
 
-| Endpoint            | Purpose                                                           |
-| ------------------- | ----------------------------------------------------------------- |
-| `GET /health`       | liveness: `{ "status": "ok", "version": "0.1.0" }`                |
-| `GET /health/ready` | readiness: Postgres, Redis and object store; 503 when any is down |
-| `GET /docs`         | Swagger UI                                                        |
-| `GET /docs-json`    | OpenAPI JSON — the source `@montaj/api-client` is generated from  |
+| Endpoint                 | Purpose                                                                    |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `GET /health`            | liveness: `{ "status": "ok", "version": "0.1.0" }`                         |
+| `GET /health/ready`      | readiness: Postgres, Redis and object store; 503 when any is down          |
+| `GET /docs`              | Swagger UI                                                                 |
+| `GET /docs-json`         | OpenAPI JSON — the source `@montaj/api-client` is generated from           |
+| `/auth/*`                | sign-in, sessions, the device grant — see [`src/auth`](src/auth/README.md) |
+| `GET /jobs`              | the workspace's jobs, newest first, cursor-paginated                       |
+| `GET /jobs/{id}`         | one job                                                                    |
+| `GET /jobs/{id}/events`  | the job's event log (rows expire after 30 days)                            |
+| `POST /jobs/{id}/cancel` | cancel a queued or running job and release its hold                        |
+| `/realtime`              | WebSocket push (`src/realtime/README.md`)                                  |
 
 ## Configuration
 
@@ -77,6 +84,14 @@ because a frozen contract or a shipped package says otherwise:
 | `db:sql`          | Apply `prisma/sql/` alone (repair a database whose DDL drifted).         |
 | `prisma:generate` | Regenerate the client. Also runs on `postinstall` and before `build`.    |
 
+### Regenerating the client
+
+`pnpm gen:client` (from the repository root) compiles the API, builds the same
+OpenAPI document `/docs-json` serves — with Prisma and Redis substituted, so it
+needs no infrastructure — and writes `packages/api-client/openapi.json` and
+`packages/api-client/src/generated/operations.ts`. Run it whenever a route,
+a request body or a response shape changes.
+
 ### Adding a table or a column
 
 1. Edit `prisma/schema.prisma`.
@@ -87,15 +102,16 @@ because a frozen contract or a shipped package says otherwise:
 
 ## Base modules (`src/common`)
 
-| Module                           | What you get                                                                         |
-| -------------------------------- | ------------------------------------------------------------------------------------ |
-| `PrismaModule` / `PrismaService` | the client as a singleton, connected at boot, plus `withTransaction()`               |
-| `RedisModule` / `RedisService`   | one lazily-connected ioredis instance (BullMQ will share it in A08)                  |
-| `LoggingModule`                  | pino with the request id on every line, and redaction of secrets and emails          |
-| `RequestContext`                 | AsyncLocalStorage carrying `requestId`, `userId?`, `workspaceId?`                    |
-| `HttpExceptionFilter`            | the CONTRACTS section 8 envelope for every throwable                                 |
-| `ZodValidationPipe` + `zodDto()` | request validation; a failure becomes `common/validation_failed` with the Zod issues |
-| `startTelemetry()`               | OpenTelemetry traces to OTLP when configured, otherwise nothing                      |
+| Module                           | What you get                                                                                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `PrismaModule` / `PrismaService` | the client as a singleton, connected at boot, plus `withTransaction()`                                                        |
+| `RedisModule` / `RedisService`   | one lazily-connected ioredis instance (BullMQ will share it in A08)                                                           |
+| `LoggingModule`                  | pino with the request id on every line, and redaction of secrets and emails                                                   |
+| `RequestContext`                 | AsyncLocalStorage carrying `requestId`, `userId?`, `workspaceId?`                                                             |
+| `HttpExceptionFilter`            | the CONTRACTS section 8 envelope for every throwable                                                                          |
+| `ZodValidationPipe` + `zodDto()` | request validation; a failure becomes `common/validation_failed` with the Zod issues                                          |
+| `guards/`                        | `JwtAuthGuard`, `RolesGuard`, `ApiKeyGuard`, `@Public()`, `@Roles()`, `@CurrentUser()`, `@CurrentWorkspace()`, `@RateLimit()` |
+| `startTelemetry()`               | OpenTelemetry traces to OTLP when configured, otherwise nothing                                                               |
 
 `CommonModule` imports all of them and is imported once by `AppModule`; the
 sub-modules are `@Global()`, so a feature module injects `PrismaService` or `ENV`
@@ -126,6 +142,131 @@ throw new AppException(
 > the `design:paramtypes` metadata and the provider silently fails to resolve,
 > which is why `@typescript-eslint/consistent-type-imports` is off for `src/`.
 
+## Jobs (`src/jobs`, `src/internal`)
+
+The producer side of every queue in CONTRACTS section 3, and the `jobs` /
+`job_events` state machine behind them. Other modules never touch BullMQ; they
+call `JobsService.enqueue`.
+
+```ts
+const { job } = await this.jobs.enqueue({
+  type: "ai.transcribe", // a CONTRACTS section 3 queue name
+  workspaceId,
+  projectId,
+  params: { mediaId }, // the queue payload; its shape is yours
+  jobKey: `transcribe:${mediaId}`, // one live job per (workspace, key)
+  worstCaseTenths: 120, // held before anything is enqueued
+});
+```
+
+The order inside `enqueue` is the design, and it is worth knowing before changing
+it:
+
+```
+dedupe by jobKey -> admission control (T23) -> jobs row
+  -> CreditsFacade.reserve (T9) -> BullMQ add -> job_events
+```
+
+The row exists before the reservation because a hold is keyed on a job id, and the
+BullMQ job is added last because that is the only step a consumer can see. Every
+earlier failure unwinds with nothing enqueued; a failure at the last step releases
+the hold and fails the row. **A job that reaches Redis always has a row and a hold
+behind it.**
+
+### Admission control (THREAT-MODEL T23)
+
+Per-workspace caps, from the plan tables in `src/jobs/jobs.config.ts`:
+
+| Cap                      | Config key                 | Exceeded                                       |
+| ------------------------ | -------------------------- | ---------------------------------------------- |
+| Sum of in-flight holds   | `PLAN_ENQUEUED_CAP_TENTHS` | 429 `jobs/enqueue_cap`                         |
+| Count of in-flight jobs  | `PLAN_CONCURRENCY_LANE`    | 429 `jobs/concurrency_cap`                     |
+| Time allowed in `queued` | `PLAN_MAX_QUEUE_WAIT_MS`   | job failed `jobs/queue_timeout`, hold released |
+| Free-tier daily minutes  | `FREE_TIER_DAILY_MINUTES`  | 402 `credits/insufficient`                     |
+
+The queue-wait sweep is a scheduled task (`jobs.queue-timeout`, every 30 s) on the
+`ScheduledTasksService` primitive in `src/common/scheduler`. Register periodic work
+there rather than starting a timer:
+
+```ts
+this.scheduler.register({ name: "billing.renewals", cron: "0 3 * * *", run: async () => {} });
+```
+
+### Worker callbacks (`src/internal`)
+
+Workers report back over a shared-secret HMAC, never a JWT: they have no user.
+
+```
+POST  /internal/jobs/{id}/progress       { progress, etaMs?, message? }
+POST  /internal/jobs/{id}/complete       { status, result?, error?, usage? }
+POST  /internal/jobs/{id}/enqueue-child  { type, payload, worstCaseTenths?, jobKey? }
+PATCH /internal/media/{id}               a narrow allow-list of probe results
+
+X-Montaj-Attempt:   <attemptId>
+X-Montaj-Timestamp: <unix seconds>
+X-Montaj-Signature: hex(hmac_sha256(INTERNAL_CALLBACK_SECRET, timestamp + "." + body))
+```
+
+`body` is the **raw request bytes**, which is why `main.ts` creates the app with
+`{ rawBody: true }`. Signing a re-serialised body passes in Node and fails against
+a Python worker, because `JSON.stringify` and `json.dumps` disagree on separators.
+
+Every handler is idempotent on `(jobId, attemptId)`: a replay answers 200 with
+`applied: false` and settles nothing (THREAT-MODEL T8). A timestamp outside a
+five-minute window is 401 `jobs/timestamp_skew`; anything else that fails
+verification is 401 `jobs/signature_invalid`, with the specific reason logged and
+never returned.
+
+**Rotating the callback secret.** Set `INTERNAL_CALLBACK_SECRET_NEXT` to the new
+value, roll the workers onto it one at a time, then promote it to
+`INTERNAL_CALLBACK_SECRET` and clear it. While both are set the API accepts either,
+so no callback is lost mid-roll; a callback verified by the second key is logged,
+which is how you tell the roll is finished.
+
+The whole `/internal` surface is `@ApiExcludeController`, so it never reaches
+`/docs` or `@montaj/api-client`.
+
+### Credits
+
+`CREDITS_FACADE` is the only way to touch credits (CONTRACTS section 4). A08 binds
+it to `NoopCreditsFacade`: real interface, real idempotency, no ledger. B02 changes
+one `useClass` in `src/credits/credits.module.ts` and nothing else.
+
+## Realtime (`src/realtime`)
+
+`/realtime` is a WebSocket over plain `ws`, with rooms `project:{id}` and
+`workspace:{id}`, Redis pub/sub fan-out between API instances, and a 30-second
+heartbeat. To emit an event from any module:
+
+```ts
+await this.realtime.jobProgress({ workspaceId, projectId }, { jobId, progress });
+```
+
+The wire protocol, the room authorisation rules, the close codes and the
+reconnection contract are in [`src/realtime/README.md`](src/realtime/README.md).
+
+## Runbook scripts
+
+Operational helpers live in `tools/runbooks/` at the repo root and resolve their
+dependencies from this package, so they run with plain `node` from anywhere.
+
+| Script                          | What it does                                                |
+| ------------------------------- | ----------------------------------------------------------- |
+| `tools/runbooks/queue-drain.js` | Pause a queue and wait for its active jobs to finish (A08). |
+| `tools/runbooks/dlq-replay.js`  | Re-enqueue or discard dead-lettered jobs (A08b).            |
+
+```bash
+node tools/runbooks/queue-drain.js ai.transcribe --timeout=300000
+node tools/runbooks/queue-drain.js ai.transcribe --status --json
+node tools/runbooks/queue-drain.js ai.transcribe --resume
+```
+
+`queue-drain` pauses the queue (workers stop picking up new jobs; running ones are
+untouched), polls until `active` reaches zero or the timeout expires, and prints
+the counts. It leaves the queue **paused**, which is the point of draining, and
+exits non-zero if jobs were still running when it gave up. `--help` lists every
+option.
+
 ## Tests
 
 ```bash
@@ -137,15 +278,36 @@ Vitest runs through `unplugin-swc` because NestJS DI needs `emitDecoratorMetadat
 which esbuild cannot produce. `test/setup-env.ts` seeds a complete valid
 environment so tests never depend on a developer's `.env`.
 
+`test/auth.e2e-spec.ts` needs a PostgreSQL **and** a Redis; it reuses
+`TEST_DATABASE_URL` / `TEST_REDIS_URL` when they are set and otherwise starts both
+through testcontainers. Auth is the one module that cannot be tested against
+substituted infrastructure: refresh families are a database invariant and the
+rotation grace is a Redis entry.
+
 `test/database.e2e-spec.ts` needs a PostgreSQL **with pgvector**. It uses
 `TEST_DATABASE_URL` if set, otherwise starts `pgvector/pgvector:pg16` through
 testcontainers, and skips with an explanation when Docker is unavailable
-(`MONTAJ_SKIP_DB_TESTS=1` skips it deliberately). Every other suite runs with no
-infrastructure at all: `test/app-harness.ts` substitutes Prisma and Redis.
+(`MONTAJ_SKIP_DB_TESTS=1` skips it deliberately). `test/jobs.e2e-spec.ts` needs
+that database **and** a Redis, because its whole point is that real BullMQ can read
+the envelope a real producer wrote; `MONTAJ_SKIP_REDIS_TESTS=1` skips it. Every
+other suite runs with no infrastructure at all: `test/app-harness.ts` substitutes
+Prisma, Redis and the realtime bus, and `test/fakes.ts` holds the in-memory Prisma
+and queue stubs the unit suites share.
+
+Two variables shape a test run:
+
+| Variable                    | Effect                                                                                                                                                                              |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MONTAJ_QUEUE_PREFIX`       | Redis key prefix for BullMQ and realtime. `setup-env.ts` sets a per-process value so two runs never share keys; a deployment leaves it at `bull`, which is what the workers expect. |
+| `MONTAJ_SCHEDULER_DISABLED` | `1` stops this process running the scheduler worker. Set in tests, which call `ScheduledTasksService.runNow(name)` instead.                                                         |
 
 ## Adding a module
 
 1. `src/<feature>/<feature>.module.ts`, controller, service, DTOs.
 2. Register it in `src/app.module.ts`.
 3. Annotate the controller with `@ApiTags` so it appears in `/docs`.
-4. Regenerate `@montaj/api-client` and run the contract test.
+4. Guard it: `@UseGuards(JwtAuthGuard, RolesGuard)` on the controller, `@Public()`
+   on the routes that genuinely are. `AuthModule` is `@Global()`, so the guards
+   resolve without importing anything. The workspace comes from the token's `ws`
+   claim — never from a header (THREAT-MODEL T4).
+5. Regenerate `@montaj/api-client` (`pnpm gen:client`) and run the contract test.

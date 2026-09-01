@@ -1,0 +1,1872 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/auth/signup": {
+      "post": {
+        "description": "Always answers the same way, whether or not the address is already registered: a registration form that says 'already taken' is a free account checker. Blocked by the age gate (403 auth/age_restricted) for India under 18 and the EU under 16.",
+        "operationId": "AuthController_signUp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 254,
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "locale": {
+                    "type": "string",
+                    "maxLength": 16
+                  },
+                  "dateOfBirth": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "jurisdiction": {
+                    "type": "string",
+                    "enum": [
+                      "IN",
+                      "EU",
+                      "OTHER"
+                    ]
+                  },
+                  "consents": {
+                    "type": "object",
+                    "properties": {
+                      "analytics": {
+                        "type": "boolean"
+                      },
+                      "memory": {
+                        "type": "boolean"
+                      },
+                      "marketing": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "email",
+                  "password",
+                  "dateOfBirth",
+                  "jurisdiction"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Verification email sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "verification_sent"
+                      ]
+                    },
+                    "email": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "email"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "auth/age_restricted"
+          },
+          "429": {
+            "description": "common/rate_limited; carries Retry-After."
+          }
+        },
+        "summary": "Create an account",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/verify-email": {
+      "post": {
+        "operationId": "AuthController_verifyEmail",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 256
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Confirm an email address with a single-use token",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "description": "One message for an unknown address and a wrong password alike, and the same argon2 cost is paid either way.",
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 254,
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "desktop",
+                      "bridge",
+                      "premiere",
+                      "ae",
+                      "resolve",
+                      "api"
+                    ]
+                  }
+                },
+                "required": [
+                  "email",
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Access and refresh tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "refreshToken": {
+                      "type": "string"
+                    },
+                    "expiresIn": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "tokenType": {
+                      "type": "string",
+                      "enum": [
+                        "Bearer"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "workspaceId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "bridge",
+                        "premiere",
+                        "ae",
+                        "resolve",
+                        "api"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "accessToken",
+                    "refreshToken",
+                    "expiresIn",
+                    "tokenType",
+                    "sessionId",
+                    "workspaceId",
+                    "role",
+                    "kind"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "auth/invalid_credentials"
+          }
+        },
+        "summary": "Sign in with email and password",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/magic-link": {
+      "post": {
+        "operationId": "AuthController_requestMagicLink",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 254,
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  }
+                },
+                "required": [
+                  "email"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted, whether or not the address has an account."
+          }
+        },
+        "summary": "Email a single-use sign-in link (15 minutes)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/magic-link/consume": {
+      "post": {
+        "operationId": "AuthController_consumeMagicLink",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 256
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "desktop",
+                      "bridge",
+                      "premiere",
+                      "ae",
+                      "resolve",
+                      "api"
+                    ]
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Access and refresh tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "refreshToken": {
+                      "type": "string"
+                    },
+                    "expiresIn": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "tokenType": {
+                      "type": "string",
+                      "enum": [
+                        "Bearer"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "workspaceId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "bridge",
+                        "premiere",
+                        "ae",
+                        "resolve",
+                        "api"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "accessToken",
+                    "refreshToken",
+                    "expiresIn",
+                    "tokenType",
+                    "sessionId",
+                    "workspaceId",
+                    "role",
+                    "kind"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "Exchange a magic-link token for tokens",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "description": "Rotation with a 60-second grace: presenting the previous token inside the window replays the same new pair, presenting it after the window revokes the whole family.",
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 256
+                  }
+                },
+                "required": [
+                  "refreshToken"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A rotated token pair.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "refreshToken": {
+                      "type": "string"
+                    },
+                    "expiresIn": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "tokenType": {
+                      "type": "string",
+                      "enum": [
+                        "Bearer"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "workspaceId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "bridge",
+                        "premiere",
+                        "ae",
+                        "resolve",
+                        "api"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "accessToken",
+                    "refreshToken",
+                    "expiresIn",
+                    "tokenType",
+                    "sessionId",
+                    "workspaceId",
+                    "role",
+                    "kind"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "common/unauthorized or auth/session_revoked"
+          }
+        },
+        "summary": "Rotate a refresh token",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "description": "Takes the refresh token rather than the access token, so a client whose access token has already expired can still sign out. Always 204: an unknown token must not be a way to test whether a token is live.",
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 256
+                  }
+                },
+                "required": [
+                  "refreshToken"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Signed out."
+          }
+        },
+        "summary": "Revoke a refresh-token family",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/token/exchange": {
+      "post": {
+        "description": "The workspace is bound into the access token; there is no X-Workspace-Id header (07 section Conventions, THREAT-MODEL T4). Membership is re-checked here.",
+        "operationId": "AuthController_exchange",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  }
+                },
+                "required": [
+                  "workspaceId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tokens for the requested workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "refreshToken": {
+                      "type": "string"
+                    },
+                    "expiresIn": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "tokenType": {
+                      "type": "string",
+                      "enum": [
+                        "Bearer"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "workspaceId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "bridge",
+                        "premiere",
+                        "ae",
+                        "resolve",
+                        "api"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "accessToken",
+                    "refreshToken",
+                    "expiresIn",
+                    "tokenType",
+                    "sessionId",
+                    "workspaceId",
+                    "role",
+                    "kind"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "auth/not_a_member"
+          }
+        },
+        "summary": "Switch the active workspace",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/sessions": {
+      "get": {
+        "operationId": "AuthController_listSessions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Live sessions, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "web",
+                          "desktop",
+                          "bridge",
+                          "premiere",
+                          "ae",
+                          "resolve",
+                          "api"
+                        ]
+                      },
+                      "workspaceId": {
+                        "type": "string",
+                        "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                      },
+                      "ip": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "ua": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "rotatedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "expiresAt": {
+                        "type": "string"
+                      },
+                      "current": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "workspaceId",
+                      "ip",
+                      "ua",
+                      "createdAt",
+                      "rotatedAt",
+                      "expiresAt",
+                      "current"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "List this account's live sessions",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/sessions/{sessionId}": {
+      "delete": {
+        "operationId": "AuthController_revokeSession",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked."
+          }
+        },
+        "summary": "Revoke one session (and its refresh-token family)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/parental-waitlist": {
+      "post": {
+        "description": "Offered to a sign-up blocked by the age gate (D60), until a verifiable parental-consent flow ships.",
+        "operationId": "AuthController_joinWaitlist",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 254,
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  }
+                },
+                "required": [
+                  "email"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "Join the parental-consent waitlist",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/oauth/google/start": {
+      "get": {
+        "description": "Stores the PKCE verifier and the originating client for 10 minutes, then redirects to Google. `client` decides where the callback sends the browser back to.",
+        "operationId": "OAuthController_start",
+        "parameters": [
+          {
+            "name": "client",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "web",
+                "desktop",
+                "bridge"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "loginHint",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Begin Google sign-in",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/oauth/google/callback": {
+      "get": {
+        "description": "Exchanges the authorization code, links or creates the identity, and redirects on with a single-use handoff code. Tokens are never put in a redirect URL.",
+        "operationId": "OAuthController_callback",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "error",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Google redirects here",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/oauth/complete": {
+      "post": {
+        "description": "When the callback reported `status=registration` this call must also carry `dateOfBirth` and `jurisdiction`: Google does not supply a date of birth and D60 requires one before an account exists.",
+        "operationId": "OAuthController_complete",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 256
+                  },
+                  "dateOfBirth": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "jurisdiction": {
+                    "type": "string",
+                    "enum": [
+                      "IN",
+                      "EU",
+                      "OTHER"
+                    ]
+                  },
+                  "consents": {
+                    "type": "object",
+                    "properties": {
+                      "analytics": {
+                        "type": "boolean"
+                      },
+                      "memory": {
+                        "type": "boolean"
+                      },
+                      "marketing": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Access and refresh tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "refreshToken": {
+                      "type": "string"
+                    },
+                    "expiresIn": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "tokenType": {
+                      "type": "string",
+                      "enum": [
+                        "Bearer"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "workspaceId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "bridge",
+                        "premiere",
+                        "ae",
+                        "resolve",
+                        "api"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "accessToken",
+                    "refreshToken",
+                    "expiresIn",
+                    "tokenType",
+                    "sessionId",
+                    "workspaceId",
+                    "role",
+                    "kind"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "Exchange the handoff code for tokens",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/device/code": {
+      "post": {
+        "description": "Returns an 8-character user code from an alphabet with no ambiguous glyphs, a 10-minute expiry and a 5-second polling interval. At most five flows may be in flight from one address.",
+        "operationId": "DeviceController_request",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clientKind": {
+                    "type": "string",
+                    "enum": [
+                      "desktop",
+                      "bridge",
+                      "premiere",
+                      "ae",
+                      "resolve"
+                    ]
+                  },
+                  "hostApp": {
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "desktop",
+                      "premiere",
+                      "ae",
+                      "resolve"
+                    ]
+                  },
+                  "deviceInfo": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  }
+                },
+                "required": [
+                  "clientKind"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "A device code and a user code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deviceCode": {
+                      "type": "string"
+                    },
+                    "userCode": {
+                      "type": "string"
+                    },
+                    "verificationUrl": {
+                      "type": "string"
+                    },
+                    "verificationUrlComplete": {
+                      "type": "string"
+                    },
+                    "interval": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "expiresIn": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "deviceCode",
+                    "userCode",
+                    "verificationUrl",
+                    "verificationUrlComplete",
+                    "interval",
+                    "expiresIn"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "Start a device sign-in",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/device/token": {
+      "post": {
+        "description": "400 with `auth/authorization_pending` until the code is approved, `auth/slow_down` when polled faster than the interval, `auth/expired_token` after 10 minutes and `auth/access_denied` when the user declines.",
+        "operationId": "DeviceController_poll",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceCode": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 256
+                  }
+                },
+                "required": [
+                  "deviceCode"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Access and refresh tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "refreshToken": {
+                      "type": "string"
+                    },
+                    "expiresIn": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "tokenType": {
+                      "type": "string",
+                      "enum": [
+                        "Bearer"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "workspaceId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "bridge",
+                        "premiere",
+                        "ae",
+                        "resolve",
+                        "api"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "accessToken",
+                    "refreshToken",
+                    "expiresIn",
+                    "tokenType",
+                    "sessionId",
+                    "workspaceId",
+                    "role",
+                    "kind"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "auth/authorization_pending, auth/slow_down, auth/expired_token, auth/access_denied"
+          }
+        },
+        "summary": "Poll for the result",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/device/code/{userCode}": {
+      "get": {
+        "description": "The approval screen's data: host application, device facts, address and a coarse location, so a user can tell a device on their desk from one on somebody else's.",
+        "operationId": "DeviceController_describe",
+        "parameters": [
+          {
+            "name": "userCode",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pending request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "userCode": {
+                      "type": "string"
+                    },
+                    "clientKind": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "bridge",
+                        "premiere",
+                        "ae",
+                        "resolve",
+                        "api"
+                      ]
+                    },
+                    "hostApp": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "premiere",
+                        "ae",
+                        "resolve"
+                      ]
+                    },
+                    "deviceInfo": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "ip": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "location": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "country": {
+                          "type": "string"
+                        },
+                        "region": {
+                          "type": "string"
+                        },
+                        "city": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "userCode",
+                    "clientKind",
+                    "hostApp",
+                    "deviceInfo",
+                    "ip",
+                    "location",
+                    "expiresAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "What is asking for approval",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/device/approve": {
+      "post": {
+        "description": "`workspaceId` defaults to the workspace of the approving session and is always re-checked against memberships.",
+        "operationId": "DeviceController_decide",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userCode": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 16
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "deny"
+                    ]
+                  }
+                },
+                "required": [
+                  "userCode"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "approved or denied"
+          }
+        },
+        "summary": "Approve or decline a device sign-in",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/jobs": {
+      "get": {
+        "description": "Cursor pagination: pass the previous page's `nextCursor` as `cursor`. Ids are ULIDs, so the cursor is stable and ordered by creation time.",
+        "operationId": "listJobs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List the workspace's jobs, newest first",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/jobs/{id}": {
+      "get": {
+        "operationId": "getJob",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`jobs/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Fetch one job",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/jobs/{id}/events": {
+      "get": {
+        "description": "Rows are purged 30 days after they are written (`data.retainUntil`).",
+        "operationId": "listJobEvents",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobEventPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`jobs/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The job's event log, oldest first",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/jobs/{id}/cancel": {
+      "post": {
+        "description": "Releases the credit hold. A finished job is `jobs/invalid_state` (409).",
+        "operationId": "cancelJob",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`jobs/not_found`."
+          },
+          "409": {
+            "description": "`jobs/invalid_state`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Cancel a queued or running job",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Liveness probe",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "getReadiness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Readiness probe (db, redis, storage)",
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Aksharo API",
+    "description": "Errors use the envelope `{ error: { code, message, details?, requestId } }` with `namespace/slug` codes (CONTRACTS section 8).",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "access-token": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "api-key": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key"
+      }
+    },
+    "schemas": {
+      "JobDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "01JBZ0Q4T7R8N4H1V0J9K2M3P5",
+            "description": "ULID."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "media.probe",
+              "media.proxy",
+              "ai.vad",
+              "ai.transcribe",
+              "ai.align",
+              "ai.diarise",
+              "ai.translate",
+              "ai.transliterate",
+              "ai.clean",
+              "ai.pass",
+              "ai.llm",
+              "render.video",
+              "render.subtitle",
+              "notify"
+            ],
+            "description": "Queue name (CONTRACTS §3)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "priority": {
+            "type": "number",
+            "description": "Lower runs first; derived from the workspace's plan."
+          },
+          "progress": {
+            "type": "number",
+            "description": "0–100."
+          },
+          "etaMs": {
+            "type": "object",
+            "nullable": true,
+            "description": "Estimated milliseconds remaining."
+          },
+          "projectId": {
+            "type": "object",
+            "nullable": true
+          },
+          "jobKey": {
+            "type": "string",
+            "description": "Deduplication key: one live job per (workspace, key)."
+          },
+          "attemptId": {
+            "type": "object",
+            "nullable": true,
+            "description": "Identifies this run of the job."
+          },
+          "creditsChargedTenths": {
+            "type": "number",
+            "description": "Credits in tenths: the hold while running, the charge once finished."
+          },
+          "maxQueueWaitMs": {
+            "type": "object",
+            "nullable": true,
+            "description": "Milliseconds this job may wait in `queued`."
+          },
+          "result": {
+            "type": "object",
+            "nullable": true,
+            "description": "Completion result."
+          },
+          "error": {
+            "type": "object",
+            "nullable": true,
+            "description": "`{code, message, retryable}`."
+          },
+          "provider": {
+            "type": "object",
+            "nullable": true
+          },
+          "model": {
+            "type": "object",
+            "nullable": true
+          },
+          "queuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "priority",
+          "progress",
+          "jobKey",
+          "creditsChargedTenths",
+          "queuedAt"
+        ]
+      },
+      "JobPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobDto"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true,
+            "description": "Pass as `cursor` for the next page."
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "JobEventDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "debug",
+              "info",
+              "warn",
+              "error"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "level",
+          "message"
+        ]
+      },
+      "JobEventPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobEventDto"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "HealthResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok",
+            "enum": [
+              "ok"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "example": "0.1.0",
+            "description": "Deployed API version."
+          }
+        },
+        "required": [
+          "status",
+          "version"
+        ]
+      },
+      "DependencyCheckDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ]
+          },
+          "latencyMs": {
+            "type": "number",
+            "example": 3,
+            "description": "Round-trip time for the check."
+          },
+          "error": {
+            "type": "string",
+            "description": "Present only when the check failed."
+          }
+        },
+        "required": [
+          "status",
+          "latencyMs"
+        ]
+      },
+      "ReadinessChecksDto": {
+        "type": "object",
+        "properties": {
+          "db": {
+            "$ref": "#/components/schemas/DependencyCheckDto"
+          },
+          "redis": {
+            "$ref": "#/components/schemas/DependencyCheckDto"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/DependencyCheckDto"
+          }
+        },
+        "required": [
+          "db",
+          "redis",
+          "storage"
+        ]
+      },
+      "ReadinessResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "example": "0.1.0"
+          },
+          "checks": {
+            "$ref": "#/components/schemas/ReadinessChecksDto"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "checks"
+        ]
+      }
+    }
+  }
+}
