@@ -1,21 +1,53 @@
 /**
- * `@montaj/timemap` — Source-time to output-time mapping across accepted cuts and speed changes.
+ * `@montaj/timemap` — one source-time ↔ output-time mapping (decision D30).
  *
- * A01 ships the package skeleton only; the real implementation lands in A02c.
- * See README.md for what belongs here and docs/PLAN.md for scheduling.
+ * Accepted cuts remove source ranges, speed edits retime them and holds insert
+ * freeze frames; this package turns that list into an immutable structure with
+ * `O(log n)` lookups in both directions, plus the helpers that move caption
+ * segments, word timings and keyframe curves onto the output clock.
+ *
+ * Consumed by the browser exporter, the cloud renderer, the timeline UI and the
+ * NLE plugins, so it is pure, does no I/O and imports nothing Node-only.
+ *
+ * See `README.md` for the boundary rules and `docs/CONTRACTS.md` §2 for the
+ * `Segment`, `Word` and `PassItem` shapes it reads.
  */
-
-/** Build-time identity of this package, used by diagnostics bundles and the admin console. */
-export interface PackageInfo {
-  readonly name: `@montaj/${string}`;
-  /** Work package(s) that implement it. */
-  readonly implementedBy: string;
-  /** `false` until the owning work package lands. */
-  readonly implemented: boolean;
-}
-
-export const PACKAGE_INFO: PackageInfo = {
-  name: "@montaj/timemap",
-  implementedBy: "A02c",
-  implemented: false,
-};
+export {
+  type CutEdit,
+  cutEdit,
+  type Edit,
+  type EditKind,
+  type HoldEdit,
+  holdEdit,
+  insideCuts,
+  type NormalisedEdits,
+  normaliseEdits,
+  type NormaliseOptions,
+  type SpeedEdit,
+  speedEdit,
+} from "./edits.js";
+export { isTimeMapError, TimeMapError, type TimeMapErrorCode } from "./errors.js";
+export { frameAt, frameDurationMs, type SnapMode, snapToFrame } from "./frames.js";
+export { type Keyframe, type MapKeyframesOptions } from "./keyframes.js";
+export {
+  type FromAcceptedItemsOptions,
+  cutsFromItems,
+  fromAcceptedItems,
+  type PassItemTimes,
+} from "./pass-items.js";
+export type { OutputLocation, OutputRange, SourceLocation, TimeQuery } from "./query.js";
+export {
+  type MappedSegment,
+  type MappedWord,
+  type SegmentTimes,
+  type WordTimes,
+} from "./segments.js";
+export { parseTimeMap, stringifyTimeMap } from "./serialise.js";
+export type { SpanKind, TimeSpan } from "./spans.js";
+export {
+  buildTimeMap,
+  type SerialisedTimeMap,
+  TIMEMAP_FORMAT_VERSION,
+  type TimeMap,
+  type TimeMapOptions,
+} from "./timemap.js";
