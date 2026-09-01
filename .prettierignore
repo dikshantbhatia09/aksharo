@@ -1,0 +1,17 @@
+node_modules
+dist
+build
+coverage
+.next
+.turbo
+.venv
+playwright-report
+test-results
+pnpm-lock.yaml
+uv.lock
+*.min.js
+*.tsbuildinfo
+apps/api/prisma/migrations
+docs/PLAN.md
+docs/CONTRACTS.md
+docs/THREAT-MODEL.md

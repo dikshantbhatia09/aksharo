@@ -1,0 +1,18 @@
+// Prisma schema for the Montaj API.
+//
+// A01 ships this file EMPTY on purpose: the data model is designed in A03 from
+// 03-architecture/06-data-model.md. Adding a model here before A03 would fork
+// the design, so leave it alone and raise an ADR if you disagree.
+//
+// Anything Prisma cannot express (partial and expression indexes, generated
+// columns, RLS, pgvector, triggers, partitions) lives as hand-maintained DDL in
+// ./sql/ and is applied from a migration — see ./sql/README.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}

@@ -1,0 +1,117 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  BILLING_QUANTUM_MS,
+  BURN_RATES,
+  CREDIT_OPERATIONS,
+  creditCostTenths,
+  deciMinutes,
+  formatCredits,
+  worstCaseHoldTenths,
+} from "./credits.js";
+
+const MINUTE = 60_000;
+
+describe("deciMinutes", () => {
+  it("rounds up to the next 0.1 minute", () => {
+    expect(deciMinutes(BILLING_QUANTUM_MS)).toBe(1);
+    expect(deciMinutes(BILLING_QUANTUM_MS + 1)).toBe(2);
+    expect(deciMinutes(MINUTE)).toBe(10);
+    expect(deciMinutes(MINUTE + 1)).toBe(11);
+  });
+
+  it("never bills less than one quantum", () => {
+    expect(deciMinutes(0)).toBe(1);
+    expect(deciMinutes(1)).toBe(1);
+  });
+
+  it("rejects nonsense durations", () => {
+    expect(() => deciMinutes(-1)).toThrow(RangeError);
+    expect(() => deciMinutes(Number.NaN)).toThrow(RangeError);
+  });
+});
+
+describe("creditCostTenths", () => {
+  it("charges 1 credit per media minute of transcription", () => {
+    expect(creditCostTenths({ operation: "transcription", durationMs: MINUTE })).toBe(10);
+    expect(creditCostTenths({ operation: "transcription", durationMs: 10 * MINUTE })).toBe(100);
+  });
+
+  it("is free when the work runs locally", () => {
+    expect(creditCostTenths({ operation: "transcription", durationMs: MINUTE, local: true })).toBe(
+      0,
+    );
+    expect(creditCostTenths({ operation: "cloudRender", durationMs: MINUTE, local: true })).toBe(0);
+  });
+
+  it("charges 0.5 credits per media minute per target language for translation", () => {
+    expect(creditCostTenths({ operation: "translation", durationMs: MINUTE })).toBe(5);
+    expect(
+      creditCostTenths({ operation: "translation", durationMs: MINUTE, targetLanguages: 3 }),
+    ).toBe(15);
+  });
+
+  it("applies the pro engine rate where one exists", () => {
+    expect(creditCostTenths({ operation: "autocutPass", durationMs: MINUTE, tier: "pro" })).toBe(
+      20,
+    );
+    expect(
+      creditCostTenths({ operation: "reframeZoomPass", durationMs: MINUTE, tier: "pro" }),
+    ).toBe(30);
+    // sfxMusicPass has no pro tier, so "pro" falls back to the base rate.
+    expect(creditCostTenths({ operation: "sfxMusicPass", durationMs: MINUTE, tier: "pro" })).toBe(
+      10,
+    );
+  });
+
+  it("charges a flat rate for job-basis operations", () => {
+    expect(creditCostTenths({ operation: "chaptersSummaryHook" })).toBe(20);
+    expect(creditCostTenths({ operation: "chaptersSummaryHook", durationMs: 99 * MINUTE })).toBe(
+      20,
+    );
+  });
+
+  it("always returns a non-negative integer number of tenths", () => {
+    for (const operation of CREDIT_OPERATIONS) {
+      const tenths = creditCostTenths({ operation, durationMs: 12_345 });
+      expect(Number.isInteger(tenths)).toBe(true);
+      expect(tenths).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
+
+describe("worstCaseHoldTenths", () => {
+  it("holds prompted edits on source minutes and settles on finished minutes", () => {
+    const hold = worstCaseHoldTenths({
+      operation: "promptedEdit",
+      sourceDurationMs: 20 * MINUTE,
+      durationMs: 2 * MINUTE,
+    });
+    const settled = creditCostTenths({ operation: "promptedEdit", durationMs: 2 * MINUTE });
+    expect(hold).toBe(600);
+    expect(settled).toBe(60);
+    expect(hold).toBeGreaterThan(settled);
+  });
+
+  it("equals the cost for operations with no separate hold basis", () => {
+    const input = { operation: "transcription", durationMs: 5 * MINUTE } as const;
+    expect(worstCaseHoldTenths(input)).toBe(creditCostTenths(input));
+  });
+});
+
+describe("BURN_RATES", () => {
+  it("covers every operation exactly once", () => {
+    expect(CREDIT_OPERATIONS).toHaveLength(9);
+    for (const operation of CREDIT_OPERATIONS) {
+      expect(BURN_RATES[operation].operation).toBe(operation);
+    }
+  });
+});
+
+describe("formatCredits", () => {
+  it("renders tenths for humans without losing the integer source", () => {
+    expect(formatCredits(10)).toBe("1");
+    expect(formatCredits(25)).toBe("2.5");
+    expect(formatCredits(0)).toBe("0");
+  });
+});

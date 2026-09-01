@@ -1,0 +1,32 @@
+{
+  "name": "@montaj/worker-media",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node BullMQ worker: probe, 16k/48k audio, 540p proxy, waveform, thumbs, subtitle sidecars.",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "@montaj/config": "workspace:*",
+    "bullmq": "^5.81.4",
+    "dotenv": "^17.4.2",
+    "ioredis": "^5.11.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.2",
+    "eslint": "^9.39.5",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

@@ -1,0 +1,45 @@
+# Code owners — placeholder (A01).
+#
+# GitHub reads this from the repository root, .github/ or docs/. Replace the
+# placeholder handles once the org and teams exist (Wave 0, A00-09), and remember
+# that a CODEOWNERS entry only enforces review when branch protection requires it.
+#
+# Last matching pattern wins, so the frozen contracts sit at the bottom.
+
+# Default owner for anything not matched below.
+*                               @aksharo/maintainers
+
+# Applications
+/apps/web/                      @aksharo/frontend
+/apps/api/                      @aksharo/backend
+/apps/worker-media/             @aksharo/backend
+/apps/worker-ai/                @aksharo/ai
+/apps/render/                   @aksharo/backend
+/apps/desktop/                  @aksharo/desktop
+/apps/bridge/                   @aksharo/desktop
+
+# Host-application plugins
+/plugins/                       @aksharo/desktop
+/engine/                        @aksharo/desktop
+
+# Shared packages
+/packages/edg/                  @aksharo/backend
+/packages/caption-styles/       @aksharo/frontend
+/packages/render-core/          @aksharo/frontend
+/packages/render-canvaskit/     @aksharo/frontend
+/packages/render-skia-node/     @aksharo/backend
+/packages/ui/                   @aksharo/frontend
+/packages/prompts/              @aksharo/ai
+
+# Toolchain, CI and infrastructure
+/packages/config/               @aksharo/maintainers
+/.github/                       @aksharo/maintainers
+/infra/                         @aksharo/maintainers
+/turbo.json                     @aksharo/maintainers
+/pnpm-workspace.yaml            @aksharo/maintainers
+/docker-compose.yml             @aksharo/maintainers
+
+# Frozen interfaces: change only through an ADR approved by Fable.
+/docs/PLAN.md                   @aksharo/maintainers
+/docs/CONTRACTS.md              @aksharo/maintainers
+/docs/THREAT-MODEL.md           @aksharo/maintainers

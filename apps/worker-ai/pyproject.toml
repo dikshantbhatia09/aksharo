@@ -1,0 +1,102 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "montaj-worker-ai"
+version = "0.1.0"
+description = "Python 3.12 BullMQ worker: ASR providers, VAD, alignment registry, diarisation, passes, LLM."
+requires-python = ">=3.12,<3.13"
+license = "LicenseRef-Proprietary"
+dependencies = [
+  # Official BullMQ Python worker, pinned per docs/CONTRACTS.md section 3.
+  # Unsupported and therefore unused: flow producers, repeatable jobs,
+  # sandboxed processors.
+  "bullmq==3.2.1",
+  "fastapi==0.141.1",
+  "uvicorn[standard]==0.52.4",
+  "python-dotenv==1.2.3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff==0.16.5",
+  "mypy==2.3.1",
+  "pytest==9.1.1",
+  "pytest-asyncio==1.4.0",
+  "hypothesis==6.167.1",
+  # starlette.testclient requires httpx2 as of Starlette 0.5x.
+  "httpx2==2.12.0",
+]
+
+[project.scripts]
+montaj-worker-ai = "worker_ai.__main__:run"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["worker_ai*"]
+
+# ---------------------------------------------------------------------------
+# ruff — lint + format
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [".venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+  "E",    # pycodestyle errors
+  "W",    # pycodestyle warnings
+  "F",    # pyflakes
+  "I",    # isort (import order, matching the TS convention)
+  "N",    # pep8-naming
+  "UP",   # pyupgrade
+  "B",    # flake8-bugbear
+  "A",    # flake8-builtins
+  "C4",   # flake8-comprehensions
+  "SIM",  # flake8-simplify
+  "TID",  # flake8-tidy-imports
+  "RUF",  # ruff-specific
+  "ANN",  # flake8-annotations (every signature is typed)
+  "ASYNC",
+  "S",    # bandit: no secrets, no shell=True, no assert in prod code
+]
+ignore = [
+  "ANN401", # `Any` is occasionally the honest type at a provider boundary
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests may assert and may use hard-coded fake credentials.
+"tests/**" = ["S101", "S105", "S106", "ANN"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["worker_ai"]
+
+# ---------------------------------------------------------------------------
+# mypy — strict
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_no_return = true
+disallow_any_unimported = true
+exclude = ["^\\.venv/", "^build/", "^dist/"]
+mypy_path = "."
+
+[[tool.mypy.overrides]]
+# The BullMQ package ships no type information.
+module = ["bullmq.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = ["error"]

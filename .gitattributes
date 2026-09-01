@@ -1,0 +1,35 @@
+# Normalise to LF in the repository; check out LF everywhere (Node/Python tooling agrees).
+* text=auto eol=lf
+
+*.bat        text eol=crlf
+*.cmd        text eol=crlf
+*.ps1        text eol=crlf
+
+*.sh         text eol=lf
+*.mjs        text eol=lf
+*.cjs        text eol=lf
+*.ts         text eol=lf
+*.tsx        text eol=lf
+*.py         text eol=lf
+
+# Binaries and generated artefacts
+*.png        binary
+*.jpg        binary
+*.jpeg       binary
+*.gif        binary
+*.ico        binary
+*.webp       binary
+*.mp4        binary
+*.mov        binary
+*.wav        binary
+*.mp3        binary
+*.ttf        binary
+*.otf        binary
+*.woff       binary
+*.woff2      binary
+*.zxp        binary
+*.ccx        binary
+*.wasm       binary
+
+pnpm-lock.yaml  linguist-generated=true -diff
+uv.lock         linguist-generated=true -diff

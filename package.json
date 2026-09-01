@@ -1,0 +1,42 @@
+{
+  "name": "montaj",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Montaj (codename) monorepo — Aksharo platform. See docs/PLAN.md and docs/CONTRACTS.md.",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=9 <10"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "plugins/*",
+    "engine/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "db:migrate": "turbo run db:migrate",
+    "db:seed": "turbo run db:seed",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}\"",
+    "clean": "turbo run clean && node scripts/clean.mjs"
+  },
+  "devDependencies": {
+    "@montaj/config": "workspace:*",
+    "@types/node": "^22.19.2",
+    "@vitest/coverage-v8": "^3.2.7",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.13",
+    "turbo": "^2.10.12",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

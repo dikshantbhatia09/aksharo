@@ -1,0 +1,106 @@
+# Local development stack for Montaj (codename) / Aksharo.
+#
+#   docker compose up -d          # start postgres, redis, minio (+ bucket bootstrap)
+#   docker compose ps             # all three should report (healthy)
+#   docker compose down -v        # stop and delete the volumes
+#
+# MinIO stands in for BOTH object stores in development:
+#   * S3 (raw uploads, production: AWS S3 ap-south-1)  -> bucket montaj-raw
+#   * R2 (derived objects, production: Cloudflare R2)  -> bucket montaj-derived
+# Values come from .env (copy .env.example first); the defaults below keep the
+# stack working even when no .env file is present.
+
+name: montaj
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: montaj-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-montaj}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-montaj}
+      POSTGRES_DB: ${POSTGRES_DB:-montaj}
+      # Deterministic collation so index ordering matches production.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-montaj} -d ${POSTGRES_DB:-montaj}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  redis:
+    image: redis:7
+    container_name: montaj-redis
+    restart: unless-stopped
+    # BullMQ requires keyspace eviction to be disabled: jobs must never be evicted.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: montaj-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-montaj-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-montaj-local-secret}
+      MINIO_REGION_NAME: ${S3_REGION:-ap-south-1}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  # One-shot bootstrap: creates the two buckets the platform expects and exits 0.
+  # `docker compose up -d` waits for it via service_completed_successfully below.
+  minio-bootstrap:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: montaj-minio-bootstrap
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-montaj-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-montaj-local-secret}
+      S3_BUCKET_RAW: ${S3_BUCKET_RAW:-montaj-raw}
+      R2_BUCKET_DERIVED: ${R2_BUCKET_DERIVED:-montaj-derived}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing "local/$$S3_BUCKET_RAW"
+        mc mb --ignore-existing "local/$$R2_BUCKET_DERIVED"
+        # Raw uploads stay private; derived objects are fetched through signed URLs
+        # in development too, so neither bucket is made public here.
+        mc anonymous set none "local/$$S3_BUCKET_RAW"
+        mc anonymous set none "local/$$R2_BUCKET_DERIVED"
+        echo "buckets ready:"
+        mc ls local
+    restart: "no"
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

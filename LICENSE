@@ -1,0 +1,33 @@
+PROPRIETARY SOFTWARE LICENCE — PLACEHOLDER
+
+Copyright (c) 2026 <LEGAL ENTITY NAME TO BE CONFIRMED>. All rights reserved.
+
+This software and its accompanying documentation (the "Software") are
+confidential and proprietary. No licence, express or implied, is granted by this
+file. Without the prior written permission of the copyright holder you may not
+copy, modify, merge, publish, distribute, sublicense, sell, reverse engineer or
+create derivative works of the Software, in whole or in part.
+
+Access to this repository is granted solely to employees, contractors and agents
+of the copyright holder, for the sole purpose of developing and operating the
+Software, and is subject to the confidentiality terms of their engagement.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+-------------------------------------------------------------------------------
+PLACEHOLDER NOTICE (A01)
+
+This file is a placeholder pending two Wave 0 items in docs/PLAN.md:
+
+  * A00-09  legal entity and jurisdiction decision; counsel-drafted terms
+  * A00-12  brand clearance and trade-mark filings for "Aksharo"
+
+Replace the copyright line with the registered entity name and have counsel
+approve the final wording before any code leaves the organisation. Third-party
+dependency licences are tracked separately and must be reviewed before the first
+public release (X04, launch checklist).

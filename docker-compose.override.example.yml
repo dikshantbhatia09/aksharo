@@ -1,0 +1,28 @@
+# Copy to `docker-compose.override.yml` (git-ignored) to adapt the stack to your
+# machine. Docker Compose merges it over docker-compose.yml automatically.
+#
+#   cp docker-compose.override.example.yml docker-compose.override.yml
+#
+# Examples below are commented out; enable only what you need.
+
+services:
+  postgres:
+    # Move Postgres off 5432 when a local server already owns the port.
+    # ports:
+    #   - "55432:5432"
+    #
+    # Extra logging while debugging slow queries.
+    # command:
+    #   ["postgres", "-c", "log_statement=all", "-c", "log_min_duration_statement=200"]
+    profiles: []
+
+  redis:
+    # ports:
+    #   - "56379:6379"
+    profiles: []
+
+  minio:
+    # ports:
+    #   - "59000:9000"
+    #   - "59001:9001"
+    profiles: []
