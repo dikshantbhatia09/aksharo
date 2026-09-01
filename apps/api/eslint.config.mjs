@@ -1,6 +1,9 @@
 import { montajEslintConfig } from "@montaj/config/eslint";
 
 export default montajEslintConfig({
+  // `pnpm gen:client` compiles the app here before running the generator; it is
+  // build output, not source.
+  ignores: [".openapi/**"],
   extra: [
     {
       // NestJS DTO classes rely on definite-assignment declarations, and the

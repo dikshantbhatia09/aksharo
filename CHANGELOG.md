@@ -10,6 +10,44 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A04 — api: auth (email/password, Google PKCE, magic link, refresh families,
+  device grant, token exchange, sessions).**
+  - `apps/api/src/auth/`: sign-up with the D60 age gate (India under 18 and the EU
+    under 16 are refused with `auth/age_restricted` and offered a parental-consent
+    waitlist) and per-purpose consent written into `consent_records`; email
+    verification and magic links as single-use Redis tokens; login over argon2id
+    (64 MiB, t=3, p=1) with a feature-flagged, fail-open breached-password check
+    against HIBP's k-anonymity range API; Google sign-in with PKCE, a single-use
+    state entry and a handoff code so no token ever rides in a redirect URL, plus
+    the https `/auth/desktop-landing` page that triggers the deep-link scheme for
+    desktop and panel clients; the RFC 8628 device grant with an 8-character
+    unambiguous user code, a 10-minute TTL, a five-per-address cap on flows in
+    flight, a server-enforced poll interval and an approval screen naming the host
+    application, the device, the address and a coarse location; RS256 access
+    tokens carrying exactly the CONTRACTS section 5 claims; refresh-token families
+    rotated in place with a 60-second grace that replays the same pair, and reuse
+    outside the window revoking the whole family and auditing it; workspace token
+    exchange, session listing and session revocation.
+  - `apps/api/src/common/guards/`: `JwtAuthGuard`, `RolesGuard`, `ApiKeyGuard`
+    (B14 issues the keys; the guard and the scope check ship now), `@Public()`,
+    `@Roles()`, `@CurrentUser()`, `@CurrentWorkspace()`, and a Redis token-bucket
+    rate limiter behind `@RateLimit(...)` that answers 429 with `Retry-After`.
+  - `apps/api/src/users/`: the minimal accounts surface auth needs — create a user
+    with a personal workspace, an owner membership and the consent rows in one
+    transaction, look one up, and answer membership questions.
+  - `pnpm gen:client` regenerates `packages/api-client/openapi.json` and
+    `src/generated/operations.ts` from the API's own OpenAPI document.
+  - `TRUST_PROXY` (local process setting, not part of CONTRACTS section 1): the API
+    reads the client address from `X-Forwarded-For` only when it is `1`, so per-IP
+    rate limits cannot be side-stepped by setting the header.
+  - Tests: 53 e2e cases against a real PostgreSQL and Redis (testcontainers) plus
+    unit suites for the token service, the password policy, the guards, the age
+    gate and the token primitives. THREAT-MODEL T1–T4 are mapped to evidence in
+    `apps/api/src/auth/README.md`.
+  - Fixed `apps/api/vitest.config.ts`: `mergeConfig` takes two configs and a
+    boolean, so the four-argument call had been silently dropping the CONTRACTS
+    section 9 coverage gate and the exclude list.
+
 - **A08 — api: jobs module, realtime gateway, idempotent completion callbacks,
   no-op `CreditsFacade`, admission control.**
   - `apps/api/src/jobs`: `JobsService` — the producer for every queue in
