@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { retryPolicyFor } from "./jobs.config.js";
+import { queuePolicyFor } from "./jobs.config.js";
 import { QueueRegistry, bullJobId } from "./queue.registry.js";
 import { createFakeRedis } from "../../test/fakes.js";
 
@@ -31,7 +31,7 @@ describe("optionsFor", () => {
     expect(options.priority).toBe(3);
   });
 
-  it("takes attempts and backoff from the queue's retry policy", () => {
+  it("takes attempts and jittered backoff from the queue's policy", () => {
     const registryInstance = registry();
     for (const queueName of ["media.probe", "ai.transcribe", "render.video", "notify"] as const) {
       const options = registryInstance.optionsFor({
@@ -40,11 +40,12 @@ describe("optionsFor", () => {
         attemptId: "a",
         priority: 1,
       });
-      const policy = retryPolicyFor(queueName);
+      const policy = queuePolicyFor(queueName);
       expect(options.attempts, queueName).toBe(policy.attempts);
       expect(options.backoff, queueName).toEqual({
         type: "exponential",
         delay: policy.backoffMs,
+        jitter: policy.backoffJitter,
       });
     }
   });

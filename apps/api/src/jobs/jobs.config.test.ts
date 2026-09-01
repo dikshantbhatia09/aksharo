@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { QUEUE_NAMES } from "./contracts/queue-names.js";
 import {
-  DEFAULT_RETRY_POLICY,
+  DEFAULT_QUEUE_POLICY,
   FREE_TIER_DAILY_MINUTES,
   JOB_EVENT_RETENTION_DAYS,
   PLAN_CONCURRENCY_LANE,
@@ -11,7 +12,8 @@ import {
   PLAN_PRIORITY,
   planLimits,
   queuePrefix,
-  retryPolicyFor,
+  heartbeatIntervalMs,
+  queuePolicyFor,
 } from "./jobs.config.js";
 
 describe("plan tables", () => {
@@ -55,16 +57,49 @@ describe("plan tables", () => {
   });
 });
 
-describe("retryPolicyFor", () => {
-  it("picks the policy by queue family", () => {
-    expect(retryPolicyFor("media.probe").attempts).toBe(3);
-    expect(retryPolicyFor("ai.transcribe").attempts).toBe(2);
-    expect(retryPolicyFor("render.video").attempts).toBe(2);
-    expect(retryPolicyFor("notify").attempts).toBe(5);
+describe("queuePolicyFor", () => {
+  it("picks the attempts of the A08b brief, by queue family", () => {
+    expect(queuePolicyFor("media.probe").attempts).toBe(3);
+    expect(queuePolicyFor("ai.transcribe").attempts).toBe(2);
+    expect(queuePolicyFor("render.video").attempts).toBe(2);
+    expect(queuePolicyFor("notify").attempts).toBe(5);
   });
 
   it("falls back for a family it has never heard of", () => {
-    expect(retryPolicyFor("something.else")).toEqual(DEFAULT_RETRY_POLICY);
+    expect(queuePolicyFor("something.else")).toEqual(DEFAULT_QUEUE_POLICY);
+  });
+
+  it("jitters every backoff, so an outage does not retry as one thundering herd", () => {
+    for (const queue of QUEUE_NAMES) {
+      const policy = queuePolicyFor(queue);
+      expect(policy.backoffJitter, queue).toBeGreaterThan(0);
+      expect(policy.backoffJitter, queue).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("gives the long ASR queues a ten-minute lock", () => {
+    expect(queuePolicyFor("ai.transcribe").lockDurationMs).toBe(600_000);
+    expect(queuePolicyFor("ai.diarise").lockDurationMs).toBe(600_000);
+    // and leaves the short ones on the family default
+    expect(queuePolicyFor("ai.clean").lockDurationMs).toBe(120_000);
+  });
+
+  it("never lets the stall check run less often than the lock it guards", () => {
+    for (const queue of QUEUE_NAMES) {
+      const policy = queuePolicyFor(queue);
+      expect(policy.stalledIntervalMs, queue).toBeLessThan(policy.lockDurationMs);
+      expect(policy.maxStalledCount, queue).toBeGreaterThanOrEqual(1);
+    }
+  });
+});
+
+describe("heartbeatIntervalMs", () => {
+  it("is a third of the lock, so two missed beats still leave it alive", () => {
+    for (const queue of QUEUE_NAMES) {
+      const policy = queuePolicyFor(queue);
+      expect(heartbeatIntervalMs(queue), queue).toBe(Math.floor(policy.lockDurationMs / 3));
+      expect(heartbeatIntervalMs(queue) * 2, queue).toBeLessThan(policy.lockDurationMs);
+    }
   });
 });
 

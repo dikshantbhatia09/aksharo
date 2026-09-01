@@ -10,6 +10,57 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A08b — api: dead-letter queue, admin replay, retry/stall policy, job-event
+  retention.**
+  - `apps/api/prisma`: the `dlq` table (migration
+    `20260902030000_a08b_dlq_replay`) — one row per attempt that exhausted its
+    retry budget, carrying the queue, the payload, the last error, the attempt
+    ordinal and the credit hold a replay has to reserve again — plus
+    `jobs.dlq` / `dlq_reason` / `dlq_at` / `attempt_no` and `users.is_admin`. The
+    migration **backfills** from the `job.dead_lettered` events A08 wrote when
+    there was nowhere else to put them, so no dead letter is lost.
+  - `apps/api/src/jobs/dlq.service.ts`: the dead-letter path. The copy is taken
+    from the job row *before* the completion update, so it remembers the hold, and
+    it is idempotent on `(jobId, attemptId)` so an at-least-once callback writes
+    one row. **Replay** claims the entry with a conditional update (two admins,
+    one replay), reuses the same `jobs` row, mints a fresh `attemptId` and
+    increments `attempt_no` — which makes the old attempt's late callback a
+    `stale_attempt` no-op (THREAT-MODEL T8) — reserves credits again through the
+    facade, and adds the BullMQ job last, so every earlier failure unwinds with
+    nothing enqueued. **Discard** releases the hold and records a mandatory reason.
+  - `apps/api/src/admin`: `AdminGuard`, which reads `users.is_admin` from the
+    database on every request rather than from a token claim, so revoking an admin
+    takes effect at once; and `GET /admin/dlq`, `/admin/dlq/stats`,
+    `/admin/dlq/{id}`, `POST /admin/dlq/{id}/replay`, `/{id}/discard` and the bulk
+    `/admin/dlq/replay` and `/admin/dlq/discard`, which **dry-run by default**.
+    Every replay and discard writes an `audit_log` row (THREAT-MODEL T20); a
+    non-admin is 403.
+  - **Retry and stall policy per queue** (`jobs.config.ts`): attempts (media 3,
+    ai 2, render 2, notify 5), exponential backoff **with jitter** — an
+    un-jittered backoff retries a whole outage into the same dead provider at the
+    same millisecond — and lock durations and stall intervals tuned per queue,
+    with ten minutes on `ai.transcribe`, `ai.diarise` and `render.video`.
+    `heartbeatIntervalMs()` is a third of the lock, and the heartbeat is the
+    existing progress callback.
+  - **Job-event retention** (D47): `jobs.event-retention`, nightly, deletes rows
+    past their own `data.retainUntil` in batches, falling back to `at` for rows
+    written before the marker existed. `dlq` rows are never purged.
+  - **Metrics** and `GET /internal/metrics`, a Prometheus exposition rendered from
+    an in-process registry that also mirrors into the OpenTelemetry metrics API.
+    Names follow `infra/observability/METRICS.md` — `montaj_job_completed_total`,
+    `montaj_queue_dlq_depth`, `montaj_queue_wait_duration_seconds`,
+    `montaj_job_attempts`, `montaj_dlq_resolved_total` — with the A08b brief's
+    `montaj_jobs_failed_total`, `montaj_dlq_depth` and `montaj_job_queue_wait_ms`
+    emitted as aliases of the same data, because the shipped dashboards and the
+    `MontajDlqNonEmpty` / `MontajDlqGrowing` rules query the METRICS.md names.
+  - `tools/runbooks/dlq-replay.js`: `stats`, `list`, `show`, `replay` and
+    `discard` against the admin API — not against Postgres, because the policy a
+    replay has to honour lives in `DlqService`. `replay` and `discard` are dry runs
+    unless `--confirm`, and refuse to run with no target.
+    `docs/runbooks/dlq-replay.md` is rewritten around the real commands.
+  - New optional environment variable `MONTAJ_METRICS_TOKEN` (non-contract): when
+    set, `GET /internal/metrics` requires it as a bearer token.
+
 - **A02b — `@montaj/edg` ops engine: apply, rebase, segmenter, snapshots, migrations.**
   - `@montaj/edg/ops`: `EdgState` (hot document, segments by id in `seq` order,
     passes and items, the transcript word index, tombstones and a 10,000-entry
@@ -357,6 +408,18 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     CONTRACTS section 1 exactly, that the lifecycle rules encode the retention
     contract, that worker egress is denied by default, and that nothing
     credential-shaped is committed.
+
+### Fixed
+
+- **A08b — `jobKey` deduplication was scoped globally, not per workspace.** A08's
+  `jobs_live_job_key_key` was `UNIQUE (job_key) WHERE status IN
+  ('queued','running')` with no workspace column, so two tenants with the same
+  live job key collided and the second enqueue failed with an unexplainable unique
+  violation. `prisma/sql/0005-a08b-dlq.sql` replaces it with
+  `jobs_live_workspace_job_key_key` on `(workspace_id, job_key)`, and
+  `JobsService.enqueue` now handles the unique violation by returning the existing
+  job — the `findLiveByKey` read cannot exclude a writer that commits a
+  microsecond later, so the index is the actual guarantee.
 
 ### Changed
 

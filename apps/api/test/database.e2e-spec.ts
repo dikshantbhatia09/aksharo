@@ -131,6 +131,18 @@ const REQUIRED_INDEXES = [
   "edg_segments_live_seq_idx",
   // pgvector:
   "audio_assets_embedding_hnsw_idx",
+  // A08b (prisma/sql/0005-a08b-dlq.sql): one LIVE job per (workspace, jobKey),
+  // and the pending slice of the dead-letter queue.
+  "jobs_live_workspace_job_key_key",
+  "dlq_pending_idx",
+  "jobs_dlq_idx",
+] as const;
+
+/** Indexes a later work package replaced. Their absence is the assertion. */
+const REMOVED_INDEXES = [
+  // A08 scoped `jobKey` uniqueness globally rather than per workspace; A08b
+  // replaced it with `jobs_live_workspace_job_key_key`.
+  "jobs_live_job_key_key",
 ] as const;
 
 const REQUIRED_CHECKS = [
@@ -173,6 +185,31 @@ describe.skipIf(!available)("database schema and seed", () => {
       expect(TABLES_FROM_06).toHaveLength(68);
     });
 
+    it("adds the A08b tables and columns 06 does not list", async () => {
+      // `dlq` is not in 06-data-model.md: D46 calls for "DLQ with admin replay"
+      // and A08b is where that table lands, so it is asserted separately rather
+      // than smuggled into TABLES_FROM_06.
+      const tables = await prisma.$queryRaw<{ table_name: string }[]>`
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'dlq'`;
+      expect(tables).toHaveLength(1);
+
+      const columns = await prisma.$queryRaw<{ table_name: string; column_name: string }[]>`
+        SELECT table_name, column_name FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND (
+            (table_name = 'jobs' AND column_name IN ('dlq', 'dlq_reason', 'dlq_at', 'attempt_no'))
+            OR (table_name = 'users' AND column_name = 'is_admin')
+          )`;
+      expect(columns.map((row) => `${row.table_name}.${row.column_name}`).sort()).toEqual([
+        "jobs.attempt_no",
+        "jobs.dlq",
+        "jobs.dlq_at",
+        "jobs.dlq_reason",
+        "users.is_admin",
+      ]);
+    });
+
     it("installs the vector extension and types audio_assets.embedding as vector", async () => {
       const extensions = await prisma.$queryRaw<{ extname: string }[]>`
         SELECT extname FROM pg_extension WHERE extname = 'vector'`;
@@ -189,6 +226,17 @@ describe.skipIf(!available)("database schema and seed", () => {
         SELECT indexname FROM pg_indexes WHERE schemaname = 'public'`;
       const present = new Set(rows.map((row) => row.indexname));
       expect(REQUIRED_INDEXES.filter((name) => !present.has(name))).toEqual([]);
+      expect(REMOVED_INDEXES.filter((name) => present.has(name))).toEqual([]);
+    });
+
+    it("scopes the live `jobKey` uniqueness to the workspace (A08b)", async () => {
+      const [row] = await prisma.$queryRaw<{ indexdef: string }[]>`
+        SELECT indexdef FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = 'jobs_live_workspace_job_key_key'`;
+      expect(row?.indexdef).toContain("workspace_id");
+      expect(row?.indexdef).toContain("job_key");
+      // The predicate is the whole point: a finished job may reuse the key.
+      expect(row?.indexdef).toMatch(/WHERE .*queued.*running/s);
     });
 
     it("creates the CHECK constraints the brief names", async () => {
