@@ -1,0 +1,1275 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:montaj:schema:edg-ops-v2",
+  "title": "EDG ops v2",
+  "description": "Semantic EDG ops and the op-batch envelopes (D29, CONTRACTS §2). The root validates one EdgOp; the batch types are under $defs. Generated from @montaj/edg; do not edit by hand.",
+  "$ref": "#/$defs/EdgOp",
+  "$defs": {
+    "EdgOp": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SetSegmentText"
+        },
+        {
+          "$ref": "#/$defs/SetSegmentBounds"
+        },
+        {
+          "$ref": "#/$defs/SplitSegment"
+        },
+        {
+          "$ref": "#/$defs/MergeSegments"
+        },
+        {
+          "$ref": "#/$defs/SetEmphasis"
+        },
+        {
+          "$ref": "#/$defs/SetSegmentPosition"
+        },
+        {
+          "$ref": "#/$defs/HideSegment"
+        },
+        {
+          "$ref": "#/$defs/SetStyle"
+        },
+        {
+          "$ref": "#/$defs/EditWord"
+        },
+        {
+          "$ref": "#/$defs/DeleteWord"
+        },
+        {
+          "$ref": "#/$defs/InsertWordAfter"
+        },
+        {
+          "$ref": "#/$defs/Resegment"
+        },
+        {
+          "$ref": "#/$defs/DecideItems"
+        },
+        {
+          "$ref": "#/$defs/MergePass"
+        },
+        {
+          "$ref": "#/$defs/SetAudio"
+        },
+        {
+          "$ref": "#/$defs/SetRender"
+        }
+      ],
+      "title": "EdgOp",
+      "description": "Semantic, id-addressed EDG mutation (D29)"
+    },
+    "SetSegmentText": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "SetSegmentText"
+        },
+        "segmentId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "script": {
+          "$ref": "#/$defs/ScriptId"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": ["opId", "type", "segmentId", "script", "text"],
+      "additionalProperties": false,
+      "title": "SetSegmentText"
+    },
+    "Ulid": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "title": "Ulid",
+      "description": "ULID identifier (CONTRACTS §0)",
+      "examples": ["01JBZ9F8Q0000000000000000A"]
+    },
+    "ScriptId": {
+      "type": "string",
+      "enum": ["roman", "native", "en", "translated"],
+      "title": "ScriptId"
+    },
+    "SetSegmentBounds": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "SetSegmentBounds"
+        },
+        "segmentId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "startMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "endMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "startWordId": {
+          "type": "string",
+          "pattern": "^\\d+:\\d+$",
+          "title": "WordId",
+          "description": "Stable word id \"<chunkIdx>:<n>\", allocated once and never reused (D28)",
+          "examples": ["0:0", "3:1274"]
+        },
+        "endWordId": {
+          "type": "string",
+          "pattern": "^\\d+:\\d+$",
+          "title": "WordId",
+          "description": "Stable word id \"<chunkIdx>:<n>\", allocated once and never reused (D28)",
+          "examples": ["0:0", "3:1274"]
+        }
+      },
+      "required": ["opId", "type", "segmentId", "startMs", "endMs"],
+      "additionalProperties": false,
+      "title": "SetSegmentBounds"
+    },
+    "SplitSegment": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "SplitSegment"
+        },
+        "segmentId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "atWordId": {
+          "type": "string",
+          "pattern": "^\\d+:\\d+$",
+          "title": "WordId",
+          "description": "Stable word id \"<chunkIdx>:<n>\", allocated once and never reused (D28)",
+          "examples": ["0:0", "3:1274"]
+        },
+        "newSegmentId": {
+          "$ref": "#/$defs/Ulid"
+        }
+      },
+      "required": ["opId", "type", "segmentId", "atWordId", "newSegmentId"],
+      "additionalProperties": false,
+      "title": "SplitSegment"
+    },
+    "MergeSegments": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "MergeSegments"
+        },
+        "segmentIds": {
+          "minItems": 2,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Ulid"
+          }
+        },
+        "newSegmentId": {
+          "$ref": "#/$defs/Ulid"
+        }
+      },
+      "required": ["opId", "type", "segmentIds", "newSegmentId"],
+      "additionalProperties": false,
+      "title": "MergeSegments"
+    },
+    "SetEmphasis": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "SetEmphasis"
+        },
+        "segmentId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "wordId": {
+          "type": "string",
+          "pattern": "^\\d+:\\d+$",
+          "title": "WordId",
+          "description": "Stable word id \"<chunkIdx>:<n>\", allocated once and never reused (D28)",
+          "examples": ["0:0", "3:1274"]
+        },
+        "presetId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PresetId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["opId", "type", "segmentId", "wordId", "presetId"],
+      "additionalProperties": false,
+      "title": "SetEmphasis"
+    },
+    "PresetId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "title": "PresetId"
+    },
+    "SetSegmentPosition": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "SetSegmentPosition"
+        },
+        "segmentId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Position"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["opId", "type", "segmentId", "position"],
+      "additionalProperties": false,
+      "title": "SetSegmentPosition"
+    },
+    "Position": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "anchor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        }
+      },
+      "required": ["x", "y", "anchor"],
+      "additionalProperties": false,
+      "title": "Position"
+    },
+    "HideSegment": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "HideSegment"
+        },
+        "segmentId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "hidden": {
+          "type": "boolean"
+        }
+      },
+      "required": ["opId", "type", "segmentId", "hidden"],
+      "additionalProperties": false,
+      "title": "HideSegment"
+    },
+    "StyleRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "title": "StyleRef"
+    },
+    "JsonObject": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {},
+      "title": "JsonObject"
+    },
+    "SetStyle": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "SetStyle"
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["doc", "segment"]
+        },
+        "segmentId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "styleRef": {
+          "$ref": "#/$defs/StyleRef"
+        },
+        "overrides": {
+          "$ref": "#/$defs/JsonObject"
+        }
+      },
+      "required": ["opId", "type", "scope"],
+      "additionalProperties": false,
+      "title": "SetStyle"
+    },
+    "EditWord": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "EditWord"
+        },
+        "wordId": {
+          "type": "string",
+          "pattern": "^\\d+:\\d+$",
+          "title": "WordId",
+          "description": "Stable word id \"<chunkIdx>:<n>\", allocated once and never reused (D28)",
+          "examples": ["0:0", "3:1274"]
+        },
+        "text": {
+          "type": "string"
+        },
+        "script": {
+          "$ref": "#/$defs/ScriptId"
+        }
+      },
+      "required": ["opId", "type", "wordId", "text"],
+      "additionalProperties": false,
+      "title": "EditWord"
+    },
+    "DeleteWord": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "DeleteWord"
+        },
+        "wordId": {
+          "type": "string",
+          "pattern": "^\\d+:\\d+$",
+          "title": "WordId",
+          "description": "Stable word id \"<chunkIdx>:<n>\", allocated once and never reused (D28)",
+          "examples": ["0:0", "3:1274"]
+        }
+      },
+      "required": ["opId", "type", "wordId"],
+      "additionalProperties": false,
+      "title": "DeleteWord"
+    },
+    "InsertWordAfter": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "InsertWordAfter"
+        },
+        "wordId": {
+          "type": "string",
+          "pattern": "^\\d+:\\d+$",
+          "title": "WordId",
+          "description": "Stable word id \"<chunkIdx>:<n>\", allocated once and never reused (D28)",
+          "examples": ["0:0", "3:1274"]
+        },
+        "newWordId": {
+          "type": "string",
+          "pattern": "^\\d+:\\d+$",
+          "title": "WordId",
+          "description": "Stable word id \"<chunkIdx>:<n>\", allocated once and never reused (D28)",
+          "examples": ["0:0", "3:1274"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "s": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "e": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        }
+      },
+      "required": ["opId", "type", "wordId", "newWordId", "text", "s", "e"],
+      "additionalProperties": false,
+      "title": "InsertWordAfter"
+    },
+    "Resegment": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "Resegment"
+        },
+        "maxChars": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        },
+        "maxLines": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 6
+        },
+        "minMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "maxMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        }
+      },
+      "required": ["opId", "type", "maxChars", "maxLines", "minMs", "maxMs"],
+      "additionalProperties": false,
+      "title": "Resegment"
+    },
+    "DecideItems": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "DecideItems"
+        },
+        "itemIds": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Ulid"
+          }
+        },
+        "state": {
+          "$ref": "#/$defs/ItemState"
+        }
+      },
+      "required": ["opId", "type", "itemIds", "state"],
+      "additionalProperties": false,
+      "title": "DecideItems"
+    },
+    "ItemState": {
+      "type": "string",
+      "enum": ["proposed", "accepted", "rejected", "modified"],
+      "title": "ItemState"
+    },
+    "MergePass": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "MergePass"
+        },
+        "pass": {
+          "$ref": "#/$defs/Pass"
+        }
+      },
+      "required": ["opId", "type", "pass"],
+      "additionalProperties": false,
+      "title": "MergePass"
+    },
+    "Pass": {
+      "type": "object",
+      "properties": {
+        "passId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "$ref": "#/$defs/PassType"
+        },
+        "engine": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "params": {
+          "$ref": "#/$defs/JsonObject"
+        },
+        "status": {
+          "$ref": "#/$defs/PassStatus"
+        },
+        "jobId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "title": "IsoDateTime"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PassItem"
+          }
+        }
+      },
+      "required": ["passId", "type", "engine", "params", "status", "items"],
+      "additionalProperties": false,
+      "title": "Pass"
+    },
+    "PassType": {
+      "type": "string",
+      "enum": ["autocut", "reframe", "sfx", "music", "textfx", "prompted"],
+      "title": "PassType"
+    },
+    "PassStatus": {
+      "type": "string",
+      "enum": ["queued", "running", "ready", "merged", "failed", "cancelled"],
+      "title": "PassStatus"
+    },
+    "PassItem": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "itemId": {
+              "$ref": "#/$defs/Ulid"
+            },
+            "passId": {
+              "$ref": "#/$defs/Ulid"
+            },
+            "startMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Milliseconds"
+            },
+            "endMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Milliseconds"
+            },
+            "keyframesRef": {
+              "$ref": "#/$defs/KeyframesRef"
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "title": "Confidence"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "state": {
+              "$ref": "#/$defs/ItemState"
+            },
+            "licenceSnapshot": {
+              "$ref": "#/$defs/JsonObject"
+            },
+            "kind": {
+              "type": "string",
+              "const": "cut"
+            },
+            "payload": {
+              "$ref": "#/$defs/CutPayload"
+            }
+          },
+          "required": ["itemId", "passId", "startMs", "endMs", "state", "kind", "payload"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "itemId": {
+              "$ref": "#/$defs/Ulid"
+            },
+            "passId": {
+              "$ref": "#/$defs/Ulid"
+            },
+            "startMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Milliseconds"
+            },
+            "endMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Milliseconds"
+            },
+            "keyframesRef": {
+              "$ref": "#/$defs/KeyframesRef"
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "title": "Confidence"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "state": {
+              "$ref": "#/$defs/ItemState"
+            },
+            "licenceSnapshot": {
+              "$ref": "#/$defs/JsonObject"
+            },
+            "kind": {
+              "type": "string",
+              "const": "zoom"
+            },
+            "payload": {
+              "$ref": "#/$defs/ZoomPayload"
+            }
+          },
+          "required": ["itemId", "passId", "startMs", "endMs", "state", "kind", "payload"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "itemId": {
+              "$ref": "#/$defs/Ulid"
+            },
+            "passId": {
+              "$ref": "#/$defs/Ulid"
+            },
+            "startMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Milliseconds"
+            },
+            "endMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Milliseconds"
+            },
+            "keyframesRef": {
+              "$ref": "#/$defs/KeyframesRef"
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "title": "Confidence"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "state": {
+              "$ref": "#/$defs/ItemState"
+            },
+            "licenceSnapshot": {
+              "$ref": "#/$defs/JsonObject"
+            },
+            "kind": {
+              "type": "string",
+              "const": "reframe"
+            },
+            "payload": {
+              "$ref": "#/$defs/ReframePayload"
+            }
+          },
+          "required": ["itemId", "passId", "startMs", "endMs", "state", "kind", "payload"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "itemId": {
+              "$ref": "#/$defs/Ulid"
+            },
+            "passId": {
+              "$ref": "#/$defs/Ulid"
+            },
+            "startMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Milliseconds"
+            },
+            "endMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Milliseconds"
+            },
+            "keyframesRef": {
+              "$ref": "#/$defs/KeyframesRef"
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "title": "Confidence"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "state": {
+              "$ref": "#/$defs/ItemState"
+            },
+            "licenceSnapshot": {
+              "$ref": "#/$defs/JsonObject"
+            },
+            "kind": {
+              "type": "string",
+              "const": "sfx"
+            },
+            "payload": {
+              "$ref": "#/$defs/SfxPayload"
+            }
+          },
+          "required": ["itemId", "passId", "startMs", "endMs", "state", "kind", "payload"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "itemId": {
+              "$ref": "#/$defs/Ulid"
+            },
+            "passId": {
+              "$ref": "#/$defs/Ulid"
+            },
+            "startMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Milliseconds"
+            },
+            "endMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Milliseconds"
+            },
+            "keyframesRef": {
+              "$ref": "#/$defs/KeyframesRef"
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "title": "Confidence"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "state": {
+              "$ref": "#/$defs/ItemState"
+            },
+            "licenceSnapshot": {
+              "$ref": "#/$defs/JsonObject"
+            },
+            "kind": {
+              "type": "string",
+              "const": "music"
+            },
+            "payload": {
+              "$ref": "#/$defs/MusicPayload"
+            }
+          },
+          "required": ["itemId", "passId", "startMs", "endMs", "state", "kind", "payload"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "itemId": {
+              "$ref": "#/$defs/Ulid"
+            },
+            "passId": {
+              "$ref": "#/$defs/Ulid"
+            },
+            "startMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Milliseconds"
+            },
+            "endMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "title": "Milliseconds"
+            },
+            "keyframesRef": {
+              "$ref": "#/$defs/KeyframesRef"
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "title": "Confidence"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "state": {
+              "$ref": "#/$defs/ItemState"
+            },
+            "licenceSnapshot": {
+              "$ref": "#/$defs/JsonObject"
+            },
+            "kind": {
+              "type": "string",
+              "const": "title"
+            },
+            "payload": {
+              "$ref": "#/$defs/TitlePayload"
+            }
+          },
+          "required": ["itemId", "passId", "startMs", "endMs", "state", "kind", "payload"],
+          "additionalProperties": false
+        }
+      ],
+      "title": "PassItem",
+      "description": "An AI proposal with a per-kind payload (CONTRACTS §2)"
+    },
+    "KeyframesRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "title": "KeyframesRef"
+    },
+    "CutPayload": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "title": "CutPayload"
+    },
+    "ZoomPayload": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/Rect"
+        },
+        "scaleFrom": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "scaleTo": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "easing": {
+          "$ref": "#/$defs/Easing"
+        },
+        "keyframesRef": {
+          "$ref": "#/$defs/KeyframesRef"
+        }
+      },
+      "required": ["target", "scaleFrom", "scaleTo", "easing"],
+      "additionalProperties": false,
+      "title": "ZoomPayload"
+    },
+    "Rect": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "w": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "h": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": ["x", "y", "w", "h"],
+      "additionalProperties": false,
+      "title": "Rect"
+    },
+    "Easing": {
+      "type": "string",
+      "enum": ["velocity", "easeInOut"],
+      "title": "Easing"
+    },
+    "ReframePayload": {
+      "type": "object",
+      "properties": {
+        "aspect": {
+          "$ref": "#/$defs/Aspect"
+        },
+        "keyframesRef": {
+          "$ref": "#/$defs/KeyframesRef"
+        }
+      },
+      "required": ["aspect", "keyframesRef"],
+      "additionalProperties": false,
+      "title": "ReframePayload"
+    },
+    "Aspect": {
+      "type": "string",
+      "enum": ["9:16", "16:9", "1:1", "4:5"],
+      "title": "Aspect"
+    },
+    "SfxPayload": {
+      "type": "object",
+      "properties": {
+        "assetId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "gainDb": {
+          "type": "number",
+          "minimum": -60,
+          "maximum": 24,
+          "title": "GainDb"
+        },
+        "offsetMs": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "title": "OffsetMilliseconds"
+        }
+      },
+      "required": ["assetId", "gainDb", "offsetMs"],
+      "additionalProperties": false,
+      "title": "SfxPayload"
+    },
+    "MusicPayload": {
+      "type": "object",
+      "properties": {
+        "assetId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "gainDb": {
+          "type": "number",
+          "minimum": -60,
+          "maximum": 24,
+          "title": "GainDb"
+        },
+        "duckDb": {
+          "type": "number",
+          "minimum": -60,
+          "maximum": 0
+        },
+        "fadeInMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "fadeOutMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        }
+      },
+      "required": ["assetId", "gainDb", "duckDb", "fadeInMs", "fadeOutMs"],
+      "additionalProperties": false,
+      "title": "MusicPayload"
+    },
+    "TitlePayload": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "styleRef": {
+          "$ref": "#/$defs/StyleRef"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "animIn": {
+          "$ref": "#/$defs/PresetId"
+        },
+        "animOut": {
+          "$ref": "#/$defs/PresetId"
+        }
+      },
+      "required": ["text", "styleRef", "position", "animIn", "animOut"],
+      "additionalProperties": false,
+      "title": "TitlePayload"
+    },
+    "AudioClean": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "preset": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "targetLufs": {
+          "type": "number",
+          "minimum": -40,
+          "maximum": 0
+        }
+      },
+      "required": ["enabled"],
+      "additionalProperties": false,
+      "title": "AudioClean"
+    },
+    "AudioDucking": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "duckDb": {
+          "type": "number",
+          "minimum": -60,
+          "maximum": 0
+        },
+        "attackMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "releaseMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        }
+      },
+      "required": ["enabled"],
+      "additionalProperties": false,
+      "title": "AudioDucking"
+    },
+    "SetAudio": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "SetAudio"
+        },
+        "clean": {
+          "$ref": "#/$defs/AudioClean"
+        },
+        "ducking": {
+          "$ref": "#/$defs/AudioDucking"
+        }
+      },
+      "required": ["opId", "type"],
+      "additionalProperties": false,
+      "title": "SetAudio"
+    },
+    "SetRender": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "SetRender"
+        },
+        "presets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        }
+      },
+      "required": ["opId", "type"],
+      "additionalProperties": false,
+      "title": "SetRender"
+    },
+    "OpBatchRequest": {
+      "type": "object",
+      "properties": {
+        "baseRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "ops": {
+          "minItems": 1,
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EdgOp"
+          }
+        },
+        "clientOpIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Ulid"
+          }
+        }
+      },
+      "required": ["baseRevision", "ops", "clientOpIds"],
+      "additionalProperties": false,
+      "title": "OpBatchRequest"
+    },
+    "OpBatchResponse": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "applied": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Ulid"
+          }
+        },
+        "rebased": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Ulid"
+          }
+        },
+        "rejected": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OpRejection"
+          }
+        }
+      },
+      "required": ["revision", "applied", "rebased", "rejected"],
+      "additionalProperties": false,
+      "title": "OpBatchResponse"
+    },
+    "OpRejection": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "reason": {
+          "$ref": "#/$defs/OpRejectionReason"
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "required": ["opId", "reason"],
+      "additionalProperties": false,
+      "title": "OpRejection"
+    },
+    "OpRejectionReason": {
+      "type": "string",
+      "enum": ["stale", "conflict", "invalid", "unknown-id", "forbidden", "rate-limited"],
+      "title": "OpRejectionReason"
+    },
+    "OpConflict": {
+      "type": "object",
+      "properties": {
+        "latestRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "opsSince": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EdgOp"
+          }
+        }
+      },
+      "required": ["latestRevision", "opsSince"],
+      "additionalProperties": false,
+      "title": "OpConflict"
+    },
+    "EdgOpsEvent": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "ops": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EdgOp"
+          }
+        },
+        "source": {
+          "type": "string",
+          "enum": ["web", "desktop", "premiere", "ae", "resolve", "worker"]
+        }
+      },
+      "required": ["revision", "ops", "source"],
+      "additionalProperties": false,
+      "title": "EdgOpsEvent"
+    }
+  }
+}

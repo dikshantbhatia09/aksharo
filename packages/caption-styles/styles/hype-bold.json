@@ -1,0 +1,87 @@
+{
+  "id": "hype-bold",
+  "name": "Hype Bold",
+  "version": 2,
+  "category": "bold",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Anton",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 400,
+    "italic": false,
+    "sizePct": 7.8,
+    "lineHeight": 1.02,
+    "letterSpacingEm": 0.01,
+    "textTransform": "uppercase"
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#37ff8b",
+    "upcomingText": "#cfd6e4",
+    "accent": "#37ff8b"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "word",
+    "paddingPct": 14,
+    "radiusPct": 18,
+    "opacity": 0.8
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#000000",
+    "widthPct": 12
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 8,
+    "blurPct": 4,
+    "opacity": 0.8
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.5,
+    "align": "center",
+    "maxWidthPct": 90,
+    "maxLines": 2,
+    "wordsPerCue": 3,
+    "safeAreaPct": 10
+  },
+  "animation": {
+    "in": {
+      "type": "bounce",
+      "durationMs": 160
+    },
+    "out": {
+      "type": "none",
+      "durationMs": 0
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 90
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "pop",
+      "label": "Pop",
+      "color": "#37ff8b",
+      "scale": 1.25,
+      "effect": "none"
+    },
+    {
+      "id": "glow",
+      "label": "Glow",
+      "color": "#37ff8b",
+      "effect": "glow"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/hype-bold.mp4"
+}

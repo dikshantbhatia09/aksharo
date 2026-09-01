@@ -75,5 +75,34 @@ ordering, an operator class. Two cases are easy to get wrong:
   because PostgreSQL treats every NULL as distinct. `@@unique([workspaceId, key])`
   on `style_presets` therefore does nothing for the system styles
   (`workspace_id IS NULL`), and a partial unique index here supplies it.
+- **Uniqueness that only holds for some rows needs a predicate.** Two _live_
+  `edg_segments` may not share a `seq` — a fractional key is a position, and two
+  segments in one position leaves the document with no defined order. But a
+  tombstoned segment keeps its key (ids are never reused, 06 invariant 4) and a
+  later edit may legitimately reclaim it, so a plain `UNIQUE (edg_id, seq)` would
+  reject a correct edit. `edg_segments_live_seq_idx` is `UNIQUE … WHERE
+deleted_at_rev IS NULL`; the plain `(edg_id, seq)` index in `schema.prisma`
+  remains the read path over all rows.
 
-Owner: **A03**.
+## Collation is part of the schema
+
+`edg_segments.seq` is `text COLLATE "C"`. The base-62 alphabet `0-9A-Za-z` is in
+ASCII order precisely so that `ORDER BY seq` is the same comparison
+`compareSeqKeys()` makes in `@montaj/edg`, and that equivalence holds **only**
+under byte ordering. Measured on `pgvector/pgvector:pg16`, whose database default
+is `en_US.utf8`:
+
+```
+ORDER BY seq              ->  1  1B  2  a   Zz  zzzV
+ORDER BY seq COLLATE "C"  ->  1  1B  2  Zz  a   zzzV
+```
+
+The compose Postgres is initialised `--locale=C`, so a developer would never see
+the difference; a managed instance would, and every caption in the document would
+come back shuffled. The collation is therefore pinned on the column, in
+`prisma/migrations/20260902010000_edg_segment_seq_text`. Prisma has no syntax for
+a collation and will not notice if it is lost, so `test/database.e2e-spec.ts`
+asserts `information_schema.columns.collation_name = 'C'` — which is `NULL` for a
+column that merely inherits the database default.
+
+Owner: **A03** (schema, indexes, checks), **A03b** (`seq` type and collation).

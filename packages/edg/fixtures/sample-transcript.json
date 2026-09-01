@@ -1,0 +1,1440 @@
+{
+  "manifest": {
+    "transcriptId": "01KF0FV4PS6Y0C22C0Y6RMTA48",
+    "revision": 3,
+    "language": "hi-Latn",
+    "chunks": [
+      {
+        "chunkIdx": 0,
+        "startMs": 0,
+        "endMs": 90000,
+        "wordCount": 119,
+        "nextWordSeq": 119
+      }
+    ]
+  },
+  "chunks": [
+    {
+      "chunkIdx": 0,
+      "startMs": 0,
+      "endMs": 90000,
+      "words": [
+        {
+          "wid": "0:0",
+          "s": 320,
+          "e": 768,
+          "t": "Bhai",
+          "c": 0.82,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "Bhai",
+            "native": "भाई"
+          }
+        },
+        {
+          "wid": "0:1",
+          "s": 808,
+          "e": 1256,
+          "t": "aaj",
+          "c": 0.89,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "aaj",
+            "native": "आज"
+          }
+        },
+        {
+          "wid": "0:2",
+          "s": 1296,
+          "e": 1744,
+          "t": "hum",
+          "c": 0.96,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "hum",
+            "native": "हम"
+          }
+        },
+        {
+          "wid": "0:3",
+          "s": 1784,
+          "e": 2232,
+          "t": "baat",
+          "c": 0.86,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "baat",
+            "native": "बात"
+          }
+        },
+        {
+          "wid": "0:4",
+          "s": 2272,
+          "e": 2720,
+          "t": "karenge",
+          "c": 0.93,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "karenge",
+            "native": "करेंगे"
+          }
+        },
+        {
+          "wid": "0:5",
+          "s": 2760,
+          "e": 3208,
+          "t": "video",
+          "c": 0.83,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "video"
+          }
+        },
+        {
+          "wid": "0:6",
+          "s": 3248,
+          "e": 3696,
+          "t": "editing",
+          "c": 0.9,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "editing"
+          }
+        },
+        {
+          "wid": "0:7",
+          "s": 3736,
+          "e": 4184,
+          "t": "ke",
+          "c": 0.97,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "ke",
+            "native": "के"
+          }
+        },
+        {
+          "wid": "0:8",
+          "s": 4224,
+          "e": 4672,
+          "t": "bare",
+          "c": 0.87,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "bare",
+            "native": "बारे"
+          }
+        },
+        {
+          "wid": "0:9",
+          "s": 4712,
+          "e": 5200,
+          "t": "mein",
+          "c": 0.94,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "mein",
+            "native": "में"
+          }
+        },
+        {
+          "wid": "0:10",
+          "s": 5400,
+          "e": 5920,
+          "t": "Matlab",
+          "c": 0.84,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "Matlab",
+            "native": "मतलब"
+          },
+          "filler": true
+        },
+        {
+          "wid": "0:11",
+          "s": 5960,
+          "e": 6480,
+          "t": "woh",
+          "c": 0.91,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "woh",
+            "native": "वो"
+          }
+        },
+        {
+          "wid": "0:12",
+          "s": 6520,
+          "e": 7040,
+          "t": "cheez",
+          "c": 0.98,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "cheez",
+            "native": "चीज़"
+          }
+        },
+        {
+          "wid": "0:13",
+          "s": 7080,
+          "e": 7600,
+          "t": "jo",
+          "c": 0.88,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "jo",
+            "native": "जो"
+          }
+        },
+        {
+          "wid": "0:14",
+          "s": 7640,
+          "e": 8160,
+          "t": "sab",
+          "c": 0.95,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "sab",
+            "native": "सब"
+          }
+        },
+        {
+          "wid": "0:15",
+          "s": 8200,
+          "e": 8720,
+          "t": "log",
+          "c": 0.85,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "log",
+            "native": "लोग"
+          }
+        },
+        {
+          "wid": "0:16",
+          "s": 8760,
+          "e": 9280,
+          "t": "har",
+          "c": 0.92,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "har",
+            "native": "हर"
+          }
+        },
+        {
+          "wid": "0:17",
+          "s": 9320,
+          "e": 9840,
+          "t": "roz",
+          "c": 0.82,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "roz",
+            "native": "रोज़"
+          }
+        },
+        {
+          "wid": "0:18",
+          "s": 9880,
+          "e": 10400,
+          "t": "poochte",
+          "c": 0.89,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "poochte",
+            "native": "पूछते"
+          }
+        },
+        {
+          "wid": "0:19",
+          "s": 10440,
+          "e": 11000,
+          "t": "hain",
+          "c": 0.96,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "hain",
+            "native": "हैं"
+          }
+        },
+        {
+          "wid": "0:20",
+          "s": 11400,
+          "e": 11940,
+          "t": "Haan",
+          "c": 0.86,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "Haan",
+            "native": "हाँ"
+          }
+        },
+        {
+          "wid": "0:21",
+          "s": 11980,
+          "e": 12520,
+          "t": "yaar",
+          "c": 0.93,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "yaar",
+            "native": "यार"
+          }
+        },
+        {
+          "wid": "0:22",
+          "s": 12560,
+          "e": 13100,
+          "t": "mujhe",
+          "c": 0.83,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "mujhe",
+            "native": "मुझे"
+          }
+        },
+        {
+          "wid": "0:23",
+          "s": 13140,
+          "e": 13680,
+          "t": "bhi",
+          "c": 0.9,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "bhi",
+            "native": "भी"
+          }
+        },
+        {
+          "wid": "0:24",
+          "s": 13720,
+          "e": 14260,
+          "t": "seekhna",
+          "c": 0.97,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "seekhna",
+            "native": "सीखना"
+          }
+        },
+        {
+          "wid": "0:25",
+          "s": 14300,
+          "e": 14840,
+          "t": "hai",
+          "c": 0.87,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "hai",
+            "native": "है"
+          }
+        },
+        {
+          "wid": "0:26",
+          "s": 14880,
+          "e": 15420,
+          "t": "par",
+          "c": 0.94,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "par",
+            "native": "पर"
+          }
+        },
+        {
+          "wid": "0:27",
+          "s": 15460,
+          "e": 16000,
+          "t": "time",
+          "c": 0.84,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "time"
+          }
+        },
+        {
+          "wid": "0:28",
+          "s": 16040,
+          "e": 16580,
+          "t": "nahi",
+          "c": 0.91,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "nahi",
+            "native": "नहीं"
+          }
+        },
+        {
+          "wid": "0:29",
+          "s": 16620,
+          "e": 17200,
+          "t": "milta",
+          "c": 0.98,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "milta",
+            "native": "मिलता"
+          }
+        },
+        {
+          "wid": "0:30",
+          "s": 17500,
+          "e": 18010,
+          "t": "Umm",
+          "c": 0.88,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "Umm"
+          },
+          "filler": true
+        },
+        {
+          "wid": "0:31",
+          "s": 18050,
+          "e": 18560,
+          "t": "mera",
+          "c": 0.95,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "mera",
+            "native": "मेरा"
+          }
+        },
+        {
+          "wid": "0:32",
+          "s": 18600,
+          "e": 19110,
+          "t": "matlab",
+          "c": 0.85,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "matlab",
+            "native": "मतलब"
+          }
+        },
+        {
+          "wid": "0:33",
+          "s": 19150,
+          "e": 19660,
+          "t": "hai",
+          "c": 0.92,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "hai",
+            "native": "है"
+          }
+        },
+        {
+          "wid": "0:34",
+          "s": 19700,
+          "e": 20210,
+          "t": "ki",
+          "c": 0.82,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "ki",
+            "native": "कि"
+          }
+        },
+        {
+          "wid": "0:35",
+          "s": 20250,
+          "e": 20760,
+          "t": "editing",
+          "c": 0.89,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "editing"
+          }
+        },
+        {
+          "wid": "0:36",
+          "s": 20800,
+          "e": 21310,
+          "t": "bahut",
+          "c": 0.96,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "bahut",
+            "native": "बहुत"
+          }
+        },
+        {
+          "wid": "0:37",
+          "s": 21350,
+          "e": 21860,
+          "t": "mushkil",
+          "c": 0.86,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "mushkil",
+            "native": "मुश्किल"
+          }
+        },
+        {
+          "wid": "0:38",
+          "s": 21900,
+          "e": 22410,
+          "t": "lagti",
+          "c": 0.93,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "lagti",
+            "native": "लगती"
+          }
+        },
+        {
+          "wid": "0:39",
+          "s": 22450,
+          "e": 23000,
+          "t": "hai",
+          "c": 0.83,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "hai",
+            "native": "है"
+          }
+        },
+        {
+          "wid": "0:40",
+          "s": 23400,
+          "e": 24122,
+          "t": "Dekho",
+          "c": 0.9,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "Dekho",
+            "native": "देखो"
+          }
+        },
+        {
+          "wid": "0:41",
+          "s": 24162,
+          "e": 24884,
+          "t": "pehle",
+          "c": 0.97,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "pehle",
+            "native": "पहले"
+          }
+        },
+        {
+          "wid": "0:42",
+          "s": 24924,
+          "e": 25646,
+          "t": "transcript",
+          "c": 0.87,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "transcript"
+          }
+        },
+        {
+          "wid": "0:43",
+          "s": 25686,
+          "e": 26408,
+          "t": "nikaalo",
+          "c": 0.94,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "nikaalo",
+            "native": "निकालो"
+          }
+        },
+        {
+          "wid": "0:44",
+          "s": 26448,
+          "e": 27170,
+          "t": "phir",
+          "c": 0.84,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "phir",
+            "native": "फिर"
+          }
+        },
+        {
+          "wid": "0:45",
+          "s": 27210,
+          "e": 27932,
+          "t": "cut",
+          "c": 0.91,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "cut"
+          }
+        },
+        {
+          "wid": "0:46",
+          "s": 27972,
+          "e": 28694,
+          "t": "lagao",
+          "c": 0.98,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "lagao",
+            "native": "लगाओ"
+          }
+        },
+        {
+          "wid": "0:47",
+          "s": 28734,
+          "e": 29500,
+          "t": "simple",
+          "c": 0.88,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "simple"
+          }
+        },
+        {
+          "wid": "0:48",
+          "s": 30000,
+          "e": 30580,
+          "t": "Main",
+          "c": 0.95,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "Main",
+            "native": "मैं"
+          }
+        },
+        {
+          "wid": "0:49",
+          "s": 30620,
+          "e": 31200,
+          "t": "toh",
+          "c": 0.85,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "toh",
+            "native": "तो"
+          }
+        },
+        {
+          "wid": "0:50",
+          "s": 31240,
+          "e": 31820,
+          "t": "captions",
+          "c": 0.92,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "captions"
+          }
+        },
+        {
+          "wid": "0:51",
+          "s": 31860,
+          "e": 32440,
+          "t": "ke",
+          "c": 0.82,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "ke",
+            "native": "के"
+          }
+        },
+        {
+          "wid": "0:52",
+          "s": 32480,
+          "e": 33060,
+          "t": "bina",
+          "c": 0.89,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "bina",
+            "native": "बिना"
+          }
+        },
+        {
+          "wid": "0:53",
+          "s": 33100,
+          "e": 33680,
+          "t": "upload",
+          "c": 0.96,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "upload"
+          }
+        },
+        {
+          "wid": "0:54",
+          "s": 33720,
+          "e": 34300,
+          "t": "karta",
+          "c": 0.86,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "karta",
+            "native": "करता"
+          }
+        },
+        {
+          "wid": "0:55",
+          "s": 34340,
+          "e": 34920,
+          "t": "hi",
+          "c": 0.93,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "hi"
+          }
+        },
+        {
+          "wid": "0:56",
+          "s": 34960,
+          "e": 35540,
+          "t": "nahi",
+          "c": 0.83,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "nahi",
+            "native": "नहीं"
+          }
+        },
+        {
+          "wid": "0:57",
+          "s": 35580,
+          "e": 36200,
+          "t": "hoon",
+          "c": 0.9,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "hoon",
+            "native": "हूँ"
+          }
+        },
+        {
+          "wid": "0:58",
+          "s": 36500,
+          "e": 37182,
+          "t": "Kyunki",
+          "c": 0.97,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "Kyunki",
+            "native": "क्योंकि"
+          }
+        },
+        {
+          "wid": "0:59",
+          "s": 37222,
+          "e": 37904,
+          "t": "aadhe",
+          "c": 0.87,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "aadhe",
+            "native": "आधे"
+          }
+        },
+        {
+          "wid": "0:60",
+          "s": 37944,
+          "e": 38626,
+          "t": "log",
+          "c": 0.94,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "log",
+            "native": "लोग"
+          }
+        },
+        {
+          "wid": "0:61",
+          "s": 38666,
+          "e": 39348,
+          "t": "bin",
+          "c": 0.84,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "bin",
+            "native": "बिन"
+          }
+        },
+        {
+          "wid": "0:62",
+          "s": 39388,
+          "e": 40070,
+          "t": "awaaz",
+          "c": 0.91,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "awaaz",
+            "native": "आवाज़"
+          }
+        },
+        {
+          "wid": "0:63",
+          "s": 40110,
+          "e": 40792,
+          "t": "ke",
+          "c": 0.98,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "ke",
+            "native": "के"
+          }
+        },
+        {
+          "wid": "0:64",
+          "s": 40832,
+          "e": 41514,
+          "t": "video",
+          "c": 0.88,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "video"
+          }
+        },
+        {
+          "wid": "0:65",
+          "s": 41554,
+          "e": 42236,
+          "t": "dekhte",
+          "c": 0.95,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "dekhte",
+            "native": "देखते"
+          }
+        },
+        {
+          "wid": "0:66",
+          "s": 42276,
+          "e": 43000,
+          "t": "hain",
+          "c": 0.85,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "hain",
+            "native": "हैं"
+          }
+        },
+        {
+          "wid": "0:67",
+          "s": 43400,
+          "e": 44037,
+          "t": "Sahi",
+          "c": 0.92,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "Sahi",
+            "native": "सही"
+          }
+        },
+        {
+          "wid": "0:68",
+          "s": 44077,
+          "e": 44714,
+          "t": "kaha",
+          "c": 0.82,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "kaha",
+            "native": "कहा"
+          }
+        },
+        {
+          "wid": "0:69",
+          "s": 44754,
+          "e": 45391,
+          "t": "isi",
+          "c": 0.89,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "isi",
+            "native": "इसी"
+          }
+        },
+        {
+          "wid": "0:70",
+          "s": 45431,
+          "e": 46068,
+          "t": "liye",
+          "c": 0.96,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "liye",
+            "native": "लिए"
+          }
+        },
+        {
+          "wid": "0:71",
+          "s": 46108,
+          "e": 46745,
+          "t": "captions",
+          "c": 0.86,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "captions"
+          }
+        },
+        {
+          "wid": "0:72",
+          "s": 46785,
+          "e": 47422,
+          "t": "pehla",
+          "c": 0.93,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "pehla",
+            "native": "पहला"
+          }
+        },
+        {
+          "wid": "0:73",
+          "s": 47462,
+          "e": 48099,
+          "t": "kaam",
+          "c": 0.83,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "kaam",
+            "native": "काम"
+          }
+        },
+        {
+          "wid": "0:74",
+          "s": 48139,
+          "e": 48776,
+          "t": "hota",
+          "c": 0.9,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "hota",
+            "native": "होता"
+          }
+        },
+        {
+          "wid": "0:75",
+          "s": 48816,
+          "e": 49500,
+          "t": "hai",
+          "c": 0.97,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "hai",
+            "native": "है"
+          }
+        },
+        {
+          "wid": "0:76",
+          "s": 50000,
+          "e": 50578,
+          "t": "Chalo",
+          "c": 0.87,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "Chalo",
+            "native": "चलो"
+          }
+        },
+        {
+          "wid": "0:77",
+          "s": 50618,
+          "e": 51196,
+          "t": "ab",
+          "c": 0.94,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "ab",
+            "native": "अब"
+          }
+        },
+        {
+          "wid": "0:78",
+          "s": 51236,
+          "e": 51814,
+          "t": "ek",
+          "c": 0.84,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "ek",
+            "native": "एक"
+          }
+        },
+        {
+          "wid": "0:79",
+          "s": 51854,
+          "e": 52432,
+          "t": "choti",
+          "c": 0.91,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "choti",
+            "native": "छोटी"
+          }
+        },
+        {
+          "wid": "0:80",
+          "s": 52472,
+          "e": 53050,
+          "t": "clip",
+          "c": 0.98,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "clip",
+            "native": "क्लिप"
+          }
+        },
+        {
+          "wid": "0:81",
+          "s": 53090,
+          "e": 53668,
+          "t": "uthate",
+          "c": 0.88,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "uthate",
+            "native": "उठाते"
+          }
+        },
+        {
+          "wid": "0:82",
+          "s": 53708,
+          "e": 54286,
+          "t": "hain",
+          "c": 0.95,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "hain",
+            "native": "हैं"
+          }
+        },
+        {
+          "wid": "0:83",
+          "s": 54326,
+          "e": 54904,
+          "t": "aur",
+          "c": 0.85,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "aur",
+            "native": "और"
+          }
+        },
+        {
+          "wid": "0:84",
+          "s": 54944,
+          "e": 55522,
+          "t": "short",
+          "c": 0.92,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "short"
+          }
+        },
+        {
+          "wid": "0:85",
+          "s": 55562,
+          "e": 56140,
+          "t": "banate",
+          "c": 0.82,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "banate",
+            "native": "बनाते"
+          }
+        },
+        {
+          "wid": "0:86",
+          "s": 56180,
+          "e": 56800,
+          "t": "hain",
+          "c": 0.89,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "hain",
+            "native": "हैं"
+          }
+        },
+        {
+          "wid": "0:87",
+          "s": 57200,
+          "e": 57840,
+          "t": "Dhyan",
+          "c": 0.96,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "Dhyan",
+            "native": "ध्यान"
+          }
+        },
+        {
+          "wid": "0:88",
+          "s": 57880,
+          "e": 58520,
+          "t": "rakhna",
+          "c": 0.86,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "rakhna",
+            "native": "रखना"
+          }
+        },
+        {
+          "wid": "0:89",
+          "s": 58560,
+          "e": 59200,
+          "t": "jab",
+          "c": 0.93,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "jab",
+            "native": "जब"
+          }
+        },
+        {
+          "wid": "0:90",
+          "s": 59240,
+          "e": 59880,
+          "t": "zoom",
+          "c": 0.83,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "zoom",
+            "native": "ज़ूम"
+          }
+        },
+        {
+          "wid": "0:91",
+          "s": 59920,
+          "e": 60560,
+          "t": "kare",
+          "c": 0.9,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "kare"
+          }
+        },
+        {
+          "wid": "0:92",
+          "s": 60600,
+          "e": 61240,
+          "t": "toh",
+          "c": 0.97,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "toh",
+            "native": "तो"
+          }
+        },
+        {
+          "wid": "0:93",
+          "s": 61280,
+          "e": 61920,
+          "t": "chehre",
+          "c": 0.87,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "chehre",
+            "native": "चेहरे"
+          }
+        },
+        {
+          "wid": "0:94",
+          "s": 61960,
+          "e": 62600,
+          "t": "ki",
+          "c": 0.94,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "ki",
+            "native": "कि"
+          }
+        },
+        {
+          "wid": "0:95",
+          "s": 62640,
+          "e": 63280,
+          "t": "taraf",
+          "c": 0.84,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "taraf",
+            "native": "तरफ़"
+          }
+        },
+        {
+          "wid": "0:96",
+          "s": 63320,
+          "e": 64000,
+          "t": "rahe",
+          "c": 0.91,
+          "sp": "sp2",
+          "scripts": {
+            "roman": "rahe",
+            "native": "रहे"
+          }
+        },
+        {
+          "wid": "0:97",
+          "s": 64500,
+          "e": 65160,
+          "t": "Theek",
+          "c": 0.98,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "Theek",
+            "native": "ठीक"
+          }
+        },
+        {
+          "wid": "0:98",
+          "s": 65200,
+          "e": 65860,
+          "t": "hai",
+          "c": 0.88,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "hai",
+            "native": "है"
+          }
+        },
+        {
+          "wid": "0:99",
+          "s": 65900,
+          "e": 66560,
+          "t": "agar",
+          "c": 0.95,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "agar",
+            "native": "अगर"
+          }
+        },
+        {
+          "wid": "0:100",
+          "s": 66600,
+          "e": 67260,
+          "t": "itna",
+          "c": 0.85,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "itna",
+            "native": "इतना"
+          }
+        },
+        {
+          "wid": "0:101",
+          "s": 67300,
+          "e": 67960,
+          "t": "aasan",
+          "c": 0.92,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "aasan",
+            "native": "आसान"
+          }
+        },
+        {
+          "wid": "0:102",
+          "s": 68000,
+          "e": 68660,
+          "t": "hota",
+          "c": 0.82,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "hota",
+            "native": "होता"
+          }
+        },
+        {
+          "wid": "0:103",
+          "s": 68700,
+          "e": 69360,
+          "t": "toh",
+          "c": 0.89,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "toh",
+            "native": "तो"
+          }
+        },
+        {
+          "wid": "0:104",
+          "s": 69400,
+          "e": 70060,
+          "t": "koi",
+          "c": 0.96,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "koi",
+            "native": "कोई"
+          }
+        },
+        {
+          "wid": "0:105",
+          "s": 70100,
+          "e": 70760,
+          "t": "bhaag",
+          "c": 0.86,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "bhaag",
+            "native": "भाग"
+          }
+        },
+        {
+          "wid": "0:106",
+          "s": 70800,
+          "e": 71500,
+          "t": "jaata",
+          "c": 0.93,
+          "sp": "sp3",
+          "scripts": {
+            "roman": "jaata",
+            "native": "जाता"
+          }
+        },
+        {
+          "wid": "0:107",
+          "s": 72000,
+          "e": 72585,
+          "t": "Bas",
+          "c": 0.83,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "Bas",
+            "native": "बस"
+          }
+        },
+        {
+          "wid": "0:108",
+          "s": 72625,
+          "e": 73210,
+          "t": "practice",
+          "c": 0.9,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "practice",
+            "native": "प्रैक्टिस"
+          }
+        },
+        {
+          "wid": "0:109",
+          "s": 73250,
+          "e": 73835,
+          "t": "chahiye",
+          "c": 0.97,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "chahiye",
+            "native": "चाहिए"
+          }
+        },
+        {
+          "wid": "0:110",
+          "s": 73875,
+          "e": 74460,
+          "t": "shukriya",
+          "c": 0.87,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "shukriya",
+            "native": "शुक्रिया"
+          }
+        },
+        {
+          "wid": "0:111",
+          "s": 74500,
+          "e": 75085,
+          "t": "dono",
+          "c": 0.94,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "dono",
+            "native": "दोनों"
+          }
+        },
+        {
+          "wid": "0:112",
+          "s": 75125,
+          "e": 75710,
+          "t": "ko",
+          "c": 0.84,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "ko",
+            "native": "को"
+          }
+        },
+        {
+          "wid": "0:113",
+          "s": 75750,
+          "e": 76335,
+          "t": "kal",
+          "c": 0.91,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "kal",
+            "native": "कल"
+          }
+        },
+        {
+          "wid": "0:114",
+          "s": 76375,
+          "e": 76960,
+          "t": "wala",
+          "c": 0.98,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "wala",
+            "native": "वाला"
+          }
+        },
+        {
+          "wid": "0:115",
+          "s": 77000,
+          "e": 77585,
+          "t": "episode",
+          "c": 0.88,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "episode",
+            "native": "एपिसोड"
+          }
+        },
+        {
+          "wid": "0:116",
+          "s": 77625,
+          "e": 78210,
+          "t": "dekhna",
+          "c": 0.95,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "dekhna",
+            "native": "देखना"
+          }
+        },
+        {
+          "wid": "0:117",
+          "s": 78250,
+          "e": 78835,
+          "t": "mat",
+          "c": 0.85,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "mat",
+            "native": "मत"
+          }
+        },
+        {
+          "wid": "0:118",
+          "s": 78875,
+          "e": 79500,
+          "t": "bhoolna",
+          "c": 0.92,
+          "sp": "sp1",
+          "scripts": {
+            "roman": "bhoolna",
+            "native": "भूलना"
+          }
+        }
+      ]
+    }
+  ]
+}

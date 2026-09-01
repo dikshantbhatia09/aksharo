@@ -1,0 +1,84 @@
+{
+  "id": "karaoke-fill",
+  "name": "Karaoke Fill",
+  "version": 2,
+  "category": "karaoke",
+  "minPlan": "starter",
+  "typography": {
+    "fontFamily": "Poppins",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 700,
+    "italic": false,
+    "sizePct": 5.4,
+    "lineHeight": 1.18,
+    "letterSpacingEm": -0.005,
+    "textTransform": "none"
+  },
+  "colors": {
+    "text": "#ffffff66",
+    "activeText": "#ffffff",
+    "upcomingText": "#ffffff66",
+    "accent": "#ff7a1a"
+  },
+  "box": {
+    "enabled": true,
+    "mode": "block",
+    "fill": "#101018",
+    "paddingPct": 22,
+    "radiusPct": 20,
+    "opacity": 0.55
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": false,
+    "offsetXPct": 0,
+    "offsetYPct": 0,
+    "blurPct": 0,
+    "opacity": 0
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.76,
+    "align": "center",
+    "maxWidthPct": 84,
+    "maxLines": 3,
+    "safeAreaPct": 12
+  },
+  "animation": {
+    "in": {
+      "type": "slide-up",
+      "durationMs": 160
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 140
+    },
+    "wordHighlight": {
+      "type": "karaoke-fill",
+      "durationMs": 0
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "accent",
+      "label": "Accent",
+      "color": "#ff7a1a",
+      "effect": "none"
+    },
+    {
+      "id": "pop",
+      "label": "Pop",
+      "scale": 1.15,
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/karaoke-fill.mp4"
+}

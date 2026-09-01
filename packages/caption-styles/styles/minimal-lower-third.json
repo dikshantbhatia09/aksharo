@@ -1,0 +1,77 @@
+{
+  "id": "minimal-lower-third",
+  "name": "Minimal Lower Third",
+  "version": 2,
+  "category": "minimal",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Inter",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 500,
+    "italic": false,
+    "sizePct": 3.2,
+    "lineHeight": 1.35,
+    "letterSpacingEm": 0.01,
+    "textTransform": "none"
+  },
+  "colors": {
+    "text": "#f7f8fa",
+    "activeText": "#f7f8fa",
+    "accent": "#9aa4b2"
+  },
+  "box": {
+    "enabled": true,
+    "mode": "block",
+    "fill": "#0b0d12",
+    "paddingPct": 30,
+    "radiusPct": 8,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": false,
+    "offsetXPct": 0,
+    "offsetYPct": 0,
+    "blurPct": 0,
+    "opacity": 0
+  },
+  "layout": {
+    "anchor": "bottom-left",
+    "x": 0.06,
+    "y": 0.88,
+    "align": "left",
+    "maxWidthPct": 66,
+    "maxLines": 2,
+    "safeAreaPct": 8
+  },
+  "animation": {
+    "in": {
+      "type": "slide-up",
+      "durationMs": 200
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 160
+    },
+    "wordHighlight": {
+      "type": "none",
+      "durationMs": 0
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "accent",
+      "label": "Accent",
+      "color": "#9aa4b2",
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/minimal-lower-third.mp4"
+}

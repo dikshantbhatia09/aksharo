@@ -1,3 +1,4 @@
 import { montajEslintConfig } from "@montaj/config/eslint";
 
-export default montajEslintConfig();
+// `.tmp/` holds scratch files written by the export-resolution test.
+export default montajEslintConfig({ ignores: [".tmp/**"] });

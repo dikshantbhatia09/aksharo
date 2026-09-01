@@ -1,0 +1,404 @@
+{
+  "uid": "montaj-cost-and-gpu",
+  "title": "Montaj / Cost and GPU",
+  "description": "COGS per credit, cost by component, GPU utilisation and the duty cycle that decides serverless versus reserved capacity (decision D15, infra/gpu/COST.md). Money is paise; credits are tenths (CONTRACTS section 0).",
+  "tags": ["montaj", "cost", "gpu", "x05"],
+  "timezone": "Asia/Kolkata",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "5m",
+  "time": { "from": "now-7d", "to": "now" },
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "environment",
+        "label": "Environment",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(montaj_cogs_minor_total, deployment_environment)",
+        "refresh": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {}
+      },
+      {
+        "name": "window",
+        "label": "Rate window",
+        "type": "custom",
+        "query": "1h,6h,24h",
+        "current": { "text": "24h", "value": "24h" },
+        "options": [
+          { "text": "1h", "value": "1h", "selected": false },
+          { "text": "6h", "value": "6h", "selected": false },
+          { "text": "24h", "value": "24h", "selected": true }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Unit economics",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "COGS per credit (paise)",
+      "description": "Net revenue per credit is about 116 paise on the Creator plan (05 section 12). Green below 58 paise is a 50 percent gross margin; red above 116 means a credit costs more than it earns.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(montaj_cogs_minor_total{deployment_environment=\"$environment\"}[$window])) / clamp_min(sum(rate(montaj_credits_settled_tenths_total{deployment_environment=\"$environment\"}[$window])) / 10, 0.001)",
+          "legendFormat": "COGS/credit"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 58 },
+              { "color": "red", "value": 116 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "COGS per media minute (paise)",
+      "description": "05 section 12 targets a blended 60-70 paise per media minute.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(montaj_cogs_minor_total{deployment_environment=\"$environment\"}[$window])) / clamp_min(sum(rate(montaj_job_media_seconds_total{deployment_environment=\"$environment\"}[$window])) / 60, 0.001)",
+          "legendFormat": "COGS/media-min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 70 },
+              { "color": "red", "value": 120 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Credit reserve accuracy",
+      "description": "settled / reserved. CreditsFacade reserves the worst case and settles the actual (CONTRACTS section 4). A ratio well under 1 means the worst case is far too pessimistic and users see credits held that they never spend.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(montaj_credits_settled_tenths_total{deployment_environment=\"$environment\"}[$window])) / clamp_min(sum(rate(montaj_credits_reserved_tenths_total{deployment_environment=\"$environment\"}[$window])), 0.001)",
+          "legendFormat": "settled/reserved"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.5 },
+              { "color": "green", "value": 0.7 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "GPU duty cycle",
+      "description": "Mean utilisation of the serverless fleet. infra/gpu/COST.md section 5: move to reserved capacity when this sits consistently above 60 percent, not on list price.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(avg_over_time(montaj_gpu_utilization{deployment_environment=\"$environment\"}[$window]))",
+          "legendFormat": "duty cycle"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 0.3 },
+              { "color": "orange", "value": 0.6 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "COGS by component (paise per hour)",
+      "description": "asr, llm, gpu, render, storage, egress, payment. Egress on the raw bucket should stay near zero: derived objects go to R2 for zero egress (decision D35).",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 7 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (component) (rate(montaj_cogs_minor_total{deployment_environment=\"$environment\"}[$window])) * 3600",
+          "legendFormat": "{{component}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 30, "stacking": { "mode": "normal" } }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "COGS per credit over time, against the margin floor",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 7 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(montaj_cogs_minor_total{deployment_environment=\"$environment\"}[$window])) / clamp_min(sum(rate(montaj_credits_settled_tenths_total{deployment_environment=\"$environment\"}[$window])) / 10, 0.001)",
+          "legendFormat": "COGS per credit"
+        },
+        {
+          "refId": "B",
+          "expr": "vector(58)",
+          "legendFormat": "50% margin floor"
+        },
+        {
+          "refId": "C",
+          "expr": "vector(116)",
+          "legendFormat": "net revenue per credit"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 0 }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": "(50% margin floor|net revenue per credit)" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [8, 6] } },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "text" } }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "GPU",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "GPU utilisation by region",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg by (region, gpu_class) (montaj_gpu_utilization{deployment_environment=\"$environment\"})",
+          "legendFormat": "{{region}} {{gpu_class}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 20 }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Workers active and idle, and cold starts",
+      "description": "Idle should sit at the D15 warm floor of one per region. A cold-start rate that keeps climbing means the floor is too low for the traffic shape; see docs/runbooks/scale-gpu.md.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (region) (montaj_gpu_workers_active{deployment_environment=\"$environment\"})",
+          "legendFormat": "active {{region}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (region) (montaj_gpu_workers_idle{deployment_environment=\"$environment\"})",
+          "legendFormat": "idle {{region}}"
+        },
+        {
+          "refId": "C",
+          "expr": "sum by (region) (rate(montaj_gpu_cold_starts_total{deployment_environment=\"$environment\"}[10m])) * 60",
+          "legendFormat": "cold starts/min {{region}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 0 }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["max", "lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "GPU seconds billed per media minute",
+      "description": "The number infra/gpu/COST.md section 2 estimates at 4.5 s. Measure it here and replace the estimate.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(montaj_gpu_seconds_billed_total{deployment_environment=\"$environment\"}[$window])) / clamp_min(sum(rate(montaj_job_media_seconds_total{deployment_environment=\"$environment\", queue=~\"ai\\\\..*\"}[$window])) / 60, 0.001)",
+          "legendFormat": "GPU s per media minute"
+        },
+        {
+          "refId": "B",
+          "expr": "vector(4.5)",
+          "legendFormat": "COST.md estimate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 0 }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Storage by tier and retention class",
+      "description": "retention_class is the workspace plan's retention tier. Nothing in R2 expires these objects: CONTRACTS section 6 keys are frozen, so plan retention is swept by the scheduler (B16). This panel IS the check that the sweep is running — a class that only ever grows means it is not.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (tier, retention_class) (montaj_storage_bytes{deployment_environment=\"$environment\"})",
+          "legendFormat": "{{tier}} {{retention_class}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (bucket) (rate(montaj_storage_egress_bytes_total{deployment_environment=\"$environment\"}[$window])) * 3600",
+          "legendFormat": "egress/h {{bucket}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 20, "stacking": { "mode": "normal" } }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    }
+  ]
+}
