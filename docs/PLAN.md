@@ -31,14 +31,14 @@ Roles: **Fable 5.1** designs, decides, writes briefs, verifies gates. **Opus 5 a
 | A02 | `@montaj/edg` v2 + `@montaj/caption-styles` v2 schemas + fixtures | A01 | Opus | in-progress |
 | A02b | EDG ops engine (rebase table, CAS, snapshots, migrations, property tests) | A02 | Opus | briefed |
 | A02c | `@montaj/timemap` | A02 | Opus | briefed |
-| A03 | api: Prisma schema v2 + hand SQL, migrations, seed, base modules | A01 | Opus | in-progress |
+| A03 | api: Prisma schema v2 + hand SQL, migrations, seed, base modules | A01 | Opus | done |
 | X05 | infra: Terraform, staging env, dashboards | A01 | Opus | in-progress |
 | X06 | Threat model → checklist (docs/THREAT-MODEL.md) | — | Fable | done |
-| A04 | api: auth (families, device code, token exchange) | A03, X06 | Opus | briefed |
+| A04 | api: auth (families, device code, token exchange) | A03, X06 | Opus | in-progress |
 | A05 | api: users, workspaces (tax profile), memberships | A04 | Opus | briefed |
 | A06 | api: projects + media (S3 raw, R2 derived) | A05 | Opus | briefed |
 | A07 | worker-media: probe, 16k/48k audio, proxy, waveform, thumbs | A03, A06 | Opus | briefed |
-| A08 | api: jobs, WS gateway, idempotent completion, CreditsFacade (no-op), admission control | A03 | Opus | briefed |
+| A08 | api: jobs, WS gateway, idempotent completion, CreditsFacade (no-op), admission control | A03 | Opus | in-progress |
 | A08b | DLQ + admin replay | A08 | Opus | briefed |
 | A09 | worker-ai skeleton (BullMQ Python, mock provider, serverless Whisper adapter, VAD, alignment registry) | A08 | Opus | briefed |
 
