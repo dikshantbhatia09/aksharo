@@ -68,7 +68,7 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | done |
 | A21 | api exports module (manifests, cloud jobs) | A08, A20 | done (A21b merged: manifest sources + refresh, codec/audio eligibility, HDR cloud-only) |
 | A22 | scripts + translation | A10, A11, A12 | done |
-| A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | done (merged: Gate A journey e2e both browsers, sample seed, verify-wave script, X02 harness (p95 FAIL on shared host, re-measure at Gate A); A23b harness deadlock + verify-wave run, A07b media.proxy handler) |
+| A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | done (A23 merged; A23b delivered b943086 pending merge: harness drains in-flight writers + 40P01 retry; verify-wave deferred for host memory — run at the Gate A/B gate from a fresh clone) |
 | A23a | api test isolation: one Postgres + one Redis container per vitest run (or `TEST_*` URLs), database per suite from a migrated template, Redis prefix per suite; CI service containers | A05, A12, A25 | done |
 | A24 | marketing site v1 | A16 | done |
 | A25 | notify consumer: transactional email (SES via IRSA / SMTP / dev outbox), templates en+hi, suppression, in-app notifications | A04, A08 | done |
@@ -116,7 +116,7 @@ C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 |---|---|---|---|
 | C11 | Plugin licensing & devices UI (activation limits, revoke, offline lease, activation card) | B08, B08b, C01 | running |
 | C12 | Desktop/plugin telemetry (consent), crash reporting, diagnostics bundle | C02, A05, B12, B16 | running |
-| C05a | Premiere UXP plugin foundation over a mocked host adapter (Gate C runs it on a real machine) | C01, C00, A00-03 | running |
+| C05a | Premiere UXP plugin foundation over a mocked host adapter (Gate C runs it on a real machine) | C01, C00, A00-03 | done pending merge (813c26c: manifest v5 ai.aksharo.panel, PremiereHost + mock, in-memory session per T13, .ccx packaged; A00-03 questions in its Gate C checklist) |
 | C08 | Resolve `aksharo_core` over a FakeResolve adapter | C01, A00-04 | done pending merge (a109dfc; DynamicZoom property keys flagged for Gate C) |
 | C08b | Fusion Text+ macro generator + style coverage report | C08 | briefed |
 | C00b | Real desktop packaging: esbuild-bundled main/preload, electron-builder over dist, CI e2e runnable | C02b | briefed |
@@ -128,7 +128,7 @@ C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machines).
 
 ## Wave 7 — Remaining
-D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for prod — chart variant exists from X05; prod-hardening item before Gate C), X07 hardening also includes: split `packages/api-client`'s hand-written `endpoints/hooks/index/query-keys/types` into per-module files with a generated barrel (three WPs in a row — A22, A14, B04 — conflicted on those five files; B07 found a second latent defect there: Nest controllers returning bare `null` send an empty body which `readJson` turns into `undefined` — `GET /billing/subscription` still does this; wrap nullable responses in an object), D81 schema migration (invoice/ledger/commission foreign keys to workspaces → Restrict; workspaces soft-delete only), the web e2e fixture's hard-coded `montaj:auth:dev-outbox` key (A23 addendum), and under D08: extend A22's rule-table transliteration (Hindi + Tamil today) to the remaining AI4Bharat languages as table data once A00-05 eval sets exist. **Gate D**.
+D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for prod — chart variant exists from X05; prod-hardening item before Gate C), X07 hardening also includes: split `packages/api-client`'s hand-written `endpoints/hooks/index/query-keys/types` into per-module files with a generated barrel (three WPs in a row — A22, A14, B04 — conflicted on those five files; B07 found a second latent defect there: Nest controllers returning bare `null` send an empty body which `readJson` turns into `undefined` — `GET /billing/subscription` still does this; wrap nullable responses in an object), D81 schema migration (invoice/ledger/commission foreign keys to workspaces → Restrict; workspaces soft-delete only), the web e2e fixture's hard-coded `montaj:auth:dev-outbox` key (A23 addendum), a browser-safe subpath export for `packages/bridge-core` (C05a vendored the protocol schemas because the barrel pulls Node-only modules), and under D08: extend A22's rule-table transliteration (Hindi + Tamil today) to the remaining AI4Bharat languages as table data once A00-05 eval sets exist. **Gate D**.
 
 ## Gate log
 - **2026-09-02 — Wave 1 interim gate (A01, A02, A02b, A02c, A03, A03b, A03c, A04, A05, A08, A08b, A09, X05) PASSED** from a fresh clone at `cf18498`: frozen install, build 15/15, migrations + 5 SQL guard files on a new database, seed (5 plans, 7 system styles from the package, 4 flags), tests — api 673, edg 253, timemap 149, caption-styles 34, worker-ai 321 (+5 skipped), web Playwright smoke 10. A06 and A07 remain; the final Wave 1 gate re-runs after they merge.
