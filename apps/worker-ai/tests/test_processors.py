@@ -459,7 +459,6 @@ async def test_diarise_ignores_a_nonsense_speaker_count(wav_file: Path) -> None:
 @pytest.mark.parametrize(
     ("queue", "owner"),
     [
-        ("ai.clean", "B10"),
         ("ai.pass", "B18"),
         ("ai.llm", "B11"),
     ],

@@ -3,6 +3,7 @@ import { EventEmitterModule } from "@nestjs/event-emitter";
 
 import { AdminModule } from "./admin/admin.module.js";
 import { AffiliatesModule } from "./affiliates/affiliates.module.js";
+import { AudioModule } from "./audio/audio.module.js";
 import { AuthModule } from "./auth/auth.module.js";
 import { BillingModule } from "./billing/billing.module.js";
 import { CommonModule } from "./common/common.module.js";
@@ -104,6 +105,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     AdminModule,
     EdgModule,
     TranscriptsModule,
+    AudioModule,
     ScriptsModule,
     FontsModule,
     ExportsModule,

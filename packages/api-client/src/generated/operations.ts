@@ -201,6 +201,13 @@ export const API_OPERATIONS = [
     summary: "Claim a code posted at onboarding",
   },
   {
+    operationId: "cleanProjectAudio",
+    method: "POST",
+    path: "/projects/{projectId}/audio/clean",
+    tags: ["audio"],
+    summary: "Clean the project's audio: denoise, normalise loudness",
+  },
+  {
     operationId: "clearMemory",
     method: "DELETE",
     path: "/memory",
@@ -941,6 +948,13 @@ export const API_OPERATIONS = [
     path: "/billing/plans",
     tags: ["billing"],
     summary: "The public plan catalogue (INR and USD)",
+  },
+  {
+    operationId: "listProjectAudioCleans",
+    method: "GET",
+    path: "/projects/{projectId}/audio/cleans",
+    tags: ["audio"],
+    summary: "This project's audio-clean history",
   },
   {
     operationId: "listProjectExports",

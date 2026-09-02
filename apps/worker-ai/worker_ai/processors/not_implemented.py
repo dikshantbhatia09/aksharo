@@ -7,7 +7,8 @@ half an hour later (``jobs.config.ts``), with no explanation attached.
 ``ai.translate`` and ``ai.transliterate`` were on this list through A09/A10/A11;
 A22 gives them real processors (``processors/translate.py``,
 ``processors/transliterate.py``), registered ahead of this fallback in
-``runtime.PROCESSORS``.
+``runtime.PROCESSORS``. B10 does the same for ``ai.clean``
+(``worker_ai.clean.processor.process_clean``).
 
 So the remaining queues are consumed and answered: one **non-retryable** failed
 completion naming the work package that will implement the queue. The producer
@@ -24,7 +25,6 @@ __all__ = ["OWNERS", "process_not_implemented"]
 
 #: Which work package owns each queue.
 OWNERS: dict[str, str] = {
-    "ai.clean": "B10 (audio clean)",
     "ai.pass": "B18/B19 (edit passes)",
     "ai.llm": "B11 (LLM features)",
 }

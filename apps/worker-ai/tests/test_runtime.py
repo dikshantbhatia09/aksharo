@@ -150,7 +150,7 @@ async def test_a_retryable_failure_on_the_final_attempt_completes_and_flags_it()
 async def test_a_non_retryable_failure_completes_on_the_first_attempt() -> None:
     """`retryable: false` is what sends the job to the dead-letter path (A08b)."""
     services = build_test_services()
-    handler = make_handler("ai.clean", services)
+    handler = make_handler("ai.pass", services)
     job = FakeJob(envelope(), attempts_made=0, attempts=2)
 
     with pytest.raises(JobFailureError, match="not implemented"):
@@ -196,7 +196,7 @@ async def test_a_failing_completion_callback_does_not_mask_the_job_failure() -> 
 
     services = build_test_services()
     object.__setattr__(services, "callbacks", _Broken())
-    handler = make_handler("ai.clean", services)
+    handler = make_handler("ai.pass", services)
 
     with pytest.raises(JobFailureError, match="not implemented"):
         await handler(FakeJob(envelope()), None)
