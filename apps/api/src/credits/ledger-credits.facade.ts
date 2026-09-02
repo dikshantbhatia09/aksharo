@@ -443,6 +443,13 @@ export class LedgerCreditsFacade implements CreditsFacade {
             grantedTenths: input.tenths,
             remainingTenths: input.tenths,
             expiresAt: input.expiresAt ?? null,
+            // What was paid for this lot, when it came from money rather than a
+            // grant or a referral bonus (B01's passes and top-ups). Optional on
+            // the interface — a plan's monthly grant or a referral bonus has
+            // none of these — and written straight onto the lot when given.
+            ...(input.currency === undefined ? {} : { currency: input.currency }),
+            ...(input.amountMinor === undefined ? {} : { amountMinor: input.amountMinor }),
+            ...(input.invoiceId === undefined ? {} : { invoiceId: input.invoiceId }),
           },
         });
 
