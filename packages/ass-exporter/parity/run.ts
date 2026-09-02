@@ -41,6 +41,7 @@ import { SkiaNodeBackend } from "@montaj/render-skia-node";
 import { comparePixels, PARITY_BACKGROUND } from "@montaj/render-skia-node/testing";
 
 import { probeLibass, renderAssFrameToRgba } from "./ffmpeg-libass.js";
+import { formatJson } from "./format-json.js";
 import { toAss } from "../src/to-ass.js";
 
 import type { AssProjection, AssWord } from "../src/types.js";
@@ -255,7 +256,7 @@ async function main(): Promise<void> {
   };
 
   await mkdir(dirname(RESULTS_PATH), { recursive: true });
-  await writeFile(RESULTS_PATH, `${JSON.stringify(output, null, 2)}\n`, "utf8");
+  await writeFile(RESULTS_PATH, await formatJson(output, RESULTS_PATH), "utf8");
   console.warn(`\nwrote ${RESULTS_PATH}`);
 
   browser.dispose();

@@ -67,6 +67,8 @@ for: a deliberate, reviewed, repo-wide reformat after a Prettier upgrade. Never
 leave a file that fails `format:changed:check`, and never reformat a file outside
 your work package unless a merge conflict forced you into it.
 
+All four scripts run Prettier through `node --max-old-space-size=6144 …` (A18a-b): the repo-wide glob in `format`/`format:check` runs Node out of the default heap on some hosts and fails with no output at all — `--max-old-space-size` fixes it without a new dependency (`cross-env` is not in the tree, and `node --max-old-space-size` is the same flag on every OS this repo targets, so no shell-specific env-var syntax is needed).
+
 ## Scripts
 
 | Command                                      | Does                                                 |
