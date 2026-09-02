@@ -21,6 +21,7 @@ export interface Segment { id: string; seq: string /* fractional index */; start
 export type PassType = "autocut"|"reframe"|"sfx"|"music"|"textfx"|"prompted";
 export type ItemKind = "cut"|"zoom"|"reframe"|"sfx"|"music"|"title";
 export type ItemState = "proposed"|"accepted"|"rejected"|"modified";
+// Keyframe payload rule (added 2026-09-03 after B19): zoom/reframe items carry `payload.keyframes` (base64 of the MKF2 packed form of Keyframe{tMs, zoom, cx, cy, ease} from @montaj/edg `passes/keyframes.ts`) when ≤ 64 KB, else `payload.keyframesRef` = derived key `ws/{workspaceId}/passes/{passId}/{itemId}.mkf` (§6) uploaded by the worker via presigned PUT; readers accept either. PassType includes "zoom" (B19b).
 export interface PassItem { itemId: string; passId: string; kind: ItemKind; startMs: number; endMs: number;
   payload: Record<string, unknown>; keyframesRef?: string; confidence?: number; reason?: string; state: ItemState;
   licenceSnapshot?: Record<string, unknown> }
