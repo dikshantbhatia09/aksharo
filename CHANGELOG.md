@@ -52,6 +52,58 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B01 — api: billing core — `BillingProvider` (Razorpay + fake), plan
+  catalogue, checkout with the ₹15,000 UPI mandate rule, passes/top-ups,
+  idempotent signed webhooks with a subscription state machine, subscription
+  management and the renewal/dunning primitives.**
+  - **`BillingProvider`** (`billing/provider.ts`): `createCustomer`,
+    `createSubscription`, `createOrder`, `registerMandate`, `chargeRenewal`,
+    `cancelSubscription`, `refund`, `parseWebhook`, `listPaymentMethods`.
+    `FakeProvider` (in-memory, emits signed webhook fixtures) is what every
+    test in this work package runs against — there are no live Razorpay keys
+    in this environment; `RazorpayProvider` wraps the official `razorpay` SDK
+    and its call shapes are read from the SDK's own shipped source. The
+    factory (`providers/provider.factory.ts`) picks between them exactly as
+    `notify/mail/mail.factory.ts` does for `MAIL_PROVIDER`.
+  - **Checkout** (`POST /billing/checkout`): resolves the plan/currency/
+    interval price (`money.ts`), computes the mandate cap as the undiscounted
+    list price (D40), and refuses a UPI Autopay mandate above ₹15,000 with
+    `billing/mandate_cap_exceeded` and actionable `halfyear_upi`/`card_once`/
+    `enach` alternatives (D05). Refused with `billing/tax_profile_required`
+    until the workspace confirms its billing country (orchestrator addendum
+    after A04). `interval: "once"` and a `card` request above the cap both
+    create a one-time order with no mandate.
+  - **Passes and top-ups** (`POST /billing/passes/checkout`,
+    `POST /billing/topups/checkout`): one-time orders that grant credits
+    through `CreditsFacade.grantLot` on payment.
+  - **Webhooks** (`POST /billing/webhooks/razorpay`, THREAT-MODEL T16):
+    signature-verified, idempotent by an event id derived from the payload
+    (`billing_events`, new table via migration), amount/currency
+    cross-checked against the stored subscription/order and flagged +
+    audited on mismatch rather than applied. Drives the `subscriptions.status`
+    state machine (`pending → active → past_due → paused/cancelled/expired`
+    — `pending` is a new `SubscriptionStatus` value, additive migration),
+    invalidates the entitlement cache, writes `audit_log`.
+  - **Subscription management**: `GET /billing/subscription`, cancel (at
+    period end), resume, pause (once per 12 months), change-plan with a
+    proration preview (`GET .../change-preview`) and mandate re-registration
+    when the new cap exceeds the current one (D40), mandate list/revoke,
+    payment methods.
+  - **Renewal and dunning primitives** (`renewal.service.ts`, scheduler
+    wiring is B16's): `initiateRenewal` (pre-debit notice via `NotifyService`'s
+    `renewal-notice` template, ≥ 24h ahead), `handleDecline` (a
+    substring-matched dunning ladder — `dunning.ts` — offering a card/eNACH/
+    pay-once fallback per decline-code class), `graceExpiry` (3-day
+    entitlement grace, D40 invariant 7).
+  - **`CreditsFacade.grantLot`** (`credits/credits.facade.ts`) gained three
+    optional fields — `currency`, `amountMinor`, `invoiceId` — signature only;
+    `NoopCreditsFacade` (A08's file) is unchanged.
+  - Coverage on `apps/api/src/billing/**`: 86% lines / 75% branches (own
+    subset), against the CONTRACTS §9 threshold of 75/70.
+  - See `apps/api/src/billing/README.md` for the state machine diagram,
+    mandate rules as implemented, and open questions (Razorpay behaviours
+    that could not be verified without live keys).
+
 - **A11c — api: unify A11's and A07's completion-handler registries; bind
   `CAPTION_RENDER_CONTEXT` (D78) to the bundled font pack.**
   - A07 (`media.probe`) independently converged on the same `JobCompletionRegistry`

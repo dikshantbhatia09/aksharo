@@ -9642,6 +9642,1067 @@
           "health"
         ]
       }
+    },
+    "/billing/plans": {
+      "get": {
+        "operationId": "listPlans",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Active plans.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "enum": [
+                          "free",
+                          "starter",
+                          "creator",
+                          "studio",
+                          "agency"
+                        ]
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "prices": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "number"
+                          }
+                        }
+                      },
+                      "creditsPerMonthTenths": {
+                        "type": "number"
+                      },
+                      "seatPrice": {
+                        "nullable": true,
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "name",
+                      "prices",
+                      "creditsPerMonthTenths",
+                      "seatPrice"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "The public plan catalogue (INR and USD)",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/checkout": {
+      "post": {
+        "description": "Mandate cap is always the undiscounted list price (D40). Refused with `billing/mandate_cap_exceeded` and `details.alternatives` when a UPI Autopay mandate would exceed ₹15,000; refused with `billing/tax_profile_required` until the workspace confirms its billing country (PUT /workspaces/{id}/tax-profile).",
+        "operationId": "createCheckout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "planKey": {
+                    "type": "string",
+                    "enum": [
+                      "free",
+                      "starter",
+                      "creator",
+                      "studio",
+                      "agency"
+                    ]
+                  },
+                  "interval": {
+                    "type": "string",
+                    "enum": [
+                      "month",
+                      "year",
+                      "halfyear",
+                      "once"
+                    ]
+                  },
+                  "coupon": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "seats": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 500
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "upi_autopay",
+                      "card",
+                      "enach"
+                    ]
+                  }
+                },
+                "required": [
+                  "planKey",
+                  "interval"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checkout payload for the client SDK.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subscriptionId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "keyId": {
+                      "type": "string"
+                    },
+                    "amountMinor": {
+                      "type": "number"
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "interval": {
+                      "type": "string",
+                      "enum": [
+                        "month",
+                        "year",
+                        "halfyear",
+                        "once"
+                      ]
+                    },
+                    "mandateCapMinor": {
+                      "nullable": true,
+                      "type": "number"
+                    },
+                    "method": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "upi_autopay",
+                        "card",
+                        "enach"
+                      ]
+                    },
+                    "providerSubscriptionId": {
+                      "type": "string"
+                    },
+                    "providerOrderId": {
+                      "type": "string"
+                    },
+                    "prefill": {
+                      "type": "object",
+                      "properties": {
+                        "email": {
+                          "type": "string"
+                        },
+                        "contact": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "notes": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "subscriptionId",
+                    "status",
+                    "keyId",
+                    "amountMinor",
+                    "currency",
+                    "interval",
+                    "mandateCapMinor",
+                    "method"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "409": {
+            "description": "`billing/mandate_cap_exceeded` or `billing/tax_profile_required`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start a plan checkout",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/passes/checkout": {
+      "post": {
+        "operationId": "createPassCheckout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "first_export",
+                      "week_pass",
+                      "pay_once"
+                    ]
+                  },
+                  "planKey": {
+                    "type": "string",
+                    "enum": [
+                      "free",
+                      "starter",
+                      "creator",
+                      "studio",
+                      "agency"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checkout payload for the client SDK."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Buy a pass (clean export, week pass, pay-once credits)",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/topups/checkout": {
+      "post": {
+        "operationId": "createTopupCheckout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "credits": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "credits"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checkout payload for the client SDK."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Buy a credit top-up pack",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/subscription": {
+      "get": {
+        "operationId": "getSubscription",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The subscription, or null with no plan on file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "planKey": {
+                      "type": "string",
+                      "enum": [
+                        "free",
+                        "starter",
+                        "creator",
+                        "studio",
+                        "agency"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "interval": {
+                      "type": "string",
+                      "enum": [
+                        "month",
+                        "year",
+                        "halfyear",
+                        "once"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "listPriceMinor": {
+                      "type": "number"
+                    },
+                    "currentPeriodStart": {
+                      "type": "string"
+                    },
+                    "currentPeriodEnd": {
+                      "type": "string"
+                    },
+                    "renewalInitiateAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "graceUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "cancelAtPeriodEnd": {
+                      "type": "boolean"
+                    },
+                    "pausedUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "seats": {
+                      "type": "number"
+                    },
+                    "mandateId": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "planKey",
+                    "status",
+                    "interval",
+                    "currency",
+                    "listPriceMinor",
+                    "currentPeriodStart",
+                    "currentPeriodEnd",
+                    "renewalInitiateAt",
+                    "graceUntil",
+                    "cancelAtPeriodEnd",
+                    "pausedUntil",
+                    "seats",
+                    "mandateId"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The workspace's current subscription",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/subscription/cancel": {
+      "post": {
+        "operationId": "cancelSubscription",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The subscription, set to cancel at period end.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "planKey": {
+                      "type": "string",
+                      "enum": [
+                        "free",
+                        "starter",
+                        "creator",
+                        "studio",
+                        "agency"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "interval": {
+                      "type": "string",
+                      "enum": [
+                        "month",
+                        "year",
+                        "halfyear",
+                        "once"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "listPriceMinor": {
+                      "type": "number"
+                    },
+                    "currentPeriodStart": {
+                      "type": "string"
+                    },
+                    "currentPeriodEnd": {
+                      "type": "string"
+                    },
+                    "renewalInitiateAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "graceUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "cancelAtPeriodEnd": {
+                      "type": "boolean"
+                    },
+                    "pausedUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "seats": {
+                      "type": "number"
+                    },
+                    "mandateId": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "planKey",
+                    "status",
+                    "interval",
+                    "currency",
+                    "listPriceMinor",
+                    "currentPeriodStart",
+                    "currentPeriodEnd",
+                    "renewalInitiateAt",
+                    "graceUntil",
+                    "cancelAtPeriodEnd",
+                    "pausedUntil",
+                    "seats",
+                    "mandateId"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`billing/subscription_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Cancel at period end",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/subscription/resume": {
+      "post": {
+        "operationId": "resumeSubscription",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The resumed subscription.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "planKey": {
+                      "type": "string",
+                      "enum": [
+                        "free",
+                        "starter",
+                        "creator",
+                        "studio",
+                        "agency"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "interval": {
+                      "type": "string",
+                      "enum": [
+                        "month",
+                        "year",
+                        "halfyear",
+                        "once"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "listPriceMinor": {
+                      "type": "number"
+                    },
+                    "currentPeriodStart": {
+                      "type": "string"
+                    },
+                    "currentPeriodEnd": {
+                      "type": "string"
+                    },
+                    "renewalInitiateAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "graceUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "cancelAtPeriodEnd": {
+                      "type": "boolean"
+                    },
+                    "pausedUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "seats": {
+                      "type": "number"
+                    },
+                    "mandateId": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "planKey",
+                    "status",
+                    "interval",
+                    "currency",
+                    "listPriceMinor",
+                    "currentPeriodStart",
+                    "currentPeriodEnd",
+                    "renewalInitiateAt",
+                    "graceUntil",
+                    "cancelAtPeriodEnd",
+                    "pausedUntil",
+                    "seats",
+                    "mandateId"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Undo a pending cancellation, or unpause",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/subscription/pause": {
+      "post": {
+        "operationId": "pauseSubscription",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The paused subscription.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "planKey": {
+                      "type": "string",
+                      "enum": [
+                        "free",
+                        "starter",
+                        "creator",
+                        "studio",
+                        "agency"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "interval": {
+                      "type": "string",
+                      "enum": [
+                        "month",
+                        "year",
+                        "halfyear",
+                        "once"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "listPriceMinor": {
+                      "type": "number"
+                    },
+                    "currentPeriodStart": {
+                      "type": "string"
+                    },
+                    "currentPeriodEnd": {
+                      "type": "string"
+                    },
+                    "renewalInitiateAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "graceUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "cancelAtPeriodEnd": {
+                      "type": "boolean"
+                    },
+                    "pausedUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "seats": {
+                      "type": "number"
+                    },
+                    "mandateId": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "planKey",
+                    "status",
+                    "interval",
+                    "currency",
+                    "listPriceMinor",
+                    "currentPeriodStart",
+                    "currentPeriodEnd",
+                    "renewalInitiateAt",
+                    "graceUntil",
+                    "cancelAtPeriodEnd",
+                    "pausedUntil",
+                    "seats",
+                    "mandateId"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`billing/pause_limit_reached` or `billing/already_paused`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Skip one billing cycle (once per 12 months)",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/subscription/change-preview": {
+      "get": {
+        "operationId": "previewChangePlan",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Proration figures for the requested change."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Proration preview for a plan/interval/seat change",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/subscription/change-plan": {
+      "post": {
+        "description": "Re-registers the mandate with fresh authentication when the new cap exceeds the current one (D40).",
+        "operationId": "changePlan",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "planKey": {
+                    "type": "string",
+                    "enum": [
+                      "free",
+                      "starter",
+                      "creator",
+                      "studio",
+                      "agency"
+                    ]
+                  },
+                  "interval": {
+                    "type": "string",
+                    "enum": [
+                      "month",
+                      "year",
+                      "halfyear",
+                      "once"
+                    ]
+                  },
+                  "seats": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 500
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "upi_autopay",
+                      "card",
+                      "enach"
+                    ]
+                  }
+                },
+                "required": [
+                  "planKey",
+                  "interval"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated subscription, or a checkout payload when re-authentication is needed."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Apply a plan/interval/seat change",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/mandates": {
+      "get": {
+        "operationId": "listMandates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Mandates, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "method": {
+                        "type": "string",
+                        "enum": [
+                          "upi_autopay",
+                          "card",
+                          "enach"
+                        ]
+                      },
+                      "maxAmountMinor": {
+                        "type": "number"
+                      },
+                      "currency": {
+                        "type": "string",
+                        "enum": [
+                          "INR",
+                          "USD"
+                        ]
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "afaRequiredPerDebit": {
+                        "type": "boolean"
+                      },
+                      "validFrom": {
+                        "type": "string"
+                      },
+                      "validUntil": {
+                        "nullable": true,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "method",
+                      "maxAmountMinor",
+                      "currency",
+                      "status",
+                      "afaRequiredPerDebit",
+                      "validFrom",
+                      "validUntil"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every mandate this workspace has registered",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/mandates/{mandateId}/revoke": {
+      "post": {
+        "operationId": "revokeMandate",
+        "parameters": [
+          {
+            "name": "mandateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The revoked mandate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "method": {
+                      "type": "string",
+                      "enum": [
+                        "upi_autopay",
+                        "card",
+                        "enach"
+                      ]
+                    },
+                    "maxAmountMinor": {
+                      "type": "number"
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "afaRequiredPerDebit": {
+                      "type": "boolean"
+                    },
+                    "validFrom": {
+                      "type": "string"
+                    },
+                    "validUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "method",
+                    "maxAmountMinor",
+                    "currency",
+                    "status",
+                    "afaRequiredPerDebit",
+                    "validFrom",
+                    "validUntil"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`billing/mandate_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke a mandate (cancels its subscription)",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/payment-methods": {
+      "get": {
+        "operationId": "listPaymentMethods",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Payment methods, most recently used first."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Payment methods on file with the provider",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/webhooks/razorpay": {
+      "post": {
+        "description": "Signature-verified, idempotent by event id. A bad signature is 401, never 200 (a 200 tells Razorpay to stop retrying).",
+        "operationId": "handleRazorpayWebhook",
+        "parameters": [
+          {
+            "name": "x-razorpay-signature",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Always 200 once the signature verifies, even on a replay."
+          },
+          "403": {
+            "description": "Not used; a bad signature is 401."
+          }
+        },
+        "summary": "Razorpay webhook (THREAT-MODEL T16)",
+        "tags": [
+          "billing"
+        ]
+      }
     }
   },
   "info": {
