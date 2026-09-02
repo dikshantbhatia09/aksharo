@@ -10,6 +10,22 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B13a — Admin roles, TOTP step-up, `AdminGuard(role)`.** CONTRACTS §5
+  (amended 2026-09-03): `kind: "admin"` access tokens, minted only by
+  `POST /admin/auth/step-up` after a TOTP check, 30-minute lifetime, never
+  refreshable, carrying `adminRoles: ("support"|"finance"|"ops"|"content"|
+"superadmin")[]`. New tables `admin_roles` (grant/revoke, re-checked by
+  `AdminGuard` on every request so revocation is immediate rather than
+  waiting out the token) and `admin_totp` (hand-rolled RFC 6238 TOTP,
+  `apps/api/src/admin/auth/totp.ts` — no new dependency, same reasoning as
+  `TokenService`'s hand-rolled RS256). `apps/api/src/admin/auth/
+admin-step-up.{controller,service,dto,constants}.ts`: TOTP enrol/verify
+  and step-up, rate-limited per user and per IP. `AdminGuard` rewritten to
+  require `kind: "admin"` (not merely `users.is_admin`) plus, when a route
+  carries the new `@AdminRoles(...)` decorator, a matching non-revoked
+  `admin_roles` grant (`superadmin` always satisfies any role list). Role
+  matrix contract test: `apps/api/src/admin/admin.guard.test.ts`.
+
 - **A23 — Gate A e2e journey, sample-project seed, wave verification script,
   X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)
   through onboarding, a real MinIO upload, transcription completion via the
