@@ -107,6 +107,97 @@
         "probability": 0.88
       },
       "repeat": 4
+    },
+    {
+      "method": "POST",
+      "path": "/align",
+      "status": 200,
+      "json": {
+        "language": "hi",
+        "model": "ai4bharat/indicwav2vec/hi",
+        "licence": "MIT",
+        "durationS": 4.0,
+        "requestId": "01ALIGNFIXTURE0000000000A1",
+        "words": [
+          {
+            "start": 0.0,
+            "end": 0.4,
+            "word": "toh",
+            "probability": 1.0
+          },
+          {
+            "start": 0.4,
+            "end": 0.8,
+            "word": "aaj",
+            "probability": 1.0
+          },
+          {
+            "start": 0.8,
+            "end": 1.2,
+            "word": "hum",
+            "probability": 1.0
+          },
+          {
+            "start": 1.2,
+            "end": 1.6,
+            "word": "baat",
+            "probability": 1.0
+          },
+          {
+            "start": 1.6,
+            "end": 2.0,
+            "word": "karenge",
+            "probability": 1.0
+          },
+          {
+            "start": 2.0,
+            "end": 2.4,
+            "word": "video",
+            "probability": 1.0
+          },
+          {
+            "start": 2.4,
+            "end": 2.8,
+            "word": "editing",
+            "probability": 1.0
+          },
+          {
+            "start": 2.8,
+            "end": 3.2,
+            "word": "ke",
+            "probability": 1.0
+          },
+          {
+            "start": 3.2,
+            "end": 3.6,
+            "word": "baare",
+            "probability": 1.0
+          },
+          {
+            "start": 3.6,
+            "end": 4.0,
+            "word": "mein",
+            "probability": 1.0
+          }
+        ],
+        "skipped": [],
+        "engineVersions": {
+          "asr": "large-v3-turbo",
+          "asr.licence": "MIT",
+          "align": "ai4bharat/indicwav2vec/hi",
+          "align.licence": "MIT",
+          "diarise": "pyannote/speaker-diarization-community-1",
+          "diarise.licence": "CC-BY-4.0",
+          "diarise.attribution": "Speaker diarisation by pyannote speaker-diarization-community-1 (Herve Bredin et al., CC-BY-4.0)."
+        },
+        "usage": {
+          "gpuSeconds": 0.0012,
+          "audioSeconds": 4.0,
+          "model": "ai4bharat/indicwav2vec/hi",
+          "batchSize": 1
+        }
+      },
+      "repeat": 8
     }
   ]
 }

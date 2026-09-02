@@ -1,0 +1,19 @@
+{
+  "name": "@montaj/model-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Python 3.12 GPU model server (thin pnpm/turbo wrapper around the .venv).",
+  "license": "UNLICENSED",
+  "scripts": {
+    "setup": "node scripts/py.mjs --setup-only",
+    "dev": "node scripts/py.mjs -m model_server",
+    "start": "node scripts/py.mjs -m model_server",
+    "lint": "node scripts/py.mjs -m ruff check .",
+    "format": "node scripts/py.mjs -m ruff format .",
+    "typecheck": "node scripts/py.mjs -m mypy --strict .",
+    "test": "node scripts/py.mjs -m pytest -q && node scripts/py.mjs scripts/coverage_gate.py",
+    "test:slow": "node scripts/py.mjs -m pytest -q -m slow",
+    "lock": "node scripts/py.mjs -m piptools compile --no-emit-index-url --strip-extras --extra asr --extra align --output-file requirements.lock pyproject.toml && node scripts/py.mjs -m piptools compile --no-emit-index-url --strip-extras --extra dev --extra asr --extra align --output-file requirements-dev.lock pyproject.toml && node scripts/py.mjs -m piptools compile --no-emit-index-url --strip-extras --extra asr --extra align --extra diarise --extra bake --extra runpod --output-file requirements-gpu.lock pyproject.toml",
+    "clean": "node -e \"require('node:fs').rmSync('.venv',{recursive:true,force:true})\""
+  }
+}

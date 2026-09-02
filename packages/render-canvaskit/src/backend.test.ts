@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { loadSystemStyleMap } from "@montaj/caption-styles";
-import { animate, type DrawCommand, layoutSegment } from "@montaj/render-core";
+import { animate, type DrawCommand, layoutSegment, type Rect } from "@montaj/render-core";
 import { createFixtureRenderer, GOLDEN_CANVAS } from "@montaj/render-core/testing";
 
 import { Arena, withArena } from "./arena.js";
@@ -538,5 +538,107 @@ describe("comparePixels", () => {
 
   it("treats two empty buffers as identical", () => {
     expect(comparePixels(new Uint8Array(0), new Uint8Array(0)).ratio).toBe(0);
+  });
+});
+
+describe("the backdrop blur is clipped to its bounds", () => {
+  /**
+   * Skia treats `SaveLayerRec`'s bounds as a *hint* about how much surface the
+   * layer needs, not as a boundary on what a backdrop filter may touch. Without
+   * an explicit clip the blur softens a sigma-wide band right across the frame.
+   *
+   * On a flat ground that is invisible, which is exactly how it survived this
+   * suite until A20's Canvas2D executor — which clips, as `render-core`
+   * documents — disagreed with it. These assertions are on a hard edge, where a
+   * leak moves hundreds of pixels.
+   */
+  const width = 540;
+  const height = 960;
+  const bounds: Rect = [120, 400, 420, 560];
+  const ground: DrawCommand[] = [
+    {
+      kind: "rect",
+      rect: [0, 0, width, 480],
+      fill: { paint: { type: "solid", color: "#ff8800ff" } },
+    },
+    {
+      kind: "rect",
+      rect: [0, 480, width, height],
+      fill: { paint: { type: "solid", color: "#0b3b6fff" } },
+    },
+  ];
+  const withPanel: DrawCommand[] = [
+    ...ground,
+    {
+      kind: "blur",
+      sigmaX: 5,
+      sigmaY: 5,
+      backdrop: true,
+      bounds,
+      children: [
+        {
+          kind: "roundRect",
+          rect: bounds,
+          radiusX: 16,
+          radiusY: 16,
+          fill: { paint: { type: "solid", color: "#ffffff33" } },
+        },
+      ],
+    },
+  ];
+
+  function inside(pixelIndex: number): boolean {
+    const pixel = pixelIndex / 4;
+    const x = pixel % width;
+    const y = Math.floor(pixel / width);
+    return x >= bounds[0] && x < bounds[2] && y >= bounds[1] && y < bounds[3];
+  }
+
+  const render = (commands: DrawCommand[]): Uint8Array =>
+    decode(backend.renderToPng(commands, { width, height, background: BASELINE_BACKGROUND }));
+
+  it("leaves every pixel outside the bounds exactly as the ground drew it", () => {
+    const plain = render(ground);
+    const panelled = render(withPanel);
+    let leaked = 0;
+    for (let index = 0; index < plain.length; index += 4) {
+      if (inside(index)) continue;
+      for (let channel = 0; channel < 4; channel += 1) {
+        if (plain[index + channel] !== panelled[index + channel]) {
+          leaked += 1;
+          break;
+        }
+      }
+    }
+    expect(leaked, `${String(leaked)} pixels outside the panel were touched by the backdrop`).toBe(
+      0,
+    );
+  });
+
+  it("still blurs inside the bounds, so the clip did not disable the filter", () => {
+    const plain = render(ground);
+    const panelled = render(withPanel);
+    let changed = 0;
+    for (let index = 0; index < plain.length; index += 4) {
+      if (!inside(index)) continue;
+      if (
+        comparePixels(plain.subarray(index, index + 4), panelled.subarray(index, index + 4))
+          .differing > 0
+      ) {
+        changed += 1;
+      }
+    }
+    expect(changed).toBeGreaterThan(1000);
+  });
+
+  it("keeps the hard edge hard immediately outside the panel", () => {
+    const panelled = render(withPanel);
+    // One row above and below the ground's own edge, just left of the panel:
+    // a leaked blur would have mixed orange into blue here.
+    const at = (x: number, y: number, channel: number): number =>
+      panelled[(y * width + x) * 4 + channel] ?? 0;
+    expect(at(60, 479, 0)).toBe(at(60, 400, 0));
+    expect(at(60, 481, 0)).toBe(at(60, 560, 0));
+    expect(at(60, 479, 0)).not.toBe(at(60, 481, 0));
   });
 });

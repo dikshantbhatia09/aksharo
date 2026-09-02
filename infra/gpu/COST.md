@@ -82,9 +82,32 @@ Consequences worth stating:
 | Model load into VRAM (3 GB of weights)   | 15 – 25 s  |
 | First token                              | 25 – 40 s  |
 
-This is why the weights are baked into the image (`runpod/Dockerfile`). Pulling
+This is why the weights are baked into the image
+(`apps/model-server/Dockerfile`). Pulling
 them from Hugging Face at boot would add 30–90 s and make the transcript p95
 target in 05 section 5.1 unreachable from cold.
+
+## 4a. Measured so far, and what is still an assumption
+
+Everything in sections 2 to 4 above is X05's arithmetic from list prices. The
+first measurements now exist, and they are **CPU** measurements:
+`apps/model-server/cost.md §2` records `tiny` on int8 CPU over the five-second
+fixture clip — a median realtime factor around 1.0 to 1.6, a model load of 1.8 s,
+and batches of four forming reliably under concurrent load.
+
+One finding is worth carrying up to this file: **on CPU, batching costs rather
+than saves** (batched RTF 1.4 to 1.8 against serial 0.95 to 1.6), because
+CTranslate2 already spreads one request across every core and a second request
+has no idle hardware to use. That does **not** falsify the D74 assumption, which
+is about a GPU where a single Whisper stream leaves the card substantially idle;
+it does mean the CPU fallback lane should run `MODEL_SERVER_BATCH_MAX_SIZE=1`.
+
+The GPU table — RTF, cold start, VRAM, effective GPU seconds per media minute,
+and the cost per media minute that decides D74 — is in
+`apps/model-server/cost.md §3`, empty and waiting for the first real run. The
+series that fill it (`model_server_realtime_factor`, `model_server_batch_size`,
+`model_server_compute_seconds_total`) are registered in
+`../observability/METRICS.md §11` and are emitted today.
 
 ## 5. When reserved GPU wins
 

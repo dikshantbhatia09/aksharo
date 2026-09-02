@@ -332,6 +332,22 @@ export function executeCommands(context: ExecutionContext, commands: readonly Dr
         if (command.backdrop === true) {
           // A backdrop blur samples what is already on the surface, so the
           // filter goes in as the layer's backdrop, not as its paint.
+          //
+          // The clip is load-bearing, not tidiness. Skia treats `SaveLayerRec`'s
+          // bounds as a *hint* about how much of the surface the layer needs,
+          // not as a boundary on what the backdrop filter may touch: without the
+          // clip the blur softens a sigma-wide band right across the frame,
+          // hundreds of pixels outside the panel. On a flat ground that is
+          // invisible, which is how it survived A16's own baselines; over real
+          // footage it is the difference between a frosted caption panel and a
+          // fogged video. `render-core` documents the blur as applying inside
+          // `bounds`, and `@montaj/render-skia-node` clips to honour that, so
+          // clipping here is also what keeps the two backends in parity
+          // (reported by A20, fixed as A16e).
+          canvas.save();
+          if (command.bounds !== undefined) {
+            canvas.clipRect(rect(ck, command.bounds), ck.ClipOp.Intersect, true);
+          }
           canvas.saveLayer(
             undefined,
             command.bounds === undefined ? null : rect(ck, command.bounds),
@@ -339,6 +355,7 @@ export function executeCommands(context: ExecutionContext, commands: readonly Dr
             0,
           );
           executeCommands(context, command.children);
+          canvas.restore();
           canvas.restore();
           break;
         }

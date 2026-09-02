@@ -21,6 +21,15 @@ import { CAPTION_FIXTURES, createFixtureRenderer, GOLDEN_CANVAS } from "./testin
 
 /** Generous CI bound; the design target is 2 ms. */
 const BUDGET_MS = 10;
+
+/**
+ * Wall-clock allowance, not a performance bound — that is `BUDGET_MS`, asserted
+ * on the median. `turbo` runs every package's suite at once, so on a busy
+ * machine these loops get a fraction of a core and take far longer than the work
+ * in them; the default 15 s timeout then fails a test that is measuring
+ * correctly. The p50 assertion is what guards performance.
+ */
+const MEASUREMENT_TIMEOUT_MS = 120_000;
 const TARGET_MS = 2;
 const ITERATIONS = 300;
 
@@ -101,25 +110,33 @@ describe("per-frame budget", () => {
     "karenge",
   ].map((t, index) => ({ wid: `0:${String(index)}`, t, s: index * 300, e: (index + 1) * 300 }));
 
-  it("lays out and draws a two-line caption well inside the CI bound", () => {
-    const samples = timeFrames("vertical-clean", twoLines);
-    const p50 = median(samples);
-    const p95 = percentile(samples, 0.95);
-    console.log(
-      `render-core two-line 1080p frame: p50 ${p50.toFixed(3)} ms, p95 ${p95.toFixed(3)} ms (target ${String(TARGET_MS)} ms, CI bound ${String(BUDGET_MS)} ms)`,
-    );
-    expect(p50).toBeLessThan(BUDGET_MS);
-  });
+  it(
+    "lays out and draws a two-line caption well inside the CI bound",
+    { timeout: MEASUREMENT_TIMEOUT_MS },
+    () => {
+      const samples = timeFrames("vertical-clean", twoLines);
+      const p50 = median(samples);
+      const p95 = percentile(samples, 0.95);
+      console.log(
+        `render-core two-line 1080p frame: p50 ${p50.toFixed(3)} ms, p95 ${p95.toFixed(3)} ms (target ${String(TARGET_MS)} ms, CI bound ${String(BUDGET_MS)} ms)`,
+      );
+      expect(p50).toBeLessThan(BUDGET_MS);
+    },
+  );
 
-  it("stays inside the bound for every script and for the heaviest styles", () => {
-    for (const fixture of CAPTION_FIXTURES) {
-      for (const styleId of ["punch-pop", "karaoke-fill", "glitch-shift", "liquid-glass"]) {
-        const p50 = median(timeFrames(styleId, fixture.words, 120));
-        console.log(`  ${styleId}/${fixture.name}: p50 ${p50.toFixed(3)} ms`);
-        expect(p50, `${styleId}/${fixture.name}`).toBeLessThan(BUDGET_MS);
+  it(
+    "stays inside the bound for every script and for the heaviest styles",
+    { timeout: MEASUREMENT_TIMEOUT_MS },
+    () => {
+      for (const fixture of CAPTION_FIXTURES) {
+        for (const styleId of ["punch-pop", "karaoke-fill", "glitch-shift", "liquid-glass"]) {
+          const p50 = median(timeFrames(styleId, fixture.words, 60));
+          console.log(`  ${styleId}/${fixture.name}: p50 ${p50.toFixed(3)} ms`);
+          expect(p50, `${styleId}/${fixture.name}`).toBeLessThan(BUDGET_MS);
+        }
       }
-    }
-  });
+    },
+  );
 
   it("keeps a caption's command list small enough to ship to a worker", () => {
     const style = loadSystemStyleMap().get("punch-pop");

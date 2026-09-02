@@ -3986,6 +3986,3190 @@
         ]
       }
     },
+    "/projects": {
+      "get": {
+        "description": "Cursor pagination: pass the previous page's `nextCursor` as `cursor`. Filters: `q` (title substring), `status`, `folder` (a folder id or `root`) and `clientTag`. Deleted projects are never returned.",
+        "operationId": "listProjects",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "One page of projects.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "workspaceId": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "folderId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "clientTag": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "sourceLanguage": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "scripts": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "aspect": {
+                            "type": "string",
+                            "enum": [
+                              "9:16",
+                              "16:9",
+                              "1:1",
+                              "4:5"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "draft",
+                              "active",
+                              "archived"
+                            ]
+                          },
+                          "thumbnailKey": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "durationMs": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "mediaCount": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "lastActivityAt": {
+                            "type": "string"
+                          },
+                          "retentionUntil": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "workspaceId",
+                          "title",
+                          "folderId",
+                          "clientTag",
+                          "sourceLanguage",
+                          "scripts",
+                          "aspect",
+                          "status",
+                          "thumbnailKey",
+                          "durationMs",
+                          "mediaCount",
+                          "lastActivityAt",
+                          "retentionUntil",
+                          "createdBy",
+                          "createdAt"
+                        ]
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List the workspace's projects, newest first",
+        "tags": [
+          "projects"
+        ]
+      },
+      "post": {
+        "description": "The retention window opens now, at the plan's length, and every upload pushes it out again (D47).",
+        "operationId": "createProject",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "folderId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "clientTag": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "aspect": {
+                    "type": "string",
+                    "enum": [
+                      "9:16",
+                      "16:9",
+                      "1:1",
+                      "4:5"
+                    ]
+                  },
+                  "sourceLanguage": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 16
+                  }
+                },
+                "required": [
+                  "title"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "folderId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "clientTag": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "sourceLanguage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "scripts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "aspect": {
+                      "type": "string",
+                      "enum": [
+                        "9:16",
+                        "16:9",
+                        "1:1",
+                        "4:5"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "active",
+                        "archived"
+                      ]
+                    },
+                    "thumbnailKey": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "durationMs": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "mediaCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "lastActivityAt": {
+                      "type": "string"
+                    },
+                    "retentionUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "title",
+                    "folderId",
+                    "clientTag",
+                    "sourceLanguage",
+                    "scripts",
+                    "aspect",
+                    "status",
+                    "thumbnailKey",
+                    "durationMs",
+                    "mediaCount",
+                    "lastActivityAt",
+                    "retentionUntil",
+                    "createdBy",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/folder_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/projects/batch": {
+      "post": {
+        "description": "One transaction: the batch lands whole or not at all. This creates the rows only — batch *orchestration* (upload, transcribe and report as one unit) is a later work package and builds on these.",
+        "operationId": "batchCreateProjects",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projects": {
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "folderId": {
+                          "type": "string",
+                          "minLength": 26,
+                          "maxLength": 26,
+                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                        },
+                        "clientTag": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "aspect": {
+                          "type": "string",
+                          "enum": [
+                            "9:16",
+                            "16:9",
+                            "1:1",
+                            "4:5"
+                          ]
+                        },
+                        "sourceLanguage": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 16
+                        }
+                      },
+                      "required": [
+                        "title"
+                      ]
+                    }
+                  },
+                  "folderId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "clientTag": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "projects"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The projects created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "created": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "workspaceId": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "folderId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "clientTag": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "sourceLanguage": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "scripts": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "aspect": {
+                            "type": "string",
+                            "enum": [
+                              "9:16",
+                              "16:9",
+                              "1:1",
+                              "4:5"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "draft",
+                              "active",
+                              "archived"
+                            ]
+                          },
+                          "thumbnailKey": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "durationMs": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "mediaCount": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "lastActivityAt": {
+                            "type": "string"
+                          },
+                          "retentionUntil": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "workspaceId",
+                          "title",
+                          "folderId",
+                          "clientTag",
+                          "sourceLanguage",
+                          "scripts",
+                          "aspect",
+                          "status",
+                          "thumbnailKey",
+                          "durationMs",
+                          "mediaCount",
+                          "lastActivityAt",
+                          "retentionUntil",
+                          "createdBy",
+                          "createdAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "created"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create several projects at once",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/projects/{projectId}": {
+      "get": {
+        "operationId": "getProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "folderId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "clientTag": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "sourceLanguage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "scripts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "aspect": {
+                      "type": "string",
+                      "enum": [
+                        "9:16",
+                        "16:9",
+                        "1:1",
+                        "4:5"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "active",
+                        "archived"
+                      ]
+                    },
+                    "thumbnailKey": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "durationMs": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "mediaCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "lastActivityAt": {
+                      "type": "string"
+                    },
+                    "retentionUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "title",
+                    "folderId",
+                    "clientTag",
+                    "sourceLanguage",
+                    "scripts",
+                    "aspect",
+                    "status",
+                    "thumbnailKey",
+                    "durationMs",
+                    "mediaCount",
+                    "lastActivityAt",
+                    "retentionUntil",
+                    "createdBy",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/not_found`, including another tenant's id."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Fetch one project",
+        "tags": [
+          "projects"
+        ]
+      },
+      "patch": {
+        "description": "Archiving is `status: \"archived\"`; there is no separate route for it.",
+        "operationId": "updateProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "folderId": {
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "clientTag": {
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "aspect": {
+                    "type": "string",
+                    "enum": [
+                      "9:16",
+                      "16:9",
+                      "1:1",
+                      "4:5"
+                    ]
+                  },
+                  "sourceLanguage": {
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 16
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "active",
+                      "archived"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "folderId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "clientTag": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "sourceLanguage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "scripts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "aspect": {
+                      "type": "string",
+                      "enum": [
+                        "9:16",
+                        "16:9",
+                        "1:1",
+                        "4:5"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "active",
+                        "archived"
+                      ]
+                    },
+                    "thumbnailKey": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "durationMs": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "mediaCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "lastActivityAt": {
+                      "type": "string"
+                    },
+                    "retentionUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "title",
+                    "folderId",
+                    "clientTag",
+                    "sourceLanguage",
+                    "scripts",
+                    "aspect",
+                    "status",
+                    "thumbnailKey",
+                    "durationMs",
+                    "mediaCount",
+                    "lastActivityAt",
+                    "retentionUntil",
+                    "createdBy",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/not_found` or `project/folder_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Rename, re-file, re-tag or archive a project",
+        "tags": [
+          "projects"
+        ]
+      },
+      "delete": {
+        "description": "A soft delete: the row is marked and the objects go when retention runs (D47), so an accidental click is recoverable until then.",
+        "operationId": "deleteProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete a project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/folders": {
+      "get": {
+        "description": "The whole tree, ordered by `position` then name; nesting is shallow by design.",
+        "operationId": "listFolders",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Every live folder in the workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "parentId": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "position": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "projectCount": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "workspaceId",
+                      "name",
+                      "parentId",
+                      "position",
+                      "projectCount",
+                      "createdAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The workspace's folders",
+        "tags": [
+          "projects"
+        ]
+      },
+      "post": {
+        "operationId": "createFolder",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "parentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new folder.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "parentId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "projectCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "name",
+                    "parentId",
+                    "position",
+                    "projectCount",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "409": {
+            "description": "`project/folder_cycle` when it would nest too deep."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a folder",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/folders/{folderId}": {
+      "get": {
+        "operationId": "getFolder",
+        "parameters": [
+          {
+            "name": "folderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The folder.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "parentId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "projectCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "name",
+                    "parentId",
+                    "position",
+                    "projectCount",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/folder_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Fetch one folder",
+        "tags": [
+          "projects"
+        ]
+      },
+      "patch": {
+        "description": "Moving a folder inside itself or one of its descendants is `project/folder_cycle`.",
+        "operationId": "updateFolder",
+        "parameters": [
+          {
+            "name": "folderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "parentId": {
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated folder.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "parentId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "projectCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "name",
+                    "parentId",
+                    "position",
+                    "projectCount",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/folder_not_found`."
+          },
+          "409": {
+            "description": "`project/folder_cycle`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Rename, move or reorder a folder",
+        "tags": [
+          "projects"
+        ]
+      },
+      "delete": {
+        "description": "Refused while projects or child folders are still in it (`project/folder_not_empty`): silently orphaning what is inside is how somebody loses work they can still see.",
+        "operationId": "deleteFolder",
+        "parameters": [
+          {
+            "name": "folderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/folder_not_found`."
+          },
+          "409": {
+            "description": "`project/folder_not_empty`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete an empty folder",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/projects/{projectId}/media": {
+      "get": {
+        "description": "Includes imported subtitle sidecars, which carry the role `subtitle`.",
+        "operationId": "listProjectMedia",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every media asset in the project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "projectId": {
+                        "type": "string"
+                      },
+                      "role": {
+                        "type": "string"
+                      },
+                      "bucket": {
+                        "type": "string",
+                        "enum": [
+                          "s3",
+                          "r2"
+                        ]
+                      },
+                      "storageKey": {
+                        "type": "string"
+                      },
+                      "filename": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "mime": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "sizeBytes": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "contentHash": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "durationMs": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "fps": {
+                        "nullable": true,
+                        "type": "number"
+                      },
+                      "width": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "height": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "audioChannels": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "uploading",
+                          "uploaded",
+                          "probing",
+                          "ready",
+                          "failed",
+                          "purged"
+                        ]
+                      },
+                      "needsRealign": {
+                        "type": "boolean"
+                      },
+                      "uploadedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "rawPurgeAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "derivedPurgeAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "derived": {
+                        "type": "object",
+                        "properties": {
+                          "proxy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "audio16k": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "audio48k": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "waveform": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "thumbs": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "proxy",
+                          "audio16k",
+                          "audio48k",
+                          "waveform",
+                          "thumbs"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "projectId",
+                      "role",
+                      "bucket",
+                      "storageKey",
+                      "filename",
+                      "mime",
+                      "sizeBytes",
+                      "contentHash",
+                      "durationMs",
+                      "fps",
+                      "width",
+                      "height",
+                      "audioChannels",
+                      "status",
+                      "needsRealign",
+                      "uploadedAt",
+                      "rawPurgeAt",
+                      "derivedPurgeAt",
+                      "derived",
+                      "createdAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The project's media, oldest first",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/projects/{projectId}/media/init": {
+      "post": {
+        "description": "Checks the declared size against the plan, opens a multipart upload on the raw bucket and returns one presigned URL per 16 MiB part. PUT each part, keep its `ETag`, then call `completeMediaUpload`. When `contentHash` matches an upload this workspace already has, the existing media is returned with `duplicate: true` and no parts to upload.",
+        "operationId": "initMediaUpload",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filename": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1099511627776
+                  },
+                  "mime": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 255
+                  },
+                  "contentHash": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "primary",
+                      "broll",
+                      "audio"
+                    ]
+                  }
+                },
+                "required": [
+                  "filename",
+                  "size",
+                  "mime"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Presigned parts, or a duplicate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mediaId": {
+                      "type": "string"
+                    },
+                    "uploadId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "bucket": {
+                      "type": "string",
+                      "enum": [
+                        "s3",
+                        "r2"
+                      ]
+                    },
+                    "partSizeBytes": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "partNumber": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "partNumber",
+                          "url"
+                        ]
+                      }
+                    },
+                    "expiresAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicate": {
+                      "type": "boolean"
+                    },
+                    "media": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "projectId": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "bucket": {
+                          "type": "string",
+                          "enum": [
+                            "s3",
+                            "r2"
+                          ]
+                        },
+                        "storageKey": {
+                          "type": "string"
+                        },
+                        "filename": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "mime": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "contentHash": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "durationMs": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "fps": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "width": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "audioChannels": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "uploading",
+                            "uploaded",
+                            "probing",
+                            "ready",
+                            "failed",
+                            "purged"
+                          ]
+                        },
+                        "needsRealign": {
+                          "type": "boolean"
+                        },
+                        "uploadedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rawPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derivedPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derived": {
+                          "type": "object",
+                          "properties": {
+                            "proxy": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio16k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio48k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "waveform": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "thumbs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "proxy",
+                            "audio16k",
+                            "audio48k",
+                            "waveform",
+                            "thumbs"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "projectId",
+                        "role",
+                        "bucket",
+                        "storageKey",
+                        "filename",
+                        "mime",
+                        "sizeBytes",
+                        "contentHash",
+                        "durationMs",
+                        "fps",
+                        "width",
+                        "height",
+                        "audioChannels",
+                        "status",
+                        "needsRealign",
+                        "uploadedAt",
+                        "rawPurgeAt",
+                        "derivedPurgeAt",
+                        "derived",
+                        "createdAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "mediaId",
+                    "uploadId",
+                    "key",
+                    "bucket",
+                    "partSizeBytes",
+                    "parts",
+                    "expiresAt",
+                    "duplicate",
+                    "media"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Begin an upload",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/projects/{projectId}/media/{mediaId}/complete": {
+      "post": {
+        "description": "`completeMediaUpload` under the path `07-api-and-contracts.md` spells, kept so a client can stay inside `/projects/{id}` for the whole ingest. Slightly stricter than the unscoped form: the media must be in the project the path names.",
+        "operationId": "completeProjectMediaUpload",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mediaId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "etags": {
+                    "minItems": 1,
+                    "maxItems": 10000,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    }
+                  }
+                },
+                "required": [
+                  "etags"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The media and its two jobs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "media": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "projectId": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "bucket": {
+                          "type": "string",
+                          "enum": [
+                            "s3",
+                            "r2"
+                          ]
+                        },
+                        "storageKey": {
+                          "type": "string"
+                        },
+                        "filename": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "mime": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "contentHash": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "durationMs": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "fps": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "width": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "audioChannels": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "uploading",
+                            "uploaded",
+                            "probing",
+                            "ready",
+                            "failed",
+                            "purged"
+                          ]
+                        },
+                        "needsRealign": {
+                          "type": "boolean"
+                        },
+                        "uploadedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rawPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derivedPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derived": {
+                          "type": "object",
+                          "properties": {
+                            "proxy": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio16k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio48k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "waveform": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "thumbs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "proxy",
+                            "audio16k",
+                            "audio48k",
+                            "waveform",
+                            "thumbs"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "projectId",
+                        "role",
+                        "bucket",
+                        "storageKey",
+                        "filename",
+                        "mime",
+                        "sizeBytes",
+                        "contentHash",
+                        "durationMs",
+                        "fps",
+                        "width",
+                        "height",
+                        "audioChannels",
+                        "status",
+                        "needsRealign",
+                        "uploadedAt",
+                        "rawPurgeAt",
+                        "derivedPurgeAt",
+                        "derived",
+                        "createdAt"
+                      ]
+                    },
+                    "probeJobId": {
+                      "type": "string"
+                    },
+                    "proxyJobId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "media",
+                    "probeJobId",
+                    "proxyJobId"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Finish an upload (project-scoped form)",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/projects/{projectId}/media/{mediaId}/replace": {
+      "post": {
+        "description": "A fresh upload onto the SAME media row, so transcripts, the EDG document and exports keep pointing at it. The row is flagged `needsRealign`: the words survive, the timings do not.",
+        "operationId": "replaceMedia",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mediaId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filename": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1099511627776
+                  },
+                  "mime": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 255
+                  },
+                  "contentHash": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "primary",
+                      "broll",
+                      "audio"
+                    ]
+                  }
+                },
+                "required": [
+                  "filename",
+                  "size",
+                  "mime"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Presigned parts for the new bytes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mediaId": {
+                      "type": "string"
+                    },
+                    "uploadId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "bucket": {
+                      "type": "string",
+                      "enum": [
+                        "s3",
+                        "r2"
+                      ]
+                    },
+                    "partSizeBytes": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "partNumber": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "partNumber",
+                          "url"
+                        ]
+                      }
+                    },
+                    "expiresAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicate": {
+                      "type": "boolean"
+                    },
+                    "media": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "projectId": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "bucket": {
+                          "type": "string",
+                          "enum": [
+                            "s3",
+                            "r2"
+                          ]
+                        },
+                        "storageKey": {
+                          "type": "string"
+                        },
+                        "filename": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "mime": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "contentHash": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "durationMs": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "fps": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "width": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "audioChannels": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "uploading",
+                            "uploaded",
+                            "probing",
+                            "ready",
+                            "failed",
+                            "purged"
+                          ]
+                        },
+                        "needsRealign": {
+                          "type": "boolean"
+                        },
+                        "uploadedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rawPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derivedPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derived": {
+                          "type": "object",
+                          "properties": {
+                            "proxy": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio16k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio48k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "waveform": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "thumbs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "proxy",
+                            "audio16k",
+                            "audio48k",
+                            "waveform",
+                            "thumbs"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "projectId",
+                        "role",
+                        "bucket",
+                        "storageKey",
+                        "filename",
+                        "mime",
+                        "sizeBytes",
+                        "contentHash",
+                        "durationMs",
+                        "fps",
+                        "width",
+                        "height",
+                        "audioChannels",
+                        "status",
+                        "needsRealign",
+                        "uploadedAt",
+                        "rawPurgeAt",
+                        "derivedPurgeAt",
+                        "derived",
+                        "createdAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "mediaId",
+                    "uploadId",
+                    "key",
+                    "bucket",
+                    "partSizeBytes",
+                    "parts",
+                    "expiresAt",
+                    "duplicate",
+                    "media"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`media/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Replace a media item's bytes",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/projects/{projectId}/media/{mediaId}/urls": {
+      "get": {
+        "description": "Proxy, 16 kHz and 48 kHz audio, waveform and thumbnails, from the derived bucket, valid five minutes. Only artefacts that exist are signed, so the response doubles as `what is ready`.",
+        "operationId": "getMediaUrls",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mediaId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Short-lived download URLs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mediaId": {
+                      "type": "string"
+                    },
+                    "proxy": {
+                      "type": "string"
+                    },
+                    "audio16k": {
+                      "type": "string"
+                    },
+                    "audio48k": {
+                      "type": "string"
+                    },
+                    "waveform": {
+                      "type": "string"
+                    },
+                    "thumbs": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mediaId",
+                    "thumbs",
+                    "expiresAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`media/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Signed URLs for the derived objects",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/projects/{projectId}/import": {
+      "post": {
+        "description": "Parses SRT, WebVTT, ASS or plain text into one normalised cue list, stores it as a sidecar in the derived bucket and enqueues `ai.align`. Plain text carries no timings, so `timed` is false and alignment supplies them. At most 2 MB.",
+        "operationId": "importSubtitles",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "srt",
+                      "vtt",
+                      "ass",
+                      "txt"
+                    ]
+                  },
+                  "content": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2097152
+                  },
+                  "language": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 16
+                  },
+                  "mediaId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "content"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The stored cue list and its align job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mediaId": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "srt",
+                        "vtt",
+                        "ass",
+                        "txt"
+                      ]
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "cueCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "timed": {
+                      "type": "boolean"
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "jobId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mediaId",
+                    "kind",
+                    "key",
+                    "cueCount",
+                    "timed",
+                    "warnings",
+                    "jobId"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "422": {
+            "description": "`import/unparsable`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Import an existing subtitle file",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/projects/{projectId}/import-url": {
+      "post": {
+        "description": "The same import, fetched first through the egress-restricted client: http(s) only, addresses resolved and judged before the connection, the resolved address pinned, at most three redirects and 2 MB (THREAT-MODEL T6). A refused URL is `import/blocked_url`, with no detail about why.",
+        "operationId": "importSubtitlesFromUrl",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 2048
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "srt",
+                      "vtt",
+                      "ass",
+                      "txt"
+                    ]
+                  },
+                  "language": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 16
+                  },
+                  "mediaId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The stored cue list and its align job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mediaId": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "srt",
+                        "vtt",
+                        "ass",
+                        "txt"
+                      ]
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "cueCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "timed": {
+                      "type": "boolean"
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "jobId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mediaId",
+                    "kind",
+                    "key",
+                    "cueCount",
+                    "timed",
+                    "warnings",
+                    "jobId"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "422": {
+            "description": "`import/unparsable`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Import a subtitle file from a URL",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/media/{mediaId}": {
+      "get": {
+        "operationId": "getMedia",
+        "parameters": [
+          {
+            "name": "mediaId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The media asset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "projectId": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "bucket": {
+                      "type": "string",
+                      "enum": [
+                        "s3",
+                        "r2"
+                      ]
+                    },
+                    "storageKey": {
+                      "type": "string"
+                    },
+                    "filename": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "mime": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "sizeBytes": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "contentHash": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "durationMs": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "fps": {
+                      "nullable": true,
+                      "type": "number"
+                    },
+                    "width": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "height": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "audioChannels": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "uploading",
+                        "uploaded",
+                        "probing",
+                        "ready",
+                        "failed",
+                        "purged"
+                      ]
+                    },
+                    "needsRealign": {
+                      "type": "boolean"
+                    },
+                    "uploadedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "rawPurgeAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "derivedPurgeAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "derived": {
+                      "type": "object",
+                      "properties": {
+                        "proxy": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "audio16k": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "audio48k": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "waveform": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "thumbs": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "proxy",
+                        "audio16k",
+                        "audio48k",
+                        "waveform",
+                        "thumbs"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "role",
+                    "bucket",
+                    "storageKey",
+                    "filename",
+                    "mime",
+                    "sizeBytes",
+                    "contentHash",
+                    "durationMs",
+                    "fps",
+                    "width",
+                    "height",
+                    "audioChannels",
+                    "status",
+                    "needsRealign",
+                    "uploadedAt",
+                    "rawPurgeAt",
+                    "derivedPurgeAt",
+                    "derived",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`media/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Fetch one media asset",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/media/{mediaId}/complete": {
+      "post": {
+        "description": "Completes the multipart upload from the part `ETag`s **in part order**, records the store's own byte count, sets `rawPurgeAt` (upload + 7 days) and `derivedPurgeAt` (the plan's retention), then enqueues `media.probe` and `media.proxy`. Idempotent: a retry returns the same two job ids.",
+        "operationId": "completeMediaUpload",
+        "parameters": [
+          {
+            "name": "mediaId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "etags": {
+                    "minItems": 1,
+                    "maxItems": 10000,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    }
+                  }
+                },
+                "required": [
+                  "etags"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The media and its two jobs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "media": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "projectId": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "bucket": {
+                          "type": "string",
+                          "enum": [
+                            "s3",
+                            "r2"
+                          ]
+                        },
+                        "storageKey": {
+                          "type": "string"
+                        },
+                        "filename": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "mime": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "contentHash": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "durationMs": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "fps": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "width": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "audioChannels": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "uploading",
+                            "uploaded",
+                            "probing",
+                            "ready",
+                            "failed",
+                            "purged"
+                          ]
+                        },
+                        "needsRealign": {
+                          "type": "boolean"
+                        },
+                        "uploadedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rawPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derivedPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derived": {
+                          "type": "object",
+                          "properties": {
+                            "proxy": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio16k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio48k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "waveform": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "thumbs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "proxy",
+                            "audio16k",
+                            "audio48k",
+                            "waveform",
+                            "thumbs"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "projectId",
+                        "role",
+                        "bucket",
+                        "storageKey",
+                        "filename",
+                        "mime",
+                        "sizeBytes",
+                        "contentHash",
+                        "durationMs",
+                        "fps",
+                        "width",
+                        "height",
+                        "audioChannels",
+                        "status",
+                        "needsRealign",
+                        "uploadedAt",
+                        "rawPurgeAt",
+                        "derivedPurgeAt",
+                        "derived",
+                        "createdAt"
+                      ]
+                    },
+                    "probeJobId": {
+                      "type": "string"
+                    },
+                    "proxyJobId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "media",
+                    "probeJobId",
+                    "proxyJobId"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`media/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Finish an upload and start the pipeline",
+        "tags": [
+          "media"
+        ]
+      }
+    },
     "/admin/dlq": {
       "get": {
         "description": "Filter by `queue`, `status`, `workspaceId`, a `reason` substring of the last error's code or message, and a `since`/`until` window. Cursor pagination: pass the previous page's `nextCursor`.",

@@ -35,6 +35,17 @@ export {
   redactLogObject,
   redactValue,
 } from "./logging/redaction.js";
+export {
+  DERIVED_STORE,
+  DOWNLOAD_URL_TTL_SECONDS,
+  MULTIPART_PART_SIZE_BYTES,
+  RAW_STORE,
+  StorageModule,
+  UPLOAD_URL_TTL_SECONDS,
+} from "./storage/index.js";
+export type { MultipartUpload, ObjectStore } from "./storage/index.js";
+export { safeFetch, SafeFetchError } from "./net/index.js";
+export type { SafeFetchResult } from "./net/index.js";
 export { PrismaModule } from "./prisma/prisma.module.js";
 export { PrismaService } from "./prisma/prisma.service.js";
 export type { PrismaTransaction, TransactionOptions } from "./prisma/prisma.service.js";

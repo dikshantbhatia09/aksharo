@@ -4,11 +4,12 @@ NestJS modular monolith — one feature module per work package
 (`05-system-architecture.md` section 3). Postgres via Prisma, Redis/BullMQ for jobs,
 OpenAPI as the contract that generates `@montaj/api-client`.
 
-**Status:** A05 — schema and base modules (A03), auth (A04), jobs, the realtime
+**Status:** A06 — schema and base modules (A03), auth (A04), jobs, the realtime
 gateway, the signed internal callback surface, the no-op `CreditsFacade` and the
-dead-letter queue with admin replay (A08/A08b), plus accounts, workspaces,
-memberships, consent and the privacy surface. Projects and media are A06, the
-real credit ledger is B02, the admin console is B13.
+dead-letter queue with admin replay (A08/A08b), accounts, workspaces,
+memberships, consent and the privacy surface (A05), plus projects, folders and
+the media ingest path. The probe and proxy workers are A07, transcripts are A11,
+the real credit ledger is B02, the admin console is B13.
 
 ## Run
 
@@ -27,6 +28,8 @@ pnpm --filter @montaj/api dev              # http://localhost:3001
 | `GET /docs-json`                                              | OpenAPI JSON — the source `@montaj/api-client` is generated from                                          |
 | `/auth/*`                                                     | sign-in, sessions, the device grant — see [`src/auth`](src/auth/README.md)                                |
 | `/me`, `/consents`, `/privacy`, `/workspaces`, `/invitations` | accounts, tenancy, the tax profile, consent and rights — see [`src/workspaces`](src/workspaces/README.md) |
+| `/projects`, `/folders`                                       | projects, folders and batch create — see [`src/projects`](src/projects/README.md)                         |
+| `/projects/{id}/media/*`, `/media/{id}`                       | presigned upload, derived URLs, replace, import — see [`src/media`](src/media/README.md)                  |
 | `GET /jobs`                                                   | the workspace's jobs, newest first, cursor-paginated                                                      |
 | `GET /jobs/{id}`                                              | one job                                                                                                   |
 | `GET /jobs/{id}/events`                                       | the job's event log (rows expire after 30 days)                                                           |
@@ -79,7 +82,7 @@ because a frozen contract or a shipped package says otherwise:
 | `edg_segments.seq` is `text COLLATE "C"`, not `numeric` | 06 says `numeric`, but CONTRACTS section 2 and `@montaj/edg` define `seq` as a base-62 fractional key over `0-9A-Za-z` (`seqBetween()` returns `1B`, `Zz`, `zzzV`). No NUMERIC column can hold those. The alphabet is in ASCII order so that string comparison IS key comparison, which holds only under byte collation — hence `COLLATE "C"`, pinned on the column because managed Postgres usually defaults to a linguistic one. Prisma cannot express a collation, so the integration suite asserts it. |
 | `parental_waitlist` is not in 06                        | D60 offers a waiting list to a sign-up the age gate refuses, and 06 has no table for it. A04 had to park the entries in a Redis hash; A05 adds the table and drains the hash at boot. Only `sha256(address)` is stored.                                                                                                                                                                                                                                                                                    |
 | `workspaces.billingCountryConfirmedAt` is not in 06     | Sign-up guesses the billing country from the declared jurisdiction, which is not a statement the customer made. The column separates the guess from the confirmation, and B01 refuses to open a checkout while it is null (D41).                                                                                                                                                                                                                                                                           |
-| `projects.folderId` has no FK                           | 06 lists the column but has no `folders` table; A06 adds one and converts it.                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `folders` is not in 06                                  | 06 lists `projects.folder_id` but has no table for it, so A03 left the column FK-less. A06 adds the table and converts the column, adds the columns the upload path needs (`media_assets.upload_id`, `filename`, `part_size_bytes`, `needs_realign`, `thumb_keys`, `raw_purged_at`, `derived_purged_at`) and adds `subtitle` to `MediaRole` for an imported cue list.                                                                                                                                      |
 | `jobs.type` is `String`, not an enum                    | The closed set is the queue table in CONTRACTS section 3, owned by A08.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Credit columns carry `*Tenths`                          | CONTRACTS section 0 is frozen and says credits are integer tenths; 06's `creditsPerMonth` / `creditsCharged` would leave the unit ambiguous at call sites.                                                                                                                                                                                                                                                                                                                                                 |
 | ~15 enums invented                                      | 06 writes `status` / `level` without listing values. Each is marked `/// Not enumerated in 06` in the schema.                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -119,6 +122,8 @@ a request body or a response shape changes.
 | `HttpExceptionFilter`            | the CONTRACTS section 8 envelope for every throwable                                                                          |
 | `ZodValidationPipe` + `zodDto()` | request validation; a failure becomes `common/validation_failed` with the Zod issues                                          |
 | `guards/`                        | `JwtAuthGuard`, `RolesGuard`, `ApiKeyGuard`, `@Public()`, `@Roles()`, `@CurrentUser()`, `@CurrentWorkspace()`, `@RateLimit()` |
+| `StorageModule`                  | `RAW_STORE` (S3) and `DERIVED_STORE` (R2) as `ObjectStore`s, keyed by CONTRACTS §6 (A06)                                      |
+| `net/safeFetch()`                | the egress-restricted HTTP client every user-supplied URL goes through (THREAT-MODEL T6, A06)                                 |
 | `startTelemetry()`               | OpenTelemetry traces to OTLP when configured, otherwise nothing                                                               |
 
 `CommonModule` imports all of them and is imported once by `AppModule`; the

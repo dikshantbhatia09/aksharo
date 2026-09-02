@@ -9,8 +9,10 @@ import { EdgModule } from "./edg/edg.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { InternalModule } from "./internal/internal.module.js";
 import { JobsModule } from "./jobs/jobs.module.js";
+import { MediaModule } from "./media/media.module.js";
 import { NotifyModule } from "./notify/notify.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
+import { ProjectsModule } from "./projects/projects.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { TranscriptsModule } from "./transcripts/transcripts.module.js";
 import { UsersModule } from "./users/users.module.js";
@@ -27,13 +29,19 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
  * adds `admin`, the platform-staff surface behind `AdminGuard`; A05 fills out
  * `users` and adds `workspaces`, `consents` and `privacy`; A25 adds `notify`
  * (mail delivery and the in-app bell); A12 adds `edg`, the editing document and
- * its op batches; A11 adds `transcripts` — the `ai.transcribe` producer, the
- * completion that writes the transcript and initialises the document, and the
- * read and export surface. Later work packages append to `imports`.
+ * its op batches; A06 adds `projects` (with folders) and `media` (upload,
+ * derived URLs, import, retention); A11 adds `transcripts` — the
+ * `ai.transcribe` producer, the completion that writes the transcript and
+ * initialises the document, and the read and export surface. Later work
+ * packages append to `imports`.
  *
  * `NotifyModule` sits after `JobsModule` because it takes the `notify` queue from
  * that module's registry, and it is `@Global()` because `AuthModule` — declared
  * earlier and `@Global()` itself — injects `NotifyService` to send its links.
+ *
+ * `ProjectsModule` precedes `MediaModule` because media resolves a project
+ * through `ProjectsService`, and both come after `JobsModule`: completing an
+ * upload is a producer for `media.probe`, `media.proxy` and `ai.align`.
  *
  * Order matters only in that `CommonModule` must come first: everything else
  * depends on the global providers it brings. `AuthModule` follows it because it
@@ -51,6 +59,8 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     RealtimeModule,
     JobsModule,
     NotifyModule,
+    ProjectsModule,
+    MediaModule,
     InternalModule,
     AdminModule,
     EdgModule,

@@ -1,0 +1,187 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "montaj-model-server"
+version = "0.1.0"
+description = "FastAPI GPU model server: transcribe, align, diarise and detect-language for the serverless GPU lane (decision D15)."
+requires-python = ">=3.12,<3.13"
+license = "LicenseRef-Proprietary"
+dependencies = [
+  # Same pins as apps/worker-ai so the two Python apps cannot drift apart on the
+  # HTTP stack they both speak (CONTRACTS section 10 freezes the toolchain).
+  "fastapi==0.141.1",
+  "uvicorn[standard]==0.52.4",
+  "python-dotenv==1.2.3",
+  # Fetching audio the caller passed as an https URL.
+  "httpx2==2.12.0",
+  # Framing maths, PCM buffers and the CTC lattice.
+  "numpy==2.5.2",
+  # /metrics is scraped directly: a RunPod sandbox has no OTel collector beside
+  # it (infra/observability/METRICS.md section 11).
+  "prometheus-client==0.24.1",
+]
+
+[project.optional-dependencies]
+# ---------------------------------------------------------------------------
+# The model backends are optional extras, each imported lazily, because the CPU
+# test lane must not install a CUDA stack and the CUDA image must not install a
+# test runner. A backend whose package is absent reports itself unavailable by
+# name; it never raises an ImportError halfway through a request.
+# ---------------------------------------------------------------------------
+
+# faster-whisper (CTranslate2) — /transcribe and /detect-language. Installable
+# on CPU, which is what makes the tiny-model end-to-end test possible here.
+asr = ["faster-whisper==1.2.1"]
+
+# Forced alignment runs the exported CTC heads through onnxruntime, the same
+# checkpoint layout apps/worker-ai/worker_ai/alignment/ctc.py reads, so the two
+# aligners cannot disagree about what a checkpoint directory looks like.
+align = ["onnxruntime==1.29.0"]
+
+# GPU-only. pyannote drags torch in; nothing below is installed by the CPU lane
+# and requirements-gpu.lock is the file the CUDA image installs.
+diarise = [
+  "pyannote.audio==4.0.1",
+  "torch==2.9.1",
+  "torchaudio==2.9.1",
+]
+
+# Build-time only: scripts/bake_models.py exports the wav2vec2 CTC heads to ONNX.
+# In the image these are installed alongside the runtime stack rather than into a
+# throwaway stage, because a multi-stage venv copy to save ~60 MB is not worth the
+# complexity next to 3 GB of baked weights.
+bake = [
+  "transformers==4.57.6",
+  "onnx==1.19.1",
+]
+
+# The RunPod serverless SDK, needed only when MODEL_SERVER_MODE=runpod. It is not
+# a dependency of the app: model_server/runpod_handler.py imports it lazily and
+# says so when it is absent.
+runpod = ["runpod==1.12.0"]
+
+dev = [
+  "ruff==0.16.5",
+  "mypy==2.3.1",
+  "pytest==9.1.1",
+  "pytest-asyncio==1.4.0",
+  "pytest-cov==7.1.0",
+  "pip-tools==7.6.1",
+  # Drives the FastAPI app in-process; httpx (not httpx2) is what Starlette's
+  # TestClient is built on.
+  "httpx==0.28.1",
+]
+
+[project.scripts]
+montaj-model-server = "model_server.__main__:run"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["model_server*"]
+
+[tool.setuptools.package-data]
+model_server = ["py.typed"]
+
+# ---------------------------------------------------------------------------
+# ruff — lint + format (identical rule set to apps/worker-ai)
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [".venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "W",   # pycodestyle warnings
+  "F",   # pyflakes
+  "I",   # isort
+  "N",   # pep8-naming
+  "UP",  # pyupgrade
+  "B",   # flake8-bugbear
+  "A",   # flake8-builtins
+  "C4",  # flake8-comprehensions
+  "SIM", # flake8-simplify
+  "TID", # flake8-tidy-imports
+  "RUF", # ruff-specific
+  "ANN", # flake8-annotations
+  "ASYNC",
+  "S", # bandit
+]
+ignore = [
+  "ANN401", # `Any` is the honest type where a model backend hands back untyped output
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "ANN"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["model_server"]
+
+# ---------------------------------------------------------------------------
+# mypy — strict
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_no_return = true
+disallow_any_unimported = true
+exclude = ["^\\.venv/", "^build/", "^dist/"]
+mypy_path = "."
+
+[[tool.mypy.overrides]]
+# Backends that ship no type information. None of them is ever named in a
+# signature — each sits behind a Protocol in model_server/models/base.py — so
+# `disallow_any_unimported` still holds.
+module = [
+  "faster_whisper.*",
+  "onnxruntime.*",
+  "pyannote.*",
+  "torch.*",
+  # Build-time only: scripts/bake_models.py exports the CTC heads to ONNX.
+  "transformers.*",
+  # The RunPod SDK exists only inside the RunPod image.
+  "runpod.*",
+  "worker_ai.*",
+  "httpx2.*",
+]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config --cov=model_server --cov-branch --cov-report=term-missing --cov-fail-under=75"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = ["error"]
+markers = [
+  "slow: needs a real model download (faster-whisper tiny); runs only with RUN_SLOW=1",
+]
+
+# ---------------------------------------------------------------------------
+# coverage — the CONTRACTS section 9 gate for a Python app is 75 lines / 70 branches
+# ---------------------------------------------------------------------------
+[tool.coverage.run]
+branch = true
+source = ["model_server"]
+omit = [
+  # Process wiring: proven by the integration run and the Docker smoke, not by
+  # a unit test that would only assert uvicorn's own arguments.
+  "model_server/__main__.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "@abstractmethod",
+  "@overload",
+  '\.\.\.',
+]

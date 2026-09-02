@@ -11,16 +11,51 @@ is a **[H]** step (see `../README.md`, "Bootstrap order").
 
 ## Layout
 
-| Path                    | What it is                                                                                                           |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `runpod/endpoint.json`  | The serverless endpoint definition: GPU class, regions, warm floor, autoscaling. Placeholders are `{{UPPER_SNAKE}}`. |
-| `runpod/Dockerfile`     | The model-server image, with all weights baked in.                                                                   |
-| `runpod/bake_models.py` | Build-time weight download. Fails the build on a missing weight.                                                     |
-| `modal/app.py`          | The same endpoint on Modal, so the provider is a flag rather than a rewrite.                                         |
-| `COST.md`               | Cost assumptions from `05 §12`, with the arithmetic shown so it can be falsified.                                    |
+The **server itself lives in `apps/model-server`** (A26). This folder holds the
+provider-specific deployment shape and the cost model; it does not hold the
+application, the image or the weights.
+
+| Path                                             | What it is                                                                                                                           |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `runpod/endpoint.json`                           | The serverless endpoint definition: GPU class, regions, warm floor, autoscaling, env. Placeholders are `{{UPPER_SNAKE}}`.            |
+| `modal/app.py`                                   | The same endpoint on Modal, so the provider is a flag rather than a rewrite.                                                         |
+| `COST.md`                                        | Cost assumptions from `05 §12`, with the arithmetic shown so it can be falsified.                                                    |
+| `../../apps/model-server/Dockerfile`             | The model-server image, with all weights baked in. Its `cpu` target is what CI builds, with no GPU and no token.                     |
+| `../../apps/model-server/scripts/bake_models.py` | Build-time weight download and the ONNX export of the CTC heads. Fails the build on a missing weight, or on an MMS checkpoint (D77). |
+| `../../apps/model-server/requirements-gpu.lock`  | The pinned CUDA-side Python stack both providers install.                                                                            |
+| `../../apps/model-server/cost.md`                | Per-request cost accounting, the measured CPU numbers, and the table the first real GPU run fills in.                                |
+
+> **Changed by A26.** X05 wrote `runpod/Dockerfile` and `runpod/bake_models.py`
+> against `apps/worker-ai/requirements-gpu.lock` and a `montaj_worker_ai.gpu`
+> package, neither of which existed — they were placeholders for an app that had
+> not been written yet. That app now exists, owns its own image and bake script,
+> and the two placeholder files are deleted rather than left to rot into a
+> second, wrong, source of truth. `endpoint.json` and `COST.md` are X05's and stay.
 
 `GPU_PROVIDER` in CONTRACTS section 1 selects which one the AI worker calls:
-`runpod`, `modal`, `replicate` or `none`.
+`runpod`, `modal`, `replicate` or `none`. `GPU_PROVIDER_URL` is the endpoint and
+`GPU_PROVIDER_TOKEN` is the bearer token the server demands: it refuses to boot
+without one, so an unauthenticated GPU cannot be deployed by omission.
+
+## What the endpoint serves
+
+Four routes, documented in full in `apps/model-server/README.md`:
+`POST /transcribe`, `POST /align`, `POST /diarise` and `POST /detect-language`,
+plus `/healthz`, `/readyz` and `/metrics`. `MODEL_SERVER_MODE` picks the lane —
+`runpod` for the classic queue API, `http` for uvicorn (Modal, and RunPod's
+load-balancing endpoints). Both drive the same application, the same batcher and
+the same warm models.
+
+## Batching, and why the cost band depends on it
+
+Decision **D74**: the ₹0.09–0.13 per media minute band in `05 §12` holds
+_only_ with request batching, and X05's own re-derivation in `COST.md §2` gives
+₹0.19 without it. The server therefore batches `/transcribe` — up to
+`MODEL_SERVER_BATCH_MAX_SIZE` chunks inside a `MODEL_SERVER_BATCH_WINDOW_MS`
+window — and publishes `model_server_batch_size`, so the assumption is measured
+rather than believed. A median batch size of 1 under production load means the
+lever is not engaged and the cost band is out of reach; read
+`apps/model-server/cost.md §4` before moving a routing weight because of it.
 
 ## Why the weights are in the image
 
@@ -59,11 +94,12 @@ outstanding, and the sub-processor list must name whichever provider is live.
 ```bash
 # 1. Build the model-server image. HF_TOKEN is a BuildKit secret: the gated
 #    pyannote weights need it at build time, and it must never reach a layer.
+#    The build context is the app directory, not the repository root.
 printf '%s' "$HF_TOKEN" > /tmp/hf_token
 DOCKER_BUILDKIT=1 docker build \
-  -f infra/gpu/runpod/Dockerfile \
+  -f apps/model-server/Dockerfile \
   --secret id=hf_token,src=/tmp/hf_token \
-  -t "$REGISTRY/montaj/gpu-model-server:$TAG" .
+  -t "$REGISTRY/montaj/gpu-model-server:$TAG" apps/model-server
 shred -u /tmp/hf_token
 
 docker push "$REGISTRY/montaj/gpu-model-server:$TAG"
