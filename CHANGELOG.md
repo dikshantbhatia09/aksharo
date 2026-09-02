@@ -570,7 +570,10 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `GPU_PROVIDER_URL` (non-secret) and `GPU_PROVIDER_TOKEN` (secret, human-filled),
   the two it added after A09 — A25 was the next work package to touch all four
   files, so it carried them across rather than leaving the parity check red.
-  `infra/scripts/check-contracts-parity.py` reports 37/37 on both sides.
+  `apps/worker-ai/worker_ai/settings.py` mirrors that list and its test enforces
+  the mirror, so the five names were added there too and the GPU pair moved out
+  of `WORKER_ENV_VARS`: they are product configuration now, not deployment
+  naming. `infra/scripts/check-contracts-parity.py` reports 37/37 on both sides.
   `loadEnv()` also gained a cross-field check (`crossFieldProblems`): `ses` and
   `smtp` require `MAIL_FROM`, and `smtp` requires `SMTP_URL`. It lives beside the
   schema rather than inside it because a `.superRefine()` would remove
