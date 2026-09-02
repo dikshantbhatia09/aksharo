@@ -43,7 +43,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `MONTAJ_REDIS_PREFIX`.** `apps/web/e2e/fixtures.ts` hard-coded
   `montaj:auth:dev-outbox`, but the API writes it under
   `${MONTAJ_REDIS_PREFIX}:auth:dev-outbox` (`apps/api/src/common/redis/
-  redis-keys.ts`); any worktree with a non-default prefix (A05/A23a's
+redis-keys.ts`); any worktree with a non-default prefix (A05/A23a's
   per-suite isolation) timed out every sign-up fixture after 45s waiting for
   a message that had actually arrived under a different key. `env.ts` now
   exports `redisKeyPrefix()`, read the same way the API's own reads it, and

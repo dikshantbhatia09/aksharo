@@ -127,21 +127,158 @@ interface FixtureWord {
 }
 
 const TURNS: { sp: "s1" | "s2"; words: { t: string; roman: string; native?: string }[] }[] = [
-  { sp: "s1", words: [{ t: "namaste", roman: "namaste", native: "नमस्ते" }, { t: "dosto", roman: "dosto", native: "दोस्तों" }] },
-  { sp: "s1", words: [{ t: "aaj", roman: "aaj", native: "आज" }, { t: "hum", roman: "hum", native: "हम" }, { t: "baat", roman: "baat", native: "बात" }, { t: "karenge", roman: "karenge", native: "करेंगे" }] },
-  { sp: "s2", words: [{ t: "bilkul", roman: "bilkul", native: "बिल्कुल" }, { t: "sahi", roman: "sahi", native: "सही" }, { t: "topic", roman: "topic" }] },
-  { sp: "s1", words: [{ t: "matlab", roman: "matlab" }, { t: "editor", roman: "editor" }, { t: "kaise", roman: "kaise", native: "कैसे" }, { t: "kaam", roman: "kaam", native: "काम" }, { t: "karta", roman: "karta", native: "करता" }, { t: "hai", roman: "hai", native: "है" }] },
-  { sp: "s2", words: [{ t: "dekho", roman: "dekho", native: "देखो" }, { t: "sabse", roman: "sabse", native: "सबसे" }, { t: "pehle", roman: "pehle", native: "पहले" }, { t: "upload", roman: "upload" }, { t: "karo", roman: "karo", native: "करो" }] },
-  { sp: "s1", words: [{ t: "phir", roman: "phir", native: "फिर" }, { t: "transcript", roman: "transcript" }, { t: "ban", roman: "ban", native: "बन" }, { t: "jaata", roman: "jaata", native: "जाता" }, { t: "hai", roman: "hai", native: "है" }] },
-  { sp: "s2", words: [{ t: "wow", roman: "wow" }, { t: "yeh", roman: "yeh", native: "यह" }, { t: "toh", roman: "toh", native: "तो" }, { t: "bahut", roman: "bahut", native: "बहुत" }, { t: "fast", roman: "fast" }, { t: "hai", roman: "hai", native: "है" }] },
-  { sp: "s1", words: [{ t: "haan", roman: "haan", native: "हाँ" }, { t: "aur", roman: "aur", native: "और" }, { t: "styles", roman: "styles" }, { t: "bhi", roman: "bhi", native: "भी" }, { t: "bahut", roman: "bahut", native: "बहुत" }, { t: "saare", roman: "saare", native: "सारे" }, { t: "hain", roman: "hain", native: "हैं" }] },
-  { sp: "s2", words: [{ t: "punch", roman: "punch" }, { t: "pop", roman: "pop" }, { t: "style", roman: "style" }, { t: "mujhe", roman: "mujhe", native: "मुझे" }, { t: "pasand", roman: "pasand", native: "पसंद" }, { t: "hai", roman: "hai", native: "है" }] },
-  { sp: "s1", words: [{ t: "chaliye", roman: "chaliye", native: "चलिए" }, { t: "wahi", roman: "wahi", native: "वही" }, { t: "try", roman: "try" }, { t: "karte", roman: "karte", native: "करते" }, { t: "hain", roman: "hain", native: "हैं" }] },
-  { sp: "s2", words: [{ t: "matlab", roman: "matlab" }, { t: "ek", roman: "ek", native: "एक" }, { t: "click", roman: "click" }, { t: "mein", roman: "mein", native: "में" }, { t: "reflow", roman: "reflow" }, { t: "ho", roman: "ho", native: "हो" }, { t: "gaya", roman: "gaya", native: "गया" }] },
-  { sp: "s1", words: [{ t: "ab", roman: "ab", native: "अब" }, { t: "export", roman: "export" }, { t: "karte", roman: "karte", native: "करते" }, { t: "hain", roman: "hain", native: "हैं" }] },
-  { sp: "s2", words: [{ t: "srt", roman: "srt" }, { t: "aur", roman: "aur", native: "और" }, { t: "mp4", roman: "mp4" }, { t: "dono", roman: "dono", native: "दोनों" }] },
-  { sp: "s1", words: [{ t: "cloud", roman: "cloud" }, { t: "render", roman: "render" }, { t: "bhi", roman: "bhi", native: "भी" }, { t: "kaam", roman: "kaam", native: "काम" }, { t: "karta", roman: "karta", native: "करता" }, { t: "hai", roman: "hai", native: "है" }] },
-  { sp: "s2", words: [{ t: "shukriya", roman: "shukriya", native: "शुक्रिया" }, { t: "dosto", roman: "dosto", native: "दोस्तों" }, { t: "milte", roman: "milte", native: "मिलते" }, { t: "hain", roman: "hain", native: "हैं" }, { t: "agli", roman: "agli", native: "अगली" }, { t: "video", roman: "video" }, { t: "mein", roman: "mein", native: "में" }] },
+  {
+    sp: "s1",
+    words: [
+      { t: "namaste", roman: "namaste", native: "नमस्ते" },
+      { t: "dosto", roman: "dosto", native: "दोस्तों" },
+    ],
+  },
+  {
+    sp: "s1",
+    words: [
+      { t: "aaj", roman: "aaj", native: "आज" },
+      { t: "hum", roman: "hum", native: "हम" },
+      { t: "baat", roman: "baat", native: "बात" },
+      { t: "karenge", roman: "karenge", native: "करेंगे" },
+    ],
+  },
+  {
+    sp: "s2",
+    words: [
+      { t: "bilkul", roman: "bilkul", native: "बिल्कुल" },
+      { t: "sahi", roman: "sahi", native: "सही" },
+      { t: "topic", roman: "topic" },
+    ],
+  },
+  {
+    sp: "s1",
+    words: [
+      { t: "matlab", roman: "matlab" },
+      { t: "editor", roman: "editor" },
+      { t: "kaise", roman: "kaise", native: "कैसे" },
+      { t: "kaam", roman: "kaam", native: "काम" },
+      { t: "karta", roman: "karta", native: "करता" },
+      { t: "hai", roman: "hai", native: "है" },
+    ],
+  },
+  {
+    sp: "s2",
+    words: [
+      { t: "dekho", roman: "dekho", native: "देखो" },
+      { t: "sabse", roman: "sabse", native: "सबसे" },
+      { t: "pehle", roman: "pehle", native: "पहले" },
+      { t: "upload", roman: "upload" },
+      { t: "karo", roman: "karo", native: "करो" },
+    ],
+  },
+  {
+    sp: "s1",
+    words: [
+      { t: "phir", roman: "phir", native: "फिर" },
+      { t: "transcript", roman: "transcript" },
+      { t: "ban", roman: "ban", native: "बन" },
+      { t: "jaata", roman: "jaata", native: "जाता" },
+      { t: "hai", roman: "hai", native: "है" },
+    ],
+  },
+  {
+    sp: "s2",
+    words: [
+      { t: "wow", roman: "wow" },
+      { t: "yeh", roman: "yeh", native: "यह" },
+      { t: "toh", roman: "toh", native: "तो" },
+      { t: "bahut", roman: "bahut", native: "बहुत" },
+      { t: "fast", roman: "fast" },
+      { t: "hai", roman: "hai", native: "है" },
+    ],
+  },
+  {
+    sp: "s1",
+    words: [
+      { t: "haan", roman: "haan", native: "हाँ" },
+      { t: "aur", roman: "aur", native: "और" },
+      { t: "styles", roman: "styles" },
+      { t: "bhi", roman: "bhi", native: "भी" },
+      { t: "bahut", roman: "bahut", native: "बहुत" },
+      { t: "saare", roman: "saare", native: "सारे" },
+      { t: "hain", roman: "hain", native: "हैं" },
+    ],
+  },
+  {
+    sp: "s2",
+    words: [
+      { t: "punch", roman: "punch" },
+      { t: "pop", roman: "pop" },
+      { t: "style", roman: "style" },
+      { t: "mujhe", roman: "mujhe", native: "मुझे" },
+      { t: "pasand", roman: "pasand", native: "पसंद" },
+      { t: "hai", roman: "hai", native: "है" },
+    ],
+  },
+  {
+    sp: "s1",
+    words: [
+      { t: "chaliye", roman: "chaliye", native: "चलिए" },
+      { t: "wahi", roman: "wahi", native: "वही" },
+      { t: "try", roman: "try" },
+      { t: "karte", roman: "karte", native: "करते" },
+      { t: "hain", roman: "hain", native: "हैं" },
+    ],
+  },
+  {
+    sp: "s2",
+    words: [
+      { t: "matlab", roman: "matlab" },
+      { t: "ek", roman: "ek", native: "एक" },
+      { t: "click", roman: "click" },
+      { t: "mein", roman: "mein", native: "में" },
+      { t: "reflow", roman: "reflow" },
+      { t: "ho", roman: "ho", native: "हो" },
+      { t: "gaya", roman: "gaya", native: "गया" },
+    ],
+  },
+  {
+    sp: "s1",
+    words: [
+      { t: "ab", roman: "ab", native: "अब" },
+      { t: "export", roman: "export" },
+      { t: "karte", roman: "karte", native: "करते" },
+      { t: "hain", roman: "hain", native: "हैं" },
+    ],
+  },
+  {
+    sp: "s2",
+    words: [
+      { t: "srt", roman: "srt" },
+      { t: "aur", roman: "aur", native: "और" },
+      { t: "mp4", roman: "mp4" },
+      { t: "dono", roman: "dono", native: "दोनों" },
+    ],
+  },
+  {
+    sp: "s1",
+    words: [
+      { t: "cloud", roman: "cloud" },
+      { t: "render", roman: "render" },
+      { t: "bhi", roman: "bhi", native: "भी" },
+      { t: "kaam", roman: "kaam", native: "काम" },
+      { t: "karta", roman: "karta", native: "करता" },
+      { t: "hai", roman: "hai", native: "है" },
+    ],
+  },
+  {
+    sp: "s2",
+    words: [
+      { t: "shukriya", roman: "shukriya", native: "शुक्रिया" },
+      { t: "dosto", roman: "dosto", native: "दोस्तों" },
+      { t: "milte", roman: "milte", native: "मिलते" },
+      { t: "hain", roman: "hain", native: "हैं" },
+      { t: "agli", roman: "agli", native: "अगली" },
+      { t: "video", roman: "video" },
+      { t: "mein", roman: "mein", native: "में" },
+    ],
+  },
 ];
 
 /** Lays the turns out end to end across the 90s, with a filler and a low-confidence word woven in. */
@@ -201,7 +338,10 @@ function mintAccessToken(input: {
   };
   const b64 = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString("base64url");
   const signingInput = `${b64({ alg: "RS256", typ: "JWT" })}.${b64(claims)}`;
-  const signature = createSign("RSA-SHA256").update(signingInput, "utf8").sign(JWT_PRIVATE_KEY).toString("base64url");
+  const signature = createSign("RSA-SHA256")
+    .update(signingInput, "utf8")
+    .sign(JWT_PRIVATE_KEY)
+    .toString("base64url");
   return `${signingInput}.${signature}`;
 }
 
@@ -323,7 +463,8 @@ async function main(): Promise<void> {
       headers,
       body: JSON.stringify({ title: PROJECT_TITLE }),
     });
-    if (!response.ok) throw new Error(`create project failed: ${String(response.status)} ${await response.text()}`);
+    if (!response.ok)
+      throw new Error(`create project failed: ${String(response.status)} ${await response.text()}`);
     project = (await response.json()) as { id: string };
   }
 
@@ -354,7 +495,9 @@ async function main(): Promise<void> {
     }),
   });
   if (!transcribeResponse.ok) {
-    throw new Error(`transcribe failed: ${String(transcribeResponse.status)} ${await transcribeResponse.text()}`);
+    throw new Error(
+      `transcribe failed: ${String(transcribeResponse.status)} ${await transcribeResponse.text()}`,
+    );
   }
   const { jobId, transcriptId } = (await transcribeResponse.json()) as {
     jobId: string;
@@ -431,7 +574,9 @@ async function main(): Promise<void> {
     });
   }
 
-  console.log(`seed-sample: project ${project.id} ready (transcript ${transcriptId}, pass ${passId}).`);
+  console.log(
+    `seed-sample: project ${project.id} ready (transcript ${transcriptId}, pass ${passId}).`,
+  );
 }
 
 main()

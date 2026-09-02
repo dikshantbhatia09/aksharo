@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { loadRepoEnv } from "./env";
-import { completeJobForTest, patchMediaForTest } from "./internal-callback";
 import { API_ORIGIN, expect, expectNoSeriousA11yViolations, gotoHydrated, test } from "./fixtures";
+import { completeJobForTest, patchMediaForTest } from "./internal-callback";
 
 import type { Page } from "@playwright/test";
 
@@ -84,17 +84,86 @@ async function currentAccessToken(page: Page): Promise<string> {
 }
 
 /** A 24-second Hinglish transcript — short enough to keep the journey fast, long enough for a real split/style/script exercise. */
-function gateAFixtureChunks(): { chunkIdx: number; startMs: number; endMs: number; words: unknown[] }[] {
+function gateAFixtureChunks(): {
+  chunkIdx: number;
+  startMs: number;
+  endMs: number;
+  words: unknown[];
+}[] {
   const words = [
-    { wid: "0:0", s: 0, e: 500, t: "namaste", sp: "s1", scripts: { roman: "namaste", native: "नमस्ते" }, c: 0.95 },
-    { wid: "0:1", s: 500, e: 1000, t: "dosto", sp: "s1", scripts: { roman: "dosto", native: "दोस्तों" }, c: 0.92 },
-    { wid: "0:2", s: 1000, e: 1500, t: "aaj", sp: "s1", scripts: { roman: "aaj", native: "आज" }, c: 0.9 },
-    { wid: "0:3", s: 1500, e: 2000, t: "hum", sp: "s1", scripts: { roman: "hum", native: "हम" }, c: 0.9 },
+    {
+      wid: "0:0",
+      s: 0,
+      e: 500,
+      t: "namaste",
+      sp: "s1",
+      scripts: { roman: "namaste", native: "नमस्ते" },
+      c: 0.95,
+    },
+    {
+      wid: "0:1",
+      s: 500,
+      e: 1000,
+      t: "dosto",
+      sp: "s1",
+      scripts: { roman: "dosto", native: "दोस्तों" },
+      c: 0.92,
+    },
+    {
+      wid: "0:2",
+      s: 1000,
+      e: 1500,
+      t: "aaj",
+      sp: "s1",
+      scripts: { roman: "aaj", native: "आज" },
+      c: 0.9,
+    },
+    {
+      wid: "0:3",
+      s: 1500,
+      e: 2000,
+      t: "hum",
+      sp: "s1",
+      scripts: { roman: "hum", native: "हम" },
+      c: 0.9,
+    },
     { wid: "0:4", s: 2000, e: 2500, t: "editor", sp: "s1", scripts: { roman: "editor" }, c: 0.9 },
-    { wid: "0:5", s: 2500, e: 3000, t: "dekhenge", sp: "s1", scripts: { roman: "dekhenge", native: "देखेंगे" }, c: 0.9 },
-    { wid: "0:6", s: 4500, e: 5000, t: "bilkul", sp: "s2", scripts: { roman: "bilkul", native: "बिल्कुल" }, c: 0.9 },
-    { wid: "0:7", s: 5000, e: 5500, t: "sahi", sp: "s2", scripts: { roman: "sahi", native: "सही" }, c: 0.9 },
-    { wid: "0:8", s: 5500, e: 6000, t: "hai", sp: "s2", scripts: { roman: "hai", native: "है" }, c: 0.9 },
+    {
+      wid: "0:5",
+      s: 2500,
+      e: 3000,
+      t: "dekhenge",
+      sp: "s1",
+      scripts: { roman: "dekhenge", native: "देखेंगे" },
+      c: 0.9,
+    },
+    {
+      wid: "0:6",
+      s: 4500,
+      e: 5000,
+      t: "bilkul",
+      sp: "s2",
+      scripts: { roman: "bilkul", native: "बिल्कुल" },
+      c: 0.9,
+    },
+    {
+      wid: "0:7",
+      s: 5000,
+      e: 5500,
+      t: "sahi",
+      sp: "s2",
+      scripts: { roman: "sahi", native: "सही" },
+      c: 0.9,
+    },
+    {
+      wid: "0:8",
+      s: 5500,
+      e: 6000,
+      t: "hai",
+      sp: "s2",
+      scripts: { roman: "hai", native: "है" },
+      c: 0.9,
+    },
   ];
   return [{ chunkIdx: 0, startMs: 0, endMs: 6_000, words }];
 }
@@ -232,9 +301,7 @@ test.describe("Gate A journey", () => {
       const client = new Client({ connectionString: env["DATABASE_URL"] ?? "" });
       await client.connect();
       try {
-        const workspaceId = await (await import("./export-test-helpers")).workspaceIdFromPage(
-          page,
-        );
+        const workspaceId = await (await import("./export-test-helpers")).workspaceIdFromPage(page);
         // A fresh signup has no `subscriptions` row at all (entitlements
         // fall back to `free` with none present), so this inserts one
         // rather than updating a row that does not exist yet.
@@ -569,9 +636,12 @@ test.describe("Gate A journey", () => {
     // `RenderVideoResultSchema` (render-completion.handler.ts): every field
     // is required — `outputKey`/`width`/`height`/`watermarked` included, not
     // only size/duration.
-    const cloudJobResponse = await page.request.get(`${API_ORIGIN}/jobs/${cloudDecision.job!.jobId}`, {
-      headers: authHeaders,
-    });
+    const cloudJobResponse = await page.request.get(
+      `${API_ORIGIN}/jobs/${cloudDecision.job!.jobId}`,
+      {
+        headers: authHeaders,
+      },
+    );
     const cloudJob = (await cloudJobResponse.json()) as { attemptId: string | null };
     await completeJobForTest(cloudDecision.job!.jobId, cloudJob.attemptId ?? "", {
       status: "succeeded",

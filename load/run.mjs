@@ -271,7 +271,15 @@ async function fireTranscribeRequests(jobs) {
         durations.push(durationMs);
         const ok = response.status === 202 || response.status === 200;
         const body = ok ? await response.json() : await response.text();
-        return { projectId, workspaceId, accessToken, ok, status: response.status, durationMs, body };
+        return {
+          projectId,
+          workspaceId,
+          accessToken,
+          ok,
+          status: response.status,
+          durationMs,
+          body,
+        };
       } catch (error) {
         durations.push(performance.now() - start);
         return {
@@ -308,7 +316,11 @@ async function verifyWsDelivery({ workspaceId, jobId, projectId, attemptId, acce
     });
     socket.addEventListener("message", (event) => {
       const frame = JSON.parse(typeof event.data === "string" ? event.data : "{}");
-      if (frame.t === "event" && (frame.event === "job.completed" || frame.event === "job.progress") && frame.data?.jobId === jobId) {
+      if (
+        frame.t === "event" &&
+        (frame.event === "job.completed" || frame.event === "job.progress") &&
+        frame.data?.jobId === jobId
+      ) {
         settled = true;
         clearTimeout(timer);
         socket.close();
@@ -364,7 +376,8 @@ async function verifyWsDelivery({ workspaceId, jobId, projectId, attemptId, acce
 
 async function main() {
   if (DATABASE_URL === undefined) throw new Error("DATABASE_URL is not set.");
-  if (INTERNAL_CALLBACK_SECRET === undefined) throw new Error("INTERNAL_CALLBACK_SECRET is not set.");
+  if (INTERNAL_CALLBACK_SECRET === undefined)
+    throw new Error("INTERNAL_CALLBACK_SECRET is not set.");
   if (JWT_PRIVATE_KEY === undefined) throw new Error("JWT_PRIVATE_KEY is not set.");
 
   const client = new pg.Client({ connectionString: DATABASE_URL });
@@ -401,7 +414,10 @@ async function main() {
     `job creation: ${succeeded.length}/${results.length} succeeded, p50=${p50.toFixed(1)}ms p95=${p95.toFixed(1)}ms p99=${p99.toFixed(1)}ms`,
   );
   if (failed.length > 0) {
-    console.log("failures (first 5):", failed.slice(0, 5).map((f) => ({ projectId: f.projectId, status: f.status, body: f.body })));
+    console.log(
+      "failures (first 5):",
+      failed.slice(0, 5).map((f) => ({ projectId: f.projectId, status: f.status, body: f.body })),
+    );
   }
 
   // --- WS delivery check on one sampled job -------------------------------

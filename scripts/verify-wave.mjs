@@ -36,7 +36,8 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--wave") args.wave = argv[++i];
     else if (argv[i] === "--keep-clone") args.keepClone = true;
-    else if (argv[i] === "--skip") args.skip = new Set((argv[++i] ?? "").split(",").filter(Boolean));
+    else if (argv[i] === "--skip")
+      args.skip = new Set((argv[++i] ?? "").split(",").filter(Boolean));
   }
   return args;
 }
@@ -70,7 +71,9 @@ function run(name, command, cmdArgs, options = {}) {
     durationMs,
     detail: ok ? "" : `exit ${String(result.status ?? result.signal ?? "unknown")}`,
   });
-  console.log(`[verify-wave] ${ok ? "PASS" : "FAIL"}  ${name} (${(durationMs / 1000).toFixed(1)}s)`);
+  console.log(
+    `[verify-wave] ${ok ? "PASS" : "FAIL"}  ${name} (${(durationMs / 1000).toFixed(1)}s)`,
+  );
   return result;
 }
 
