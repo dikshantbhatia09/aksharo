@@ -95,7 +95,7 @@ Sub-wave order: {B01, B02, B05, B09} → {B03, B04, B06, B07, B07b, B08} → {B1
 ## Wave 4 — Growth, passes, plugin foundations (all briefs ready in `05-build/_orchestration/`)
 | WP | Title | Deps | Status |
 |---|---|---|---|
-| B10 | Audio clean: 48 kHz deep-filter path, loudness targets, A/B preview, applied in browser + cloud exports | A09, A20, A19 | running |
+| B10 | Audio clean: 48 kHz deep-filter path, loudness targets, A/B preview, applied in browser + cloud exports | A09, A20, A19 | done (merged: Quick clean chain, A/B previews, cleanedAudioUrl in export sources; D82 tiers; B10b: SetAudio.cleanId, panel mount + op wiring, audio parity gate, e2e, RSS bound) |
 | B11 | LLM features (chapters, summary, hooks) + `packages/prompts` registry, region pinning, evals, Insights tab | A11, B02 | done (merged: packages/prompts registry + evals 12/12, worker llm with fail-closed region pinning, insights API/tab; B11b: per-kind burn rates in config, one filler lexicon, EDG-segment payload) |
 | B12 | Academy tracks + rewards, Changelog + What's new, Help centre, support tickets with diagnostics | A13, B02 | briefed |
 | B13 | Admin console: roles + step-up, users/credits/refunds, flags, styles/parity, routing weights, jobs/DLQ, mandates, TDS, affiliate review, DSR/breach, share reports, metrics | B01–B12, B16 | briefed |
