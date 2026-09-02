@@ -9,6 +9,17 @@ from the discovery file; `Origin` is not checked here directly because this
 server is consumed only by this process's own bridge client and, later, C09's
 docked panel — both loopback, first-party callers — but the same bearer gate
 that protects the desktop bridge is applied uniformly.
+
+C09 addition: the Studio panel is an HTML/JS app hosted by Resolve's embedded
+Chromium (no Node/`ws`), and the browser `WebSocket` constructor cannot set
+an `Authorization` header on the handshake — only `bridge/client.py`
+(a real Python `websockets` client) can. So the bearer may also arrive as a
+`?token=` query parameter on the connection URL; this is strictly weaker
+(it can end up in a browser history/devtools network log) but the whole
+surface is loopback-only (127.0.0.1) and the token is scoped to this one
+Resolve session (discovery file, mode 0600). Flagged in the C09 report as a
+brief/threat-model deviation, not found elsewhere in this repo; the header
+form remains preferred and is tried first.
 """
 
 from __future__ import annotations
@@ -17,11 +28,13 @@ import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 from websockets.asyncio.server import Server, ServerConnection, serve
 
 from aksharo_core_app.discovery import LOOPBACK_PORT_RANGE
 from aksharo_core_app.host.resolve import ResolveHost
+from aksharo_core_app.session import SessionState
 
 Handler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]] | dict[str, Any]]
 
@@ -31,6 +44,21 @@ class LoopbackServerConfig:
     bearer: str
     host: str = "127.0.0.1"
     ports: range = LOOPBACK_PORT_RANGE
+
+
+@dataclass(slots=True)
+class PanelDeps:
+    """C09 Studio panel methods: `session.status`, `transcribe.start`,
+    `passes.list`. Unlike `apply.*` (still wired in by the caller via
+    `register`, since it owns the Resolve transaction state machine), these
+    three never touch the Resolve object model — they proxy this script's
+    own bridge session (`session.py`) and the cloud API
+    (`transcribe.py`/`passes.py`) — so `LoopbackServer` wires them itself
+    when a `PanelDeps` is supplied."""
+
+    session: SessionState
+    transcribe_start: Handler
+    list_passes: Handler
 
 
 class UnauthorizedError(Exception):
@@ -44,13 +72,22 @@ class MethodNotFoundError(Exception):
 class LoopbackServer:
     """Dispatches `host.info`, `timeline.current`, `apply.*` JSON-RPC calls."""
 
-    def __init__(self, config: LoopbackServerConfig, resolve_host: ResolveHost) -> None:
+    def __init__(
+        self,
+        config: LoopbackServerConfig,
+        resolve_host: ResolveHost,
+        panel_deps: PanelDeps | None = None,
+    ) -> None:
         self._config = config
         self._resolve_host = resolve_host
         self._handlers: dict[str, Handler] = {
             "host.info": self._host_info,
             "timeline.current": self._timeline_current,
         }
+        if panel_deps is not None:
+            self._handlers["session.status"] = lambda _params: panel_deps.session.to_wire()
+            self._handlers["transcribe.start"] = panel_deps.transcribe_start
+            self._handlers["passes.list"] = panel_deps.list_passes
         self._server: Server | None = None
         self.bound_port: int | None = None
 
@@ -99,9 +136,20 @@ class LoopbackServer:
             )
         return json.dumps({"jsonrpc": "2.0", "id": request_id, "result": result})
 
+    def _query_token(self, connection: ServerConnection) -> str | None:
+        if connection.request is None:
+            return None
+        query = parse_qs(urlsplit(connection.request.path).query)
+        values = query.get("token")
+        return values[0] if values else None
+
     async def _handle_connection(self, connection: ServerConnection) -> None:
         header = connection.request.headers.get("authorization", "") if connection.request else ""
-        if header != f"Bearer {self._config.bearer}":
+        authorized = (
+            header == f"Bearer {self._config.bearer}"
+            or self._query_token(connection) == self._config.bearer
+        )
+        if not authorized:
             await connection.close(code=4401, reason="unauthorized")
             return
         async for raw_message in connection:
@@ -130,4 +178,10 @@ class LoopbackServer:
             self._server = None
 
 
-__all__ = ["LoopbackServer", "LoopbackServerConfig", "MethodNotFoundError", "UnauthorizedError"]
+__all__ = [
+    "LoopbackServer",
+    "LoopbackServerConfig",
+    "MethodNotFoundError",
+    "PanelDeps",
+    "UnauthorizedError",
+]

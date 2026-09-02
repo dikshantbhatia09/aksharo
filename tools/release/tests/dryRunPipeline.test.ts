@@ -81,6 +81,9 @@ describe("dry-run pipeline (no real signing, no real network)", () => {
   it("package-resolve zips a placeholder Resolve script bundle with installers", async () => {
     const result = await runPackageResolve(ctx(), config, "0.1.0");
     expect(result.placeholderPlugin).toBe(true);
+    // C09: no config.resolvePanel in this fixture and no built plugins/resolve-panel/dist on
+    // this test's repoRoot (a temp dir), so the panel is staged as a placeholder too.
+    expect(result.placeholderPanel).toBe(true);
   });
 
   it("end to end: build -> checksums -> notarize -> publish alpha (no gate) -> promote to stable blocked before 24h, allowed after", async () => {

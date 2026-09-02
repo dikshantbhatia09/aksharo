@@ -205,6 +205,12 @@ program
         "WARNING: plugins/resolve has no aksharo_core.py yet (C08 not landed); packaged a placeholder plugin",
       );
     }
+    if (result.placeholderPanel) {
+      console.warn(
+        "WARNING: plugins/resolve-panel has no built dist/ yet (run `pnpm --filter " +
+          "@montaj/resolve-panel build` first); packaged a placeholder Studio panel",
+      );
+    }
     console.log(`bundle: ${result.bundlePath}`);
   });
 

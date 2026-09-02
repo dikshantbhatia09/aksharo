@@ -9,11 +9,14 @@ accepted autocut/zoom pass items, and keeps host state in marker `customData`
 so re-sync can find what it created.
 
 **Implemented by:** C08 (core script, loopback server, bridge client,
-captions, cuts/zooms, marker mapping) and **C08b (this work package — Fusion
-Text+ macro authoring, style→param mapping, style coverage report)**. **Not
-in this WP:** C09 (Studio docked panel), C10 (installer that copies this tree
-into Resolve's `Scripts/Utility` and the macro into Fusion's `Macros`
-folder).
+captions, cuts/zooms, marker mapping), C08b (Fusion Text+ macro authoring,
+style→param mapping, style coverage report) and **C09 (this work package's
+addition to this tree — `session.py`/`transcribe.py`/`passes.py` and the
+loopback server's `?token=` query-param bearer path, all consumed by
+`plugins/resolve-panel`, the Studio docked panel itself)**. **Not in this
+WP:** C10 (installer that copies this tree into Resolve's `Scripts/Utility`,
+the macro into Fusion's `Macros` folder, and `plugins/resolve-panel` into
+Resolve Studio's Workflow Integration plugins folder).
 
 ## Layout
 
@@ -28,7 +31,10 @@ folder).
 | `aksharo_core_app/zooms.py`                         | Accepted `zoom` pass items → Dynamic Zoom start/end rects, decoded from MKF2 keyframes (approximated to the first/last keyframe — see "Known limitations").                                                                                                                                                                                |
 | `aksharo_core_app/markers.py`                       | The `{aksharo: {projectId, segmentId\|itemId, rev}}` marker `customData` convention and re-sync lookups.                                                                                                                                                                                                                                   |
 | `aksharo_core_app/bridge/`                          | JSON-RPC 2.0 client for the C01 local bridge protocol, plus the B08b device-code bootstrap for this script's own credential.                                                                                                                                                                                                               |
-| `aksharo_core_app/server.py`                        | The in-Resolve loopback server (`host.info`, `timeline.current`, `apply.*`).                                                                                                                                                                                                                                                               |
+| `aksharo_core_app/server.py`                        | The in-Resolve loopback server (`host.info`, `timeline.current`, `apply.*`, plus C09's `session.status`/`transcribe.start`/`passes.list` via `PanelDeps`, and a `?token=` query-param bearer fallback for the panel's browser `WebSocket`, which cannot set an `Authorization` header).                                                    |
+| `aksharo_core_app/session.py`                       | C09: `SessionState` — sign-in state the Studio panel mirrors read-only via `session.status`.                                                                                                                                                                                                                                               |
+| `aksharo_core_app/transcribe.py`                    | C09: mixdown → upload → transcribe orchestration behind `transcribe.start`, mirroring `plugins/premiere-uxp/src/upload/mixdown.ts`'s shape.                                                                                                                                                                                                |
+| `aksharo_core_app/passes.py`                        | C09: `passes.list` — proxies `GET /projects/{id}/edg/passes` for the panel's review list.                                                                                                                                                                                                                                                  |
 | `aksharo_core_app/fusion/macro.py`                  | C08b: generates and parses `AksharoCaption.setting`, a Text+-based Fusion macro with published per-word-highlight inputs (see below).                                                                                                                                                                                                      |
 | `aksharo_core_app/fusion/style_map.py`              | C08b: classifies each of the 30 `@montaj/caption-styles` documents against what that macro can express and generates `docs/RESOLVE-STYLE-COVERAGE.md`.                                                                                                                                                                                     |
 | `aksharo_core_app/fusion/classification_rules.json` | C08b: the explicit, small predicate table `style_map.py` classifies against — **C06b (Premiere MOGRT authoring) mirrors these same rules** for its own style→param mapping, so the two hosts' coverage reports read from one rule set.                                                                                                     |
