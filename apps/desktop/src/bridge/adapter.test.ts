@@ -17,9 +17,22 @@ describe("createStubBridgeAdapter", () => {
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({ status: "error" }));
   });
 
-  it("rejects approvePairing", async () => {
+  it("rejects approvePairing and denyPairing", async () => {
     const adapter = createStubBridgeAdapter();
-    await expect(adapter.approvePairing("ABCDEFGH")).rejects.toThrow(/not yet available/);
+    await expect(adapter.approvePairing("01ABCDEFGH")).rejects.toThrow(/not yet available/);
+    await expect(adapter.denyPairing("01ABCDEFGH")).rejects.toThrow(/not yet available/);
+  });
+
+  it("onPairingRequested/onClientConnected never fire and unsubscribe cleanly", () => {
+    const adapter = createStubBridgeAdapter();
+    const pairingListener = vi.fn();
+    const connectedListener = vi.fn();
+    const unsubPairing = adapter.onPairingRequested(pairingListener);
+    const unsubConnected = adapter.onClientConnected(connectedListener);
+    unsubPairing();
+    unsubConnected();
+    expect(pairingListener).not.toHaveBeenCalled();
+    expect(connectedListener).not.toHaveBeenCalled();
   });
 
   it("returns to stopped on stop() and unsubscribes listeners", async () => {
@@ -53,18 +66,19 @@ describe("createBridgeAdapter", () => {
     expect(adapter.getStatus().status).toBe("stopped");
   });
 
-  it("rejects approvePairing when there is no pending request", async () => {
+  it("rejects approvePairing/denyPairing when there is no pending request", async () => {
     const { createBridgeAdapter } = await import("./adapter.js");
     const adapter = createBridgeAdapter();
     await adapter.start();
-    await expect(adapter.approvePairing("ABCDEFGH")).rejects.toThrow(/no pending/i);
+    await expect(adapter.approvePairing("01ABCDEFGH")).rejects.toThrow(/no pending/i);
+    await expect(adapter.denyPairing("01ABCDEFGH")).rejects.toThrow(/no pending/i);
     await adapter.stop();
   });
 
   // A full "remote client pairs, tray approves, remote client confirms" flow
-  // is exercised end-to-end in `packages/bridge-core`'s own `server.test.ts`
-  // and `pairing.test.ts`; `BridgeAdapter` does not expose the bearer token
-  // or a raw RPC surface needed to drive that same flow from the outside, so
-  // it is not duplicated here (see the module doc comment's "known interface
-  // gap" note).
+  // (including the resulting `clientConnected` event) is exercised end-to-end
+  // in `packages/bridge-core`'s own `server.test.ts` and `pairing.test.ts`;
+  // `BridgeAdapter` does not expose the bearer token or a raw RPC surface
+  // needed to drive that same flow from the outside, so it is not duplicated
+  // here (see the module doc comment's resolved "interface gap" note).
 });

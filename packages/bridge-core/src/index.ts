@@ -9,6 +9,7 @@ import { startLoopbackServer, type BridgeServerHandle, type RpcContext } from ".
 import { createConsoleTray } from "./tray.js";
 
 import type { BridgeCertificate } from "./cert.js";
+import type { ClientKind } from "./pairing.js";
 import type { BridgeMethod } from "./protocol.js";
 import type { TrayController } from "./tray.js";
 
@@ -50,9 +51,23 @@ export interface BridgeCoreStatusEvent {
   readonly message?: string;
 }
 
+/** Emitted once `pair.confirm` mints a real `clientId` (C02b, see the adapter doc comment
+ * on `BridgeAdapter.approvePairing` for why this can only be known after the fact: the
+ * approver flips the pairing to "approved", but the pairing *client* itself is the one
+ * that calls `pair.confirm` and receives/mints the wire `clientId`). Consumers that only
+ * have this in-process `BridgeCore` (the desktop shell, C02b) get it via this event rather
+ * than a wire `events.subscribe` notification — no remote subscriber/broadcast transport
+ * exists yet for `BridgeEventKind` (protocol.ts is schema-only there; see server.ts). */
+export interface BridgeClientConnectedEvent {
+  readonly pairingId: string;
+  readonly clientId: string;
+  readonly clientKind: ClientKind;
+}
+
 interface BridgeCoreEvents {
   status: [event: BridgeCoreStatusEvent];
   pairingRequested: [pairingId: string, clientName: string];
+  clientConnected: [event: BridgeClientConnectedEvent];
 }
 
 export class BridgeCore extends EventEmitter {
@@ -167,6 +182,11 @@ export class BridgeCore extends EventEmitter {
       case "pair.confirm": {
         const p = params as { pairingId: string; code?: string };
         const issued = this.pairing.confirm(p.pairingId, p.code);
+        this.emit("clientConnected", {
+          pairingId: p.pairingId,
+          clientId: issued.clientId,
+          clientKind: issued.clientKind,
+        });
         return {
           pairToken: this.pairing.encodePairToken(issued),
           clientId: issued.clientId,
