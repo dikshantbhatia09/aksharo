@@ -73,3 +73,6 @@ Thumbs.db
 
 # ---- Media fixtures too large for git ----
 fixtures/large/
+
+# ---- Fonts pack build cache (A18b) ----
+packages/fonts/.cache/

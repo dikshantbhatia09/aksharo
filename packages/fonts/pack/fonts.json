@@ -1,0 +1,1169 @@
+{
+  "v": 1,
+  "origin": "bundled",
+  "generatedAt": "2026-09-02T03:28:24.379Z",
+  "fonts": [
+    {
+      "id": "inter-300",
+      "family": "Inter",
+      "weight": 300,
+      "italic": false,
+      "file": "inter-300.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "inter-300.woff2",
+      "sizeBytes": 120660,
+      "woff2SizeBytes": 40380,
+      "sha256": "d1edb931ca17a60ee87f058a43c87695c61bdbd17ea04377c1de37bde0a4dbc7",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Inter.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/inter/Inter[opsz,wght].ttf"
+      }
+    },
+    {
+      "id": "inter-400",
+      "family": "Inter",
+      "weight": 400,
+      "italic": false,
+      "file": "inter-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "inter-400.woff2",
+      "sizeBytes": 120456,
+      "woff2SizeBytes": 39676,
+      "sha256": "56f2c24e6eb6f59412bc70a55dbfd4d420e9a9451082a72934becd32fa6e9c0a",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Inter.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/inter/Inter[opsz,wght].ttf"
+      }
+    },
+    {
+      "id": "inter-500",
+      "family": "Inter",
+      "weight": 500,
+      "italic": false,
+      "file": "inter-500.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "inter-500.woff2",
+      "sizeBytes": 120500,
+      "woff2SizeBytes": 40912,
+      "sha256": "fff668c9deec108672e00ddd04f4beb7bc4daa65207eaae64229ffdc4b78b169",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Inter.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/inter/Inter[opsz,wght].ttf"
+      }
+    },
+    {
+      "id": "inter-600",
+      "family": "Inter",
+      "weight": 600,
+      "italic": false,
+      "file": "inter-600.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "inter-600.woff2",
+      "sizeBytes": 120760,
+      "woff2SizeBytes": 40960,
+      "sha256": "d1a5657b1531510a63846346af550770714001c33897cfa3744439de024d4c9f",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Inter.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/inter/Inter[opsz,wght].ttf"
+      }
+    },
+    {
+      "id": "inter-700",
+      "family": "Inter",
+      "weight": 700,
+      "italic": false,
+      "file": "inter-700.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "inter-700.woff2",
+      "sizeBytes": 120900,
+      "woff2SizeBytes": 41068,
+      "sha256": "5de51957b8695125117bd2056cd6f99e1a859b464948f5825208bbbf5f11069b",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Inter.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/inter/Inter[opsz,wght].ttf"
+      }
+    },
+    {
+      "id": "inter-900",
+      "family": "Inter",
+      "weight": 900,
+      "italic": false,
+      "file": "inter-900.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "inter-900.woff2",
+      "sizeBytes": 120964,
+      "woff2SizeBytes": 39876,
+      "sha256": "b4bc8db0e6164ad3f4f99770e3662f276340d2223f0eb5471fc4c0d3b01db0da",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Inter.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/inter/Inter[opsz,wght].ttf"
+      }
+    },
+    {
+      "id": "montserrat-400",
+      "family": "Montserrat",
+      "weight": 400,
+      "italic": false,
+      "file": "montserrat-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "montserrat-400.woff2",
+      "sizeBytes": 147920,
+      "woff2SizeBytes": 44336,
+      "sha256": "19dac966a459a1cb40c5c1f194c05f7bfb0f573821cc8bcd053e86b36e77a611",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Montserrat.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/montserrat/Montserrat[wght].ttf"
+      }
+    },
+    {
+      "id": "montserrat-600",
+      "family": "Montserrat",
+      "weight": 600,
+      "italic": false,
+      "file": "montserrat-600.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "montserrat-600.woff2",
+      "sizeBytes": 151132,
+      "woff2SizeBytes": 45176,
+      "sha256": "750eb283d29a75d56bbdc9757833ee1511d6717b17c7207be47e650787aab3ba",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Montserrat.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/montserrat/Montserrat[wght].ttf"
+      }
+    },
+    {
+      "id": "montserrat-800",
+      "family": "Montserrat",
+      "weight": 800,
+      "italic": false,
+      "file": "montserrat-800.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "montserrat-800.woff2",
+      "sizeBytes": 157672,
+      "woff2SizeBytes": 46792,
+      "sha256": "67b40bbc39a92a69af5e99545f1e722e0812328457e3cd339807728d1fbcc8ae",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Montserrat.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/montserrat/Montserrat[wght].ttf"
+      }
+    },
+    {
+      "id": "montserrat-900",
+      "family": "Montserrat",
+      "weight": 900,
+      "italic": false,
+      "file": "montserrat-900.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "montserrat-900.woff2",
+      "sizeBytes": 157592,
+      "woff2SizeBytes": 43460,
+      "sha256": "57a77518085396ef7179d0c59300bb3eeb1765a745408b9744bdcf75ffbea0ce",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Montserrat.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/montserrat/Montserrat[wght].ttf"
+      }
+    },
+    {
+      "id": "poppins-400",
+      "family": "Poppins",
+      "weight": 400,
+      "italic": false,
+      "file": "poppins-400.ttf",
+      "scripts": [
+        "latin",
+        "devanagari"
+      ],
+      "scriptTags": [
+        "Latn",
+        "Deva"
+      ],
+      "woff2": "poppins-400.woff2",
+      "sizeBytes": 144740,
+      "woff2SizeBytes": 45912,
+      "sha256": "4bcb0a388e41391c56a1e77bf25076525c3807197331dabc8295cb1f8c639b56",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Poppins.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/poppins/Poppins-Regular.ttf"
+      }
+    },
+    {
+      "id": "poppins-700",
+      "family": "Poppins",
+      "weight": 700,
+      "italic": false,
+      "file": "poppins-700.ttf",
+      "scripts": [
+        "latin",
+        "devanagari"
+      ],
+      "scriptTags": [
+        "Latn",
+        "Deva"
+      ],
+      "woff2": "poppins-700.woff2",
+      "sizeBytes": 140484,
+      "woff2SizeBytes": 45436,
+      "sha256": "ec2e3f48c338d5aceb067df9b17dd18cec76fc4342cc4ff5e3f554b828de3ad5",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Poppins.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/poppins/Poppins-Bold.ttf"
+      }
+    },
+    {
+      "id": "poppins-800",
+      "family": "Poppins",
+      "weight": 800,
+      "italic": false,
+      "file": "poppins-800.ttf",
+      "scripts": [
+        "latin",
+        "devanagari"
+      ],
+      "scriptTags": [
+        "Latn",
+        "Deva"
+      ],
+      "woff2": "poppins-800.woff2",
+      "sizeBytes": 139228,
+      "woff2SizeBytes": 45408,
+      "sha256": "e702640cda2ba7cfd6787beb843b65fd69663792c9ce525c1e011753987e1ec3",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Poppins.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/poppins/Poppins-ExtraBold.ttf"
+      }
+    },
+    {
+      "id": "playfair-display-500",
+      "family": "Playfair Display",
+      "weight": 500,
+      "italic": false,
+      "file": "playfair-display-500.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "playfair-display-500.woff2",
+      "sizeBytes": 101832,
+      "woff2SizeBytes": 37848,
+      "sha256": "078d7a4e427da76f2f0b0ae4b73800dbd4d6926e8072ac3af825c93d0d38191f",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-PlayfairDisplay.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/playfairdisplay/PlayfairDisplay[wght].ttf"
+      }
+    },
+    {
+      "id": "playfair-display-600",
+      "family": "Playfair Display",
+      "weight": 600,
+      "italic": false,
+      "file": "playfair-display-600.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "playfair-display-600.woff2",
+      "sizeBytes": 101860,
+      "woff2SizeBytes": 38064,
+      "sha256": "9775c4a8220af2434fbe42237153c907bc8754d4197fdea35bc12af9c22d61ea",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-PlayfairDisplay.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/playfairdisplay/PlayfairDisplay[wght].ttf"
+      }
+    },
+    {
+      "id": "roboto-mono-500",
+      "family": "Roboto Mono",
+      "weight": 500,
+      "italic": false,
+      "file": "roboto-mono-500.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "roboto-mono-500.woff2",
+      "sizeBytes": 35556,
+      "woff2SizeBytes": 18016,
+      "sha256": "60039f9cc7b9bb0e61004876c03ad39f2b70ba1c6ebe706f7a4fe1af4a44a2a7",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-RobotoMono.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/robotomono/RobotoMono[wght].ttf"
+      }
+    },
+    {
+      "id": "roboto-mono-700",
+      "family": "Roboto Mono",
+      "weight": 700,
+      "italic": false,
+      "file": "roboto-mono-700.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "roboto-mono-700.woff2",
+      "sizeBytes": 35624,
+      "woff2SizeBytes": 17476,
+      "sha256": "add2186ad6cd4023294b8702b9aba75bfa3d4316f401a48a0ced03879489d723",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-RobotoMono.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/robotomono/RobotoMono[wght].ttf"
+      }
+    },
+    {
+      "id": "anton-400",
+      "family": "Anton",
+      "weight": 400,
+      "italic": false,
+      "file": "anton-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "anton-400.woff2",
+      "sizeBytes": 84400,
+      "woff2SizeBytes": 31260,
+      "sha256": "b9899799d123c28f272ed208421f6a3c8dc538a03caa65ec60d183064de5222e",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Anton.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/anton/Anton-Regular.ttf"
+      }
+    },
+    {
+      "id": "bricolage-grotesque-700",
+      "family": "Bricolage Grotesque",
+      "weight": 700,
+      "italic": false,
+      "file": "bricolage-grotesque-700.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "bricolage-grotesque-700.woff2",
+      "sizeBytes": 64936,
+      "woff2SizeBytes": 28120,
+      "sha256": "48f5d96a6c2563adc4b1c2a92d475f1be9bdd37147c22e9fb977035851addb26",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-BricolageGrotesque.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/bricolagegrotesque/BricolageGrotesque[opsz,wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "bricolage-grotesque-800",
+      "family": "Bricolage Grotesque",
+      "weight": 800,
+      "italic": false,
+      "file": "bricolage-grotesque-800.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "bricolage-grotesque-800.woff2",
+      "sizeBytes": 64944,
+      "woff2SizeBytes": 27860,
+      "sha256": "6ae2217ce9da04a714f7d1c2888c075d63d1663a082250e775a279cf0d822a42",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-BricolageGrotesque.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/bricolagegrotesque/BricolageGrotesque[opsz,wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "jetbrains-mono-400",
+      "family": "JetBrains Mono",
+      "weight": 400,
+      "italic": false,
+      "file": "jetbrains-mono-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "jetbrains-mono-400.woff2",
+      "sizeBytes": 60968,
+      "woff2SizeBytes": 22212,
+      "sha256": "07e22e71f9543ebc18af5adb4210bea73f918baed878349398d8c06362b7df06",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-JetBrainsMono.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/jetbrainsmono/JetBrainsMono[wght].ttf"
+      }
+    },
+    {
+      "id": "jetbrains-mono-700",
+      "family": "JetBrains Mono",
+      "weight": 700,
+      "italic": false,
+      "file": "jetbrains-mono-700.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "jetbrains-mono-700.woff2",
+      "sizeBytes": 60920,
+      "woff2SizeBytes": 22968,
+      "sha256": "9be476d702023fe9010c160b5b0b404cc62fda705cd1c519c505952d339efac9",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-JetBrainsMono.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/jetbrainsmono/JetBrainsMono[wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-400",
+      "family": "Noto Sans",
+      "weight": 400,
+      "italic": false,
+      "file": "noto-sans-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "noto-sans-400.woff2",
+      "sizeBytes": 74080,
+      "woff2SizeBytes": 30692,
+      "sha256": "81e0cfe4d0225e5827236b31485d99a2320080d2dc1ddf55c2c1053090e9237c",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSans.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosans/NotoSans[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-700",
+      "family": "Noto Sans",
+      "weight": 700,
+      "italic": false,
+      "file": "noto-sans-700.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "noto-sans-700.woff2",
+      "sizeBytes": 74284,
+      "woff2SizeBytes": 32104,
+      "sha256": "962007378c1891ff26147df0f796c5ef6a02cce0eb86d38bd0b71d737272d425",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSans.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosans/NotoSans[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-devanagari-400",
+      "family": "Noto Sans Devanagari",
+      "weight": 400,
+      "italic": false,
+      "file": "noto-sans-devanagari-400.ttf",
+      "scripts": [
+        "latin",
+        "devanagari"
+      ],
+      "scriptTags": [
+        "Deva",
+        "Latn"
+      ],
+      "woff2": "noto-sans-devanagari-400.woff2",
+      "sizeBytes": 195380,
+      "woff2SizeBytes": 56616,
+      "sha256": "6cecc43d386339891775b1e28921b773ac8e6015d4bd55ffd94da63415a2beca",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansDevanagari.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansdevanagari/NotoSansDevanagari[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-devanagari-700",
+      "family": "Noto Sans Devanagari",
+      "weight": 700,
+      "italic": false,
+      "file": "noto-sans-devanagari-700.ttf",
+      "scripts": [
+        "latin",
+        "devanagari"
+      ],
+      "scriptTags": [
+        "Deva",
+        "Latn"
+      ],
+      "woff2": "noto-sans-devanagari-700.woff2",
+      "sizeBytes": 195944,
+      "woff2SizeBytes": 60348,
+      "sha256": "e2d747f15dcbec46644d014bb87f961b672636b9d08550e2cddd1395f27955e4",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansDevanagari.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansdevanagari/NotoSansDevanagari[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-bengali-400",
+      "family": "Noto Sans Bengali",
+      "weight": 400,
+      "italic": false,
+      "file": "noto-sans-bengali-400.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Beng"
+      ],
+      "woff2": "noto-sans-bengali-400.woff2",
+      "sizeBytes": 113276,
+      "woff2SizeBytes": 48048,
+      "sha256": "df2575d6c6c7037e500239185996d858cf2ba8df822d0dc909a570215edc639d",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansBengali.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansbengali/NotoSansBengali[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-bengali-700",
+      "family": "Noto Sans Bengali",
+      "weight": 700,
+      "italic": false,
+      "file": "noto-sans-bengali-700.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Beng"
+      ],
+      "woff2": "noto-sans-bengali-700.woff2",
+      "sizeBytes": 113684,
+      "woff2SizeBytes": 51624,
+      "sha256": "20e3275cad803eccdfb3d0340c65b6d8c4d4b9ed6cd4273a02007f4bedef17a7",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansBengali.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansbengali/NotoSansBengali[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-gurmukhi-400",
+      "family": "Noto Sans Gurmukhi",
+      "weight": 400,
+      "italic": false,
+      "file": "noto-sans-gurmukhi-400.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Guru"
+      ],
+      "woff2": "noto-sans-gurmukhi-400.woff2",
+      "sizeBytes": 39764,
+      "woff2SizeBytes": 17644,
+      "sha256": "195bca230c67da2f387d5814004d6c62686c5397d1225c41e8ee562e41c62040",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansGurmukhi.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansgurmukhi/NotoSansGurmukhi[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-gurmukhi-700",
+      "family": "Noto Sans Gurmukhi",
+      "weight": 700,
+      "italic": false,
+      "file": "noto-sans-gurmukhi-700.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Guru"
+      ],
+      "woff2": "noto-sans-gurmukhi-700.woff2",
+      "sizeBytes": 39808,
+      "woff2SizeBytes": 17828,
+      "sha256": "287173afd50f28f4db0f40b467816f418df404aed5afb749630a8cdf4809de01",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansGurmukhi.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansgurmukhi/NotoSansGurmukhi[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-gujarati-400",
+      "family": "Noto Sans Gujarati",
+      "weight": 400,
+      "italic": false,
+      "file": "noto-sans-gujarati-400.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Gujr"
+      ],
+      "woff2": "noto-sans-gujarati-400.woff2",
+      "sizeBytes": 145360,
+      "woff2SizeBytes": 41376,
+      "sha256": "6b6551d8b210e2792759aa1f825a2f5cb8afcbbaa182187bc971fb7fd8261e58",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansGujarati.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansgujarati/NotoSansGujarati[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-gujarati-700",
+      "family": "Noto Sans Gujarati",
+      "weight": 700,
+      "italic": false,
+      "file": "noto-sans-gujarati-700.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Gujr"
+      ],
+      "woff2": "noto-sans-gujarati-700.woff2",
+      "sizeBytes": 145504,
+      "woff2SizeBytes": 41728,
+      "sha256": "6780c4a25d36be4e48cc04a092319fe6c4b8dc881333443d26604e54f27fcc04",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansGujarati.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansgujarati/NotoSansGujarati[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-oriya-400",
+      "family": "Noto Sans Oriya",
+      "weight": 400,
+      "italic": false,
+      "file": "noto-sans-oriya-400.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Orya"
+      ],
+      "woff2": "noto-sans-oriya-400.woff2",
+      "sizeBytes": 149196,
+      "woff2SizeBytes": 46688,
+      "sha256": "63cf7cb9006341e200672e46df59d93908d5e35fca3616a0530c79f65810c945",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansOriya.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansoriya/NotoSansOriya[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-oriya-700",
+      "family": "Noto Sans Oriya",
+      "weight": 700,
+      "italic": false,
+      "file": "noto-sans-oriya-700.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Orya"
+      ],
+      "woff2": "noto-sans-oriya-700.woff2",
+      "sizeBytes": 149472,
+      "woff2SizeBytes": 49240,
+      "sha256": "2a867fef2bf7007a91ccef95b30238561c61083e41c75dafd2a487a0f4edd0a4",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansOriya.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansoriya/NotoSansOriya[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-tamil-400",
+      "family": "Noto Sans Tamil",
+      "weight": 400,
+      "italic": false,
+      "file": "noto-sans-tamil-400.ttf",
+      "scripts": [
+        "tamil"
+      ],
+      "scriptTags": [
+        "Taml"
+      ],
+      "woff2": "noto-sans-tamil-400.woff2",
+      "sizeBytes": 55592,
+      "woff2SizeBytes": 21964,
+      "sha256": "2bf44bbd4f28a63b9e2b576f2a30c7e9b60fd4f3ef7c24dd0dbd0dd70d071ed4",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansTamil.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosanstamil/NotoSansTamil[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-tamil-700",
+      "family": "Noto Sans Tamil",
+      "weight": 700,
+      "italic": false,
+      "file": "noto-sans-tamil-700.ttf",
+      "scripts": [
+        "tamil"
+      ],
+      "scriptTags": [
+        "Taml"
+      ],
+      "woff2": "noto-sans-tamil-700.woff2",
+      "sizeBytes": 55612,
+      "woff2SizeBytes": 22260,
+      "sha256": "4b77626be73087ffab23b29a73cf0354687d606e6fb8b2a1684b6e8cf06527ab",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansTamil.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosanstamil/NotoSansTamil[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-telugu-400",
+      "family": "Noto Sans Telugu",
+      "weight": 400,
+      "italic": false,
+      "file": "noto-sans-telugu-400.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Telu"
+      ],
+      "woff2": "noto-sans-telugu-400.woff2",
+      "sizeBytes": 153384,
+      "woff2SizeBytes": 41756,
+      "sha256": "dbd804b603c4e1b8f1bf5bf7d8cb4333172f4a27149171571802c630e3cfd7b7",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansTelugu.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosanstelugu/NotoSansTelugu[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-telugu-700",
+      "family": "Noto Sans Telugu",
+      "weight": 700,
+      "italic": false,
+      "file": "noto-sans-telugu-700.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Telu"
+      ],
+      "woff2": "noto-sans-telugu-700.woff2",
+      "sizeBytes": 153856,
+      "woff2SizeBytes": 43244,
+      "sha256": "188cb634f8540525e985a977885c1bc82f82f9f6b57faa4948c9b6d937b848ff",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansTelugu.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosanstelugu/NotoSansTelugu[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-kannada-400",
+      "family": "Noto Sans Kannada",
+      "weight": 400,
+      "italic": false,
+      "file": "noto-sans-kannada-400.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Knda"
+      ],
+      "woff2": "noto-sans-kannada-400.woff2",
+      "sizeBytes": 128048,
+      "woff2SizeBytes": 35000,
+      "sha256": "2786fb44bc088ca1fcf1458791255b86ed3b515dbc4a5f2bc49c9c1afa8d49ce",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansKannada.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosanskannada/NotoSansKannada[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-kannada-700",
+      "family": "Noto Sans Kannada",
+      "weight": 700,
+      "italic": false,
+      "file": "noto-sans-kannada-700.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Knda"
+      ],
+      "woff2": "noto-sans-kannada-700.woff2",
+      "sizeBytes": 128216,
+      "woff2SizeBytes": 35644,
+      "sha256": "78966cfbd22ab02d001b707a5d2ffe6eeb364fc36c4ab9dbec0cf5a21e27a8a0",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansKannada.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosanskannada/NotoSansKannada[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-malayalam-400",
+      "family": "Noto Sans Malayalam",
+      "weight": 400,
+      "italic": false,
+      "file": "noto-sans-malayalam-400.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Mlym"
+      ],
+      "woff2": "noto-sans-malayalam-400.woff2",
+      "sizeBytes": 85464,
+      "woff2SizeBytes": 29788,
+      "sha256": "37c886291ba44f99e5c73c27f4c51c8405a9ef197ed2bfe0aad801b2235583e5",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansMalayalam.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansmalayalam/NotoSansMalayalam[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-malayalam-700",
+      "family": "Noto Sans Malayalam",
+      "weight": 700,
+      "italic": false,
+      "file": "noto-sans-malayalam-700.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Mlym"
+      ],
+      "woff2": "noto-sans-malayalam-700.woff2",
+      "sizeBytes": 85468,
+      "woff2SizeBytes": 29692,
+      "sha256": "719090e210ceabf15a0750bdfd7b2ce4feb75ab1de74a96f0de71c712fb7265a",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansMalayalam.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansmalayalam/NotoSansMalayalam[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-ol-chiki-400",
+      "family": "Noto Sans Ol Chiki",
+      "weight": 400,
+      "italic": false,
+      "file": "noto-sans-ol-chiki-400.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Olck"
+      ],
+      "woff2": "noto-sans-ol-chiki-400.woff2",
+      "sizeBytes": 24180,
+      "woff2SizeBytes": 12552,
+      "sha256": "5a2f5e3a4e4cbb195ee0156f8456f48527a7c81341ed6e73cc502e9acf2cf3cc",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansOlChiki.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansolchiki/NotoSansOlChiki[wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-ol-chiki-700",
+      "family": "Noto Sans Ol Chiki",
+      "weight": 700,
+      "italic": false,
+      "file": "noto-sans-ol-chiki-700.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Olck"
+      ],
+      "woff2": "noto-sans-ol-chiki-700.woff2",
+      "sizeBytes": 24148,
+      "woff2SizeBytes": 12648,
+      "sha256": "d74e385d38469e0dd331de994c220557f3f2c0a2e3b0f3aea6e4fdd0bffdfa6e",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansOlChiki.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansolchiki/NotoSansOlChiki[wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-meetei-mayek-400",
+      "family": "Noto Sans Meetei Mayek",
+      "weight": 400,
+      "italic": false,
+      "file": "noto-sans-meetei-mayek-400.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Mtei"
+      ],
+      "woff2": "noto-sans-meetei-mayek-400.woff2",
+      "sizeBytes": 33836,
+      "woff2SizeBytes": 17204,
+      "sha256": "76e6af07a1d21f2b2260298a475cb323bade1702320a671e4b9f8e5c6f90efcc",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansMeeteiMayek.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansmeeteimayek/NotoSansMeeteiMayek[wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-meetei-mayek-700",
+      "family": "Noto Sans Meetei Mayek",
+      "weight": 700,
+      "italic": false,
+      "file": "noto-sans-meetei-mayek-700.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Mtei"
+      ],
+      "woff2": "noto-sans-meetei-mayek-700.woff2",
+      "sizeBytes": 33812,
+      "woff2SizeBytes": 17576,
+      "sha256": "1720f1778d69a8e329fd2e4ad4dfd275dde1b681b1fe7b4ce6acba1613193943",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansMeeteiMayek.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansmeeteimayek/NotoSansMeeteiMayek[wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-arabic-400",
+      "family": "Noto Sans Arabic",
+      "weight": 400,
+      "italic": false,
+      "file": "noto-sans-arabic-400.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Arab"
+      ],
+      "woff2": "noto-sans-arabic-400.woff2",
+      "sizeBytes": 144676,
+      "woff2SizeBytes": 50788,
+      "sha256": "51575a5d7db5707b2b0921e7a7ce77afa91520112d0710e75533c613bc5cf9d3",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansArabic.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansarabic/NotoSansArabic[wdth,wght].ttf"
+      }
+    },
+    {
+      "id": "noto-sans-arabic-700",
+      "family": "Noto Sans Arabic",
+      "weight": 700,
+      "italic": false,
+      "file": "noto-sans-arabic-700.ttf",
+      "scripts": [
+        "other"
+      ],
+      "scriptTags": [
+        "Arab"
+      ],
+      "woff2": "noto-sans-arabic-700.woff2",
+      "sizeBytes": 144900,
+      "woff2SizeBytes": 51960,
+      "sha256": "eda42f6640ca9a4a8128889e5b470cfa02c748f5311f57b6ca28ef5b178f62ba",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-NotoSansArabic.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/notosansarabic/NotoSansArabic[wdth,wght].ttf"
+      }
+    }
+  ]
+}
