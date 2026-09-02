@@ -9,6 +9,40 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 ## [Unreleased]
 
 - C09: DaVinci Resolve Studio Workflow Integration panel (`plugins/resolve-panel`) — docked React shell over `aksharo_core`'s loopback server (discover → bearer → JSON-RPC), `WorkflowIntegrationHost` adapter + mock, sign-in mirrored from the script, timeline picker, "Caption this timeline", passes review + "Apply in Resolve", version/update banner; C08 loopback server gains `session.status`, `transcribe.start`, `passes.list` (`plugins/resolve/aksharo_core_app/session.py|transcribe.py|passes.py`) plus a `?token=` query-param bearer path for browser `WebSocket` callers; `tools/release`'s `package-resolve` now also stages the panel bundle for Studio installs.
+### Added
+
+- **X01 — security review before Gate C.** Threat-model audit re-verifying
+  every `docs/THREAT-MODEL.md` row (T1-T25) against implementing code and
+  tests: `docs/security/threat-model-audit-2026-09-03.md`. Local `pnpm audit`
+  and `pip-audit` triage (all findings are transitive build/desktop-packaging
+  deps, none reachable at runtime — Electron flagged High for a follow-up
+  version bump), a local secret-scan sweep (clean — 53 hits, all test
+  fixtures/local dev creds, no real secrets), and a pen-test hand-off doc with
+  in-scope surfaces, a seeded test-account procedure, and rules of engagement:
+  `docs/security/pentest-scope.md` (includes the H-26 human-action text to
+  engage an external tester before Gate C).
+
+### Fixed
+
+- **X01 — `GET /auth/device/code/:userCode` had no rate limit.** The
+  approval-screen lookup requires an authenticated session (correct per
+  THREAT-MODEL T3) but carried no `@RateLimit` decorator, unlike its sibling
+  device-code routes; `RateLimitGuard` is a no-op with no rule attached, so
+  any signed-in account could grind the 8-character user-code space to read
+  someone else's pending device grant (host app, OS, IP, coarse location).
+  Added a `deviceDescribeUser` bucket (`apps/api/src/auth/auth.constants.ts`)
+  and applied it to the route (`apps/api/src/auth/device.controller.ts`), with
+  a new negative test in `apps/api/test/auth.e2e-spec.ts`.
+- **X01 — no security response headers on the web app or the API.** Neither
+  `apps/web/next.config.ts` nor `apps/web/middleware.ts` set CSP, HSTS,
+  `X-Frame-Options`/`frame-ancestors`, or `Referrer-Policy`, and
+  `apps/api/src/main.ts` never installed `helmet`. Added a `headers()`
+  function to `next.config.ts` (CSP, HSTS, no-sniff, deny-framing,
+  strict-origin-when-cross-origin referrer policy, a conservative
+  Permissions-Policy) with a new test (`apps/web/next.config.test.ts`), and
+  `helmet()` to the API's bootstrap with CSP left off (Swagger UI at `/docs`
+  needs inline scripts) but HSTS/frameguard/referrer-policy applied.
+
 - C12: consent-gated desktop/bridge telemetry (`POST /telemetry/events|crash`), `crash_reports` with 30-day retention, shared redaction in `bridge-core`, diagnostics bundle attached to support tickets, server-side Sentry/PostHog forwarding behind env keys.
 
 - C06b (follow-up): `plugins/premiere-uxp/src/apply/types.ts`'s `MOGRT_PARAM_ORDER`/`MogrtParamName` now import from `mogrt/params.ts` (14 params, append-only) instead of re-declaring their own copy of the appendix table, so there is exactly one source of truth across C06 and C06b; `MogrtCaptionParams` gained the optional `BoxFill`/`BoxOpacity` fields to match. `mogrtCaptions.ts` and its tests needed no other changes.
