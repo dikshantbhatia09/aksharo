@@ -1,0 +1,80 @@
+{
+  "id": "arcade-pixel",
+  "name": "Arcade Pixel",
+  "version": 2,
+  "category": "gaming",
+  "minPlan": "starter",
+  "typography": {
+    "fontFamily": "Roboto Mono",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 700,
+    "italic": false,
+    "sizePct": 3.8,
+    "lineHeight": 1.4,
+    "letterSpacingEm": 0.06,
+    "textTransform": "uppercase"
+  },
+  "colors": {
+    "text": "#f2f2f2",
+    "activeText": "#ffe14d",
+    "accent": "#7b2ff7"
+  },
+  "box": {
+    "enabled": true,
+    "mode": "block",
+    "fill": "#120a24",
+    "paddingPct": 30,
+    "radiusPct": 0,
+    "opacity": 0.88
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#7b2ff7",
+    "widthPct": 3
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#7b2ff7",
+    "offsetXPct": 3,
+    "offsetYPct": 3,
+    "blurPct": 0,
+    "opacity": 0.9
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.8,
+    "align": "center",
+    "maxWidthPct": 84,
+    "maxLines": 2,
+    "safeAreaPct": 12
+  },
+  "animation": {
+    "in": {
+      "type": "none",
+      "durationMs": 0
+    },
+    "out": {
+      "type": "none",
+      "durationMs": 0
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 0
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "pop",
+      "label": "Pop",
+      "color": "#ffe14d",
+      "scale": 1.15,
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/arcade-pixel.mp4"
+}

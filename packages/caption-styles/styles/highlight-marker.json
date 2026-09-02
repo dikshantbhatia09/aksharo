@@ -1,0 +1,83 @@
+{
+  "id": "highlight-marker",
+  "name": "Highlight Marker",
+  "version": 2,
+  "category": "education",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Inter",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 700,
+    "italic": false,
+    "sizePct": 4.6,
+    "lineHeight": 1.28,
+    "letterSpacingEm": 0,
+    "textTransform": "none"
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#12131a",
+    "accent": "#ffe14d"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 20,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 3,
+    "blurPct": 10,
+    "opacity": 0.45
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.78,
+    "align": "center",
+    "maxWidthPct": 82,
+    "maxLines": 2,
+    "safeAreaPct": 12
+  },
+  "animation": {
+    "in": {
+      "type": "fade",
+      "durationMs": 150
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 130
+    },
+    "wordHighlight": {
+      "type": "box",
+      "durationMs": 130
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "mark",
+      "label": "Marker",
+      "color": "#ffe14d",
+      "effect": "highlight"
+    },
+    {
+      "id": "underline",
+      "label": "Underline",
+      "color": "#ffe14d",
+      "effect": "underline"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/highlight-marker.mp4"
+}

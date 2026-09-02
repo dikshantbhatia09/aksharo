@@ -1,0 +1,79 @@
+{
+  "id": "gradient-sweep",
+  "name": "Gradient Sweep",
+  "version": 2,
+  "category": "playful",
+  "minPlan": "creator",
+  "typography": {
+    "fontFamily": "Poppins",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 800,
+    "italic": false,
+    "sizePct": 5.2,
+    "lineHeight": 1.18,
+    "letterSpacingEm": 0,
+    "textTransform": "none"
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#ffffff",
+    "accent": "#f107a3"
+  },
+  "box": {
+    "enabled": true,
+    "mode": "line",
+    "fill": "#7b2ff7",
+    "paddingPct": 26,
+    "radiusPct": 40,
+    "opacity": 0.92
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#2a0a4a",
+    "offsetXPct": 0,
+    "offsetYPct": 5,
+    "blurPct": 16,
+    "opacity": 0.4
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.76,
+    "align": "center",
+    "maxWidthPct": 82,
+    "maxLines": 2,
+    "safeAreaPct": 12
+  },
+  "animation": {
+    "in": {
+      "type": "pop",
+      "durationMs": 180
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 140
+    },
+    "wordHighlight": {
+      "type": "scale",
+      "durationMs": 140,
+      "scale": 1.12
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "pop",
+      "label": "Pop",
+      "scale": 1.2,
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/gradient-sweep.mp4"
+}
