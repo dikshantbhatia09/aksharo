@@ -15,6 +15,7 @@ import { AppException, PrismaService } from "../common/index.js";
 import { sendWebhook } from "../common/ssrf/webhook-fetch.js";
 
 import type { WebhookEventName } from "./webhooks.constants.js";
+import type { SendWebhookInput, SendWebhookResult } from "../common/ssrf/webhook-fetch.js";
 import type { Prisma, WebhookDelivery } from "@prisma/client";
 
 export interface EmitWebhookEventInput {
@@ -38,6 +39,17 @@ export interface EmitWebhookEventInput {
 @Injectable()
 export class WebhookDeliveryService {
   private readonly logger = new Logger(WebhookDeliveryService.name);
+
+  /**
+   * Test seam, same idiom as `sendWebhook`'s own `resolver`/`transport`
+   * parameters (`common/ssrf/webhook-fetch.ts`): unset in production, so every
+   * real delivery goes through `sendWebhook`'s SSRF-guarded resolve-judge-pin
+   * path unchanged. `webhooks.e2e-spec.ts` sets this to a plain HTTP POST so it
+   * can assert a real signed delivery against an in-process receiver at
+   * `127.0.0.1`, an address `resolveSafeTarget` refuses by design and which
+   * this WP's file boundary does not extend to relaxing.
+   */
+  sendOverride?: (input: SendWebhookInput) => Promise<SendWebhookResult>;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -193,7 +205,8 @@ export class WebhookDeliveryService {
     const attemptNo = delivery.attempt;
 
     try {
-      const result = await sendWebhook({
+      const send = this.sendOverride ?? sendWebhook;
+      const result = await send({
         url: delivery.endpoint.url,
         body,
         headers: {

@@ -51,6 +51,20 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   publish, checksum-manifest signing) that are not yet in `docs/CONTRACTS.md`
   §1 — flagged for the orchestrator rather than edited here.
 
+- **B14b — Webhook events: real event emits replace the poller.**
+  `transcript.completed` (`transcripts/transcribe.handler.ts`), `job.failed`
+  (`jobs/jobs.service.ts::complete()`, after DLQ handling) and `credits.low`
+  (`credits/credits-low-balance.notifier.ts`) are now real `EventEmitter2`
+  emits at their producers, each with its own `<module>/*.event.ts` name +
+  payload contract (the `referrals/export-completed.event.ts` precedent) and
+  a `webhooks/listeners/*.listener.ts` subscriber. `WebhookEventPollerService`
+  and its Redis cursors are deleted; `webhooks.e2e-spec.ts` proves the whole
+  chain (API key → `/v1` project → simulated worker completion → a signed
+  delivery a receiver can verify, plus retries on a receiver that fails
+  twice) end to end. `WebhookDeliveryService.sendOverride` is a new,
+  production-inert test seam (parallel to `sendWebhook`'s own resolver/
+  transport seams) that lets that suite's in-process receiver stand in for a
+  real internet endpoint without touching the SSRF guard.
 - **B11b — LLM follow-up reconciliation: per-kind burn rates, one filler
   lexicon, EDG-segment transcript payload.** `packages/config/src/credits.ts`:
   the flat `chaptersSummaryHook` burn rate (2 credits/job for every kind) is
@@ -74,6 +88,39 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   fixes already applied) rather than the raw ASR chunks; a project with no EDG
   document yet (or one with no live segments) falls back to the original
   `TranscriptsService.chunks()` path unchanged.
+- **C02 — Desktop shell.** `@montaj/desktop`: Electron main/preload loading
+  the hosted web app (`?desktop=1`, `AksharoDesktop/<version>` User-Agent
+  suffix, decision D71 — one web codebase, no packaged bundle until C04),
+  `contextIsolation`/`sandbox`/`nodeIntegration:false`/`webSecurity:true`,
+  navigation/`window.open`/`shell.openExternal` allowlists
+  (`src/security/allowlist.ts`), strict-CSP packaged offline page with retry,
+  `aksharo://` deep links (`auth/callback`, `project/<ulid>`, `pair`) with
+  single-instance-lock hand-off, `electron-updater` wired to C00's
+  `releases/<channel>/` feed layout with alpha/beta/stable channels and a
+  deterministic staged-rollout gate, native menu + tray (bridge/pairing status,
+  approve pairing, check for updates, copy diagnostics), Electron fuses
+  flipped in the `electron-builder` `afterPack` hook. `src/bridge/adapter.ts`
+  defines the `BridgeAdapter` interface and a stub implementation, since C01
+  (`bridge-core`) is not yet merged. `apps/web/lib/desktop.ts`: the
+  desktop-detection hook agreed with A13. Unit tests (vitest) for the
+  allowlists, deep-link parsing, updater feed/rollout math and the bridge
+  stub; a Playwright-Electron smoke suite (`e2e/smoke.spec.ts`, run via
+  `pnpm test:e2e`, needs a built app and a display).
+- **B13a — Admin roles, TOTP step-up, `AdminGuard(role)`.** CONTRACTS §5
+  (amended 2026-09-03): `kind: "admin"` access tokens, minted only by
+  `POST /admin/auth/step-up` after a TOTP check, 30-minute lifetime, never
+  refreshable, carrying `adminRoles: ("support"|"finance"|"ops"|"content"|
+"superadmin")[]`. New tables `admin_roles` (grant/revoke, re-checked by
+  `AdminGuard` on every request so revocation is immediate rather than
+  waiting out the token) and `admin_totp` (hand-rolled RFC 6238 TOTP,
+  `apps/api/src/admin/auth/totp.ts` — no new dependency, same reasoning as
+  `TokenService`'s hand-rolled RS256). `apps/api/src/admin/auth/
+admin-step-up.{controller,service,dto,constants}.ts`: TOTP enrol/verify
+  and step-up, rate-limited per user and per IP. `AdminGuard` rewritten to
+  require `kind: "admin"` (not merely `users.is_admin`) plus, when a route
+  carries the new `@AdminRoles(...)` decorator, a matching non-revoked
+  `admin_roles` grant (`superadmin` always satisfies any role list). Role
+  matrix contract test: `apps/api/src/admin/admin.guard.test.ts`.
 
 - **A23 — Gate A e2e journey, sample-project seed, wave verification script,
   X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)

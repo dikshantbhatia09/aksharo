@@ -16,6 +16,7 @@ import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { CreditsFacade } from "../credits/credits.facade.js";
 import type { NotifyService } from "../notify/notify.service.js";
 import type { RealtimePublisher } from "../realtime/realtime.publisher.js";
+import type { EventEmitter2 } from "@nestjs/event-emitter";
 
 const WS = "01JCWS0000000000000000000A";
 const ADMIN = { userId: "01JCADMIN00000000000000000" };
@@ -72,6 +73,7 @@ function harness(): Harness {
     completionHandlers,
     credits as unknown as CreditsFacade,
     notify as unknown as NotifyService,
+    { emit: vi.fn() } as unknown as EventEmitter2,
   );
   return { jobs, dlq, metrics, db, queues, credits };
 }
