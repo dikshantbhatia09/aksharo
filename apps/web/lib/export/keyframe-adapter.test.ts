@@ -10,7 +10,9 @@ const SECRET = "test-secret";
 
 function packBase64(frames: Keyframe[]): string {
   const bytes = encodeKeyframes(frames);
-  return typeof Buffer !== "undefined" ? Buffer.from(bytes).toString("base64") : btoa(String.fromCharCode(...bytes));
+  return typeof Buffer !== "undefined"
+    ? Buffer.from(bytes).toString("base64")
+    : btoa(String.fromCharCode(...bytes));
 }
 
 describe("outputCropKeyframesFromManifest", () => {

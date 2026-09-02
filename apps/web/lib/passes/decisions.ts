@@ -11,7 +11,11 @@ import type { EdgOp, ItemState, Pass, PassItem } from "@montaj/edg";
 export type OpIdFactory = () => string;
 
 /** Builds one `DecideItems` op over a batch of item ids. */
-export function decideItems(itemIds: readonly string[], state: ItemState, newOpId: OpIdFactory): EdgOp {
+export function decideItems(
+  itemIds: readonly string[],
+  state: ItemState,
+  newOpId: OpIdFactory,
+): EdgOp {
   return { type: "DecideItems", opId: newOpId(), itemIds: [...itemIds], state };
 }
 
@@ -55,8 +59,13 @@ export function itemsAtOrAbove(rows: readonly ReviewRow[], threshold: number): s
 }
 
 /** Every still-`proposed` item id of one kind, for "accept all cuts" style bulk actions. */
-export function proposedItemIdsOfKind(rows: readonly ReviewRow[], kind: PassItem["kind"]): string[] {
-  return rows.filter(({ item }) => item.kind === kind && item.state === "proposed").map(({ item }) => item.itemId);
+export function proposedItemIdsOfKind(
+  rows: readonly ReviewRow[],
+  kind: PassItem["kind"],
+): string[] {
+  return rows
+    .filter(({ item }) => item.kind === kind && item.state === "proposed")
+    .map(({ item }) => item.itemId);
 }
 
 /** Every decided (non-`proposed`) item id — what "Reset decisions" sets back to `proposed`. */

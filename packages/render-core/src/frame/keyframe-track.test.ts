@@ -34,7 +34,9 @@ describe("outputCropKeyframesFromTracks", () => {
   });
 
   it("passes rows through unchanged with no timemap, offset by itemStartMs", () => {
-    const packed = toBase64(encodeKeyframes([{ tMs: 250, zoom: 1.5, cx: 0.5, cy: 0.5, ease: "linear" }]));
+    const packed = toBase64(
+      encodeKeyframes([{ tMs: 250, zoom: 1.5, cx: 0.5, cy: 0.5, ease: "linear" }]),
+    );
     const result = outputCropKeyframesFromTracks([{ packed, itemStartMs: 1_000 }], null);
     expect(result).toHaveLength(1);
     expect(result[0]?.tMs).toBe(1_250);

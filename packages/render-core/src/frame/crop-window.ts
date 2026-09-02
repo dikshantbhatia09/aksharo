@@ -113,10 +113,7 @@ export function sampleCropWindow(
 }
 
 /** Builds a zoom item's crop rectangle: centred on `target`, sized `1/scale`. */
-export function cropRectFromZoom(
-  target: CropRect,
-  scale: number,
-): CropRect {
+export function cropRectFromZoom(target: CropRect, scale: number): CropRect {
   const cx = target.x + target.w / 2;
   const cy = target.y + target.h / 2;
   return cropRectFromCentre(cx, cy, scale);

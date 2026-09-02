@@ -4,7 +4,16 @@ import * as React from "react";
 
 import { useApiContext } from "@montaj/api-client";
 import type { ItemState, Pass, PassItem } from "@montaj/edg";
-import { Badge, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, ProgressBar } from "@montaj/ui";
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  ProgressBar,
+} from "@montaj/ui";
 
 import { ProposalCard } from "./ProposalCard";
 import { startAutocutPass, type AutocutPreset } from "../../../lib/passes/client";
@@ -188,7 +197,11 @@ export function PassesTab({
       style={{ display: "flex", flexDirection: "column", gap: 12, outline: "none" }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Button type="button" onClick={() => setRunDialogOpen(true)} data-testid="run-autocut-button">
+        <Button
+          type="button"
+          onClick={() => setRunDialogOpen(true)}
+          data-testid="run-autocut-button"
+        >
           Run autocut
         </Button>
         {progress !== null ? (
@@ -244,13 +257,31 @@ export function PassesTab({
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button type="button" size="sm" variant="outline" onClick={() => acceptAllAbove(0.8)} data-testid="bulk-accept-above-0-8">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => acceptAllAbove(0.8)}
+          data-testid="bulk-accept-above-0-8"
+        >
           Accept all ≥ 0.8
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={() => acceptAllOfKind("cut")} data-testid="bulk-accept-cuts">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => acceptAllOfKind("cut")}
+          data-testid="bulk-accept-cuts"
+        >
           Accept all cuts
         </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={resetDecisions} data-testid="reset-decisions">
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={resetDecisions}
+          data-testid="reset-decisions"
+        >
           Reset decisions
         </Button>
       </div>
@@ -307,7 +338,11 @@ export function PassesTab({
             <Button type="button" variant="ghost" onClick={() => setRunDialogOpen(false)}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void runAutocut()} data-testid="confirm-run-autocut">
+            <Button
+              type="button"
+              onClick={() => void runAutocut()}
+              data-testid="confirm-run-autocut"
+            >
               Confirm & run
             </Button>
           </DialogFooter>

@@ -11,7 +11,13 @@ import { renderWithProviders } from "@/test/harness";
 
 const PROJECT = "01JPROJECT0000000000000000";
 
-function cutItem(itemId: string, startMs: number, endMs: number, state: PassItem["state"], confidence: number): PassItem {
+function cutItem(
+  itemId: string,
+  startMs: number,
+  endMs: number,
+  state: PassItem["state"],
+  confidence: number,
+): PassItem {
   return { itemId, passId: "pass-1", kind: "cut", startMs, endMs, payload: {}, state, confidence };
 }
 
@@ -34,9 +40,19 @@ function fixtureInit(items: PassItem[]): EditorStoreInit {
 function buildStore(items: PassItem[]): EditorStore {
   const init = fixtureInit(items);
   return new EditorStore(init, {
-    applyBatch: async (body) => ({ revision: 2, applied: body.clientOpIds, rebased: [], rejected: [] }),
+    applyBatch: async (body) => ({
+      revision: 2,
+      applied: body.clientOpIds,
+      rebased: [],
+      rejected: [],
+    }),
     resegment: async () => ({ revision: 2, applied: [], rebased: [], rejected: [] }),
-    reloadDocument: async () => ({ hot: init.hot, segments: init.segments, passes: init.passes, revision: 2 }),
+    reloadDocument: async () => ({
+      hot: init.hot,
+      segments: init.segments,
+      passes: init.passes,
+      revision: 2,
+    }),
     debounceMs: 0,
   });
 }
@@ -49,7 +65,14 @@ describe("<PassesTab />", () => {
     ];
     const store = buildStore(items);
     const passes: Pass[] = [
-      { passId: "pass-1", type: "autocut", engine: "autocut@2", params: {}, status: "ready", items },
+      {
+        passId: "pass-1",
+        type: "autocut",
+        engine: "autocut@2",
+        params: {},
+        status: "ready",
+        items,
+      },
     ];
     renderWithProviders(
       <PassesTab projectId={PROJECT} store={store} passes={passes} sourceDurationMs={10_000} />,
@@ -64,8 +87,19 @@ describe("<PassesTab />", () => {
     const user = userEvent.setup();
     const items = [cutItem("i1", 0, 1000, "proposed", 0.9)];
     const store = buildStore(items);
-    const passes: Pass[] = [{ passId: "pass-1", type: "autocut", engine: "autocut@2", params: {}, status: "ready", items }];
-    renderWithProviders(<PassesTab projectId={PROJECT} store={store} passes={passes} sourceDurationMs={10_000} />);
+    const passes: Pass[] = [
+      {
+        passId: "pass-1",
+        type: "autocut",
+        engine: "autocut@2",
+        params: {},
+        status: "ready",
+        items,
+      },
+    ];
+    renderWithProviders(
+      <PassesTab projectId={PROJECT} store={store} passes={passes} sourceDurationMs={10_000} />,
+    );
 
     await user.click(screen.getByTestId("proposal-card-accept"));
 
@@ -81,8 +115,19 @@ describe("<PassesTab />", () => {
       cutItem("i2", 1000, 2000, "proposed", 0.5),
     ];
     const store = buildStore(items);
-    const passes: Pass[] = [{ passId: "pass-1", type: "autocut", engine: "autocut@2", params: {}, status: "ready", items }];
-    renderWithProviders(<PassesTab projectId={PROJECT} store={store} passes={passes} sourceDurationMs={10_000} />);
+    const passes: Pass[] = [
+      {
+        passId: "pass-1",
+        type: "autocut",
+        engine: "autocut@2",
+        params: {},
+        status: "ready",
+        items,
+      },
+    ];
+    renderWithProviders(
+      <PassesTab projectId={PROJECT} store={store} passes={passes} sourceDurationMs={10_000} />,
+    );
 
     await user.click(screen.getByTestId("bulk-accept-above-0-8"));
 
@@ -95,7 +140,9 @@ describe("<PassesTab />", () => {
   it("opens the run-autocut dialog with a credits estimate", async () => {
     const user = userEvent.setup();
     const store = buildStore([]);
-    renderWithProviders(<PassesTab projectId={PROJECT} store={store} passes={[]} sourceDurationMs={120_000} />);
+    renderWithProviders(
+      <PassesTab projectId={PROJECT} store={store} passes={[]} sourceDurationMs={120_000} />,
+    );
 
     await user.click(screen.getByTestId("run-autocut-button"));
     expect(await screen.findByTestId("autocut-quote-estimate")).toHaveTextContent("credits");
@@ -104,8 +151,19 @@ describe("<PassesTab />", () => {
   it("shows an empty state when filters exclude every row", () => {
     const items = [cutItem("i1", 0, 1000, "accepted", 0.9)];
     const store = buildStore(items);
-    const passes: Pass[] = [{ passId: "pass-1", type: "autocut", engine: "autocut@2", params: {}, status: "ready", items }];
-    renderWithProviders(<PassesTab projectId={PROJECT} store={store} passes={passes} sourceDurationMs={10_000} />);
+    const passes: Pass[] = [
+      {
+        passId: "pass-1",
+        type: "autocut",
+        engine: "autocut@2",
+        params: {},
+        status: "ready",
+        items,
+      },
+    ];
+    renderWithProviders(
+      <PassesTab projectId={PROJECT} store={store} passes={passes} sourceDurationMs={10_000} />,
+    );
     expect(screen.queryByTestId("passes-empty-state")).not.toBeInTheDocument();
   });
 });

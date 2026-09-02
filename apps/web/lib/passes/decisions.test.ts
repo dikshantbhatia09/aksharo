@@ -12,7 +12,13 @@ import {
   summaryDurations,
 } from "./decisions";
 
-function cut(itemId: string, startMs: number, endMs: number, state: PassItem["state"], confidence?: number): PassItem {
+function cut(
+  itemId: string,
+  startMs: number,
+  endMs: number,
+  state: PassItem["state"],
+  confidence?: number,
+): PassItem {
   return {
     itemId,
     passId: "pass-1",
@@ -40,7 +46,12 @@ function pass(passId: string, items: PassItem[], createdAt?: string): Pass {
 describe("decideItems", () => {
   it("builds a DecideItems op with the given ids and state", () => {
     const op = decideItems(["a", "b"], "accepted", () => "op-1");
-    expect(op).toEqual({ type: "DecideItems", opId: "op-1", itemIds: ["a", "b"], state: "accepted" });
+    expect(op).toEqual({
+      type: "DecideItems",
+      opId: "op-1",
+      itemIds: ["a", "b"],
+      state: "accepted",
+    });
   });
 });
 
@@ -57,8 +68,14 @@ describe("reviewRows / filterRows", () => {
   it("filters by kind, status and minConfidence", () => {
     const rows = reviewRows(passes);
     expect(filterRows(rows, { status: "proposed" }).map((r) => r.item.itemId)).toEqual(["i1"]);
-    expect(filterRows(rows, { minConfidence: 0.9 }).map((r) => r.item.itemId).sort()).toEqual(["i1", "i3"]);
-    expect(filterRows(rows, { kind: "cut", status: "rejected" }).map((r) => r.item.itemId)).toEqual(["i3"]);
+    expect(
+      filterRows(rows, { minConfidence: 0.9 })
+        .map((r) => r.item.itemId)
+        .sort(),
+    ).toEqual(["i1", "i3"]);
+    expect(filterRows(rows, { kind: "cut", status: "rejected" }).map((r) => r.item.itemId)).toEqual(
+      ["i3"],
+    );
   });
 });
 

@@ -51,7 +51,9 @@ describe("<ProposalCard />", () => {
   it("invokes onPreview with before/after when the preview buttons are provided", async () => {
     const user = userEvent.setup();
     const onPreview = vi.fn();
-    render(<ProposalCard item={item()} onDecide={vi.fn()} onUndo={vi.fn()} onPreview={onPreview} />);
+    render(
+      <ProposalCard item={item()} onDecide={vi.fn()} onUndo={vi.fn()} onPreview={onPreview} />,
+    );
     await user.click(screen.getByText("Preview before"));
     expect(onPreview).toHaveBeenCalledWith("before");
     await user.click(screen.getByText("Preview after"));

@@ -26,7 +26,11 @@ export interface PassAcceptedResponse {
   readonly passId: string;
   readonly status: string;
   readonly deduplicated: boolean;
-  readonly quote: { readonly tenths: number; readonly credits: string; readonly durationMs: number };
+  readonly quote: {
+    readonly tenths: number;
+    readonly credits: string;
+    readonly durationMs: number;
+  };
 }
 
 /** `POST /projects/{id}/passes/autocut` — quotes, holds credits, enqueues `ai.pass`. */

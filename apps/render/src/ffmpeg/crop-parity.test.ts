@@ -143,7 +143,12 @@ function browserRectPx(
 ): { x: number; y: number; w: number; h: number } {
   const rect = sampleCropWindow(keyframes, tSec * 1000);
   if (rect === null) throw new Error("expected a crop window for this fixture");
-  return { x: rect.x * sourceWidth, y: rect.y * sourceHeight, w: rect.w * sourceWidth, h: rect.h * sourceHeight };
+  return {
+    x: rect.x * sourceWidth,
+    y: rect.y * sourceHeight,
+    w: rect.w * sourceWidth,
+    h: rect.h * sourceHeight,
+  };
 }
 
 function expectRectsClose(

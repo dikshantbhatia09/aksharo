@@ -30,7 +30,11 @@ function seconds(tMs: number): number {
 }
 
 /** One dimension's value across every keyframe, in destination units (pixels). */
-function dimensionExpr(keyframes: readonly CropKeyframe[], pick: (rect: CropKeyframe["rect"]) => number, scale: number): string {
+function dimensionExpr(
+  keyframes: readonly CropKeyframe[],
+  pick: (rect: CropKeyframe["rect"]) => number,
+  scale: number,
+): string {
   if (keyframes.length === 0) return "0";
   const first = keyframes[0];
   if (first === undefined) return "0";

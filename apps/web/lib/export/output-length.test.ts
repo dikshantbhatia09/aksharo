@@ -16,7 +16,12 @@ import { describe, expect, it } from "vitest";
 import type { PassItem } from "@montaj/edg";
 import { fromAcceptedItems } from "@montaj/timemap";
 
-function cutItem(itemId: string, startMs: number, endMs: number, state: PassItem["state"]): PassItem {
+function cutItem(
+  itemId: string,
+  startMs: number,
+  endMs: number,
+  state: PassItem["state"],
+): PassItem {
   return {
     itemId,
     passId: "01ARZ3NDEKTSV4RRFFQ69G5FA1",
@@ -73,7 +78,12 @@ describe("accepted cuts → projected output length", () => {
         kind: "zoom",
         startMs: 1_000,
         endMs: 2_000,
-        payload: { target: { x: 0.4, y: 0.4, w: 0.2, h: 0.2 }, scaleFrom: 1, scaleTo: 1.5, easing: "easeInOut" },
+        payload: {
+          target: { x: 0.4, y: 0.4, w: 0.2, h: 0.2 },
+          scaleFrom: 1,
+          scaleTo: 1.5,
+          easing: "easeInOut",
+        },
         state: "accepted",
       },
     ];

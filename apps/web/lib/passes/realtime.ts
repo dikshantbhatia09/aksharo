@@ -27,12 +27,26 @@ export interface PassRunProgress {
 }
 
 /** Tracks one `ai.pass` job's `job.progress`/`job.completed` events. `jobId === null` subscribes to nothing. */
-export function usePassRunProgress(projectId: string, jobId: string | null): PassRunProgress | null {
+export function usePassRunProgress(
+  projectId: string,
+  jobId: string | null,
+): PassRunProgress | null {
   const { client, session } = useApiContext();
   const [progress, setProgress] = React.useState<PassRunProgress | null>(null);
 
   React.useEffect(() => {
-    setProgress(jobId === null ? null : { jobId, ratio: undefined, etaMs: undefined, message: undefined, status: "running", error: undefined });
+    setProgress(
+      jobId === null
+        ? null
+        : {
+            jobId,
+            ratio: undefined,
+            etaMs: undefined,
+            message: undefined,
+            status: "running",
+            error: undefined,
+          },
+    );
     if (jobId === null) return;
 
     const realtime = new RealtimeClient({
@@ -42,7 +56,12 @@ export function usePassRunProgress(projectId: string, jobId: string | null): Pas
     realtime.subscribe(rooms.project(projectId));
 
     const unsubProgress = realtime.on("job.progress", (event) => {
-      const data = event.data as { jobId?: unknown; progress?: unknown; etaMs?: unknown; message?: unknown };
+      const data = event.data as {
+        jobId?: unknown;
+        progress?: unknown;
+        etaMs?: unknown;
+        message?: unknown;
+      };
       if (data.jobId !== jobId) return;
       setProgress((prev) => ({
         jobId,

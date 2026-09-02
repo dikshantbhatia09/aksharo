@@ -81,7 +81,9 @@ describe("<Timeline /> B20 lane interaction", () => {
     renderTimeline({ onHoverPassItem });
 
     fireCanvasMouseEvent("mousemove", 1_000 / 30, CUTS_LANE_Y); // inside [1000,2000)ms
-    expect(onHoverPassItem).toHaveBeenLastCalledWith(expect.objectContaining({ itemId: "01ITEM0000000000000000001" }));
+    expect(onHoverPassItem).toHaveBeenLastCalledWith(
+      expect.objectContaining({ itemId: "01ITEM0000000000000000001" }),
+    );
 
     fireCanvasMouseEvent("mousemove", 5_000 / 30, CUTS_LANE_Y); // outside the item's range
     expect(onHoverPassItem).toHaveBeenLastCalledWith(undefined);

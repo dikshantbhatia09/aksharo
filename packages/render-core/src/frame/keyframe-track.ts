@@ -26,7 +26,12 @@
 import { decodeKeyframes as decodeEdgKeyframes, type Ease } from "@montaj/edg";
 import type { TimeMap } from "@montaj/timemap";
 
-import { cropRectFromCentre, lerpCropRect, type CropEasingName, type CropKeyframe } from "./crop-window.js";
+import {
+  cropRectFromCentre,
+  lerpCropRect,
+  type CropEasingName,
+  type CropKeyframe,
+} from "./crop-window.js";
 
 const EASE_TO_CROP_EASING: Record<Ease, CropEasingName> = {
   linear: "linear",
