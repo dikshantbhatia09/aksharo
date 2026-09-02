@@ -125,7 +125,8 @@ test("Free -> Creator monthly INR via UPI Autopay: tax profile, method, webhook,
   await expect(page.getByTestId("confirm-gst-breakup")).toContainText("18% GST");
 
   const checkoutResponse = page.waitForResponse(
-    (response) => response.url().endsWith("/billing/checkout") && response.request().method() === "POST",
+    (response) =>
+      response.url().endsWith("/billing/checkout") && response.request().method() === "POST",
   );
   await page.getByTestId("confirm-pay").click();
   const response = await checkoutResponse;
@@ -134,7 +135,10 @@ test("Free -> Creator monthly INR via UPI Autopay: tax profile, method, webhook,
     amountMinor: number;
     currency: string;
   };
-  expect(body.providerSubscriptionId, "fake checkout always returns a provider subscription id").toBeTruthy();
+  expect(
+    body.providerSubscriptionId,
+    "fake checkout always returns a provider subscription id",
+  ).toBeTruthy();
 
   // Step 4: webhook-driven status polling.
   await expect(page.getByTestId("checkout-processing")).toBeVisible();
@@ -159,7 +163,9 @@ test("Studio yearly shows the two half-yearly UPI debits explanation", async ({ 
 
   await gotoHydrated(page, "/billing/plans");
   await page.getByTestId("plan-interval-year").click();
-  await expect(page.getByTestId("plan-card-studio-halfyear")).toContainText("two half-yearly debits");
+  await expect(page.getByTestId("plan-card-studio-halfyear")).toContainText(
+    "two half-yearly debits",
+  );
   await expect(page.getByTestId("plan-card-studio-halfyear")).toContainText("₹9,996");
 
   await page.getByTestId("plan-card-studio-choose").click();
