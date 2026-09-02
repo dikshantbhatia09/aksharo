@@ -8,6 +8,28 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A16e — the CanvasKit backdrop blur is clipped to its bounds.** Reported by A20.
+  `render-core` documents a `backdrop` blur as blurring what is already on the surface
+  **inside `bounds`**, and `@montaj/render-skia-node` clips to honour that. The browser
+  executor passed the bounds to `saveLayer` and stopped there — but Skia treats
+  `SaveLayerRec`'s bounds as a hint about how much surface the layer needs, not as a
+  boundary on what the filter may touch, so it softened a sigma-wide band right across
+  the frame. Over real footage that is the difference between a frosted caption panel
+  and a fogged video. `executeCommands` now issues a `clipRect` before the layer.
+  - Every committed baseline used a **flat** ground, on which blurring outside the panel
+    changes nothing, which is why A16's own suite never saw it. The new
+    `liquid-glass-hard-edge` baseline lays a hard edge through the panel: inside it must
+    be blurred, outside it must stay razor hard, so a filter that does nothing and a
+    filter that fogs the frame both fail. `BaselineFrame` gained an optional `ground`
+    for this. Removing the clip moves 5,280 pixels and fails three assertions.
+  - `render-skia-node`'s parity suite asserted the divergence on purpose
+    (`outsideDiffering > 0`, "if `render-canvaskit` is fixed, this drops to zero"); it now
+    asserts `0`, and the two backends agree inside **and** outside the panel. Affected
+    baselines and the `liquid-glass` catalogue preview regenerated; the browser lane holds
+    at 0 pixels differing on all eight frames.
+
 ### Added
 
 - **A06 — api: projects, folders, media ingest, derived URLs, subtitle import and

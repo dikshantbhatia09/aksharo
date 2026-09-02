@@ -363,27 +363,27 @@ describe("the conventions the two Skia surfaces do not share", () => {
 });
 
 /**
- * The one place the two backends deliberately differ, pinned so that neither
- * side can move without this failing.
+ * The backdrop blur, pinned on both sides of its boundary so neither backend can
+ * move without this failing.
  *
  * `render-core` documents a `backdrop` blur as blurring "what is already on the
- * surface **inside `bounds`**", and `@montaj/render-canvaskit` implements that
- * as `saveLayer(undefined, bounds, filter, 0)`. Skia treats `SaveLayerRec`'s
- * bounds as a *hint* and ignores it here, so the browser blurs the whole frame:
- * measured on a 540×960 surface with a hard horizontal edge in the picture, the
- * disagreement is a σ-wide band right across the frame, hundreds of pixels
- * outside the panel.
+ * surface **inside `bounds`**". Skia treats `SaveLayerRec`'s bounds as a *hint*
+ * about how much surface the layer needs, not as a boundary on what the backdrop
+ * filter may touch, so `@montaj/render-canvaskit` used to blur the whole frame:
+ * measured on a 540×960 surface with a hard horizontal edge in the picture, a
+ * σ-wide band right across the frame, hundreds of pixels outside the panel.
  *
- * On a flat ground — which is what every committed baseline uses — blurring
- * outside the panel changes nothing, so this never showed up in A16's own
- * suite; over real footage it is the difference between a frosted caption panel
- * and a fogged video. This backend honours the documented contract and clips.
- * Inside `bounds` the two agree **exactly**, which is what the assertions below
- * say, and which is what keeps the divergence a bounded, reviewable one rather
- * than a drift. Fixing `render-canvaskit` is A16/A18a's call; it is outside this
- * work package's file boundaries.
+ * On a flat ground — which is what every committed baseline used — blurring
+ * outside the panel changes nothing, so it never showed up in A16's own suite;
+ * over real footage it was the difference between a frosted caption panel and a
+ * fogged video. A16e clips the backdrop layer to `bounds` in the browser
+ * executor, and A16 added `liquid-glass-hard-edge`, a baseline whose ground has a
+ * hard edge running through the panel so the mistake moves pixels.
+ *
+ * The two agree everywhere now: exactly inside the panel, and pixel-identical
+ * outside it.
  */
-describe("the backdrop blur, where this backend diverges on purpose", () => {
+describe("the backdrop blur, clipped to its bounds in both backends", () => {
   const width = 540;
   const height = 960;
   const background = "#1a1a20ff";
@@ -437,7 +437,7 @@ describe("the backdrop blur, where this backend diverges on purpose", () => {
     expect(differing).toBe(0);
   });
 
-  it("leaves the picture outside the panel alone, where the browser blurs it", () => {
+  it("leaves the picture outside the panel alone, exactly as the browser now does", () => {
     const expected = browserPixels(commands, width, height, background);
     const actual = cloud.renderFrameToRgba(commands, { width, height, background });
     let outsideDiffering = 0;
@@ -450,10 +450,10 @@ describe("the backdrop blur, where this backend diverges on purpose", () => {
         }
       }
     }
-    // The browser softens the orange/ground edge across the whole width; this
-    // backend does not. If `render-canvaskit` is fixed, this drops to zero and
-    // the test says so.
-    expect(outsideDiffering).toBeGreaterThan(0);
+    // Before A16e the browser softened the orange/ground edge across the whole
+    // width and this backend did not, so the two disagreed on hundreds of pixels
+    // outside the panel. Both clip now, so they agree everywhere.
+    expect(outsideDiffering).toBe(0);
   });
 
   it("draws nothing outside the bounds that the source picture did not have", () => {
