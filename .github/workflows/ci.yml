@@ -356,6 +356,44 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
+  # C01: the bridge Node SEA must actually build and run a smoke check on both
+  # platforms it ships to (Windows and macOS; a Linux runner is not a real
+  # target so it is not in the matrix). This mirrors the local smoke test that
+  # produced the discovery file during development of this work package.
+  # ---------------------------------------------------------------------------
+  bridge-sea:
+    name: Bridge SEA build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build bridge-core and apps/bridge
+        run: pnpm --filter @montaj/bridge... build
+
+      - name: Build the SEA binary
+        run: pnpm --filter @montaj/bridge build:sea
+
+      - name: Smoke test (starts, binds loopback, writes discovery file, exits clean)
+        shell: bash
+        run: node scripts/ci/bridge-sea-smoke.mjs
+
+  # ---------------------------------------------------------------------------
   # The dev stack must stay valid: a broken compose file blocks every wave gate
   # ---------------------------------------------------------------------------
   compose:
