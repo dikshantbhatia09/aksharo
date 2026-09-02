@@ -139,6 +139,17 @@ export const HI_MESSAGES: MessageCatalogue = {
       ],
     },
 
+    "support-ticket-created": {
+      subject: "[{category}] {subject}",
+      heading: "नया सपोर्ट टिकट: {subject}",
+      paragraphs: [
+        'वर्कस्पेस {workspaceId} ने एक {category} टिकट दर्ज किया: "{subject}"।',
+        "डायग्नोस्टिक्स: {diagnostics}।",
+      ],
+      cta: "एडमिन में खोलें",
+      footnotes: ["टिकट आईडी {ticketId}।"],
+    },
+
     "share-comment": {
       subject: "{project} पर {count, plural, one {# नया कमेंट} other {# नए कमेंट}}",
       heading: "{count, plural, one {# नया कमेंट} other {# नए कमेंट}}",

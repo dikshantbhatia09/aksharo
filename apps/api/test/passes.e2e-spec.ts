@@ -23,7 +23,7 @@ import IORedis from "ioredis";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { decodeKeyframes } from "@montaj/edg";
+import { decodeKeyframes, newId } from "@montaj/edg";
 import { type TranscriptChunk } from "@montaj/edg/schemas";
 
 import { AMPLE_TEST_CREDIT_TENTHS, fundWorkspaceCredits } from "./credits-fixture.js";
@@ -307,6 +307,45 @@ describe.skipIf(!CAN_RUN)("autocut pass: producer → worker completion → Merg
     expect(transcript.projectId).toBe(PROJECT);
   });
 
+  let protectedRangeId: string;
+  const PROTECTED_S = 1_000;
+  const PROTECTED_E = 3_000;
+
+  it("marks a protected range on the timeline via SetProtectedRanges", async () => {
+    const before = await request(app.getHttpServer())
+      .get(`/projects/${PROJECT}/edg`)
+      .set("Authorization", `Bearer ${accessToken()}`)
+      .expect(200);
+    const baseRevision = before.body.revision as number;
+
+    protectedRangeId = newId();
+    const opId = newId();
+    const response = await request(app.getHttpServer())
+      .post(`/projects/${PROJECT}/edg/ops`)
+      .set("Authorization", `Bearer ${accessToken()}`)
+      .send({
+        baseRevision,
+        ops: [
+          {
+            opId,
+            type: "SetProtectedRanges",
+            ranges: [{ id: protectedRangeId, s: PROTECTED_S, e: PROTECTED_E }],
+          },
+        ],
+        clientOpIds: [opId],
+      })
+      .expect(200);
+    expect(response.body).toMatchObject({ applied: [opId], rejected: [] });
+
+    const after = await request(app.getHttpServer())
+      .get(`/projects/${PROJECT}/edg`)
+      .set("Authorization", `Bearer ${accessToken()}`)
+      .expect(200);
+    expect(after.body.hot.protected).toEqual([
+      { id: protectedRangeId, s: PROTECTED_S, e: PROTECTED_E, reason: "user" },
+    ]);
+  });
+
   it("refuses to start autocut for a project with no transcript", async () => {
     // A second, virgin project, media only, no transcript.
     const virgin = id("PR0V");
@@ -361,6 +400,9 @@ describe.skipIf(!CAN_RUN)("autocut pass: producer → worker completion → Merg
     expect(params["passType"]).toBe("autocut");
     expect(Array.isArray(params["words"])).toBe(true);
     expect((params["words"] as unknown[]).length).toBeGreaterThan(0);
+    // The stored SetProtectedRanges range travels to the worker as protectedRanges,
+    // so an autocut run is told never to propose a cut, zoom or reframe inside it.
+    expect(params["protectedRanges"]).toEqual([[PROTECTED_S, PROTECTED_E]]);
     passAttemptId = job.attemptId ?? "";
   });
 

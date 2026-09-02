@@ -21,16 +21,23 @@ import type { KeyObject } from "node:crypto";
  * pinning the issuer costs nothing and stops a token minted by a different
  * environment (staging, a developer's laptop) from being accepted in production.
  */
+const ADMIN_ROLE_NAMES = ["support", "finance", "ops", "content", "superadmin"] as const;
+
 const claimsSchema = z.object({
   sub: z.string().min(1),
   ws: z.string().min(1),
   role: z.enum(["owner", "admin", "editor", "viewer"]),
-  kind: z.enum(["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]),
+  kind: z.enum(["web", "desktop", "bridge", "premiere", "ae", "resolve", "api", "admin"]),
   jti: z.string().min(1),
   iat: z.number().int().nonnegative(),
   exp: z.number().int().nonnegative(),
   iss: z.string().min(1),
+  adminRoles: z.array(z.enum(ADMIN_ROLE_NAMES)).optional(),
+  deviceId: z.string().min(1).optional(),
 });
+
+/** CONTRACTS §5: 15 minutes for every kind except `"admin"`, which gets 30. */
+const ADMIN_ACCESS_TOKEN_TTL_SEC = 30 * 60;
 
 export interface MintAccessTokenInput {
   readonly userId: string;
@@ -39,6 +46,14 @@ export interface MintAccessTokenInput {
   readonly kind: $Enums.ClientKind;
   /** Reuses the session's id when the caller wants the two correlated. */
   readonly jti?: string;
+  /** Required, and only honoured, when `kind === "admin"` (B13 step-up). */
+  readonly adminRoles?: readonly $Enums.AdminRoleName[];
+  /**
+   * Required, and only honoured, when `kind === "bridge"` (B08b, CONTRACTS §5
+   * amended 2026-09-03 after C01): the B08 device row this bridge token is
+   * for, so relay pairing is keyed per device rather than per user.
+   */
+  readonly deviceId?: string;
 }
 
 export interface MintedAccessToken {
@@ -77,7 +92,29 @@ export class TokenService implements AccessTokenVerifier {
   }
 
   mintAccessToken(input: MintAccessTokenInput): MintedAccessToken {
+    if (
+      input.kind === "admin" &&
+      (input.adminRoles === undefined || input.adminRoles.length === 0)
+    ) {
+      throw new AppException(
+        ERROR_CODES.forbidden,
+        "An admin token must carry at least one admin role.",
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    if (input.kind === "bridge" && (input.deviceId === undefined || input.deviceId === "")) {
+      // CONTRACTS §5 amended 2026-09-03 after C01: a bridge token without a
+      // `deviceId` is not a valid bridge credential — the relay rejects it,
+      // so refusing to mint one here is the earliest place to catch a caller
+      // that still tries the old per-user shortcut.
+      throw new AppException(
+        ERROR_CODES.forbidden,
+        "A bridge token must carry a deviceId.",
+        HttpStatus.FORBIDDEN,
+      );
+    }
     const issuedAt = Math.floor(Date.now() / 1000);
+    const ttl = input.kind === "admin" ? ADMIN_ACCESS_TOKEN_TTL_SEC : ACCESS_TOKEN_TTL_SEC;
     const claims: AccessTokenClaims = {
       sub: input.userId,
       ws: input.workspaceId,
@@ -85,8 +122,10 @@ export class TokenService implements AccessTokenVerifier {
       kind: input.kind,
       jti: input.jti ?? ulid(),
       iat: issuedAt,
-      exp: issuedAt + ACCESS_TOKEN_TTL_SEC,
+      exp: issuedAt + ttl,
       iss: this.issuer,
+      ...(input.kind === "admin" ? { adminRoles: input.adminRoles } : {}),
+      ...(input.kind === "bridge" ? { deviceId: input.deviceId } : {}),
     };
 
     const signingInput = `${base64urlJson({ alg: "RS256", typ: "JWT" })}.${base64urlJson(claims)}`;
@@ -97,7 +136,7 @@ export class TokenService implements AccessTokenVerifier {
 
     return {
       accessToken: `${signingInput}.${signature}`,
-      expiresIn: ACCESS_TOKEN_TTL_SEC,
+      expiresIn: ttl,
       jti: claims.jti,
       claims,
     };

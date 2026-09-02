@@ -1,4 +1,5 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 
 import { TENTHS_PER_CREDIT } from "@montaj/config";
 
@@ -10,6 +11,7 @@ import { isQueueName, queueForJobType } from "./contracts/queue-names.js";
 import { DlqService } from "./dlq.service.js";
 import { jobUlid } from "./ids.js";
 import { JobEventsService } from "./job-events.service.js";
+import { JOB_FAILED_EVENT } from "./job-failed.event.js";
 import { JOBS_MAX_PAGE_SIZE, JOBS_PAGE_SIZE } from "./jobs.config.js";
 import { JOB_ERROR_CODES } from "./jobs.errors.js";
 import { QueueRegistry, bullJobId } from "./queue.registry.js";
@@ -114,6 +116,7 @@ export class JobsService {
     private readonly completionHandlers: JobCompletionRegistry,
     @Inject(CREDITS_FACADE) private readonly credits: CreditsFacade,
     private readonly notify: NotifyService,
+    private readonly emitter: EventEmitter2,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -444,6 +447,7 @@ export class JobsService {
     // idempotent by contract (`completion-handlers.ts`), which is what makes
     // re-driving safe.
     const outcome = succeeded ? await this.runCompletionHandler(job, attemptId, body) : undefined;
+    if (!succeeded) await this.runFailureHandler(job, attemptId, body);
     const requestedTenths = succeeded ? settlementTenths(job, usage, outcome?.actualTenths) : 0;
 
     // Settled BEFORE the job row's own status-flip CAS below, not after:
@@ -534,7 +538,16 @@ export class JobsService {
       status,
       attempt: job.attemptNo,
     });
-    if (!succeeded) await this.markDeadLetterIfFinal(job, body);
+    if (!succeeded) {
+      await this.markDeadLetterIfFinal(job, body);
+      this.emitter.emit(JOB_FAILED_EVENT, {
+        workspaceId: job.workspaceId,
+        jobId: job.id,
+        jobType: job.type,
+        projectId: job.projectId,
+        error: body.error ?? null,
+      });
+    }
 
     await this.realtime.jobCompleted(job, {
       jobId,
@@ -687,6 +700,48 @@ export class JobsService {
       this.logger.error(
         { jobId: job.id, queue: job.type, err: describe(error) },
         "completion handler failed; the job stays open for the worker to retry",
+      );
+      await this.events
+        .append({
+          jobId: job.id,
+          name: "job.completion_handler_failed",
+          level: "error",
+          message: describe(error),
+          data: { type: job.type },
+        })
+        .catch(() => undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * The failure twin of {@link runCompletionHandler}: gives the queue's owner a
+   * chance to make its own terminal write when the worker's own write-back may
+   * not have landed. Most handlers implement no `handleFailure` at all, in which
+   * case this is a no-op — the `jobs` row reading `failed` already says
+   * everything that type has to say.
+   *
+   * Same throw-and-leave-the-job-open contract as `runCompletionHandler`: a
+   * `handleFailure` that throws answers the callback 5xx and the job stays in
+   * flight for the worker to retry, rather than a domain row and the job row
+   * disagreeing about whether this attempt is over.
+   */
+  private async runFailureHandler(job: Job, attemptId: string, body: JobCompletion): Promise<void> {
+    const handler = this.completionHandlers.handlerFor(job.type);
+    if (handler?.handleFailure === undefined) return;
+
+    try {
+      await handler.handleFailure({
+        job,
+        attemptId,
+        result: (body.result ?? {}) as Record<string, unknown>,
+        usage: body.usage,
+        completion: body,
+      });
+    } catch (error) {
+      this.logger.error(
+        { jobId: job.id, queue: job.type, err: describe(error) },
+        "failure handler failed; the job stays open for the worker to retry",
       );
       await this.events
         .append({

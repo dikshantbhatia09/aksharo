@@ -33,6 +33,12 @@ export const deviceViewSchema = z.object({
   isCurrentSession: z.boolean(),
 });
 
+export const bridgeTokenResponseSchema = z.object({
+  accessToken: z.string(),
+  expiresIn: z.number(),
+  deviceId: z.string(),
+});
+
 export const deviceLimitReachedSchema = z.object({
   limit: z.number(),
   active: z.number(),

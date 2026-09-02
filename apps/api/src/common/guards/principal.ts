@@ -19,6 +19,10 @@ export interface AuthPrincipal {
   /** Present only for `X-Api-Key` callers (`ApiKeyGuard`). */
   readonly apiKeyId?: string;
   readonly scopes?: readonly $Enums.ApiKeyScope[];
+  /** Present only for `kind: "admin"` tokens (B13 step-up, CONTRACTS §5). */
+  readonly adminRoles?: readonly $Enums.AdminRoleName[];
+  /** Present only for `kind: "bridge"` tokens (B08b, CONTRACTS §5 amended 2026-09-03). */
+  readonly deviceId?: string;
 }
 
 /** The verified claim set of an access token (CONTRACTS §5). */
@@ -31,6 +35,15 @@ export interface AccessTokenClaims {
   readonly iat: number;
   readonly exp: number;
   readonly iss: string;
+  /** Only present, and only meaningful, when `kind === "admin"`. */
+  readonly adminRoles?: readonly $Enums.AdminRoleName[];
+  /**
+   * The B08 device row this token was minted for. Required, and only ever
+   * present, when `kind === "bridge"` (B08b, CONTRACTS §5 amended
+   * 2026-09-03 after C01): a bridge token without it is not a valid bridge
+   * credential, and `TokenService.mintAccessToken` refuses to mint one.
+   */
+  readonly deviceId?: string;
 }
 
 /**
@@ -48,6 +61,8 @@ export const ACCESS_TOKEN_VERIFIER = Symbol("ACCESS_TOKEN_VERIFIER");
 /** Express request with the principal the guards attach. */
 export interface AuthenticatedRequest extends Request {
   principal?: AuthPrincipal;
+  /** Set by `AdminGuard` after its database re-check — the source of truth for `adminOf()`. */
+  adminActiveRoles?: readonly $Enums.AdminRoleName[];
 }
 
 /** Role ranking used by {@link RolesGuard}; `owner` is the most privileged. */

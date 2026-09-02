@@ -290,6 +290,7 @@ audio-strategy.ts      the audio decision tree
 endpoints.ts            local POST /projects/{id}/exports + /exports/manifests/{id}/complete descriptors
 manifest.ts             request + sanity-check + completion
 timemap-adapter.ts       manifest.timemap -> @montaj/timemap
+keyframe-adapter.ts      manifest.timemap.keyframes -> @montaj/render-core's output-clock CropKeyframe[] (B20)
 subtitles.ts            SRT/VTT/TXT generation
 checksum.ts             sha256 of the finished export
 sink.ts                 File System Access vs. in-memory Mediabunny Target
@@ -298,8 +299,22 @@ engine.test.ts          retainedSourceRangesMs unit tests
 engine-parity.test.ts   D33 parity check against @montaj/render-skia-node (A19b)
 engine.worker.ts        Web Worker entry point
 worker-client.ts        main-thread wrapper around the worker
+output-length.test.ts   accepted-cuts-only-shorten-output coverage (B18's leftover TODO, closed by B20)
 index.ts                barrel
 ```
+
+## Zoom/reframe crop application (B20)
+
+When the manifest's `timemap.keyframes` carries an accepted zoom/reframe item's
+curve, `runExport` samples `@montaj/render-core`'s `sampleCropWindow` at every
+output frame and draws the corresponding fraction of the already cover-fit
+source canvas, scaled to fill the output — a _second_ crop layered on top of
+the existing cover-fit crop rather than composed with it (a known, documented
+deviation: the two are not proven pixel-exact together when both a non-1:1
+cover crop and a zoom/reframe window are active at once). See
+`apps/render/README.md` for the cloud side (an ffmpeg `crop` filter driven by
+the same curve) and `apps/web/lib/passes/keyframes.ts` for the B19 keyframe
+decoder this consumes.
 
 ## Scripts
 

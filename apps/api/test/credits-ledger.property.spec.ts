@@ -34,6 +34,7 @@ import { LedgerCreditsFacade } from "../src/credits/ledger-credits.facade.js";
 import type { TestDatabase } from "./db-harness.js";
 import type { PrismaService } from "../src/common/prisma/prisma.service.js";
 import type { NotifyService } from "../src/notify/notify.service.js";
+import type { EventEmitter2 } from "@nestjs/event-emitter";
 import type { $Enums, PrismaClient } from "@prisma/client";
 
 const available = isDatabaseAvailable();
@@ -297,7 +298,9 @@ describe.skipIf(!available)("credits ledger concurrency property (brief §8)", (
     } as unknown as NotifyService;
     credits = new LedgerCreditsFacade(
       prismaService,
-      new CreditsLowBalanceNotifier(prismaService, stubNotify),
+      new CreditsLowBalanceNotifier(prismaService, stubNotify, {
+        emit: () => undefined,
+      } as unknown as EventEmitter2),
     );
   }, 180_000);
 

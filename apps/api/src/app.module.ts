@@ -1,11 +1,15 @@
 import { Module } from "@nestjs/common";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 
+import { AcademyModule } from "./academy/academy.module.js";
 import { AdminModule } from "./admin/admin.module.js";
 import { AffiliatesModule } from "./affiliates/affiliates.module.js";
 import { AudioModule } from "./audio/audio.module.js";
 import { AuthModule } from "./auth/auth.module.js";
+import { BatchModule } from "./batch/batch.module.js";
 import { BillingModule } from "./billing/billing.module.js";
+import { BridgeRelayModule } from "./bridge-relay/bridge-relay.module.js";
+import { CommentsModule } from "./comments/comments.module.js";
 import { CommonModule } from "./common/common.module.js";
 import { ConsentsModule } from "./consents/consents.module.js";
 import { CreditsModule } from "./credits/credits.module.js";
@@ -30,8 +34,10 @@ import { PublicApiModule } from "./public-api/public-api.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { ReferralsModule } from "./referrals/referrals.module.js";
 import { SchedulerTasksModule } from "./scheduler/scheduler-tasks.module.js";
+import { ShareModule } from "./share/share.module.js";
 import { StreakModule } from "./streak/streak.module.js";
 import { StylesModule } from "./styles/styles.module.js";
+import { SupportModule } from "./support/support.module.js";
 import { TaxModule } from "./tax/tax.module.js";
 import { ScriptsModule } from "./transcripts/scripts/scripts.module.js";
 import { TranscriptsModule } from "./transcripts/transcripts.module.js";
@@ -116,6 +122,13 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     FontsModule,
     ExportsModule,
     ReferralsModule,
+    // B12: Academy tracks/progress/rewards + What's-new (`AcademyModule`), and
+    // support tickets with the consent-gated diagnostics bundle
+    // (`SupportModule`). Both after `ReferralsModule`: the export-completed
+    // event is already wired there and `AcademyModule` listens to the same
+    // event without touching it.
+    AcademyModule,
+    SupportModule,
     HealthModule,
     BillingModule,
     OffersModule,
@@ -140,6 +153,17 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // neither is depended on by anything above.
     PublicApiModule,
     WebhooksModule,
+    // B15: share links + the public `/s/:token` viewer (`ShareModule`), threaded
+    // review comments (`CommentsModule`, imports `ShareModule` for its scope/
+    // liveness checks) and batch project creation's orchestration
+    // (`BatchModule`, building on `ProjectsService.batchCreate` from A06).
+    ShareModule,
+    CommentsModule,
+    BatchModule,
+    // C01: `/bridge/relay` — the outbound-WSS tunnel the local bridge and web/
+    // plugin clients ride when loopback is unreachable (brief §3). Last, like
+    // `PublicApiModule`/`WebhooksModule`: nothing above depends on it.
+    BridgeRelayModule,
   ],
 })
 export class AppModule {}

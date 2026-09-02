@@ -80,11 +80,12 @@ export interface MediaPatchAck {
  * `PATCH /internal/media/{id}` (`internal-media.controller.ts`) — the real
  * `worker-media`'s write-back path for `media.probe`/`media.proxy` results
  * (technical facts, derived-object keys, and the `status` flip to `ready`).
- * `completeJobForTest` alone only marks the *job* succeeded; a suite that
- * then calls `POST /projects/{id}/transcribe` needs the *media asset*
- * itself at `status: "ready"`, which is this route's job, not the job
- * completion registry's (there is no registered completion handler for
- * `media.proxy` — see `gate-a.spec.ts`'s note on this).
+ *
+ * `completeJobForTest` alone is now enough for `status` itself: A07b's
+ * `MediaProxyCompletionHandler` flips a `media.proxy` job's own completion to
+ * `media_assets.status: "ready"`/`"failed"` independently of this route. Use
+ * this helper only when a suite specifically needs a derived key
+ * (`proxyKey`, `waveformKey`, ...) that only the worker's write-back writes.
  */
 export async function patchMediaForTest(
   mediaId: string,

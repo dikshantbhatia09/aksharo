@@ -39,6 +39,252 @@ reframe_zoom_pass.py` calls it (`_sample_from_proxy`) whenever the producer
   of computing an unwritten `keyframesRef`. `prisma/schema.prisma`'s
   `PassType` enum gains `zoom` (migration `20260903120000_b19b_zoom_pass_type`).
 
+- **C01 — Local bridge v2: `packages/bridge-core` + `apps/bridge` (Node SEA);
+  relay-first WSS; loopback HTTPS + per-install cert; pairing; api
+  `bridge-relay` module.** `packages/bridge-core`: a JSON-RPC 2.0 protocol
+  (`hello`, `pair.request`/`pair.confirm`, `session.exchange`, `host.list`,
+  `engine.status`, `fs.pickMedia`, `media.stat`/`uploadTicket`,
+  `transcript.push`, `apply.begin/step/commit/abort`, `events.subscribe`) with
+  zod schemas for every method; a loopback HTTPS+WS server on the first free
+  port of 47831-47833 bound to `127.0.0.1` with bearer-on-every-route
+  (constant-time compare), `Host` allowlist, `Origin` allowlist (`null` never
+  allowed, Chrome Local Network Access header only for allowlisted origins),
+  message-size and rate limits; a per-install self-signed leaf certificate
+  (RSA 2048 — see the ECDSA P-256 deviation note in `cert.ts`) cached under
+  `~/.aksharo/cert/` and fingerprinted into the `~/.aksharo/bridge.json`
+  discovery file (mode 0600); tray-gesture pairing with an 8-character
+  code fallback and 12-hour HMAC-signed scoped pair tokens, revocable by
+  `clientId`; a relay client (`RelayClient`) with heartbeat and jittered
+  exponential-backoff reconnection; a small documented public API
+  (`BridgeCore`: `start`/`stop`/`getStatus`/`status` events/pairing) that is
+  the only surface `apps/bridge` and the desktop shell (C02) import. 45 tests,
+  85.7%/82.2% line/branch coverage (threshold 75/70). `apps/bridge`: the Node
+  22 SEA wrapper (`main.ts` + `config.ts` for `~/.aksharo/config.json`);
+  `scripts/build-sea.mjs` bundles with esbuild, runs
+  `--experimental-sea-config`, and injects the blob with `postject`; smoke
+  tested locally on Windows (binary starts, binds a loopback port, writes a
+  valid discovery file, exits clean) and wired into CI as the `bridge-sea`
+  matrix job (Windows + macOS) via `scripts/ci/bridge-sea-smoke.mjs`. A real
+  system tray (brief §5) is not implemented — `createConsoleTray` is the
+  documented headless fallback; see the WP report for why and what a
+  follow-up needs. `apps/api/src/bridge-relay`: the `/bridge/relay` WS module
+  pairing one bridge connection to one client connection per workspace and
+  forwarding opaque JSON-RPC text between them (payloads are never parsed or
+  stored), with bearer/rate-limit/message-size guards, heartbeat, and a
+  `bridge_sessions` audit table (new Prisma model + migration
+  `20260902195854_c01_bridge_sessions`); e2e-tested against real Postgres with
+  a fake bridge and fake client. Deviation: the brief assumes a per-device
+  bridge token: CONTRACTS §5's `sub` claim is always the user id and B08
+  registers devices by fingerprint under a normal user session rather than
+  minting one token per device, so relay pairing is keyed by
+  workspace+user (one paired bridge per signed-in user per workspace) until a
+  follow-up work package adds a real per-device bridge credential — see the
+  WP report's open questions.
+- **B08b — Per-device bridge credential: `kind:"bridge"` tokens carry
+  `deviceId`; relay pairing keyed per device (resolves C01's deviation).**
+  `TokenService.mintAccessToken` now requires (and `verifyAccessToken`/the
+  interim realtime verifier both parse) a `deviceId` claim whenever
+  `kind === "bridge"` (CONTRACTS §5, amended 2026-09-03); minting one without
+  it is refused. New `POST /devices/{id}/bridge-token`: for a registered,
+  leased device the caller owns, mints that bridge token; refuses with
+  `licensing/device_revoked` (the device was revoked) or
+  `licensing/device_lease_expired` (its lease needs renewing first, via
+  `POST /devices/register`) — the same `licensing/device_revoked` code
+  `plugins.service.ts`'s heartbeat already used. `bridge-relay.gateway.ts`:
+  pairing is now keyed by `workspaceId:deviceId` instead of
+  `workspaceId:sub`, and `handleUpgrade` refuses a bridge token without
+  `deviceId` before it ever reaches the connection map — several devices for
+  the same user now pair and relay concurrently (e2e: two devices, one user,
+  both attached and relaying independently). Guard rail: `JwtAuthGuard`
+  refuses a `kind:"bridge"` token on any route unless it opts in with the new
+  `@AllowBridgeToken()` decorator; nothing does yet, so this is a flat
+  refusal today (contract test in `common/guards/guards.test.ts`).
+  `apps/bridge`: a new `device-auth.ts` gets this install its own credential
+  on first run — the RFC 8628 device-code grant as `kind:"desktop"` (a
+  bridge-kind device code is never redeemed directly: no device row exists
+  yet at that point, and `mintAccessToken` would refuse it), then
+  `POST /devices/register`, then `POST /devices/{id}/bridge-token` — and
+  re-mints the bridge token on later runs via `POST /auth/refresh` without
+  the pairing screen again, falling back to a fresh sign-in once the stored
+  refresh token is no longer good for anything; `config.ts` gained
+  `apiOrigin`/`deviceId`/`sessionRefreshToken`/`deviceTokenExpiresAt`
+  alongside the existing `deviceToken`/`relayUrl`/`autostart`. Deviation
+  (documented, out of this WP's file boundary but required for the
+  acceptance criteria): `AccessTokenClaims`/`AuthPrincipal`
+  (`common/guards/principal.ts`), `JwtAuthGuard`
+  (`common/guards/jwt-auth.guard.ts`, `public.decorator.ts`) and the interim
+  realtime verifier (`realtime/auth/access-token.ts`) all needed the
+  `deviceId` claim and the bridge-token guard rail threaded through; each
+  change is additive (a new optional field, a new decorator) and does not
+  alter behaviour for any other `kind`.
+- **B20 — Passes tab, ProposalCard, bulk accept, timeline lanes; export application
+  of accepted cuts/zoom/reframe through `@montaj/timemap` (browser + cloud).**
+  - **Review UI** (`apps/web/components/editor/passes/**`): `PassesTab` (run-autocut
+    dialog with a client-side credits estimate, kind/status/confidence filters, bulk
+    accept — "Accept all ≥ 0.8", "Accept all cuts", "Reset decisions" — a summary bar,
+    J/K/A/R/Space keyboard review) and `ProposalCard` (reason, confidence,
+    accept/reject/undo, a before/after preview callback seam). Decisions are real
+    `DecideItems` ops sent through the existing `EditorStore.submitOps` (A12's
+    debounce/optimistic-apply/rebase path, unmodified). `apps/web/lib/passes/**`:
+    `decisions.ts` (pure op-builder + filter/bulk-accept predicates + `summaryDurations`
+    over `@montaj/timemap`), `client.ts`/`quote.ts` (the `startAutocutPass` endpoint
+    descriptor + a client-side quote estimate), `realtime.ts`
+    (`usePassRunProgress`, a `job.progress`/`job.completed` subscription).
+  - **Timeline lanes** (`apps/web/lib/timeline/lanes.ts`, `components/editor/timeline/
+Timeline.tsx`, extending A17): the merged "Zoom & reframe" lane split into
+    separate `zoom`/`reframe` rows; `laneItemStrokeStyle` — accepted dimmed +
+    struck-through, proposed dashed; hover reports an item's reason
+    (`onHoverPassItem`) and click selects it (`onSelectPassItem`).
+  - **Export application, browser + cloud** — the render-manifest schema gained an
+    optional `timemap.keyframes: KeyframeTrack[]` field (`{itemId, itemStartMs,
+kind, packed}`, base64 of B19's real `@montaj/edg` `passes/keyframes.ts`
+    ("MKF2") rows). `packages/render-core`'s new `frame/crop-window.ts`
+    (`sampleCropWindow`, pure interpolation + easing over a normalised source crop
+    rect) and `frame/keyframe-track.ts` (`outputCropKeyframesFromTracks`: decode +
+    remap onto the output clock via `TimeMap.mapKeyframes`, pinning at every
+    splice) are the one implementation both `apps/web/lib/export/engine.ts`
+    (samples the crop window per frame, draws the corresponding sub-rect of the
+    cover-fit source canvas) and `apps/render`'s ffmpeg graph (a hand-verified
+    `crop=w:h:x:y` expression builder, `ffmpeg/crop-expr.ts`, spliced before the
+    cover-fit scale) consume — proven to agree via
+    `apps/render/src/ffmpeg/crop-parity.test.ts`'s two fixtures (cut+zoom,
+    cut+reframe).
+  - **Output-length verification** (B18's leftover TODO): `apps/web/lib/export/
+output-length.test.ts` proves only `accepted` cut items shorten
+    `fromAcceptedItems`' `outputDurationMs`.
+  - **Known gaps, reported not fixed here:** (1) the API's manifest builder
+    (`apps/api/src/exports/manifest-builder.ts`) has the additive
+    `keyframeTracks` field wired but nothing populates it from accepted
+    zoom/reframe items yet — blocked on B19's keyframe-bytes storage (its own
+    final report already flags this as the "keyframesRef gap"); (2) drag-to-adjust
+    cut boundaries needs an `EditPassItem` op that does not exist in CONTRACTS §2 —
+    not added unilaterally, per the brief's own instruction to report first;
+    (3) A18a's parity gate (`packages/ass-exporter/parity`) measures caption
+    _style_ rendering fidelity and has no axis for "a cut/zoom was applied" — the
+    crop-window parity is proven separately (above) rather than forced into that
+    harness; (4) the CanvasKit preview's live zoom-rectangle/reframe-crop-window
+    overlay and "preview with cuts" scrubbing are not implemented — the shared
+    crop-window primitives are ready for that integration.
+- **B18b — Protected ranges end to end: `SetProtectedRanges` op, editor
+  marking UI, passes honour the stored set.** `packages/edg`: `EdgHot.protected[]`
+  (CONTRACTS §2) and the `SetProtectedRanges{ranges:[{id,s,e}]}` op — apply
+  clamps every range to the primary media's duration, merges overlapping or
+  touching ranges, drops empty ones, and stamps `reason: "user"`; rebase adds
+  the `doc:protected` field (last write wins); a property test
+  (`ops/properties.test.ts`) holds the stored set sorted and non-overlapping
+  after any sequence of ops; `edg-v2.json`/`edg-ops-v2.json` regenerated.
+  `apps/api/src/passes/passes.service.ts`: `protectedRanges` sent to every
+  `ai.pass` is now the stored `EdgHot.protected` set concatenated with the
+  existing emphasis/textOverrides-derived `guardedRanges`; e2e in
+  `passes.e2e-spec.ts` proves a `SetProtectedRanges` op reaches the enqueued
+  autocut job's `protectedRanges`. `apps/web`: `lib/edg/ops.ts` gets
+  `setProtectedRanges`, `toggleProtectedRange` (adds, merges, subtracts or
+  removes a range against the current selection) and `isFullyProtected`, plus
+  a `SetProtectedRanges` inverse for undo; `Timeline.tsx` draws a
+  `--color-info` band for every protected range and wires the "P" key (and a
+  "Protect (P)" button) to toggle protection on the selected segment or word;
+  one chromium Playwright case in `timeline.spec.ts`.
+
+- **B12 — Academy tracks, Help centre, in-app Changelog and What's-new, and
+  support tickets with diagnostics.** Four outcome-based Academy tracks (MDX,
+  `apps/web/content/academy/**`) with step-by-step progress
+  (`academy_progress`), a one-time per-track credit reward
+  (`academy_rewards`, capped 25/track and 100/workspace lifetime, granted via
+  `CreditsFacade.grantLot({ source: "adjust", ... })` — CONTRACTS §4 has no
+  `"academy"` source, flagged as a conflict) and automatic completion on
+  `export.completed`; ten real Help articles (`apps/web/content/help/**`)
+  with a build-time MiniSearch index and a "Contact support" entry; an
+  in-app `/updates` changelog (renamed from `/changelog`, which the
+  marketing site already owns) sourced from MDX plus an RSS feed and a
+  per-user "What's new" modal (`changelog_dismissals`);
+  `POST/GET /support/tickets`
+  (`support_tickets`) with an optional consent-gated diagnostics bundle
+  (app version, browser/OS, workspace id, last 10 job statuses, a
+  console-error ring buffer — never media), emailed to `BRAND.supportEmail`
+  via a new `notify` kind (`support-ticket-created`) and listed back in
+  Settings → Support.
+- **C00 — Signing & release pipeline (dry-run only; credentials do not exist yet).**
+  New `tools/release` package (`@montaj/release`) exposing `pnpm release <cmd>`:
+  `version` (conventional-commit semver bump + `CHANGELOG.md` section assembly),
+  `build-desktop --platform mac|win --channel alpha|beta|stable --dry-run`
+  (electron-builder config generated from one root `release.config.ts`; builds
+  against a placeholder app tree when `apps/desktop` has no code yet),
+  `sign-nested` (walks a built app and signs/verifies every Mach-O/PE binary —
+  main, helpers, engine sidecar, ffmpeg, bridge SEA, updater — outer bundle
+  last), `notarize` (notarytool submit/wait/staple; records a ledger entry and
+  enforces the **24h buffer** before the `stable` channel, `--force --reason`
+  to override), `package-ccx` (UXP plugin -> `.ccx` zip, `manifest.json`
+  validated against `ai.aksharo.panel` / Premiere minVersion 25.6),
+  `sign-zxp` (AE CEP panel -> `.zxp`, ZXPSignCmd in signed mode / self-signed
+  dev-cert marker in dry-run), `package-resolve` (`aksharo_core` script +
+  per-OS installer scripts), `sbom` (CycloneDX document), `checksums`
+  (`CHECKSUMS.sha256` + HMAC-signed `SIGNATURES.txt`), `publish --channel`
+  (artifacts + `latest.yml`/`latest-mac.yml` electron-updater feeds; `.release/publish/<channel>`
+  locally in dry-run, R2 in signed mode), `promote --from --to` (channel
+  promotion; re-checks the 24h gate for `stable`), `verify-release`
+  (re-hashes a published channel against its checksum manifest).
+  `SignProvider` interface with `AzureTrustedSigningProvider` (brief default),
+  `DigiCertKeyLockerProvider` (practical default — see "Known gap" below) and
+  `MacDeveloperIdProvider`, all behind `RELEASE_MODE` (`dry-run` default,
+  never touches a real signer/notarytool/R2; `signed` fails closed —
+  `ReleaseFailClosedError` — listing every missing secret). New GitHub
+  Actions workflows `release-desktop.yml` (mac/win matrix, unsigned dry-run
+  on PRs, signed only on `release/*` tags behind `release-mac`/`release-win`
+  environments), `release-plugins.yml` (ccx/zxp/resolve), `promote.yml`
+  (manual channel promotion with the 24h check) plus SLSA provenance
+  attestation (`actions/attest-build-provenance`). `docs/RELEASE.md` runbook.
+  Adds `tools/*` to the pnpm workspace and a root `pnpm release` script.
+  **Known gap (reported, not fixed here):** RR-07 §P0 — Azure Trusted
+  Signing public-trust certs are not issued to an Indian entity (D69), so
+  `WIN_SIGN_PROVIDER=digicert-key-locker` is the practical default until
+  that changes or the entity structure does; `AzureTrustedSigningProvider`
+  still ships per the brief with the same fail-closed secret gate.
+  **CONTRACTS §1 ruling (2026-09-03):** the ~20 release-pipeline secret names
+  (Apple notarisation, Azure/DigiCert signing, ZXP, R2 publish,
+  checksum-manifest signing) are CI/GitHub-environment secrets, not
+  application runtime config, so they do **not** go into CONTRACTS §1 or the
+  root `.env.example` (that would fail `packages/config`'s one-key-per-contract-
+  variable parity test). They live in `tools/release/.env.example` instead;
+  the CLI loads `tools/release/.env` itself (`src/env.ts::loadReleaseDotEnv`).
+  `docs/RELEASE.md` lists them as the GitHub-environment secrets to set.
+
+- **B14b — Webhook events: real event emits replace the poller.**
+  `transcript.completed` (`transcripts/transcribe.handler.ts`), `job.failed`
+  (`jobs/jobs.service.ts::complete()`, after DLQ handling) and `credits.low`
+  (`credits/credits-low-balance.notifier.ts`) are now real `EventEmitter2`
+  emits at their producers, each with its own `<module>/*.event.ts` name +
+  payload contract (the `referrals/export-completed.event.ts` precedent) and
+  a `webhooks/listeners/*.listener.ts` subscriber. `WebhookEventPollerService`
+  and its Redis cursors are deleted; `webhooks.e2e-spec.ts` proves the whole
+  chain (API key → `/v1` project → simulated worker completion → a signed
+  delivery a receiver can verify, plus retries on a receiver that fails
+  twice) end to end. `WebhookDeliveryService.sendOverride` is a new,
+  production-inert test seam (parallel to `sendWebhook`'s own resolver/
+  transport seams) that lets that suite's in-process receiver stand in for a
+  real internet endpoint without touching the SSRF guard.
+- **B15 — share links, threaded review comments, intermediary-hygiene report
+  flow and batch orchestration.** `ShareLinksService`/`PublicViewerController`
+  add a `scope` (`view|comment|approve`), password (argon2), expiry, view-cap
+  and `clientTag` to `share_links` (previously A12/B16 groundwork only), and
+  the public `/s/:token` surface: resolve, password unlock (`X-Share-Session`
+  header, HMAC-signed, no cookie middleware added), report-abuse
+  (`share_reports`, category-driven SLA — 3h NCII / 36h other, matching
+  `ShareReportSlaTask`) with automatic disable after 3 pending reports, and the
+  approve/request-changes decision (new `projects.review_status`).
+  `CommentsService`/`CommentsController` add threaded, time-anchored comments
+  reachable from a workspace member or a public `comment`/`approve`-scope
+  reviewer (a guest's email is hashed, never stored), notifying the project
+  owner via the existing `share-comment` notify kind.
+  `BatchService`/`BatchController` add `/batch/quote`, `/batch` (tags the
+  projects `POST /projects/batch` already creates with a new `batches` row and
+  `projects.batch_id`) and `/batch/:id/apply` (enqueues `TranscriptsService.
+transcribe()` per project), plus `/batch/:id` for per-project progress.
+  Migrations: `20260903000000_b15_share_review_batch` (share-link scope/
+  password/expiry/views/client-tag, `comments.author_email_hash`,
+  `projects.review_status`), `20260903001000_b15_batch` (`batches`,
+  `projects.batch_id`). Replace-media re-alignment and import-transcript-align
+  (brief §5, §6) are not implemented in this work package — see its final
+  report.
 - **B11b — LLM follow-up reconciliation: per-kind burn rates, one filler
   lexicon, EDG-segment transcript payload.** `packages/config/src/credits.ts`:
   the flat `chaptersSummaryHook` burn rate (2 credits/job for every kind) is
@@ -62,6 +308,39 @@ reframe_zoom_pass.py` calls it (`_sample_from_proxy`) whenever the producer
   fixes already applied) rather than the raw ASR chunks; a project with no EDG
   document yet (or one with no live segments) falls back to the original
   `TranscriptsService.chunks()` path unchanged.
+- **C02 — Desktop shell.** `@montaj/desktop`: Electron main/preload loading
+  the hosted web app (`?desktop=1`, `AksharoDesktop/<version>` User-Agent
+  suffix, decision D71 — one web codebase, no packaged bundle until C04),
+  `contextIsolation`/`sandbox`/`nodeIntegration:false`/`webSecurity:true`,
+  navigation/`window.open`/`shell.openExternal` allowlists
+  (`src/security/allowlist.ts`), strict-CSP packaged offline page with retry,
+  `aksharo://` deep links (`auth/callback`, `project/<ulid>`, `pair`) with
+  single-instance-lock hand-off, `electron-updater` wired to C00's
+  `releases/<channel>/` feed layout with alpha/beta/stable channels and a
+  deterministic staged-rollout gate, native menu + tray (bridge/pairing status,
+  approve pairing, check for updates, copy diagnostics), Electron fuses
+  flipped in the `electron-builder` `afterPack` hook. `src/bridge/adapter.ts`
+  defines the `BridgeAdapter` interface and a stub implementation, since C01
+  (`bridge-core`) is not yet merged. `apps/web/lib/desktop.ts`: the
+  desktop-detection hook agreed with A13. Unit tests (vitest) for the
+  allowlists, deep-link parsing, updater feed/rollout math and the bridge
+  stub; a Playwright-Electron smoke suite (`e2e/smoke.spec.ts`, run via
+  `pnpm test:e2e`, needs a built app and a display).
+- **B13a — Admin roles, TOTP step-up, `AdminGuard(role)`.** CONTRACTS §5
+  (amended 2026-09-03): `kind: "admin"` access tokens, minted only by
+  `POST /admin/auth/step-up` after a TOTP check, 30-minute lifetime, never
+  refreshable, carrying `adminRoles: ("support"|"finance"|"ops"|"content"|
+"superadmin")[]`. New tables `admin_roles` (grant/revoke, re-checked by
+  `AdminGuard` on every request so revocation is immediate rather than
+  waiting out the token) and `admin_totp` (hand-rolled RFC 6238 TOTP,
+  `apps/api/src/admin/auth/totp.ts` — no new dependency, same reasoning as
+  `TokenService`'s hand-rolled RS256). `apps/api/src/admin/auth/
+admin-step-up.{controller,service,dto,constants}.ts`: TOTP enrol/verify
+  and step-up, rate-limited per user and per IP. `AdminGuard` rewritten to
+  require `kind: "admin"` (not merely `users.is_admin`) plus, when a route
+  carries the new `@AdminRoles(...)` decorator, a matching non-revoked
+  `admin_roles` grant (`superadmin` always satisfies any role list). Role
+  matrix contract test: `apps/api/src/admin/admin.guard.test.ts`.
 
 - **A23 — Gate A e2e journey, sample-project seed, wave verification script,
   X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)
@@ -89,6 +368,37 @@ reframe_zoom_pass.py` calls it (`_sample_from_proxy`) whenever the producer
   `docs/verification/load-<date>.md`. `.github/workflows/e2e.yml`: the Gate
   A journey plus the load harness against the compose stack, on PRs into a
   wave branch.
+
+### Added
+
+- **A07b — a `media.proxy` completion handler, and a real-dialog export e2e.**
+  `apps/api/src/media/proxy.handler.ts` (`MediaProxyCompletionHandler`)
+  registers on `JobCompletionRegistry` alongside A07's probe handler: it
+  independently flips `media_assets.status` to `ready`/`failed` off the
+  job's own completion, alongside (never instead of) the worker's `PATCH
+/internal/media/{id}` write-back — closing the gap A23 found where a
+  completed `media.proxy` job left the asset stuck unless that separate
+  write-back happened to land. Idempotent both ways: the same outcome
+  twice is a no-op, and a conflicting outcome always resolves to `failed`
+  (a stray `ready` is overwritten; a success completion never undoes an
+  existing `failed`). Failure completions needed a new, additive
+  `JobCompletionHandler.handleFailure?` hook (`apps/api/src/jobs/
+completion-handlers.ts`) and one call site in `JobsService.complete`
+  (`apps/api/src/jobs/jobs.service.ts`) — every existing handler is
+  unaffected since none implements it. `apps/web/e2e/gate-a.spec.ts` no
+  longer needs `patchMediaForTest` to reach `status: "ready"`.
+
+  `apps/web/components/editor/export/use-export-dialog.ts` now accepts a
+  `preferFileSystemAccess` dep (default `true`) and, in non-production
+  builds only, reads `window.__aksharoE2E?.noFilePicker` to force `false`
+  — a synthetic Playwright click is not a "user activation"
+  `showSaveFilePicker` recognises, so without this a real click on the
+  export dialog's own button aborted the export before this fix.
+  `apps/web/e2e/export.spec.ts` adds a second chromium test that drives the
+  real `ExportDialog` end to end (open → Video tab → Export → the software-
+  encoder cloud-offer override where a headless browser needs it → `export-
+done`), verified against `GET /projects/{id}/exports`, alongside the
+  existing `/export-harness`-driven ffprobe assertion.
 
 ### Fixed
 

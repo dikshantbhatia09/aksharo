@@ -89,6 +89,20 @@ enum ClientKind {
   ae
   resolve
   api
+  /// B13: minted only by `POST /admin/auth/step-up` (CONTRACTS §5, amended
+  /// 2026-09-03). 30-minute lifetime, never refreshable, never issued to API
+  /// keys or plugin/bridge clients.
+  admin
+}
+
+/// Platform-staff permission a `users` row can hold (B13). Not a workspace
+/// role (`MembershipRole`) — this is cross-tenant.
+enum AdminRoleName {
+  support
+  finance
+  ops
+  content
+  superadmin
 }
 
 enum WorkspaceType {
@@ -185,6 +199,14 @@ enum ProjectStatus {
   draft
   active
   archived
+}
+
+/// B15 brief §2: reviewer decision recorded via a share link (scope `approve`).
+enum ProjectReviewStatus {
+  none
+  pending
+  approved
+  changes_requested
 }
 
 /// CONTRACTS §2 `EdgHot.canvas.aspect`.
@@ -605,9 +627,52 @@ model User {
   comments        Comment[]
   clearanceGrants AssetClearanceGrant[]
   notifications   Notification[]
+  academyProgress AcademyProgress[]
+  supportTickets  SupportTicket[]
+  changelogDismissal ChangelogDismissal?
+  adminRoles      AdminRole[]
+  adminTotp       AdminTotp?
 
   @@index([deletedAt])
   @@map("users")
+}
+
+/// B13: platform-staff role grant. A user may hold more than one; the set of
+/// non-revoked rows is what `AdminGuard` checks (kept in the database, not
+/// trusted from the JWT's `adminRoles` claim alone, so revocation takes effect
+/// immediately rather than waiting out the 30-minute admin token).
+model AdminRole {
+  id         String         @id @db.Char(26)
+  userId     String         @map("user_id") @db.Char(26)
+  role       AdminRoleName
+  /// Who granted it — another admin's `users.id`, or null for the seed/bootstrap grant.
+  grantedBy  String?        @map("granted_by") @db.Char(26)
+  grantedAt  DateTime       @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt  DateTime?      @map("revoked_at") @db.Timestamptz(6)
+  revokedBy  String?        @map("revoked_by") @db.Char(26)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@index([userId, revokedAt])
+  @@map("admin_roles")
+}
+
+/// B13: TOTP enrolment for admin step-up (`POST /admin/auth/step-up`). Nothing
+/// else in the platform uses TOTP — `users.mfa_secret` is a separate, unused
+/// A04 placeholder for a future consumer-facing MFA and is left untouched.
+model AdminTotp {
+  userId       String    @id @map("user_id") @db.Char(26)
+  /// Base32 TOTP secret. Admin-only, platform-staff-scoped credential — not a
+  /// user password or a workspace secret; stored as issued by `otplib`.
+  secret       String
+  enrolledAt   DateTime  @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  verifiedAt   DateTime? @map("verified_at") @db.Timestamptz(6)
+  lastUsedAt   DateTime? @map("last_used_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admin_totp")
 }
 
 model ConsentRecord {
@@ -801,6 +866,7 @@ model Workspace {
   apiKeys             ApiKey[]
   sessions            Session[]
   bridgePairings      BridgePairing[]
+  bridgeSessions      BridgeSession[]
   consentRecords      ConsentRecord[]
   creditAccount       CreditAccount?
   subscriptions       Subscription[]
@@ -820,6 +886,9 @@ model Workspace {
   streakExperiment    StreakExperiment?
   publishEvents       PublishEvent[]
   referral            Referral?
+  academyProgress     AcademyProgress[]
+  academyRewards      AcademyReward[]
+  supportTickets      SupportTicket[]
   referralRewardsGiven    ReferralReward[] @relation("ReferralRewardReferrer")
   referralRewardReceived  ReferralReward?  @relation("ReferralRewardReferred")
   assetUsages         AssetUsage[]
@@ -829,6 +898,7 @@ model Workspace {
   dlqEntries          DlqEntry[]
   folders             Folder[]
   notifications       Notification[]
+  batches             Batch[]
 
   @@index([ownerId])
   @@index([billingCountry])
@@ -874,6 +944,7 @@ model Device {
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   sessions       Session[]
   bridgePairings BridgePairing[]
+  bridgeSessions BridgeSession[]
 
   @@unique([workspaceId, fingerprint])
   @@index([workspaceId])
@@ -987,6 +1058,28 @@ model BridgePairing {
   @@map("bridge_pairings")
 }
 
+/// Audit row for one relay connection through `/bridge/relay` (C01 brief §3, §6:
+/// "the relay never stores payloads; `bridge_sessions` rows for audit"). One row
+/// per WebSocket connection, bridge or client side; `clientKind` mirrors the
+/// token's `kind` claim so an admin view (B13 hook) can tell a bridge's own
+/// relay leg from the browser/plugin session it carried.
+model BridgeSession {
+  id             String    @id @db.Char(26)
+  workspaceId    String    @map("workspace_id") @db.Char(26)
+  deviceId       String?   @map("device_id") @db.Char(26)
+  clientKind     String    @map("client_kind")
+  connectedAt    DateTime  @default(now()) @map("connected_at") @db.Timestamptz(6)
+  disconnectedAt DateTime? @map("disconnected_at") @db.Timestamptz(6)
+  framesRelayed  Int       @default(0) @map("frames_relayed")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  device    Device?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([connectedAt])
+  @@map("bridge_sessions")
+}
+
 // ===========================================================================
 // Media & editing (EDG v2) — 06 §Media & editing
 // ===========================================================================
@@ -1026,6 +1119,8 @@ model Project {
   title          String
   /// FK into `folders` since A06; 06 lists the column but has no table for it.
   folderId       String?       @map("folder_id") @db.Char(26)
+  /// Set when this project was created as part of a batch (B15 brief §4).
+  batchId        String?       @map("batch_id") @db.Char(26)
   /// Agency client separation (04 §Plans).
   clientTag      String?       @map("client_tag")
   sourceLanguage String?       @map("source_language")
@@ -1033,6 +1128,8 @@ model Project {
   scripts        String[]      @default([])
   aspect         Aspect        @default(r9x16)
   status         ProjectStatus @default(draft)
+  /// Approve/request-changes state set from a share-link review (B15 brief §2).
+  reviewStatus   ProjectReviewStatus @default(none) @map("review_status")
   thumbnailKey   String?       @map("thumbnail_key")
   durationMs     Int?          @map("duration_ms")
   lastActivityAt DateTime      @default(now()) @map("last_activity_at") @db.Timestamptz(6)
@@ -1044,6 +1141,7 @@ model Project {
 
   workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   folder              Folder?              @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  batch               Batch?               @relation(fields: [batchId], references: [id], onDelete: SetNull)
   mediaAssets         MediaAsset[]
   transcripts         Transcript[]
   edgDocument         EdgDocument?
@@ -1064,7 +1162,29 @@ model Project {
   @@index([workspaceId, status, lastActivityAt])
   @@index([workspaceId, folderId])
   @@index([workspaceId, clientTag])
+  @@index([batchId])
   @@map("projects")
+}
+
+/// A "creates N projects, enqueues per project" batch (B15 brief §4). Settings
+/// are the "Apply to all" sheet — languages, style/export presets, audio clean —
+/// applied uniformly when the batch is confirmed and enqueued.
+model Batch {
+  id                  String   @id @db.Char(26)
+  workspaceId         String   @map("workspace_id") @db.Char(26)
+  createdBy           String?  @map("created_by") @db.Char(26)
+  /// Zod: `BatchSettingsSchema` (batch module).
+  settings            Json     @default("{}") @db.JsonB
+  /// The up-front quote shown at confirm (brief §4: "credits quoted... with a
+  /// confirm step"), so the progress view can show quoted vs. settled.
+  creditsQuotedTenths Int      @default(0) @map("credits_quoted_tenths")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  projects  Project[]
+
+  @@index([workspaceId])
+  @@map("batches")
 }
 
 model MediaAsset {
@@ -1421,18 +1541,27 @@ model MemoryEntry {
 }
 
 model ShareLink {
-  id                 String    @id @db.Char(26)
-  projectId          String    @map("project_id") @db.Char(26)
-  token              String    @unique
+  id                 String        @id @db.Char(26)
+  projectId          String        @map("project_id") @db.Char(26)
+  token              String        @unique
   /// Review links are never indexable (D70).
-  indexable          Boolean   @default(false)
-  passwordHash       String?   @map("password_hash")
-  expiresAt          DateTime? @map("expires_at") @db.Timestamptz(6)
-  acceptedAupVersion String?   @map("accepted_aup_version")
-  reportCount        Int       @default(0) @map("report_count")
-  createdBy          String?   @map("created_by") @db.Char(26)
-  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  revokedAt          DateTime? @map("revoked_at") @db.Timestamptz(6)
+  indexable          Boolean       @default(false)
+  /// What a viewer with only the link may do (B15 brief §1).
+  scope              ShareLinkScope @default(view)
+  passwordHash       String?       @map("password_hash")
+  expiresAt          DateTime?     @map("expires_at") @db.Timestamptz(6)
+  /// Hard cap on total page loads; the link stops resolving once reached.
+  maxViews           Int?          @map("max_views")
+  viewCount          Int           @default(0) @map("view_count")
+  /// Agency filter label for the link, independent of the project's own tag.
+  clientTag          String?       @map("client_tag")
+  acceptedAupVersion String?       @map("accepted_aup_version")
+  reportCount        Int           @default(0) @map("report_count")
+  /// Set by the auto-disable rule (F-504) or a manual revoke — both read the same field.
+  autoDisabled       Boolean       @default(false) @map("auto_disabled")
+  createdBy          String?       @map("created_by") @db.Char(26)
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedAt          DateTime?     @map("revoked_at") @db.Timestamptz(6)
 
   project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   reports  ShareReport[]
@@ -1441,6 +1570,13 @@ model ShareLink {
   @@index([projectId])
   @@index([expiresAt])
   @@map("share_links")
+}
+
+/// F-501: what a share-link viewer may do beyond watching.
+enum ShareLinkScope {
+  view
+  comment
+  approve
 }
 
 /// Public report intake for a share link. `dueAt` is 3 h for NCII, 36 h otherwise
@@ -1470,6 +1606,8 @@ model Comment {
   authorId    String?   @map("author_id") @db.Char(26)
   /// Set when an anonymous reviewer comments through a share link.
   authorName  String?   @map("author_name")
+  /// sha256 of the guest's email, lowercased+trimmed first (never the address itself).
+  authorEmailHash String? @map("author_email_hash")
   body        String
   atMs        Int?      @map("at_ms")
   segmentId   String?   @map("segment_id") @db.Char(26)
@@ -2879,4 +3017,107 @@ model ProductEvent {
   @@index([kind, createdAt])
   @@index([workspaceId])
   @@map("product_events")
+}
+
+// ===========================================================================
+// Academy, changelog, help & support — B12
+//
+// Content itself (track/step/help-article/changelog copy) lives as MDX in
+// `apps/web/content/{academy,help,changelog}`, validated at build by zod
+// schemas in `apps/web/lib/content/schema.ts` — these tables hold only the
+// per-user/per-workspace state a static file cannot: which steps are done,
+// which one-time rewards were paid, which changelog version a user has
+// dismissed, and support tickets. `AcademyLesson`/`LessonProgress`/
+// `ChangelogEntry`/`HelpArticle` above are an earlier (A01) DB-body content
+// design this brief supersedes with the file-based one; left in place
+// untouched (unreferenced by any app code) rather than risk a cross-package
+// break for a table nothing outside this migration touches.
+// ===========================================================================
+
+/// One row per (workspace, user, track, step) the user has completed. A step
+/// is "done" either because the user clicked "Mark done" or because a product
+/// event satisfied its `completionEvent` (export.completed → matching step).
+model AcademyProgress {
+  id          String   @id @db.Char(26)
+  workspaceId String   @map("workspace_id") @db.Char(26)
+  userId      String   @map("user_id") @db.Char(26)
+  trackId     String   @map("track_id")
+  stepId      String   @map("step_id")
+  /// "manual" (Mark done) | "event" (product event auto-completed it).
+  source      String   @default("manual")
+  completedAt DateTime @default(now()) @map("completed_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId, trackId, stepId])
+  @@index([workspaceId, trackId])
+  @@map("academy_progress")
+}
+
+/// One-time credit reward for finishing a track. Unique on
+/// `(workspaceId, trackId)` is what makes the reward exactly-once — a second
+/// completion (e.g. a step re-marked done after `DeleteWord`-style edits) finds
+/// the row already there and grants nothing. The lifetime-100-credits-per-
+/// workspace cap (brief §2) is enforced by summing `tenths` across a
+/// workspace's rows before granting a new one.
+model AcademyReward {
+  id          String   @id @db.Char(26)
+  workspaceId String   @map("workspace_id") @db.Char(26)
+  trackId     String   @map("track_id")
+  /// Credits, tenths (CONTRACTS §0). Capped 25 credits (250 tenths) per track.
+  tenths      Int
+  lotId       String?  @map("lot_id") @db.Char(26)
+  grantedAt   DateTime @default(now()) @map("granted_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, trackId])
+  @@index([workspaceId])
+  @@map("academy_rewards")
+}
+
+/// Per-user dismissed changelog version, backing the "What's new" modal's
+/// once-per-version gating. One row per user (not per workspace): the modal is
+/// about what a *person* has seen, and a person can belong to several
+/// workspaces.
+model ChangelogDismissal {
+  id            String   @id @db.Char(26)
+  userId        String   @unique @map("user_id") @db.Char(26)
+  /// Latest changelog version this user has dismissed (or opened) the modal for.
+  version       String
+  dismissedAt   DateTime @default(now()) @map("dismissed_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("changelog_dismissals")
+}
+
+/// A workspace member's support request, optionally carrying a consent-gated
+/// diagnostics bundle assembled client-side (app version, browser/OS,
+/// workspace id, last 10 job ids/statuses, a console-error ring buffer — never
+/// media). Emailed to `BRAND.supportEmail` via `notify` and listed back to the
+/// requester in Settings → Support; B13's admin console reads the same table.
+model SupportTicket {
+  id          String   @id @db.Char(26)
+  workspaceId String   @map("workspace_id") @db.Char(26)
+  userId      String   @map("user_id") @db.Char(26)
+  subject     String
+  body        String
+  /// Free string, closed set enforced by `CreateSupportTicketSchema` (bug |
+  /// billing | export | account | other).
+  category    String
+  /// open | in_progress | resolved | closed — B13 (admin) transitions it.
+  status      String   @default("open")
+  /// Zod: `SupportDiagnosticsSchema`. Null when the requester declined consent.
+  diagnostics Json?    @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([status])
+  @@map("support_tickets")
 }

@@ -28,7 +28,12 @@ export type {
   AuthenticatedRequest,
   AuthPrincipal,
 } from "./principal.js";
-export { IS_PUBLIC_KEY, Public } from "./public.decorator.js";
+export {
+  ALLOW_BRIDGE_TOKEN_KEY,
+  AllowBridgeToken,
+  IS_PUBLIC_KEY,
+  Public,
+} from "./public.decorator.js";
 export { RATE_LIMIT_KEY, RateLimit, RateLimitGuard } from "./rate-limit.guard.js";
 export type { RateLimitRule, RateLimitSubject } from "./rate-limit.guard.js";
 export {

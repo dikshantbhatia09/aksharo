@@ -84,6 +84,7 @@ const SEGMENT_FIELD = {
 
 const DOC_STYLE_FIELD = "doc:style";
 const DOC_SEGMENTS_FIELD = "doc:segments";
+const PROTECTED_FIELD = "doc:protected";
 const audioField = (key: string) => `doc:audio:${key}`;
 const RENDER_FIELD = "doc:render:presets";
 const itemField = (itemId: string) => `item:${itemId}`;
@@ -171,6 +172,9 @@ export function analyseOpsSince(opsSince: readonly EdgOp[]): Since {
         if (op.presets !== undefined) since.fields.add(RENDER_FIELD);
         break;
       case "InsertWordAfter":
+        break;
+      case "SetProtectedRanges":
+        since.fields.add(PROTECTED_FIELD);
         break;
       case "SetWordTiming":
         since.fields.add(timingField(op.wordId));
@@ -324,6 +328,8 @@ function writtenFields(op: EdgOp): string[] {
       return op.presets === undefined ? [] : [RENDER_FIELD];
     case "SetWordTiming":
       return [timingField(op.wordId)];
+    case "SetProtectedRanges":
+      return [PROTECTED_FIELD];
     default:
       return [];
   }

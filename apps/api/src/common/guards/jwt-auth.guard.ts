@@ -8,7 +8,7 @@ import {
   type AccessTokenVerifier,
   type AuthenticatedRequest,
 } from "./principal.js";
-import { IS_PUBLIC_KEY } from "./public.decorator.js";
+import { ALLOW_BRIDGE_TOKEN_KEY, IS_PUBLIC_KEY } from "./public.decorator.js";
 
 import type { ExecutionContext } from "@nestjs/common";
 
@@ -57,12 +57,34 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     const claims = await this.verifier.verifyAccessToken(token);
+
+    if (claims.kind === "bridge") {
+      // B08b (CONTRACTS §5): a bridge token authenticates a local bridge
+      // process, not a user at a browser or plugin. It never passes this
+      // guard for an ordinary route unless that route opts in with
+      // `@AllowBridgeToken()` — nothing does today (see that decorator's
+      // comment) so this is a flat refusal in practice.
+      const allowBridge = this.reflector.getAllAndOverride<boolean>(ALLOW_BRIDGE_TOKEN_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      if (allowBridge !== true) {
+        throw new AppException(
+          ERROR_CODES.forbidden,
+          "A bridge credential cannot be used here.",
+          HttpStatus.FORBIDDEN,
+        );
+      }
+    }
+
     request.principal = {
       userId: claims.sub,
       workspaceId: claims.ws,
       role: claims.role,
       kind: claims.kind,
       jti: claims.jti,
+      ...(claims.adminRoles !== undefined ? { adminRoles: claims.adminRoles } : {}),
+      ...(claims.deviceId !== undefined ? { deviceId: claims.deviceId } : {}),
     };
     RequestContext.setPrincipal({ userId: claims.sub, workspaceId: claims.ws });
     return true;

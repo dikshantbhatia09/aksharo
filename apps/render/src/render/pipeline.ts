@@ -20,7 +20,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createHarfBuzzShaper } from "@montaj/render-core";
+import { createHarfBuzzShaper, outputCropKeyframesFromTracks } from "@montaj/render-core";
 import { assertWithinCaps, verifyRenderManifest } from "@montaj/render-manifest";
 import type { RenderManifest } from "@montaj/render-manifest";
 import { SkiaNodeBackend } from "@montaj/render-skia-node";
@@ -162,6 +162,10 @@ export async function renderVideo(
     // source rather than a fill on this side.
     // 6. The encode.
     const outputPath = join(scratch, `export.${manifest.output.container}`);
+    // B20: accepted zoom/reframe curves, decoded and remapped onto the output
+    // clock the same way the browser exporter does (`outputCropKeyframesFromTracks`
+    // is the one shared implementation both call).
+    const cropKeyframes = outputCropKeyframesFromTracks(manifest.timemap.keyframes ?? [], timemap);
     const plan = buildFfmpegArgs({
       manifest,
       sourcePath: manifest.output.kind === "alpha" ? null : sourcePath,
@@ -173,6 +177,7 @@ export async function renderVideo(
       outputDurationMs: timemap.outputDurationMs,
       outputPath,
       encoder: dependencies.encoder,
+      ...(cropKeyframes.length === 0 ? {} : { cropKeyframes }),
       ...(dependencies.ffmpegLogLevel === undefined
         ? {}
         : { logLevel: dependencies.ffmpegLogLevel }),

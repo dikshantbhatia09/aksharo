@@ -123,7 +123,7 @@ pnpm --filter @montaj/edg schemas:build
 
 ## Ops
 
-`EdgOpSchema` is the discriminated union of the 17 ops in CONTRACTS §2 — id-addressed, so
+`EdgOpSchema` is the discriminated union of the 18 ops in CONTRACTS §2 — id-addressed, so
 no array index ever crosses the wire. Each op carries a client-minted `opId` (ULID) that
 makes retries idempotent. `OpBatchRequestSchema` / `OpBatchResponseSchema` /
 `OpConflictSchema` are the `POST /projects/{id}/edg/ops` envelopes, and `EdgOpsEventSchema`
@@ -188,6 +188,13 @@ Op semantics worth knowing, because CONTRACTS §2 fixes the shape but not the me
   deleted. Emphasis pushed outside the new range goes with it.
 - **InsertWordAfter** requires an id in the anchor's chunk, past every `n` the chunk has
   used (D28: ids are never reused), timed inside the gap between its neighbours.
+- **SetProtectedRanges** replaces `EdgHot.protected[]` wholesale: every incoming
+  range is clamped to `[0, durationMs]` of the primary media (the longest media
+  when there is no `primary` role), overlapping or touching ranges are merged,
+  empty ranges are dropped, and the result is stored sorted by `s` with
+  `reason: "user"` stamped on every row — the op never accepts a `reason`, since
+  `emphasis`/`override` rows are derived by whoever reads `protected[]`
+  (`passes.service`) and never persisted here.
 - **SetWordTiming** retimes one word; it never recomputes segment bounds — those are the
   segment's own op (`SetSegmentBounds`) — but the new range must still leave
   `validateProjection` happy, so it is `invalid-range` when `s ≥ e`, when it overlaps the
@@ -238,9 +245,15 @@ disappearing. The 409 carries both texts and the client resolves it, exactly as 
 for `EditWord`.
 
 Fields are `text:<script>`, `bounds`, `emphasis:<wordId>`, `position`, `hidden` and `style`
-per segment; `doc:style`, `doc:segments` (`Resegment`), `doc:audio:<key>` and
-`doc:render:presets` per document; `item:<itemId>` and `pass:<passId>`. A `SplitSegment` in
-`opsSince` counts as a write to its parent's `bounds`.
+per segment; `doc:style`, `doc:segments` (`Resegment`), `doc:audio:<key>`,
+`doc:render:presets` and `doc:protected` (`SetProtectedRanges`) per document; `item:<itemId>`
+and `pass:<passId>`. A `SplitSegment` in `opsSince` counts as a write to its parent's
+`bounds`.
+
+`SetProtectedRanges` writes `doc:protected` — a document-level field, so it is untouched by
+rule 1 (`Resegment` survives it, since it names no segment or word) and is subject only to
+rule 5: last write wins, `rebased-away` when a later `SetProtectedRanges` already landed,
+kept otherwise. It replaces the whole set, so there is nothing to narrow.
 
 `SetWordTiming{wordId}` writes `timing:<wordId>` — a word-level field, so it is untouched
 by rule 1 (`Resegment` survives it) and is subject only to rules 2 and 5: `stale` after a

@@ -27,6 +27,7 @@ describe("the kind list", () => {
       "retention-warning",
       "share-comment",
       "streak-nudge",
+      "support-ticket-created",
       "verify-email",
     ]);
   });

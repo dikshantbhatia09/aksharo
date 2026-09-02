@@ -89,6 +89,10 @@ function materialise(specs: readonly OpSpec[]): EdgOp[] {
       mintedWordSeq += 1;
       op["newWordId"] = `0:${String(mintedWordSeq)}`;
     }
+    if (op["type"] === "SetProtectedRanges") {
+      const ranges = op["ranges"] as { s: number; e: number }[];
+      op["ranges"] = ranges.map((range) => ({ id: mint(), ...range }));
+    }
     return op as unknown as EdgOp;
   });
 }
@@ -182,6 +186,10 @@ function anyOp({ segmentIds, wordIds, itemIds }: World): fc.Arbitrary<OpSpec> {
       fc.record({
         type: fc.constant("SetRender" as const),
         presets: fc.array(fc.constantFrom("social", "broadcast"), { maxLength: 2 }),
+      }),
+      fc.record({
+        type: fc.constant("SetProtectedRanges" as const),
+        ranges: fc.array(fc.record({ s: ms, e: ms }), { maxLength: 4 }),
       }),
     )
     .map((generated) => generated as OpSpec);
@@ -403,6 +411,20 @@ describe("the document stays valid", () => {
           expect([...state.segmentOrder].sort()).toEqual([...state.segments.keys()].sort());
           // A tombstoned segment is never live again.
           for (const id of state.tombstones) expect(state.segments.has(id)).toBe(false);
+          // The protected set is always sorted and non-overlapping, every row
+          // is a user range, and every range is non-empty.
+          const protectedRanges = state.hot.protected ?? [];
+          for (const range of protectedRanges) {
+            expect(range.s).toBeLessThan(range.e);
+            expect(range.reason).toBe("user");
+          }
+          for (let i = 1; i < protectedRanges.length; i += 1) {
+            const previous = protectedRanges[i - 1];
+            const current = protectedRanges[i];
+            if (previous === undefined || current === undefined) continue;
+            expect(previous.s).toBeLessThanOrEqual(current.s);
+            expect(previous.e).toBeLessThan(current.s);
+          }
         }
       }),
     );

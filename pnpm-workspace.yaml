@@ -3,4 +3,5 @@ packages:
   - "packages/*"
   - "plugins/*"
   - "engine/*"
+  - "tools/*"
   - "load"

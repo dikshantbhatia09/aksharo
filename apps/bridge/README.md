@@ -2,8 +2,22 @@
 
 The local bridge: a Node single-executable that lets Premiere, After Effects and DaVinci Resolve talk to the platform from the user's machine.
 
-**Status:** placeholder — no code yet. Scaffolded by A01 so the workspace layout
-matches `03-architecture/10-build-plan.md` section 1.
+**Status:** C01 implemented the SEA wrapper (`src/main.ts`), local config
+(`src/config.ts`), and the `scripts/build-sea.mjs` build (esbuild bundle →
+`--experimental-sea-config` → `postject`); all protocol/server/pairing logic
+lives in `@montaj/bridge-core`, which this app only wires up. Smoke tested
+locally on Windows: the built binary starts standalone (no `node_modules`
+beside it), binds a loopback port, generates a per-install cert, and writes a
+valid discovery file. CI runs the same smoke check on Windows and macOS
+(`bridge-sea` job in `.github/workflows/ci.yml`, via
+`scripts/ci/bridge-sea-smoke.mjs`).
+**Not implemented by C01** (see the WP report's open questions): a real
+system tray (this app currently uses `bridge-core`'s console-logging headless
+tray fallback — pairing still works via the 8-character code, but there is no
+tray icon, no native "Approve pairing?" gesture, and no autostart toggle UI);
+signing of the SEA binary (C00's job); the OS-keychain/DPAPI storage this
+README's own "Notes" section below calls for (the current cert/key live on
+disk under `~/.aksharo/cert/`, mode `0600`, not in a keychain).
 **Implemented by:** C01 (bridge v2), C02 (embedded in the desktop app). See `docs/PLAN.md` for scheduling and blockers.
 
 ## Intended stack
