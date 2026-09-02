@@ -37,7 +37,7 @@ describe("PRIMARY_NAV", () => {
 });
 
 describe("SETTINGS_NAV", () => {
-  it("covers the sections of 08 §Settings that A13 owns, plus B04's Subscription section and B08's Licence keys", () => {
+  it("covers the sections of 08 §Settings that A13 owns, plus B04's Subscription section, B08's Licence keys, and B14's Developers", () => {
     expect(SETTINGS_NAV.map((item) => item.key)).toEqual([
       "profile",
       "languages",
@@ -47,6 +47,7 @@ describe("SETTINGS_NAV", () => {
       "notifications",
       "subscription",
       "plugin-keys",
+      "developers",
     ]);
   });
 });

@@ -135,10 +135,7 @@ export function LicenseKeysView(): React.JSX.Element {
         <Card className="flex items-center justify-between gap-4 p-4">
           <div>
             <p className="text-fg-2 text-xs">New licence key — copy it now</p>
-            <p
-              className="text-fg-0 font-mono text-sm tracking-wide"
-              data-testid="just-created-key"
-            >
+            <p className="text-fg-0 font-mono text-sm tracking-wide" data-testid="just-created-key">
               {justCreated}
             </p>
           </div>
