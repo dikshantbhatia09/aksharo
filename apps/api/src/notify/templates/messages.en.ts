@@ -131,6 +131,17 @@ export const EN_MESSAGES: MessageCatalogue = {
       ],
     },
 
+    "support-ticket-created": {
+      subject: "[{category}] {subject}",
+      heading: "New support ticket: {subject}",
+      paragraphs: [
+        "Workspace {workspaceId} filed a {category} ticket: \"{subject}\".",
+        "Diagnostics: {diagnostics}.",
+      ],
+      cta: "Open in admin",
+      footnotes: ["Ticket id {ticketId}."],
+    },
+
     "share-comment": {
       subject: "{count, plural, one {# new comment} other {# new comments}} on {project}",
       heading: "{count, plural, one {# new comment} other {# new comments}}",

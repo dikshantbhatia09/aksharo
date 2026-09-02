@@ -8,6 +8,25 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+### Added
+
+- **B12 — Academy tracks, Help centre, in-app Changelog and What's-new, and
+  support tickets with diagnostics.** Four outcome-based Academy tracks (MDX,
+  `apps/web/content/academy/**`) with step-by-step progress
+  (`academy_progress`), a one-time per-track credit reward
+  (`academy_rewards`, capped 25/track and 100/workspace lifetime, granted via
+  `CreditsFacade.grantLot({ source: "adjust", ... })` — CONTRACTS §4 has no
+  `"academy"` source, flagged as a conflict) and automatic completion on
+  `export.completed`; ten real Help articles (`apps/web/content/help/**`)
+  with a build-time MiniSearch index and a "Contact support" entry; an
+  in-app `/changelog` sourced from MDX plus a per-user "What's new" modal
+  (`changelog_dismissals`); `POST/GET /support/tickets`
+  (`support_tickets`) with an optional consent-gated diagnostics bundle
+  (app version, browser/OS, workspace id, last 10 job statuses, a
+  console-error ring buffer — never media), emailed to `BRAND.supportEmail`
+  via a new `notify` kind (`support-ticket-created`) and listed back in
+  Settings → Support.
+
 ### Fixed
 
 - **B06b — a Free downgrade now switches the streak row to credits-only

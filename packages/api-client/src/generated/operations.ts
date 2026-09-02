@@ -327,6 +327,13 @@ export const API_OPERATIONS = [
     summary: "Save a custom style preset",
   },
   {
+    operationId: "createSupportTicket",
+    method: "POST",
+    path: "/support/tickets",
+    tags: ["support"],
+    summary: "File a support ticket",
+  },
+  {
     operationId: "createTopupCheckout",
     method: "POST",
     path: "/billing/topups/checkout",
@@ -467,6 +474,13 @@ export const API_OPERATIONS = [
     summary: "Discard many dead letters",
   },
   {
+    operationId: "dismissChangelogVersion",
+    method: "POST",
+    path: "/academy/changelog/dismissed",
+    tags: ["academy"],
+    summary: "Mark the What's-new modal seen for a changelog version",
+  },
+  {
     operationId: "exportProjectTranscript",
     method: "GET",
     path: "/projects/{projectId}/transcript/export",
@@ -486,6 +500,13 @@ export const API_OPERATIONS = [
     path: "/admin/firc-records",
     tags: ["admin"],
     summary: "List FIRC records, most recent settlement first.",
+  },
+  {
+    operationId: "getAcademyProgress",
+    method: "GET",
+    path: "/academy/progress",
+    tags: ["academy"],
+    summary: "This workspace's Academy progress",
   },
   {
     operationId: "getAcquisitionMetrics",
@@ -528,6 +549,13 @@ export const API_OPERATIONS = [
     path: "/admin/dlq/stats",
     tags: ["admin"],
     summary: "Per-queue dead-letter counts",
+  },
+  {
+    operationId: "getDismissedChangelogVersion",
+    method: "GET",
+    path: "/academy/changelog/dismissed",
+    tags: ["academy"],
+    summary: "The last changelog version this user dismissed",
   },
   {
     operationId: "getExportDownloadUrl",
@@ -1041,6 +1069,13 @@ export const API_OPERATIONS = [
     summary: "The style catalogue: system styles plus this workspace's presets",
   },
   {
+    operationId: "listSupportTickets",
+    method: "GET",
+    path: "/support/tickets",
+    tags: ["support"],
+    summary: "This workspace's support tickets",
+  },
+  {
     operationId: "listWebhookDeliveries",
     method: "GET",
     path: "/workspaces/{id}/webhooks/{endpointId}/deliveries",
@@ -1074,6 +1109,13 @@ export const API_OPERATIONS = [
     path: "/workspaces",
     tags: ["workspaces"],
     summary: "The workspaces the caller belongs to",
+  },
+  {
+    operationId: "markAcademyStepDone",
+    method: "POST",
+    path: "/academy/tracks/{trackId}/steps/{stepId}/done",
+    tags: ["academy"],
+    summary: "Mark an Academy step done ('Mark done')",
   },
   {
     operationId: "markNotificationRead",

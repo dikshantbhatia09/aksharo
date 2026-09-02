@@ -86,6 +86,15 @@ export type {
 
 export { API_KEY_SCOPES, CONSENT_PURPOSES, WEBHOOK_EVENT_NAMES } from "./types.js";
 export type {
+  AcademyProgressResponse,
+  AcademyTrackProgress,
+  ChangelogDismissedResponse,
+  CreateSupportTicketRequest,
+  ListSupportTicketsResponse,
+  MarkStepDoneResult,
+  SupportCategory,
+  SupportDiagnostics,
+  SupportTicketView,
   AffiliatePayoutMethod,
   AffiliateProfile,
   AffiliateStats,

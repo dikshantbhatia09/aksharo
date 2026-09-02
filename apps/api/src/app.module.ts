@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 
+import { AcademyModule } from "./academy/academy.module.js";
 import { AdminModule } from "./admin/admin.module.js";
 import { AffiliatesModule } from "./affiliates/affiliates.module.js";
 import { AudioModule } from "./audio/audio.module.js";
@@ -32,6 +33,7 @@ import { ReferralsModule } from "./referrals/referrals.module.js";
 import { SchedulerTasksModule } from "./scheduler/scheduler-tasks.module.js";
 import { StreakModule } from "./streak/streak.module.js";
 import { StylesModule } from "./styles/styles.module.js";
+import { SupportModule } from "./support/support.module.js";
 import { TaxModule } from "./tax/tax.module.js";
 import { ScriptsModule } from "./transcripts/scripts/scripts.module.js";
 import { TranscriptsModule } from "./transcripts/transcripts.module.js";
@@ -116,6 +118,13 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     FontsModule,
     ExportsModule,
     ReferralsModule,
+    // B12: Academy tracks/progress/rewards + What's-new (`AcademyModule`), and
+    // support tickets with the consent-gated diagnostics bundle
+    // (`SupportModule`). Both after `ReferralsModule`: the export-completed
+    // event is already wired there and `AcademyModule` listens to the same
+    // event without touching it.
+    AcademyModule,
+    SupportModule,
     HealthModule,
     BillingModule,
     OffersModule,
