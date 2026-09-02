@@ -179,6 +179,20 @@ export function brandAssetKey(workspaceId: string, assetId: string): string {
   return `ws/${checkedId("workspaceId", workspaceId)}/brand/${assetId}.png`;
 }
 
+/**
+ * Support-ticket diagnostics bundle key, in the R2 bucket (C12).
+ *
+ * **Not yet in `docs/CONTRACTS.md` §6** — flagged in C12's final report as a
+ * new key prefix for an ADR: `ws/{workspaceId}/support/{ticketId}/diagnostics.zip`,
+ * parallel to the existing `exports`/`fonts`/`brand` prefixes.
+ */
+export function supportBundleKey(workspaceId: string, ticketId: string): string {
+  return (
+    `ws/${checkedId("workspaceId", workspaceId)}` +
+    `/support/${checkedId("ticketId", ticketId)}/diagnostics.zip`
+  );
+}
+
 /** Is `key` inside this workspace's namespace? Used before every signed URL. */
 export function keyBelongsToWorkspace(key: string, workspaceId: string): boolean {
   return key.startsWith(`ws/${workspaceId}/`);

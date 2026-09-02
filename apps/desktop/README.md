@@ -6,8 +6,10 @@ codebase, instant updates; a packaged offline UI arrives only with local mode,
 C04), with the local bridge embedded in-process, `electron-updater` channels,
 native menus/tray and `aksharo://` deep links.
 
-**Status:** implemented by **C02**. Local engine (C03a/b), local mode (C04)
-and installers/marketplace (C10) are out of scope here.
+**Status:** implemented by **C02**; bridge adapter wiring, pairing approval
+UX, device bootstrap, Electron e2e CI and packaging integration by **C02b**.
+Local engine (C03a/b), local mode (C04) and installers/marketplace (C10) are
+out of scope here.
 
 ## Security configuration
 
@@ -31,7 +33,13 @@ interface AksharoDesktopApi {
   platform: NodeJS.Platform;
   openMediaDialog(): Promise<string[]>;
   engine: { status(): Promise<{ state: "unavailable" }> }; // real status arrives with C03
-  bridge: { pair(pairCode: string): Promise<{ ok: true } | { ok: false; error: string }> };
+  bridge: {
+    pair(pairingId: string): Promise<{ ok: true } | { ok: false; error: string }>;
+    deny(pairingId: string): Promise<{ ok: true } | { ok: false; error: string }>;
+    provideAccessToken(token: string): Promise<{ ok: true }>;
+    onPairingRequested(listener: (pairing: DesktopPendingPairing) => void): () => void;
+    onClientConnected(listener: (client: DesktopClientConnected) => void): () => void;
+  };
   updates: { check(): Promise<{ channel; available; version? }> };
   deepLink: { onOpen(listener: (url: string) => void): () => void };
 }
@@ -66,24 +74,98 @@ no extra config needed on the client side), deterministic staged-rollout gate
 forwarded to the renderer for the restart-prompt UI. Signature verification
 relies on OS code signing done by C00 (not yet landed — see Open questions).
 
-## Embedded bridge
+## Embedded bridge (C02b)
 
-`src/bridge/adapter.ts` defines `BridgeAdapter` (start/stop/approvePairing/
-status) and ships `createStubBridgeAdapter()` because C01 ("Local bridge v2")
-is still `briefed`, not merged. The tray and `bridge.pair` IPC handler are
-wired against this interface; swap in the real `bridge-core`-backed adapter
-when C01 lands (see Open questions in the C02 final report).
+`src/bridge/adapter.ts` defines `BridgeAdapter`
+(start/stop/approvePairing/denyPairing/status/onPairingRequested/
+onClientConnected) and ships two implementations: `createStubBridgeAdapter()`
+(bridge disabled — used until a device credential exists) and
+`createBridgeAdapter()` (the real one, wrapping `@montaj/bridge-core`'s
+`BridgeCore`). `approvePairing(pairingId)` returns `{pairingId, approved:
+true}` only — the real wire `clientId` is never known synchronously (the
+pairing _client_ mints it via its own `pair.confirm` call); the desktop
+learns it later via `onClientConnected`, once `BridgeCore` emits its
+`clientConnected` event.
+
+**Pairing approval UX:** `onPairingRequested` fires the moment a pairing
+request arrives (tray gesture). `main/index.ts` shows a small approval window
+(`src/main/pairing-window.ts` + `pairing-approval.html`/`.ts` +
+`pairing-preload.ts`) with the 8-char code, client name/kind, Approve/Deny
+buttons and a 60s auto-deny timer; the window has its own minimal
+`contextIsolation`/`sandbox` preload (`window.pairingApproval.decide`), never
+reachable from the hosted app's renderer (THREAT-MODEL T25 — no new
+privileges on the main window). The tray's "Approve pairing…" item
+(`src/tray/index.ts`) just re-focuses this window if one is pending
+(`hasPendingPairing()`).
+
+**Device bootstrap** (`src/bridge/device-bootstrap.ts`): on first run,
+registers this install (`POST /devices/register`, B08) and mints a
+`kind:"bridge"` token (`POST /devices/{id}/bridge-token`, B08b) given a user
+access token, caching both (plus a generated per-install fingerprint) in
+`bridge-core`'s OS keystore so a restart doesn't re-register while the lease
+is fresh. Requires the hosted web app (already signed in, running in
+`mainWindow`) to hand its access token down via
+`window.aksharoDesktop.bridge.provideAccessToken(token)` — the web-side call
+site is out of this WP's `apps/desktop/**` boundary (open question). Once a
+credential is minted, `main/index.ts`'s `attachRealBridge` swaps the stub
+adapter for `createBridgeAdapter({relayUrl, deviceToken})` and starts it,
+no restart needed.
 
 ## Tests
 
 - `vitest run` — allowlist, deep-link parsing, updater feed/rollout math, the
-  bridge adapter stub. Pure-logic modules only; main/preload wiring needs a
-  real Electron runtime.
+  bridge adapter (stub + real, including `approvePairing`/`denyPairing`/
+  `onPairingRequested`/`onClientConnected`), device bootstrap. Pure-logic
+  modules only; main/preload/pairing-window wiring needs a real Electron
+  runtime.
 - `pnpm test:e2e` (Playwright-Electron, `e2e/smoke.spec.ts`) — launch, offline
   page renders (forced via `AKSHARO_DESKTOP_TEST_APP_URL`, a test-only escape
   hatch gated on `app.isPackaged === false`), preload API present with no
   `ipcRenderer`/`process` leak into the page. Requires `pnpm build` first and
-  a display (Xvfb on headless Linux CI).
+  a display (Xvfb on headless Linux CI). **C02b:** runs in CI via
+  `.github/workflows/release-desktop.yml`'s `e2e` job on a real mac/win
+  runner matrix (`electron-builder --dir` then this suite); locally it stays
+  a manual step — it fails in this repo's sandboxed dev environment
+  (`Error: Process failed to launch!`, consistent with a Chromium
+  network-service crash under container restrictions), so don't expect it
+  green there.
 - `pnpm pack:dry` — unsigned `electron-builder --dir` build (fuses hook
   included) for a packaging smoke check; real signing/notarisation/channels
-  hosting is C00.
+  hosting is C00. **Fixed by C00b** (was: "in this pnpm workspace this
+  currently fails before producing output — `node_modules/@montaj/{bridge-core,
+config}` are pnpm symlinks whose real path resolves outside `apps/desktop/`,
+  and electron-builder's asar packager refuses a file it can't express as a
+  path relative to the app dir"). See "Packaging" below for the fix.
+
+## Packaging (C00b)
+
+`pnpm build` now bundles `src/main/index.ts`, `src/preload/index.ts` and
+`src/main/pairing-preload.ts` into single CommonJS files under `dist/**`
+with esbuild (`scripts/bundle.mjs`) — every workspace dependency
+(`@montaj/bridge-core`, `@montaj/config`, `electron-updater`, `ws`,
+`selfsigned`, `ulid`, `zod`; all pure JS, no native addons) is inlined; only
+`electron` and Node builtins stay external. `scripts/bundle.mjs` also writes
+a minimal, dependency-free `dist/package.json` (`name`/`version`/`main`
+only).
+
+`electron-builder.yml` points `directories.app` at that `dist/` tree instead
+of the repo-managed `apps/desktop/package.json` (which lists
+`workspace:*` deps that resolve to pnpm symlinks outside this app dir) —
+electron-builder's own package.json/dependency lookup now runs against the
+dependency-free `dist/package.json`, so it never touches a workspace
+symlink and the `<file> must be under <appDir>` asar failure is gone.
+`files: ["**/*"]` is relative to that app dir, so it means "everything in
+`dist/`". `scripts/pack.mjs` wraps the `electron-builder` invocation to pass
+`-c.extraMetadata.version`/`-c.extraMetadata.productName` sourced from this
+package's own `package.json` version and `@montaj/config`'s `BRAND.name`,
+so those values can never drift from `docs/CONTRACTS.md` §0's brand source
+of truth. `pnpm pack:dry` (`pnpm build && node scripts/pack.mjs --dir`)
+verifies this locally and prints the unpacked size of `release/win-unpacked`
+(or `release/mac*/Aksharo.app` on macOS) — C10's size budget is ≤ 150 MB
+(Windows).
+
+`tools/release`'s `build-desktop` consumes this real `release/` output by
+default (`findRealElectronBuilderOutput`) and falls back to the synthesized
+placeholder tree only when no real output exists, or when `--placeholder`
+is passed explicitly (used by the CI `dry-run` job, which never builds
+`apps/desktop`).

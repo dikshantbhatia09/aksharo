@@ -19,7 +19,24 @@ const api: AksharoDesktopApi = {
   },
 
   bridge: {
-    pair: (pairCode: string) => ipcRenderer.invoke("desktop:bridge-pair", pairCode),
+    pair: (pairingId: string) => ipcRenderer.invoke("desktop:bridge-pair", pairingId),
+    deny: (pairingId: string) => ipcRenderer.invoke("desktop:bridge-deny", pairingId),
+    provideAccessToken: (token: string) =>
+      ipcRenderer.invoke("desktop:bridge-provide-access-token", token),
+    onPairingRequested: (listener) => {
+      const channel = "desktop:bridge-pairing-requested";
+      const handler = (_event: Electron.IpcRendererEvent, pairing: unknown) =>
+        listener(pairing as Parameters<typeof listener>[0]);
+      ipcRenderer.on(channel, handler);
+      return () => ipcRenderer.removeListener(channel, handler);
+    },
+    onClientConnected: (listener) => {
+      const channel = "desktop:bridge-client-connected";
+      const handler = (_event: Electron.IpcRendererEvent, client: unknown) =>
+        listener(client as Parameters<typeof listener>[0]);
+      ipcRenderer.on(channel, handler);
+      return () => ipcRenderer.removeListener(channel, handler);
+    },
   },
 
   updates: {
@@ -33,6 +50,14 @@ const api: AksharoDesktopApi = {
       ipcRenderer.on(channel, handler);
       return () => ipcRenderer.removeListener(channel, handler);
     },
+  },
+
+  telemetry: {
+    getConsent: () => ipcRenderer.invoke("desktop:telemetry-get-consent"),
+    setConsent: (granted: boolean) => ipcRenderer.invoke("desktop:telemetry-set-consent", granted),
+    drainQueuedEvents: (limit: number) =>
+      ipcRenderer.invoke("desktop:telemetry-drain-queue", limit),
+    buildDiagnosticsBundle: () => ipcRenderer.invoke("desktop:telemetry-build-diagnostics-bundle"),
   },
 };
 

@@ -34,6 +34,7 @@ export {
   rawKey,
   StorageKeyError,
   subtitleKey,
+  supportBundleKey,
   thumbKey,
 } from "./storage.keys.js";
 export type { DerivedArtefact, FontExtension } from "./storage.keys.js";

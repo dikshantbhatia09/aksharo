@@ -1,31 +1,113 @@
-# DaVinci Resolve script
+# DaVinci Resolve script — Aksharo — works with DaVinci Resolve
 
-`aksharo_core`: an in-app Python script launched from Workspace ▸ Scripts that captions a Resolve timeline with Fusion Text+ nodes.
+> Aksharo is an independent product that works with DaVinci Resolve. It is not
+> made, endorsed, or supported by Blackmagic Design.
 
-**Status:** placeholder — no code yet. Scaffolded by A01 so the workspace layout
-matches `03-architecture/10-build-plan.md` section 1.
-**Implemented by:** C08 (core script), C08b (Text+ macro), C09 (Studio panel), C10 (installer). See `docs/PLAN.md` for scheduling and blockers.
+`aksharo_core.py`: an in-app Python script launched from **Workspace ▸
+Scripts** that captions a Resolve timeline with Fusion Text+ nodes, applies
+accepted autocut/zoom pass items, and keeps host state in marker `customData`
+so re-sync can find what it created.
 
-## Intended stack
+**Implemented by:** C08 (core script, loopback server, bridge client,
+captions, cuts/zooms, marker mapping) and **C08b (this work package — Fusion
+Text+ macro authoring, style→param mapping, style coverage report)**. **Not
+in this WP:** C09 (Studio docked panel), C10 (installer that copies this tree
+into Resolve's `Scripts/Utility` and the macro into Fusion's `Macros`
+folder).
 
-| Piece          | Choice                                                             | Why                                                                                |
-| -------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| Entry point    | in-app Python from **Workspace ▸ Scripts**                         | the only path that reaches **Free** users; external scripting is Studio-only (D22) |
-| Module         | `aksharo_core` (from `PLUGIN_IDS` in `@montaj/config`)             |                                                                                    |
-| Transport      | a loopback server started inside Resolve, talking to `apps/bridge` |                                                                                    |
-| Captions       | a Fusion **Text+** macro with per-word highlight                   |                                                                                    |
-| Timeline state | host ids in marker `customData`                                    | survives user edits                                                                |
-| Studio extra   | a docked Workflow Integration panel over the same core (C09)       |                                                                                    |
+## Layout
 
-## Notes
+| Path                                                | What                                                                                                                                                                                                                                                                                                                                       |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `aksharo_core.py`                                   | Thin bootstrap Resolve `exec`s from Workspace ▸ Scripts. Cannot itself be a package (Python won't let a same-named file and package directory coexist), so it only does `sys.path` setup and delegates to `aksharo_core_app`.                                                                                                              |
+| `aksharo_core_app/`                                 | The real, unit-tested library. Everything here runs headless in CI against `FakeResolveHost`.                                                                                                                                                                                                                                              |
+| `aksharo_core_app/host/resolve.py`                  | The **only** module that imports the real `DaVinciResolveScript`, lazily, at call time. `ResolveHost` is the typed seam; `FakeResolveHost` mirrors the documented object model (ProjectManager → Project → MediaPool → Timeline → TimelineItem, plus a Fusion comp for Text+) so every other module is testable without Resolve installed. |
+| `aksharo_core_app/keyframes.py`                     | Python port of `packages/edg/src/passes/keyframes.ts`'s MKF2 packed keyframe format (round-trip tested against the same fixture bytes as the TS module).                                                                                                                                                                                   |
+| `aksharo_core_app/captions.py`                      | Builds one Text+ clip per EDG transcript segment; unsupported styles (A18a `assRenderable=false`) fall back to importing a rendered alpha overlay.                                                                                                                                                                                         |
+| `aksharo_core_app/cuts.py`                          | Accepted `cut` pass items → `Timeline.DeleteClips(items, ripple=True)`.                                                                                                                                                                                                                                                                    |
+| `aksharo_core_app/zooms.py`                         | Accepted `zoom` pass items → Dynamic Zoom start/end rects, decoded from MKF2 keyframes (approximated to the first/last keyframe — see "Known limitations").                                                                                                                                                                                |
+| `aksharo_core_app/markers.py`                       | The `{aksharo: {projectId, segmentId\|itemId, rev}}` marker `customData` convention and re-sync lookups.                                                                                                                                                                                                                                   |
+| `aksharo_core_app/bridge/`                          | JSON-RPC 2.0 client for the C01 local bridge protocol, plus the B08b device-code bootstrap for this script's own credential.                                                                                                                                                                                                               |
+| `aksharo_core_app/server.py`                        | The in-Resolve loopback server (`host.info`, `timeline.current`, `apply.*`).                                                                                                                                                                                                                                                               |
+| `aksharo_core_app/fusion/macro.py`                  | C08b: generates and parses `AksharoCaption.setting`, a Text+-based Fusion macro with published per-word-highlight inputs (see below).                                                                                                                                                                                                      |
+| `aksharo_core_app/fusion/style_map.py`              | C08b: classifies each of the 30 `@montaj/caption-styles` documents against what that macro can express and generates `docs/RESOLVE-STYLE-COVERAGE.md`.                                                                                                                                                                                     |
+| `aksharo_core_app/fusion/classification_rules.json` | C08b: the explicit, small predicate table `style_map.py` classifies against — **C06b (Premiere MOGRT authoring) mirrors these same rules** for its own style→param mapping, so the two hosts' coverage reports read from one rule set.                                                                                                     |
+| `installer/manifest.json`                           | C08b: lists `aksharo_core_app/fusion/AksharoCaption.setting` and the per-OS Fusion `Macros` folder paths C10's installer copies it into.                                                                                                                                                                                                   |
 
-**Blocked on a human spike:** A00-04 in `docs/PLAN.md` must confirm on Resolve Free
-19.1 or later that a Utility script receives the `resolve` object, that a loopback
-server can run inside Resolve, and that Text+ macro insert works.
+## Fusion Text+ macro (C08b)
 
-## Before writing code here
+`aksharo_core_app/fusion/macro.py` generates
+`aksharo_core_app/fusion/AksharoCaption.setting` deterministically
+(`scripts/generate_macro.py`; checked into the repo, tested against a golden
+fixture in `tests/fixtures/`) — a Text+-based macro with 11 published inputs:
+`Text`, `Font`, `Size`, `Colour`, `StrokeColour`, `StrokeWidth`,
+`ShadowOpacity`, `PositionY`, `HighlightColour`, `HighlightStart`,
+`HighlightEnd` (the last two are keyframed 0→1 ramps expressing per-word
+highlight timing), plus a `StyleId` comment. There is no Resolve/Fusion on
+this build host, so the generator emits — and `parse_macro`/
+`defaults_from_macro` parse back — a small, explicitly-documented text
+subset deliberately close to (but not a byte-for-byte reproduction of)
+Fusion's real `.setting` grammar; real-Fusion verification is
+`docs/GATE-C-CHECKLIST.md` §8.
 
-1. Check `docs/PLAN.md` — this work package may be blocked on a Wave 0 human item.
-2. Read `docs/CONTRACTS.md`; the queue, auth and storage contracts are frozen.
-3. Take brand strings from `@montaj/config` — `montaj` is the engineering
-   codename and must never appear in a user-visible string, id or installer name.
+`aksharo_core_app/captions.py`'s `build_segment_item` uses the macro (via
+`fusion_macro_available()`, which checks whether
+`aksharo_core_app/fusion/AksharoCaption.setting` is present — true in this
+checkout, true once C10's installer has run) instead of the bare Text+ param
+set from C08, adding `fusion_macro`/`highlight_color`/`highlight_keyframes`
+to the params `host.append_text_plus` receives; when the macro file is
+absent it falls back to the original minimal path unchanged.
+
+`aksharo_core_app/fusion/style_map.py` classifies every style in
+`packages/caption-styles/styles/*.json` against what the macro can express
+(font availability in `packages/fonts/pack/fonts.json`, plus the predicate
+table in `classification_rules.json`) and writes
+`docs/RESOLVE-STYLE-COVERAGE.md` (`scripts/generate_style_coverage.py`).
+Every style reaches picture regardless of its classification here — an
+unsupported/approximate style still uses the pre-rendered alpha-overlay
+fallback C08 already built (`CaptionStyle.ass_renderable=False`); this table
+is specifically about "is it a native, re-timeable Text+ clip."
+
+## Running the tests
+
+```
+pnpm --filter @montaj/resolve test   # pytest, via the plugin's own .venv
+pnpm --filter @montaj/resolve lint   # ruff check
+pnpm --filter @montaj/resolve typecheck   # mypy --strict
+```
+
+The venv is created on first use at `plugins/resolve/.venv` (see
+`scripts/py.mjs`, mirroring `apps/worker-ai`'s wrapper).
+
+## Known limitations / open questions for A00-04
+
+DaVinci Resolve is not installed on any machine that has built this package,
+and the human spike **A00-04** (Resolve scripting API coverage on Free vs
+Studio, `docs/PLAN.md`) has not reported. Until it does:
+
+- **Whether a Utility script receives the `resolve` global on Free the same
+  way Studio does** is unconfirmed. `aksharo_core.py` checks for it and prints
+  a clear message instead of guessing.
+- **Whether a loopback HTTP/WS server can run inside the Resolve process** at
+  all (thread/event-loop restrictions) is unconfirmed.
+- **`DynamicZoomEase` is not a literal scripting API method name.** The
+  architecture doc names Resolve's Dynamic Zoom inspector feature that way;
+  the scripting surface only exposes `TimelineItem.SetProperty()` on
+  documented common keys (`Zoom_Start`/`Zoom_End`/`Pan_*`/`Tilt_*`/`Ease` used
+  here are this work package's best-effort guess at the property names Resolve
+  keyframes when Dynamic Zoom is enabled on a clip — **needs verification
+  against a real Resolve install**). A B19 zoom curve's intermediate keyframes
+  are always collapsed to their first/last point, because Resolve's Dynamic
+  Zoom is a two-point ease, not an arbitrary curve.
+- **No scripted "apply transaction" / undo-group API is documented.** Each
+  clip this script deletes or creates is an individually undoable Resolve
+  action, not one grouped undo; `cuts.py`'s `ApplyCutsResult.warning` states
+  this so callers can surface it to the user.
+- **The Text+ param table is minimal** (text, font, size, colour, position)
+  until C08b's macro lands and documents its own parameter names.
+
+## Non-affiliation
+
+Aksharo is an independent product that works with DaVinci Resolve. It is not
+made, endorsed, or supported by Blackmagic Design. This line (and the console
+banner in `aksharo_core_app/console.py`) must ship with every build.

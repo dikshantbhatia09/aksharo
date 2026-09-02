@@ -10,7 +10,10 @@ export interface TrayDeps {
   bridge: BridgeAdapter;
   showWindow: () => void;
   checkForUpdates: () => void;
+  /** Shows (or re-shows) the pairing approval window for the current pending request, if any. */
   approvePairingPrompt: () => void;
+  /** Whether a pairing request is currently awaiting a decision (enables the menu item's label). */
+  hasPendingPairing: () => boolean;
   copyDiagnostics: () => void;
   iconPath?: string;
 }
@@ -31,11 +34,16 @@ export function createTray(deps: TrayDeps): Tray {
           ? `Bridge unavailable${status.error ? `: ${status.error}` : ""}`
           : `Bridge ${status.status}`;
 
+    const pending = deps.hasPendingPairing();
     const menu = Menu.buildFromTemplate([
       { label: statusLabel, enabled: false },
       { type: "separator" },
       { label: "Open Aksharo", click: () => deps.showWindow() },
-      { label: "Approve pairing…", click: () => deps.approvePairingPrompt() },
+      {
+        label: pending ? "Approve pairing…" : "Approve pairing (none pending)",
+        enabled: pending,
+        click: () => deps.approvePairingPrompt(),
+      },
       { label: "Check for updates", click: () => deps.checkForUpdates() },
       { label: "Copy diagnostics", click: () => deps.copyDiagnostics() },
       { type: "separator" },
@@ -46,5 +54,7 @@ export function createTray(deps: TrayDeps): Tray {
 
   rebuild();
   deps.bridge.onStatusChange(rebuild);
+  deps.bridge.onPairingRequested(rebuild);
+  deps.bridge.onClientConnected(rebuild);
   return tray;
 }

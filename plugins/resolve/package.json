@@ -1,0 +1,16 @@
+{
+  "name": "@montaj/resolve",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DaVinci Resolve in-app Python script (thin pnpm/turbo wrapper around the .venv). C08.",
+  "license": "UNLICENSED",
+  "scripts": {
+    "setup": "node scripts/py.mjs --setup-only",
+    "lint": "node scripts/py.mjs -m ruff check .",
+    "format": "node scripts/py.mjs -m ruff format .",
+    "typecheck": "node scripts/py.mjs -m mypy --strict .",
+    "test": "node scripts/py.mjs -m pytest -q",
+    "lock": "node scripts/py.mjs -m piptools compile --extra dev --strip-extras --output-file requirements-dev.lock pyproject.toml",
+    "clean": "node -e \"require('node:fs').rmSync('.venv',{recursive:true,force:true})\""
+  }
+}

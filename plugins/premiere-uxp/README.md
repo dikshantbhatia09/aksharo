@@ -1,34 +1,117 @@
-# Premiere Pro UXP plugin
+# Premiere Pro UXP plugin — Aksharo Panel
 
-The Premiere Pro panel: sign-in through the bridge, transcript injection, MOGRT captions, cuts, zooms and audio.
+**Status:** foundation implemented by C05a: manifest v5, bridge sign-in, sequence/in-out
+reading, audio mixdown request, panel UI, `/plugins/manifest` version banner. **Apply modes
+(C06) landed:** transcript injection, MOGRT captions (+ start-up self-test), alpha overlay, SRT
+to bin, accepted cuts/zooms/audio, one transaction per apply with bridge progress reporting, and
+a host-id-map re-sync op — see "C06 apply modes" below. MOGRT authoring (C06b) and installers/
+Marketplace listing (C10) are separate work packages; until C06b lands, apply modes code
+against the C06 brief's appendix param table.
 
-**Status:** placeholder — no code yet. Scaffolded by A01 so the workspace layout
-matches `03-architecture/10-build-plan.md` section 1.
-**Implemented by:** C05a (foundation), C06 (apply modes), C06b (MOGRT authoring), C10 (packaging). See `docs/PLAN.md` for scheduling and blockers.
+**No Premiere Pro, Adobe UXP Developer Tool, or signed `.ccx` toolchain exist on the build
+host**, and the human spike A00-03 (UXP API feasibility on Premiere 25.6+) has not reported.
+Every UXP/Premiere-specific call is isolated in `src/host/premiere.ts` behind the
+`PremiereHost` interface; `MockPremiereHost` implements it for every test in this package.
+`createRealPremiereHost()` is written and typechecks, but every one of its calls
+(`requestMixdown`, `readFile`, sequence/selection change events, and every C06 apply-mode call
+— `importTranscript`, `insertMogrt`/`setMogrtParams`/`getMogrtParams`, `rippleDelete`,
+`setMotionKeyframes`, `importMediaToBin`/`placeOnTrack`, `replaceAudioRange`, `transaction`,
+`setItemMetadata`/`getItemMetadata`/`listAksharoItems`/`removeItem`) intentionally throws until
+a human runs `docs/GATE-C-CHECKLIST.md` on a real Premiere install — see that file for exactly
+what to verify and where.
 
-## Intended stack
+## C06 apply modes
 
-| Piece       | Choice                                                                  | Why                                                                           |
-| ----------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Runtime     | **UXP**, manifest v5, `minVersion 25.6.0`                               | CEP is being removed from Premiere; ExtendScript support ends Sept 2026 (D19) |
-| UI          | React inside the UXP panel                                              | shares components with the web studio                                         |
-| Plugin id   | `ai.aksharo.panel` (from `PLUGIN_IDS` in `@montaj/config`)              | brand, never the codename                                                     |
-| Packaging   | `.ccx`, direct download plus a Marketplace listing                      |                                                                               |
-| Host bridge | `apps/bridge` over relay, loopback as fallback                          |                                                                               |
-| Captions    | MOGRT insert with a documented parameter order and a start-up self-test |                                                                               |
+`src/apply/**` implements the six apply modes against `PremiereHost` (never Premiere/UXP
+directly):
 
-## Notes
+- **Transcript injection** (`transcript.ts`): EDG segments/words → a Text-Based Editing
+  transcript for the sequence's in/out range; idempotent re-import replaces only the previously
+  Aksharo-tagged transcript.
+- **MOGRT captions** (`mogrtCaptions.ts`): one caption `.mogrt` instance per visible segment on
+  a dedicated track, params resolved by the appendix table (shared with C08b's Text+ macro),
+  plus a start-up self-test (`runMogrtSelfTest`) that inserts a scratch instance and confirms
+  params round-trip before any real apply runs. Per-word highlight is scoped to computing the
+  per-word time windows (`computeWordHighlightWindows`); real keyframing of a MOGRT's own params
+  is a Gate-C follow-up (see the checklist).
+- **Alpha overlay** (`alphaOverlay.ts`) and **SRT to bin** (`srtBin.ts`): import a downloaded
+  render/subtitle file into the project bin (the former also places it on the caption track; the
+  latter never touches a track — native captions-track writing stays out of scope).
+- **Cuts / zooms / audio** (`cutsZoomsAudio.ts`): accepted cuts ripple-delete the sequence,
+  accepted zooms become Motion keyframes from decoded MKF2 rows, and cleaned audio (B10/B10b)
+  replaces the source audio for its range. Only `state: "accepted"` items are ever applied.
+- **Transactions + re-sync** (`runApply.ts`, `resync.ts`): every apply runs inside one
+  `host.transaction`, reporting `apply.begin/step/commit/abort` to the bridge — a thrown step
+  rolls the transaction back (host-level) and reports `abort` (bridge-level) with the reason;
+  `resync` diffs the host-id map (marker-guid `{aksharo:{projectId, segmentId|itemId, rev}}`)
+  against a fetched EDG revision, removing items whose segment is gone and reporting the rest
+  `stale`/`upToDate` without re-applying anything on the caller's behalf.
 
-**Blocked on a human spike:** A00-03 in `docs/PLAN.md` must first confirm on real
-Premiere 26.x that the Transcript JSON schema round-trips, and that MOGRT insert +
-parameters, ripple delete, transform keyframes, audio insert, `executeTransaction`
-and loopback https/wss on macOS all behave. Nothing here is built before that.
+`src/ui/components/ApplyPanel.tsx` is the panel UI: one checkbox + dry-run preview count
+(`planApply`) per mode, a mode disabled with a message when e.g. the MOGRT self-test fails, and
+an Apply button gated on at least one selection.
 
-Host ids are stored in marker GUIDs so re-sync survives a user editing the sequence.
+## Layout
 
-## Before writing code here
+| Path                           | What                                                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `manifest.json`                | UXP manifest v5 (`ai.aksharo.panel`, host `PPRO` min `25.6`)                                                              |
+| `index.html`                   | Panel entry point (UXP `main`)                                                                                            |
+| `src/host/premiere.ts`         | `PremiereHost` interface, `MockPremiereHost`, `createRealPremiereHost`                                                    |
+| `src/bridge/`                  | Typed JSON-RPC caller over `@montaj/bridge-core`'s protocol, plus the `fetch`-based production transport                  |
+| `src/auth/session.ts`          | Sign-in state machine (device-code/tray-gesture pairing, in-memory session only)                                          |
+| `src/upload/mixdown.ts`        | Mixdown → `media.uploadTicket` → presigned PUT → `POST /transcribe`                                                       |
+| `src/apply/`                   | C06 apply modes: transcript, MOGRT captions, alpha overlay, SRT to bin, cuts/zooms/audio, transaction + progress, re-sync |
+| `src/version/manifestCheck.ts` | `/plugins/manifest` min/max-version → update banner logic                                                                 |
+| `src/i18n/strings.ts`          | English/Hindi string table (see "i18n" below)                                                                             |
+| `src/ui/`                      | React panel UI (sign-in, source/transcribe, footer, update banner)                                                        |
+| `scripts/build.mjs`            | esbuild → single IIFE bundle (`dist/panel.js`) — no `eval`, no dynamic import of remote code, per UXP's JS restrictions   |
+| `docs/GATE-C-CHECKLIST.md`     | Manual verification steps for the first real Premiere run                                                                 |
 
-1. Check `docs/PLAN.md` — this work package may be blocked on a Wave 0 human item.
-2. Read `docs/CONTRACTS.md`; the queue, auth and storage contracts are frozen.
-3. Take brand strings from `@montaj/config` — `montaj` is the engineering
-   codename and must never appear in a user-visible string, id or installer name.
+## Sign-in and session storage — a brief/threat-model conflict, resolved
+
+The WP brief (C05a) says "session held in UXP secure storage." `docs/THREAT-MODEL.md` T13 and
+`03-architecture/12-redesign-decisions.md` D25 both say "panels keep tokens in memory only."
+This implementation follows the threat model (frozen doc) and keeps the session in a plain
+in-memory field (`SignInSession`, `src/auth/session.ts`) — never in `uxp.storage.secureStorage`,
+`localStorage`, or on disk. A panel reload signs the user out; that is intentional. Flagged as
+an open conflict in the C05a work-package report rather than silently choosing one side.
+
+## i18n
+
+No shared `packages/i18n` exists in this repo yet (checked before building; B17 — onboarding
+language defaults — has not landed one). `src/i18n/strings.ts` is this package's own small
+`t(key, vars?)` lookup with English/Hindi tables, deliberately shaped like a future shared
+package (flat keys, `{placeholder}` interpolation) so migrating is a rename, not a rewrite.
+
+## Design tokens
+
+This panel does not depend on `@montaj/ui` (Radix + Tailwind + a PostCSS build the UXP
+esbuild-IIFE bundle isn't set up to run). `src/ui/tokens.ts` is a small copy of the values in
+`packages/ui/src/tokens.ts` (dark surfaces, lime accent, Inter) so a screenshot of this panel
+still matches `03-architecture/08-ux-design-system.md` §1/§4.
+
+## Commands
+
+```
+pnpm --filter @montaj/premiere-uxp build
+pnpm --filter @montaj/premiere-uxp test
+pnpm --filter @montaj/premiere-uxp lint
+pnpm --filter @montaj/premiere-uxp typecheck
+pnpm release package-ccx --dry-run
+```
+
+## Naming
+
+Product name (D65): **"Aksharo Panel"**, footer non-affiliation line present
+(`src/ui/components/Footer.tsx`). Plugin id `ai.aksharo.panel` from `@montaj/config`'s
+`PLUGIN_IDS`. The engineering codename never appears in any user-visible string or id.
+
+## Before writing more code here
+
+1. Check `docs/PLAN.md` — apply modes (C06/C06b) and packaging (C10) are separate work
+   packages; this package's `Out of scope` list in the C05a brief is the source of truth.
+2. Read `docs/CONTRACTS.md` and `docs/THREAT-MODEL.md` T11–T14 before touching sign-in,
+   the bridge client, or session storage.
+3. Take brand strings from `@montaj/config` — `montaj` is the engineering codename and must
+   never appear in a user-visible string, id, or installer name.
