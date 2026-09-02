@@ -20,6 +20,10 @@ export const queryKeys = {
   deviceApproval: (userCode: string) => ["auth", "device", userCode] as const,
   jobs: (workspaceId: string) => ["ws", workspaceId, "jobs"] as const,
   job: (workspaceId: string, jobId: string) => ["ws", workspaceId, "jobs", jobId] as const,
+  subscription: (workspaceId: string) => ["ws", workspaceId, "subscription"] as const,
+  credits: (workspaceId: string) => ["ws", workspaceId, "credits"] as const,
+  offersEligibility: (workspaceId: string) => ["ws", workspaceId, "offers", "eligibility"] as const,
+  offersPasses: (workspaceId: string) => ["ws", workspaceId, "offers", "passes"] as const,
   /**
    * Jobs for one project (a card's progress poll). Nested *under* `jobs()`
    * (`["ws", id, "jobs", "byProject", projectId]`), not under `projects()`, on

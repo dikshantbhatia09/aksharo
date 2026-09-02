@@ -121,6 +121,12 @@ export const SETTINGS_NAV: readonly SettingsSection[] = [
     href: "/settings/notifications",
     description: "What we email you about.",
   },
+  {
+    key: "subscription",
+    label: "Subscription",
+    href: "/settings/subscription",
+    description: "Your plan, passes and top-ups.",
+  },
 ];
 
 /** True when `pathname` is inside `href`. `/` only matches itself. */
