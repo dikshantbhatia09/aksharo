@@ -10,6 +10,47 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **C01 — Local bridge v2: `packages/bridge-core` + `apps/bridge` (Node SEA);
+  relay-first WSS; loopback HTTPS + per-install cert; pairing; api
+  `bridge-relay` module.** `packages/bridge-core`: a JSON-RPC 2.0 protocol
+  (`hello`, `pair.request`/`pair.confirm`, `session.exchange`, `host.list`,
+  `engine.status`, `fs.pickMedia`, `media.stat`/`uploadTicket`,
+  `transcript.push`, `apply.begin/step/commit/abort`, `events.subscribe`) with
+  zod schemas for every method; a loopback HTTPS+WS server on the first free
+  port of 47831-47833 bound to `127.0.0.1` with bearer-on-every-route
+  (constant-time compare), `Host` allowlist, `Origin` allowlist (`null` never
+  allowed, Chrome Local Network Access header only for allowlisted origins),
+  message-size and rate limits; a per-install self-signed leaf certificate
+  (RSA 2048 — see the ECDSA P-256 deviation note in `cert.ts`) cached under
+  `~/.aksharo/cert/` and fingerprinted into the `~/.aksharo/bridge.json`
+  discovery file (mode 0600); tray-gesture pairing with an 8-character
+  code fallback and 12-hour HMAC-signed scoped pair tokens, revocable by
+  `clientId`; a relay client (`RelayClient`) with heartbeat and jittered
+  exponential-backoff reconnection; a small documented public API
+  (`BridgeCore`: `start`/`stop`/`getStatus`/`status` events/pairing) that is
+  the only surface `apps/bridge` and the desktop shell (C02) import. 45 tests,
+  85.7%/82.2% line/branch coverage (threshold 75/70). `apps/bridge`: the Node
+  22 SEA wrapper (`main.ts` + `config.ts` for `~/.aksharo/config.json`);
+  `scripts/build-sea.mjs` bundles with esbuild, runs
+  `--experimental-sea-config`, and injects the blob with `postject`; smoke
+  tested locally on Windows (binary starts, binds a loopback port, writes a
+  valid discovery file, exits clean) and wired into CI as the `bridge-sea`
+  matrix job (Windows + macOS) via `scripts/ci/bridge-sea-smoke.mjs`. A real
+  system tray (brief §5) is not implemented — `createConsoleTray` is the
+  documented headless fallback; see the WP report for why and what a
+  follow-up needs. `apps/api/src/bridge-relay`: the `/bridge/relay` WS module
+  pairing one bridge connection to one client connection per workspace and
+  forwarding opaque JSON-RPC text between them (payloads are never parsed or
+  stored), with bearer/rate-limit/message-size guards, heartbeat, and a
+  `bridge_sessions` audit table (new Prisma model + migration
+  `20260902195854_c01_bridge_sessions`); e2e-tested against real Postgres with
+  a fake bridge and fake client. Deviation: the brief assumes a per-device
+  bridge token: CONTRACTS §5's `sub` claim is always the user id and B08
+  registers devices by fingerprint under a normal user session rather than
+  minting one token per device, so relay pairing is keyed by
+  workspace+user (one paired bridge per signed-in user per workspace) until a
+  follow-up work package adds a real per-device bridge credential — see the
+  WP report's open questions.
 - **C00 — Signing & release pipeline (dry-run only; credentials do not exist yet).**
   New `tools/release` package (`@montaj/release`) exposing `pnpm release <cmd>`:
   `version` (conventional-commit semver bump + `CHANGELOG.md` section assembly),
