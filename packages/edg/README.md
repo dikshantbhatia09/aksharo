@@ -348,6 +348,26 @@ through an injected `readRef`) to rows, for a render path that does not care whi
 form a given item used. `fitsInline`/`INLINE_LIMIT_BYTES` mirror the 64 KiB
 inline-vs-derived-storage rule from the 2026-09-02 orchestrator addendum.
 
+### `src/passes/keyframes.ts`: B20's consumption interface
+
+B20 (proposal UI + export application) codes against a second, narrower interface:
+`encodeKeyframes`/`decodeKeyframes` over a `Keyframe = { tMs, zoom, cx, cy, ease:
+"linear"|"inOut" }`, packed as its own little-endian `MKF2` format (20-byte rows —
+the same four floats as above, `scale` renamed `zoom`, plus a per-row `ease` this
+work package's pass items only carry once per item). It is a distinct on-disk
+format from `MKF1` above; see that file's module docstring for why the two are not
+yet unified, flagged as an open question in the final report.
+
+```ts
+import { decodeKeyframes, encodeKeyframes } from "@montaj/edg";
+
+const bytes = encodeKeyframes([
+  { tMs: 0, zoom: 1.0, cx: 0.5, cy: 0.42, ease: "linear" },
+  { tMs: 180, zoom: 1.2, cx: 0.5, cy: 0.42, ease: "inOut" },
+]);
+const frames = decodeKeyframes(bytes); // sorted by tMs, round-trips exactly
+```
+
 ## Fixtures
 
 | File                               | What it is                                                                                                          |

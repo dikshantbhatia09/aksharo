@@ -164,7 +164,12 @@ config`'s existing `reframeZoomPass` burn rate (flash tier — the brief's
   worker still runs correctly on emphasis-only zoom cues with a saliency
   fallback, while reframe fails non-retryably (`worker/invalid_payload`)
   until that producer-side gap closes. See `apps/worker-ai/worker_ai/
-passes/README.md` for models used, presets and the full gap list.
+passes/README.md` for models used, presets and the full gap list. Also
+  added `packages/edg/src/passes/keyframes.ts` — `encodeKeyframes`/
+  `decodeKeyframes` over B20's own `Keyframe = {tMs, zoom, cx, cy, ease}`
+  shape (a second, `MKF2` on-disk format, distinct from the `MKF1` one
+  above; reconciling the two is flagged as an open question) — so B20 can
+  code against this exact name/shape ahead of B19 landing.
 
 - **B10 — Audio clean: denoise, loudness normalise, A/B preview, applied to
   browser and cloud exports.** Worker (`apps/worker-ai/worker_ai/clean/**`):
