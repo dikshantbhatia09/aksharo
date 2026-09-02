@@ -359,12 +359,43 @@ export const FEATURE_FLAG_SEEDS: readonly FeatureFlagSeed[] = [
 // System caption styles
 // ---------------------------------------------------------------------------
 
+/** One style's row in `packages/caption-styles/parity/results.json` (A18a, D33). */
+export interface StyleParitySeed {
+  readonly assRenderable: boolean;
+  readonly assExportable: boolean;
+  readonly requiresLayoutMetrics: boolean;
+  readonly parityScore?: number;
+}
+
 export interface StyleSeed {
   readonly key: string;
   readonly name: string;
   readonly category: string;
   readonly minPlan: PlanKeyName;
   readonly doc: Prisma.InputJsonValue;
+  /** Present only when `parity/results.json` has a measured row for this style. */
+  readonly parity?: StyleParitySeed;
+}
+
+/**
+ * Pulls the parity fields off an already-loaded style document. `doc` is the
+ * `StyleDoc` JSON itself — `assRenderable`/`assExportable`/
+ * `requiresLayoutMetrics`/`parityScore` are fields *on it* (schema.ts),
+ * written only by `pnpm --filter @montaj/ass-exporter parity`'s
+ * `apply-flags.ts`, never by hand (D33). A checkout where the gate has never
+ * run has every style at the schema's own pre-gate defaults (`false`/
+ * `false`/`true`/`undefined`), which round-trips through here unchanged.
+ */
+export function parityOf(doc: Record<string, unknown>): StyleParitySeed | undefined {
+  if (typeof doc["assRenderable"] !== "boolean" || typeof doc["assExportable"] !== "boolean") {
+    return undefined;
+  }
+  return {
+    assRenderable: doc["assRenderable"],
+    assExportable: doc["assExportable"],
+    requiresLayoutMetrics: doc["requiresLayoutMetrics"] === true,
+    ...(typeof doc["parityScore"] === "number" ? { parityScore: doc["parityScore"] } : {}),
+  };
 }
 
 /** Where the fixtures came from, so the seed can say so out loud. */
@@ -540,13 +571,16 @@ function normalise(raw: Record<string, unknown>, fallbackKey: string): StyleSeed
         : fallbackKey;
   if (key === "") return undefined;
   const minPlan = PLAN_LADDER.find((candidate) => candidate === raw["minPlan"]) ?? "free";
+  // A style file may be the StyleDoc itself or wrap it under `doc`.
+  const docSource = (raw["doc"] ?? raw) as Record<string, unknown>;
+  const parity = parityOf(docSource);
   return {
     key,
     name: typeof raw["name"] === "string" ? raw["name"] : key,
     category: typeof raw["category"] === "string" ? raw["category"] : "general",
     minPlan,
-    // A style file may be the StyleDoc itself or wrap it under `doc`.
-    doc: (raw["doc"] ?? raw) as Prisma.InputJsonValue satisfies Prisma.InputJsonValue,
+    doc: docSource as Prisma.InputJsonValue satisfies Prisma.InputJsonValue,
+    ...(parity === undefined ? {} : { parity }),
   };
 }
 

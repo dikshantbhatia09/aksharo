@@ -9,9 +9,12 @@
  * What it creates:
  *   * the five plans of 04 §Plans, with INR/USD prices, monthly credit grants and
  *     the entitlements JSON (operation gating derived from `@montaj/config`);
- *   * the system caption styles, with the parity flags left at their pessimistic
- *     defaults (assRenderable false, assExportable false, requiresLayoutMetrics
- *     true) because only the A18a parity gate may write them (D33);
+ *   * the system caption styles, with the parity flags read back from each
+ *     style document's own `assRenderable`/`assExportable`/
+ *     `requiresLayoutMetrics`/`parityScore` fields — the schema's pessimistic
+ *     pre-gate defaults until `pnpm --filter @montaj/ass-exporter parity` has
+ *     run, the gate's real measured answer afterwards; the seed only ever
+ *     reads them, never writes them by hand (D33);
  *   * four feature flags, all off;
  *   * one admin user and a demo personal workspace with an owner membership, a
  *     credit account holding the free monthly grant as a lot plus its ledger row,
@@ -19,7 +22,8 @@
  *
  * Run with: pnpm --filter @montaj/api db:seed
  */
-import { resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 
@@ -48,6 +52,19 @@ const ADMIN_EMAIL = `admin@${BRAND.domain}`;
 const DEMO_SLUG = "demo";
 /** Maharashtra. A validated GST State code is mandatory for Indian workspaces (D41). */
 const DEMO_STATE_CODE = "27";
+
+/**
+ * The style's static preview filename, if `previews:build` (A16/A14) has
+ * actually rendered one at `packages/caption-styles/previews/<key>.png` — or
+ * `null`. A checkout that has not run the render is not a broken seed, just one
+ * whose catalogue has no thumbnails yet; the web app falls back to a generic
+ * swatch (`GET /styles` §previewKey).
+ */
+function previewFileFor(repoRoot: string, key: string): string | null {
+  const file = `${key}.png`;
+  const path = join(repoRoot, "packages", "caption-styles", "previews", file);
+  return existsSync(path) ? file : null;
+}
 
 /** One month from `from`, used for the free plan's grant window. */
 function addMonth(from: Date): Date {
@@ -83,7 +100,8 @@ export async function seed(prisma: PrismaClient): Promise<SeedResult> {
   }
 
   // --- System caption styles ---------------------------------------------
-  const { source: styleSource, styles } = loadSystemStyles(resolve(__dirname, "..", "..", ".."));
+  const repoRoot = resolve(__dirname, "..", "..", "..");
+  const { source: styleSource, styles } = loadSystemStyles(repoRoot);
   for (const style of styles) {
     // System styles have `workspaceId = null`, and PostgreSQL treats every NULL as
     // distinct — so `@@unique([workspaceId, key])` does not constrain them and
@@ -100,8 +118,19 @@ export async function seed(prisma: PrismaClient): Promise<SeedResult> {
       category: style.category,
       doc: style.doc,
       minPlan: style.minPlan,
+      // `null` unless `packages/caption-styles/previews/<key>.png` has actually
+      // been rendered (`previews:build`, A14): a `previewKey` pointing at a file
+      // that does not exist would just be a broken `<img>` in the web app.
+      previewKey: previewFileFor(repoRoot, style.key),
       // assRenderable / assExportable / requiresLayoutMetrics / parityScore are
-      // deliberately NOT written here: the A18a parity gate owns them (D33).
+      // never hand-written here: the A18a parity gate owns them (D33). What the
+      // seed does is *read* the gate's own answer back off the style document
+      // (`style.parity`, from `packages/caption-styles/styles/*.json`'s own
+      // flag fields) into the `style_presets` columns the admin console and the
+      // export decision engine query directly, so a checkout where the gate has
+      // run seeds the real numbers and a checkout where it has not seeds the
+      // schema's own pre-gate defaults — never anything hand-picked.
+      ...(style.parity === undefined ? {} : style.parity),
     };
 
     if (existing === null) {

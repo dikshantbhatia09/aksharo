@@ -332,17 +332,23 @@ function OffersLadder({ currency }: { readonly currency: "INR" | "USD" }): React
       { kind },
       {
         onSuccess: async (response) => {
-          const opened = await openRazorpayCheckout({
-            key: response.keyId,
-            amount: response.amountMinor,
-            currency: response.currency,
-            name: "Aksharo",
-            order_id: response.providerOrderId,
-          });
-          toast[opened ? "success" : "error"](
-            opened ? "Payment window opened" : "Could not open the payment window",
-            { description: "Credits appear on your account as soon as payment completes." },
-          );
+          try {
+            const outcome = await openRazorpayCheckout({
+              key: response.keyId,
+              amount: response.amountMinor,
+              currency: response.currency,
+              name: "Aksharo",
+              order_id: response.providerOrderId,
+            });
+            toast[outcome.status === "success" ? "success" : "error"](
+              outcome.status === "success" ? "Payment window opened" : "Payment window closed",
+              { description: "Credits appear on your account as soon as payment completes." },
+            );
+          } catch (error) {
+            toast.error("Could not open the payment window", {
+              description: messageForError(error),
+            });
+          }
         },
         onError: (error) => {
           toast.error("Could not start that purchase", { description: messageForError(error) });
@@ -356,17 +362,23 @@ function OffersLadder({ currency }: { readonly currency: "INR" | "USD" }): React
       { credits },
       {
         onSuccess: async (response) => {
-          const opened = await openRazorpayCheckout({
-            key: response.keyId,
-            amount: response.amountMinor,
-            currency: response.currency,
-            name: "Aksharo",
-            order_id: response.providerOrderId,
-          });
-          toast[opened ? "success" : "error"](
-            opened ? "Payment window opened" : "Could not open the payment window",
-            { description: "Credits appear on your account as soon as payment completes." },
-          );
+          try {
+            const outcome = await openRazorpayCheckout({
+              key: response.keyId,
+              amount: response.amountMinor,
+              currency: response.currency,
+              name: "Aksharo",
+              order_id: response.providerOrderId,
+            });
+            toast[outcome.status === "success" ? "success" : "error"](
+              outcome.status === "success" ? "Payment window opened" : "Payment window closed",
+              { description: "Credits appear on your account as soon as payment completes." },
+            );
+          } catch (error) {
+            toast.error("Could not open the payment window", {
+              description: messageForError(error),
+            });
+          }
         },
         onError: (error) => {
           toast.error("Could not start that purchase", { description: messageForError(error) });

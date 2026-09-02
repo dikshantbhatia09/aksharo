@@ -32,6 +32,7 @@ describe("StyleDoc v2", () => {
     delete withoutFlags["assRenderable"];
     delete withoutFlags["assExportable"];
     delete withoutFlags["requiresLayoutMetrics"];
+    delete withoutFlags["parityScore"];
     const style = StyleDocSchema.parse(withoutFlags);
     expect(style.assRenderable).toBe(false);
     expect(style.assExportable).toBe(false);

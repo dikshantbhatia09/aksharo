@@ -94,12 +94,12 @@ async function deliverWebhook(
   expect(response.ok(), await response.text()).toBe(true);
 }
 
-/** Sign up, confirm, sign in, skip onboarding, land in the shell. */
+/** Sign up, confirm, sign in, skip onboarding, land on Home ("/", A14 — onboarding's own skip/finish both `router.replace("/")`). */
 async function signInFreshAccount(page: Page, label: string): Promise<void> {
   await signUpAndVerify(page, label);
   await expect(page.getByTestId("onboarding")).toBeVisible();
   await page.getByTestId("onboarding-skip").click();
-  await page.waitForURL(/\/studio/);
+  await page.waitForURL((url) => url.pathname === "/");
 }
 
 test("Free -> Creator monthly INR via UPI Autopay: tax profile, method, webhook, entitlement refresh", async ({

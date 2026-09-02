@@ -5,6 +5,8 @@ import { AdminCreditsController } from "./credits/admin-credits.controller.js";
 import { AdminDlqController } from "./dlq/dlq.controller.js";
 import { AdminParentalWaitlistController } from "./parental-waitlist.controller.js";
 import { JobsModule } from "../jobs/jobs.module.js";
+import { AdminOffersController } from "../offers/admin-offers.controller.js";
+import { OffersModule } from "../offers/offers.module.js";
 import { PrivacyModule } from "../privacy/privacy.module.js";
 
 /**
@@ -24,11 +26,18 @@ import { PrivacyModule } from "../privacy/privacy.module.js";
  * `PrismaService` from the global `PrismaModule`. `AdminCreditsController`
  * (B02) needs no import of its own: `CreditsModule` is `@Global()`, exactly
  * like `JwtAuthGuard`'s module, so `CreditOrphanedHoldsService` and
- * `CreditReconcileService` are already reachable here.
+ * `CreditReconcileService` are already reachable here. `OffersModule` (B04)
+ * is imported for `AdminOffersController` (`GET /admin/metrics/offers`, the
+ * ₹9-hypothesis instrumentation), which is not `@Global()`.
  */
 @Module({
-  imports: [JobsModule, PrivacyModule],
-  controllers: [AdminDlqController, AdminParentalWaitlistController, AdminCreditsController],
+  imports: [JobsModule, PrivacyModule, OffersModule],
+  controllers: [
+    AdminDlqController,
+    AdminParentalWaitlistController,
+    AdminCreditsController,
+    AdminOffersController,
+  ],
   providers: [AdminGuard],
   exports: [AdminGuard],
 })

@@ -13,7 +13,10 @@
     "lineHeight": 1.18,
     "letterSpacingEm": -0.005,
     "textTransform": "none",
-    "scriptScale": { "deva": 0.72, "taml": 0.43 }
+    "scriptScale": {
+      "deva": 0.72,
+      "taml": 0.43
+    }
   },
   "colors": {
     "text": "#ffffff66",
@@ -79,7 +82,8 @@
     }
   ],
   "assRenderable": false,
-  "assExportable": false,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/karaoke-fill.mp4"
+  "previewKey": "system/style-previews/karaoke-fill.mp4",
+  "parityScore": 0.8482
 }

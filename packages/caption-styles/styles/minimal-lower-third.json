@@ -13,7 +13,10 @@
     "lineHeight": 1.35,
     "letterSpacingEm": 0.01,
     "textTransform": "none",
-    "scriptScale": { "deva": 0.93, "taml": 0.57 }
+    "scriptScale": {
+      "deva": 0.93,
+      "taml": 0.57
+    }
   },
   "colors": {
     "text": "#f7f8fa",
@@ -72,7 +75,8 @@
     }
   ],
   "assRenderable": false,
-  "assExportable": false,
-  "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/minimal-lower-third.mp4"
+  "assExportable": true,
+  "requiresLayoutMetrics": false,
+  "previewKey": "system/style-previews/minimal-lower-third.mp4",
+  "parityScore": 0.9256
 }

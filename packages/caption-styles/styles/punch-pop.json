@@ -13,7 +13,10 @@
     "lineHeight": 1.1,
     "letterSpacingEm": -0.01,
     "textTransform": "uppercase",
-    "scriptScale": { "deva": 0.82, "taml": 0.44 }
+    "scriptScale": {
+      "deva": 0.82,
+      "taml": 0.44
+    }
   },
   "colors": {
     "text": "#ffffff",
@@ -89,8 +92,9 @@
       "effect": "highlight"
     }
   ],
-  "assRenderable": false,
-  "assExportable": false,
+  "assRenderable": true,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/punch-pop.mp4"
+  "previewKey": "system/style-previews/punch-pop.mp4",
+  "parityScore": 0.943
 }

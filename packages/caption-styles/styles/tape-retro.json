@@ -13,7 +13,10 @@
     "lineHeight": 1.26,
     "letterSpacingEm": 0.04,
     "textTransform": "uppercase",
-    "scriptScale": { "deva": 0.83, "taml": 0.51 }
+    "scriptScale": {
+      "deva": 0.83,
+      "taml": 0.51
+    }
   },
   "colors": {
     "text": "#f7e7c6",
@@ -73,7 +76,8 @@
     }
   ],
   "assRenderable": false,
-  "assExportable": false,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/tape-retro.mp4"
+  "previewKey": "system/style-previews/tape-retro.mp4",
+  "parityScore": 0.9211
 }

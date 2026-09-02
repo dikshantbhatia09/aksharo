@@ -118,8 +118,11 @@ export function CheckoutSheet({
   }, [state.step]);
 
   // Open the real Razorpay Checkout.js widget once the checkout payload
-  // arrives. Best-effort: `openRazorpayCheckout` never throws, and a failed
-  // load leaves the sheet on the polling path (see razorpay.ts's header).
+  // arrives. `openRazorpayCheckout` now resolves the widget's outcome
+  // (success/dismissed) or rejects if it could not even open — either way
+  // the webhook-driven poll above (`useSubscriptionStatusPolling`) is the
+  // real source of truth, so a rejection here only shows a note rather than
+  // dead-ending the sheet.
   const openedForSubscriptionId = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (state.step !== "gateway" || state.response === null) return;
@@ -127,42 +130,39 @@ export function CheckoutSheet({
     openedForSubscriptionId.current = state.response.subscriptionId;
     const response = state.response;
     let cancelled = false;
-    // Wrapped in `Promise.resolve` rather than called bare: a mocked or
-    // otherwise misbehaving implementation returning a non-promise must not
-    // crash the effect the way a bare `.then()` on it would.
-    void Promise.resolve(
-      openRazorpayCheckout({
-        key: response.keyId,
-        amount: response.amountMinor,
-        currency: response.currency,
-        name: "Aksharo",
-        ...(response.providerOrderId === undefined ? {} : { order_id: response.providerOrderId }),
-        ...(response.providerSubscriptionId === undefined
-          ? {}
-          : { subscription_id: response.providerSubscriptionId }),
-        ...(response.prefill === undefined ? {} : { prefill: response.prefill }),
-        ...(response.notes === undefined ? {} : { notes: response.notes }),
-        theme: { color: "#D8FF3D" },
-        handler: () => {
+
+    openRazorpayCheckout({
+      key: response.keyId,
+      amount: response.amountMinor,
+      currency: response.currency,
+      name: "Aksharo",
+      ...(response.providerOrderId === undefined ? {} : { order_id: response.providerOrderId }),
+      ...(response.providerSubscriptionId === undefined
+        ? {}
+        : { subscription_id: response.providerSubscriptionId }),
+      ...(response.prefill === undefined ? {} : { prefill: response.prefill }),
+      ...(response.notes === undefined ? {} : { notes: response.notes }),
+      theme: { color: "#D8FF3D" },
+    })
+      .then((outcome) => {
+        if (cancelled) return;
+        dispatch({ type: "GATEWAY_OPENED" });
+        if (outcome.status === "success") {
           void polling.refetch();
-        },
-        modal: {
-          ondismiss: () => {
-            setGatewayNote(
-              "The payment window was closed. If you completed payment, this updates automatically once we hear from Razorpay.",
-            );
-          },
-        },
-      }),
-    ).then((opened) => {
-      if (cancelled) return;
-      dispatch({ type: opened === true ? "GATEWAY_OPENED" : "GATEWAY_FAILED_TO_OPEN" });
-      if (opened !== true) {
+        } else {
+          setGatewayNote(
+            "The payment window was closed. If you completed payment, this updates automatically once we hear from Razorpay.",
+          );
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        dispatch({ type: "GATEWAY_FAILED_TO_OPEN" });
         setGatewayNote(
           "The payment window could not open. This can happen on a restricted network — we'll still update automatically once payment completes.",
         );
-      }
-    });
+      });
+
     return () => {
       cancelled = true;
     };

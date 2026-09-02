@@ -445,6 +445,50 @@ describe("MediaService.urls", () => {
   });
 });
 
+describe("attachSample (A14, 08 §Home 'Try with a sample')", () => {
+  it("puts the bundled clip straight to the raw store, no multipart upload", async () => {
+    const harness = makeService();
+    const project = projectRow();
+    const result = await harness.service.attachSample(WORKSPACE, project);
+
+    expect(harness.raw.put).toHaveBeenCalledTimes(1);
+    const putArg = callArg(harness.raw.put, 0, 0) as {
+      key: string;
+      body: Buffer;
+      contentType: string;
+    };
+    expect(putArg.key).toContain(`ws/${WORKSPACE}/p/${PROJECT}/media/`);
+    expect(putArg.key.endsWith(".wav")).toBe(true);
+    expect(putArg.contentType).toBe("audio/wav");
+    expect(putArg.body.length).toBeGreaterThan(0);
+    // No multipart upload is ever opened for a server-written sample.
+    expect(harness.raw.createMultipartUpload).not.toHaveBeenCalled();
+
+    expect(result.media.status).toBe("uploaded");
+    expect(result.media.filename).toBe("welcome.wav");
+    expect(result.probeJobId).toBe(`job-${MEDIA_JOB_KEYS.probe(result.media.id)}`);
+  });
+
+  it("pushes the project's retention out and marks it active, like any upload", async () => {
+    const harness = makeService();
+    await harness.service.attachSample(WORKSPACE, projectRow());
+
+    const projectUpdate = callArg(harness.prisma.project.update, 0, 0) as {
+      data: { status?: string; retentionUntil?: Date };
+    };
+    expect(projectUpdate.data.status).toBe("active");
+    expect(projectUpdate.data.retentionUntil).toBeInstanceOf(Date);
+  });
+
+  it("enqueues media.probe with the same job key an upload would use", async () => {
+    const harness = makeService();
+    const result = await harness.service.attachSample(WORKSPACE, projectRow());
+    const enqueueArg = callArg(harness.jobs.enqueue, 0, 0) as { jobKey: string; type: string };
+    expect(enqueueArg.type).toBe("media.probe");
+    expect(enqueueArg.jobKey).toBe(MEDIA_JOB_KEYS.probe(result.media.id));
+  });
+});
+
 describe("toMediaView", () => {
   it("renders bigints as numbers and dates as ISO-8601", () => {
     const view = toMediaView(

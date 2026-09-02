@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 
-import { useEntitlement, useUsage } from "@montaj/api-client";
+import { useEntitlement, useWorkspaceCredits } from "@montaj/api-client";
 import { BRAND } from "@montaj/config";
 import {
   Badge,
@@ -34,7 +34,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
   const pathname = usePathname();
   const config = useRuntimeConfig();
   const entitlement = useEntitlement();
-  const usage = useUsage();
+  const credits = useWorkspaceCredits();
   const included = entitlement.data?.creditsPerMonthTenths ?? 0;
 
   return (
@@ -110,20 +110,15 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
         <div className="px-2">
           {/*
             The entitlement carries the plan's monthly **allowance** (A05); the
-            balance, the burn rate and the reset date come from the credit
-            ledger, which is B02's. Until that lands the meter shows the
-            allowance as both numbers rather than inventing a balance.
+            live balance and lots come from B02's real credit ledger
+            (`GET /workspaces/{id}/credits`). Burn rate and streak are not
+            computed by that endpoint yet, so the tooltip/streak badge stay
+            off rather than inventing numbers.
           */}
           <CreditMeter
-            remainingTenths={usage.data?.creditsRemainingTenths ?? included}
-            includedTenths={included}
-            {...(usage.data?.resetsAt == null ? {} : { resetsAt: usage.data.resetsAt })}
-            {...(usage.data === null || usage.data === undefined
-              ? {}
-              : {
-                  burnRateTenthsPerDay: usage.data.burnRateTenthsPerDay,
-                  streakDays: usage.data.streakDays,
-                })}
+            remainingTenths={credits.data?.balanceTenths ?? included}
+            includedTenths={credits.data?.monthlyGrantTenths ?? included}
+            {...(credits.data?.grantResetAt == null ? {} : { resetsAt: credits.data.grantResetAt })}
             showStreak={config.flags["growth.streakWidget"] === true}
           />
         </div>

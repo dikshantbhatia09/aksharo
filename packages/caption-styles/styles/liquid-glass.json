@@ -13,7 +13,10 @@
     "lineHeight": 1.3,
     "letterSpacingEm": 0.005,
     "textTransform": "none",
-    "scriptScale": { "deva": 0.79, "taml": 0.48 }
+    "scriptScale": {
+      "deva": 0.79,
+      "taml": 0.48
+    }
   },
   "colors": {
     "text": "#ffffff",
@@ -73,7 +76,8 @@
     }
   ],
   "assRenderable": false,
-  "assExportable": false,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/liquid-glass.mp4"
+  "previewKey": "system/style-previews/liquid-glass.mp4",
+  "parityScore": 0.8671
 }

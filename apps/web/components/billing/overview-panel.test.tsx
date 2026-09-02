@@ -18,7 +18,7 @@ vi.mock("@/lib/billing/razorpay", () => ({
 // implementation before each test, so this is re-armed here rather than once
 // at module scope.
 beforeEach(() => {
-  vi.mocked(razorpay.openRazorpayCheckout).mockResolvedValue(false);
+  vi.mocked(razorpay.openRazorpayCheckout).mockResolvedValue({ status: "dismissed" });
   vi.mocked(razorpay.loadRazorpayCheckout).mockResolvedValue(null);
 });
 

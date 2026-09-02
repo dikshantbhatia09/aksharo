@@ -13,7 +13,9 @@
     "lineHeight": 1.08,
     "letterSpacingEm": 0.01,
     "textTransform": "uppercase",
-    "scriptScale": { "taml": 0.58 }
+    "scriptScale": {
+      "taml": 0.58
+    }
   },
   "colors": {
     "text": "#ffffff",
@@ -80,8 +82,9 @@
       "effect": "none"
     }
   ],
-  "assRenderable": false,
-  "assExportable": false,
+  "assRenderable": true,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/glitch-shift.mp4"
+  "previewKey": "system/style-previews/glitch-shift.mp4",
+  "parityScore": 0.955
 }

@@ -64,25 +64,66 @@ describe("openRazorpayCheckout", () => {
     document.head.innerHTML = "";
   });
 
-  it("constructs the widget with the given options and calls open()", async () => {
-    const open = vi.fn();
+  it("resolves a success outcome (with the payment/order ids) once the widget's handler fires", async () => {
+    let capturedOptions: { handler: (response: unknown) => void } | undefined;
     window.Razorpay = class {
-      constructor(public options: unknown) {}
-      open = open;
+      constructor(options: never) {
+        capturedOptions = options;
+      }
+      open(): void {}
     } as never;
 
-    const opened = await openRazorpayCheckout({
+    const outcome = openRazorpayCheckout({
       key: "rzp_test_fake",
       amount: 69_900,
       currency: "INR",
       name: "Aksharo",
     });
 
-    expect(opened).toBe(true);
-    expect(open).toHaveBeenCalledOnce();
+    // `openRazorpayCheckout` awaits `loadRazorpayCheckout()` before
+    // constructing the widget, so the constructor runs a tick or two after
+    // this call returns — wait for it rather than assuming a fixed number
+    // of microtasks.
+    await vi.waitFor(() => {
+      if (capturedOptions === undefined) throw new Error("widget not constructed yet");
+    });
+    capturedOptions?.handler({
+      razorpay_payment_id: "pay_123",
+      razorpay_order_id: "order_123",
+    });
+
+    await expect(outcome).resolves.toEqual({
+      status: "success",
+      paymentId: "pay_123",
+      orderId: "order_123",
+    });
   });
 
-  it("returns false rather than throwing when the script never loads", async () => {
+  it("resolves a dismissed outcome when the widget's modal.ondismiss fires", async () => {
+    let capturedOptions: { modal: { ondismiss: () => void } } | undefined;
+    window.Razorpay = class {
+      constructor(options: never) {
+        capturedOptions = options;
+      }
+      open(): void {}
+    } as never;
+
+    const outcome = openRazorpayCheckout({
+      key: "rzp_test_fake",
+      amount: 69_900,
+      currency: "INR",
+      name: "Aksharo",
+    });
+
+    await vi.waitFor(() => {
+      if (capturedOptions === undefined) throw new Error("widget not constructed yet");
+    });
+    capturedOptions?.modal.ondismiss();
+
+    await expect(outcome).resolves.toEqual({ status: "dismissed" });
+  });
+
+  it("rejects rather than resolving falsely when the script never loads", async () => {
     const promise = openRazorpayCheckout({
       key: "rzp_test_fake",
       amount: 69_900,
@@ -93,10 +134,10 @@ describe("openRazorpayCheckout", () => {
       'script[src="https://checkout.razorpay.com/v1/checkout.js"]',
     );
     script?.dispatchEvent(new Event("error"));
-    await expect(promise).resolves.toBe(false);
+    await expect(promise).rejects.toThrow("Could not load Razorpay Checkout.");
   });
 
-  it("returns false when the constructor throws (e.g. a rejected fake key)", async () => {
+  it("rejects when the constructor throws (e.g. a rejected fake key)", async () => {
     window.Razorpay = class {
       constructor() {
         throw new Error("invalid key");
@@ -106,6 +147,6 @@ describe("openRazorpayCheckout", () => {
 
     await expect(
       openRazorpayCheckout({ key: "bad", amount: 1, currency: "INR", name: "Aksharo" }),
-    ).resolves.toBe(false);
+    ).rejects.toThrow("invalid key");
   });
 });

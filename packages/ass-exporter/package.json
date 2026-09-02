@@ -23,12 +23,24 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "parity": "tsx parity/run.ts",
+    "parity:apply": "tsx parity/apply-flags.ts"
+  },
+  "dependencies": {
+    "@montaj/caption-styles": "workspace:*",
+    "@montaj/render-core": "workspace:*",
+    "@montaj/timemap": "workspace:*"
   },
   "devDependencies": {
     "@montaj/config": "workspace:*",
+    "@montaj/render-canvaskit": "workspace:*",
+    "@montaj/render-skia-node": "workspace:*",
     "@types/node": "^22.19.2",
+    "@vitest/coverage-v8": "^3.2.7",
+    "canvaskit-wasm": "0.42.0",
     "eslint": "^9.39.5",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"
   }

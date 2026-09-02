@@ -38,8 +38,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     label: "Projects",
     href: "/projects",
     icon: Folder,
-    ready: false,
-    owner: "A14",
+    ready: true,
   },
   {
     key: "templates",
@@ -121,6 +120,12 @@ export const SETTINGS_NAV: readonly SettingsSection[] = [
     label: "Notifications",
     href: "/settings/notifications",
     description: "What we email you about.",
+  },
+  {
+    key: "subscription",
+    label: "Subscription",
+    href: "/settings/subscription",
+    description: "Your plan, passes and top-ups.",
   },
 ];
 

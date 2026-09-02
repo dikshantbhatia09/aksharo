@@ -13,7 +13,10 @@
     "lineHeight": 1.1,
     "letterSpacingEm": -0.01,
     "textTransform": "uppercase",
-    "scriptScale": { "deva": 0.66, "taml": 0.4 }
+    "scriptScale": {
+      "deva": 0.66,
+      "taml": 0.4
+    }
   },
   "colors": {
     "text": "#ffffff",
@@ -73,8 +76,9 @@
       "effect": "none"
     }
   ],
-  "assRenderable": false,
-  "assExportable": false,
+  "assRenderable": true,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/prism-split.mp4"
+  "previewKey": "system/style-previews/prism-split.mp4",
+  "parityScore": 0.9489
 }

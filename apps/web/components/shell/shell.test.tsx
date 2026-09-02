@@ -32,10 +32,12 @@ describe("<Sidebar />", () => {
   it("links what exists and disables what does not, instead of shipping dead links", () => {
     renderWithProviders(<Sidebar />);
     expect(screen.getByTestId("nav-home").tagName).toBe("A");
-    const projects = screen.getByTestId("nav-projects");
-    expect(projects.tagName).not.toBe("A");
-    expect(projects).toHaveAttribute("aria-disabled", "true");
-    expect(projects).toHaveTextContent("Soon");
+    // Projects landed in A14.
+    expect(screen.getByTestId("nav-projects").tagName).toBe("A");
+    const templates = screen.getByTestId("nav-templates");
+    expect(templates.tagName).not.toBe("A");
+    expect(templates).toHaveAttribute("aria-disabled", "true");
+    expect(templates).toHaveTextContent("Soon");
   });
 
   it("marks the current page for assistive technology, not only with colour", () => {

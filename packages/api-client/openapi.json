@@ -7266,6 +7266,1507 @@
         ]
       }
     },
+    "/projects/sample": {
+      "post": {
+        "description": "Creates a project and ingests the bundled sample clip into it through the normal media pipeline (`media.probe` runs exactly as it would for a real upload). Callable more than once — every call makes its own copy, the same as duplicating a project.",
+        "operationId": "createSampleProject",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "The new sample project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "folderId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "clientTag": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "sourceLanguage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "scripts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "aspect": {
+                      "type": "string",
+                      "enum": [
+                        "9:16",
+                        "16:9",
+                        "1:1",
+                        "4:5"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "active",
+                        "archived"
+                      ]
+                    },
+                    "thumbnailKey": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "durationMs": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "mediaCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "lastActivityAt": {
+                      "type": "string"
+                    },
+                    "retentionUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "title",
+                    "folderId",
+                    "clientTag",
+                    "sourceLanguage",
+                    "scripts",
+                    "aspect",
+                    "status",
+                    "thumbnailKey",
+                    "durationMs",
+                    "mediaCount",
+                    "lastActivityAt",
+                    "retentionUntil",
+                    "createdBy",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create the seeded sample project (\"Welcome to Aksharo\")",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/styles": {
+      "get": {
+        "description": "Every entry is a full StyleDoc v2 document (the shape `StylePicker` already reads), with `presetId`, `source` (`system`|`custom`) and `previewKey` added. `previewKey` names a file the web app serves from its own `/style-previews/`; it is `null` for a preset with no static preview rendered yet.",
+        "operationId": "listStyles",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "System styles, then this workspace's own.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "version": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "category": {
+                        "type": "string"
+                      },
+                      "minPlan": {
+                        "type": "string"
+                      },
+                      "presetId": {
+                        "type": "string"
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "system",
+                          "custom"
+                        ]
+                      },
+                      "workspaceId": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "previewKey": {
+                        "nullable": true,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "version",
+                      "category",
+                      "minPlan",
+                      "presetId",
+                      "source",
+                      "workspaceId",
+                      "previewKey"
+                    ],
+                    "additionalProperties": {}
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The style catalogue: system styles plus this workspace's presets",
+        "tags": [
+          "styles"
+        ]
+      }
+    },
+    "/workspaces/{id}/style-presets": {
+      "post": {
+        "description": "`doc` is validated by StyleDoc v2, including the D64 naming rule — a name or id that reads as a person, creator or brand fails validation. `doc.id` becomes the preset's key and cannot shadow a system style's.",
+        "operationId": "createStylePreset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "doc": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 48,
+                        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 48
+                      },
+                      "version": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "category": {
+                        "type": "string",
+                        "enum": [
+                          "bold",
+                          "clean",
+                          "karaoke",
+                          "podcast",
+                          "gaming",
+                          "education",
+                          "cinematic",
+                          "playful",
+                          "minimal",
+                          "retro"
+                        ]
+                      },
+                      "minPlan": {
+                        "type": "string",
+                        "enum": [
+                          "free",
+                          "starter",
+                          "creator",
+                          "studio",
+                          "agency"
+                        ]
+                      },
+                      "typography": {
+                        "type": "object",
+                        "properties": {
+                          "fontFamily": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "fontId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "fallbacks": {
+                            "maxItems": 6,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            }
+                          },
+                          "weight": {
+                            "type": "integer",
+                            "minimum": 100,
+                            "maximum": 900
+                          },
+                          "italic": {
+                            "type": "boolean"
+                          },
+                          "sizePct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 40
+                          },
+                          "lineHeight": {
+                            "type": "number",
+                            "minimum": 0.6,
+                            "maximum": 3
+                          },
+                          "letterSpacingEm": {
+                            "type": "number",
+                            "minimum": -0.5,
+                            "maximum": 1
+                          },
+                          "textTransform": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "uppercase",
+                              "lowercase",
+                              "capitalize"
+                            ]
+                          },
+                          "scriptScale": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "number",
+                              "minimum": 0,
+                              "exclusiveMinimum": true,
+                              "maximum": 2
+                            },
+                            "description": "per-script multiplier on sizePct, keyed by lowercase OpenType script tag"
+                          }
+                        },
+                        "required": [
+                          "fontFamily",
+                          "weight",
+                          "italic",
+                          "sizePct",
+                          "lineHeight",
+                          "letterSpacingEm",
+                          "textTransform"
+                        ]
+                      },
+                      "colors": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          },
+                          "activeText": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          },
+                          "upcomingText": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          },
+                          "accent": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          }
+                        },
+                        "required": [
+                          "text"
+                        ]
+                      },
+                      "box": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "block",
+                              "line",
+                              "word"
+                            ]
+                          },
+                          "fill": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          },
+                          "paddingPct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 200
+                          },
+                          "radiusPct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 50
+                          },
+                          "opacity": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "required": [
+                          "enabled",
+                          "mode",
+                          "paddingPct",
+                          "radiusPct",
+                          "opacity"
+                        ]
+                      },
+                      "stroke": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "color": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          },
+                          "widthPct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 30
+                          }
+                        },
+                        "required": [
+                          "enabled",
+                          "widthPct"
+                        ]
+                      },
+                      "shadow": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "color": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          },
+                          "offsetXPct": {
+                            "type": "number",
+                            "minimum": -50,
+                            "maximum": 50
+                          },
+                          "offsetYPct": {
+                            "type": "number",
+                            "minimum": -50,
+                            "maximum": 50
+                          },
+                          "blurPct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          "opacity": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "required": [
+                          "enabled",
+                          "offsetXPct",
+                          "offsetYPct",
+                          "blurPct",
+                          "opacity"
+                        ]
+                      },
+                      "layout": {
+                        "type": "object",
+                        "properties": {
+                          "anchor": {
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-center",
+                              "top-right",
+                              "middle-left",
+                              "center",
+                              "middle-right",
+                              "bottom-left",
+                              "bottom-center",
+                              "bottom-right"
+                            ]
+                          },
+                          "x": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "y": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "align": {
+                            "type": "string",
+                            "enum": [
+                              "left",
+                              "center",
+                              "right"
+                            ]
+                          },
+                          "maxWidthPct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 100
+                          },
+                          "maxLines": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 4
+                          },
+                          "wordsPerCue": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 20
+                          },
+                          "safeAreaPct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 40
+                          }
+                        },
+                        "required": [
+                          "anchor",
+                          "x",
+                          "y",
+                          "align",
+                          "maxWidthPct",
+                          "maxLines"
+                        ]
+                      },
+                      "animation": {
+                        "type": "object",
+                        "properties": {
+                          "in": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "none",
+                                  "fade",
+                                  "pop",
+                                  "slide-up",
+                                  "slide-down",
+                                  "typewriter",
+                                  "bounce",
+                                  "blur"
+                                ]
+                              },
+                              "durationMs": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 2000
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "durationMs"
+                            ]
+                          },
+                          "out": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "none",
+                                  "fade",
+                                  "pop",
+                                  "slide-up",
+                                  "slide-down",
+                                  "typewriter",
+                                  "bounce",
+                                  "blur"
+                                ]
+                              },
+                              "durationMs": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 2000
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "durationMs"
+                            ]
+                          },
+                          "wordHighlight": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "none",
+                                  "color",
+                                  "scale",
+                                  "box",
+                                  "underline",
+                                  "karaoke-fill",
+                                  "glow"
+                                ]
+                              },
+                              "durationMs": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 2000
+                              },
+                              "scale": {
+                                "type": "number",
+                                "minimum": 0.5,
+                                "maximum": 2
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "durationMs"
+                            ]
+                          },
+                          "perWord": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "in",
+                          "out",
+                          "wordHighlight",
+                          "perWord"
+                        ]
+                      },
+                      "emphasisPresets": {
+                        "maxItems": 12,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 32,
+                              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+                            },
+                            "label": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 48
+                            },
+                            "color": {
+                              "type": "string",
+                              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                            },
+                            "scale": {
+                              "type": "number",
+                              "minimum": 0.5,
+                              "maximum": 2.5
+                            },
+                            "weight": {
+                              "type": "integer",
+                              "minimum": 100,
+                              "maximum": 900
+                            },
+                            "effect": {
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                "glow",
+                                "shake",
+                                "outline",
+                                "highlight",
+                                "underline"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id"
+                          ]
+                        }
+                      },
+                      "assRenderable": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "assExportable": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "requiresLayoutMetrics": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "parityScore": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "previewKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "version",
+                      "category",
+                      "minPlan",
+                      "typography",
+                      "colors",
+                      "box",
+                      "stroke",
+                      "shadow",
+                      "layout",
+                      "animation",
+                      "emphasisPresets"
+                    ]
+                  }
+                },
+                "required": [
+                  "doc"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new preset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "number",
+                      "enum": [
+                        2
+                      ]
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "minPlan": {
+                      "type": "string"
+                    },
+                    "presetId": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "system",
+                        "custom"
+                      ]
+                    },
+                    "workspaceId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "previewKey": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "version",
+                    "category",
+                    "minPlan",
+                    "presetId",
+                    "source",
+                    "workspaceId",
+                    "previewKey"
+                  ],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "409": {
+            "description": "`style/reserved_key` or `style/key_taken`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Save a custom style preset",
+        "tags": [
+          "styles"
+        ]
+      }
+    },
+    "/workspaces/{id}/style-presets/{presetId}": {
+      "patch": {
+        "description": "The preset's id (`doc.id`) cannot change; save a new preset instead.",
+        "operationId": "updateStylePreset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "presetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "doc": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 48,
+                        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 48
+                      },
+                      "version": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "category": {
+                        "type": "string",
+                        "enum": [
+                          "bold",
+                          "clean",
+                          "karaoke",
+                          "podcast",
+                          "gaming",
+                          "education",
+                          "cinematic",
+                          "playful",
+                          "minimal",
+                          "retro"
+                        ]
+                      },
+                      "minPlan": {
+                        "type": "string",
+                        "enum": [
+                          "free",
+                          "starter",
+                          "creator",
+                          "studio",
+                          "agency"
+                        ]
+                      },
+                      "typography": {
+                        "type": "object",
+                        "properties": {
+                          "fontFamily": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "fontId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "fallbacks": {
+                            "maxItems": 6,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            }
+                          },
+                          "weight": {
+                            "type": "integer",
+                            "minimum": 100,
+                            "maximum": 900
+                          },
+                          "italic": {
+                            "type": "boolean"
+                          },
+                          "sizePct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 40
+                          },
+                          "lineHeight": {
+                            "type": "number",
+                            "minimum": 0.6,
+                            "maximum": 3
+                          },
+                          "letterSpacingEm": {
+                            "type": "number",
+                            "minimum": -0.5,
+                            "maximum": 1
+                          },
+                          "textTransform": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "uppercase",
+                              "lowercase",
+                              "capitalize"
+                            ]
+                          },
+                          "scriptScale": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "number",
+                              "minimum": 0,
+                              "exclusiveMinimum": true,
+                              "maximum": 2
+                            },
+                            "description": "per-script multiplier on sizePct, keyed by lowercase OpenType script tag"
+                          }
+                        },
+                        "required": [
+                          "fontFamily",
+                          "weight",
+                          "italic",
+                          "sizePct",
+                          "lineHeight",
+                          "letterSpacingEm",
+                          "textTransform"
+                        ]
+                      },
+                      "colors": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          },
+                          "activeText": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          },
+                          "upcomingText": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          },
+                          "accent": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          }
+                        },
+                        "required": [
+                          "text"
+                        ]
+                      },
+                      "box": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "block",
+                              "line",
+                              "word"
+                            ]
+                          },
+                          "fill": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          },
+                          "paddingPct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 200
+                          },
+                          "radiusPct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 50
+                          },
+                          "opacity": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "required": [
+                          "enabled",
+                          "mode",
+                          "paddingPct",
+                          "radiusPct",
+                          "opacity"
+                        ]
+                      },
+                      "stroke": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "color": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          },
+                          "widthPct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 30
+                          }
+                        },
+                        "required": [
+                          "enabled",
+                          "widthPct"
+                        ]
+                      },
+                      "shadow": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "color": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          },
+                          "offsetXPct": {
+                            "type": "number",
+                            "minimum": -50,
+                            "maximum": 50
+                          },
+                          "offsetYPct": {
+                            "type": "number",
+                            "minimum": -50,
+                            "maximum": 50
+                          },
+                          "blurPct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          "opacity": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "required": [
+                          "enabled",
+                          "offsetXPct",
+                          "offsetYPct",
+                          "blurPct",
+                          "opacity"
+                        ]
+                      },
+                      "layout": {
+                        "type": "object",
+                        "properties": {
+                          "anchor": {
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-center",
+                              "top-right",
+                              "middle-left",
+                              "center",
+                              "middle-right",
+                              "bottom-left",
+                              "bottom-center",
+                              "bottom-right"
+                            ]
+                          },
+                          "x": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "y": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "align": {
+                            "type": "string",
+                            "enum": [
+                              "left",
+                              "center",
+                              "right"
+                            ]
+                          },
+                          "maxWidthPct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 100
+                          },
+                          "maxLines": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 4
+                          },
+                          "wordsPerCue": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 20
+                          },
+                          "safeAreaPct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 40
+                          }
+                        },
+                        "required": [
+                          "anchor",
+                          "x",
+                          "y",
+                          "align",
+                          "maxWidthPct",
+                          "maxLines"
+                        ]
+                      },
+                      "animation": {
+                        "type": "object",
+                        "properties": {
+                          "in": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "none",
+                                  "fade",
+                                  "pop",
+                                  "slide-up",
+                                  "slide-down",
+                                  "typewriter",
+                                  "bounce",
+                                  "blur"
+                                ]
+                              },
+                              "durationMs": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 2000
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "durationMs"
+                            ]
+                          },
+                          "out": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "none",
+                                  "fade",
+                                  "pop",
+                                  "slide-up",
+                                  "slide-down",
+                                  "typewriter",
+                                  "bounce",
+                                  "blur"
+                                ]
+                              },
+                              "durationMs": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 2000
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "durationMs"
+                            ]
+                          },
+                          "wordHighlight": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "none",
+                                  "color",
+                                  "scale",
+                                  "box",
+                                  "underline",
+                                  "karaoke-fill",
+                                  "glow"
+                                ]
+                              },
+                              "durationMs": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 2000
+                              },
+                              "scale": {
+                                "type": "number",
+                                "minimum": 0.5,
+                                "maximum": 2
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "durationMs"
+                            ]
+                          },
+                          "perWord": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "in",
+                          "out",
+                          "wordHighlight",
+                          "perWord"
+                        ]
+                      },
+                      "emphasisPresets": {
+                        "maxItems": 12,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 32,
+                              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+                            },
+                            "label": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 48
+                            },
+                            "color": {
+                              "type": "string",
+                              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                            },
+                            "scale": {
+                              "type": "number",
+                              "minimum": 0.5,
+                              "maximum": 2.5
+                            },
+                            "weight": {
+                              "type": "integer",
+                              "minimum": 100,
+                              "maximum": 900
+                            },
+                            "effect": {
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                "glow",
+                                "shake",
+                                "outline",
+                                "highlight",
+                                "underline"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id"
+                          ]
+                        }
+                      },
+                      "assRenderable": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "assExportable": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "requiresLayoutMetrics": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "parityScore": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "previewKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "version",
+                      "category",
+                      "minPlan",
+                      "typography",
+                      "colors",
+                      "box",
+                      "stroke",
+                      "shadow",
+                      "layout",
+                      "animation",
+                      "emphasisPresets"
+                    ]
+                  }
+                },
+                "required": [
+                  "doc"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated preset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "number",
+                      "enum": [
+                        2
+                      ]
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "minPlan": {
+                      "type": "string"
+                    },
+                    "presetId": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "system",
+                        "custom"
+                      ]
+                    },
+                    "workspaceId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "previewKey": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "version",
+                    "category",
+                    "minPlan",
+                    "presetId",
+                    "source",
+                    "workspaceId",
+                    "previewKey"
+                  ],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`style/not_found`."
+          },
+          "409": {
+            "description": "`style/key_immutable`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Update a custom style preset",
+        "tags": [
+          "styles"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteStylePreset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "presetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`style/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete a custom style preset",
+        "tags": [
+          "styles"
+        ]
+      }
+    },
     "/admin/dlq": {
       "get": {
         "description": "Filter by `queue`, `status`, `workspaceId`, a `reason` substring of the last error's code or message, and a `since`/`until` window. Cursor pagination: pass the previous page's `nextCursor`.",
@@ -7829,6 +9330,273 @@
         "summary": "Reconcile one credit account",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/admin/metrics/offers": {
+      "get": {
+        "description": "`04-pricing-and-monetization.md` §Offers; `12-redesign-decisions.md` D55.",
+        "operationId": "getOffersMetrics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Purchase/upgrade counts, conversion rate, keep/replace verdict."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "₹9 clean-export hypothesis: purchases, upgrades within 60 days, recommendation",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/offers/eligibility": {
+      "get": {
+        "description": "Every amount is read from the same catalogue `/billing/passes/checkout` quotes from — the export dialog never hardcodes a price.",
+        "operationId": "getOffersEligibility",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Signup gift, ₹9 pass, week pass, top-up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "signupGift": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "available"
+                      ]
+                    },
+                    "ninePass": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "eligibleToBuy": {
+                          "type": "boolean"
+                        },
+                        "reason": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "currency_not_inr",
+                            "on_paid_plan",
+                            "purchased_within_30_days"
+                          ]
+                        },
+                        "nextEligibleAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "priceMinor": {
+                          "type": "number"
+                        },
+                        "currency": {
+                          "type": "string",
+                          "enum": [
+                            "INR",
+                            "USD"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "available",
+                        "eligibleToBuy",
+                        "reason",
+                        "nextEligibleAt",
+                        "priceMinor",
+                        "currency"
+                      ]
+                    },
+                    "weekPass": {
+                      "type": "object",
+                      "properties": {
+                        "active": {
+                          "type": "boolean"
+                        },
+                        "endsAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "priceMinor": {
+                          "type": "number"
+                        },
+                        "currency": {
+                          "type": "string",
+                          "enum": [
+                            "INR",
+                            "USD"
+                          ]
+                        },
+                        "creditsGrantedTenths": {
+                          "type": "number"
+                        },
+                        "days": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "active",
+                        "endsAt",
+                        "priceMinor",
+                        "currency",
+                        "creditsGrantedTenths",
+                        "days"
+                      ]
+                    },
+                    "topupFree149": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "priceMinor": {
+                          "type": "number"
+                        },
+                        "currency": {
+                          "type": "string",
+                          "enum": [
+                            "INR",
+                            "USD"
+                          ]
+                        },
+                        "credits": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "available",
+                        "priceMinor",
+                        "currency",
+                        "credits"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "signupGift",
+                    "ninePass",
+                    "weekPass",
+                    "topupFree149"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "What this workspace may buy right now, and why not otherwise",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
+    "/offers/passes": {
+      "get": {
+        "description": "Backs the Subscription overview's pass status chips (expiry, credits left).",
+        "operationId": "listOffersPasses",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Passes, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "first_export",
+                          "week_pass",
+                          "pay_once",
+                          "topup"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "pending_payment",
+                          "available",
+                          "active",
+                          "redeemed",
+                          "expired"
+                        ]
+                      },
+                      "startsAt": {
+                        "type": "string"
+                      },
+                      "endsAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "creditsGrantedTenths": {
+                        "type": "number"
+                      },
+                      "redeemedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "status",
+                      "startsAt",
+                      "endsAt",
+                      "creditsGrantedTenths",
+                      "redeemedAt",
+                      "createdAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every pass this workspace has bought, newest first",
+        "tags": [
+          "offers"
         ]
       }
     },
@@ -11498,6 +13266,78 @@
         "summary": "Razorpay webhook (THREAT-MODEL T16)",
         "tags": [
           "billing"
+        ]
+      }
+    },
+    "/offers/dev/simulate-nine-pass-payment": {
+      "post": {
+        "operationId": "simulateNinePassPayment",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "passPurchaseId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "passPurchaseId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The webhook outcome, same shape as `POST /billing/webhooks/razorpay`."
+          },
+          "403": {
+            "description": "`offers/dev_simulator_unavailable` — a live provider is wired."
+          },
+          "409": {
+            "description": "`offers/pass_purchase_not_found`."
+          }
+        },
+        "summary": "Dev/test only: simulate a ₹9 pass payment landing (FakeProvider environments)",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
+    "/offers/dev/consume-signup-gift": {
+      "post": {
+        "operationId": "devConsumeSignupGift",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "workspaceId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "workspaceId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`{ consumed: true }`."
+          }
+        },
+        "summary": "Dev/test only: mark a workspace's signup gift already spent",
+        "tags": [
+          "offers"
         ]
       }
     },

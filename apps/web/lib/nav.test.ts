@@ -36,7 +36,7 @@ describe("PRIMARY_NAV", () => {
 });
 
 describe("SETTINGS_NAV", () => {
-  it("covers the sections of 08 §Settings that A13 owns", () => {
+  it("covers the sections of 08 §Settings that A13 owns, plus B04's Subscription section", () => {
     expect(SETTINGS_NAV.map((item) => item.key)).toEqual([
       "profile",
       "languages",
@@ -44,6 +44,7 @@ describe("SETTINGS_NAV", () => {
       "devices",
       "privacy",
       "notifications",
+      "subscription",
     ]);
   });
 });

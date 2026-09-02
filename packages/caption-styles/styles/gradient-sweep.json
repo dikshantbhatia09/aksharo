@@ -13,7 +13,10 @@
     "lineHeight": 1.18,
     "letterSpacingEm": 0,
     "textTransform": "none",
-    "scriptScale": { "deva": 0.72, "taml": 0.44 }
+    "scriptScale": {
+      "deva": 0.72,
+      "taml": 0.44
+    }
   },
   "colors": {
     "text": "#ffffff",
@@ -74,7 +77,8 @@
     }
   ],
   "assRenderable": false,
-  "assExportable": false,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/gradient-sweep.mp4"
+  "previewKey": "system/style-previews/gradient-sweep.mp4",
+  "parityScore": 0.8906
 }
