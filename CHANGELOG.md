@@ -10,6 +10,93 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A26 — model-server: the GPU model server (`apps/model-server`), serving
+  `/transcribe`, `/align`, `/diarise` and `/detect-language` for the serverless
+  GPU lane (D15), with dynamic batching, warm-model lifecycle, a memory guard,
+  cost accounting, and RunPod/Modal packaging.**
+  - **The wire contract is the worker's, not this app's.** `apps/worker-ai`
+    already had three clients written against a server that did not exist
+    (`providers/serverless_whisper.py`, `diarisation/pyannote.py`, `lid.py`), and
+    A10 recorded their exchanges in
+    `worker_ai/fixtures/vendor/gpu-whisper/session.json`.
+    `tests/test_contract_fixtures.py` asserts every live response is a **superset
+    with matching types** of that recording, and `tests/test_worker_adapter.py`
+    drives the worker's own three clients over a real socket against a real
+    uvicorn — the only test that fails when the two apps disagree. Times on the
+    wire stay **seconds** everywhere except `/detect-language`'s `windows`, which
+    is milliseconds because `lid.py` already sends it that way.
+  - **Dynamic batching for `/transcribe`** (`model_server/batching.py`): up to
+    `MODEL_SERVER_BATCH_MAX_SIZE` chunks inside a 50 ms window, handed to the ASR
+    backend as one call. Decision **D74** makes this load-bearing rather than an
+    optimisation — X05's re-derivation gives ₹0.19 per media minute without
+    batching against the ₹0.09–0.13 band in `05 §12` — so
+    `model_server_batch_size` measures what actually happened and
+    `usage.gpuSeconds` is the group's wall clock **divided by `batchSize`**, with
+    `batchSize` on the wire so the division can be audited. Charging each request
+    the whole group would inflate COGS per credit by exactly the batching factor.
+  - **Models load once, at startup, from the baked image.** No request ever
+    triggers a load. `MODEL_SERVER_PRELOAD` selects which backends are
+    instantiated at all, so a CPU worker that only transcribes never pages
+    pyannote into memory. A backend that fails to load does **not** take the
+    process down: it is recorded, `model_server_model_ready` stays at 0, its
+    routes answer 503 with the reason, and the others keep serving — on a
+    serverless worker a hard exit is a crash loop that still bills. SIGTERM flips
+    readiness **before** uvicorn winds down, so a load balancer stops sending work
+    to a worker that is about to stop.
+  - **A memory guard, not a CUDA OOM.** A request reserves an estimate before the
+    model call and is refused with `503` + `Retry-After` when it does not fit; the
+    worker's HTTP client already retries 5xx and already obeys the header, so a
+    refusal costs a wait rather than a job.
+  - **Decision D77 is enforced, not merely documented.** IndicWav2Vec (MIT) for
+    Indic languages and XLSR-53 CTC fine-tunes (Apache-2.0) for global ones;
+    **MMS never** — `scripts/bake_models.py` fails the image build if any
+    argument names an MMS checkpoint, so the CC-BY-NC-4.0 problem cannot be
+    reintroduced by a `--build-arg`. pyannote community-1's CC-BY-4.0 attribution
+    is surfaced in `engineVersions` on every diarised response, byte-identical to
+    the worker's constant, with a test that asserts they match.
+  - **Script projection stays in the caller.** `/align` tokenises the words it is
+    given against the checkpoint's vocabulary and reports what it could not
+    represent in `skipped`; the Devanagari projection for Roman-script Hinglish
+    (`09 §2`) lives in `worker_ai/alignment/romanisation.py` with IndicXlit
+    behind it as A22's work, and a second, disagreeing table here would be worse
+    than none.
+  - **Auth is a boot condition.** `GPU_PROVIDER_TOKEN` is compared in constant
+    time on all four routes, ahead of body validation so a 401 never reveals which
+    fields were wrong; with the token empty the process **refuses to start**
+    unless `MODEL_SERVER_ALLOW_ANONYMOUS=1` says a human meant it. `/healthz`,
+    `/readyz` and `/metrics` are unauthenticated and carry no user data. Logs are
+    JSON with a redaction chokepoint: no audio, no transcript text, no credential,
+    and presigned URLs reduced to scheme, host and path (THREAT-MODEL T21).
+  - **Packaging** replaces X05's placeholders, which pointed at
+    `apps/worker-ai/requirements-gpu.lock` and a `montaj_worker_ai.gpu` package
+    that never existed. `apps/model-server/Dockerfile` is multi-stage: a `cpu`
+    target CI builds and boots with no GPU, no weights and no Hugging Face token,
+    and a CUDA `runtime` target that bakes every weight and runs offline.
+    `scripts/bake_models.py` is the single bake step both providers run and also
+    exports the CTC heads to ONNX in the layout `worker_ai/alignment/ctc.py`
+    reads. `model_server/runpod_handler.py` serves RunPod's queue API from the
+    **same** app, batcher and warm models. `infra/gpu/runpod/endpoint.json` and
+    `infra/gpu/COST.md` are X05's and stay; `infra/gpu/runpod/Dockerfile` and
+    `infra/gpu/runpod/bake_models.py` are deleted rather than left as a second,
+    wrong source of truth.
+  - **Cost accounting** (`apps/model-server/cost.md`): `usage {gpuSeconds,
+audioSeconds, model, batchSize}` on every response, the arithmetic behind it,
+    the measured CPU-`tiny` numbers, and the empty table the first real GPU run
+    fills in. The honest CPU finding, carried up into `infra/gpu/COST.md`: **on
+    CPU, batching costs rather than saves** (batched RTF 1.4–1.8 against
+    serial 0.95–1.6), because CTranslate2 already uses every core. That says
+    nothing about a GPU, where a single stream leaves the card idle — but it
+    does mean the CPU lane should run `MODEL_SERVER_BATCH_MAX_SIZE=1`.
+  - **Metrics** `model_server_*` registered in `infra/observability/METRICS.md`
+    §11 **before** the code, per D75. They are the only names in that file
+    without the `montaj.` prefix, because a RunPod or Modal sandbox has no OTel
+    collector beside it and this process is scraped directly in native Prometheus
+    form.
+  - 199 tests, `ruff`, `ruff format --check` and `mypy --strict` clean;
+    coverage **95.3 % lines / 88.4 % branches** against the CONTRACTS §9 gate
+    of 75/70, checked by `scripts/coverage_gate.py` because `--cov-fail-under`
+    blends the two into one number that can pass while the contract fails.
+
 - **A12 — api: the EDG module (hot document, `/edg/ops` with server-side rebase
   and compare-and-swap, revisions, snapshots and restore, realtime `edg.ops`).**
   - `apps/api/src/edg/edg.repository.ts`: A02b's `EdgRepository` over Prisma. One
@@ -224,7 +311,7 @@ DrawCommand[]`, pure TypeScript, HarfBuzz-wasm shaping (`harfbuzzjs` 1.6.1, pinn
     `RUN_VENDOR_SMOKE=1`.
   - `worker_ai/lid.py`: the two-signal language identification of **D14** —
     Whisper LID over 60 s + two 15 s windows (or the routed provider's own answer)
-    plus a local classifier on the first chunk. The code-mix lane needs *both*
+    plus a local classifier on the first chunk. The code-mix lane needs _both_
     signals on Hindi/Hinglish and `codeMixScore ≥ 0.3`, because RR-02 F4 measured
     IndicLID's romanised head at F1 0.75 and it cannot carry that decision alone.
     A disagreement takes the acoustic signal and raises `lowConfidence`. The whole
@@ -261,7 +348,7 @@ DrawCommand[]`, pure TypeScript, HarfBuzz-wasm shaping (`harfbuzzjs` 1.6.1, pinn
     generated by the committed `make_clip.py`, so the `slow` LocalWhisper test
     feeds a model real audio and the eval harness's vendor lanes have media.
   - The eval CLI scores every adapter: `evals run --set vendor-replay --provider
-    sarvam` replays the recorded session, `--live` calls the configured vendor.
+sarvam` replays the recorded session, `--live` calls the configured vendor.
   - **Security fix:** `httpx2` logs every request URL at INFO, and Sarvam's Batch
     API hands back Azure blob SAS URLs with the signature in the query string —
     so that one line would have written a live credential into the pod's logs on
