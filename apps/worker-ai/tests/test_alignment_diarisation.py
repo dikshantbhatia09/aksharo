@@ -35,9 +35,10 @@ REGISTRY = AlignerRegistry.default()
 
 
 def test_the_chain_is_the_order_from_the_pipeline_document() -> None:
-    """IndicWav2Vec -> XLSR-53 -> ElevenLabs FA -> proportional + VAD (`09 §2`, D77)."""
+    """IndicWav2Vec -> the model server -> ElevenLabs FA -> proportional (`09 §2`)."""
     assert [aligner.name for aligner in REGISTRY.chain("hi")] == [
         "indicwav2vec-ctc",
+        "gpu-ctc",
         "elevenlabs-fa",
         "proportional-vad",
     ]
@@ -47,13 +48,16 @@ def test_a_global_language_gets_the_apache_licensed_rung_not_the_indic_heads() -
     """D77: rung 3 is per-language XLSR-53, so the split is by language family."""
     assert [aligner.name for aligner in REGISTRY.chain("fr")] == [
         "xlsr53-ctc",
+        "gpu-ctc",
         "elevenlabs-fa",
         "proportional-vad",
     ]
 
 
-def test_a_language_neither_ctc_rung_covers_falls_to_the_paid_and_free_rungs() -> None:
+def test_a_language_neither_local_ctc_family_covers_still_has_three_rungs() -> None:
+    """The model server picks a family per language, so it claims every one."""
     assert [aligner.name for aligner in REGISTRY.chain("sw")] == [
+        "gpu-ctc",
         "elevenlabs-fa",
         "proportional-vad",
     ]
