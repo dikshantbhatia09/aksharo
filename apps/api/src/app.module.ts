@@ -20,6 +20,7 @@ import { OffersModule } from "./offers/offers.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
+import { StylesModule } from "./styles/styles.module.js";
 import { TaxModule } from "./tax/tax.module.js";
 import { ScriptsModule } from "./transcripts/scripts/scripts.module.js";
 import { TranscriptsModule } from "./transcripts/transcripts.module.js";
@@ -42,12 +43,14 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
  * `ai.transcribe` producer, the completion that writes the transcript and
  * initialises the document, and the read and export surface; A18b adds
  * `fonts`, the bundled open-licence catalogue and a workspace's own uploads
- * with their licence warranty; A22 adds `transcripts/scripts` — the
- * `ai.transliterate`/`ai.translate` producers, their completion handlers and
- * the internal write path transliteration needed of its own; B01 adds
- * `billing`: the `BillingProvider` port, checkout, webhooks and subscription
- * management. B04 adds `offers`: the real signup-gift/₹9-pass/week-pass/
- * top-up backing (`ExportsModule` and `BillingModule` both import it for the
+ * with their licence warranty; A14 adds `styles` (the catalogue `GET /styles`
+ * reads, plus a workspace's own presets) for the web shell's Home and Projects
+ * screens; A22 adds `transcripts/scripts` — the `ai.transliterate`/
+ * `ai.translate` producers, their completion handlers and the internal write
+ * path transliteration needed of its own; B01 adds `billing`: the
+ * `BillingProvider` port, checkout, webhooks and subscription management.
+ * B04 adds `offers`: the real signup-gift/₹9-pass/week-pass/top-up backing
+ * (`ExportsModule` and `BillingModule` both import it for the
  * `NINE_PASS_LEDGER` binding and checkout-time eligibility respectively — it
  * is listed here too because it owns its own `/offers/*` routes). Later work
  * packages append to `imports`.
@@ -87,6 +90,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     NotifyModule,
     ProjectsModule,
     MediaModule,
+    StylesModule,
     InternalModule,
     AdminModule,
     EdgModule,

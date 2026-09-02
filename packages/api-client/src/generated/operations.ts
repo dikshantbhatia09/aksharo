@@ -215,6 +215,20 @@ export const API_OPERATIONS = [
     summary: "Create a project",
   },
   {
+    operationId: "createSampleProject",
+    method: "POST",
+    path: "/projects/sample",
+    tags: ["projects"],
+    summary: "Create the seeded sample project (\"Welcome to Aksharo\")",
+  },
+  {
+    operationId: "createStylePreset",
+    method: "POST",
+    path: "/workspaces/{id}/style-presets",
+    tags: ["styles"],
+    summary: "Save a custom style preset",
+  },
+  {
     operationId: "createTopupCheckout",
     method: "POST",
     path: "/billing/topups/checkout",
@@ -262,6 +276,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}",
     tags: ["projects"],
     summary: "Delete a project",
+  },
+  {
+    operationId: "deleteStylePreset",
+    method: "DELETE",
+    path: "/workspaces/{id}/style-presets/{presetId}",
+    tags: ["styles"],
+    summary: "Delete a custom style preset",
   },
   {
     operationId: "deleteWorkspace",
@@ -747,6 +768,13 @@ export const API_OPERATIONS = [
     summary: "List the workspace's projects, newest first",
   },
   {
+    operationId: "listStyles",
+    method: "GET",
+    path: "/styles",
+    tags: ["styles"],
+    summary: "The style catalogue: system styles plus this workspace's presets",
+  },
+  {
     operationId: "listWorkspaceFonts",
     method: "GET",
     path: "/workspaces/{id}/fonts",
@@ -997,6 +1025,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}",
     tags: ["projects"],
     summary: "Rename, re-file, re-tag or archive a project",
+  },
+  {
+    operationId: "updateStylePreset",
+    method: "PATCH",
+    path: "/workspaces/{id}/style-presets/{presetId}",
+    tags: ["styles"],
+    summary: "Update a custom style preset",
   },
   {
     operationId: "updateWorkspace",

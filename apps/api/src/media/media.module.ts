@@ -5,6 +5,7 @@ import { MediaController, MediaUploadsController } from "./media.controller.js";
 import { MediaService } from "./media.service.js";
 import { MediaProbeCompletionHandler } from "./probe.handler.js";
 import { RetentionService } from "./retention.service.js";
+import { SampleProjectController } from "./sample-project.controller.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { ProjectsModule } from "../projects/projects.module.js";
 import { WorkspacesModule } from "../workspaces/workspaces.module.js";
@@ -25,7 +26,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
  */
 @Module({
   imports: [ProjectsModule, WorkspacesModule, JobsModule],
-  controllers: [MediaController, MediaUploadsController],
+  controllers: [MediaController, MediaUploadsController, SampleProjectController],
   providers: [MediaService, SubtitleImportService, RetentionService, MediaProbeCompletionHandler],
   exports: [MediaService, SubtitleImportService, RetentionService],
 })

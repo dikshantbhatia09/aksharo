@@ -57,13 +57,13 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A11 | api transcripts, post-processing, segmentation → EDG init | A02b, A08, A09 | done |
 | A12 | api EDG module (ops, rebase, CAS, revisions, realtime) | A02b, A08 | done |
 | A13 | web shell + `@montaj/ui` + auth pages + onboarding + settings | A04, A05 | done |
-| A14 | web Home + Projects + upload engine | A06, A08, A13 | in-progress (A14b re-merge) |
+| A14 | web Home + Projects + upload engine | A06, A08, A13 | done |
 | A15 | web Editor transcript column + EDG client store | A12, A13 | done (A15b verification pending) |
 | A16 | render-core + render-canvaskit + 30 styles + panels | A02, A02c | done |
 | A17 | web Timeline | A15, A16 | in-progress |
 | A18a | ass-exporter + parity gate | A16, A20 | in-progress |
 | A18b | fonts pipeline | A06, A07 | done |
-| A19 | web browser export + export dialog | A16, A21, A02c | briefed |
+| A19 | web browser export + export dialog | A16, A21, A02c | in-progress |
 | A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | done |
 | A21 | api exports module (manifests, cloud jobs) | A08, A20 | done |
 | A22 | scripts + translation | A10, A11, A12 | done |
@@ -115,7 +115,7 @@ C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machines).
 
 ## Wave 7 — Remaining
-D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for prod — chart variant exists from X05; prod-hardening item before Gate C), and under D08: extend A22's rule-table transliteration (Hindi + Tamil today) to the remaining AI4Bharat languages as table data once A00-05 eval sets exist. **Gate D**.
+D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for prod — chart variant exists from X05; prod-hardening item before Gate C), X07 hardening also includes: split `packages/api-client`'s hand-written `endpoints/hooks/index/query-keys/types` into per-module files with a generated barrel (three WPs in a row — A22, A14, B04 — conflicted on those five files), and under D08: extend A22's rule-table transliteration (Hindi + Tamil today) to the remaining AI4Bharat languages as table data once A00-05 eval sets exist. **Gate D**.
 
 ## Gate log
 - **2026-09-02 — Wave 1 interim gate (A01, A02, A02b, A02c, A03, A03b, A03c, A04, A05, A08, A08b, A09, X05) PASSED** from a fresh clone at `cf18498`: frozen install, build 15/15, migrations + 5 SQL guard files on a new database, seed (5 plans, 7 system styles from the package, 4 flags), tests — api 673, edg 253, timemap 149, caption-styles 34, worker-ai 321 (+5 skipped), web Playwright smoke 10. A06 and A07 remain; the final Wave 1 gate re-runs after they merge.

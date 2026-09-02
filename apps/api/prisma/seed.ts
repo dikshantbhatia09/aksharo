@@ -19,7 +19,8 @@
  *
  * Run with: pnpm --filter @montaj/api db:seed
  */
-import { resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 
@@ -48,6 +49,19 @@ const ADMIN_EMAIL = `admin@${BRAND.domain}`;
 const DEMO_SLUG = "demo";
 /** Maharashtra. A validated GST State code is mandatory for Indian workspaces (D41). */
 const DEMO_STATE_CODE = "27";
+
+/**
+ * The style's static preview filename, if `previews:build` (A16/A14) has
+ * actually rendered one at `packages/caption-styles/previews/<key>.png` — or
+ * `null`. A checkout that has not run the render is not a broken seed, just one
+ * whose catalogue has no thumbnails yet; the web app falls back to a generic
+ * swatch (`GET /styles` §previewKey).
+ */
+function previewFileFor(repoRoot: string, key: string): string | null {
+  const file = `${key}.png`;
+  const path = join(repoRoot, "packages", "caption-styles", "previews", file);
+  return existsSync(path) ? file : null;
+}
 
 /** One month from `from`, used for the free plan's grant window. */
 function addMonth(from: Date): Date {
@@ -83,7 +97,8 @@ export async function seed(prisma: PrismaClient): Promise<SeedResult> {
   }
 
   // --- System caption styles ---------------------------------------------
-  const { source: styleSource, styles } = loadSystemStyles(resolve(__dirname, "..", "..", ".."));
+  const repoRoot = resolve(__dirname, "..", "..", "..");
+  const { source: styleSource, styles } = loadSystemStyles(repoRoot);
   for (const style of styles) {
     // System styles have `workspaceId = null`, and PostgreSQL treats every NULL as
     // distinct — so `@@unique([workspaceId, key])` does not constrain them and
@@ -100,6 +115,10 @@ export async function seed(prisma: PrismaClient): Promise<SeedResult> {
       category: style.category,
       doc: style.doc,
       minPlan: style.minPlan,
+      // `null` unless `packages/caption-styles/previews/<key>.png` has actually
+      // been rendered (`previews:build`, A14): a `previewKey` pointing at a file
+      // that does not exist would just be a broken `<img>` in the web app.
+      previewKey: previewFileFor(repoRoot, style.key),
       // assRenderable / assExportable / requiresLayoutMetrics / parityScore are
       // deliberately NOT written here: the A18a parity gate owns them (D33).
     };

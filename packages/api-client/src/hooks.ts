@@ -13,7 +13,7 @@
  *    fetch layer already rotated), retrying a 403 is noise.
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useApiClient, useApiContext, useWorkspaceId } from "./context.js";
 import { endpoints } from "./endpoints.js";
@@ -23,12 +23,23 @@ import { queryKeys } from "./query-keys.js";
 import type { ApiClient } from "./http.js";
 import type {
   AvailableScripts,
+  BatchCreateProjectsRequest,
+  CompleteUploadRequest,
+  CompletedUpload,
   ConsentPurpose,
   ConsentState,
+  CreateFolderRequest,
+  CreateProjectRequest,
   CreditsSummary,
   CurrentUser,
   Entitlement,
+  Folder,
+  InitUploadRequest,
+  JobPage,
+  JobSummary,
+  ListProjectsQuery,
   LoginRequest,
+  Media,
   MemoryEntry,
   OAuthCompleteRequest,
   OffersEligibilityView,
@@ -37,22 +48,36 @@ import type {
   PassCheckoutResponse,
   PassView,
   PendingApproval,
+  Project,
+  ProjectPage,
   RightsRequest,
   SessionSummary,
   SignUpRequest,
   SignUpResponse,
+  StyleCatalogueEntry,
+  StylePresetRequest,
   SubscriptionView,
   TokenResponse,
   TopupCheckoutRequest,
+  TranscribeAccepted,
+  TranscribeRequest,
   TranslateAccepted,
   TranslateRequest,
   TransliterateAccepted,
   TransliterateRequest,
+  UpdateFolderRequest,
   UpdateMeRequest,
+  UpdateProjectRequest,
+  UploadTicket,
   UsageSummary,
   WorkspaceSummary,
 } from "./types.js";
-import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
+import type {
+  InfiniteData,
+  UseInfiniteQueryResult,
+  UseMutationResult,
+  UseQueryResult,
+} from "@tanstack/react-query";
 
 /**
  * Never retry a failure the server has already decided on.
@@ -408,6 +433,356 @@ export function useWorkspaceCredits(): UseQueryResult<CreditsSummary> {
     enabled: workspaceId !== null,
     retry: retryPolicy,
     queryFn: () => client.call(endpoints.credits.getBalance, { params: { id: workspaceId ?? "" } }),
+  });
+}
+
+// --- Projects, folders and media (A06, A14) ---------------------------------
+
+/**
+ * Cursor-paginated project list, for `/projects` and Home's Recent grid.
+ *
+ * `useInfiniteQuery` rather than `useQuery`: the brief's infinite scroll wants
+ * pages appended, not a growing `limit`, and the query key already carries the
+ * filters, so changing search or a filter starts a fresh cursor chain instead
+ * of mixing pages from two different queries.
+ */
+export function useProjects(
+  query: Omit<ListProjectsQuery, "cursor"> = {},
+): UseInfiniteQueryResult<InfiniteData<ProjectPage>, Error> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useInfiniteQuery({
+    queryKey: queryKeys.projects(workspaceId ?? "none", query),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      client.call(endpoints.projects.list, {
+        query: { ...query, ...(pageParam === undefined ? {} : { cursor: pageParam }) },
+      }),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
+}
+
+export function useProject(projectId: string | null): UseQueryResult<Project> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.project(workspaceId ?? "none", projectId ?? "none"),
+    enabled: workspaceId !== null && projectId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.projects.get, { params: { projectId: projectId ?? "" } }),
+  });
+}
+
+function invalidateProjects(
+  queryClient: ReturnType<typeof useQueryClient>,
+  workspaceId: string | null,
+): void {
+  void queryClient.invalidateQueries({ queryKey: ["ws", workspaceId ?? "none", "projects"] });
+}
+
+export function useCreateProject(): UseMutationResult<Project, Error, CreateProjectRequest> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) => client.call(endpoints.projects.create, { body }),
+    onSuccess: () => invalidateProjects(queryClient, workspaceId),
+  });
+}
+
+/** "Try with a sample" (08 §Home): no request body, a real project comes back. */
+export function useCreateSampleProject(): UseMutationResult<Project, Error, void> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: () => client.call(endpoints.projects.createSample),
+    onSuccess: () => invalidateProjects(queryClient, workspaceId),
+  });
+}
+
+export function useBatchCreateProjects(): UseMutationResult<
+  { created: Project[] },
+  Error,
+  BatchCreateProjectsRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) => client.call(endpoints.projects.batchCreate, { body }),
+    onSuccess: () => invalidateProjects(queryClient, workspaceId),
+  });
+}
+
+export function useUpdateProject(): UseMutationResult<
+  Project,
+  Error,
+  { projectId: string; body: UpdateProjectRequest }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: ({ projectId, body }) =>
+      client.call(endpoints.projects.update, { params: { projectId }, body }),
+    onSuccess: () => invalidateProjects(queryClient, workspaceId),
+  });
+}
+
+/** Archive is `update({status: "archived"})`; delete is this — soft, on the server. */
+export function useDeleteProject(): UseMutationResult<{ id: string }, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (projectId) => client.call(endpoints.projects.remove, { params: { projectId } }),
+    onSuccess: () => invalidateProjects(queryClient, workspaceId),
+  });
+}
+
+export function useFolders(): UseQueryResult<Folder[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.folders(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.folders.list),
+  });
+}
+
+function invalidateFolders(
+  queryClient: ReturnType<typeof useQueryClient>,
+  workspaceId: string | null,
+): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.folders(workspaceId ?? "none") });
+}
+
+export function useCreateFolder(): UseMutationResult<Folder, Error, CreateFolderRequest> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) => client.call(endpoints.folders.create, { body }),
+    onSuccess: () => invalidateFolders(queryClient, workspaceId),
+  });
+}
+
+export function useUpdateFolder(): UseMutationResult<
+  Folder,
+  Error,
+  { folderId: string; body: UpdateFolderRequest }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: ({ folderId, body }) =>
+      client.call(endpoints.folders.update, { params: { folderId }, body }),
+    onSuccess: () => invalidateFolders(queryClient, workspaceId),
+  });
+}
+
+export function useDeleteFolder(): UseMutationResult<{ id: string }, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (folderId) => client.call(endpoints.folders.remove, { params: { folderId } }),
+    onSuccess: () => invalidateFolders(queryClient, workspaceId),
+  });
+}
+
+export function useProjectMedia(projectId: string | null): UseQueryResult<Media[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.projectMedia(workspaceId ?? "none", projectId ?? "none"),
+    enabled: workspaceId !== null && projectId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.media.list, { params: { projectId: projectId ?? "" } }),
+  });
+}
+
+/**
+ * Begin an upload. Imperative rather than a `useMutation` most of the time —
+ * `apps/web/lib/upload` calls `useRawApiClient()` directly so it can drive
+ * retries and pause/resume itself — but a component that only needs to kick one
+ * off (replace, a single small file) can use this.
+ */
+export function useInitMediaUpload(): UseMutationResult<
+  UploadTicket,
+  Error,
+  { projectId: string; body: InitUploadRequest }
+> {
+  const client = useApiClient();
+  return useMutation({
+    mutationFn: ({ projectId, body }) =>
+      client.call(endpoints.media.init, { params: { projectId }, body }),
+  });
+}
+
+export function useCompleteMediaUpload(): UseMutationResult<
+  CompletedUpload,
+  Error,
+  { projectId: string; mediaId: string; body: CompleteUploadRequest }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: ({ projectId, mediaId, body }) =>
+      client.call(endpoints.media.complete, { params: { projectId, mediaId }, body }),
+    onSuccess: () => invalidateProjects(queryClient, workspaceId),
+  });
+}
+
+// --- Jobs (A08, A14) ---------------------------------------------------------
+
+/**
+ * A project's jobs, newest first — the polling fallback `JobProgress` needs
+ * when the realtime channel is off or has not caught up yet (08 §2).
+ *
+ * `refetchInterval` only runs while at least one job is still live; once every
+ * job the last page returned has settled, polling stops on its own rather than
+ * hammering `/jobs` for a project nothing is happening to.
+ */
+export function useProjectJobs(
+  projectId: string | null,
+  options: { pollMs?: number } = {},
+): UseQueryResult<JobPage> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  const pollMs = options.pollMs ?? 4_000;
+  return useQuery({
+    queryKey: queryKeys.projectJobs(workspaceId ?? "none", projectId ?? "none"),
+    enabled: workspaceId !== null && projectId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.jobs.list, { query: { projectId: projectId ?? "" } }),
+    refetchInterval: (query) => {
+      const page = query.state.data;
+      const stillLive = page?.items.some(
+        (job) => job.status === "queued" || job.status === "running",
+      );
+      return stillLive === true ? pollMs : false;
+    },
+  });
+}
+
+export function useCancelJob(): UseMutationResult<JobSummary, Error, string> {
+  const client = useApiClient();
+  return useMutation({
+    mutationFn: (jobId) => client.call(endpoints.jobs.cancel, { params: { id: jobId } }),
+  });
+}
+
+// --- Styles (A16, A14, D64) --------------------------------------------------
+
+/**
+ * The style catalogue: system styles plus this workspace's own presets
+ * (`GET /styles`). `system-styles.ts`'s bundled JSON is the caller's fallback
+ * for the dev/offline case — this hook does not fall back on its own, so a
+ * genuine outage still surfaces as an error a caller can act on.
+ */
+export function useStyles(): UseQueryResult<StyleCatalogueEntry[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.styles(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    staleTime: 60_000,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.styles.list),
+  });
+}
+
+function invalidateStyles(
+  queryClient: ReturnType<typeof useQueryClient>,
+  workspaceId: string | null,
+): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.styles(workspaceId ?? "none") });
+}
+
+export function useCreateStylePreset(): UseMutationResult<
+  StyleCatalogueEntry,
+  Error,
+  StylePresetRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) =>
+      client.call(endpoints.styles.createPreset, {
+        params: { id: workspaceId ?? "" },
+        body,
+      }),
+    onSuccess: () => invalidateStyles(queryClient, workspaceId),
+  });
+}
+
+export function useUpdateStylePreset(): UseMutationResult<
+  StyleCatalogueEntry,
+  Error,
+  { presetId: string; body: StylePresetRequest }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: ({ presetId, body }) =>
+      client.call(endpoints.styles.updatePreset, {
+        params: { id: workspaceId ?? "", presetId },
+        body,
+      }),
+    onSuccess: () => invalidateStyles(queryClient, workspaceId),
+  });
+}
+
+export function useDeleteStylePreset(): UseMutationResult<{ id: string }, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (presetId) =>
+      client.call(endpoints.styles.deletePreset, {
+        params: { id: workspaceId ?? "", presetId },
+      }),
+    onSuccess: () => invalidateStyles(queryClient, workspaceId),
+  });
+}
+
+/**
+ * Start transcription with the quick-pick options (A11). Returns `null`
+ * rather than throwing when the media has not been probed yet
+ * (`transcript/media_not_ready`, a 409 — the common case right after an
+ * upload, before `media.probe` has finished), so a caller can invoke this
+ * unconditionally and treat "not yet" as a normal outcome: the project still
+ * exists and is still ready to open, it just is not transcribing itself yet.
+ */
+export function useTranscribe(): UseMutationResult<
+  TranscribeAccepted | null,
+  Error,
+  { projectId: string } & TranscribeRequest
+> {
+  const client = useApiClient();
+  return useMutation({
+    mutationFn: async ({ projectId, ...body }) => {
+      try {
+        return await client.call(endpoints.transcripts.transcribe, {
+          params: { projectId },
+          body,
+        });
+      } catch (error) {
+        if (error instanceof ApiError && error.code === "transcript/media_not_ready") {
+          return null;
+        }
+        throw error;
+      }
+    },
   });
 }
 
