@@ -52,6 +52,86 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A21 — api: the exports module (decision engine, signed render manifests, cloud render/subtitle jobs, downloads, brand assets).**
+  - **`POST /projects/{id}/exports`** runs the decision engine (`src/exports/decision.ts`,
+    ≥25 table tests): browser vs. cloud per D34's technical caps (1080p ≤ 20 min on
+    every plan; 4K only with `capabilities.isDesktopChromium && fileSink && ≤ 10 min`;
+    mobile and alpha/green-screen always cloud), the plan's resolution entitlement
+    checked _before_ the path is even chosen (`entitlement/upgrade_required` for a 4K
+    request on a 1080p plan), and the watermark decision (D04): Free carries one unless
+    the signup gift or an unconsumed ₹9 pass clears it, and only ever on the browser
+    path, ≤ 10 minutes. Every branch returns UI-safe `reasons[]` strings for the export
+    dialog. Subtitle requests always go to the cloud (`render.subtitle`, 0 credits);
+    `ass` is refused everywhere (A18a's parity gate has not landed) and `md`/`docx`
+    are plan-gated by `entitlements.subtitleFormats` (`docx` itself is not generated
+    anywhere yet and stays refused).
+  - **The server alone authors the manifest.** `manifest-builder.ts` snapshots the EDG
+    revision, the resolved `style_presets` docs (content-hashed into
+    `catalogueSnapshotIds`, `<key>@<sha256 prefix>`), the primary media's storage key,
+    a `@montaj/timemap` `fromAcceptedItems` timemap over every pass's accepted `cut`
+    items, and the decision's caps/watermark, then hands it to
+    `common/crypto/manifest-signer.ts` (the one place `INTERNAL_CALLBACK_SECRET` meets
+    `@montaj/render-manifest`) for the canonical-JSON HMAC signature A20 defined.
+    Browser mode writes `export_manifests` + an `exports` row (`pending_browser`) and
+    returns the signed document; cloud mode (video or subtitle) reserves credits and
+    enqueues through the existing `JobsService.enqueue` (0.5 credits/output-minute,
+    held on the _source_ duration) with the manifest embedded in the payload.
+  - **`POST /exports/manifests/{id}/complete`**: single-use nonce via a conditional
+    `UPDATE … WHERE consumed_at IS NULL` (409 `export/manifest_already_consumed` on
+    replay, 410 `export/manifest_expired` past `expiresAt`), marks the export
+    succeeded, spends the signup gift / ₹9 pass the decision flagged, and writes a
+    `publish_events` row. The ₹9 pass is `nine-pass-ledger.ts`, an interface with a
+    no-op implementation exactly as CONTRACTS §4 describes `CreditsFacade` — B04 backs
+    it with `passes_purchased`.
+  - **`RenderVideoCompletionHandler` / `RenderSubtitleCompletionHandler`**
+    (`render-completion.handler.ts`) register on `JobCompletionRegistry`: the manifest's
+    nonce is claimed as the _first_ write (idempotent on a handler retry after a
+    throw), then the `exports` row (video: one, upserted on the manifest's own
+    `exportId`; subtitle: one per sidecar) is written from the worker's real result,
+    a `publish_events` row follows, and credits settle at the cloud-render rate off the
+    _rendered_ `outputMs` — never more than the hold.
+  - **Downloads and retention.** `GET /exports/{id}/download` presigns a 5-minute R2
+    GET and 409s `export/not_ready` for a browser export, which never uploads
+    anything; `purgeExpiredExports()` deletes the R2 object and the row past its
+    7-day `expiresAt` (D47) — a method, not a schedule; B16 wires the call.
+  - **Brand assets** (`ws/{workspaceId}/brand/{assetId}.png`, CONTRACTS §6):
+    `POST/GET/DELETE /workspaces/{id}/brand-assets` for a workspace's own watermark or
+    logo, presigned straight to R2. A request's `options.brandAssetId` lets an
+    already-unwatermarked (paid) export deliberately overlay one anyway.
+  - **The default Free-tier mark is provisioned, not assumed.** Running the real
+    `apps/render` worker in `test/exports-render.e2e-spec.ts` proved that A20's own
+    `brandAssetKey` resolves _every_ `watermark.assetId` — including the platform's
+    own default — per workspace, with no bundled fallback anywhere in the render path;
+    a manifest naming it failed `storage/unreadable` before the object existed.
+    `default-watermark.service.ts` provisions a small synthesised placeholder PNG
+    (`default-watermark.ts`; real artwork is a design asset outside this work
+    package) at that key the first time a workspace needs it.
+  - **e2e proof, against real infrastructure.** `test/exports-render.e2e-spec.ts`
+    builds and spawns `apps/render` (`node dist/index.js`, the same binary a container
+    runs) against the shared Redis, uploads a real ffmpeg-generated clip to MinIO,
+    requests a cloud export, verifies the signed manifest's signature/caps/watermark,
+    waits for the real render, and asserts the `exports` row, the derived object at
+    its CONTRACTS §6 key in R2, a signed download URL that actually resolves, and
+    `jobs.credits_charged_tenths` settled at the real rendered length.
+    `test/exports.e2e-spec.ts` covers the browser path (signup-gift-clean first
+    export, watermarked second, nonce reuse, expiry, entitlement and format refusals)
+    against a real Postgres and Redis. `common/crypto/manifest-signer.test.ts` proves
+    a flipped signature byte, an edited watermark and a manifest signed under a
+    different key are all refused.
+  - **Deviation, reported per the brief.** The brief's original scope item 4
+    (`GET /.well-known/aksharo-manifest-keys.json`, an ES256/JWKS key set) predates
+    A20's landed design: `@montaj/render-manifest` signs with a canonical-JSON HMAC
+    over `INTERNAL_CALLBACK_SECRET` (with `_NEXT` rotation), not an asymmetric
+    keypair. Publishing verification material for an HMAC would let a client forge
+    manifests, so this work package does not implement the JWKS endpoint — every
+    manifest (browser and cloud alike) is issued and verified through
+    `@montaj/render-manifest` as A20 built it instead.
+  - New tables: `brand_assets`; `export_manifests.manifest` (the full signed
+    document, replacing the pre-A20 `watermark`/`caps`/`codec_ladder`/`signature`
+    columns) plus `consumes_signup_gift`/`consumes_nine_pass`; `exports.status`
+    (`pending_browser|succeeded|failed`), `workspace_id` and `checksum`;
+    `workspaces.signup_gift_consumed_at`.
+
 - **B01 — api: billing core — `BillingProvider` (Razorpay + fake), plan
   catalogue, checkout with the ₹15,000 UPI mandate rule, passes/top-ups,
   idempotent signed webhooks with a subscription state machine, subscription

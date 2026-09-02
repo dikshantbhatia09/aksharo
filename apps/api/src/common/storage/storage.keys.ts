@@ -24,6 +24,13 @@ const ULID_PATTERN = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 /** A file extension we are willing to paste into a key. */
 const EXTENSION_PATTERN = /^[a-z0-9]{1,8}$/;
 
+/**
+ * A ULID, or the platform's own well-known asset slugs (`aksharo-watermark`,
+ * `manifest-builder.ts`'s `DEFAULT_WATERMARK_ASSET_ID`) — never anything else,
+ * so a key is still never built from an attacker-controlled string.
+ */
+const BRAND_ASSET_ID_PATTERN = /^([0-9A-HJKMNP-TV-Z]{26}|[a-z][a-z0-9-]{0,62}[a-z0-9])$/;
+
 /** Raised when an id or an extension would produce a key we do not trust. */
 export class StorageKeyError extends Error {
   constructor(message: string) {
@@ -155,6 +162,21 @@ export function fontKey(workspaceId: string, fontId: string, extension: FontExte
     throw new StorageKeyError(`${JSON.stringify(extension)} is not a permitted font extension`);
   }
   return `ws/${checkedId("workspaceId", workspaceId)}/fonts/${checkedId("fontId", fontId)}.${extension}`;
+}
+
+/**
+ * Brand asset key (watermark, logo), in the R2 bucket (A21 writes these).
+ *
+ * Added 2026-09-02 after A20: `watermark.assetId` in the signed render manifest
+ * names one of these when a workspace deliberately overlays its own logo.
+ */
+export function brandAssetKey(workspaceId: string, assetId: string): string {
+  if (!BRAND_ASSET_ID_PATTERN.test(assetId)) {
+    throw new StorageKeyError(
+      `assetId is not a ULID or a known asset slug: ${JSON.stringify(assetId)}`,
+    );
+  }
+  return `ws/${checkedId("workspaceId", workspaceId)}/brand/${assetId}.png`;
 }
 
 /** Is `key` inside this workspace's namespace? Used before every signed URL. */
