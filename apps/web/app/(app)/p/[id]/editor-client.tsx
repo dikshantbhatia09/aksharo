@@ -23,6 +23,7 @@ import type { EditorSnapshot, EditorStore } from "@/lib/edg/store";
 
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
 import { useRenderer } from "@/components/editor/canvas/use-canvaskit";
+import { ExportButton } from "@/components/editor/export/ExportButton";
 import { type PanelOp, type PanelScope } from "@/components/editor/panels/ops";
 import { RightPanel } from "@/components/editor/panels/RightPanel";
 import { SYSTEM_STYLE_MAP, SYSTEM_STYLES } from "@/components/editor/panels/system-styles";
@@ -448,6 +449,14 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           Follow playhead
         </label>
         <div className="ml-auto flex items-center gap-2">
+          <ExportButton
+            projectId={projectId}
+            primaryMediaId={state.hot.media.find((media) => media.role === "primary")?.mediaId}
+            projection={toRenderProjection(state)}
+            catalogue={SYSTEM_STYLE_MAP}
+            registry={registry}
+            shaper={shaper}
+          />
           <button
             type="button"
             data-testid="editor-undo"
