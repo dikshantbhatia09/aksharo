@@ -17,6 +17,18 @@ export interface MemberInvitedMail {
 }
 
 /**
+ * B08: the second channel for `POST /workspaces/{id}/transfer-ownership`'s
+ * confirmation step (`teams/ownership-transfer.service.ts`) — sent to the
+ * *current* owner, not the incoming one, so a hijacked session gets noticed
+ * before the workspace moves.
+ */
+export interface OwnershipTransferRequestedMail {
+  readonly to: string;
+  readonly workspaceName: string;
+  readonly confirmationToken: string;
+}
+
+/**
  * The port everything that has to reach a person by email goes through.
  *
  * An interface rather than a class so the module never depends on a transport:
@@ -26,6 +38,7 @@ export interface MemberInvitedMail {
  */
 export interface WorkspaceNotifier {
   memberInvited(mail: MemberInvitedMail): Promise<void>;
+  ownershipTransferRequested(mail: OwnershipTransferRequestedMail): Promise<void>;
 }
 
 export const WORKSPACE_NOTIFIER = Symbol("WORKSPACE_NOTIFIER");
@@ -81,6 +94,42 @@ export class LoggingWorkspaceNotifier implements WorkspaceNotifier {
             link,
             workspaceName: mail.workspaceName,
             role: mail.role,
+            at: new Date().toISOString(),
+          }),
+        )
+        .ltrim(key, 0, DEV_OUTBOX_LIMIT - 1)
+        .expire(key, DEV_OUTBOX_TTL_SEC)
+        .exec();
+    } catch (error) {
+      this.logger.warn({ err: error }, "development mail outbox unavailable");
+    }
+  }
+
+  async ownershipTransferRequested(mail: OwnershipTransferRequestedMail): Promise<void> {
+    this.logger.log(
+      { template: "ownership_transfer_requested", to: maskEmail(mail.to), brand: BRAND.name },
+      "ownership transfer confirmation queued",
+    );
+
+    if (process.env["NODE_ENV"] === "production") {
+      this.logger.warn(
+        { template: "ownership_transfer_requested" },
+        "no mail transport is configured; the confirmation was not delivered",
+      );
+      return;
+    }
+
+    try {
+      const key = redisKeys.devOutbox();
+      await this.redis.client
+        .multi()
+        .lpush(
+          key,
+          JSON.stringify({
+            to: mail.to,
+            template: "ownership_transfer_requested",
+            token: mail.confirmationToken,
+            workspaceName: mail.workspaceName,
             at: new Date().toISOString(),
           }),
         )

@@ -1,6 +1,8 @@
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ulid } from "ulid";
 
+import { MEMBERSHIP_SEAT_EVENTS } from "./teams/membership-events.js";
 import { WORKSPACE_NOTIFIER } from "./workspace-notifier.js";
 import { WORKSPACE_ERRORS, MAX_MEMBERS_PER_WORKSPACE } from "./workspaces.constants.js";
 import { AppException, PrismaService, roleAtLeast } from "../common/index.js";
@@ -65,6 +67,7 @@ export class MembersService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     @Inject(WORKSPACE_NOTIFIER) private readonly notifier: WorkspaceNotifier,
+    private readonly events: EventEmitter2,
   ) {}
 
   /** Members and outstanding invitations, owner first, then by join date. */
@@ -281,6 +284,13 @@ export class MembersService {
       data: { role: invitation.role },
     });
 
+    // B08: seat count → B01 subscription quantity with proration, and pooled
+    // credits recomputed. See `teams/membership-events.ts`.
+    this.events.emit(MEMBERSHIP_SEAT_EVENTS.seatsChanged, {
+      workspaceId: invitation.workspaceId,
+      reason: "invite_accepted",
+    });
+
     return { workspaceId: invitation.workspaceId, role: invitation.role };
   }
 
@@ -425,6 +435,15 @@ export class MembersService {
         wasInvitation: membership.status === "invited",
       },
     });
+
+    // B08: an accepted membership leaving frees a seat; an invitation withdrawn
+    // never billed one, so only the former fires the sync.
+    if (membership.status !== "invited") {
+      this.events.emit(MEMBERSHIP_SEAT_EVENTS.seatsChanged, {
+        workspaceId,
+        reason: "member_removed",
+      });
+    }
 
     return { id: membershipId, status };
   }

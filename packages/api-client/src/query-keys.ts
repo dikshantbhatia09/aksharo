@@ -46,6 +46,10 @@ export const queryKeys = {
   styles: (workspaceId: string) => ["ws", workspaceId, "styles"] as const,
   transcriptScripts: (workspaceId: string, projectId: string) =>
     ["ws", workspaceId, "projects", projectId, "transcript", "scripts"] as const,
+  members: (workspaceId: string) => ["ws", workspaceId, "members"] as const,
+  devices: (workspaceId: string) => ["ws", workspaceId, "devices"] as const,
+  licenseKeys: (workspaceId: string) => ["ws", workspaceId, "licenseKeys"] as const,
+  clientTags: (workspaceId: string) => ["ws", workspaceId, "clientTags"] as const,
 } as const;
 
 export type QueryKeys = typeof queryKeys;

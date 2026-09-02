@@ -948,6 +948,9 @@ model Folder {
   id          String    @id @db.Char(26)
   workspaceId String    @map("workspace_id") @db.Char(26)
   name        String
+  /// Agency client separation (04 §Plans, B08). Not inherited from `parent` —
+  /// a client tag is set per folder, exactly like `projects.client_tag`.
+  clientTag   String?   @map("client_tag")
   /// Null for a top-level folder. A cycle is refused by the service, not the DB.
   parentId    String?   @map("parent_id") @db.Char(26)
   /// Manual ordering within a parent; ties break on `name`.
@@ -963,6 +966,7 @@ model Folder {
 
   @@index([workspaceId])
   @@index([workspaceId, parentId])
+  @@index([workspaceId, clientTag])
   @@map("folders")
 }
 

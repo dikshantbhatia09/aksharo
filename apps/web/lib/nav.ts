@@ -7,6 +7,7 @@ import {
   LifeBuoy,
   LayoutTemplate,
   Plug,
+  Users,
 } from "lucide-react";
 
 import type { LucideIcon } from "lucide-react";
@@ -57,6 +58,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     owner: "B12",
   },
   { key: "plugins", label: "Plugins", href: "/plugins", icon: Plug, ready: false, owner: "A24" },
+  { key: "team", label: "Team", href: "/team", icon: Users, ready: true },
   {
     key: "subscription",
     label: "Subscription",
@@ -126,6 +128,12 @@ export const SETTINGS_NAV: readonly SettingsSection[] = [
     label: "Subscription",
     href: "/settings/subscription",
     description: "Your plan, passes and top-ups.",
+  },
+  {
+    key: "plugin-keys",
+    label: "Licence keys",
+    href: "/plugins/keys",
+    description: "Offline activation for plugins and the desktop app.",
   },
 ];
 

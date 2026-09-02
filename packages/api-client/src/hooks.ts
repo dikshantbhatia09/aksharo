@@ -71,6 +71,16 @@ import type {
   UploadTicket,
   UsageSummary,
   WorkspaceSummary,
+  ChangeRoleRequest,
+  ClientTagView,
+  CreateLicenseKeyRequest,
+  DeviceView,
+  InviteMemberRequest,
+  LicenseKeyView,
+  MemberView,
+  MembershipStatus,
+  TransferOwnershipRequest,
+  TransferOwnershipResult,
 } from "./types.js";
 import type {
   InfiniteData,
@@ -930,4 +940,221 @@ export function useTranslateTranscript(
 /** Escape hatch for a call the hooks do not cover yet (A14 and later). */
 export function useRawApiClient(): ApiClient {
   return useApiContext().client;
+}
+
+// --- Team: members, roles, ownership transfer (A05, B08) -------------------
+
+export function useMembers(): UseQueryResult<MemberView[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.members(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () =>
+      client.call(endpoints.account.listMembers, { params: { id: workspaceId ?? "" } }),
+  });
+}
+
+export function useInviteMember(): UseMutationResult<MemberView, Error, InviteMemberRequest> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) =>
+      client.call(endpoints.account.inviteMember, { params: { id: workspaceId ?? "" }, body }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.members(workspaceId) });
+    },
+  });
+}
+
+export function useChangeMemberRole(): UseMutationResult<
+  MemberView,
+  Error,
+  { membershipId: string; role: ChangeRoleRequest["role"] }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: ({ membershipId, role }) =>
+      client.call(endpoints.account.changeMemberRole, {
+        params: { id: workspaceId ?? "", membershipId },
+        body: { role },
+      }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.members(workspaceId) });
+    },
+  });
+}
+
+export function useRemoveMember(): UseMutationResult<
+  { id: string; status: MembershipStatus },
+  Error,
+  string
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (membershipId) =>
+      client.call(endpoints.account.removeMember, {
+        params: { id: workspaceId ?? "", membershipId },
+      }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.members(workspaceId) });
+    },
+  });
+}
+
+/**
+ * Owner only. The first call (no `confirmToken`) sends a confirmation to the
+ * current owner; the second, with that token, executes the transfer
+ * (orchestrator addendum after A05).
+ */
+export function useTransferOwnership(): UseMutationResult<
+  TransferOwnershipResult,
+  Error,
+  TransferOwnershipRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) =>
+      client.call(endpoints.account.transferOwnership, { params: { id: workspaceId ?? "" }, body }),
+    onSuccess: (result) => {
+      if (result.status !== "transferred" || workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.members(workspaceId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces() });
+    },
+  });
+}
+
+// --- Devices (B08) -----------------------------------------------------------
+
+export function useDevices(): UseQueryResult<DeviceView[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.devices(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.registeredDevices.list),
+  });
+}
+
+export function useRenameDevice(): UseMutationResult<
+  DeviceView,
+  Error,
+  { deviceId: string; name: string }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: ({ deviceId, name }) =>
+      client.call(endpoints.registeredDevices.rename, { params: { deviceId }, body: { name } }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.devices(workspaceId) });
+    },
+  });
+}
+
+export function useRevokeDevice(): UseMutationResult<DeviceView, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (deviceId) =>
+      client.call(endpoints.registeredDevices.revoke, { params: { deviceId } }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.devices(workspaceId) });
+    },
+  });
+}
+
+// --- Licence keys (B08) -------------------------------------------------------
+
+export function useLicenseKeys(): UseQueryResult<LicenseKeyView[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.licenseKeys(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.licensing.list, { params: { id: workspaceId ?? "" } }),
+  });
+}
+
+export function useCreateLicenseKey(): UseMutationResult<
+  LicenseKeyView,
+  Error,
+  CreateLicenseKeyRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) =>
+      client.call(endpoints.licensing.create, { params: { id: workspaceId ?? "" }, body }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.licenseKeys(workspaceId) });
+    },
+  });
+}
+
+export function useRevokeLicenseKey(): UseMutationResult<LicenseKeyView, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (keyId) =>
+      client.call(endpoints.licensing.revoke, { params: { id: workspaceId ?? "", keyId } }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.licenseKeys(workspaceId) });
+    },
+  });
+}
+
+// --- Client tags (B08, Agency) -----------------------------------------------
+
+export function useClientTags(): UseQueryResult<ClientTagView[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.clientTags(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.clientTags.list, { params: { id: workspaceId ?? "" } }),
+  });
+}
+
+export function useSetProjectClientTag(): UseMutationResult<
+  { id: string; clientTag: string | null },
+  Error,
+  { projectId: string; clientTag: string | null }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: ({ projectId, clientTag }) =>
+      client.call(endpoints.clientTags.setProjectTag, {
+        params: { id: workspaceId ?? "", projectId },
+        body: { clientTag },
+      }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.clientTags(workspaceId) });
+    },
+  });
 }

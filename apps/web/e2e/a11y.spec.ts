@@ -45,6 +45,8 @@ const SIGNED_IN_SCREENS = [
   { path: "/settings/privacy", name: "settings — privacy" },
   { path: "/settings/notifications", name: "settings — notifications" },
   { path: "/device", name: "device approval" },
+  { path: "/team", name: "team" },
+  { path: "/plugins/keys", name: "licence keys" },
 ] as const;
 
 test("axe: the shell, onboarding and every settings screen", async ({ page, sharedAccount }) => {
