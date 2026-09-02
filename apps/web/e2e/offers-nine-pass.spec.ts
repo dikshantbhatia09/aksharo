@@ -61,9 +61,13 @@ test("Free user: watermark panel → buys ₹9 (faked provider) → clean manife
     window.Razorpay = FakeRazorpay;
   });
 
+  // Always the *latest* captured token, not just the first: `page.reload()`'s
+  // own session bootstrap (see `export-upsell-demo.tsx`'s header) rotates the
+  // refresh token, and this test still needs a token valid for the calls it
+  // makes *after* that reload (tax-profile and the signup-gift consume happen
+  // before it; the eligibility check after it).
   let bearerToken: string | null = null;
   page.on("request", (request) => {
-    if (bearerToken !== null) return;
     const auth = request.headers()["authorization"];
     if (auth?.startsWith("Bearer ") === true) bearerToken = auth.slice("Bearer ".length);
   });
@@ -76,6 +80,17 @@ test("Free user: watermark panel → buys ₹9 (faked provider) → clean manife
   expect(claims).not.toBeNull();
   const workspaceId = claims?.workspaceId ?? "";
   expect(workspaceId).not.toBe("");
+
+  // A fresh signup has no confirmed tax profile, and `checkout.requireConfirmed
+  // Workspace()` (04 §Tax, currency, invoices) refuses any checkout — including
+  // the ₹9 pass — until one exists. Confirm one directly against the API with
+  // the token this test already captured (page.request needs it as a header;
+  // it does not share the app's own bearer-token-in-memory session).
+  const taxProfile = await page.request.put(`${API_ORIGIN}/workspaces/${workspaceId}/tax-profile`, {
+    headers: { authorization: `Bearer ${bearerToken}` },
+    data: { billingCountry: "IN", billingStateCode: "27" },
+  });
+  expect(taxProfile.ok()).toBe(true);
 
   // Spend the signup gift so the ₹9 row, not the free-gift row, is under test.
   const consumeGift = await page.request.post(`${API_ORIGIN}/offers/dev/consume-signup-gift`, {
@@ -102,9 +117,39 @@ test("Free user: watermark panel → buys ₹9 (faked provider) → clean manife
   const simulate = await page.request.post(`${API_ORIGIN}/offers/dev/simulate-nine-pass-payment`, {
     data: { passPurchaseId: checkoutBody.passPurchaseId },
   });
-  expect(simulate.ok()).toBe(true);
+  const simulateBody = (await simulate.json()) as { status?: string };
+  expect(
+    simulate.ok(),
+    `simulate-nine-pass-payment: ${simulate.status()} ${JSON.stringify(simulateBody)}`,
+  ).toBe(true);
+  expect(
+    simulateBody.status,
+    `webhook outcome was not "processed": ${JSON.stringify(simulateBody)}`,
+  ).toBe("processed");
+
+  // Confirm the server itself now sees the pass as available, independent of
+  // the panel's own polling — isolates a client-side bug from a server one.
+  // Polled rather than a single immediate read: an immediate GET right after
+  // the webhook response has, in this environment, sometimes needed one more
+  // tick to observe the write (never longer) — the same shape
+  // `pollUntilAvailable` in `ExportUpsellPanel.tsx` already exists to absorb.
+  let serverEligibilityBody: { ninePass: { available: boolean } } | undefined;
+  await expect(
+    async () => {
+      const serverEligibility = await page.request.get(`${API_ORIGIN}/offers/eligibility`, {
+        headers: { authorization: `Bearer ${bearerToken}` },
+      });
+      serverEligibilityBody = (await serverEligibility.json()) as {
+        ninePass: { available: boolean };
+      };
+      expect(serverEligibilityBody.ninePass.available).toBe(true);
+    },
+    `server eligibility after payment never showed available: ${JSON.stringify(serverEligibilityBody)}`,
+  ).toPass({
+    timeout: 20_000,
+  });
 
   // The panel polls `GET /offers/eligibility` after a successful checkout
   // until the pass shows available, then the demo page's own callback fires.
-  await expect(page.getByTestId("export-upsell-demo-ready")).toBeVisible({ timeout: 35_000 });
+  await expect(page.getByTestId("export-upsell-demo-ready")).toBeVisible({ timeout: 50_000 });
 });

@@ -62,7 +62,7 @@ function formatAmount(minor: number, currency: "INR" | "USD"): string {
 }
 
 const ELIGIBILITY_POLL_MS = 2_000;
-const ELIGIBILITY_POLL_ATTEMPTS = 15; // 30s, generous for a webhook in a dev/CI environment
+const ELIGIBILITY_POLL_ATTEMPTS = 20; // 40s, generous for a webhook in a dev/CI environment
 
 export function ExportUpsellPanel({
   onCleanManifestReady,
@@ -139,15 +139,41 @@ export function ExportUpsellPanel({
     }
   }
 
-  if (eligibility.isPending) {
-    return <Skeleton className={className ?? "h-32"} data-testid="export-upsell-loading" />;
-  }
-  if (eligibility.data === undefined) {
+  // `isPending` covers two different things in TanStack Query: a genuine
+  // in-flight first fetch, and a query that is simply `enabled: false`
+  // (no workspace id yet — e.g. this component mounted before the session
+  // bootstrap that finishes elsewhere in the tree finished rotating the
+  // httpOnly cookie into an access token). Rendering the skeleton for the
+  // second case forever, with nothing ever explaining why, is exactly the
+  // "stuck loading" bug this comment is here to prevent a repeat of — so it
+  // gets its own testid rather than being silently indistinguishable from a
+  // real fetch in flight.
+  if (eligibility.isError) {
     return (
       <Card className={className} data-testid="export-upsell-error">
         <p className="text-fg-2 text-sm">Could not load offers right now.</p>
+        <p className="text-fg-2 mt-1 text-2xs">{messageForError(eligibility.error)}</p>
+        <Button
+          type="button"
+          variant="secondary"
+          className="mt-3"
+          onClick={() => void eligibility.refetch()}
+          data-testid="export-upsell-retry"
+        >
+          Retry
+        </Button>
       </Card>
     );
+  }
+  if (eligibility.fetchStatus === "idle" && eligibility.data === undefined) {
+    return (
+      <Card className={className} data-testid="export-upsell-no-session">
+        <p className="text-fg-2 text-sm">Sign in to see export options.</p>
+      </Card>
+    );
+  }
+  if (eligibility.isPending) {
+    return <Skeleton className={className ?? "h-32"} data-testid="export-upsell-loading" />;
   }
 
   const data = eligibility.data;
