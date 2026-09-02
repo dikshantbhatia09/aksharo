@@ -55,6 +55,7 @@
 import {
   ALL_FORMATS,
   AudioBufferSource,
+  AudioSampleSink,
   BlobSource,
   CanvasSink,
   CanvasSource,
@@ -79,7 +80,7 @@ import {
   type FontResource,
   type Shaper,
 } from "@montaj/render-core";
-import type { RenderManifest } from "@montaj/render-manifest";
+import { coverScaleCrop, type RenderManifest } from "@montaj/render-manifest";
 import type { TimeMap } from "@montaj/timemap";
 
 import { decideAudioStrategy, isAudioUnmodified } from "./audio-strategy";
@@ -196,10 +197,33 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
   if (videoTrack === null) throw new Error("the source has no video track");
   const audioTrack = await input.getPrimaryAudioTrack();
 
+  // A19b: use render-manifest's own `coverScaleCrop` (the pixel-exact
+  // function the cloud renderer's ffmpeg scale+crop pair uses) rather than
+  // Mediabunny's own `fit: "cover"`, so the two agree on the crop rectangle
+  // rather than merely on the fitting strategy. `coverScaleCrop` computes the
+  // crop in *scaled-up* target-space; `CanvasSink`'s `crop` option wants it in
+  // *source* space (applied before resizing), so it is divided back by the
+  // same scale factor before being handed over, then stretched to the exact
+  // target box with `fit: "fill"`.
+  const sourceDisplayWidth = await videoTrack.getDisplayWidth();
+  const sourceDisplayHeight = await videoTrack.getDisplayHeight();
+  const fit = coverScaleCrop(
+    sourceDisplayWidth,
+    sourceDisplayHeight,
+    manifest.output.width,
+    manifest.output.height,
+  );
+  const scale = fit.scaleWidth / sourceDisplayWidth;
   const canvasSink = new CanvasSink(videoTrack, {
     width: manifest.output.width,
     height: manifest.output.height,
-    fit: "cover",
+    fit: "fill",
+    crop: {
+      left: fit.cropX / scale,
+      top: fit.cropY / scale,
+      width: fit.cropWidth / scale,
+      height: fit.cropHeight / scale,
+    },
   });
 
   const exportTarget =
@@ -216,8 +240,13 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
   const bitrate =
     manifest.output.width * manifest.output.height > 1920 * 1080 ? 35_000_000 : 8_000_000;
   const compositeCanvas = createCanvas(manifest.output.width, manifest.output.height);
+  // "no-preference", not "prefer-hardware": a browser with no hardware H.264
+  // encoder (this sandbox included — confirmed by testing) throws outright
+  // on "prefer-hardware" instead of the graceful software fallback
+  // "no-preference" gives. Portability over the last few percent of speed.
   const videoSource = new CanvasSource(compositeCanvas as unknown as HTMLCanvasElement, {
     codec: "avc",
+    hardwareAcceleration: "no-preference",
     bitrate: new Quality({ bitrate }),
   });
   const ctx = compositeCanvas.getContext("2d") as
@@ -254,7 +283,29 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
         packet = await audioPacketSink.getNextPacket(packet);
       }
     })();
-  } else if (audioDecision.kind === "encode" || audioDecision.kind === "polyfill") {
+  } else if (
+    (audioDecision.kind === "encode" || audioDecision.kind === "polyfill") &&
+    audioTrack !== null
+  ) {
+    // A19b: a real resampled source for the common case (cuts against the
+    // passthrough track), routed to cloud with a documented reason
+    // otherwise. "replace" has no client-reachable signed URL for the
+    // cleaned track's bytes (same gap class as the raw/watermark sources
+    // A19 reported; A21b's `sources` does not carry one), and a "speed"/
+    // "hold" edit needs a resample rate this pass does not implement.
+    if (manifest.audio.strategy === "replace") {
+      throw new Error(
+        "the manifest asks for the cleaned audio track, but no signed URL for its bytes " +
+          "is available to the browser yet (see the final report's reported gap) — render " +
+          "in the cloud instead.",
+      );
+    }
+    if (manifest.timemap.edits.some((edit) => edit.kind !== "cut")) {
+      throw new Error(
+        "a speed change or freeze frame needs a resampled audio rate the browser path does " +
+          "not implement yet — render in the cloud instead.",
+      );
+    }
     if (audioDecision.kind === "polyfill") {
       // Lazy-loaded per the brief: only paid for when the native encoder lacks AAC.
       await import("@mediabunny/aac-encoder");
@@ -264,15 +315,50 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
       bitrate: new Quality({ bitrate: manifest.audio.bitrateKbps * 1000 }),
     });
     output.addAudioTrack(audioSource);
-    // Cleaned/cut audio re-buffering against the timemap's 5 ms splice fades
-    // is tracked as an open item in the final report — this build carries the
-    // audio track selection and codec decision through, but the encode path
-    // for "replace"/cut audio is not wired to a sample source in this pass.
+    const retainedRanges = retainedSourceRangesMs(
+      manifest.timemap.sourceDurationMs,
+      manifest.timemap.edits,
+    );
+    const audioSampleSink = new AudioSampleSink(audioTrack);
+    audioCopyTask = (async (): Promise<void> => {
+      for (const range of retainedRanges) {
+        throwIfCancelled(signal);
+        for await (const sample of audioSampleSink.samples(
+          range.startMs / 1000,
+          range.endMs / 1000,
+        )) {
+          throwIfCancelled(signal);
+          try {
+            await audioSource.add(sample.toAudioBuffer());
+          } finally {
+            sample.close();
+          }
+        }
+      }
+    })();
   } else if (audioDecision.kind === "cloud-required") {
     throw new Error(audioDecision.reason);
   }
 
   await output.start();
+
+  // A persistent CPU raster surface, reused every frame (cleared, not
+  // recreated) — the surface allocation itself is the expensive part of
+  // MakeSurface, and this is the loop A19b's throughput target runs in.
+  const captionSurface = backend.ck.MakeSurface(manifest.output.width, manifest.output.height);
+  if (captionSurface === null) {
+    throw new Error("could not allocate a raster surface for the caption layer");
+  }
+
+  // A persistent scratch canvas the caption layer's pixels are
+  // `putImageData`'d into (synchronous, no bitmap allocation), then
+  // `drawImage`'d onto the composite canvas so the browser's own
+  // compositor, not this code, does the alpha blending over the decoded
+  // video frame.
+  const captionCanvas2d = createCanvas(manifest.output.width, manifest.output.height);
+  const captionCtx = captionCanvas2d.getContext("2d") as
+    CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+  if (captionCtx === null) throw new Error("could not get a 2d context for the caption canvas");
 
   let framesDone = 0;
   const startedAt = Date.now();
@@ -305,16 +391,37 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
     });
 
     if (commands.length > 0) {
-      const png = backend.renderToPng(commands, {
-        width: manifest.output.width,
-        height: manifest.output.height,
-        background: "#00000000",
-      });
-      const bitmap = await createImageBitmap(new Blob([png as BlobPart], { type: "image/png" }));
+      // A19b: raw pixel readback, not `renderToPng`'s PNG encode +
+      // `createImageBitmap(Blob)`'s PNG decode. `readPixels` hands back the
+      // raster surface's bytes directly; `putImageData` writes them into a
+      // persistent scratch canvas synchronously (no bitmap allocation), and
+      // `drawImage` composites that canvas over the decoded frame with the
+      // browser's own alpha blending. The raster surface is cleared and
+      // reused, not recreated, each frame.
+      const captionCanvas = captionSurface.getCanvas();
+      captionCanvas.clear(backend.ck.TRANSPARENT);
+      backend.drawFrame(captionCanvas, commands, {});
+      captionSurface.flush();
+      const snapshot = captionSurface.makeImageSnapshot();
       try {
-        ctx.drawImage(bitmap, 0, 0);
+        const pixels = snapshot.readPixels(0, 0, {
+          width: manifest.output.width,
+          height: manifest.output.height,
+          colorType: backend.ck.ColorType.RGBA_8888,
+          alphaType: backend.ck.AlphaType.Unpremul,
+          colorSpace: backend.ck.ColorSpace.SRGB,
+        }) as Uint8Array | null;
+        if (pixels !== null) {
+          const imageData = new ImageData(
+            new Uint8ClampedArray(pixels),
+            manifest.output.width,
+            manifest.output.height,
+          );
+          captionCtx.putImageData(imageData, 0, 0);
+          ctx.drawImage(captionCanvas2d as CanvasImageSource, 0, 0);
+        }
       } finally {
-        bitmap.close();
+        snapshot.delete();
       }
     }
 
@@ -333,6 +440,8 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
     });
   }
 
+  captionSurface.delete();
+
   onProgress({
     phase: "muxing",
     ratio: 1,
@@ -349,6 +458,8 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
   const finalBytes = buffer ?? finished?.bytes ?? null;
   const sizeBytes = finalBytes?.byteLength ?? 0;
   const checksum = finalBytes !== null ? await sha256Hex(finalBytes) : "";
+  const encodeElapsedMs = Date.now() - startedAt;
+  const realtimeMultiplier = encodeElapsedMs > 0 ? outputDurationMs / encodeElapsedMs : 0;
 
   onProgress({
     phase: "done",
@@ -363,6 +474,7 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
     durationMs: outputDurationMs,
     checksum,
     usedFileSystemAccess,
+    realtimeMultiplier,
     ...(buffer !== null ? { blob: new Blob([buffer], { type: "video/mp4" }) } : {}),
   };
 }
@@ -385,4 +497,45 @@ export async function loadWorkerLayoutEngine(
   const registry = createFontRegistry(fonts);
   const shaper = await createHarfBuzzShaper(registry);
   return { registry, shaper };
+}
+
+/**
+ * The complement of the manifest's `cut` edits within `[0, sourceDurationMs]`,
+ * merged and sorted — the source ranges that survive into the output. Used
+ * to re-buffer audio for a "cuts against the passthrough track" export:
+ * feeding `AudioBufferSource.add` one retained range's samples after another
+ * concatenates them with no gap, which is exactly what a cut removes.
+ * Callers must have already refused any non-`cut` edit (`speed`/`hold`).
+ */
+export function retainedSourceRangesMs(
+  sourceDurationMs: number,
+  edits: readonly RenderManifest["timemap"]["edits"][number][],
+): { startMs: number; endMs: number }[] {
+  const cuts = edits
+    .filter((edit): edit is Extract<typeof edit, { kind: "cut" }> => edit.kind === "cut")
+    .map((edit) => ({
+      startMs: Math.max(0, Math.min(edit.startMs, sourceDurationMs)),
+      endMs: Math.max(0, Math.min(edit.endMs, sourceDurationMs)),
+    }))
+    .filter((edit) => edit.endMs > edit.startMs)
+    .sort((a, b) => a.startMs - b.startMs);
+
+  const merged: { startMs: number; endMs: number }[] = [];
+  for (const cut of cuts) {
+    const last = merged[merged.length - 1];
+    if (last !== undefined && cut.startMs <= last.endMs) {
+      last.endMs = Math.max(last.endMs, cut.endMs);
+    } else {
+      merged.push({ ...cut });
+    }
+  }
+
+  const retained: { startMs: number; endMs: number }[] = [];
+  let cursor = 0;
+  for (const cut of merged) {
+    if (cut.startMs > cursor) retained.push({ startMs: cursor, endMs: cut.startMs });
+    cursor = Math.max(cursor, cut.endMs);
+  }
+  if (cursor < sourceDurationMs) retained.push({ startMs: cursor, endMs: sourceDurationMs });
+  return retained;
 }

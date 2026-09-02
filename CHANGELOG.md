@@ -416,6 +416,31 @@ status = 'pending'` idempotency trick `claimManifest` uses for a replayed
     not by calling the service directly); web component tests for both components;
     `apps/web/e2e/referral-prompt.spec.ts` (Playwright + axe: the sheet opens once,
     marks itself shown, does not reopen, no serious/critical a11y violations).
+- **A19b — web: A21b integration, raw pixel readback, coverScaleCrop parity, real
+  audio re-encode, HDR-to-cloud, the watermark upsell mount.** Follow-up after A21b
+  (`cfa5485`) closed the source-URL and eligibility gaps A19 reported. Consumes
+  `sources: {rawUrl, proxyUrl?, watermarkUrl?}` and `GET
+/exports/manifests/{id}/sources` (`endpoints.ts`, `manifest.ts`) — `ExportButton.tsx`'s
+  proxy-only workaround is gone. `engine.ts`'s frame loop no longer round-trips the
+  caption layer through a PNG encode/decode: a persistent `MakeSurface` raster surface
+  and scratch 2D canvas are reused for the whole export, with `readPixels` →
+  `putImageData` → `drawImage` per frame (measured 0.12× realtime at 1080p on this
+  sandbox's headless, no-hardware-encode chromium — see `apps/web/lib/export/README.md`'s
+  Throughput section for why that number is not the ≥1× target's last word). Uses
+  `@montaj/render-manifest`'s own `coverScaleCrop` for the cover fit instead of
+  Mediabunny's `fit: "cover"` heuristic, and adds a real D33 parity check
+  (`engine-parity.test.ts`) comparing `engine.ts`'s exact compositing path against
+  `@montaj/render-skia-node`'s cloud renderer on `@montaj/render-canvaskit`'s baseline
+  frames. Cut audio is now really re-encoded (retained source ranges fed through
+  `AudioSampleSink`/`AudioBufferSource`, concatenated with no gap); `"replace"` audio and
+  any `speed`/`hold` edit route to the cloud with a documented reason (no signed URL for
+  cleaned-track bytes yet; no resampled rate implemented). HDR sources route to the cloud
+  automatically via A21b's `decision.ts` — no client-side LUT work needed. B04's
+  `ExportUpsellPanel` is now mounted inside `WatermarkNotice`, exactly at its documented
+  mount point. `cfa5485` had landed on `wp/A21`, not yet `main`, when this pass started;
+  cherry-picked directly rather than waiting, since it is a small, self-contained
+  `apps/api`/`api-client`-only commit — see the final report.
+
 - **A19 — web: browser-native export (WebCodecs + Mediabunny + CanvasKit).**
   `apps/web/lib/export/**`: a capability probe (H.264 codec ladder, AAC/`AudioEncoder`,
   File System Access, a 2 s throughput sample), manifest handling (`RenderManifest`

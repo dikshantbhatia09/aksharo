@@ -53,6 +53,20 @@ export interface ExportJobRef {
   readonly deduplicated: boolean;
 }
 
+/**
+ * A21b: browser-path source URLs, issued alongside the manifest but never
+ * inside it (not signed — freely re-issuable). `rawUrl` is the ORIGINAL
+ * media (S3): a 540p proxy cannot produce a clean ≥1080p export, so the
+ * engine always decodes `rawUrl` when present, falling back to `proxyUrl`
+ * only if `rawUrl` is somehow absent. All three are 15-minute presigned GETs;
+ * `GET /exports/manifests/{id}/sources` reissues a fresh set mid-export.
+ */
+export interface ExportSources {
+  readonly rawUrl: string;
+  readonly proxyUrl?: string;
+  readonly watermarkUrl?: string;
+}
+
 export interface CreateExportResponse {
   readonly exportId: string;
   readonly path: "browser" | "cloud";
@@ -61,6 +75,8 @@ export interface CreateExportResponse {
   readonly quote: ExportQuote;
   /** Present on the browser path only — an opaque object; parse it with `@montaj/render-manifest`. */
   readonly manifest?: Record<string, unknown>;
+  /** Present on the browser path only. */
+  readonly sources?: ExportSources;
   readonly job?: ExportJobRef;
 }
 
@@ -85,6 +101,11 @@ export const exportEndpoints = {
   completeManifest: defineEndpoint<ManifestCompleteRequest, ManifestCompleteResponse>({
     method: "POST",
     path: "/exports/manifests/{manifestId}/complete",
+    auth: "bearer",
+  }),
+  refreshSources: defineEndpoint<void, ExportSources>({
+    method: "GET",
+    path: "/exports/manifests/{manifestId}/sources",
     auth: "bearer",
   }),
 } as const;

@@ -13,7 +13,6 @@ import * as React from "react";
 
 import type { StyleDoc } from "@montaj/caption-styles";
 import type { EdgProjection, FontRegistry, Shaper } from "@montaj/render-core";
-import type { RenderManifest } from "@montaj/render-manifest";
 import {
   Button,
   Dialog,
@@ -42,8 +41,6 @@ export interface ExportDialogProps {
   readonly catalogue: ReadonlyMap<string, StyleDoc>;
   readonly registry: FontRegistry | undefined;
   readonly shaper: Shaper | undefined;
-  readonly fetchWatermarkAsset?: (assetId: string) => Promise<Uint8Array>;
-  readonly resolveSourceUrl: (manifest: RenderManifest) => Promise<string>;
 }
 
 const DEFAULT_VIDEO: VideoTabValue = { preset: "reels", script: "roman", dropFillers: false };
@@ -61,10 +58,6 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
     catalogue: props.catalogue,
     registry: props.registry,
     shaper: props.shaper,
-    resolveSourceUrl: props.resolveSourceUrl,
-    ...(props.fetchWatermarkAsset === undefined
-      ? {}
-      : { fetchWatermarkAsset: props.fetchWatermarkAsset }),
   });
 
   const busy =
@@ -122,6 +115,7 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
             <WatermarkNotice
               watermarked={state.response?.watermarked}
               reasons={state.response?.reasons}
+              onCleanManifestReady={onExportVideo}
             />
             {state.response?.quote !== undefined ? (
               <p className="text-fg-3 mt-2 text-xs" data-testid="export-quote">

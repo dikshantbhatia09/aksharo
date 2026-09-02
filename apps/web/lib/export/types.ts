@@ -98,6 +98,8 @@ export interface EngineResult {
   /** Present when the memory sink was used (no File System Access). */
   readonly blob?: Blob;
   readonly usedFileSystemAccess: boolean;
+  /** Wall-clock encode time / output duration; ≥1 means at-or-faster-than realtime (A19b target: ≥1 at 1080p on chromium). */
+  readonly realtimeMultiplier: number;
 }
 
 export interface EngineOptions {
