@@ -22,6 +22,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e",
+    "test:scripts": "node --test scripts/*.test.mjs",
     "db:migrate": "turbo run db:migrate",
     "gen:client": "pnpm --filter @montaj/api gen:client",
     "db:seed": "turbo run db:seed",
