@@ -58,7 +58,7 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A12 | api EDG module (ops, rebase, CAS, revisions, realtime) | A02b, A08 | done |
 | A13 | web shell + `@montaj/ui` + auth pages + onboarding + settings | A04, A05 | done |
 | A14 | web Home + Projects + upload engine | A06, A08, A13 | in-progress |
-| A15 | web Editor transcript column + EDG client store | A12, A13 | in-progress |
+| A15 | web Editor transcript column + EDG client store | A12, A13 | done (A15b verification pending) |
 | A16 | render-core + render-canvaskit + 30 styles + panels | A02, A02c | done |
 | A17 | web Timeline | A15, A16 | briefed |
 | A18a | ass-exporter + parity gate | A16, A20 | briefed |
