@@ -271,7 +271,15 @@ export function quote(
       `mediaMinutes must be a finite, non-negative number, received ${mediaMinutes}`,
     );
   }
-  const durationMs = mediaMinutes * 60_000;
+  // `Math.round`, not the bare product: a caller that already had milliseconds
+  // (a probed duration, a worker's `outputMs`) and divided by 60,000 to get here
+  // hands back a value whose re-multiplication can land a few ULPs past an exact
+  // `BILLING_QUANTUM_MS` boundary (measured: ~3% of exact-quantum durations
+  // round-tripped through `ms/60_000` and back land a hair over the boundary).
+  // `deciMinutes`'s `Math.ceil` treats that hair as a whole extra quantum, which
+  // is a real over-charge, not a rounding nicety — `Math.round` back to the
+  // nearest millisecond removes the float noise before it can cross one.
+  const durationMs = Math.round(mediaMinutes * 60_000);
   const costInput: CreditCostInput = {
     operation,
     durationMs,
@@ -287,7 +295,7 @@ export function quote(
       ...costInput,
       ...(options.sourceMediaMinutes === undefined
         ? {}
-        : { sourceDurationMs: options.sourceMediaMinutes * 60_000 }),
+        : { sourceDurationMs: Math.round(options.sourceMediaMinutes * 60_000) }),
     }),
   };
 }

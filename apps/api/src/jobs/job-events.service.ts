@@ -21,6 +21,9 @@ export const JOB_EVENT_NAMES = [
   "job.started",
   "job.progress",
   "job.succeeded",
+  /** Settled less than the worker's real figure and no delta hold covered the
+   *  rest — the workspace is short (D32 "needs_credits", B02b). */
+  "job.needs_credits",
   "job.failed",
   "job.cancelled",
   "job.timed_out",

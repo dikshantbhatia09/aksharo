@@ -318,15 +318,25 @@ describe("decideExport — credit estimate", () => {
     expect(decision.creditEstimateTenths).toBe(0);
   });
 
-  it("cloud path costs 0.5 credits/output-minute, rounded up to the minute", () => {
+  it("cloud path costs 0.5 credits/output-minute, on the 0.1-minute billing quantum (B02b: quote())", () => {
     const decision = decideExport(base({ requestedMode: "cloud", outputDurationMs: 90_000 }));
-    // 90s -> ceil to 2 minutes -> 2 * 5 tenths = 10 tenths (1.0 credit)
-    expect(decision.creditEstimateTenths).toBe(10);
+    // 90s = 1.5 output minutes = 15 deciminutes exactly (no rounding needed) ->
+    // 15 * 5 tenths / 10 = 7.5, rounded up to 8 tenths. Routed through
+    // `@montaj/config`'s `quote()`, which bills the same 0.1-minute quantum
+    // `render-completion.handler.ts` settles on — NOT whole-minute rounding
+    // (which would have overcharged this to 2 minutes -> 10 tenths).
+    expect(decision.creditEstimateTenths).toBe(8);
   });
 
   it("cloud path: exact minute boundary does not round up an extra minute", () => {
     const decision = decideExport(base({ requestedMode: "cloud", outputDurationMs: 3 * MIN }));
     expect(decision.creditEstimateTenths).toBe(15);
+  });
+
+  it("cloud path: a duration inside one deciminute still rounds up to it, never to zero", () => {
+    const decision = decideExport(base({ requestedMode: "cloud", outputDurationMs: 1_000 }));
+    // 1s rounds up to one 0.1-minute quantum -> 5 * 1 / 10 = 0.5, rounded up to 1 tenth.
+    expect(decision.creditEstimateTenths).toBe(1);
   });
 
   it("subtitle requests are always free", () => {

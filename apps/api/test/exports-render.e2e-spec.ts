@@ -122,6 +122,46 @@ describe.skipIf(!CAN_RUN)("exports — cloud render path (real apps/render worke
         entitlements: free.entitlements,
       },
     });
+
+    // B02's real ledger enforces an actual balance: a plan alone is not
+    // credits (a subscription grants one on the billing anniversary; this
+    // suite has no subscription at all). Fund the account directly, as
+    // `prisma/seed.ts` funds the demo workspace — this suite is about the
+    // cloud render pipeline and its settlement, not the ledger itself, which
+    // has its own `test/credits-ledger.e2e-spec.ts`.
+    const creditAccountId = "01JEXPCREDITACCOUNT000001";
+    await ctx.prisma.creditAccount.create({
+      data: {
+        id: creditAccountId,
+        workspaceId: ctx.workspaceId,
+        balanceTenths: free.creditsPerMonthTenths,
+        monthlyGrantTenths: free.creditsPerMonthTenths,
+        grantResetAt: new Date(Date.now() + 30 * 86_400_000),
+      },
+    });
+    const creditLotId = "01JEXPCREDITLOT0000000001";
+    await ctx.prisma.creditLot.create({
+      data: {
+        id: creditLotId,
+        accountId: creditAccountId,
+        source: "grant",
+        grantedTenths: free.creditsPerMonthTenths,
+        remainingTenths: free.creditsPerMonthTenths,
+        expiresAt: new Date(Date.now() + 30 * 86_400_000),
+      },
+    });
+    await ctx.prisma.creditLedger.create({
+      data: {
+        id: "01JEXPCREDITLEDGER000001",
+        accountId: creditAccountId,
+        deltaTenths: free.creditsPerMonthTenths,
+        kind: "grant",
+        refType: "plan",
+        lotId: creditLotId,
+        balanceAfterTenths: free.creditsPerMonthTenths,
+      },
+    });
+
     // `EdgService.initialise` defaults an uncaptioned document's style to
     // "clean-bold" (its own internal default) rather than the segmenter's
     // "vertical-clean" default, which only applies through `edgInitInputFor`;
