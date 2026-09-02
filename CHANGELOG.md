@@ -10,6 +10,49 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Fixed
 
+- **B03b — unified the two `apps/web/lib/billing/razorpay.ts` modules B03 and B04 each
+  wrote (add/add conflict merging main).** One module now backs both: the checkout
+  sheet's subscription/mandate flow and B04's one-time purchases (`ExportUpsellPanel`'s
+  ₹9 clean export and week pass, `TopupCard`'s top-ups). `loadRazorpayCheckout()` keeps
+  B03's non-throwing, typed-constructor return (`Promise<RazorpayConstructor | null>`);
+  `openRazorpayCheckout()` keeps B04's stricter contract — a typed `RazorpayOutcome`
+  (`success` with payment/order ids, or `dismissed`), rejecting rather than resolving
+  falsely when the widget cannot load or open. `checkout-sheet.tsx` and `plan-table.tsx`
+  (the offers-ladder purchases) were updated to the outcome/throwing contract; their
+  tests and `lib/billing/razorpay.test.ts` updated to match. Also: the sidebar
+  `CreditMeter` (`apps/web/components/shell/sidebar.tsx`) now reads B02's real
+  `GET /workspaces/{id}/credits` via `packages/api-client`'s `useWorkspaceCredits()`
+  instead of the wrong `pending.usage` path, so the meter shows a live balance and reset
+  date instead of an honest zero. `lib/nav.test.ts`'s `SETTINGS_NAV` assertion updated
+  to include B04's "subscription" settings section.
+
+### Added
+
+- **B03 — web Subscription pages, checkout sheet and `UpgradeGate` wiring.** `/billing`
+  (Overview: plan card with status/renewal/mandate cap, credits meter with lots and
+  expiries, pause/cancel/resume with confirmations, streak slot behind a flag),
+  `/billing/plans` (INR/USD from `GET /billing/plans`, monthly/yearly toggle, Agency
+  seat stepper, offers ladder, credits-to-outcomes table, pay-once vs Autopay
+  explainer, FAQ), `/billing/methods` (payment methods, mandates with the 24-hour
+  pre-debit notice, revoke with a consequence-explained confirmation),
+  `/billing/invoices` (GST break-up, credit-note linking, signed PDF download; built
+  against B05's `invoices` row shape and resilient to `GET /invoices` 404ing while
+  B05 is still landing), `/billing/usage` (ledger history, per-job attribution, lots,
+  CSV export). The shared `CheckoutSheet` (`apps/web/components/billing/`) drives tax
+  profile (State + optional GSTIN with checksum and state auto-fill for India,
+  country elsewhere) → method (UPI Autopay / Card / pay-once; Netbanking marked
+  unsupported by B01's checkout schema) → confirm (GST-inclusive break-up) → gateway
+  (Razorpay Checkout.js from its official script URL, webhook-driven status polling)
+  → success/failed, and handles the `409 billing/mandate_cap_exceeded` alternatives.
+  `BillingUpgradeGate` composes `packages/ui`'s `UpgradeGate` with the sheet so any
+  other work package can gate a control with one import. A typed client layer lives
+  in `apps/web/lib/billing/` (endpoints, hooks, money/GST/checkout-state pure logic)
+  rather than in `packages/api-client`, which is outside this work package's file
+  boundary — see the report's Deviations. `apps/web/lib/nav.ts` flips the sidebar's
+  "Subscription" item to `ready: true` and adds `BILLING_NAV`.
+
+### Fixed
+
 - **A05b — `onboardingSchema` rejected the multi-select onboarding answers.** Reported
   by A13. `apps/api/src/users/users.dto.ts`'s `onboardingSchema` accepted only
   `boolean | number | string` per `onboarding` value, so `PATCH /me` answered

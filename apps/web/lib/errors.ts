@@ -30,6 +30,26 @@ const MESSAGES: Record<string, string> = {
   "credits/insufficient":
     "You are out of credits for this. Top up and this will run straight away.",
   "entitlement/upgrade_required": "Your plan does not include that yet.",
+  "billing/plan_not_found": "That plan is not available.",
+  "billing/plan_inactive": "That plan is no longer sold.",
+  "billing/interval_unavailable": "That billing interval is not available for this plan.",
+  "billing/tax_profile_required":
+    "Confirm the workspace's billing country and State before checkout.",
+  "billing/subscription_not_found": "There is no subscription to change.",
+  "billing/subscription_not_cancellable":
+    "This subscription is already set to cancel at period end.",
+  "billing/subscription_not_resumable": "There is nothing to resume on this subscription.",
+  "billing/pause_limit_reached": "A subscription can be paused once every 12 months.",
+  "billing/already_paused": "This subscription is already paused.",
+  "billing/mandate_not_found": "That mandate could not be found.",
+  "billing/mandate_already_revoked": "That mandate was already revoked.",
+  "billing/topup_invalid": "Choose a valid top-up amount.",
+  "billing/pass_kind_unavailable": "That pass is not available right now.",
+  "billing/webhook_signature_invalid": "The payment provider's signature could not be verified.",
+  "billing/provider_rejected": "The payment provider refused that request.",
+  "workspace/tax_profile_invalid": "Check the billing details — something did not look right.",
+  "workspace/tax_profile_locked":
+    "The billing currency is fixed for the life of a subscription. Cancel it first, or contact support.",
 };
 
 const FALLBACK = "Something went wrong. Try again.";
