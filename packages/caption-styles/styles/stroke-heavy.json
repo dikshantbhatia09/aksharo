@@ -1,0 +1,82 @@
+{
+  "id": "stroke-heavy",
+  "name": "Stroke Heavy",
+  "version": 2,
+  "category": "bold",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Montserrat",
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
+    "weight": 900,
+    "italic": false,
+    "sizePct": 6,
+    "lineHeight": 1.1,
+    "letterSpacingEm": -0.005,
+    "textTransform": "uppercase"
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#ffd400",
+    "accent": "#ffd400"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 20,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#0b0b0f",
+    "widthPct": 14
+  },
+  "shadow": {
+    "enabled": false,
+    "offsetXPct": 0,
+    "offsetYPct": 0,
+    "blurPct": 0,
+    "opacity": 0
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.74,
+    "align": "center",
+    "maxWidthPct": 86,
+    "maxLines": 2,
+    "safeAreaPct": 12
+  },
+  "animation": {
+    "in": {
+      "type": "pop",
+      "durationMs": 130
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 110
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 90
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "pop",
+      "label": "Pop",
+      "color": "#ffd400",
+      "scale": 1.2,
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/stroke-heavy.mp4"
+}

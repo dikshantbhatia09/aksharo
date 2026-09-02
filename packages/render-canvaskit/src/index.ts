@@ -1,21 +1,37 @@
 /**
- * `@montaj/render-canvaskit` — CanvasKit (Skia WASM, WebGL) backend for the browser and the desktop app.
+ * `@montaj/render-canvaskit` — the browser (and desktop) backend.
  *
- * A01 ships the package skeleton only; the real implementation lands in A16.
- * See README.md for what belongs here and docs/PLAN.md for scheduling.
+ * It executes the `DrawCommand[]` that `@montaj/render-core` produced, on Skia
+ * compiled to WebAssembly, onto a WebGL surface where one exists and onto a CPU
+ * raster surface otherwise (decision D33). It contains no layout of its own:
+ * every coordinate and every glyph position arrives finished, which is what
+ * makes the browser preview and the cloud render the same picture.
+ *
+ * ```ts
+ * const backend = await CanvasKitBackend.create({ fonts });
+ * const { surface } = createBrowserSurface(backend.ck, canvasElement);
+ * backend.drawFrame(surface.getCanvas(), commands, { background: "#00000000" });
+ * surface.flush();
+ * ```
  */
 
-/** Build-time identity of this package, used by diagnostics bundles and the admin console. */
-export interface PackageInfo {
-  readonly name: `@montaj/${string}`;
-  /** Work package(s) that implement it. */
-  readonly implementedBy: string;
-  /** `false` until the owning work package lands. */
-  readonly implemented: boolean;
-}
-
-export const PACKAGE_INFO: PackageInfo = {
-  name: "@montaj/render-canvaskit",
-  implementedBy: "A16",
-  implemented: false,
-};
+export { Arena, type Deletable, withArena } from "./arena.js";
+export {
+  type BrowserSurface,
+  CanvasKitBackend,
+  type CanvasKitBackendOptions,
+  CanvasKitError,
+  createBrowserSurface,
+  type DrawFrameOptions,
+  type MissingResource,
+  type RenderToPngOptions,
+} from "./backend.js";
+export { CANVASKIT_VERSION, loadCanvasKit, type LoadCanvasKitOptions, resetCanvasKit } from "./canvaskit.js";
+export { executeCommands, type ExecutionContext, toMatrix3x3 } from "./execute.js";
+export {
+  BASELINE_BACKGROUND,
+  BASELINE_CANVAS,
+  BASELINE_FRAMES,
+  type BaselineFrame,
+} from "./frames.js";
+export { type PackageInfo, PACKAGE_INFO } from "./package-info.js";

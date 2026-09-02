@@ -1,0 +1,399 @@
+import { beforeAll, describe, expect, it } from "vitest";
+
+import { loadSystemStyleMap, type StyleDoc } from "@montaj/caption-styles";
+
+import { hashCommands } from "../commands/hash.js";
+import { type DrawCommand, walkCommands } from "../commands/types.js";
+import { type Shaper } from "../fonts/shaper.js";
+import { type FontRegistry } from "../fonts/types.js";
+import { layoutSegment } from "../layout/layout.js";
+import { type Layout, type RenderWord } from "../layout/types.js";
+import { createFixtureRenderer, GOLDEN_CANVAS } from "../testing.js";
+import { animate, cuePhase, cueTiming, toGlyphRun, watermarkCommand, wordColour, wordState } from "./animate.js";
+import { easeOutBack, easeOutBounce, easeOutCubic, lerp, linear, progress, shakeOffset } from "./easing.js";
+
+const styles = loadSystemStyleMap();
+let registry: FontRegistry;
+let shaper: Shaper;
+
+beforeAll(async () => {
+  ({ registry, shaper } = await createFixtureRenderer());
+});
+
+function style(id: string, overrides: Partial<StyleDoc> = {}): StyleDoc {
+  const base = styles.get(id);
+  if (base === undefined) throw new Error(`no style ${id}`);
+  return { ...base, ...overrides };
+}
+
+const WORDS: RenderWord[] = [
+  { wid: "0:0", t: "one", s: 0, e: 750 },
+  { wid: "0:1", t: "two", s: 750, e: 1500 },
+  { wid: "0:2", t: "three", s: 1500, e: 2250 },
+  { wid: "0:3", t: "four", s: 2250, e: 3000 },
+];
+
+function lay(doc: StyleDoc, tMs: number, list: readonly RenderWord[] = WORDS): Layout {
+  return layoutSegment({
+    style: doc,
+    segment: { id: "seg", startMs: 0, endMs: 3000 },
+    words: list,
+    canvas: GOLDEN_CANVAS,
+    registry,
+    shaper,
+    tMs,
+  });
+}
+
+function draw(doc: StyleDoc, tMs: number, list: readonly RenderWord[] = WORDS): DrawCommand[] {
+  return animate({ layout: lay(doc, tMs, list), style: doc, tMs });
+}
+
+function kinds(commands: readonly DrawCommand[]): string[] {
+  return [...walkCommands(commands)].map((command) => command.kind);
+}
+
+describe("easing", () => {
+  it("starts at 0 and ends at 1", () => {
+    for (const easing of [linear, easeOutCubic, easeOutBack, easeOutBounce]) {
+      expect(easing(0)).toBeCloseTo(0, 6);
+      expect(easing(1)).toBeCloseTo(1, 6);
+    }
+  });
+
+  it("clamps outside the unit interval", () => {
+    expect(linear(-1)).toBe(0);
+    expect(easeOutCubic(2)).toBe(1);
+  });
+
+  it("overshoots for a pop and bounces for a bounce", () => {
+    expect(Math.max(...[0.6, 0.7, 0.8].map(easeOutBack))).toBeGreaterThan(1);
+    expect(easeOutBounce(0.4)).toBeGreaterThan(0);
+    expect(easeOutBounce(0.5)).toBeGreaterThan(easeOutBounce(0.3));
+    expect(easeOutBounce(0.8)).toBeGreaterThan(0.9);
+    expect(easeOutBounce(0.95)).toBeGreaterThan(0.97);
+  });
+
+  it("measures progress through a window, with a zero-length one snapping", () => {
+    expect(progress(500, 0, 1000)).toBeCloseTo(0.5, 6);
+    expect(progress(-1, 0, 1000)).toBe(0);
+    expect(progress(5000, 0, 1000)).toBe(1);
+    expect(progress(0, 0, 0)).toBe(1);
+    expect(progress(-1, 0, 0)).toBe(0);
+  });
+
+  it("interpolates without clamping so a pop can overshoot", () => {
+    expect(lerp(10, 20, 1.5)).toBe(25);
+  });
+
+  it("shakes deterministically", () => {
+    expect(shakeOffset(1234, 5, 2)).toEqual(shakeOffset(1234, 5, 2));
+    expect(shakeOffset(1234, 5, 2)).not.toEqual(shakeOffset(1234, 5, 3));
+    expect(Math.abs(shakeOffset(1234, 5, 2).x)).toBeLessThanOrEqual(5);
+  });
+});
+
+describe("cuePhase", () => {
+  it.each(["fade", "pop", "slide-up", "slide-down", "bounce", "blur", "typewriter", "none"] as const)(
+    "%s is fully present at 1",
+    (type) => {
+      const phase = cuePhase(type, 1, 100);
+      expect(phase.opacity).toBe(1);
+      expect(phase.scale).toBeCloseTo(1, 6);
+      expect(phase.dy).toBeCloseTo(0, 6);
+      expect(phase.reveal).toBe(1);
+    },
+  );
+
+  it("is invisible or displaced at 0", () => {
+    expect(cuePhase("fade", 0, 100).opacity).toBe(0);
+    expect(cuePhase("slide-up", 0, 100).dy).toBeGreaterThan(0);
+    expect(cuePhase("slide-down", 0, 100).dy).toBeLessThan(0);
+    expect(cuePhase("blur", 0, 100).sigma).toBeGreaterThan(0);
+    expect(cuePhase("typewriter", 0, 100).reveal).toBe(0);
+    expect(cuePhase("none", 0, 100).opacity).toBe(1);
+  });
+
+  it("times the entry from the caption, and from the word for a per-word style", () => {
+    const doc = style("vertical-clean");
+    expect(cueTiming(lay(doc, 0), doc, 0).opacity).toBe(0);
+    expect(cueTiming(lay(doc, 1500), doc, 1500).opacity).toBe(1);
+
+    const perWord = style("impact-shout");
+    expect(perWord.animation.perWord).toBe(true);
+    // Each word restarts the entry animation from its own start time.
+    expect(cueTiming(lay(perWord, 1500), perWord, 1500).opacity).toBe(0);
+    expect(cueTiming(lay(perWord, 1620), perWord, 1620).opacity).toBeGreaterThan(0);
+  });
+
+  it("fades the caption out at the end of its span", () => {
+    const doc = style("vertical-clean");
+    expect(cueTiming(lay(doc, 2999), doc, 2999).opacity).toBeLessThan(1);
+    expect(cueTiming(lay(doc, 3200), doc, 3200).opacity).toBe(0);
+  });
+
+  it("draws nothing at all when the caption is invisible", () => {
+    expect(draw(style("vertical-clean"), 5000)).toEqual([]);
+  });
+
+  it("treats a zero-length out animation as a hard cut", () => {
+    const doc = style("vertical-clean", {
+      animation: { ...style("vertical-clean").animation, out: { type: "fade", durationMs: 0 } },
+    });
+    expect(cueTiming(lay(doc, 2999), doc, 2999).opacity).toBe(1);
+    expect(cueTiming(lay(doc, 3000), doc, 3000).opacity).toBe(0);
+  });
+});
+
+describe("word state and colour", () => {
+  it("classifies a word as upcoming, speaking or sung", () => {
+    const word = lay(style("karaoke-fill"), 1000).words[1];
+    expect(word).toBeDefined();
+    if (word === undefined) return;
+    expect(wordState(word, word.startMs - 1)).toBe("upcoming");
+    expect(wordState(word, word.startMs)).toBe("speaking");
+    expect(wordState(word, word.endMs)).toBe("sung");
+  });
+
+  it("colours a karaoke caption by whether the word has been sung", () => {
+    const doc = style("karaoke-fill");
+    const word = lay(doc, 1000).words[1];
+    if (word === undefined) throw new Error("no word");
+    expect(wordColour(word, doc, word.endMs + 1)).toBe(doc.colors.activeText);
+    expect(wordColour(word, doc, word.startMs - 1)).toBe(doc.colors.upcomingText);
+  });
+
+  it("colours the word being spoken for a highlight style", () => {
+    const punch = style("punch-pop");
+    const punchLayout = lay(punch, 100);
+    const word = punchLayout.words[0];
+    if (word === undefined) throw new Error("no word");
+    expect(wordColour(word, punch, word.startMs + 1)).toBe(punch.colors.activeText);
+    expect(wordColour(word, punch, word.endMs + 1)).toBe(punch.colors.text);
+  });
+
+  it("prefers a speaker colour when the caller supplies one", () => {
+    const podcast = style("podcast-duo");
+    const podcastLayout = layoutSegment({
+      style: podcast,
+      segment: { id: "seg", startMs: 0, endMs: 3000 },
+      words: WORDS.map((word) => ({ ...word, sp: "sp2" })),
+      canvas: GOLDEN_CANVAS,
+      registry,
+      shaper,
+      tMs: 100,
+    });
+    const word = podcastLayout.words[0];
+    if (word === undefined) throw new Error("no word");
+    expect(wordColour(word, podcast, 2900, { sp2: "#3fa7d6" })).toBe("#3fa7d6");
+  });
+});
+
+describe("animate", () => {
+  it("wraps the caption in one group named after the segment", () => {
+    const commands = draw(style("vertical-clean"), 1500);
+    expect(commands).toHaveLength(1);
+    expect(commands[0]).toMatchObject({ kind: "group", id: "segment:seg" });
+  });
+
+  it("draws the stroke under the fill for every word", () => {
+    const commands = draw(style("punch-pop"), 1500);
+    const texts = [...walkCommands(commands)].filter((command) => command.kind === "text");
+    expect(texts.length).toBeGreaterThan(1);
+    expect(texts[0]).toHaveProperty("stroke");
+    expect(texts[1]).toHaveProperty("fill");
+  });
+
+  it("draws the block box behind the type", () => {
+    const commands = draw(style("karaoke-fill"), 1500);
+    const flat = kinds(commands);
+    expect(flat.indexOf("roundRect")).toBeLessThan(flat.indexOf("text"));
+  });
+
+  it("draws one box per line for a line-mode style", () => {
+    const commands = draw(style("box-block"), 1500);
+    const boxes = [...walkCommands(commands)].filter((command) => command.kind === "roundRect");
+    const layout = lay(style("box-block"), 1500);
+    expect(boxes).toHaveLength(layout.lines.length);
+  });
+
+  it("draws one box per word for a word-mode style", () => {
+    const base = style("box-block");
+    const doc = style("box-block", { box: { ...base.box, mode: "word" } });
+    const boxes = [...walkCommands(draw(doc, 1500))].filter((command) => command.kind === "roundRect");
+    expect(boxes).toHaveLength(lay(doc, 1500).words.length);
+  });
+
+  it("sweeps a clip across the word being spoken for a karaoke style", () => {
+    const doc = style("karaoke-fill");
+    const early = [...walkCommands(draw(doc, 800))].find((command) => command.kind === "clip");
+    const late = [...walkCommands(draw(doc, 1400))].find((command) => command.kind === "clip");
+    expect(early?.kind).toBe("clip");
+    expect(late?.kind).toBe("clip");
+    if (early?.kind !== "clip" || late?.kind !== "clip") return;
+    if (early.shape.type !== "rect" || late.shape.type !== "rect") throw new Error("expected a rect clip");
+    expect(late.shape.rect[2]).toBeGreaterThan(early.shape.rect[2]);
+  });
+
+  it("scales the word being spoken for a scale highlight", () => {
+    const transforms = [...walkCommands(draw(style("punch-pop"), 100))].filter(
+      (command) => command.kind === "transform",
+    );
+    expect(transforms.length).toBeGreaterThan(0);
+    expect(transforms.some((command) => command.kind === "transform" && command.matrix[0] > 1)).toBe(true);
+  });
+
+  it("draws an underline that grows across the word", () => {
+    const doc = style("typewriter-mono");
+    const rectAt = (tMs: number): number => {
+      const found = [...walkCommands(draw(doc, tMs))].find(
+        (command) => command.kind === "rect" && command.rect[2] > command.rect[0],
+      );
+      return found?.kind === "rect" ? found.rect[2] - found.rect[0] : 0;
+    };
+    expect(rectAt(1600)).toBeGreaterThan(0);
+    expect(rectAt(1700)).toBeGreaterThan(rectAt(1600));
+  });
+
+  it("draws a glow as a shadow-only layer", () => {
+    const shadows = [...walkCommands(draw(style("neon-glow"), 1600))].filter(
+      (command) => command.kind === "shadow" && command.shadowOnly === true,
+    );
+    expect(shadows.length).toBeGreaterThan(0);
+  });
+
+  it("reveals a typewriter caption progressively", () => {
+    const doc = style("typewriter-mono");
+    const revealed = (tMs: number): number =>
+      [...walkCommands(draw(doc, tMs))]
+        .filter((command) => command.kind === "clip" && command.shape.type === "rect")
+        .reduce(
+          (sum, command) =>
+            command.kind === "clip" && command.shape.type === "rect"
+              ? sum + (command.shape.rect[2] - command.shape.rect[0])
+              : sum,
+          0,
+        );
+    expect(revealed(200)).toBeLessThan(revealed(700));
+  });
+
+  it("draws the raster copies for a glitch style and only for it", () => {
+    const glitch = [...walkCommands(draw(style("glitch-shift"), 1500))].filter(
+      (command) => command.kind === "group" && command.id?.startsWith("raster:") === true,
+    );
+    expect(glitch).toHaveLength(2);
+    const clean = [...walkCommands(draw(style("vertical-clean"), 1500))].filter(
+      (command) => command.kind === "group" && command.id?.startsWith("raster:") === true,
+    );
+    expect(clean).toHaveLength(0);
+  });
+
+  it("blurs the backdrop for the glass style", () => {
+    const blurs = [...walkCommands(draw(style("liquid-glass"), 1500))].filter(
+      (command) => command.kind === "blur" && command.backdrop === true,
+    );
+    expect(blurs).toHaveLength(1);
+    expect(blurs[0]?.kind === "blur" ? blurs[0].bounds : undefined).toBeDefined();
+  });
+
+  it("paints the prism style's type with a gradient", () => {
+    const texts = [...walkCommands(draw(style("prism-split"), 1500))].filter(
+      (command) => command.kind === "text" && command.fill?.paint.type === "linear-gradient",
+    );
+    expect(texts.length).toBeGreaterThan(0);
+  });
+
+  it("paints the sweep style's box with a gradient", () => {
+    const boxes = [...walkCommands(draw(style("gradient-sweep"), 1500))].filter(
+      (command) => command.kind === "roundRect" && command.fill?.paint.type === "linear-gradient",
+    );
+    expect(boxes.length).toBeGreaterThan(0);
+  });
+
+  it("applies an emphasis preset's colour, scale and ground", () => {
+    const doc = style("punch-pop");
+    const marked = WORDS.map((word, index) => (index === 1 ? { ...word, emphasisPresetId: "mark" } : word));
+    const commands = draw(doc, 100, marked);
+    const grounds = [...walkCommands(commands)].filter((command) => command.kind === "roundRect");
+    expect(grounds.length).toBeGreaterThan(0);
+  });
+
+  it("shakes an emphasised word without shaking the caption", () => {
+    const doc = style("punch-pop");
+    const shaken = WORDS.map((word, index) => (index === 0 ? { ...word, emphasisPresetId: "shout" } : word));
+    const a = hashCommands(draw(doc, 400, shaken));
+    const b = hashCommands(draw(doc, 420, shaken));
+    expect(a).not.toBe(b);
+    expect(hashCommands(draw(doc, 400, shaken))).toBe(a);
+  });
+
+  it("faux-bolds a heavier emphasis weight with a hairline stroke", () => {
+    const base = style("vertical-clean");
+    const doc = style("vertical-clean", {
+      emphasisPresets: [{ id: "heavy", weight: 900, effect: "none" }],
+      stroke: { ...base.stroke, enabled: false },
+    });
+    const marked = WORDS.map((word, index) => (index === 0 ? { ...word, emphasisPresetId: "heavy" } : word));
+    const strokes = [...walkCommands(draw(doc, 1500, marked))].filter(
+      (command) => command.kind === "text" && command.stroke !== undefined,
+    );
+    expect(strokes.length).toBeGreaterThan(0);
+  });
+
+  it("outlines an emphasised word when the style has no stroke of its own", () => {
+    const base = style("vertical-clean");
+    const doc = style("vertical-clean", {
+      emphasisPresets: [{ id: "edge", color: "#ff2e63", effect: "outline" }],
+      stroke: { ...base.stroke, enabled: false },
+    });
+    const marked = WORDS.map((word, index) => (index === 0 ? { ...word, emphasisPresetId: "edge" } : word));
+    const strokes = [...walkCommands(draw(doc, 1500, marked))].filter(
+      (command) => command.kind === "text" && command.stroke !== undefined,
+    );
+    expect(strokes.length).toBeGreaterThan(0);
+  });
+
+  it("draws an emphasis underline and glow", () => {
+    const doc = style("vertical-clean", {
+      emphasisPresets: [
+        { id: "under", color: "#ffd400", effect: "underline" },
+        { id: "halo", color: "#ffd400", effect: "glow" },
+      ],
+    });
+    const withUnder = WORDS.map((word, index) => (index === 0 ? { ...word, emphasisPresetId: "under" } : word));
+    const withGlow = WORDS.map((word, index) => (index === 0 ? { ...word, emphasisPresetId: "halo" } : word));
+    expect(kinds(draw(doc, 1500, withUnder))).toContain("rect");
+    expect(kinds(draw(doc, 1500, withGlow))).toContain("shadow");
+  });
+
+  it("ignores an emphasis preset the style does not define", () => {
+    const doc = style("vertical-clean");
+    const marked = WORDS.map((word, index) => (index === 0 ? { ...word, emphasisPresetId: "ghost" } : word));
+    expect(() => draw(doc, 1500, marked)).not.toThrow();
+  });
+
+  it("adds a watermark image when the caller asks for one", () => {
+    const layout = lay(style("vertical-clean"), 1500);
+    const commands = animate({ layout, style: style("vertical-clean"), tMs: 1500, watermarkAssetId: "wm" });
+    expect(commands[commands.length - 1]).toMatchObject({ kind: "image", assetId: "wm" });
+    expect(watermarkCommand("wm", layout)).toMatchObject({ kind: "image", opacity: 0.85 });
+  });
+
+  it("flattens a placed run into paired positions and clusters", () => {
+    const layout = lay(style("vertical-clean"), 1500);
+    const run = layout.words[0]?.runs[0];
+    expect(run).toBeDefined();
+    if (run === undefined) return;
+    const glyphRun = toGlyphRun(run);
+    expect(glyphRun.positions).toHaveLength(glyphRun.glyphs.length * 2);
+    expect(glyphRun.clusters).toHaveLength(glyphRun.glyphs.length);
+    expect(glyphRun.text).toBe(run.text);
+  });
+
+  it("is a pure function of time", () => {
+    for (const id of ["punch-pop", "karaoke-fill", "glitch-shift", "liquid-glass"]) {
+      const doc = style(id);
+      expect(hashCommands(draw(doc, 1234))).toBe(hashCommands(draw(doc, 1234)));
+    }
+  });
+});

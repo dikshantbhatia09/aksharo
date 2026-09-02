@@ -1,0 +1,80 @@
+{
+  "id": "box-block",
+  "name": "Box Block",
+  "version": 2,
+  "category": "clean",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Inter",
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
+    "weight": 700,
+    "italic": false,
+    "sizePct": 4.8,
+    "lineHeight": 1.2,
+    "letterSpacingEm": 0,
+    "textTransform": "none"
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#ffd400"
+  },
+  "box": {
+    "enabled": true,
+    "mode": "line",
+    "fill": "#0b0b0f",
+    "paddingPct": 22,
+    "radiusPct": 0,
+    "opacity": 0.82
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": false,
+    "offsetXPct": 0,
+    "offsetYPct": 0,
+    "blurPct": 0,
+    "opacity": 0
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.82,
+    "align": "center",
+    "maxWidthPct": 82,
+    "maxLines": 2,
+    "safeAreaPct": 12
+  },
+  "animation": {
+    "in": {
+      "type": "fade",
+      "durationMs": 120
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 120
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 100
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "accent",
+      "label": "Accent",
+      "color": "#ffd400",
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/box-block.mp4"
+}

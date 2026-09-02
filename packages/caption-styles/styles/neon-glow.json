@@ -1,0 +1,88 @@
+{
+  "id": "neon-glow",
+  "name": "Neon Glow",
+  "version": 2,
+  "category": "bold",
+  "minPlan": "creator",
+  "typography": {
+    "fontFamily": "Montserrat",
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
+    "weight": 800,
+    "italic": false,
+    "sizePct": 5.6,
+    "lineHeight": 1.16,
+    "letterSpacingEm": 0.02,
+    "textTransform": "uppercase"
+  },
+  "colors": {
+    "text": "#eafcff",
+    "activeText": "#31f5ff",
+    "accent": "#31f5ff"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 20,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#0a1f27",
+    "widthPct": 5
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#31f5ff",
+    "offsetXPct": 0,
+    "offsetYPct": 0,
+    "blurPct": 40,
+    "opacity": 0.85
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.74,
+    "align": "center",
+    "maxWidthPct": 84,
+    "maxLines": 2,
+    "safeAreaPct": 12
+  },
+  "animation": {
+    "in": {
+      "type": "fade",
+      "durationMs": 200
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 180
+    },
+    "wordHighlight": {
+      "type": "glow",
+      "durationMs": 160
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "flare",
+      "label": "Flare",
+      "color": "#31f5ff",
+      "effect": "glow"
+    },
+    {
+      "id": "pop",
+      "label": "Pop",
+      "scale": 1.2,
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/neon-glow.mp4"
+}

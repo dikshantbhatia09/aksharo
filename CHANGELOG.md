@@ -10,6 +10,55 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A16 — `@montaj/render-core`, `@montaj/render-canvaskit`, the 30 system styles and
+  the editor's caption canvas.**
+  - `@montaj/render-core` is implemented: `(StyleDoc, segment, words, time, canvas) →
+    DrawCommand[]`, pure TypeScript, HarfBuzz-wasm shaping (`harfbuzzjs` 1.6.1, pinned),
+    a `FontRegistry` abstraction and no system fonts (D33). `layoutSegment` produces
+    absolute geometry; `animate` turns it into commands as a pure function of time;
+    `renderFrame` maps output time to source time through `@montaj/timemap` (D30),
+    resolves each visible segment's effective style and draws them in `seq` order.
+  - The `DrawCommand` union: `text` (shaped glyph ids with paired absolute positions
+    and clusters), `rect`, `roundRect`, `path`, `image`, `group`, `transform`, `clip`,
+    `shadow` and `blur` — the last with a `backdrop` flag for the styles that sample the
+    video behind them. Fills and strokes take a solid or gradient `Paint`. Everything is
+    JSON-serialisable and quantised, so a command list hashes stably and can be stored,
+    diffed and shipped to a worker. `outlineTextCommands()` converts every glyph run to
+    a path for a backend that cannot draw glyph ids, which is how A20's Canvas2D surface
+    executes the same list.
+  - Line breaking reproduces the segmenter's split rather than inventing one: the same
+    greedy character wrap with the same counting rule (base code points, combining marks
+    excluded). Only genuine metric overflow changes anything, and then the answer is
+    shrink-to-fit; re-wrapping by width happens only at the shrink floor, and a break
+    inside a word only when one word alone is too wide — always on a HarfBuzz cluster
+    boundary, so a Devanagari matra or a Tamil conjunct is never cut in half.
+  - Sizes stay relative: type, position and safe area off the canvas height, stroke,
+    shadow, padding and radius off the font size, so one document renders identically at
+    1080×1920 and at the 540p proxy. Document-level overrides are read from
+    `styles.inline.doc` and beaten by a segment's own `overrides`.
+  - `@montaj/render-canvaskit` executes the command list on Skia-WASM (`canvaskit-wasm`
+    0.42.0, pinned): WebGL where available, CPU raster otherwise, both reported to the
+    caller. Per-frame Skia objects live in an arena that is released however the frame
+    ends, and a missing font or image is reported rather than thrown.
+  - The 23 remaining styles in `styles/registry.json` are drawn, so all 30 validate,
+    render and have a committed preview. Four need a capability StyleDoc v2 has no field
+    for (two gradients, one backdrop blur, two raster passes); that ink lives in
+    `render-core`'s `styles/capabilities.ts` keyed by style id rather than in a widened
+    frozen schema.
+  - `apps/web`: `StylePreviewCanvas` (a style drawn live, still or looping its
+    three-second preview), `CaptionStage` (proxy video plus the CanvasKit overlay, safe
+    zones, and a draggable caption box that emits exactly one `SetSegmentPosition` per
+    drop, scrubbed with `requestVideoFrameCallback`), and the Style/Colors/Look/Anim
+    right panel whose every control emits one `SetStyle` at the current scope.
+    `/studio/styles` mounts the panel against the system catalogue.
+  - Tests: golden `DrawCommand[]` hashes for 30 styles × 4 caption fixtures (Hinglish,
+    Hindi, Tamil, English) × 3 instants plus full committed command lists; determinism
+    tests; a chromium Playwright lane that executes a stored command list with CanvasKit
+    and compares the encoded frame against the PNG Skia-in-Node drew from the same list,
+    within D33's parity SLO. `render-core` sits at 99% lines / 93% branches against the
+    90/85 gate, and a two-line 1080p frame lays out and draws in **0.11 ms** (p50)
+    against a 2 ms target.
+
 - **A02b — `@montaj/edg` ops engine: apply, rebase, segmenter, snapshots, migrations.**
   - `@montaj/edg/ops`: `EdgState` (hot document, segments by id in `seq` order,
     passes and items, the transcript word index, tombstones and a 10,000-entry

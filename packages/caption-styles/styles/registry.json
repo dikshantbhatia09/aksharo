@@ -41,25 +41,25 @@
       "id": "bubble-soft",
       "name": "Bubble Soft",
       "category": "playful",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "neon-glow",
       "name": "Neon Glow",
       "category": "bold",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "glitch-shift",
       "name": "Glitch Shift",
       "category": "gaming",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "prism-split",
       "name": "Prism Split",
       "category": "bold",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "minimal-lower-third",
@@ -71,115 +71,115 @@
       "id": "bold-drop",
       "name": "Bold Drop",
       "category": "bold",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "liquid-glass",
       "name": "Liquid Glass",
       "category": "minimal",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "outline-only",
       "name": "Outline Only",
       "category": "clean",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "box-block",
       "name": "Box Block",
       "category": "clean",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "typewriter-mono",
       "name": "Typewriter Mono",
       "category": "retro",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "caption-card",
       "name": "Caption Card",
       "category": "clean",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "gradient-sweep",
       "name": "Gradient Sweep",
       "category": "playful",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "highlight-marker",
       "name": "Highlight Marker",
       "category": "education",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "subtitle-classic",
       "name": "Subtitle Classic",
       "category": "minimal",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "impact-shout",
       "name": "Impact Shout",
       "category": "bold",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "soft-serif",
       "name": "Soft Serif",
       "category": "cinematic",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "news-ticker",
       "name": "News Ticker",
       "category": "education",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "quote-frame",
       "name": "Quote Frame",
       "category": "cinematic",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "stroke-heavy",
       "name": "Stroke Heavy",
       "category": "bold",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "duo-tone",
       "name": "Duo Tone",
       "category": "playful",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "tape-retro",
       "name": "Tape Retro",
       "category": "retro",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "arcade-pixel",
       "name": "Arcade Pixel",
       "category": "gaming",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "whisper-thin",
       "name": "Whisper Thin",
       "category": "minimal",
-      "status": "planned"
+      "status": "shipped"
     },
     {
       "id": "spotlight-word",
       "name": "Spotlight Word",
       "category": "karaoke",
-      "status": "planned"
+      "status": "shipped"
     }
   ]
 }

@@ -1,0 +1,82 @@
+{
+  "id": "caption-card",
+  "name": "Caption Card",
+  "version": 2,
+  "category": "clean",
+  "minPlan": "starter",
+  "typography": {
+    "fontFamily": "Inter",
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
+    "weight": 600,
+    "italic": false,
+    "sizePct": 4.2,
+    "lineHeight": 1.32,
+    "letterSpacingEm": 0,
+    "textTransform": "none"
+  },
+  "colors": {
+    "text": "#12131a",
+    "activeText": "#12131a",
+    "accent": "#ffd400"
+  },
+  "box": {
+    "enabled": true,
+    "mode": "block",
+    "fill": "#ffffff",
+    "paddingPct": 32,
+    "radiusPct": 18,
+    "opacity": 0.96
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 4,
+    "blurPct": 20,
+    "opacity": 0.28
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.8,
+    "align": "left",
+    "maxWidthPct": 74,
+    "maxLines": 3,
+    "safeAreaPct": 14
+  },
+  "animation": {
+    "in": {
+      "type": "slide-up",
+      "durationMs": 220
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 160
+    },
+    "wordHighlight": {
+      "type": "box",
+      "durationMs": 140
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "mark",
+      "label": "Marker",
+      "color": "#ffd400",
+      "effect": "highlight"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/caption-card.mp4"
+}

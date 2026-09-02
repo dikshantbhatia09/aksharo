@@ -1,0 +1,92 @@
+{
+  "id": "bold-drop",
+  "name": "Bold Drop",
+  "version": 2,
+  "category": "bold",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Anton",
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
+    "weight": 400,
+    "italic": false,
+    "sizePct": 6.8,
+    "lineHeight": 1.04,
+    "letterSpacingEm": 0,
+    "textTransform": "uppercase"
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#ffd400",
+    "accent": "#ffd400"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 20,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#0b0b0f",
+    "widthPct": 8
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 8,
+    "blurPct": 6,
+    "opacity": 0.6
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.52,
+    "align": "center",
+    "maxWidthPct": 88,
+    "maxLines": 2,
+    "wordsPerCue": 3,
+    "safeAreaPct": 10
+  },
+  "animation": {
+    "in": {
+      "type": "slide-down",
+      "durationMs": 200
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 120
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 100
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "pop",
+      "label": "Pop",
+      "color": "#ffd400",
+      "scale": 1.25,
+      "effect": "none"
+    },
+    {
+      "id": "shout",
+      "label": "Shout",
+      "color": "#ff2e63",
+      "scale": 1.35,
+      "weight": 900,
+      "effect": "shake"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/bold-drop.mp4"
+}

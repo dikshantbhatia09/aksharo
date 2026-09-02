@@ -38,16 +38,12 @@ describe("loadSystemStyles", () => {
   const styles = loadSystemStyles();
 
   it("returns every shipped style, validated and ordered", () => {
-    expect(styles).toHaveLength(7);
-    expect(styles.map((style) => style.id)).toEqual([
-      "hype-bold",
-      "karaoke-fill",
-      "minimal-lower-third",
-      "podcast-duo",
-      "punch-pop",
-      "vertical-clean",
-      "word-pop",
-    ]);
+    // A16 drew the rest of the catalogue: the registry and the documents are
+    // now the same 30 styles, in id order.
+    expect(styles).toHaveLength(30);
+    expect(styles.map((style) => style.id)).toEqual(
+      [...loadStyleRegistry().styles.map((entry) => entry.id)].sort(),
+    );
   });
 
   it("ships the keys A03's database seed expects", () => {
