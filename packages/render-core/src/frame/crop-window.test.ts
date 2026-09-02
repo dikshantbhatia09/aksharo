@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   clampCropRect,
+  cropRectFromCentre,
   cropRectFromZoom,
   FULL_FRAME,
   sampleCropWindow,
@@ -74,5 +75,26 @@ describe("cropRectFromZoom", () => {
     const rect = cropRectFromZoom({ x: 0.5, y: 0.5, w: 0.1, h: 0.1 }, 1);
     expect(rect.w).toBeCloseTo(1, 5);
     expect(rect.h).toBeCloseTo(1, 5);
+  });
+});
+
+describe("cropRectFromCentre", () => {
+  it("builds a window centred at (cx, cy) sized 1/zoom, B19's Keyframe shape", () => {
+    const rect = cropRectFromCentre(0.4, 0.4, 2);
+    expect(rect.w).toBeCloseTo(0.5, 5);
+    expect(rect.h).toBeCloseTo(0.5, 5);
+    expect(rect.x).toBeCloseTo(0.15, 5);
+    expect(rect.y).toBeCloseTo(0.15, 5);
+  });
+
+  it("zoom 1 is the full frame", () => {
+    const rect = cropRectFromCentre(0.5, 0.5, 1);
+    expect(rect.w).toBeCloseTo(1, 5);
+  });
+
+  it("clamps a centre near the edge so the window stays inside [0,1]", () => {
+    const rect = cropRectFromCentre(0.95, 0.05, 3);
+    expect(rect.x + rect.w).toBeLessThanOrEqual(1 + 1e-9);
+    expect(rect.y).toBeGreaterThanOrEqual(-1e-9);
   });
 });

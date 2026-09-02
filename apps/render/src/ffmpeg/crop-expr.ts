@@ -32,17 +32,21 @@ function seconds(tMs: number): number {
 /** One dimension's value across every keyframe, in destination units (pixels). */
 function dimensionExpr(keyframes: readonly CropKeyframe[], pick: (rect: CropKeyframe["rect"]) => number, scale: number): string {
   if (keyframes.length === 0) return "0";
-  if (keyframes.length === 1) return String(pick(keyframes[0]!.rect) * scale);
+  const first = keyframes[0];
+  if (first === undefined) return "0";
+  if (keyframes.length === 1) return String(pick(first.rect) * scale);
 
   // Build from the last segment inward, so each `if` chain's `else` is the
   // chain built for everything after it — the last keyframe's value is the
   // innermost `else`.
-  const last = keyframes[keyframes.length - 1]!;
+  const last = keyframes[keyframes.length - 1];
+  if (last === undefined) return "0";
   let expr = String(pick(last.rect) * scale);
 
   for (let i = keyframes.length - 2; i >= 0; i -= 1) {
-    const before = keyframes[i]!;
-    const after = keyframes[i + 1]!;
+    const before = keyframes[i];
+    const after = keyframes[i + 1];
+    if (before === undefined || after === undefined) continue;
     const t0 = seconds(before.tMs);
     const t1 = seconds(after.tMs);
     const v0 = pick(before.rect) * scale;

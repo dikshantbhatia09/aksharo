@@ -121,7 +121,14 @@ export type TimemapEdit = z.infer<typeof TimemapEditSchema>;
 export const KeyframeTrackSchema = z.object({
   itemId: Ulid,
   kind: z.enum(["zoom", "reframe"]),
-  /** Base64 of the packed float32 `[tMs, x, y, w, h]` rows, source-clock `tMs`. */
+  /**
+   * The item's own `startMs` — B19's packed rows' `tMs` is relative to it
+   * (`@montaj/edg` `passes/keyframes.ts`'s `Keyframe.tMs`), so a consumer adds
+   * this back to land on the document's absolute source clock before it
+   * builds/queries a `@montaj/timemap` `TimeMap` against it.
+   */
+  itemStartMs: WholeMs,
+  /** Base64 of `@montaj/edg` `passes/keyframes.ts`'s packed `"MKF2"` rows. */
   packed: z.string().min(1).max(1_000_000),
 });
 export type KeyframeTrack = z.infer<typeof KeyframeTrackSchema>;

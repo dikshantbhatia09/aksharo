@@ -11,9 +11,10 @@
  * `apps/api/src/exports/exports.service.ts` calls to build the timemap this
  * manifest's `timemap.edits` come from.
  */
-import { fromAcceptedItems } from "@montaj/timemap";
-import type { PassItem } from "@montaj/edg";
 import { describe, expect, it } from "vitest";
+
+import type { PassItem } from "@montaj/edg";
+import { fromAcceptedItems } from "@montaj/timemap";
 
 function cutItem(itemId: string, startMs: number, endMs: number, state: PassItem["state"]): PassItem {
   return {

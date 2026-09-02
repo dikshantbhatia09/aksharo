@@ -1,11 +1,17 @@
-import { signedFixtureManifest } from "@montaj/render-manifest/testing";
 import { describe, expect, it } from "vitest";
 
-import { packKeyframesBase64 } from "../passes/keyframes";
+import { encodeKeyframes, type Keyframe } from "@montaj/edg";
+import { signedFixtureManifest } from "@montaj/render-manifest/testing";
+
 import { outputCropKeyframesFromManifest } from "./keyframe-adapter";
 import { timeMapFromManifest } from "./timemap-adapter";
 
 const SECRET = "test-secret";
+
+function packBase64(frames: Keyframe[]): string {
+  const bytes = encodeKeyframes(frames);
+  return typeof Buffer !== "undefined" ? Buffer.from(bytes).toString("base64") : btoa(String.fromCharCode(...bytes));
+}
 
 describe("outputCropKeyframesFromManifest", () => {
   it("returns nothing when the manifest carries no keyframe tracks", () => {
@@ -15,37 +21,41 @@ describe("outputCropKeyframesFromManifest", () => {
     expect(outputCropKeyframesFromManifest(manifest, null)).toEqual([]);
   });
 
-  it("decodes and passes source-clock keyframes through unchanged with no edits", () => {
-    const packed = packKeyframesBase64([
-      { tMs: 0, rect: { x: 0, y: 0, w: 1, h: 1 } },
-      { tMs: 1_000, rect: { x: 0.25, y: 0.25, w: 0.5, h: 0.5 } },
+  it("decodes B19's MKF2 rows, offsets by itemStartMs, unchanged with no edits", () => {
+    const packed = packBase64([
+      { tMs: 0, zoom: 1, cx: 0.5, cy: 0.5, ease: "linear" },
+      { tMs: 1_000, zoom: 2, cx: 0.4, cy: 0.4, ease: "linear" },
     ]);
     const manifest = signedFixtureManifest(SECRET, {
       timemap: {
         sourceDurationMs: 10_000,
         edits: [],
         snapCutsToFrames: false,
-        keyframes: [{ itemId: "01ARZ3NDEKTSV4RRFFQ69G5FA2", kind: "reframe", packed }],
+        keyframes: [
+          { itemId: "01ARZ3NDEKTSV4RRFFQ69G5FA2", kind: "reframe", itemStartMs: 500, packed },
+        ],
       },
     });
     const result = outputCropKeyframesFromManifest(manifest, null);
     expect(result).toHaveLength(2);
-    expect(result[0]?.tMs).toBe(0);
-    expect(result[1]?.tMs).toBe(1_000);
+    expect(result[0]?.tMs).toBe(500);
+    expect(result[1]?.tMs).toBe(1_500);
     expect(result[1]?.rect.w).toBeCloseTo(0.5, 4);
   });
 
   it("shifts keyframes after a cut onto the output clock", () => {
-    const packed = packKeyframesBase64([
-      { tMs: 0, rect: { x: 0, y: 0, w: 1, h: 1 } },
-      { tMs: 6_000, rect: { x: 0.2, y: 0.2, w: 0.6, h: 0.6 } },
+    const packed = packBase64([
+      { tMs: 0, zoom: 1, cx: 0.5, cy: 0.5, ease: "linear" },
+      { tMs: 6_000, zoom: 1, cx: 0.5, cy: 0.5, ease: "linear" },
     ]);
     const manifest = signedFixtureManifest(SECRET, {
       timemap: {
         sourceDurationMs: 10_000,
         edits: [{ kind: "cut", startMs: 2_000, endMs: 5_000 }],
         snapCutsToFrames: false,
-        keyframes: [{ itemId: "01ARZ3NDEKTSV4RRFFQ69G5FA2", kind: "reframe", packed }],
+        keyframes: [
+          { itemId: "01ARZ3NDEKTSV4RRFFQ69G5FA2", kind: "reframe", itemStartMs: 0, packed },
+        ],
       },
     });
     const timeMap = timeMapFromManifest(manifest);

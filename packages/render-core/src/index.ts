@@ -174,6 +174,7 @@ export {
   clampCropRect,
   type CropEasingName,
   type CropKeyframe,
+  cropRectFromCentre,
   cropRectFromZoom,
   type CropRect,
   FULL_FRAME,

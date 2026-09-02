@@ -2,27 +2,46 @@
  * Manifest keyframe tracks → the output-clock crop-window curve
  * {@link sampleCropWindow} samples — shared by the browser exporter and the
  * cloud renderer (B20), because both read the same manifest field
- * (`@montaj/render-manifest`'s `timemap.keyframes`, an array of
- * `{itemId, kind, packed}`) and both need the same answer.
+ * (`@montaj/render-manifest`'s `timemap.keyframes`, an array of `{itemId,
+ * itemStartMs, kind, packed}`) and both need the same answer.
  *
- * `packed` is base64 of five little-endian float32s per row —
- * `[tMs, x, y, w, h]`, a normalised `[0,1]` source rectangle (`apps/web/lib/
- * passes/keyframes.ts` documents the row layout in full; this module decodes
- * the same shape without depending on that app-level package, since this one
- * runs in the cloud renderer too). The base64 decoder here is hand-rolled
- * rather than `Buffer`/`atob` so this stays true to this package's "nothing
- * DOM- or Node-only" rule (`index.ts`) — the cloud renderer and the browser
- * both import this module directly.
+ * `packed` is base64 of B19's real packed-keyframe wire format — `@montaj/edg`
+ * `passes/keyframes.ts`'s `decodeKeyframes`, format `"MKF2"`: a `{tMs, zoom,
+ * cx, cy, ease}` row per keyframe, `tMs` relative to the pass item's own
+ * `startMs` (hence `itemStartMs` on the track — added to get back onto the
+ * document's absolute source clock, which is what `@montaj/timemap` needs).
+ * `zoom`+`cx`+`cy` is reduced to the same normalised crop rectangle a
+ * `reframe` item's payload already is via `cropRectFromCentre` — B19 uses
+ * this one row shape for both item kinds, so this module does not branch on
+ * `kind` at all; it is carried on the track only for a caller that wants to
+ * label which item produced a given segment of the curve.
+ *
+ * B20 was written against a self-documented, invented interim shape (`apps/
+ * web/lib/passes/keyframes.ts`'s original `decodeKeyframes(bytea, kind)` —
+ * `[tMs, x, y, w, h]` float32 rows, absolute `tMs`) before B19 landed; this
+ * module is the real one, and that file now just re-exports B19's types for
+ * anything still importing the old name. See the B20 final report for the
+ * full account of what differed.
  */
+import { decodeKeyframes as decodeEdgKeyframes, type Ease } from "@montaj/edg";
 import type { TimeMap } from "@montaj/timemap";
 
-import { lerpCropRect, type CropKeyframe, type CropRect } from "./crop-window.js";
+import { cropRectFromCentre, lerpCropRect, type CropEasingName, type CropKeyframe } from "./crop-window.js";
+
+const EASE_TO_CROP_EASING: Record<Ease, CropEasingName> = {
+  linear: "linear",
+  inOut: "easeInOutCubic",
+};
 
 const BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 const BASE64_INDEX: Record<string, number> = Object.fromEntries(
   [...BASE64_ALPHABET].map((ch, index) => [ch, index]),
 );
 
+/**
+ * Hand-rolled, not `Buffer`/`atob`: this package runs in the browser and the
+ * cloud renderer alike (`index.ts`'s "nothing DOM- or Node-only" rule).
+ */
 function base64ToBytes(b64: string): Uint8Array {
   const clean = b64.replace(/[^A-Za-z0-9+/]/g, "");
   const byteLength = Math.floor((clean.length * 6) / 8);
@@ -44,38 +63,24 @@ function base64ToBytes(b64: string): Uint8Array {
   return bytes;
 }
 
-const REFRAME_ROW_FIELDS = 5; // tMs, x, y, w, h
-const REFRAME_ROW_BYTES = REFRAME_ROW_FIELDS * 4;
-
-/** Decodes one manifest keyframe track's `packed` base64 into ordered rows. */
-export function decodeCropRows(packed: string): { tMs: number; rect: CropRect }[] {
+/** Decodes one manifest keyframe track's `packed` base64 into ordered, absolute-source-clock rows. */
+export function decodeCropRows(packed: string, itemStartMs: number): CropKeyframe[] {
   const bytes = base64ToBytes(packed);
-  if (bytes.byteLength % REFRAME_ROW_BYTES !== 0) {
-    throw new RangeError(
-      `packed crop keyframes: ${String(bytes.byteLength)} bytes is not a whole multiple of ` +
-        `${String(REFRAME_ROW_BYTES)} (5 float32 fields per row)`,
-    );
-  }
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const rows: { tMs: number; rect: CropRect }[] = [];
-  for (let offset = 0; offset < bytes.byteLength; offset += REFRAME_ROW_BYTES) {
-    rows.push({
-      tMs: view.getFloat32(offset, true),
-      rect: {
-        x: view.getFloat32(offset + 4, true),
-        y: view.getFloat32(offset + 8, true),
-        w: view.getFloat32(offset + 12, true),
-        h: view.getFloat32(offset + 16, true),
-      },
-    });
-  }
-  rows.sort((a, b) => a.tMs - b.tMs);
-  return rows;
+  const rows = decodeEdgKeyframes(bytes);
+  return rows
+    .map((row) => ({
+      tMs: itemStartMs + row.tMs,
+      rect: cropRectFromCentre(row.cx, row.cy, row.zoom),
+      easing: EASE_TO_CROP_EASING[row.ease],
+    }))
+    .sort((a, b) => a.tMs - b.tMs);
 }
 
 /** The manifest field shape this module reads — structurally, not by import, to avoid a package cycle. */
 export interface PackedKeyframeTrack {
   readonly packed: string;
+  /** The pass item's `startMs` — B19's row `tMs` is relative to it. */
+  readonly itemStartMs: number;
 }
 
 /**
@@ -93,15 +98,15 @@ export function outputCropKeyframesFromTracks(
   if (tracks.length === 0) return [];
   const all: CropKeyframe[] = [];
   for (const track of tracks) {
-    const rows = decodeCropRows(track.packed);
-    const asCropKeyframes: CropKeyframe[] = rows.map((row) => ({ tMs: row.tMs, rect: row.rect }));
+    const sourceRows = decodeCropRows(track.packed, track.itemStartMs);
     const remapped =
       timeMap === null
-        ? asCropKeyframes
-        : timeMap.mapKeyframes(asCropKeyframes, {
+        ? sourceRows
+        : timeMap.mapKeyframes(sourceRows, {
             interpolate: (before, after, ratio) => ({
               tMs: 0, // overwritten by mapKeyframes
               rect: lerpCropRect(before.rect, after.rect, ratio),
+              ...(before.easing === undefined ? {} : { easing: before.easing }),
             }),
           });
     all.push(...remapped);

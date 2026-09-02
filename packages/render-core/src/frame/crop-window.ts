@@ -119,7 +119,16 @@ export function cropRectFromZoom(
 ): CropRect {
   const cx = target.x + target.w / 2;
   const cy = target.y + target.h / 2;
-  const w = 1 / Math.max(scale, 1e-6);
-  const h = 1 / Math.max(scale, 1e-6);
-  return clampCropRect({ x: cx - w / 2, y: cy - h / 2, w, h });
+  return cropRectFromCentre(cx, cy, scale);
+}
+
+/**
+ * Builds a crop rectangle centred on `(cx, cy)` at `zoom` (>= 1, `1` meaning
+ * "no zoom"), the shape B19's `@montaj/edg` `passes/keyframes.ts` `Keyframe`
+ * carries for both `zoom` and `reframe` items alike (B20 consumes it via
+ * `keyframe-track.ts`).
+ */
+export function cropRectFromCentre(cx: number, cy: number, zoom: number): CropRect {
+  const size = 1 / Math.max(zoom, 1e-6);
+  return clampCropRect({ x: cx - size / 2, y: cy - size / 2, w: size, h: size });
 }
