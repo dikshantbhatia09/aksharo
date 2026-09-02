@@ -28,8 +28,10 @@ from pathlib import Path
 from typing import Any
 
 from worker_ai.alignment import AlignerRegistry
+from worker_ai.cache import NullResultCache, ResultCache, content_hash
 from worker_ai.callbacks import CallbackClient, JobUsage
 from worker_ai.diarisation import DiariserRegistry
+from worker_ai.lid import LanguageIdentifier, TextClassifier
 from worker_ai.logging_setup import get_logger
 from worker_ai.policies import heartbeat_interval_ms, queue_policy_for
 from worker_ai.providers.base import ProviderSubmission
@@ -89,6 +91,14 @@ class Services:
     #: ``None`` when no derived bucket is configured — every audio-reading
     #: processor then fails with a clear message instead of a boto3 stack trace.
     derived_store: ObjectStore | None = None
+    #: The `09 §1` result cache. Never ``None``: a deployment without Redis gets
+    #: :class:`~worker_ai.cache.NullResultCache`, so no call site needs a guard.
+    cache: ResultCache = field(default_factory=NullResultCache)
+    #: Signal 1 of the two-signal LID (D14). ``None`` when no acoustic LID model
+    #: is installed, in which case the routed provider's own answer is used.
+    language_id: LanguageIdentifier | None = None
+    #: Signal 2: the local text classifier. ``None`` builds the default.
+    text_lid: TextClassifier | None = None
 
 
 @dataclass(slots=True)
@@ -105,6 +115,7 @@ class JobContext:
     _workdir: Path | None = None
     _last_progress: float = -1.0
     _last_progress_at: float = 0.0
+    _content_digest: str = ""
 
     @property
     def settings(self) -> Settings:
@@ -137,6 +148,22 @@ class JobContext:
         if self._workdir is not None:
             shutil.rmtree(self._workdir, ignore_errors=True)
             self._workdir = None
+
+    def content_digest(self, path: Path) -> str:
+        """SHA-256 of the job's audio, computed once and remembered.
+
+        The cache key of `09 §1` starts with a content hash. The media row does
+        not carry one yet, so it is computed here — once per job, however many
+        chunks the plan has, because hashing a two-hour wav three times would
+        cost more than the cache saves.
+        """
+        if not self._content_digest:
+            try:
+                self._content_digest = content_hash(path)
+            except OSError as error:  # a cache miss is always a safe answer
+                _log.warning("could not hash the audio", extra={"reason": str(error)[:200]})
+                return ""
+        return self._content_digest
 
     def record(self, submissions: tuple[ProviderSubmission, ...]) -> None:
         """Remember external calls so the completion can carry them to the API."""

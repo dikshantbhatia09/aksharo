@@ -136,14 +136,18 @@ def test_the_a10_shells_carry_the_facts_the_routing_table_relies_on() -> None:
     assert ElevenLabsScribeProvider("").cost_per_minute_inr == pytest.approx(0.35)
 
 
-async def test_the_a10_shells_refuse_to_pretend_they_work() -> None:
-    for provider in (
-        ElevenLabsScribeProvider(""),
-        SarvamSaarasProvider(""),
-        AssemblyAiProvider(""),
-    ):
-        with pytest.raises(NotImplementedError, match="A10"):
-            await provider.transcribe(TranscriptionRequest(audio_uri="x"))
+async def test_a_vendor_never_claims_a_capability_it_does_not_have() -> None:
+    """Sarvam has no alignment and no diarisation; AssemblyAI has no alignment."""
+    with pytest.raises(NotImplementedError, match="forced alignment"):
+        await SarvamSaarasProvider("k").align(
+            AlignmentRequest(audio_uri="x", words=("a",), language="hi")
+        )
+    with pytest.raises(NotImplementedError, match="pyannote"):
+        await SarvamSaarasProvider("k").diarise(DiarisationRequest(audio_uri="x"))
+    with pytest.raises(NotImplementedError, match="standalone alignment"):
+        await AssemblyAiProvider("k").align(
+            AlignmentRequest(audio_uri="x", words=("a",), language="en")
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -515,10 +519,45 @@ def test_a_bare_environment_enables_the_mock_and_nothing_that_needs_a_key() -> N
     assert rows["mock"].enabled is True
     assert rows["serverless-whisper"].enabled is False
     assert "GPU_PROVIDER_URL" in (rows["serverless-whisper"].reason or "")
-    for vendor in ("elevenlabs", "sarvam", "assemblyai"):
+    for vendor, variable in (
+        ("elevenlabs", "ELEVENLABS_API_KEY"),
+        ("sarvam", "SARVAM_API_KEY"),
+        ("assemblyai", "ASSEMBLYAI_API_KEY"),
+    ):
         assert rows[vendor].enabled is False
-        assert rows[vendor].implemented is False
-        assert "A10" in (rows[vendor].reason or "")
+        assert rows[vendor].implemented is True
+        assert variable in (rows[vendor].reason or "")
+
+
+def test_a_vendor_key_enables_its_adapter() -> None:
+    registry = build_registry(load_settings({**VALID_ENV, "SARVAM_API_KEY": "sk-not-real"}))
+    assert registry.enabled("sarvam") is True
+    assert registry.supports("sarvam", "transcribe") is True
+    # Sarvam has no word timings, which is what makes its lane demand an aligner.
+    assert registry.supports("sarvam", "align") is False
+
+
+def test_bhashini_has_no_adapter_at_all() -> None:
+    """RR-02 F3 / D63: proof-of-concept-only terms keep it out of every lane."""
+    registry = build_registry(load_settings(VALID_ENV))
+    assert "bhashini" not in registry.names
+    assert "no adapter" in (registry.reason_disabled("bhashini") or "")
+
+
+def test_coverage_is_open_for_an_adapter_that_declares_no_languages() -> None:
+    registry = build_registry(load_settings(VALID_ENV))
+    assert registry.covers("serverless-whisper", "fr") is True
+    assert registry.covers("elevenlabs", "ta-IN") is True
+    assert registry.covers("elevenlabs", "doi") is False
+    assert registry.covers("deepgram", "en") is False
+
+
+def test_the_registry_reports_each_adapter_rate_limit() -> None:
+    registry = build_registry(load_settings(VALID_ENV))
+    # One batch job per file: there is nothing to fan out (RR-02 F1).
+    assert registry.max_parallel_requests("sarvam") == 1
+    assert registry.max_parallel_requests("elevenlabs") > 1
+    assert registry.max_parallel_requests("deepgram") == 0
 
 
 def test_a_configured_gpu_endpoint_enables_the_serverless_adapter() -> None:
@@ -569,7 +608,7 @@ async def test_getting_a_disabled_provider_raises_with_the_reason() -> None:
     with pytest.raises(ProviderUnavailableError) as raised:
         await registry.get("sarvam")
     assert raised.value.provider == "sarvam"
-    assert "A10" in raised.value.reason
+    assert "SARVAM_API_KEY" in raised.value.reason
 
 
 async def test_instances_are_cached_and_closed() -> None:

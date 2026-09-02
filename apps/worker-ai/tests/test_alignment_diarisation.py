@@ -52,7 +52,8 @@ def test_a_language_the_indic_heads_do_not_cover_skips_them() -> None:
     ]
 
 
-def test_the_proportional_fallback_is_what_resolves_today() -> None:
+def test_the_proportional_fallback_is_what_resolves_without_models_or_keys() -> None:
+    """No checkpoints, no ElevenLabs key: the bottom rung is the only one left."""
     for language in ("hi", "hi-en", "ta-IN", "fr", "und"):
         assert REGISTRY.resolve(language).name == "proportional-vad"
 
@@ -72,21 +73,22 @@ def test_describe_reports_availability_for_the_control_app() -> None:
     rows = {row["name"]: row for row in REGISTRY.describe("hi")}
     assert rows["proportional-vad"]["available"] is True
     assert rows["indicwav2vec-ctc"]["available"] is False
-    assert "A10" in str(rows["indicwav2vec-ctc"]["reason"])
+    assert "WORKER_AI_ALIGN_MODEL_DIR" in str(rows["indicwav2vec-ctc"]["reason"])
+    assert rows["indicwav2vec-ctc"]["licence"] == "MIT"
 
 
-def test_the_a10_aligner_shells_carry_their_model_and_licence() -> None:
+def test_the_model_backed_aligners_carry_their_model_and_licence() -> None:
     assert IndicWav2VecAligner.licence == "MIT"
     assert IndicWav2VecAligner.model.startswith("ai4bharat/")
     assert MmsAligner.model.startswith("facebook/mms")
     assert ElevenLabsForcedAligner.cost_per_minute_inr == pytest.approx(0.03)
 
 
-async def test_the_a10_aligner_shells_refuse_to_pretend_they_work() -> None:
-    request = AlignmentRequest(audio_uri="", words=("a",), language="hi")
-    for aligner in (IndicWav2VecAligner(), MmsAligner(), ElevenLabsForcedAligner()):
-        with pytest.raises(NotImplementedError, match="A10"):
-            await aligner.align(request)
+def test_an_unconfigured_model_backed_aligner_says_what_is_missing() -> None:
+    """No credential and no checkpoint is a *reason*, never a stack trace."""
+    assert "WORKER_AI_ALIGN_MODEL_DIR" in str(IndicWav2VecAligner().available())
+    assert "WORKER_AI_ALIGN_MODEL_DIR" in str(MmsAligner().available())
+    assert "ELEVENLABS_API_KEY" in str(ElevenLabsForcedAligner().available())
 
 
 # ---------------------------------------------------------------------------
@@ -211,20 +213,20 @@ async def test_no_regions_means_no_turns() -> None:
     assert await NoopDiariser().diarise(DiarisationRequest(audio_uri="a.wav")) == ()
 
 
-def test_the_registry_resolves_to_the_noop_until_a10() -> None:
+def test_the_registry_resolves_to_the_noop_without_a_gpu_endpoint() -> None:
     assert DiariserRegistry.default().resolve().name == "noop-single-speaker"
 
 
-def test_the_pyannote_shell_records_the_model_and_its_licence() -> None:
+def test_pyannote_records_the_model_and_its_licence() -> None:
     """D13 names community-1 and CC-BY-4.0; attribution is a shipping requirement."""
     assert PyannoteCommunityDiariser.model == "pyannote/speaker-diarization-community-1"
     assert PyannoteCommunityDiariser.licence == "CC-BY-4.0"
     assert PyannoteCommunityDiariser.global_labels is True
+    assert "CC-BY-4.0" in PyannoteCommunityDiariser.attribution
 
 
-async def test_the_pyannote_shell_refuses_to_pretend_it_works() -> None:
-    with pytest.raises(NotImplementedError, match="A10"):
-        await PyannoteCommunityDiariser().diarise(DiarisationRequest(audio_uri="a.wav"))
+def test_pyannote_without_a_gpu_endpoint_says_so() -> None:
+    assert "GPU_PROVIDER_URL" in str(PyannoteCommunityDiariser().available())
 
 
 def test_an_empty_diariser_registry_is_an_error() -> None:

@@ -1,0 +1,14 @@
+CC0 1.0 Universal (Public Domain Dedication)
+
+`clip.wav` is generated in full by `make_clip.py` in this directory, from
+constants in that file. It contains no recording of any person and no
+third-party material.
+
+To the extent possible under law, the authors of the Aksharo platform have
+waived all copyright and related or neighbouring rights to `clip.wav`. It is
+dedicated to the public domain worldwide under CC0 1.0:
+
+    https://creativecommons.org/publicdomain/zero/1.0/
+
+No attribution is required. It may be redistributed, modified and used
+commercially without restriction.

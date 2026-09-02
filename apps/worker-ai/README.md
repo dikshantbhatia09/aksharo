@@ -4,10 +4,15 @@ Python 3.12 worker: the **official BullMQ Python** consumer for the `ai.*` queue
 provider adapters (ASR, alignment, diarisation), VAD and chunk planning, the eval
 harness, and a small FastAPI control app for probes.
 
-**Status:** A09 — `ai.vad`, `ai.transcribe`, `ai.align` and `ai.diarise` run end to
-end with signed completion callbacks. Vendor adapters (ElevenLabs Scribe v2,
-Sarvam Saaras v4, AssemblyAI), the model-backed aligners and pyannote diarisation
-are **A10**; post-processing and transcript persistence are **A11**.
+**Status:** A10 — the three vendor adapters (ElevenLabs Scribe v2, Sarvam Saaras
+v4 Batch, AssemblyAI Universal-2), two-signal LID, the routing chain with
+fallbacks, the model-backed forced aligners, pyannote community-1 diarisation and
+the result cache are all in. Post-processing, glossary correction and transcript
+persistence are **A11**; translation and transliteration are **A22**.
+
+**No vendor keys exist yet** (A00-06). Every adapter is tested against recorded
+HTTP fixtures, and the manual smoke path for the day the keys arrive is below,
+under "Vendor smoke tests".
 
 ## Why Python here and nowhere else
 
@@ -49,8 +54,9 @@ providers and the VAD backend it loaded. The FastAPI control app answers on
 | Route             | Purpose                                                       |
 | ----------------- | ------------------------------------------------------------- |
 | `GET /health`     | liveness; touches neither Redis nor a model                    |
-| `GET /providers`  | every adapter, its enable flag and *why* it is off; routing    |
-| `POST /evals/run` | stub (501); the harness is a CLI in A09                        |
+| `GET /providers`  | every adapter and *why* it is off; routing, aligners, diarisers, LID backend, cache |
+| `GET /metrics`    | Prometheus counters per provider, language and lane (`09 §1`)  |
+| `POST /evals/run` | stub (501); the harness is a CLI                               |
 
 ## Queues
 
@@ -149,16 +155,22 @@ worker_ai/
   vad.py             Silero (ONNX) and energy backends, region post-processing
   chunking.py        the D14 chunk planner
   transcript.py      stable word ids, chunk assembly, the A11 post-process hook
-  routing.py         loader/resolver for routing.yaml
+  routing.py         loader, admin overrides, and the fallback chain resolver
   routing.yaml       the v2 routing table of 09 §1 as data
+  languages.py       one spelling per language, whatever a vendor calls it
+  lid.py             two-signal language identification (D14)
+  cache.py           the contentHash + language + provider + model cache (09 §1)
+  metrics.py         per-provider, per-language counters for GET /metrics
   logging_setup.py   one JSON line per record, matching the Node workers
   control.py         FastAPI: /health, /providers, /evals/run
   processors/        one module per queue
-  providers/         Provider interface, registry, mock, local + serverless Whisper
-  alignment/         the D13 registry: proportional + VAD, A10 shells above it
-  diarisation/       the D13 registry: noop, pyannote shell
-  evals/             manifest format, WER/CER, runner, CLI
-  fixtures/          eval sets that ship with the worker
+  providers/         Provider interface, registry, the shared vendor HTTP client,
+                     mock, local + serverless Whisper, Scribe v2, Saaras v4, Universal-2
+  alignment/         the D13 registry: CTC forced alignment, MMS, ElevenLabs FA,
+                     proportional + VAD, and the script projections they need
+  diarisation/       the D13 registry: pyannote community-1, noop, the word join
+  evals/             manifest format, WER/CER, runner, CLI, vendor replay
+  fixtures/          eval sets, the CC0 speech clip, recorded vendor sessions
 tests/               pytest + hypothesis
 ```
 
@@ -183,26 +195,60 @@ tests/               pytest + hypothesis
   `diarisation`, `max_duration_s`, `batch`, `languages`, plus the `supported` set)
   and `cost_estimate(seconds)` returns the list price in paise.
 
-### Adapters today
+### The adapter matrix
 
-| Adapter               | What it is                                              |
-| --------------------- | ------------------------------------------------------- |
-| `mock`                | deterministic words from a fixture; the CI/dev lane      |
-| `local-whisper`       | faster-whisper in-process; optional extra `local-asr`    |
-| `serverless-whisper`  | HTTP client for the D15 per-second GPU endpoint          |
-| `elevenlabs` `sarvam` `assemblyai` | **A10** — capability and price metadata only |
+| Adapter | Transcribe | Word timings | Diarisation | Alignment | Languages routed to it | Rs/min | Shape |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `elevenlabs` (Scribe v2) | yes | **yes** | **yes**, up to 32 speakers | yes (Forced Alignment) | hi, en-IN, ta, te, kn, ml, bn, mr, gu, or, ne, as, pa | 0.35 | one multipart request per chunk |
+| `sarvam` (Saaras v4) | yes | **no**, chunk-level only | no (pyannote instead) | no | hi-en, ur, sd, kok, ks, sa, sat, mni, brx, mai, doi | 0.53 | **Batch**: init, upload, start, poll, download |
+| `assemblyai` (Universal-2) | yes | yes | yes | no | en, en-IN, and the global fallback | 0.24 | upload, submit, poll |
+| `serverless-whisper` | yes | yes | no | no | any; the global lane (D15) | 0.11 | one request per chunk |
+| `local-whisper` | yes | yes | no | no | any; desktop and the `slow` tests | 0 | in-process, optional extra |
+| `mock` | yes | yes | no | yes | any; CI and development | 0 | fixture words, no I/O |
 
-### How A10 adds a vendor
+Bhashini is **not** an adapter and will not become one while its public API is
+proof-of-concept-only by its own terms (RR-02 F3, D63). `routing.NEVER_ROUTE`
+turns a `routing.yaml` that names it into a load-time error.
 
-1. Fill in the module under `providers/` — the class, its `capabilities` and its
-   `cost_per_minute_inr` are already there and already tested.
+### How to add a vendor
+
+1. Write the module under `providers/` against `providers/base.py`, using
+   `providers/http.py` for retries, `Retry-After` handling and error mapping.
 2. Add its credential to the `unmet` check in `providers/registry.py:build_registry`
-   (the pattern is one `credential(...)` line) and flip `implemented=True`.
-3. Point a lane at it in `routing.yaml`. Nothing else changes: `routing.resolve`
-   walks the lane in order and takes the first provider the deployment enables, so
+   (one `credential(...)` line) and set `implemented=True`.
+3. Point a lane at it in `routing.yaml`. Nothing else changes: `routing.resolve_chain`
+   walks the lane in order and returns every provider the deployment enables, so
    a vendor that is not configured is skipped with a reason rather than an error.
-4. Add the vendor's fixtures to `evals/` and run the harness before changing any
-   weight — `09 §8` blocks a routing change on a WER regression over one point.
+4. Record HTTP fixtures under `worker_ai/fixtures/vendor/<name>/` and run the eval
+   harness against them before changing any weight — `09 §8` blocks a routing
+   change on a WER regression over one point.
+
+### Vendor smoke tests (when the keys arrive)
+
+A00-06 signs the DPAs and issues the keys. Until then nothing in this repository
+has ever spoken to a vendor: the adapters are driven entirely by recorded
+fixtures. The first thing to run on the day the keys land:
+
+```bash
+# 1. One chunk through each vendor, against a real clip.
+export ELEVENLABS_API_KEY=... SARVAM_API_KEY=... ASSEMBLYAI_API_KEY=...
+export RUN_VENDOR_SMOKE=1
+python -m pytest tests/test_vendor_smoke.py -v      # skipped without the keys
+
+# 2. The eval harness through each adapter, live rather than replayed.
+python -m worker_ai.evals run --set hinglish-mini --provider sarvam
+python -m worker_ai.evals run --set hinglish-mini --provider elevenlabs
+
+# 3. GET /providers should report all three enabled; GET /metrics should count them.
+curl -s localhost:8091/providers | jq ".providers[] | {name, enabled, reason}"
+```
+
+**What to check first**, because the fixtures cannot verify it: the exact field
+names in each vendor response (`words[].type` on Scribe, `timestamps.chunks[]` on
+Saaras, `words[].start` in *milliseconds* on AssemblyAI); that the Saaras Batch
+storage paths really are Azure blob SAS containers; and that ElevenLabs honours
+`enable_logging=false` on the India residency host. Each is called out in its
+module docstring, and each is a one-function change if a name differs.
 
 ## The routing table
 
@@ -216,6 +262,87 @@ Lanes are matched in order on the detected language (exact tag, then base subtag
 and a code-mix signal wins outright. `alignment: required` marks a provider that
 returns no word timings — Sarvam — so the worker runs the aligner registry behind
 it. Override the file with `WORKER_AI_ROUTING_FILE`.
+
+## Language identification (D14, `09 §1.1`)
+
+Two signals, and the rule is **agreement**, not confidence — because RR-02 F4
+measured IndicLID's romanised head at F1 0.75, which is too weak to put a job on
+the dearer code-mix lane by itself.
+
+| Signal | What it is | Where it comes from |
+| --- | --- | --- |
+| acoustic | Whisper `detect_language` over 60 s + two 15 s windows | `local-asr` extra, else the D15 model server, else the routed provider's own answer |
+| textual | a local classifier over the first chunk's text | IndicLID from `WORKER_AI_INDICLID_DIR`, else a script-share + romanised-Hindi-lexicon heuristic |
+
+* **Code-mix lane** when both signals say Hindi/Hinglish *and* `codeMixScore ≥ 0.3`
+  — or the user hinted Hinglish, which always wins.
+* **Agreed language** when both point at the same base tag.
+* **The acoustic signal, flagged `lowConfidence`**, when they disagree.
+
+`codeMixScore` is the romanised-Hindi share of the Latin tokens, from a small
+closed-class function-word lexicon, so the number is explainable in a support
+ticket. Words spelled the same in both languages ("the", "main", "par") count for
+neither side.
+
+The whole decision — signals, score, reason — is logged per job and travels in
+the completion `result` under `lid`, so "why did this go to Sarvam?" is answerable
+from `jobs.result` without a re-run.
+
+**How it costs one chunk, not one extra call.** The first chunk is transcribed on
+the provisional lane and *that* is the acoustic signal; the classifier reads its
+text. Only if the two signals move the job to a **different lane** is that chunk
+transcribed again — and the discarded call is still recorded as a
+`provider_submission` and still counted in `usage.costMinor`, because the vendor
+charged for it.
+
+## Models, licences and where their weights live
+
+Nothing here is committed and nothing is downloaded at run time. Every rung
+reports itself unavailable, by name, when its directory or credential is absent,
+and the chain falls through to something that needs neither.
+
+| Component | Model | Licence | Configured by |
+| --- | --- | --- | --- |
+| Diarisation | `pyannote/speaker-diarization-community-1` | **CC-BY-4.0** — attribution required, shipped in `engineVersions` | `GPU_PROVIDER_URL` (D15 model server) |
+| Alignment, Indic | `ai4bharat/indicwav2vec` CTC heads | **MIT** | `WORKER_AI_ALIGN_MODEL_DIR/indicwav2vec/<lang>/` |
+| Alignment, breadth | `facebook/mms-300m-1130-forced-aligner` | **CC-BY-NC-4.0 on the common export; the commercial variant is unresolved** — see open questions | `WORKER_AI_ALIGN_MODEL_DIR/mms/multilingual/` |
+| Alignment, paid | ElevenLabs Forced Alignment | vendor terms | `ELEVENLABS_API_KEY` + flag `align.elevenlabs` |
+| Alignment, fallback | proportional + VAD | none needed | always available |
+| LID, acoustic | faster-whisper | MIT | optional extra `local-asr` |
+| LID, textual | AI4Bharat IndicLID | **MIT** | `WORKER_AI_INDICLID_DIR` |
+| VAD | Silero v5 (ONNX) | MIT | `WORKER_AI_VAD_MODEL` |
+
+> **Attribution notice.** Speaker diarisation is by pyannote
+> `speaker-diarization-community-1` (Hervé Bredin et al.), used under
+> [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/). This notice ships in
+> the job's `engineVersions.attribution` whenever pyannote ran.
+
+### CTC checkpoint layout
+
+```
+$WORKER_AI_ALIGN_MODEL_DIR/
+  indicwav2vec/hi/model.onnx      # exported CTC head, float32 [1, N] in
+  indicwav2vec/hi/vocab.json      # {"<pad>": 0, "|": 4, "क": 5, ...}
+  indicwav2vec/hi/config.json     # optional: {"frameMs": 20}
+  mms/multilingual/model.onnx     # one head for every language
+```
+
+Roman-script Hinglish is projected onto Devanagari before tokenising and MMS
+input is romanised first (`09 §2`); both projections are rule tables in
+`alignment/romanisation.py`, not models.
+
+## Caching and cost
+
+A transcription result is cached in Redis under
+`contentHash + language + provider + model + mode + chunk span` for **30 days**,
+with a per-entry size cap (`WORKER_AI_CACHE_MAX_BYTES`). A hit skips the vendor
+call entirely and sets `usage.cached: true` on the completion, so the API does not
+count it as a fresh charge. A cache that is down is a *miss*, never a failure.
+
+`GET /metrics` exposes, per provider / language / lane: call counts by outcome,
+media seconds, estimated list price in paise, cache hits and misses, and routing
+fallbacks. Nothing is ever labelled with a workspace, project or media id — a
+metric label is a cardinality bomb and a privacy leak in the same field.
 
 ## VAD and chunking (D14)
 
@@ -245,6 +372,20 @@ python -m worker_ai.evals run --set fixtures/hinglish-mini
 python -m worker_ai.evals run --set hinglish-mini --json --max-wer 0.15
 ```
 
+Every adapter can be scored, vendors included — a vendor lane **replays its
+recorded session** by default, so the harness runs on a laptop with no keys:
+
+```bash
+python -m worker_ai.evals run --set vendor-replay --provider sarvam
+python -m worker_ai.evals run --set vendor-replay --provider elevenlabs --json
+python -m worker_ai.evals run --set vendor-replay --provider sarvam --live   # A00-06
+```
+
+The `vendor-replay` set pairs the CC0 clip in `fixtures/speech-5s` with the
+transcript the recorded sessions return, so a corpus WER of 0 means "every
+adapter parsed its response correctly" and **nothing at all** about how well any
+vendor transcribes Hindi. Quality needs the hand-labelled sets of A00-05.
+
 `--max-wer` exits 1 on a regression, which is the hook `09 §8` needs to block a
 routing change. A set is a directory under `fixtures/` with a `manifest.yaml`
 (format in `evals/manifest.py`); `audioAvailable: false` says the references are
@@ -270,7 +411,17 @@ deliberately *not* in CONTRACTS §1 — the same precedent the API set for
 | `WORKER_AI_VAD_MODEL`    | —              | path to `silero_vad.onnx`                       |
 | `WORKER_AI_WHISPER_MODEL`| `small`        | faster-whisper model for the local adapter      |
 | `WORKER_AI_ALLOW_MOCK`   | auto           | force the mock lane on or off                   |
-| `GPU_PROVIDER_URL`       | —              | serverless GPU endpoint (D15)                   |
+| `WORKER_AI_ALIGN_MODEL_DIR` | —           | CTC checkpoints for the D13 aligners (layout below) |
+| `WORKER_AI_INDICLID_DIR` | —              | IndicLID heads; without them LID signal 2 is the built-in heuristic |
+| `WORKER_AI_CACHE`        | `redis` when `REDIS_URL` is set | `redis`, `memory` or `none`  |
+| `WORKER_AI_CACHE_MAX_BYTES` | `524288`    | largest transcript the cache will store         |
+| `WORKER_AI_ROUTING_OVERRIDES_FROM_API` | off | fetch admin weights from `GET /internal/routing` (B13) |
+| `ROUTING_OVERRIDES_JSON` | —              | admin routing weights as JSON, laid over `routing.yaml` |
+| `ELEVENLABS_BASE_URL`    | `https://api.elevenlabs.io` | India residency: `https://api.in.residency.elevenlabs.io` |
+| `ELEVENLABS_ZERO_RETENTION` | on          | sends `enable_logging=false` on every request   |
+| `SARVAM_BASE_URL`        | `https://api.sarvam.ai` | override for a private endpoint         |
+| `ASSEMBLYAI_BASE_URL`    | `https://api.assemblyai.com` | override for a private endpoint    |
+| `GPU_PROVIDER_URL`       | —              | serverless GPU endpoint (D15); also serves `/diarise` and `/detect-language` |
 | `GPU_PROVIDER_TOKEN`     | —              | bearer token for it                             |
 | `FFMPEG_BIN` `FFPROBE_BIN` | on `PATH`    | explicit binary paths                           |
 
@@ -279,7 +430,8 @@ deliberately *not* in CONTRACTS §1 — the same precedent the API set for
 documented here until §1 gains it.
 
 Provider enablement is `credential present` AND `feature flag not off`. Flags come
-from `FEATURE_FLAGS_JSON` and are named `asr.<provider>`.
+from `FEATURE_FLAGS_JSON` and are named `asr.<provider>`; the two non-ASR stages
+have flags too, `align.elevenlabs` (the paid aligner) and `diarise.pyannote`.
 
 ## Dependencies
 

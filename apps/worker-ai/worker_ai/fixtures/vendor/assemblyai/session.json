@@ -1,0 +1,120 @@
+{
+  "provider": "assemblyai",
+  "baseUrl": "https://api.assemblyai.test",
+  "exchanges": [
+    {
+      "method": "POST",
+      "path": "/v2/upload",
+      "status": 200,
+      "json": {
+        "upload_url": "https://cdn.assemblyai.test/upload/replay"
+      },
+      "repeat": 8
+    },
+    {
+      "method": "POST",
+      "path": "/v2/transcript",
+      "status": 200,
+      "json": {
+        "id": "tr-1",
+        "status": "queued"
+      },
+      "repeat": 8
+    },
+    {
+      "method": "GET",
+      "path": "/v2/transcript/tr-1",
+      "status": 200,
+      "json": {
+        "id": "tr-1",
+        "status": "processing"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/v2/transcript/tr-1",
+      "status": 200,
+      "json": {
+        "id": "tr-1",
+        "status": "completed",
+        "language_code": "en",
+        "audio_duration": 4,
+        "confidence": 0.93,
+        "text": "toh aaj hum baat karenge video editing ke baare mein",
+        "words": [
+          {
+            "text": "toh",
+            "start": 120,
+            "end": 440,
+            "confidence": 0.93,
+            "speaker": "A"
+          },
+          {
+            "text": "aaj",
+            "start": 480,
+            "end": 800,
+            "confidence": 0.93,
+            "speaker": "A"
+          },
+          {
+            "text": "hum",
+            "start": 840,
+            "end": 1120,
+            "confidence": 0.93,
+            "speaker": "A"
+          },
+          {
+            "text": "baat",
+            "start": 1160,
+            "end": 1520,
+            "confidence": 0.93,
+            "speaker": "A"
+          },
+          {
+            "text": "karenge",
+            "start": 1560,
+            "end": 2100,
+            "confidence": 0.93,
+            "speaker": "A"
+          },
+          {
+            "text": "video",
+            "start": 2200,
+            "end": 2620,
+            "confidence": 0.93,
+            "speaker": "B"
+          },
+          {
+            "text": "editing",
+            "start": 2660,
+            "end": 3140,
+            "confidence": 0.93,
+            "speaker": "B"
+          },
+          {
+            "text": "ke",
+            "start": 3180,
+            "end": 3320,
+            "confidence": 0.93,
+            "speaker": "B"
+          },
+          {
+            "text": "baare",
+            "start": 3360,
+            "end": 3700,
+            "confidence": 0.93,
+            "speaker": "B"
+          },
+          {
+            "text": "mein",
+            "start": 3740,
+            "end": 3980,
+            "confidence": 0.93,
+            "speaker": "B"
+          }
+        ]
+      },
+      "repeat": 8
+    }
+  ]
+}

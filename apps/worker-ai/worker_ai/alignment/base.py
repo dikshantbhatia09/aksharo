@@ -10,11 +10,12 @@ provider word timestamps (Scribe, AssemblyAI, Whisper)
   -> proportional distribution refined by VAD boundaries
 ```
 
-A09 ships the last one, which is the rung that must never be missing: it needs no
-model, no network and no credentials, so alignment is always available. A10 fills
-in the three above it, and the registry below is what they slot into — a name, an
-ordered language list, and a `available()` check that keeps an unconfigured
-aligner out of the chain.
+The last rung is the one that must never be missing: it needs no model, no
+network and no credentials, so alignment is always available. The three above it
+are model- or vendor-backed and each reports itself unavailable, by name, when
+its checkpoint directory or its credential is absent — which is what keeps an
+unconfigured aligner out of the chain instead of failing a job with an import
+error halfway through a transcript.
 
 The quality bar the chain exists to hit: median absolute word-onset error ≤ 40 ms
 (English) and ≤ 80 ms (Indic), with every word snapped inside a VAD speech region.
@@ -55,6 +56,16 @@ class Aligner(ABC):
         """``None`` when usable here, otherwise the reason it is not."""
         return None
 
+    def available_for(self, language: str) -> str | None:
+        """Availability for one language.
+
+        A model-backed rung has a checkpoint per language, so "installed" and
+        "installed for Tamil" are different questions; the default answers them
+        the same way.
+        """
+        del language
+        return self.available()
+
     def covers(self, language: str) -> bool:
         """True when this aligner claims ``language`` (or claims everything)."""
         if not self.languages:
@@ -70,6 +81,10 @@ class Aligner(ABC):
         """Return one :class:`Word` per input word, in order, with ms timings."""
         raise NotImplementedError
 
+    async def aclose(self) -> None:
+        """Release any client or session. Idempotent; the default is a no-op."""
+        return None
+
 
 @dataclass(frozen=True, slots=True)
 class AlignerRegistry:
@@ -79,7 +94,12 @@ class AlignerRegistry:
 
     @classmethod
     def default(cls) -> AlignerRegistry:
-        """The A09 chain: the A10 shells, then the always-available fallback."""
+        """The chain with nothing configured: only the fallback can actually run.
+
+        The three rungs above it are still *present* so ``GET /providers`` can
+        say why each is unavailable — "no checkpoints installed", "no key" —
+        rather than pretending they do not exist.
+        """
         from worker_ai.alignment.elevenlabs_fa import ElevenLabsForcedAligner
         from worker_ai.alignment.indic_wav2vec import IndicWav2VecAligner
         from worker_ai.alignment.mms import MmsAligner
@@ -90,6 +110,33 @@ class AlignerRegistry:
                 IndicWav2VecAligner(),
                 MmsAligner(),
                 ElevenLabsForcedAligner(),
+                ProportionalAligner(),
+            )
+        )
+
+    @classmethod
+    def from_settings(cls, settings: Any) -> AlignerRegistry:
+        """The chain a deployment can actually run (`09 §2`, D13).
+
+        Model directories come from ``WORKER_AI_ALIGN_MODEL_DIR`` and the paid
+        rung from ``ELEVENLABS_API_KEY`` plus the ``align.elevenlabs`` flag, so a
+        pod with no models and no key still aligns — on the proportional rung,
+        which needs neither.
+        """
+        from worker_ai.alignment.elevenlabs_fa import ElevenLabsForcedAligner
+        from worker_ai.alignment.indic_wav2vec import IndicWav2VecAligner
+        from worker_ai.alignment.mms import MmsAligner
+        from worker_ai.alignment.proportional import ProportionalAligner
+
+        model_dir = str(getattr(settings, "align_model_dir", "") or "")
+        return cls(
+            aligners=(
+                IndicWav2VecAligner(model_dir),
+                MmsAligner(model_dir),
+                ElevenLabsForcedAligner(
+                    str(getattr(settings, "elevenlabs_api_key", "") or ""),
+                    enabled=bool(settings.flag("align.elevenlabs", default=True)),
+                ),
                 ProportionalAligner(),
             )
         )
@@ -110,7 +157,7 @@ class AlignerRegistry:
         """
         skipped: list[str] = []
         for aligner in self.chain(language):
-            reason = aligner.available()
+            reason = aligner.available_for(language)
             if reason is None:
                 return aligner
             skipped.append(f"{aligner.name}: {reason}")
@@ -125,8 +172,10 @@ class AlignerRegistry:
                 "name": aligner.name,
                 "rank": aligner.rank,
                 "languages": list(aligner.languages),
-                "available": aligner.available() is None,
-                "reason": aligner.available(),
+                "model": str(getattr(aligner, "model", "") or ""),
+                "licence": str(getattr(aligner, "licence", "") or ""),
+                "available": aligner.available_for(language) is None,
+                "reason": aligner.available_for(language),
             }
             for aligner in self.chain(language)
         )
