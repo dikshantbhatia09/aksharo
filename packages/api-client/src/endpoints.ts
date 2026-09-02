@@ -537,7 +537,8 @@ export const affiliateEndpoints = {
     auth: "bearer",
     operationId: "applyAffiliate",
   }),
-  me: defineEndpoint<void, AffiliateProfile | null>({
+  /** Wrapped `{ affiliate }` — see `hooks.ts useMyAffiliate`'s doc-comment for why. */
+  me: defineEndpoint<void, { affiliate: AffiliateProfile | null }>({
     method: "GET",
     path: "/affiliate/me",
     auth: "bearer",

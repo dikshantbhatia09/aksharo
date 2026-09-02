@@ -939,7 +939,12 @@ export function useMyAffiliate(): UseQueryResult<AffiliateProfile | null> {
     queryKey: queryKeys.affiliate(),
     enabled: workspaceId !== null,
     retry: retryPolicy,
-    queryFn: () => client.call(endpoints.affiliate.me),
+    // The route wraps `{ affiliate }` rather than a bare nullable body — a
+    // handler returning `null`/`undefined` makes Nest's Express adapter send
+    // an empty body (`isNil(body)` → `response.send()`), which `readJson`
+    // then reads back as `undefined`, and TanStack Query refuses `undefined`
+    // as query data outright.
+    queryFn: async () => (await client.call(endpoints.affiliate.me)).affiliate,
   });
 }
 

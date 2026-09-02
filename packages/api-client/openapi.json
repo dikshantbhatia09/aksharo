@@ -13667,69 +13667,77 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Affiliate profile or null.",
+            "description": "Affiliate profile, wrapped so `affiliate: null` is a real JSON body.",
             "content": {
               "application/json": {
                 "schema": {
-                  "nullable": true,
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "tier": {
-                      "type": "string"
-                    },
-                    "legalName": {
+                    "affiliate": {
                       "nullable": true,
-                      "type": "string"
-                    },
-                    "panLast4": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "gstin": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "balanceMinor": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "currency": {
-                      "type": "string"
-                    },
-                    "approvedAt": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "createdAt": {
-                      "type": "string"
-                    },
-                    "referralLink": {
-                      "type": "string"
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "tier": {
+                          "type": "string"
+                        },
+                        "legalName": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "panLast4": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "gstin": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "balanceMinor": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "approvedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "referralLink": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "code",
+                        "status",
+                        "tier",
+                        "legalName",
+                        "panLast4",
+                        "gstin",
+                        "balanceMinor",
+                        "currency",
+                        "approvedAt",
+                        "createdAt",
+                        "referralLink"
+                      ]
                     }
                   },
                   "required": [
-                    "id",
-                    "code",
-                    "status",
-                    "tier",
-                    "legalName",
-                    "panLast4",
-                    "gstin",
-                    "balanceMinor",
-                    "currency",
-                    "approvedAt",
-                    "createdAt",
-                    "referralLink"
+                    "affiliate"
                   ]
                 }
               }

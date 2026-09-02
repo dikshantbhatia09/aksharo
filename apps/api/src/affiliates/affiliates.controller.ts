@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { z } from "zod";
 
 import {
   affiliateStatsSchema,
@@ -18,6 +19,7 @@ import {
   attachCodeSchema,
   recordClickSchema,
   type AdminAffiliateActionDto,
+  type AffiliateView,
   type ApplyAffiliateDto,
   type AttachCodeDto,
   type RecordClickDto,
@@ -78,9 +80,21 @@ export class AffiliatesController {
     summary: "The caller's own affiliate profile, or null",
     operationId: "getMyAffiliate",
   })
-  @ApiOkResponse(zodResponse(affiliateViewSchema.nullable(), "Affiliate profile or null."))
-  async me(@CurrentUser() principal: AuthPrincipal) {
-    return this.affiliates.getForUser(principal.userId);
+  @ApiOkResponse(
+    zodResponse(
+      z.object({ affiliate: affiliateViewSchema.nullable() }),
+      "Affiliate profile, wrapped so `affiliate: null` is a real JSON body.",
+    ),
+  )
+  async me(@CurrentUser() principal: AuthPrincipal): Promise<{ affiliate: AffiliateView | null }> {
+    // Wrapped, never a bare `null` body: Nest's Express adapter treats a nil
+    // handler return value as "send nothing" (`isNil(body)` →
+    // `response.send()`), which the client's `readJson` then reads back as
+    // `undefined`, not `null` — TanStack Query then throws ("Query data
+    // cannot be undefined") rather than rendering the "no affiliate yet"
+    // state. An always-present envelope object sidesteps that entirely.
+    const affiliate = await this.affiliates.getForUser(principal.userId);
+    return { affiliate };
   }
 
   @Get("me/stats")
