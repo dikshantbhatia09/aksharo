@@ -6,7 +6,8 @@ non-commercial and therefore unusable here, and no Apache-licensed equivalent of
 that particular export exists. The breadth rung is now the
 ``jonatasgrosman/wav2vec2-large-xlsr-53-*`` fine-tunes, which are **Apache-2.0**
 and are already what the GPU model server bakes in
-(``infra/gpu/runpod/bake_models.py --aligner``).
+(``apps/model-server/scripts/bake_models.py --aligner-global``; that script also
+refuses an MMS argument, so D77 cannot be undone with a ``--build-arg``).
 
 The split between rungs 2 and 3 is now by language family rather than by
 accuracy:
