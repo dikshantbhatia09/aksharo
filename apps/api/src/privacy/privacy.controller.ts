@@ -3,10 +3,32 @@ import { ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { z } from "zod";
 
 import { PRIVACY_NOTICE } from "./privacy-notice.js";
+import subProcessorsContent from "../../content/sub-processors.json";
 import { zodResponse } from "../auth/dto/openapi.js";
 import { JwtAuthGuard, Public } from "../common/guards/index.js";
 
 import type { PrivacyNotice } from "./privacy-notice.js";
+
+const subProcessorSchema = z.object({
+  name: z.string(),
+  purpose: z.string(),
+  region: z.string(),
+  dpaDate: z.string(),
+});
+const subProcessorsSchema = z.object({
+  version: z.string(),
+  processors: z.array(subProcessorSchema),
+});
+
+export interface SubProcessorList {
+  readonly version: string;
+  readonly processors: readonly {
+    readonly name: string;
+    readonly purpose: string;
+    readonly region: string;
+    readonly dpaDate: string;
+  }[];
+}
 
 const noticeSchema = z.object({
   version: z.string(),
@@ -54,5 +76,21 @@ export class PrivacyController {
   @ApiOkResponse(zodResponse(noticeSchema, "The current notice."))
   notice(): PrivacyNotice {
     return PRIVACY_NOTICE;
+  }
+
+  @Get("sub-processors")
+  @Public()
+  @ApiOperation({
+    summary: "The third parties personal data is shared with",
+    description:
+      "Static, maintained by hand in `apps/api/content/sub-processors.json` " +
+      "(D61 Rule 3's itemised-notice obligation extends to naming processors). " +
+      "Public for the same reason the notice is: a person deciding whether to " +
+      "sign up has to be able to read it first.",
+    operationId: "getSubProcessors",
+  })
+  @ApiOkResponse(zodResponse(subProcessorsSchema, "The current sub-processor list."))
+  subProcessors(): SubProcessorList {
+    return subProcessorsContent;
   }
 }

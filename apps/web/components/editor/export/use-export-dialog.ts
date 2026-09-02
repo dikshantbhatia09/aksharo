@@ -40,8 +40,6 @@ export interface ExportDialogDeps {
   readonly catalogue: ReadonlyMap<string, StyleDoc>;
   readonly registry: FontRegistry | undefined;
   readonly shaper: Shaper | undefined;
-  readonly fetchWatermarkAsset?: (assetId: string) => Promise<Uint8Array>;
-  readonly resolveSourceUrl: (manifest: RenderManifest) => Promise<string>;
 }
 
 export type ExportPhase =
@@ -74,6 +72,15 @@ const INITIAL_STATE: ExportDialogState = {
   result: null,
   error: null,
 };
+
+/** Fetches the watermark PNG bytes from A21b's presigned `sources.watermarkUrl`. */
+async function fetchWatermarkBytes(url: string): Promise<Uint8Array> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`could not fetch the watermark asset: ${String(response.status)}`);
+  }
+  return new Uint8Array(await response.arrayBuffer());
+}
 
 export function useExportDialog(deps: ExportDialogDeps): {
   readonly state: ExportDialogState;
@@ -111,9 +118,11 @@ export function useExportDialog(deps: ExportDialogDeps): {
       setState((s) => ({ ...s, response, manifest }));
 
       if (manifest === null) {
-        // Cloud path (or subtitle-only, or an ineligible browser): nothing more
-        // for the engine to do. The dialog shows `response.reasons` and, for a
-        // cloud video export, `response.job`.
+        // Cloud path (or subtitle-only, or an ineligible browser — A21b's
+        // decision.ts now itself refuses "auto" for a browser lacking H.264
+        // decode+encode or a usable audio path, and for an HDR source):
+        // nothing more for the engine to do. The dialog shows
+        // `response.reasons` and, for a cloud video export, `response.job`.
         setState((s) => ({ ...s, phase: "cloud-offered" }));
         return;
       }
@@ -144,6 +153,16 @@ export function useExportDialog(deps: ExportDialogDeps): {
         return;
       }
 
+      if (response.sources === undefined) {
+        setState((s) => ({
+          ...s,
+          phase: "error",
+          error: "The API did not return source URLs for this browser export (A21b `sources`).",
+        }));
+        return;
+      }
+      const sources = response.sources;
+
       const audioDecision = decideAudioStrategy({
         manifest,
         aacEncodable: probe.audio.aac,
@@ -155,11 +174,18 @@ export function useExportDialog(deps: ExportDialogDeps): {
       }
 
       const controller = new AbortController();
-      controllerRef.current = controller;
       setState((s) => ({ ...s, phase: "rendering" }));
+      controllerRef.current = controller;
 
       try {
-        const sourceUrl = await deps.resolveSourceUrl(manifest);
+        // A21b's `rawUrl` is the ORIGINAL media (S3) — a 540p proxy cannot
+        // produce a clean ≥1080p export, so the engine always decodes it,
+        // falling back to `proxyUrl` only if `rawUrl` is somehow absent.
+        const sourceUrl = sources.rawUrl ?? sources.proxyUrl;
+        if (sourceUrl === undefined) {
+          throw new Error("no source URL was returned for this export");
+        }
+        const watermarkUrl = sources.watermarkUrl;
         const result = await runExport({
           manifest,
           source: sourceUrl,
@@ -170,9 +196,8 @@ export function useExportDialog(deps: ExportDialogDeps): {
           signal: controller.signal,
           aacEncodable: probe.audio.aac,
           aacPolyfillAvailable: true,
-          ...(deps.fetchWatermarkAsset === undefined
-            ? {}
-            : { fetchWatermarkAsset: deps.fetchWatermarkAsset }),
+          fetchWatermarkAsset:
+            watermarkUrl === undefined ? undefined : () => fetchWatermarkBytes(watermarkUrl),
           onProgress: (progress) => setState((s) => ({ ...s, progress })),
         });
         setState((s) => ({ ...s, phase: "completing", result }));

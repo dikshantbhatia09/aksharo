@@ -3758,6 +3758,64 @@
         ]
       }
     },
+    "/privacy/sub-processors": {
+      "get": {
+        "description": "Static, maintained by hand in `apps/api/content/sub-processors.json` (D61 Rule 3's itemised-notice obligation extends to naming processors). Public for the same reason the notice is: a person deciding whether to sign up has to be able to read it first.",
+        "operationId": "getSubProcessors",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The current sub-processor list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "string"
+                    },
+                    "processors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "purpose": {
+                            "type": "string"
+                          },
+                          "region": {
+                            "type": "string"
+                          },
+                          "dpaDate": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "purpose",
+                          "region",
+                          "dpaDate"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "processors"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "The third parties personal data is shared with",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
     "/workspaces/{id}/credits": {
       "get": {
         "description": "Lots are listed in consumption order: soonest-expiring first, then FIFO (D32) — the same order `reserve` draws from them.",
@@ -10073,6 +10131,288 @@
           }
         ],
         "summary": "Streak experiment vs holdout cohort metrics",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/privacy/breach-incidents": {
+      "get": {
+        "operationId": "listBreachIncidents",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Array of breach incidents."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List breach incidents, newest first",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "Starts the 72-hour Data Protection Board notification clock from `detectedAt`.",
+        "operationId": "createBreachIncident",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The created incident."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Open a breach incident",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/privacy/breach-incidents/{id}": {
+      "patch": {
+        "operationId": "updateBreachIncident",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The updated incident."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          },
+          "404": {
+            "description": "No such incident."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Update a breach incident's status or notification timestamps",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/privacy/breach-incidents/{id}/templates": {
+      "get": {
+        "description": "Rendered from plain string templates — no LLM. A human completes every bracket.",
+        "operationId": "getBreachIncidentTemplates",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{boardReport, userNotice}`."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          },
+          "404": {
+            "description": "No such incident."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Draft Board report and user notice for one incident",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/privacy/dsr-requests": {
+      "get": {
+        "operationId": "listDsrRequests",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Array of `dsr_requests` rows."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List DSR requests, newest first",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/privacy/erasure/{dsrRequestId}/run": {
+      "post": {
+        "description": "A no-op unless the request is `received`, so a stuck `in_progress` row from a crashed pass is what this resumes — safe to call again.",
+        "operationId": "runErasureCascade",
+        "parameters": [
+          {
+            "name": "dsrRequestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The cascade report, or `null` if nothing was due."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Run (or resume) the erasure cascade for one DSR request now",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/privacy/erasure/replay-tombstones": {
+      "post": {
+        "description": "For every `dsr_requests` row of kind `erasure` and status `completed`, sweeps every model with a `userId`/`workspaceId` column for residue (the same check the erasure contract test runs) and, if any is found — e.g. after a PITR restore — re-runs the cascade for that user. `docs/runbooks/breach-first-hour.md`'s \"Getting the platform back\" step and `tools/runbooks/privacy-replay-tombstones.js` call this.",
+        "operationId": "replayTombstones",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Per-user residue found and whether it was cleared."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Re-verify (and re-run) erasure for every completed request",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/scheduler/tasks": {
+      "get": {
+        "operationId": "listScheduledTasks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "`{tasks: string[]}`."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every scheduled task's name",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/scheduler/tasks/{name}/run": {
+      "post": {
+        "description": "Bypasses the clock and runs the task in this process immediately. Every task is idempotent, so running one early never double-counts.",
+        "operationId": "runScheduledTaskNow",
+        "parameters": [
+          {
+            "name": "name",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{name, ranAt}`."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          },
+          "404": {
+            "description": "No task with that name is registered."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Run one scheduled task now, out of band",
         "tags": [
           "admin"
         ]
@@ -16999,7 +17339,8 @@
               "low-credits",
               "export-ready",
               "share-comment",
-              "streak-nudge"
+              "streak-nudge",
+              "retention-warning"
             ],
             "description": "What happened. The client renders its own wording per locale, so the row carries no text of its own."
           },

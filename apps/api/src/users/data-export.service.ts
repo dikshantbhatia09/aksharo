@@ -42,6 +42,8 @@ export interface DataExportBundle {
   readonly identities: readonly unknown[];
   readonly rightsRequests: readonly unknown[];
   readonly memoryEntries: readonly unknown[];
+  /** B16: every media asset the user's own workspaces hold — not the bytes, the manifest. */
+  readonly mediaManifest: readonly unknown[];
   /** What is deliberately absent, so the recipient is not left guessing. */
   readonly notIncluded: readonly string[];
 }
@@ -271,6 +273,37 @@ export class DataExportService {
             },
           });
 
+    // B16: the media manifest — filenames, sizes and durations, not bytes.
+    // Scoped to workspaces owned by the requester (`ownerId`), the same
+    // narrowing `ErasureCascadeService` uses, rather than every workspace a
+    // membership row lists: a team member's export should not enumerate the
+    // whole team's media.
+    const ownedWorkspaceIds = (
+      await this.prisma.workspace.findMany({ where: { ownerId: userId }, select: { id: true } })
+    ).map((row) => row.id);
+    const mediaRows =
+      ownedWorkspaceIds.length === 0
+        ? []
+        : await this.prisma.mediaAsset.findMany({
+            where: { project: { workspaceId: { in: ownedWorkspaceIds } } },
+            select: {
+              id: true,
+              projectId: true,
+              filename: true,
+              sizeBytes: true,
+              durationMs: true,
+              mime: true,
+              status: true,
+              createdAt: true,
+            },
+            take: 5_000,
+          });
+    // `sizeBytes` is a `BigInt` column; `JSON.stringify` cannot serialise one.
+    const mediaManifest = mediaRows.map((row) => ({
+      ...row,
+      sizeBytes: row.sizeBytes === null ? null : row.sizeBytes.toString(),
+    }));
+
     return {
       schemaVersion: 1,
       generatedAt: new Date().toISOString(),
@@ -283,10 +316,12 @@ export class DataExportService {
       identities,
       rightsRequests: rights,
       memoryEntries: memory,
+      mediaManifest,
       notIncluded: [
         "password and MFA secrets (credentials, not personal data)",
         "refresh tokens and their hashes",
-        "media, transcripts and rendered exports (B16 adds them to this bundle)",
+        "media bytes, transcripts and rendered export bytes themselves — the " +
+          "manifest above lists what exists; the objects are not embedded in this JSON",
         "billing documents, which are retained for 72 months under Rule 46",
       ],
     };

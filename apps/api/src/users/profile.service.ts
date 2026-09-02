@@ -201,6 +201,27 @@ export class ProfileService {
       };
     }
 
+    // B16 addendum (after A05 open question 4): a sole owner of a team or
+    // agency workspace must transfer ownership (B08) or delete the workspace
+    // first — the personal workspace is exempt, since the cascade deletes it
+    // itself. "Sole owner" here means "the row's owner", full stop: B08's
+    // ownership transfer is what changes `ownerId`, and until it does, erasing
+    // this account would either orphan the workspace or force the cascade to
+    // silently delete other members' data — DELETE /me may only ever destroy
+    // data the requester owns outright.
+    const ownedWorkspaces = await this.prisma.workspace.findMany({
+      where: { ownerId: userId, type: { in: ["team", "agency"] }, deletedAt: null },
+      select: { id: true, slug: true, name: true, type: true },
+    });
+    if (ownedWorkspaces.length > 0) {
+      throw new AppException(
+        ACCOUNT_ERRORS.ownerOfWorkspaces,
+        "Transfer ownership or delete these workspaces before erasing your account.",
+        HttpStatus.CONFLICT,
+        { workspaces: ownedWorkspaces },
+      );
+    }
+
     const now = new Date();
     const requestId = ulid();
     const dueAt = dsrDueAt(now);

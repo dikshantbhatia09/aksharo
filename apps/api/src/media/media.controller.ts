@@ -40,6 +40,7 @@ import {
   Roles,
   RolesGuard,
 } from "../common/guards/index.js";
+import { LogAccess } from "../privacy/access-log.decorator.js";
 import { PROJECT_RATE_LIMITS } from "../projects/projects.constants.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
@@ -248,6 +249,7 @@ export class MediaUploadsController {
 
   @Get(":mediaId")
   @Roles("viewer")
+  @LogAccess("media")
   @ApiOperation({ summary: "Fetch one media asset", operationId: "getMedia" })
   @ApiOkResponse(zodResponse(mediaSchema, "The media asset."))
   @ApiNotFoundResponse({ description: "`media/not_found`." })

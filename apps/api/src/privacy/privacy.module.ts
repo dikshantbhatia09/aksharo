@@ -1,7 +1,13 @@
 import { Module } from "@nestjs/common";
+import { APP_INTERCEPTOR } from "@nestjs/core";
 
+import { AccessLogInterceptor } from "./access-log.interceptor.js";
+import { BreachIncidentsService } from "./breach-incidents.service.js";
+import { ErasureCascadeService } from "./erasure-cascade.service.js";
+import { ErasureCascadeTask } from "./erasure-cascade.task.js";
 import { ParentalWaitlistService } from "./parental-waitlist.service.js";
 import { PrivacyController } from "./privacy.controller.js";
+import { ResidueCheckService } from "./residue-check.service.js";
 import { UsersModule } from "../users/users.module.js";
 
 /**
@@ -17,7 +23,19 @@ import { UsersModule } from "../users/users.module.js";
 @Module({
   imports: [UsersModule],
   controllers: [PrivacyController],
-  providers: [ParentalWaitlistService],
-  exports: [ParentalWaitlistService],
+  providers: [
+    ParentalWaitlistService,
+    BreachIncidentsService,
+    ErasureCascadeService,
+    ErasureCascadeTask,
+    ResidueCheckService,
+    { provide: APP_INTERCEPTOR, useClass: AccessLogInterceptor },
+  ],
+  exports: [
+    ParentalWaitlistService,
+    BreachIncidentsService,
+    ErasureCascadeService,
+    ResidueCheckService,
+  ],
 })
 export class PrivacyModule {}

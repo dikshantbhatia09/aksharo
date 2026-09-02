@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { APP_PIPE } from "@nestjs/core";
 
 import { ConfigModule } from "../config/config.module.js";
+import { AuditModule } from "./audit/audit.module.js";
 import { LoggingModule } from "./logging/logging.module.js";
 import { MetricsModule } from "./metrics/metrics.module.js";
 import { PrismaModule } from "./prisma/prisma.module.js";
@@ -29,6 +30,7 @@ import { ZodValidationPipe } from "./validation/zod-validation.pipe.js";
 @Module({
   imports: [
     ConfigModule,
+    AuditModule,
     LoggingModule,
     PrismaModule,
     RedisModule,
@@ -39,6 +41,7 @@ import { ZodValidationPipe } from "./validation/zod-validation.pipe.js";
   providers: [{ provide: APP_PIPE, useClass: ZodValidationPipe }, TelemetryService],
   exports: [
     ConfigModule,
+    AuditModule,
     LoggingModule,
     PrismaModule,
     RedisModule,

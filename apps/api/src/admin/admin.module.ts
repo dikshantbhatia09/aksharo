@@ -4,6 +4,8 @@ import { AdminGuard } from "./admin.guard.js";
 import { AdminCreditsController } from "./credits/admin-credits.controller.js";
 import { AdminDlqController } from "./dlq/dlq.controller.js";
 import { AdminParentalWaitlistController } from "./parental-waitlist.controller.js";
+import { AdminPrivacyController } from "./privacy/admin-privacy.controller.js";
+import { AdminSchedulerController } from "./scheduler/admin-scheduler.controller.js";
 import { AdminStreakController } from "./streak/admin-streak.controller.js";
 import { AdminStreakService } from "./streak/admin-streak.service.js";
 import { JobsModule } from "../jobs/jobs.module.js";
@@ -40,6 +42,8 @@ import { PrivacyModule } from "../privacy/privacy.module.js";
     AdminCreditsController,
     AdminOffersController,
     AdminStreakController,
+    AdminPrivacyController,
+    AdminSchedulerController,
   ],
   providers: [AdminGuard, AdminStreakService],
   exports: [AdminGuard],

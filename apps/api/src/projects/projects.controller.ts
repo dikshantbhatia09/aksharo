@@ -47,6 +47,7 @@ import {
   Roles,
   RolesGuard,
 } from "../common/guards/index.js";
+import { LogAccess } from "../privacy/access-log.decorator.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
 import type { Page, ProjectView } from "./projects.service.js";
@@ -139,6 +140,7 @@ export class ProjectsController {
 
   @Get(":projectId")
   @Roles("viewer")
+  @LogAccess("project")
   @ApiOperation({ summary: "Fetch one project", operationId: "getProject" })
   @ApiOkResponse(zodResponse(projectSchema, "The project."))
   @ApiNotFoundResponse({ description: "`project/not_found`, including another tenant's id." })
