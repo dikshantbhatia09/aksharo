@@ -54,11 +54,32 @@ export const API_OPERATIONS = [
     summary: "Revoke and regenerate an affiliate's code (admin)",
   },
   {
+    operationId: "adminStepUp",
+    method: "POST",
+    path: "/admin/auth/step-up",
+    tags: ["admin"],
+    summary: "Exchange a normal session plus a TOTP code for a 30-minute admin token",
+  },
+  {
     operationId: "adminSuspendAffiliate",
     method: "POST",
     path: "/affiliate/admin/{affiliateId}/suspend",
     tags: ["affiliate"],
     summary: "Suspend an affiliate (admin)",
+  },
+  {
+    operationId: "adminTotpEnroll",
+    method: "POST",
+    path: "/admin/auth/totp/enroll",
+    tags: ["admin"],
+    summary: "Start TOTP enrolment for an admin account",
+  },
+  {
+    operationId: "adminTotpVerify",
+    method: "POST",
+    path: "/admin/auth/totp/verify",
+    tags: ["admin"],
+    summary: "Confirm TOTP enrolment with the first valid code",
   },
   {
     operationId: "applyAffiliate",
