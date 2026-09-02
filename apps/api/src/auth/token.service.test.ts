@@ -170,4 +170,36 @@ describe("TokenService", () => {
       code: "common/unauthorized",
     });
   });
+
+  // -------------------------------------------------------------------------
+  // B08b: `kind:"bridge"` tokens carry `deviceId` (CONTRACTS §5, amended
+  // 2026-09-03 after C01).
+  // -------------------------------------------------------------------------
+
+  it("refuses to mint a bridge token without a deviceId", () => {
+    const tokens = service();
+    expect(() => tokens.mintAccessToken({ ...SUBJECT, kind: "bridge" })).toThrow(/deviceId/);
+  });
+
+  it("mints a bridge token carrying deviceId, and verifies it back", async () => {
+    const tokens = service();
+    const minted = tokens.mintAccessToken({
+      ...SUBJECT,
+      kind: "bridge",
+      deviceId: "01J0000000000000000DEVICE",
+    });
+    expect(minted.claims.deviceId).toBe("01J0000000000000000DEVICE");
+    const verified = await tokens.verifyAccessToken(minted.accessToken);
+    expect(verified.deviceId).toBe("01J0000000000000000DEVICE");
+  });
+
+  it("never carries deviceId for any other kind, even if one is (incorrectly) passed", () => {
+    const tokens = service();
+    const minted = tokens.mintAccessToken({
+      ...SUBJECT,
+      kind: "web",
+      deviceId: "01J0000000000000000DEVICE",
+    });
+    expect(minted.claims.deviceId).toBeUndefined();
+  });
 });

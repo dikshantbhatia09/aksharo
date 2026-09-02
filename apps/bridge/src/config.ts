@@ -11,9 +11,22 @@ import { aksharoDir } from "@montaj/bridge-core";
  */
 
 export interface BridgeAppConfig {
+  /** The current bridge access token (`kind:"bridge"`), minted by `POST /devices/{id}/bridge-token`. */
   deviceToken?: string;
   relayUrl?: string;
   autostart?: boolean;
+  /** The api origin `device-auth.ts` talks to (B08b's device-code + registration bootstrap). */
+  apiOrigin?: string;
+  /** The B08 device row this install registered, set once on first run. */
+  deviceId?: string;
+  /**
+   * The refresh token from the device-code sign-in that registered this
+   * device (`kind:"desktop"`) — used to re-mint `deviceToken` without the
+   * pairing screen again once it expires, until it itself is revoked.
+   */
+  sessionRefreshToken?: string;
+  /** Epoch ms `deviceToken` expires at (CONTRACTS §5: 15 minutes from mint). */
+  deviceTokenExpiresAt?: number;
 }
 
 function configPath(): string {

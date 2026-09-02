@@ -23,12 +23,13 @@ names (B13); nothing in this work package's scope wires it into an admin
 route, so it exists but is unused outside tests until B13 (or a later pass)
 adds a controller for it.
 
-## Known limitation (see the WP report)
+## Per-device pairing (B08b)
 
-Pairing is keyed by `workspaceId:sub` (the JWT's user id), not by a per-device
-identifier: CONTRACTS §5 never gives a bridge connection a distinct device id
-in its own token (`sub` is always the user), and B08's device registration
-does not mint one either. One signed-in user therefore runs one paired bridge
-per workspace at a time. A follow-up work package that mints a genuine
-per-device bridge credential can widen `deviceKey()` without changing the
-wire protocol.
+Pairing is keyed by `workspaceId:deviceId`, taken from the bridge token's own
+`deviceId` claim (CONTRACTS §5, amended 2026-09-03 after C01) — not by `sub`,
+the JWT's user id. `POST /devices/{id}/bridge-token` (`devices/`) mints that
+token from a registered, leased B08 device row the caller owns; a bridge
+token that lacks `deviceId` is refused at `handleUpgrade`, before it ever
+reaches the connection map. One signed-in user can therefore run several
+paired bridges concurrently — one per device — each addressed by its own
+`deviceId` in a client's `attach` frame.

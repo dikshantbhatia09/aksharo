@@ -1223,6 +1223,13 @@ export const API_OPERATIONS = [
     summary: "Mark the give-get sheet as shown for this workspace",
   },
   {
+    operationId: "mintDeviceBridgeToken",
+    method: "POST",
+    path: "/devices/{deviceId}/bridge-token",
+    tags: ["devices"],
+    summary: "Mint a bridge credential for this device",
+  },
+  {
     operationId: "OAuthController_callback",
     method: "GET",
     path: "/auth/oauth/google/callback",

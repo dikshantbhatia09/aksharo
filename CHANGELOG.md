@@ -51,6 +51,43 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   workspace+user (one paired bridge per signed-in user per workspace) until a
   follow-up work package adds a real per-device bridge credential — see the
   WP report's open questions.
+- **B08b — Per-device bridge credential: `kind:"bridge"` tokens carry
+  `deviceId`; relay pairing keyed per device (resolves C01's deviation).**
+  `TokenService.mintAccessToken` now requires (and `verifyAccessToken`/the
+  interim realtime verifier both parse) a `deviceId` claim whenever
+  `kind === "bridge"` (CONTRACTS §5, amended 2026-09-03); minting one without
+  it is refused. New `POST /devices/{id}/bridge-token`: for a registered,
+  leased device the caller owns, mints that bridge token; refuses with
+  `licensing/device_revoked` (the device was revoked) or
+  `licensing/device_lease_expired` (its lease needs renewing first, via
+  `POST /devices/register`) — the same `licensing/device_revoked` code
+  `plugins.service.ts`'s heartbeat already used. `bridge-relay.gateway.ts`:
+  pairing is now keyed by `workspaceId:deviceId` instead of
+  `workspaceId:sub`, and `handleUpgrade` refuses a bridge token without
+  `deviceId` before it ever reaches the connection map — several devices for
+  the same user now pair and relay concurrently (e2e: two devices, one user,
+  both attached and relaying independently). Guard rail: `JwtAuthGuard`
+  refuses a `kind:"bridge"` token on any route unless it opts in with the new
+  `@AllowBridgeToken()` decorator; nothing does yet, so this is a flat
+  refusal today (contract test in `common/guards/guards.test.ts`).
+  `apps/bridge`: a new `device-auth.ts` gets this install its own credential
+  on first run — the RFC 8628 device-code grant as `kind:"desktop"` (a
+  bridge-kind device code is never redeemed directly: no device row exists
+  yet at that point, and `mintAccessToken` would refuse it), then
+  `POST /devices/register`, then `POST /devices/{id}/bridge-token` — and
+  re-mints the bridge token on later runs via `POST /auth/refresh` without
+  the pairing screen again, falling back to a fresh sign-in once the stored
+  refresh token is no longer good for anything; `config.ts` gained
+  `apiOrigin`/`deviceId`/`sessionRefreshToken`/`deviceTokenExpiresAt`
+  alongside the existing `deviceToken`/`relayUrl`/`autostart`. Deviation
+  (documented, out of this WP's file boundary but required for the
+  acceptance criteria): `AccessTokenClaims`/`AuthPrincipal`
+  (`common/guards/principal.ts`), `JwtAuthGuard`
+  (`common/guards/jwt-auth.guard.ts`, `public.decorator.ts`) and the interim
+  realtime verifier (`realtime/auth/access-token.ts`) all needed the
+  `deviceId` claim and the bridge-token guard rail threaded through; each
+  change is additive (a new optional field, a new decorator) and does not
+  alter behaviour for any other `kind`.
 - **B20 — Passes tab, ProposalCard, bulk accept, timeline lanes; export application
   of accepted cuts/zoom/reframe through `@montaj/timemap` (browser + cloud).**
   - **Review UI** (`apps/web/components/editor/passes/**`): `PassesTab` (run-autocut

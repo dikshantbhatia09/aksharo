@@ -157,6 +157,13 @@ export class BridgeRelayGateway implements OnApplicationBootstrap, OnApplication
       rejectUpgrade(socket, 401, "Unauthorized");
       return;
     }
+    if (claims.kind === "bridge" && (claims.deviceId === undefined || claims.deviceId === "")) {
+      // CONTRACTS §5 (amended after C01, B08b): a bridge token always carries
+      // `deviceId`. One without it predates the per-device credential (or was
+      // forged) and is refused before it ever reaches the connection map.
+      rejectUpgrade(socket, 403, "Forbidden");
+      return;
+    }
 
     const remote = request.socket.remoteAddress ?? "unknown";
     if (!this.rateLimiter.consume(remote)) {
@@ -183,15 +190,14 @@ export class BridgeRelayGateway implements OnApplicationBootstrap, OnApplication
         : { kind: "client", id, socket, claims, sessionRowId, missedPongs: 0 };
     this.connections.set(id, connection);
 
-    if (connection.kind === "bridge") {
-      // Deviation (documented in the WP report): the brief assumes a per-device
-      // bridge token, but CONTRACTS §5's `sub` claim is always the user id — B08
-      // registers devices by fingerprint under a user's normal session and never
-      // mints one token per device. Until a follow-up work package adds that,
-      // registration is keyed by workspace+user, so one signed-in user runs one
-      // paired bridge per workspace at a time; a second bridge process for the
-      // same user replaces the first's registration exactly as a reconnect would.
-      const key = deviceKey(claims.ws, claims.sub);
+    if (connection.kind === "bridge" && claims.deviceId !== undefined) {
+      // B08b: keyed by the token's own `deviceId` (CONTRACTS §5), not by
+      // `sub` — `handleUpgrade` already refused any bridge token that lacks
+      // one, so this is always present here. Multiple devices for the same
+      // user each get their own slot; a second connection for the SAME
+      // device replaces the first's registration exactly as a reconnect
+      // would.
+      const key = deviceKey(claims.ws, claims.deviceId);
       this.bridgesByDevice.set(key, connection);
     }
 
@@ -215,7 +221,12 @@ export class BridgeRelayGateway implements OnApplicationBootstrap, OnApplication
 
     void this.prisma.bridgeSession
       .create({
-        data: { id: sessionRowId, workspaceId: claims.ws, clientKind: claims.kind, deviceId: null },
+        data: {
+          id: sessionRowId,
+          workspaceId: claims.ws,
+          clientKind: claims.kind,
+          deviceId: claims.deviceId ?? null,
+        },
       })
       .catch((error: unknown) => {
         // The audit row is best effort by design (brief §3: "the relay never
@@ -287,8 +298,8 @@ export class BridgeRelayGateway implements OnApplicationBootstrap, OnApplication
   private async drop(connection: Connection): Promise<void> {
     if (!this.connections.has(connection.id)) return;
     this.connections.delete(connection.id);
-    if (connection.kind === "bridge") {
-      const key = deviceKey(connection.claims.ws, connection.claims.sub);
+    if (connection.kind === "bridge" && connection.claims.deviceId !== undefined) {
+      const key = deviceKey(connection.claims.ws, connection.claims.deviceId);
       if (this.bridgesByDevice.get(key) === connection) this.bridgesByDevice.delete(key);
     }
     const peer = connection.peer;

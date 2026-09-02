@@ -6,8 +6,9 @@ import { z } from "zod";
  * `RelayClient`. Two kinds of socket connect to the same path and are told apart
  * by their access token's `kind` claim:
  *
- *  - **bridge** (`kind: "bridge"`, a device token minted for B08's device
- *    registration) — one per running local bridge, registers under its device id.
+ *  - **bridge** (`kind: "bridge"`, carrying `deviceId` — `POST
+ *    /devices/{id}/bridge-token`, B08b) — one per running local bridge,
+ *    registers under its device id.
  *  - **client** (`kind: "web" | "desktop" | "premiere" | "ae" | "resolve"`) —
  *    sends `attach {deviceId}` naming which bridge in its own workspace to relay
  *    to, then every further text frame is opaque JSON-RPC forwarded byte for byte

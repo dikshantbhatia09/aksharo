@@ -53,6 +53,7 @@ const WORKSPACE = id("WS01");
 const OTHER_WORKSPACE = id("WSX1");
 const ADMIN = id("USR1");
 const BRIDGE_DEVICE = id("DEV1");
+const BRIDGE_DEVICE_2 = id("DEV2");
 
 function token(claims: Record<string, unknown> = {}): string {
   const header = { alg: "RS256", typ: "JWT" };
@@ -76,8 +77,14 @@ function token(claims: Record<string, unknown> = {}): string {
   return `${signed}.${signer.sign(privateKey).toString("base64url")}`;
 }
 
-function bridgeToken(claims: Record<string, unknown> = {}): string {
-  return token({ kind: "bridge", sub: BRIDGE_DEVICE, ...claims });
+/**
+ * `sub` is the user id, exactly like every other kind — B08b's fix is that
+ * pairing keys off the token's own `deviceId` claim (CONTRACTS §5), not
+ * `sub`, so two devices for the SAME user pair independently (see "two
+ * devices, one user" below).
+ */
+function bridgeToken(deviceId: string, claims: Record<string, unknown> = {}): string {
+  return token({ kind: "bridge", deviceId, ...claims });
 }
 
 class TestSocket {
@@ -184,6 +191,35 @@ async function connect(accessToken: string): Promise<TestSocket> {
       },
     });
 
+    // The relay keys pairing by `deviceId` (B08b); `bridge_sessions.device_id`
+    // is a real FK to `devices`, so the bridge tokens' claimed device ids must
+    // name actual B08 device rows, exactly as `POST /devices/{id}/bridge-token`
+    // guarantees in production.
+    await prisma.device.createMany({
+      data: [
+        {
+          id: BRIDGE_DEVICE,
+          workspaceId: WORKSPACE,
+          userId: ADMIN,
+          name: "Bridge device 1",
+          platform: "macOS 15",
+          host: "desktop",
+          fingerprint: `c01-fp-1-${RUN}`,
+          leaseUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+        {
+          id: BRIDGE_DEVICE_2,
+          workspaceId: WORKSPACE,
+          userId: ADMIN,
+          name: "Bridge device 2",
+          platform: "macOS 15",
+          host: "desktop",
+          fingerprint: `c01-fp-2-${RUN}`,
+          leaseUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      ],
+    });
+
     server = createServer((_req, res) => {
       res.statusCode = 426;
       res.end();
@@ -213,8 +249,44 @@ async function connect(accessToken: string): Promise<TestSocket> {
     await expect(TestSocket.connect(port, "")).rejects.toThrow(/401/);
   });
 
+  it("refuses a bridge token without a deviceId (CONTRACTS §5, B08b)", async () => {
+    // The pre-B08b shape: `kind:"bridge"` with only `sub`, no `deviceId`.
+    await expect(TestSocket.connect(port, token({ kind: "bridge" }))).rejects.toThrow(/403/);
+  });
+
+  it("two devices, one user: both attach and relay independently (B08b)", async () => {
+    const bridge1 = await connect(bridgeToken(BRIDGE_DEVICE));
+    const bridge2 = await connect(bridgeToken(BRIDGE_DEVICE_2));
+    const client1 = await connect(token());
+    const client2 = await connect(token());
+
+    client1.send(JSON.stringify({ t: "attach", deviceId: BRIDGE_DEVICE }));
+    await expect(client1.next()).resolves.toBe(JSON.stringify({ t: "attached" }));
+    client2.send(JSON.stringify({ t: "attach", deviceId: BRIDGE_DEVICE_2 }));
+    await expect(client2.next()).resolves.toBe(JSON.stringify({ t: "attached" }));
+
+    client1.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "one", params: {} }));
+    await expect(bridge1.next()).resolves.toBe(
+      JSON.stringify({ jsonrpc: "2.0", id: 1, method: "one", params: {} }),
+    );
+    client2.send(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "two", params: {} }));
+    await expect(bridge2.next()).resolves.toBe(
+      JSON.stringify({ jsonrpc: "2.0", id: 2, method: "two", params: {} }),
+    );
+
+    // Each bridge only ever hears frames meant for it.
+    bridge1.send(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "from-1" }));
+    await expect(client1.next()).resolves.toBe(
+      JSON.stringify({ jsonrpc: "2.0", id: 1, result: "from-1" }),
+    );
+    bridge2.send(JSON.stringify({ jsonrpc: "2.0", id: 2, result: "from-2" }));
+    await expect(client2.next()).resolves.toBe(
+      JSON.stringify({ jsonrpc: "2.0", id: 2, result: "from-2" }),
+    );
+  });
+
   it("relays a frame from a client to its paired bridge and back", async () => {
-    const bridge = await connect(bridgeToken());
+    const bridge = await connect(bridgeToken(BRIDGE_DEVICE));
     const client = await connect(token());
 
     client.send(JSON.stringify({ t: "attach", deviceId: BRIDGE_DEVICE }));
@@ -232,7 +304,7 @@ async function connect(accessToken: string): Promise<TestSocket> {
   });
 
   it("refuses attach to a bridge in a different workspace", async () => {
-    await connect(bridgeToken());
+    await connect(bridgeToken(BRIDGE_DEVICE));
     const client = await connect(token({ ws: OTHER_WORKSPACE }));
     client.send(JSON.stringify({ t: "attach", deviceId: BRIDGE_DEVICE }));
     await expect(client.closed()).resolves.toBe(RELAY_CLOSE_CODES.peerUnavailable);
@@ -245,7 +317,7 @@ async function connect(accessToken: string): Promise<TestSocket> {
   });
 
   it("closes an oversized frame", async () => {
-    const bridge = await connect(bridgeToken());
+    const bridge = await connect(bridgeToken(BRIDGE_DEVICE));
     const client = await connect(token());
     client.send(JSON.stringify({ t: "attach", deviceId: BRIDGE_DEVICE }));
     await client.next();
@@ -256,7 +328,7 @@ async function connect(accessToken: string): Promise<TestSocket> {
   });
 
   it("closes the peer when one side disconnects", async () => {
-    const bridge = await connect(bridgeToken());
+    const bridge = await connect(bridgeToken(BRIDGE_DEVICE));
     const client = await connect(token());
     client.send(JSON.stringify({ t: "attach", deviceId: BRIDGE_DEVICE }));
     await client.next();
@@ -267,7 +339,7 @@ async function connect(accessToken: string): Promise<TestSocket> {
 
   it("writes a bridge_sessions audit row on connect and marks it disconnected on close", async () => {
     const before = await prisma.bridgeSession.count({ where: { workspaceId: WORKSPACE } });
-    const bridge = await connect(bridgeToken());
+    const bridge = await connect(bridgeToken(BRIDGE_DEVICE));
     // The audit write is fire-and-forget relative to registration (so a slow
     // insert can never race a client's `attach`); give it a moment to land.
     // `>=` rather than `===`: earlier tests in this file open bridge/client
@@ -295,7 +367,7 @@ async function connect(accessToken: string): Promise<TestSocket> {
   });
 
   it("exposes live stats for admin visibility (B13 hook)", async () => {
-    const bridge = await connect(bridgeToken());
+    const bridge = await connect(bridgeToken(BRIDGE_DEVICE));
     const client = await connect(token());
     client.send(JSON.stringify({ t: "attach", deviceId: BRIDGE_DEVICE }));
     await client.next();
