@@ -1,10 +1,9 @@
 {
-  "extends": "@montaj/config/tsconfig.node.json",
+  "extends": "@montaj/config/tsconfig.react.json",
   "compilerOptions": {
-    "rootDir": "./src",
-    "outDir": "./dist",
-    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+    "jsx": "react-jsx",
+    "types": ["node"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vitest.setup.ts"],
   "exclude": ["node_modules", "dist", ".turbo"]
 }

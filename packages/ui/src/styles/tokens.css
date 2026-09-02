@@ -1,0 +1,158 @@
+/*
+ * Aksharo design tokens — 03-architecture/08-ux-design-system.md §1.
+ *
+ * Tailwind v4 is configured in CSS, so this file *is* the preset: importing it
+ * after `@import "tailwindcss"` registers every colour, radius, font, spacing and
+ * motion token as a Tailwind utility namespace (`bg-bg-1`, `text-fg-2`,
+ * `border-border`, `rounded-md`, `duration-base`, …).
+ *
+ * The studio is dark-only in v1 (08 §1): there is one palette, defined on
+ * `:root`, and no light override. The marketing site (A24) may add one.
+ *
+ * Font families come from the app: `next/font` mints the `--font-sans`,
+ * `--font-display` and `--font-mono` variables (Inter, Bricolage Grotesque,
+ * JetBrains Mono) and this file only consumes them, with a system fallback so a
+ * package rendered outside Next still has type.
+ */
+
+@theme {
+  /* --- Surfaces ---------------------------------------------------------- */
+  --color-bg-0: #0b0b0e;
+  --color-bg-1: #131318;
+  --color-bg-2: #1b1b22;
+  --color-border: #2a2a33;
+  --color-overlay: rgb(0 0 0 / 0.6);
+
+  /* --- Text -------------------------------------------------------------- */
+  --color-fg-0: #f5f5f7;
+  --color-fg-1: #c9c9d1;
+  --color-fg-2: #8b8b96;
+  --color-fg-disabled: #5c5c66;
+
+  /* --- Accent ------------------------------------------------------------ */
+  --color-lime-500: #d8ff3d;
+  --color-lime-600: #b9e020;
+  --color-on-accent: #0b0b0e;
+
+  /* --- Signals ----------------------------------------------------------- */
+  --color-proposed: #ffb020;
+  --color-accepted: #38d39f;
+  --color-rejected: #ff5c5c;
+  --color-info: #4ea1ff;
+  --color-warning: #ff8a3d;
+
+  /* --- Caption defaults (rendered content, not chrome) ------------------- */
+  --color-caption-fill: #ffffff;
+  --color-caption-highlight: #ffd400;
+  --color-caption-stroke: #000000;
+
+  /* --- Radii: 8 / 12 / 16 ------------------------------------------------ */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* --- Type -------------------------------------------------------------- */
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --text-2xs: 0.6875rem; /* 11px — meter captions, shortcut hints */
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.625rem;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.875rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.125rem;
+  --text-3xl: 2.25rem;
+  --text-3xl--line-height: 2.625rem;
+
+  /* --- Motion: 120–200 ms ease-out (08 §1) ------------------------------- */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-duration-fast: 120ms;
+  --animate-duration-base: 160ms;
+  --animate-duration-slow: 200ms;
+}
+
+@layer theme {
+  :root {
+    /* Elevation is a 1 px border plus a soft shadow, never a heavy blur (08 §1). */
+    --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.32);
+    --focus-ring: 0 0 0 2px var(--color-bg-0), 0 0 0 4px var(--color-lime-500);
+    color-scheme: dark;
+  }
+}
+
+@layer base {
+  html {
+    background-color: var(--color-bg-0);
+  }
+
+  body {
+    background-color: var(--color-bg-0);
+    color: var(--color-fg-0);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+
+  /*
+   * One focus ring for the whole product: lime, two rings so it stays visible on
+   * any surface, and never suppressed (08 §6 — contrast AA, visible focus).
+   */
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+    border-radius: var(--radius-sm);
+  }
+
+  /*
+   * A link inside a sentence must be distinguishable without colour (WCAG 1.4.1,
+   * and axe's `link-in-text-block`). Lime on near-black is legible but colour is
+   * all it is, so prose links are underlined; standalone links — nav items,
+   * buttons wearing `asChild` — are not inside a text block and keep their own
+   * styling.
+   */
+  :is(p, li, dd, dt, figcaption, blockquote) a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: from-font;
+  }
+
+  ::selection {
+    background-color: var(--color-lime-500);
+    color: var(--color-on-accent);
+  }
+
+  /*
+   * `prefers-reduced-motion` applies to UI chrome only. Caption animation is the
+   * product's output and is governed by the export settings, not by this rule.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-bg-2) transparent;
+}

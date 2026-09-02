@@ -3,13 +3,15 @@ import { describe, expect, it } from "vitest";
 import { API_OPERATIONS, API_VERSION, findOperation, PACKAGE_INFO } from "./index.js";
 
 describe("@montaj/api-client", () => {
-  it("declares its identity and its owning work package", () => {
+  it("declares its identity and its owning work packages", () => {
     expect(PACKAGE_INFO.name).toBe("@montaj/api-client");
-    expect(PACKAGE_INFO.implementedBy).toBe("A03 (spec), A13 (hooks)");
+    expect(PACKAGE_INFO.implementedBy).toBe(
+      "A03 (spec), A04 (generator), A13 (fetch layer + hooks)",
+    );
   });
 
-  it("is still a skeleton until the hooks land", () => {
-    expect(PACKAGE_INFO.implemented).toBe(false);
+  it("is implemented now that the fetch layer and the hooks have landed (A13)", () => {
+    expect(PACKAGE_INFO.implemented).toBe(true);
   });
 });
 

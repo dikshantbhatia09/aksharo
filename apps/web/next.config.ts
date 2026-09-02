@@ -11,8 +11,13 @@ const nextConfig: NextConfig = {
   // Playwright drives the dev server over 127.0.0.1; without this Next warns on
   // every `/_next/*` request and will reject them in a future major version.
   allowedDevOrigins: ["127.0.0.1", "localhost"],
+  // Both are compiled with the app rather than externalised. `@montaj/ui` ships
+  // TypeScript source with "use client" boundaries; `@montaj/api-client` would
+  // otherwise be required as CommonJS on the server while the app imports the ESM
+  // build of TanStack Query, which makes two QueryClient contexts and one very
+  // confusing runtime error.
+  transpilePackages: ["@montaj/ui", "@montaj/api-client"],
   experimental: {
-    // Workspace packages are plain CommonJS builds; nothing to transpile yet.
     optimizePackageImports: ["lucide-react"],
   },
 };

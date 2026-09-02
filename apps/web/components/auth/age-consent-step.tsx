@@ -1,0 +1,219 @@
+"use client";
+
+import Link from "next/link";
+import * as React from "react";
+
+import type { Jurisdiction } from "@montaj/api-client";
+import { BRAND } from "@montaj/config";
+import { Button, Field, Input, Label, Switch } from "@montaj/ui";
+
+import { evaluateAge, JURISDICTION_LABEL, JURISDICTIONS } from "@/lib/privacy/age-gate";
+
+/**
+ * Onboarding **step 0** (08 §Onboarding, D60): date of birth, jurisdiction, and
+ * the two consent toggles — both off.
+ *
+ * It is one component because it is asked in two places: at the end of the email
+ * sign-up form, and on the OAuth callback when Google answers
+ * `status=registration` (Google supplies no date of birth, and D60 requires one
+ * before an account exists).
+ *
+ * Nothing here is pre-ticked and nothing is bundled: analytics and memory are
+ * separate switches, because a single "I agree" checkbox is not consent.
+ */
+
+export interface AgeConsentValue {
+  dateOfBirth: string;
+  jurisdiction: Jurisdiction;
+  analytics: boolean;
+  memory: boolean;
+}
+
+export const EMPTY_AGE_CONSENT: AgeConsentValue = {
+  dateOfBirth: "",
+  jurisdiction: "IN",
+  analytics: false,
+  memory: false,
+};
+
+export function AgeConsentStep({
+  value,
+  onChange,
+  onSubmit,
+  onBlocked,
+  submitLabel = "Create account",
+  pending = false,
+  error,
+}: {
+  value: AgeConsentValue;
+  onChange: (value: AgeConsentValue) => void;
+  onSubmit: () => void;
+  /** Called with the jurisdiction when the declared age is below its floor. */
+  onBlocked: (jurisdiction: Jurisdiction) => void;
+  submitLabel?: string;
+  pending?: boolean;
+  error?: string;
+}): React.JSX.Element {
+  const [touched, setTouched] = React.useState(false);
+  const decision = evaluateAge(value.dateOfBirth, value.jurisdiction);
+  const dateError =
+    touched && value.dateOfBirth !== "" && !decision.valid
+      ? "Enter your date of birth as a real date."
+      : undefined;
+
+  const submit = (event: React.FormEvent): void => {
+    event.preventDefault();
+    setTouched(true);
+    if (!decision.valid) return;
+    if (decision.blocked) {
+      onBlocked(value.jurisdiction);
+      return;
+    }
+    onSubmit();
+  };
+
+  return (
+    <form
+      className="flex flex-col gap-5"
+      onSubmit={submit}
+      noValidate
+      data-testid="age-consent-step"
+    >
+      <Field
+        label="Date of birth"
+        htmlFor="dateOfBirth"
+        hint="We ask once, so we apply the right rules for where you are. We never show it to anyone."
+        {...(dateError === undefined ? {} : { error: dateError })}
+      >
+        <Input
+          id="dateOfBirth"
+          name="dateOfBirth"
+          type="date"
+          required
+          autoComplete="bday"
+          max={new Date().toISOString().slice(0, 10)}
+          value={value.dateOfBirth}
+          invalid={dateError !== undefined}
+          onChange={(event) => {
+            onChange({ ...value, dateOfBirth: event.target.value });
+          }}
+          onBlur={() => {
+            setTouched(true);
+          }}
+        />
+      </Field>
+
+      <fieldset className="flex flex-col gap-1.5">
+        <legend className="text-fg-1 mb-1.5 text-sm font-medium">Where are you?</legend>
+        <div className="flex flex-col gap-1">
+          {JURISDICTIONS.map((jurisdiction) => (
+            <label
+              key={jurisdiction}
+              className="border-border hover:border-fg-2/60 flex cursor-pointer items-center gap-2.5 rounded-sm border px-3 py-2 text-sm"
+            >
+              <input
+                type="radio"
+                name="jurisdiction"
+                value={jurisdiction}
+                className="accent-lime-500"
+                checked={value.jurisdiction === jurisdiction}
+                onChange={() => {
+                  onChange({ ...value, jurisdiction });
+                }}
+              />
+              {JURISDICTION_LABEL[jurisdiction]}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <div className="border-border flex flex-col gap-4 rounded-sm border p-4">
+        <ConsentToggle
+          id="consent-analytics"
+          label="Product analytics"
+          description="Anonymous usage events so we can see which features actually help. Off by default."
+          checked={value.analytics}
+          onChange={(analytics) => {
+            onChange({ ...value, analytics });
+          }}
+        />
+        <ConsentToggle
+          id="consent-memory"
+          label="Remember my spellings and preferences"
+          description={`We never train AI models on your footage. ${BRAND.name} remembers your spellings and preferences on your account — view, edit or clear them any time.`}
+          checked={value.memory}
+          onChange={(memory) => {
+            onChange({ ...value, memory });
+          }}
+        />
+      </div>
+
+      <p className="text-fg-2 text-xs">
+        By continuing you accept our{" "}
+        <Link href="/legal/terms" className="text-lime-500 rounded-sm hover:underline">
+          terms
+        </Link>{" "}
+        and have read the{" "}
+        <Link href="/legal/privacy" className="text-lime-500 rounded-sm hover:underline">
+          privacy notice
+        </Link>
+        .
+      </p>
+
+      {error === undefined ? null : (
+        <p className="text-rejected text-sm" role="alert">
+          {error}
+        </p>
+      )}
+
+      <Button
+        type="submit"
+        variant="primary"
+        size="lg"
+        disabled={pending}
+        data-testid="age-consent-submit"
+      >
+        {pending ? "Working…" : submitLabel}
+      </Button>
+    </form>
+  );
+}
+
+export function ConsentToggle({
+  id,
+  label,
+  description,
+  checked,
+  onChange,
+  disabled = false,
+}: {
+  id: string;
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+}): React.JSX.Element {
+  const describedBy = `${id}-description`;
+  return (
+    <div className="flex items-start gap-3">
+      <Switch
+        id={id}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onChange}
+        aria-describedby={describedBy}
+        data-testid={id}
+        className="mt-0.5"
+      />
+      <div className="flex flex-col gap-0.5">
+        <Label htmlFor={id} className="cursor-pointer">
+          {label}
+        </Label>
+        <p id={describedBy} className="text-fg-2 text-xs">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}

@@ -8,7 +8,7 @@ export default function AdminPage(): React.JSX.Element {
       <h1 className="text-2xl font-semibold tracking-tight" data-testid="admin-heading">
         Admin
       </h1>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-fg-2 text-sm">
         Staff-only surface — route group <code>(admin)</code>. Built in B13.
       </p>
     </main>
