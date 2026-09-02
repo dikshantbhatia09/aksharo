@@ -16,3 +16,15 @@ export const BRAND_ASSET_UPLOAD_URL_TTL_SECONDS = 10 * 60;
 
 /** Cheap PNG-signature sniff, so a client cannot upload an arbitrary file behind `.png`. */
 export const PNG_MAGIC_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/**
+ * Signed GET URLs for a browser export's sources — the original media, its
+ * proxy, and the watermark PNG (A21b, after A19 found the browser exporter had
+ * no way to fetch the original: a 540p proxy cannot produce a clean 1080p
+ * export). Fifteen minutes, not the five `DOWNLOAD_URL_TTL_SECONDS` covers a
+ * finished render's download with: the browser has to decode the whole source
+ * before it can start encoding, and a slow connection can outlast five minutes
+ * on a multi-hundred-megabyte original. `GET /exports/manifests/{id}/sources`
+ * reissues a fresh set when these expire mid-export.
+ */
+export const SOURCE_URL_TTL_SECONDS = 15 * 60;
