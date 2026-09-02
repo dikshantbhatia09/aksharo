@@ -1,12 +1,14 @@
 /**
  * Timing-nudge signal (brief: "consistent user drag deltas are emitted as a
- * timing-nudge signal for B09"). B09 (memory/consent) has no consumer yet —
- * `lib/edg/ops.ts`'s note on "Memory consent hook (D62/B09)" makes the same
- * point about spelling fixes — so this is an interface plus a no-op sink,
- * exactly the brief's wording, wired at the one place drag deltas are
- * produced (`resolveSegmentDrag` in `snapping.ts`, called from
- * `Timeline.tsx`) so swapping in a real sink later is a constructor
- * argument, not a call-site change.
+ * timing-nudge signal for B09"). The interface plus this no-op sink, exactly
+ * the brief's wording, wired at the one place drag deltas are produced
+ * (`resolveSegmentDrag` in `snapping.ts`, called from `Timeline.tsx`) so a
+ * real sink was always a constructor argument, not a call-site change — and
+ * B09b is that real sink: `memory-nudge-sink.ts`'s `createMemoryNudgeSink`,
+ * consent-gated and debounced per drag, `POST`ing to
+ * `/memory/hooks/timing-nudge`. `noopNudgeSink` stays the shared identity
+ * `Timeline.tsx` checks against to decide whether a caller passed its own
+ * sink or wants the real one (its doc-comment on `resolvedNudgeSink`).
  */
 
 export type TimingNudgeKind =

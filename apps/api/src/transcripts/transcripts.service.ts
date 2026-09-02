@@ -15,6 +15,7 @@ import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { EdgService } from "../edg/index.js";
 import { JobsService } from "../jobs/jobs.service.js";
+import { MemoryService } from "../memory/memory.service.js";
 
 import type { Correction, DetectedLanguage } from "./postprocess/index.js";
 import type { TranscriptExportFormat } from "./transcript-export.js";
@@ -49,6 +50,9 @@ import type { MediaAsset, Project, Transcript } from "@prisma/client";
  * completion handler a stable identity to write to — the same idempotency the row
  * would have provided, without the debris.
  */
+
+/** Cap on merged transcribe hints (request-time + memory glossary), brief §2. */
+export const MAX_TRANSCRIBE_HINTS = 200;
 
 export interface TranscribeRequest {
   readonly projectId: string;
@@ -117,6 +121,7 @@ export class TranscriptsService {
     private readonly repository: TranscriptsRepository,
     private readonly jobs: JobsService,
     private readonly edg: EdgService,
+    private readonly memory: MemoryService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -142,6 +147,29 @@ export class TranscriptsService {
     return this.enqueueTranscription(request, { retranscribe: true });
   }
 
+  /**
+   * Request-time hints (caller-supplied) plus the workspace's consented
+   * glossary/spelling memory terms (`MemoryService.glossaryTermsFor()`),
+   * request-time first, deduplicated, capped at {@link MAX_TRANSCRIBE_HINTS}
+   * (brief §2). Consent-gated inside `MemoryService` — no consent means no
+   * memory terms are appended, never a thrown error.
+   */
+  private async buildHints(request: TranscribeRequest): Promise<readonly string[]> {
+    const requested = (request.hints ?? []).map((hint) => hint.trim()).filter((hint) => hint !== "");
+    const memoryTerms = await this.memory.glossaryTermsFor(request.workspaceId, request.userId);
+
+    const seen = new Set<string>();
+    const merged: string[] = [];
+    for (const hint of [...requested, ...memoryTerms]) {
+      const key = hint.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(hint);
+      if (merged.length >= MAX_TRANSCRIBE_HINTS) break;
+    }
+    return merged;
+  }
+
   private async enqueueTranscription(
     request: TranscribeRequest,
     options: { retranscribe: boolean },
@@ -154,7 +182,7 @@ export class TranscriptsService {
     const quote = quoteTranscription(media.durationMs ?? 0);
     const transcriptId = newId();
     const languages = (request.languages ?? []).filter((tag) => tag.trim() !== "");
-    const hints = request.hints ?? [];
+    const hints = await this.buildHints(request);
 
     // A distinct job key per transcript id: dedupe must stop a double-click on the
     // same request, and must not stop a deliberate re-transcription.

@@ -79,6 +79,27 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B09b — wired B09's three memory learning hooks to their real producers/consumers
+  (A17/A02d timing nudge, the editor's spelling fix, and transcribe hints).**
+  Web: `apps/web/lib/timeline/memory-nudge-sink.ts`'s `createMemoryNudgeSink` is
+  the real `TimingNudgeSink` (`nudge.ts`) — consent-gated, debounced per drag,
+  `POST /memory/hooks/timing-nudge` — wired via `use-memory-nudge-sink.ts` as
+  `Timeline.tsx`'s effective default sink; `editor-client.tsx`'s
+  `onFixSpellingEverywhere` now posts `POST /memory/hooks/spelling-fix`
+  (`{wrong, right, script}`) once the correction's own op batch has landed
+  (`EditorStore.flush()`), consent-gated the same way (predicate exported as
+  `shouldRecordSpellingFix` for unit testing). `@montaj/api-client` gained
+  `useRecordTimingNudgeMemory`/`useRecordSpellingFixMemory`/`useRecordStylePrefMemory`
+  hooks over B09's existing hook routes. API: `MemoryService.glossaryTermsFor()`
+  is a new, non-throwing consent-gated read (glossary + spelling terms,
+  deduplicated, most-recent-first); `TranscriptsService.buildHints()` merges it
+  into `params.hints` at enqueue, request-time hints first, capped at
+  `MAX_TRANSCRIBE_HINTS` (200). Worker: `processors/transcribe.py::_hints()` now
+  runs `prepare_hints()` (`worker_ai/hints/glossary.py`, already built) over the
+  incoming list before any provider shapes its own vocabulary parameter. Consent
+  off produces zero memory requests and zero memory hints at all three sites
+  (unit-tested); see `apps/api/src/memory/README.md`.
+
 - **B09 — learned memory (spellings, glossary, timing nudge, style prefs), opt-in
   and erasable (F-204, D62).** `apps/api/src/memory/`: `MemoryService` — a
   consent-gated CRUD/import/clear surface over `memory_entries` (the table and
