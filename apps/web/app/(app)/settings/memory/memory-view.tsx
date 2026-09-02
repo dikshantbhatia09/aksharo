@@ -109,7 +109,13 @@ export function MemoryView(): React.JSX.Element {
             <>
               <ul className="flex flex-col gap-2" data-testid="memory-list">
                 {(entries.data ?? []).map((entry) => (
-                  <MemoryRow key={entry.id} entry={entry} onEdit={() => { setEditing(entry); }} />
+                  <MemoryRow
+                    key={entry.id}
+                    entry={entry}
+                    onEdit={() => {
+                      setEditing(entry);
+                    }}
+                  />
                 ))}
               </ul>
 
@@ -128,7 +134,12 @@ export function MemoryView(): React.JSX.Element {
         </>
       )}
 
-      <EditEntryDialog entry={editing} onClose={() => { setEditing(null); }} />
+      <EditEntryDialog
+        entry={editing}
+        onClose={() => {
+          setEditing(null);
+        }}
+      />
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
@@ -246,7 +257,12 @@ function EditEntryDialog({
   }, [entry]);
 
   return (
-    <Dialog open={entry !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog
+      open={entry !== null}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit {entry?.key}</DialogTitle>
@@ -254,7 +270,9 @@ function EditEntryDialog({
         </DialogHeader>
         <Input
           value={value}
-          onChange={(event) => { setValue(event.target.value); }}
+          onChange={(event) => {
+            setValue(event.target.value);
+          }}
           data-testid="edit-memory-value"
         />
         <DialogFooter>
@@ -305,7 +323,9 @@ function GlossaryImport(): React.JSX.Element {
         <Input
           placeholder="e.g. Aksharo"
           value={term}
-          onChange={(event) => { setTerm(event.target.value); }}
+          onChange={(event) => {
+            setTerm(event.target.value);
+          }}
           data-testid="memory-add-term-input"
         />
         <Button
@@ -341,7 +361,9 @@ function GlossaryImport(): React.JSX.Element {
           <Textarea
             rows={4}
             value={csv}
-            onChange={(event) => { setCsv(event.target.value); }}
+            onChange={(event) => {
+              setCsv(event.target.value);
+            }}
             data-testid="memory-import-csv"
           />
           <Button

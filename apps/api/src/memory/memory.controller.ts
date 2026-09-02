@@ -103,13 +103,19 @@ export class MemoryController {
 
   @Delete()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Clear every memory entry for the workspace", operationId: "clearMemory" })
+  @ApiOperation({
+    summary: "Clear every memory entry for the workspace",
+    operationId: "clearMemory",
+  })
   async clear(@CurrentUser() principal: AuthPrincipal): Promise<void> {
     await this.memory.clearAll(principal.workspaceId, principal.userId);
   }
 
   @Post("import")
-  @ApiOperation({ summary: "Bulk-import glossary terms from CSV", operationId: "importMemoryGlossary" })
+  @ApiOperation({
+    summary: "Bulk-import glossary terms from CSV",
+    operationId: "importMemoryGlossary",
+  })
   @ApiBody(zodBody(importGlossarySchema))
   @ApiOkResponse(zodResponse(importGlossaryResultSchema, "Import counts."))
   async import(
@@ -156,7 +162,10 @@ export class MemoryController {
   }
 
   @Post("hooks/style-pref")
-  @ApiOperation({ summary: "Last style/template used per aspect", operationId: "recordStylePrefMemory" })
+  @ApiOperation({
+    summary: "Last style/template used per aspect",
+    operationId: "recordStylePrefMemory",
+  })
   @ApiBody(zodBody(stylePrefHookSchema))
   async stylePref(
     @CurrentUser() principal: AuthPrincipal,

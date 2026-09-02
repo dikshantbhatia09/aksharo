@@ -41,12 +41,14 @@ function harness(options: { consented?: boolean } = {}): {
             (where["kind"] === undefined || row.kind === where["kind"]),
         ),
       ),
-      findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) =>
-        rows.find((row) => row.id === where["id"] && row.workspaceId === where["workspaceId"]) ??
-        null,
+      findFirst: vi.fn(
+        async ({ where }: { where: Record<string, unknown> }) =>
+          rows.find((row) => row.id === where["id"] && row.workspaceId === where["workspaceId"]) ??
+          null,
       ),
-      findUnique: vi.fn(async ({ where }: { where: Record<string, unknown> }) =>
-        rows.find((row) => row.id === where["id"]) ?? null,
+      findUnique: vi.fn(
+        async ({ where }: { where: Record<string, unknown> }) =>
+          rows.find((row) => row.id === where["id"]) ?? null,
       ),
       create: vi.fn(async ({ data }: { data: Row }) => {
         rows.push(data);
@@ -155,7 +157,9 @@ describe("MemoryService CRUD", () => {
     const before = created.expiresAt;
     const updated = await service.update(WS, USER, created.id, { value: "Aksharo Studio" });
     expect(updated.value).toBe("Aksharo Studio");
-    expect(new Date(updated.expiresAt).getTime()).toBeGreaterThanOrEqual(new Date(before).getTime());
+    expect(new Date(updated.expiresAt).getTime()).toBeGreaterThanOrEqual(
+      new Date(before).getTime(),
+    );
 
     await expect(service.update(WS, USER, "missing-id", { value: "x" })).rejects.toMatchObject({
       code: MEMORY_ERRORS.notFound,

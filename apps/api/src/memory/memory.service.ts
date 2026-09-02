@@ -187,7 +187,11 @@ export class MemoryService {
     await this.requireConsent(userId);
     const row = await this.prisma.memoryEntry.findFirst({ where: { id, workspaceId } });
     if (row === null) {
-      throw new AppException(MEMORY_ERRORS.notFound, "Memory entry not found.", HttpStatus.NOT_FOUND);
+      throw new AppException(
+        MEMORY_ERRORS.notFound,
+        "Memory entry not found.",
+        HttpStatus.NOT_FOUND,
+      );
     }
     return this.applyMerge(row, input);
   }
@@ -222,7 +226,11 @@ export class MemoryService {
     await this.requireConsent(userId);
     const result = await this.prisma.memoryEntry.deleteMany({ where: { id, workspaceId } });
     if (result.count === 0) {
-      throw new AppException(MEMORY_ERRORS.notFound, "Memory entry not found.", HttpStatus.NOT_FOUND);
+      throw new AppException(
+        MEMORY_ERRORS.notFound,
+        "Memory entry not found.",
+        HttpStatus.NOT_FOUND,
+      );
     }
   }
 
@@ -255,7 +263,10 @@ export class MemoryService {
     const lines = csv
       .split(/\r?\n/)
       .map((line) => line.trim())
-      .filter((line) => line !== "" && line.toLowerCase() !== "term" && line.toLowerCase() !== "term,aliases");
+      .filter(
+        (line) =>
+          line !== "" && line.toLowerCase() !== "term" && line.toLowerCase() !== "term,aliases",
+      );
 
     let imported = 0;
     let updated = 0;
@@ -419,7 +430,9 @@ function readValue(value: unknown): Partial<MemoryValue> {
 
 function readSamples(value: unknown): number[] {
   const raw = (value as { samples?: unknown } | null)?.samples;
-  return Array.isArray(raw) ? raw.filter((entry): entry is number => typeof entry === "number") : [];
+  return Array.isArray(raw)
+    ? raw.filter((entry): entry is number => typeof entry === "number")
+    : [];
 }
 
 /** Median of a small sample set — order-independent, robust to one outlier drag. */

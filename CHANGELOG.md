@@ -61,6 +61,37 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B09 — learned memory (spellings, glossary, timing nudge, style prefs), opt-in
+  and erasable (F-204, D62).** `apps/api/src/memory/`: `MemoryService` — a
+  consent-gated CRUD/import/clear surface over `memory_entries` (the table and
+  its consent-filtered reader, `MemoryGlossarySource`, already existed from
+  A11). Every mutating call re-reads the caller's live, un-withdrawn `memory`
+  consent record rather than trusting a cached flag (the same shape as
+  `MemoryGlossarySource`'s own gate), so nothing is stored without consent and
+  a withdrawal is honoured on the very next write. `GET/POST/PATCH/DELETE
+/memory`, `DELETE /memory` (clear all), `POST /memory/import` (CSV bulk
+  glossary import: `term` or `term,alias1;alias2` per line), plus three
+  learning-hook routes other work packages call into: `POST
+/memory/hooks/spelling-fix` (A15's "Fix spelling everywhere" -> a `spelling`
+  entry, script-aware), `POST /memory/hooks/timing-nudge` (a drag delta ->
+  a rolling median per-workspace caption offset, `medianOf`), `POST
+/memory/hooks/style-pref` (last style/template used per aspect). Entries
+  carry a 12-month rolling expiry refreshed on every write, `hits`/`lastUsedAt`
+  usage counters, and a `deviceOnly` flag; withdrawing the `memory` consent
+  erases every entry for the user via a new `consent.withdrawn` event
+  (`memory/consent-events.ts`) emitted from `ConsentsService` — a small,
+  documented, additive edit outside this work package's file boundary (same
+  precedent as `invoices/billing-events.ts`). `apps/worker-ai/worker_ai/hints/`:
+  `prepare_hints()`, a pure dedupe/trim/cap step for glossary terms ahead of
+  the provider-specific shaping (`word_boost`, `vocabulary`, `keyterms`,
+  `initial_prompt`) A09/A11 already built per-provider. `packages/api-client`:
+  real `/memory` endpoints and hooks (`useMemoryEntries`, `useCreateMemoryEntry`,
+  `useUpdateMemoryEntry`, `useDeleteMemoryEntry`, `useClearMemory`,
+  `useImportMemoryGlossary`) replacing the B09 pending stubs. `apps/web/app/(app)/settings/memory/`:
+  edit/delete per entry, a glossary add-one-term control and CSV import, usage
+  counters and expiry display, alongside the existing consent-gated empty/disabled
+  states and clear-all confirmation.
+
 - **B06 — streak experiment: 3-day weekly bar, auto-freezes, pause-not-reset,
   level-ups, discounts/credit grants, holdout, and the widget.** `apps/api/src/streak/`:
   a pure state machine (`streak.engine.ts`, table-tested with fake clocks) —

@@ -70,7 +70,6 @@ import type {
   SubscriptionView,
   TokenResponse,
   TopupCheckoutRequest,
-  UpdateMemoryEntryRequest,
   TranscribeAccepted,
   TranscribeRequest,
   TranslateAccepted,
@@ -79,6 +78,7 @@ import type {
   TransliterateRequest,
   UpdateFolderRequest,
   UpdateMeRequest,
+  UpdateMemoryEntryRequest,
   UpdateProjectRequest,
   UploadTicket,
   UsageSummary,
@@ -277,8 +277,7 @@ export function useUpdateMemoryEntry(): UseMutationResult<
   const client = useApiClient();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, body }) =>
-      client.call(endpoints.memory.update, { params: { id }, body }),
+    mutationFn: ({ id, body }) => client.call(endpoints.memory.update, { params: { id }, body }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
   });
 }

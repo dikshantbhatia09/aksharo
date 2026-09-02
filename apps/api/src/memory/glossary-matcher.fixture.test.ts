@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Word } from "@montaj/edg/schemas";
 
-import {
-  applyGlossary,
-  buildGlossaryIndex,
-} from "../transcripts/postprocess/glossary.js";
+import { applyGlossary, buildGlossaryIndex } from "../transcripts/postprocess/glossary.js";
 
 import type { GlossaryTerm } from "../transcripts/postprocess/glossary.js";
 
@@ -96,7 +93,7 @@ describe("glossary/spelling matcher precision (B09 fixture over A11's matcher)",
       if (result.words[0]?.t === expected) resolved += 1;
     }
     const recall = resolved / POSITIVES.length;
-     
+
     console.info(`glossary matcher recall on B09 fixture: ${(recall * 100).toFixed(1)}%`);
     expect(recall).toBeGreaterThanOrEqual(0.85);
   });
