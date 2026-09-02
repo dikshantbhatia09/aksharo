@@ -10,6 +10,25 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Fixed
 
+- **C00b — `apps/desktop` real electron-builder packaging over a pnpm workspace.**
+  `pnpm --filter @montaj/desktop pack:dry` (`electron-builder --dir`) used to fail
+  before producing any output: `node_modules/@montaj/{bridge-core,config}` are pnpm
+  symlinks whose real path resolves to `packages/*`, outside `apps/desktop/`, and
+  app-builder-lib's asar packager refused any file it couldn't express as a path
+  relative to the app dir (`<file> must be under <appDir>`), so `tools/release`'s
+  `build-desktop` always fell back to a placeholder tree and the `e2e` CI job would
+  have hit the same failure on real runners. Fixed by esbuild-bundling the Electron
+  main/preload/pairing-preload entry points into single CommonJS files under
+  `apps/desktop/dist/**` (`scripts/bundle.mjs`) — every workspace dependency inlined,
+  only `electron` and Node builtins left external — and pointing electron-builder's
+  `directories.app` at that dependency-free `dist/` tree instead of the repo-managed
+  `apps/desktop/package.json`. `scripts/pack.mjs` wraps the `electron-builder`
+  invocation to pass `-c.extraMetadata.version`/`-c.extraMetadata.productName` sourced
+  from `@montaj/config`'s `BRAND` so those values can't drift from
+  `docs/CONTRACTS.md` §0. `tools/release build-desktop` now consumes this real output
+  by default and only falls back to (or is forced onto, via a new `--placeholder`
+  flag) the synthesized placeholder tree when no real build exists.
+
 - **A23b — a real Postgres 40P01 ("deadlock detected") in `auth-harness.ts`'s
   `reset()`.** Several background writers the API starts inside a test app
   outlive the HTTP request a test awaits: `AccessLogInterceptor` fires

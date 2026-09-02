@@ -13,6 +13,11 @@ export interface BuildDesktopOptions {
   platform: Platform;
   channel: Channel;
   dryRun: boolean;
+  /** Force the synthesized placeholder tree even when a real `electron-builder --dir`
+   * output exists under `<desktopAppDir>/release` (C00b scope §3) — for CI dry-run jobs
+   * that never install/build Electron and want a fast, deterministic exercise of the
+   * signing/notarize/checksum pipeline without depending on a real desktop build. */
+  placeholder?: boolean;
 }
 
 export interface BuildDesktopResult {
@@ -114,8 +119,11 @@ async function ensureAppTree(
   outDir: string,
   platform: Platform,
   desktopAppDir: string,
+  forcePlaceholder: boolean,
 ): Promise<{ appDir: string; placeholder: boolean }> {
-  const realOutput = await findRealElectronBuilderOutput(desktopAppDir, platform);
+  const realOutput = forcePlaceholder
+    ? undefined
+    : await findRealElectronBuilderOutput(desktopAppDir, platform);
   if (realOutput !== undefined) {
     const appDir = path.join(outDir, "build", platform, "app");
     await ensureDir(path.dirname(appDir));
@@ -179,6 +187,7 @@ export async function runBuildDesktop(
     outDir,
     opts.platform,
     path.join(ctx.repoRoot, config.desktopAppDir),
+    opts.placeholder ?? false,
   );
 
   const nested = await discoverNestedBinaries(appDir, opts.platform);
