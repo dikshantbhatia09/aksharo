@@ -341,6 +341,34 @@ admin-step-up.{controller,service,dto,constants}.ts`: TOTP enrol/verify
   (`GET /admin/support/status`) — `apps/api/src/support/**` (B12) had not
   merged as of this commit.
 
+- **B13e — the `(admin)` web shell, dashboard, admin e2e (role matrix +
+  refund).** `apps/web/app/(admin)/**`: a separate layout with no product
+  chrome; the admin session (a `kind: "admin"` step-up token) lives in
+  `sessionStorage` (`lib/admin/admin-session.ts`), distinct from the regular
+  product session — `lib/admin/admin-fetch.ts` is a small standalone fetch
+  wrapper for it (the shared `@montaj/api-client` stays wired to the
+  regular session's token). New typed endpoints `adminAuth.{totpEnroll,
+totpVerify,stepUp}` in `packages/api-client` for step-up itself (the one
+  call still made with the regular session's bearer token); every other
+  admin route is called directly by the shell. Panels: users/workspaces
+  search+detail, credits adjust/reverse, refunds, flags, routing weight
+  overrides, styles catalogue, affiliates (pending queue + TDS CSV export),
+  referral review queue, share-report resolution, jobs monitor (list/
+  stats/cancel), a support stub, and a small numbers-only dashboard (no
+  chart library — see "open questions", the scope this WP still had to
+  cover left no room for it). `pnpm gen:client` regenerated (272
+  operations). **Simplifications flagged rather than hidden:** the layout
+  gates on session presence, not a genuine server-side "404 for
+  non-admins" (every panel's own fetch still 403s against `AdminGuard`
+  regardless of what the shell renders); no Playwright browser e2e for the
+  admin UI (would need its own step-up-aware browser harness) — instead,
+  `apps/api/test/admin-billing.e2e-spec.ts` proves the brief's literal
+  acceptance case ("support role can view but not refund; finance can
+  refund with reason") end to end against real Postgres/Redis, seeding a
+  genuine top-up purchase + credit lot (billing-harness.ts binds
+  `CREDITS_FACADE` to `NoopCreditsFacade` on purpose, so the lot is seeded
+  directly rather than re-testing B02's own ledger).
+
 - **A23 — Gate A e2e journey, sample-project seed, wave verification script,
   X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)
   through onboarding, a real MinIO upload, transcription completion via the

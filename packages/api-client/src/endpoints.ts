@@ -14,6 +14,9 @@
 import { defineEndpoint } from "./http.js";
 
 import type {
+  AdminStepUpResponse,
+  AdminTotpCodeRequest,
+  AdminTotpEnrollResponse,
   AffiliateProfile,
   AffiliateStats,
   ApiKeyView,
@@ -180,6 +183,32 @@ export const authEndpoints = {
     path: "/auth/oauth/complete",
     auth: "public",
     operationId: "OAuthController_complete",
+  }),
+} as const;
+
+/**
+ * B13: admin step-up only. Called with the REGULAR session's bearer token
+ * (`auth: "bearer"`) — everything past step-up uses the admin session's own
+ * token via `apps/web/lib/admin/admin-fetch.ts`, not this client.
+ */
+export const adminAuthEndpoints = {
+  totpEnroll: defineEndpoint<void, AdminTotpEnrollResponse>({
+    method: "POST",
+    path: "/admin/auth/totp/enroll",
+    auth: "bearer",
+    operationId: "adminTotpEnroll",
+  }),
+  totpVerify: defineEndpoint<AdminTotpCodeRequest, void>({
+    method: "POST",
+    path: "/admin/auth/totp/verify",
+    auth: "bearer",
+    operationId: "adminTotpVerify",
+  }),
+  stepUp: defineEndpoint<AdminTotpCodeRequest, AdminStepUpResponse>({
+    method: "POST",
+    path: "/admin/auth/step-up",
+    auth: "bearer",
+    operationId: "adminStepUp",
   }),
 } as const;
 
@@ -873,6 +902,7 @@ const webhookEndpoints2 = {
 
 export const endpoints = {
   auth: authEndpoints,
+  adminAuth: adminAuthEndpoints,
   device: deviceEndpoints,
   account: accountEndpoints,
   jobs: jobEndpoints,
@@ -901,6 +931,7 @@ export const endpoints = {
 /** Flat list, for the contract test. */
 export const ALL_ENDPOINTS = [
   ...Object.entries(authEndpoints),
+  ...Object.entries(adminAuthEndpoints),
   ...Object.entries(deviceEndpoints),
   ...Object.entries(registeredDeviceEndpoints),
   ...Object.entries(licensingEndpoints),

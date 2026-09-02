@@ -1084,3 +1084,24 @@ export interface WebhookDeliveryView {
   deliveredAt: string | null;
   createdAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Admin (B13) — step-up only. Every other admin route is called directly by
+// the (admin) web shell with the admin session's own bearer token, not
+// through this shared client (see apps/web/lib/admin/admin-fetch.ts).
+// ---------------------------------------------------------------------------
+
+export interface AdminTotpCodeRequest {
+  code: string;
+}
+
+export interface AdminTotpEnrollResponse {
+  secret: string;
+  otpauthUrl: string;
+}
+
+export interface AdminStepUpResponse {
+  accessToken: string;
+  expiresIn: number;
+  adminRoles: string[];
+}

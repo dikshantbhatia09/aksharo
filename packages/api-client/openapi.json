@@ -10620,6 +10620,335 @@
         ]
       }
     },
+    "/admin/flags": {
+      "get": {
+        "operationId": "adminListFlags",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FeatureFlagDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List every feature flag",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "adminCreateFlag",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFlagDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureFlagDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "409": {
+            "description": "A flag with this key already exists."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a flag (superadmin only)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/flags/{key}": {
+      "get": {
+        "operationId": "adminGetFlag",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureFlagDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One flag's current state",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Reason is mandatory — a global flag change is a B13 §1 money/credit-grade action.",
+        "operationId": "adminUpdateFlag",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFlagDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureFlagDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Update a flag's rollout, targets or enabled state (superadmin only)",
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "operationId": "adminDeleteFlag",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete a flag (superadmin only)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/jobs": {
+      "get": {
+        "operationId": "adminListJobs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminJobSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List jobs across every workspace",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/jobs/stats": {
+      "get": {
+        "operationId": "adminJobQueueStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminQueueStatsDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Per-queue counts by status",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/jobs/{id}/cancel": {
+      "post": {
+        "operationId": "adminCancelJob",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminJobSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Cancel a queued/running job in any workspace",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/parental-waitlist": {
       "get": {
         "description": "Addresses are stored only as a SHA-256 digest, so this reports how many people are waiting and since when, never who they are. Cursor pagination: pass the previous page's `nextCursor`.",
@@ -10709,6 +11038,94 @@
           }
         ],
         "summary": "The parental-consent waiting list, oldest first",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/credits/adjust": {
+      "post": {
+        "description": "Wraps CreditsFacade.grantLot(source: \"adjust\") — the same primitive B01 top-ups and B04 passes use, so the adjustment lot behaves identically in expiry and reconciliation. Positive only: this grants, it does not debit (B02 has no cross-lot admin debit primitive — see admin.guard.test.ts / this WP's final report for why that is out of scope here). Reason is mandatory (min 10 chars) — every money/credit admin action is (B13 scope §1).",
+        "operationId": "adminAdjustCredits",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustCreditsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdjustCreditsResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires the finance or superadmin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Grant a manual credit adjustment to a workspace (finance/superadmin only)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/credits/reverse": {
+      "post": {
+        "description": "Wraps CreditsFacade.reverse() (the concrete LedgerCreditsFacade — 'beyond the frozen interface' per that file's own doc comment, which names this WP as one of its two intended callers alongside B01 payment refunds). Requires a prior credit_holds row for the job. Reason is mandatory.",
+        "operationId": "adminReverseCredits",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReverseCreditsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReverseCreditsResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires the finance or superadmin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reverse a settled job's credit charge back onto the workspace (finance/superadmin only)",
         "tags": [
           "admin"
         ]
@@ -11378,6 +11795,259 @@
           }
         ],
         "summary": "Run one scheduled task now, out of band",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/routing/weights": {
+      "get": {
+        "operationId": "adminListRoutingWeights",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoutingWeightOverrideDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the superadmin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every routing weight override on file",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Reason is mandatory.",
+        "operationId": "adminSetRoutingWeight",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetRoutingWeightDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingWeightOverrideDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the superadmin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Set (create or replace) one lane/provider's weight override",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/routing/weights/{laneId}/{provider}": {
+      "delete": {
+        "operationId": "adminClearRoutingWeight",
+        "parameters": [
+          {
+            "name": "laneId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "provider",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the superadmin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove an override, reverting that lane/provider to routing.yaml's base weight",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/styles": {
+      "get": {
+        "operationId": "adminListStyles",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminStylePresetDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The system style catalogue, with parity results",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/styles/{id}/publish": {
+      "post": {
+        "description": "Unpublishing hides it from StylesService.list() without deleting it — parity data and any workspace already using it are preserved. Reason is mandatory.",
+        "operationId": "adminPublishStyle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishStyleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStylePresetDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Publish or unpublish a system style (content/superadmin only)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/support/status": {
+      "get": {
+        "operationId": "adminSupportStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Whether the support-ticket panel has a real backend yet (B12)",
         "tags": [
           "admin"
         ]
@@ -15570,6 +16240,1090 @@
         ]
       }
     },
+    "/admin/billing/dunning": {
+      "get": {
+        "description": "Read-only monitor: `graceUntil` (D40's 3-day entitlement grace) and `renewalInitiateAt` (the 48h-ahead retry) are the two 'what happens next, when' fields; the mandate ladder itself is billing/dunning.ts, unchanged by this WP.",
+        "operationId": "adminDunningMonitor",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminDunningEntryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the finance or superadmin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Subscriptions past due, with mandate status and next actions",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/billing/passes/{passPurchaseId}/refund": {
+      "post": {
+        "description": "Within 7 days of purchase: full refund of the amount on file. After 7 days: pro-rated by the fraction of the purchase's credits still unspent. Claws back the credits via B01's RefundsService and, when the purchase has an original tax invoice, issues a B05 credit note for the refunded amount. `reason` is mandatory.",
+        "operationId": "adminRefundPassPurchase",
+        "parameters": [
+          {
+            "name": "passPurchaseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRefundDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRefundResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the finance or superadmin role."
+          },
+          "404": {
+            "description": "`common/not_found` — no such purchase, or no lot on file."
+          },
+          "409": {
+            "description": "Already refunded, or the policy-computed amount is zero."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Refund a pass/top-up purchase under the 7-day-full / pro-rata policy, and issue a credit note",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "operationId": "adminSearchUsers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminUserSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session (POST /admin/auth/step-up)."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Search users by email/name",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/users/{id}": {
+      "get": {
+        "operationId": "adminUserDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDetailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session (POST /admin/auth/step-up)."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "User detail: memberships, devices, admin roles",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/workspaces": {
+      "get": {
+        "operationId": "adminSearchWorkspaces",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminWorkspaceSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session (POST /admin/auth/step-up)."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Search workspaces by name/slug",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/workspaces/{id}": {
+      "get": {
+        "operationId": "adminWorkspaceDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminWorkspaceDetailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session (POST /admin/auth/step-up)."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Workspace detail: owner, plan/subscription, credit account",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/referrals/review-queue": {
+      "get": {
+        "operationId": "adminReferralReviewQueue",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HeldReferralDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the ops, finance or superadmin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Referral rewards held for review (chained self-referral)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/referrals/{id}/approve": {
+      "post": {
+        "operationId": "adminApproveReferralHold",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the ops, finance or superadmin role."
+          },
+          "404": {
+            "description": "`common/not_found` — no pending held reward with that id."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Clear a hold and settle the reward through the normal grant/cap path",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/referrals/{id}/reject": {
+      "post": {
+        "operationId": "adminRejectReferralHold",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectHoldDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the ops, finance or superadmin role."
+          },
+          "404": {
+            "description": "`common/not_found` — no pending held reward with that id."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reject a held reward",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/affiliates/pending": {
+      "get": {
+        "operationId": "adminPendingAffiliates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminPendingAffiliateDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Affiliate applications awaiting review",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/affiliates/tds/{fyLabel}/export.csv": {
+      "get": {
+        "operationId": "adminAffiliateTdsCsv",
+        "parameters": [
+          {
+            "name": "fyLabel",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every affiliate's FY gross/TDS/net totals, as CSV (finance/superadmin only)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/affiliates/{affiliateId}/form16a": {
+      "get": {
+        "description": "Watermarked \"DRAFT\" unless `draft=false` — 194H vs 194-O needs a CA's confirmation.",
+        "operationId": "adminAffiliateForm16a",
+        "parameters": [
+          {
+            "name": "affiliateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "No FY total on file for this affiliate/year."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Form 16A stub for one affiliate's FY totals (finance/superadmin only)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/share-reports": {
+      "get": {
+        "operationId": "adminListShareReports",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ShareReportSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Unresolved share-link abuse reports, oldest first",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/share-reports/{id}/resolve": {
+      "post": {
+        "operationId": "adminResolveShareReport",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Resolve a report: take the link down, dismiss, or record a warning",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/projects/{projectId}/share-links": {
+      "post": {
+        "operationId": "createShareLink",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "default": "view",
+                    "type": "string",
+                    "enum": [
+                      "view",
+                      "comment",
+                      "approve"
+                    ]
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 6,
+                    "maxLength": 200
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "maxViews": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000
+                  },
+                  "clientTag": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new share link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "projectId": {
+                      "type": "string"
+                    },
+                    "token": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "view",
+                        "comment",
+                        "approve"
+                      ]
+                    },
+                    "hasPassword": {
+                      "type": "boolean"
+                    },
+                    "expiresAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "maxViews": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "viewCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "clientTag": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "reportCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "revokedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "autoDisabled": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "token",
+                    "scope",
+                    "hasPassword",
+                    "expiresAt",
+                    "maxViews",
+                    "viewCount",
+                    "clientTag",
+                    "reportCount",
+                    "revokedAt",
+                    "autoDisabled",
+                    "createdAt",
+                    "url"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a share link for review",
+        "tags": [
+          "share-links"
+        ]
+      },
+      "get": {
+        "operationId": "listShareLinks",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Share links for the project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "projectId": {
+                        "type": "string"
+                      },
+                      "token": {
+                        "type": "string"
+                      },
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "view",
+                          "comment",
+                          "approve"
+                        ]
+                      },
+                      "hasPassword": {
+                        "type": "boolean"
+                      },
+                      "expiresAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "maxViews": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "viewCount": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "clientTag": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "reportCount": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "revokedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "autoDisabled": {
+                        "type": "boolean"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "projectId",
+                      "token",
+                      "scope",
+                      "hasPassword",
+                      "expiresAt",
+                      "maxViews",
+                      "viewCount",
+                      "clientTag",
+                      "reportCount",
+                      "revokedAt",
+                      "autoDisabled",
+                      "createdAt",
+                      "url"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List a project's share links",
+        "tags": [
+          "share-links"
+        ]
+      }
+    },
+    "/projects/{projectId}/share-links/{shareLinkId}": {
+      "delete": {
+        "operationId": "revokeShareLink",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shareLinkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke a share link",
+        "tags": [
+          "share-links"
+        ]
+      }
+    },
+    "/s/{token}": {
+      "get": {
+        "operationId": "resolveShareLink",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Share-link state for the viewer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projectId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "view",
+                        "comment",
+                        "approve"
+                      ]
+                    },
+                    "requiresPassword": {
+                      "type": "boolean"
+                    },
+                    "unlocked": {
+                      "type": "boolean"
+                    },
+                    "expired": {
+                      "type": "boolean"
+                    },
+                    "revoked": {
+                      "type": "boolean"
+                    },
+                    "reviewStatus": {
+                      "type": "string"
+                    },
+                    "aspect": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "projectId",
+                    "title",
+                    "scope",
+                    "requiresPassword",
+                    "unlocked",
+                    "expired",
+                    "revoked",
+                    "reviewStatus",
+                    "aspect"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "Resolve a share link",
+        "tags": [
+          "share-public"
+        ]
+      }
+    },
+    "/s/{token}/unlock": {
+      "post": {
+        "operationId": "unlockShareLink",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unlock a password-gated share link",
+        "tags": [
+          "share-public"
+        ]
+      }
+    },
+    "/s/{token}/report": {
+      "post": {
+        "operationId": "reportShareLink",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "category": {
+                    "default": "other",
+                    "type": "string",
+                    "enum": [
+                      "ncii",
+                      "impersonation",
+                      "copyright",
+                      "other"
+                    ]
+                  },
+                  "reporterContact": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 320
+                  },
+                  "details": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Report abuse on a shared preview (F-504)",
+        "tags": [
+          "share-public"
+        ]
+      }
+    },
+    "/s/{token}/decision": {
+      "post": {
+        "operationId": "decideShareLink",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approved",
+                      "changes_requested"
+                    ]
+                  }
+                },
+                "required": [
+                  "decision"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Approve or request changes (scope `approve` only)",
+        "tags": [
+          "share-public"
+        ]
+      }
+    },
     "/devices": {
       "get": {
         "operationId": "listDevices",
@@ -18451,528 +20205,6 @@
         ]
       }
     },
-    "/projects/{projectId}/share-links": {
-      "post": {
-        "operationId": "createShareLink",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "scope": {
-                    "default": "view",
-                    "type": "string",
-                    "enum": [
-                      "view",
-                      "comment",
-                      "approve"
-                    ]
-                  },
-                  "password": {
-                    "type": "string",
-                    "minLength": 6,
-                    "maxLength": 200
-                  },
-                  "expiresAt": {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                  },
-                  "maxViews": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 1000000
-                  },
-                  "clientTag": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "The new share link.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "projectId": {
-                      "type": "string"
-                    },
-                    "token": {
-                      "type": "string"
-                    },
-                    "scope": {
-                      "type": "string",
-                      "enum": [
-                        "view",
-                        "comment",
-                        "approve"
-                      ]
-                    },
-                    "hasPassword": {
-                      "type": "boolean"
-                    },
-                    "expiresAt": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "maxViews": {
-                      "nullable": true,
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "viewCount": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "clientTag": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "reportCount": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "revokedAt": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "autoDisabled": {
-                      "type": "boolean"
-                    },
-                    "createdAt": {
-                      "type": "string"
-                    },
-                    "url": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "projectId",
-                    "token",
-                    "scope",
-                    "hasPassword",
-                    "expiresAt",
-                    "maxViews",
-                    "viewCount",
-                    "clientTag",
-                    "reportCount",
-                    "revokedAt",
-                    "autoDisabled",
-                    "createdAt",
-                    "url"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Create a share link for review",
-        "tags": [
-          "share-links"
-        ]
-      },
-      "get": {
-        "operationId": "listShareLinks",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Share links for the project.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "projectId": {
-                        "type": "string"
-                      },
-                      "token": {
-                        "type": "string"
-                      },
-                      "scope": {
-                        "type": "string",
-                        "enum": [
-                          "view",
-                          "comment",
-                          "approve"
-                        ]
-                      },
-                      "hasPassword": {
-                        "type": "boolean"
-                      },
-                      "expiresAt": {
-                        "nullable": true,
-                        "type": "string"
-                      },
-                      "maxViews": {
-                        "nullable": true,
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "viewCount": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "clientTag": {
-                        "nullable": true,
-                        "type": "string"
-                      },
-                      "reportCount": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "revokedAt": {
-                        "nullable": true,
-                        "type": "string"
-                      },
-                      "autoDisabled": {
-                        "type": "boolean"
-                      },
-                      "createdAt": {
-                        "type": "string"
-                      },
-                      "url": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "projectId",
-                      "token",
-                      "scope",
-                      "hasPassword",
-                      "expiresAt",
-                      "maxViews",
-                      "viewCount",
-                      "clientTag",
-                      "reportCount",
-                      "revokedAt",
-                      "autoDisabled",
-                      "createdAt",
-                      "url"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "List a project's share links",
-        "tags": [
-          "share-links"
-        ]
-      }
-    },
-    "/projects/{projectId}/share-links/{shareLinkId}": {
-      "delete": {
-        "operationId": "revokeShareLink",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "shareLinkId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Revoke a share link",
-        "tags": [
-          "share-links"
-        ]
-      }
-    },
-    "/s/{token}": {
-      "get": {
-        "operationId": "resolveShareLink",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Share-link state for the viewer.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "projectId": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "scope": {
-                      "type": "string",
-                      "enum": [
-                        "view",
-                        "comment",
-                        "approve"
-                      ]
-                    },
-                    "requiresPassword": {
-                      "type": "boolean"
-                    },
-                    "unlocked": {
-                      "type": "boolean"
-                    },
-                    "expired": {
-                      "type": "boolean"
-                    },
-                    "revoked": {
-                      "type": "boolean"
-                    },
-                    "reviewStatus": {
-                      "type": "string"
-                    },
-                    "aspect": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "projectId",
-                    "title",
-                    "scope",
-                    "requiresPassword",
-                    "unlocked",
-                    "expired",
-                    "revoked",
-                    "reviewStatus",
-                    "aspect"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "summary": "Resolve a share link",
-        "tags": [
-          "share-public"
-        ]
-      }
-    },
-    "/s/{token}/unlock": {
-      "post": {
-        "operationId": "unlockShareLink",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "password": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  }
-                },
-                "required": [
-                  "password"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Unlock a password-gated share link",
-        "tags": [
-          "share-public"
-        ]
-      }
-    },
-    "/s/{token}/report": {
-      "post": {
-        "operationId": "reportShareLink",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "category": {
-                    "default": "other",
-                    "type": "string",
-                    "enum": [
-                      "ncii",
-                      "impersonation",
-                      "copyright",
-                      "other"
-                    ]
-                  },
-                  "reporterContact": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 320
-                  },
-                  "details": {
-                    "type": "string",
-                    "maxLength": 2000
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "summary": "Report abuse on a shared preview (F-504)",
-        "tags": [
-          "share-public"
-        ]
-      }
-    },
-    "/s/{token}/decision": {
-      "post": {
-        "operationId": "decideShareLink",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "decision": {
-                    "type": "string",
-                    "enum": [
-                      "approved",
-                      "changes_requested"
-                    ]
-                  }
-                },
-                "required": [
-                  "decision"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "summary": "Approve or request changes (scope `approve` only)",
-        "tags": [
-          "share-public"
-        ]
-      }
-    },
     "/projects/{projectId}/comments": {
       "get": {
         "operationId": "listComments",
@@ -21297,6 +22529,156 @@
           "holdReleased"
         ]
       },
+      "FeatureFlagDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "description": {
+            "type": "object"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "rolloutPct": {
+            "type": "number"
+          },
+          "targets": {
+            "type": "object"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "enabled",
+          "rolloutPct",
+          "targets",
+          "updatedAt"
+        ]
+      },
+      "CreateFlagDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateFlagDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdminJobSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "attemptNo": {
+            "type": "number"
+          },
+          "error": {
+            "type": "object"
+          },
+          "queuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "object",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "type",
+          "status",
+          "attemptNo",
+          "queuedAt"
+        ]
+      },
+      "AdminQueueStatsDto": {
+        "type": "object",
+        "properties": {
+          "queue": {
+            "type": "string"
+          },
+          "queued": {
+            "type": "number"
+          },
+          "running": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "number"
+          },
+          "succeeded": {
+            "type": "number"
+          },
+          "cancelled": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "queue",
+          "queued",
+          "running",
+          "failed",
+          "succeeded",
+          "cancelled"
+        ]
+      },
+      "AdjustCreditsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdjustCreditsResultDto": {
+        "type": "object",
+        "properties": {
+          "lotId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "lotId"
+        ]
+      },
+      "ReverseCreditsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReverseCreditsResultDto": {
+        "type": "object",
+        "properties": {
+          "lotIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "lotIds"
+        ]
+      },
       "OrphanedHoldDto": {
         "type": "object",
         "properties": {
@@ -21408,6 +22790,94 @@
           "lotsDriftTenths",
           "ledgerDriftTenths"
         ]
+      },
+      "RoutingWeightOverrideDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "laneId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "laneId",
+          "provider",
+          "weight",
+          "updatedBy",
+          "updatedAt"
+        ]
+      },
+      "SetRoutingWeightDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdminStylePresetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "object"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "minPlan": {
+            "type": "string"
+          },
+          "version": {
+            "type": "number"
+          },
+          "parity": {
+            "type": "object",
+            "description": "A18a parity gate result (D33)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "category",
+          "published",
+          "minPlan",
+          "version",
+          "parity",
+          "updatedAt"
+        ]
+      },
+      "PublishStyleDto": {
+        "type": "object",
+        "properties": {}
       },
       "CleanRequestDto": {
         "type": "object",
@@ -22189,6 +23659,440 @@
           "version",
           "checks"
         ]
+      },
+      "AdminDunningEntryDto": {
+        "type": "object",
+        "properties": {
+          "subscriptionId": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "graceUntil": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "renewalInitiateAt": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "mandateStatus": {
+            "type": "object"
+          },
+          "mandateMethod": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "subscriptionId",
+          "workspaceId",
+          "status"
+        ]
+      },
+      "AdminRefundDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdminRefundResultDto": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string"
+          },
+          "providerRefundId": {
+            "type": "string"
+          },
+          "policy": {
+            "type": "string",
+            "enum": [
+              "full",
+              "pro_rata"
+            ]
+          },
+          "requestedAmountMinor": {
+            "type": "number"
+          },
+          "refundAmountMinor": {
+            "type": "number"
+          },
+          "creditNoteId": {
+            "type": "string"
+          },
+          "creditNoteNumber": {
+            "type": "string"
+          },
+          "creditNoteSkippedReason": {
+            "type": "string",
+            "description": "Set when no original tax invoice was found for this purchase — no credit note was issued."
+          }
+        },
+        "required": [
+          "outcome",
+          "providerRefundId",
+          "policy",
+          "requestedAmountMinor",
+          "refundAmountMinor"
+        ]
+      },
+      "AdminUserSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "object"
+          },
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "deletedAt": {
+            "type": "object",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "isAdmin",
+          "createdAt"
+        ]
+      },
+      "AdminMembershipDto": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "workspaceName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "workspaceName",
+          "role",
+          "status"
+        ]
+      },
+      "AdminUserDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "object"
+          },
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "deletedAt": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "memberships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminMembershipDto"
+            }
+          },
+          "deviceCount": {
+            "type": "number"
+          },
+          "adminRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "isAdmin",
+          "createdAt",
+          "memberships",
+          "deviceCount",
+          "adminRoles"
+        ]
+      },
+      "AdminWorkspaceSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "ownerId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deletedAt": {
+            "type": "object",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "type",
+          "ownerId",
+          "currency",
+          "createdAt"
+        ]
+      },
+      "AdminCreditAccountDto": {
+        "type": "object",
+        "properties": {
+          "balanceTenths": {
+            "type": "number"
+          },
+          "monthlyGrantTenths": {
+            "type": "number"
+          },
+          "grantResetAt": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "negativeAllowed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "balanceTenths",
+          "monthlyGrantTenths",
+          "negativeAllowed"
+        ]
+      },
+      "AdminSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "planId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "currentPeriodEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cancelAtPeriodEnd": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "planId",
+          "status",
+          "currency",
+          "currentPeriodEnd",
+          "cancelAtPeriodEnd"
+        ]
+      },
+      "AdminWorkspaceDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "ownerId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deletedAt": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "ownerEmail": {
+            "type": "string"
+          },
+          "memberCount": {
+            "type": "number"
+          },
+          "creditAccount": {
+            "$ref": "#/components/schemas/AdminCreditAccountDto"
+          },
+          "subscription": {
+            "$ref": "#/components/schemas/AdminSubscriptionDto"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "type",
+          "ownerId",
+          "currency",
+          "createdAt",
+          "memberCount"
+        ]
+      },
+      "HeldReferralDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "referrerWorkspaceId": {
+            "type": "string"
+          },
+          "referredWorkspaceId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "holdReason": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "referrerWorkspaceId",
+          "referredWorkspaceId",
+          "code",
+          "holdReason",
+          "createdAt"
+        ]
+      },
+      "RejectHoldDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdminPendingAffiliateDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "code",
+          "status",
+          "country",
+          "createdAt"
+        ]
+      },
+      "ShareReportSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "shareLinkId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "shareLinkId",
+          "category",
+          "receivedAt",
+          "dueAt"
+        ]
+      },
+      "ResolveReportDto": {
+        "type": "object",
+        "properties": {}
       },
       "Function": {
         "type": "object",
