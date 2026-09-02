@@ -170,6 +170,21 @@ export {
   trackShrinkFor,
   trackShrinkKey,
 } from "./frame/track-shrink.js";
+export {
+  clampCropRect,
+  type CropEasingName,
+  type CropKeyframe,
+  cropRectFromZoom,
+  type CropRect,
+  FULL_FRAME,
+  lerpCropRect,
+  sampleCropWindow,
+} from "./frame/crop-window.js";
+export {
+  decodeCropRows,
+  outputCropKeyframesFromTracks,
+  type PackedKeyframeTrack,
+} from "./frame/keyframe-track.js";
 
 export { itemise, type ItemisedRun, type ItemiseOptions, splitByScript } from "./layout/itemise.js";
 export {
