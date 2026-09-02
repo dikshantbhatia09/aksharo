@@ -16,17 +16,19 @@ import type { StyleDoc } from "@montaj/caption-styles";
 import { ColourField, SelectField, SliderField, ToggleField } from "./controls";
 import { type PanelScope, type SetStyleOp } from "./ops";
 import { StylePicker } from "./StylePicker";
+import { AudioPanel, type AudioPanelProps } from "../audio/AudioPanel";
 import { StylePreviewCanvas } from "../canvas/StylePreviewCanvas";
 
 import { cn } from "@/lib/utils";
 
-export type PanelTab = "style" | "colors" | "look" | "anim";
+export type PanelTab = "style" | "colors" | "look" | "anim" | "audio";
 
 export const PANEL_TABS: readonly { readonly id: PanelTab; readonly label: string }[] = [
   { id: "style", label: "Style" },
   { id: "colors", label: "Colors" },
   { id: "look", label: "Look" },
   { id: "anim", label: "Anim" },
+  { id: "audio", label: "Audio" },
 ];
 
 export interface RightPanelProps {
@@ -38,6 +40,8 @@ export interface RightPanelProps {
   readonly onSaveTemplate?: () => void;
   /** Hook for A18b's custom-font upload; the panel only opens the picker. */
   readonly onUploadFont?: () => void;
+  /** Props for the Audio tab (B10b); omitted while no project/media context is available. */
+  readonly audio?: AudioPanelProps;
   readonly className?: string;
 }
 
@@ -48,6 +52,7 @@ export function RightPanel({
   onOp,
   onSaveTemplate,
   onUploadFont,
+  audio,
   className,
 }: RightPanelProps): React.JSX.Element {
   const [tab, setTab] = useState<PanelTab>("style");
@@ -87,6 +92,12 @@ export function RightPanel({
           className="min-h-0 flex-1"
           {...(onSaveTemplate === undefined ? {} : { onSaveTemplate })}
         />
+      ) : tab === "audio" ? (
+        audio === undefined ? (
+          <p className="text-xs text-white/60">Audio clean is not available for this project.</p>
+        ) : (
+          <AudioPanel {...audio} />
+        )
       ) : (
         <>
           <StylePreviewCanvas style={style} width={288} height={162} className="w-full" />
