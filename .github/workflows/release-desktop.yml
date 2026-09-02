@@ -1,0 +1,187 @@
+name: Release desktop
+
+# Dry-run pipeline exercise on every PR/push (matrix mac/win, no secrets); real signing only
+# on a `release/*` tag, gated by GitHub environments `release-mac`/`release-win` (required
+# reviewers configured on those environments in repo settings — not in this file) holding the
+# signing secrets. See docs/RELEASE.md for the full runbook and the 24h notarisation buffer.
+
+on:
+  push:
+    branches: ["main", "wp/C00", "wp/C02"]
+    tags: ["release/*"]
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "tools/release/**"
+      - "apps/desktop/**"
+      - "release.config.ts"
+      - ".github/workflows/release-desktop.yml"
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "alpha | beta | stable"
+        required: true
+        default: "alpha"
+
+concurrency:
+  group: release-desktop-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/release/') }}
+
+permissions:
+  contents: read
+  id-token: write # actions/attest-build-provenance (signed runs only)
+  attestations: write
+
+env:
+  NODE_VERSION: "22"
+  # Never true on a PR/push job below; only the `signed` job (tag-gated, environment-gated)
+  # ever sets RELEASE_MODE=signed. Every other job runs dry-run and needs no secret.
+  RELEASE_MODE: dry-run
+
+jobs:
+  dry-run:
+    name: Dry-run (${{ matrix.platform }})
+    runs-on: ${{ matrix.platform == 'mac' && 'macos-14' || 'windows-latest' }}
+    timeout-minutes: 20
+    if: ${{ !startsWith(github.ref, 'refs/tags/release/') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [mac, win]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @montaj/release... build
+      - run: pnpm --filter @montaj/release test -- --maxWorkers=2
+      - name: Build desktop artifact (dry-run, unsigned)
+        run: pnpm release build-desktop --platform ${{ matrix.platform }} --channel alpha --dry-run
+      - name: SBOM + checksums (dry-run)
+        run: |
+          pnpm release sbom --artifact-name desktop-${{ matrix.platform }}
+          pnpm release checksums --channel alpha
+      - name: Upload dry-run artifacts (for inspection, not distribution)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dry-run-${{ matrix.platform }}
+          path: .release/artifacts/**
+          retention-days: 7
+          if-no-files-found: error
+
+  e2e:
+    name: Electron e2e (${{ matrix.platform }})
+    # C02b: the Playwright-Electron smoke needs a real Electron runtime/display and a real
+    # `electron-builder --dir` output — both unavailable in the sandbox this repo's agents
+    # develop in (Chromium's network service crashes under its container restrictions), so
+    # this only runs here, on a real mac/win runner; locally it stays a documented manual
+    # step (`pnpm --filter @montaj/desktop test:e2e`, see apps/desktop/README.md).
+    runs-on: ${{ matrix.platform == 'mac' && 'macos-14' || 'windows-latest' }}
+    timeout-minutes: 20
+    if: ${{ !startsWith(github.ref, 'refs/tags/release/') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [mac, win]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @montaj/desktop... build
+      - name: electron-builder --dir (unsigned)
+        working-directory: apps/desktop
+        run: npx electron-builder --dir --config electron-builder.yml -c.electronDist=node_modules/electron/dist
+      - name: Playwright-Electron smoke
+        working-directory: apps/desktop
+        run: npx playwright install --with-deps chromium && npx playwright test
+
+  signed:
+    name: Signed build (${{ matrix.platform }})
+    runs-on: ${{ matrix.platform == 'mac' && 'macos-14' || 'windows-latest' }}
+    timeout-minutes: 45
+    if: startsWith(github.ref, 'refs/tags/release/')
+    environment: release-${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [mac, win]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @montaj/release... build
+
+      - name: Build desktop app
+        run: pnpm release build-desktop --platform ${{ matrix.platform }} --channel ${{ inputs.channel || 'alpha' }} --no-dry-run
+        env:
+          RELEASE_MODE: signed
+          # macOS
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_DEVELOPER_ID_APPLICATION_CERT_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERT_P12_BASE64 }}
+          APPLE_DEVELOPER_ID_APPLICATION_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERT_PASSWORD }}
+          # Windows (cloud HSM; no PFX)
+          WIN_SIGN_PROVIDER: ${{ vars.WIN_SIGN_PROVIDER || 'digicert-key-locker' }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          AZURE_TRUSTED_SIGNING_CERT_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERT_PROFILE }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          DIGICERT_KEYLOCKER_API_KEY: ${{ secrets.DIGICERT_KEYLOCKER_API_KEY }}
+          DIGICERT_KEYLOCKER_CLIENT_CERT_BASE64: ${{ secrets.DIGICERT_KEYLOCKER_CLIENT_CERT_BASE64 }}
+          DIGICERT_KEYLOCKER_CLIENT_CERT_PASSWORD: ${{ secrets.DIGICERT_KEYLOCKER_CLIENT_CERT_PASSWORD }}
+          DIGICERT_KEYLOCKER_KEYPAIR_ALIAS: ${{ secrets.DIGICERT_KEYLOCKER_KEYPAIR_ALIAS }}
+          SM_HOST: ${{ secrets.SM_HOST }}
+
+      - name: Notarize (macOS only; enforces 24h buffer before stable)
+        if: matrix.platform == 'mac'
+        run: pnpm release notarize --artifact .release/artifacts/${{ inputs.channel || 'alpha' }}/Aksharo-${{ inputs.channel || 'alpha' }}-mac.zip --name Aksharo-${{ inputs.channel || 'alpha' }}-mac.zip --no-dry-run
+        env:
+          RELEASE_MODE: signed
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_DEVELOPER_ID_APPLICATION_CERT_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERT_P12_BASE64 }}
+          APPLE_DEVELOPER_ID_APPLICATION_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERT_PASSWORD }}
+          APPLE_NOTARYTOOL_KEY_ID: ${{ secrets.APPLE_NOTARYTOOL_KEY_ID }}
+          APPLE_NOTARYTOOL_ISSUER_ID: ${{ secrets.APPLE_NOTARYTOOL_ISSUER_ID }}
+          APPLE_NOTARYTOOL_PRIVATE_KEY_BASE64: ${{ secrets.APPLE_NOTARYTOOL_PRIVATE_KEY_BASE64 }}
+
+      - name: SBOM + signed checksums
+        run: |
+          pnpm release sbom --artifact-name desktop-${{ matrix.platform }}
+          pnpm release checksums --channel ${{ inputs.channel || 'alpha' }}
+        env:
+          RELEASE_MODE: signed
+          RELEASE_CHECKSUM_SIGNING_KEY_BASE64: ${{ secrets.RELEASE_CHECKSUM_SIGNING_KEY_BASE64 }}
+
+      - name: SLSA provenance attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: ".release/artifacts/**/*.zip"
+
+      - name: Publish to channel (never stable directly from CI — promote.yml handles that gate)
+        if: inputs.channel != 'stable'
+        run: pnpm release publish --channel ${{ inputs.channel || 'alpha' }} --version ${{ github.ref_name }} --${{ matrix.platform }}-artifact .release/artifacts/${{ inputs.channel || 'alpha' }}/Aksharo-${{ inputs.channel || 'alpha' }}-${{ matrix.platform }}.zip
+        env:
+          RELEASE_MODE: signed
+          RELEASE_R2_ENDPOINT: ${{ secrets.RELEASE_R2_ENDPOINT }}
+          RELEASE_R2_BUCKET: ${{ secrets.RELEASE_R2_BUCKET }}
+          RELEASE_R2_ACCESS_KEY: ${{ secrets.RELEASE_R2_ACCESS_KEY }}
+          RELEASE_R2_SECRET_KEY: ${{ secrets.RELEASE_R2_SECRET_KEY }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-signed-${{ matrix.platform }}
+          path: .release/artifacts/**
+          retention-days: 90
+          if-no-files-found: error

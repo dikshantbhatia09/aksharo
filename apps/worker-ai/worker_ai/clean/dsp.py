@@ -80,9 +80,35 @@ STRENGTH_MIX_RATIO: dict[Strength, float] = {
     "strong": 1.0,
 }
 
-#: Chunk plan for long files, brief §1: 10-minute windows, 1 s crossfade.
-CHUNK_WINDOW_MS = 10 * 60 * 1000
+#: Chunk plan for long files, brief §1: bounds memory for the STFT passes
+#: (`spectral_gate_denoise`/`suppress_reverb`/`deess`), each of which needs
+#: every frame of its own window in memory at once (the noise floor is a
+#: per-bin quantile *across* frames, so a window cannot be sub-chunked
+#: further without changing what that estimate means). B10's brief picked
+#: 10-minute windows; B10b (orchestrator addendum) measured that a single
+#: 10-minute window's frame matrix — `hop=512` at 48 kHz is ~56,000 frames —
+#: already allocates several ~900 MB float64/complex128 arrays at once inside
+#: `_stft`/`_istft`, which is most of the 2 GB RSS budget before the
+#: whole-signal passes (the true-peak/loudness fix below) even run. 1-minute
+#: windows keep the same crossfade design at roughly a tenth the per-window
+#: array size, so a host under real memory pressure (the condition that
+#: surfaced this in the first place) has far more headroom per allocation.
+CHUNK_WINDOW_MS = 60 * 1000
 CHUNK_CROSSFADE_MS = 1000
+
+#: B10b (orchestrator addendum, after B19's merge run): the *denoise* chunking
+#: above bounds `_clean_one_window`'s memory, but `run_clean_chain` still ran
+#: `normalize_loudness`/`integrated_loudness` — and, inside it, `true_peak_dbtp`
+#: — over the whole reassembled signal. `true_peak_dbtp` oversamples 4x in one
+#: `np.interp` allocation, which for a 60-minute 48 kHz file is a
+#: 172,800,000-sample array times 4 (`test_chunked_matches_short_clip_shape`
+#: reproduces exactly this at a shorter clip length): the single biggest
+#: allocation in the whole chain, and the one that actually blew the RSS
+#: budget under host memory pressure. Both whole-signal passes below now work
+#: in bounded windows of this size, with carry-over at the boundary — a
+#: fraction of `CHUNK_WINDOW_MS` so the true-peak oversample factor cannot
+#: reproduce the same blow-up at any clip length.
+_MEASURE_WINDOW_SAMPLES = 48_000 * 30
 
 _EPS = 1e-12
 
@@ -237,17 +263,21 @@ def deess(
     return Pcm(samples=cleaned, sample_rate=pcm.sample_rate)
 
 
-def _high_pass_biquad(
+def _high_pass_biquad_window(
     samples: NDArray[np.float64], sample_rate: int, cutoff_hz: float = 100.0
 ) -> NDArray[np.float64]:
     """A first-order high-pass, standing in for BS.1770's shelf stage.
 
-    Applied as a frequency-domain magnitude response (one FFT/IFFT over the
-    whole signal) rather than the equivalent per-sample IIR recursion — same
-    filter, but vectorised: a per-sample Python loop over a hint at 48 kHz for
-    tens of minutes of audio would dominate the whole clean chain's runtime.
-    Phase is not preserved, which does not matter here because the only thing
-    built on this filter is an RMS-based level measurement.
+    Applied as a frequency-domain magnitude response (one FFT/IFFT over
+    ``samples``) rather than the equivalent per-sample IIR recursion — same
+    filter, but vectorised: a per-sample Python loop over tens of minutes of
+    48 kHz audio would dominate the whole clean chain's runtime. Phase is not
+    preserved, which does not matter here because the only thing built on this
+    filter is an RMS-based level measurement.
+
+    Bounded to one measurement window (`_MEASURE_WINDOW_SAMPLES`) by
+    :func:`integrated_loudness` below, never the whole signal — see that
+    function's doc comment for why.
     """
     n = len(samples)
     if n == 0:
@@ -258,20 +288,63 @@ def _high_pass_biquad(
     return np.fft.irfft(spectrum * gain, n=n)
 
 
-def integrated_loudness(pcm: Pcm) -> float:
+def integrated_loudness(pcm: Pcm, *, window_samples: int = _MEASURE_WINDOW_SAMPLES) -> float:
     """Approximate LUFS: a high-pass stage plus BS.1770's -0.691 dB shelf
     constant over the whole-signal RMS. Not the full four-stage K-weighting
     filter or gated block loudness of the standard — see the module docstring.
+
+    Measured in bounded windows rather than one whole-signal FFT/IFFT pair
+    (B10b): `_high_pass_biquad_window`'s `rfft`/`irfft` allocate arrays
+    proportional to the whole signal's length, which for a 60-minute 48 kHz
+    file is the same order of allocation `true_peak_dbtp` used to make in one
+    shot. Windowing the high-pass filter is itself an approximation on top of
+    an already-approximate measurement (the module docstring's own framing);
+    the sum-of-squares this accumulates window by window is exactly the same
+    quantity `np.mean(np.square(filtered))` would have computed over the whole
+    signal, so a window boundary changes only the (already-approximate) filter
+    response right at that edge, not the aggregate level.
     """
     samples = pcm.samples.astype(np.float64)
-    if len(samples) == 0:
+    n = len(samples)
+    if n == 0:
         return -70.0
-    filtered = _high_pass_biquad(samples, pcm.sample_rate)
-    mean_square = float(np.mean(np.square(filtered))) + _EPS
+    if n <= window_samples:
+        filtered = _high_pass_biquad_window(samples, pcm.sample_rate)
+        mean_square = float(np.mean(np.square(filtered))) + _EPS
+        return -0.691 + float(10.0 * np.log10(mean_square))
+
+    sum_of_squares = 0.0
+    count = 0
+    start = 0
+    while start < n:
+        end = min(start + window_samples, n)
+        filtered = _high_pass_biquad_window(samples[start:end], pcm.sample_rate)
+        sum_of_squares += float(np.sum(np.square(filtered)))
+        count += end - start
+        start = end
+    mean_square = sum_of_squares / count + _EPS
     return -0.691 + float(10.0 * np.log10(mean_square))
 
 
-def true_peak_dbtp(samples: NDArray[np.float32], *, oversample: int = 4) -> float:
+def _true_peak_linear_window(window: NDArray[np.float64], *, oversample: int) -> float:
+    """Linear peak (not dB) of one window's oversampled interpolation."""
+    n = len(window)
+    if n == 0:
+        return 0.0
+    if n == 1:
+        return abs(float(window[0]))
+    x = np.arange(n, dtype=np.float64)
+    xi = np.linspace(0.0, float(n - 1), n * oversample)
+    upsampled = np.interp(xi, x, window)
+    return float(np.max(np.abs(upsampled)))
+
+
+def true_peak_dbtp(
+    samples: NDArray[np.float32],
+    *,
+    oversample: int = 4,
+    window_samples: int = _MEASURE_WINDOW_SAMPLES,
+) -> float:
     """Peak in dBTP, approximated by linear-interpolation oversampling — a cheap
     stand-in for a real polyphase true-peak filter, adequate for a ceiling check.
 
@@ -282,17 +355,37 @@ def true_peak_dbtp(samples: NDArray[np.float32], *, oversample: int = 4) -> floa
     interpolation has no such global side effect — inter-sample peaks it misses
     are a real but small underestimate, the opposite failure mode of a hard
     ceiling check.
+
+    Measured in bounded windows (B10b, orchestrator addendum): the oversampled
+    `np.interp` call allocates `len(samples) * oversample` float64s in one go —
+    for a 60-minute 48 kHz file that is the single largest allocation in the
+    whole clean chain, and defeated `run_clean_chain`'s 10-minute denoise
+    chunking entirely, since `normalize_loudness` ran this over the whole
+    reassembled signal regardless of how it was denoised. Each window carries
+    one extra sample of look-ahead across its right edge, so the inter-sample
+    peak spanning a window boundary is still caught by the interpolation
+    rather than treated as a hard cut; the running peak across windows is
+    exactly the same maximum a single whole-signal call would have found.
     """
-    if len(samples) == 0:
-        return -120.0
-    if len(samples) == 1:
-        return float(20.0 * np.log10(abs(float(samples[0])) + _EPS))
     n = len(samples)
-    x = np.arange(n, dtype=np.float64)
-    xi = np.linspace(0.0, float(n - 1), n * oversample)
-    upsampled = np.interp(xi, x, samples.astype(np.float64))
-    peak = float(np.max(np.abs(upsampled))) + _EPS
-    return float(20.0 * np.log10(peak))
+    if n == 0:
+        return -120.0
+    if n <= window_samples:
+        peak = _true_peak_linear_window(samples.astype(np.float64), oversample=oversample)
+        return float(20.0 * np.log10(peak + _EPS))
+
+    # Each window is converted to float64 on its own (never the whole `samples`
+    # up front, B10b) — the same whole-signal allocation this function exists
+    # to avoid, just moved one line earlier.
+    peak = 0.0
+    start = 0
+    while start < n:
+        end = min(start + window_samples, n)
+        # +1 sample of look-ahead so the boundary itself is interpolated.
+        window = samples[start : min(end + 1, n)].astype(np.float64)
+        peak = max(peak, _true_peak_linear_window(window, oversample=oversample))
+        start = end
+    return float(20.0 * np.log10(peak + _EPS))
 
 
 def clip_count(samples: NDArray[np.float32], *, threshold: float = 0.999) -> int:
@@ -321,7 +414,11 @@ def _soft_limit_peaks(samples: NDArray[np.float64], ceiling_linear: float) -> ND
 
 
 def normalize_loudness(
-    pcm: Pcm, *, target_lufs: float, true_peak_ceiling_dbtp: float = TRUE_PEAK_CEILING_DBTP
+    pcm: Pcm,
+    *,
+    target_lufs: float,
+    true_peak_ceiling_dbtp: float = TRUE_PEAK_CEILING_DBTP,
+    window_samples: int = _MEASURE_WINDOW_SAMPLES,
 ) -> tuple[Pcm, float]:
     """Two-pass loudness normalisation: measure, then apply gain plus a peak limiter.
 
@@ -329,19 +426,45 @@ def normalize_loudness(
     hits ``target_lufs`` exactly and then, only if that gain pushes the true
     peak past the ceiling, runs :func:`_soft_limit_peaks` so it is the outlier
     samples that get pulled down rather than the whole signal's level.
+
+    B10b: pass 2 used to build one whole-signal float64 `candidate` array (the
+    gained signal), run `true_peak_dbtp` on a float32 copy of it, optionally
+    limit that whole array, then clip and downcast it — up to three
+    whole-signal-sized allocations alive together. It now runs in the same
+    bounded windows the measurement functions above use: a first windowed pass
+    decides whether the limiter is needed at all (no full-length array), and a
+    second windowed pass writes the gained-and-optionally-limited result
+    straight into the one float32 buffer the caller actually needs.
     """
     measured = integrated_loudness(pcm)
     gain_db = target_lufs - measured
     gain = 10.0 ** (gain_db / 20.0)
-
-    candidate = pcm.samples.astype(np.float64) * gain
     ceiling_linear = 10.0 ** (true_peak_ceiling_dbtp / 20.0)
-    if true_peak_dbtp(candidate.astype(np.float32)) > true_peak_ceiling_dbtp:
-        candidate = _soft_limit_peaks(candidate, ceiling_linear)
 
-    result = Pcm(
-        samples=np.clip(candidate, -1.0, 1.0).astype(np.float32), sample_rate=pcm.sample_rate
-    )
+    samples = pcm.samples
+    n = len(samples)
+
+    peak_linear = 0.0
+    start = 0
+    while start < n:
+        end = min(start + window_samples, n)
+        # +1 sample of look-ahead, same as `true_peak_dbtp`'s own windows.
+        window = samples[start : min(end + 1, n)].astype(np.float64) * gain
+        peak_linear = max(peak_linear, _true_peak_linear_window(window, oversample=4))
+        start = end
+    needs_limiting = float(20.0 * np.log10(peak_linear + _EPS)) > true_peak_ceiling_dbtp
+
+    output = np.empty(n, dtype=np.float32)
+    start = 0
+    while start < n:
+        end = min(start + window_samples, n)
+        chunk = samples[start:end].astype(np.float64) * gain
+        if needs_limiting:
+            chunk = _soft_limit_peaks(chunk, ceiling_linear)
+        output[start:end] = np.clip(chunk, -1.0, 1.0).astype(np.float32)
+        start = end
+
+    result = Pcm(samples=output, sample_rate=pcm.sample_rate)
     return result, integrated_loudness(result)
 
 
@@ -363,6 +486,16 @@ def crossfade_concat(chunks: list[Pcm], *, crossfade_ms: int = CHUNK_CROSSFADE_M
     Each chunk was cut with :data:`CHUNK_CROSSFADE_MS` of extra audio at its
     tail (the caller's job); this only blends that overlap back down to one
     continuous stream so no click lands at a chunk boundary.
+
+    Blends in **float32** (B10b): each iteration below reallocates the whole
+    growing `out` array (`np.concatenate` cannot grow in place), so a run over
+    many chunks briefly holds both the old and the new copy of everything
+    joined so far — in float64 that peak was itself a fraction of the whole
+    signal's size for every chunk after the first, on top of every other
+    whole-signal array `run_clean_chain` builds. The crossfade maths (a cosine/
+    sine power blend over `crossfade_samples`, typically ~48,000 of them) loses
+    nothing perceptible at float32 precision; only the boundary math briefly
+    upconverts, not the untouched `head`/`tail` slices.
     """
     if not chunks:
         return Pcm(samples=np.zeros(0, dtype=np.float32), sample_rate=48_000)
@@ -371,18 +504,18 @@ def crossfade_concat(chunks: list[Pcm], *, crossfade_ms: int = CHUNK_CROSSFADE_M
 
     sample_rate = chunks[0].sample_rate
     fade_samples = int(sample_rate * crossfade_ms / 1000)
-    out = chunks[0].samples.astype(np.float64)
+    out = chunks[0].samples
     for chunk in chunks[1:]:
-        nxt = chunk.samples.astype(np.float64)
+        nxt = chunk.samples
         fade = min(fade_samples, len(out), len(nxt))
         if fade <= 0:
             out = np.concatenate([out, nxt])
             continue
-        t = np.linspace(0.0, 1.0, fade)
-        fade_out = np.cos(t * np.pi / 2.0)
-        fade_in = np.sin(t * np.pi / 2.0)
+        t = np.linspace(0.0, 1.0, fade, dtype=np.float32)
+        fade_out = np.cos(t * np.pi / 2.0).astype(np.float32)
+        fade_in = np.sin(t * np.pi / 2.0).astype(np.float32)
         head = out[:-fade]
-        blended = out[-fade:] * fade_out + nxt[:fade] * fade_in
+        blended = (out[-fade:] * fade_out + nxt[:fade] * fade_in).astype(np.float32)
         tail = nxt[fade:]
         out = np.concatenate([head, blended, tail])
-    return Pcm(samples=out.astype(np.float32), sample_rate=sample_rate)
+    return Pcm(samples=out.astype(np.float32, copy=False), sample_rate=sample_rate)

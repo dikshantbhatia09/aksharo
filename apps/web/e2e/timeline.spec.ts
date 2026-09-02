@@ -56,6 +56,24 @@ async function fetchSegments(page: Page, projectId: string): Promise<DocumentSeg
   return [...doc.segments].sort((a, b) => a.startMs - b.startMs);
 }
 
+/** Reads `EdgHot.protected` straight from the API (B18b), for the "P" toggle test. */
+async function fetchProtectedRanges(
+  page: Page,
+  projectId: string,
+): Promise<{ id: string; s: number; e: number }[]> {
+  const { accessToken } = await page.evaluate(async () => {
+    const response = await fetch("/api/session/refresh", { method: "POST" });
+    return (await response.json()) as { accessToken: string };
+  });
+  const docResponse = await page.request.get(`${API_ORIGIN}/projects/${projectId}/edg`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const doc = (await docResponse.json()) as {
+    hot: { protected?: { id: string; s: number; e: number }[] };
+  };
+  return doc.hot.protected ?? [];
+}
+
 /** Seeds a project, opens its editor, and returns the id every test needs for direct API reads. */
 async function openSeededTimeline(page: Page, account: Account, title: string): Promise<string> {
   await grantTimelineTestCredits(account);
@@ -247,6 +265,31 @@ test.describe("timeline", () => {
         { timeout: 10_000 },
       )
       .not.toBe(word.e);
+  });
+
+  test("P toggles protection on the selected segment (B18b)", async ({ page, sharedAccount }) => {
+    const projectId = await openSeededTimeline(page, sharedAccount, `B18b ${test.info().title}`);
+    const before = await fetchSegments(page, projectId);
+    test.skip(before.length === 0, "seeded project produced no segments");
+    const segment = before[0]!;
+    expect(await fetchProtectedRanges(page, projectId)).toEqual([]);
+
+    await page.getByTestId(`segment-card-${segment.id}`).click();
+    await expect(page.getByTestId("timeline-aria-description")).toContainText("Segment selected", {
+      timeout: 10_000,
+    });
+    await page.getByTestId("timeline-root").focus();
+    await page.keyboard.press("p");
+
+    await expect
+      .poll(async () => fetchProtectedRanges(page, projectId), { timeout: 10_000 })
+      .toEqual([expect.objectContaining({ s: segment.startMs, e: segment.endMs, reason: "user" })]);
+
+    // Pressing "P" again on the same, now fully-protected selection removes it.
+    await page.keyboard.press("p");
+    await expect
+      .poll(async () => fetchProtectedRanges(page, projectId), { timeout: 10_000 })
+      .toEqual([]);
   });
 
   test("has no serious axe violations", async ({ page, sharedAccount }) => {

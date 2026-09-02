@@ -1084,3 +1084,91 @@ export interface WebhookDeliveryView {
   deliveredAt: string | null;
   createdAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Admin (B13) — step-up only. Every other admin route is called directly by
+// the (admin) web shell with the admin session's own bearer token, not
+// through this shared client (see apps/web/lib/admin/admin-fetch.ts).
+// ---------------------------------------------------------------------------
+
+export interface AdminTotpCodeRequest {
+  code: string;
+}
+
+export interface AdminTotpEnrollResponse {
+  secret: string;
+  otpauthUrl: string;
+}
+
+export interface AdminStepUpResponse {
+  accessToken: string;
+  expiresIn: number;
+  adminRoles: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Academy (B12): track progress, one-time rewards, What's-new dismissal.
+// ---------------------------------------------------------------------------
+
+export interface AcademyTrackProgress {
+  trackId: string;
+  completedStepIds: string[];
+  totalSteps: number;
+  rewardGranted: boolean;
+  /** Credits, tenths (CONTRACTS §0). */
+  rewardTenths: number;
+}
+
+export interface AcademyProgressResponse {
+  tracks: AcademyTrackProgress[];
+  lifetimeGrantedTenths: number;
+  lifetimeCapTenths: number;
+}
+
+export interface MarkStepDoneResult {
+  trackId: string;
+  stepId: string;
+  alreadyDone: boolean;
+  trackCompleted: boolean;
+  rewardGranted: boolean;
+}
+
+export interface ChangelogDismissedResponse {
+  dismissedVersion: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Support tickets (B12).
+// ---------------------------------------------------------------------------
+
+export type SupportCategory = "bug" | "billing" | "export" | "account" | "other";
+
+export interface SupportDiagnostics {
+  appVersion: string;
+  browser: string;
+  os: string;
+  workspaceId: string;
+  jobs: { jobId: string; status: string }[];
+  consoleErrors: string[];
+}
+
+export interface CreateSupportTicketRequest {
+  subject: string;
+  body: string;
+  category: SupportCategory;
+  diagnostics?: SupportDiagnostics;
+}
+
+export interface SupportTicketView {
+  id: string;
+  subject: string;
+  category: string;
+  status: string;
+  hasDiagnostics: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ListSupportTicketsResponse {
+  tickets: SupportTicketView[];
+}

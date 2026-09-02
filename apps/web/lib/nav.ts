@@ -54,8 +54,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     label: "Academy",
     href: "/academy",
     icon: GraduationCap,
-    ready: false,
-    owner: "B12",
+    ready: true,
   },
   { key: "plugins", label: "Plugins", href: "/plugins", icon: Plug, ready: false, owner: "A24" },
   { key: "team", label: "Team", href: "/team", icon: Users, ready: true },
@@ -75,7 +74,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     ready: false,
     owner: "B07",
   },
-  { key: "help", label: "Help", href: "/help", icon: LifeBuoy, ready: false, owner: "B12" },
+  { key: "help", label: "Help", href: "/help", icon: LifeBuoy, ready: true },
 ];
 
 /** Settings sections (08 §Settings, minus API keys which belongs to B14). */
@@ -122,6 +121,12 @@ export const SETTINGS_NAV: readonly SettingsSection[] = [
     label: "Notifications",
     href: "/settings/notifications",
     description: "What we email you about.",
+  },
+  {
+    key: "support",
+    label: "Support",
+    href: "/settings/support",
+    description: "File a ticket and track its status.",
   },
   {
     key: "subscription",

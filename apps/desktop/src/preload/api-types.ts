@@ -13,6 +13,22 @@ export interface DesktopUpdateInfo {
   version?: string;
 }
 
+/** Shape the tray/approval-window UI needs to render "Approve pairing for <client>?"
+ * (`apps/desktop/src/bridge/adapter.ts`'s `BridgePendingPairing`, mirrored here since the
+ * preload boundary can't import that module's Node-only types directly). */
+export interface DesktopPendingPairing {
+  readonly pairingId: string;
+  readonly clientKind: string;
+  readonly clientName: string;
+  readonly code: string;
+  readonly expiresAt: string;
+}
+
+export interface DesktopClientConnected {
+  readonly clientId: string;
+  readonly clientKind: string;
+}
+
 export interface AksharoDesktopApi {
   readonly version: string;
   readonly platform: NodeJS.Platform;
@@ -21,7 +37,16 @@ export interface AksharoDesktopApi {
     status(): Promise<EngineStatus>;
   };
   bridge: {
-    pair(pairCode: string): Promise<{ ok: true } | { ok: false; error: string }>;
+    /** Approves a pending pairing by id (brief §1, ruling ①: the adapter never returns a
+     * `clientId` synchronously — see `onClientConnected`). */
+    pair(pairingId: string): Promise<{ ok: true } | { ok: false; error: string }>;
+    /** Denies a pending pairing by id. */
+    deny(pairingId: string): Promise<{ ok: true } | { ok: false; error: string }>;
+    /** Hands the signed-in user's access token down so the shell can bootstrap its
+     * device/bridge-token (B08/B08b) — never logged, never returned. */
+    provideAccessToken(token: string): Promise<{ ok: true }>;
+    onPairingRequested(listener: (pairing: DesktopPendingPairing) => void): () => void;
+    onClientConnected(listener: (client: DesktopClientConnected) => void): () => void;
   };
   updates: {
     check(): Promise<DesktopUpdateInfo>;

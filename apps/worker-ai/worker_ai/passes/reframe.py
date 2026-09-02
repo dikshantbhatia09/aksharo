@@ -22,6 +22,7 @@ run of collinear samples.
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from dataclasses import dataclass
 
 __all__ = [
@@ -39,10 +40,16 @@ DEFAULT_DEADZONE_FRACTION = 0.08
 
 @dataclass(frozen=True, slots=True)
 class ReframeKeyframeRow:
+    """One packed-keyframe row. `ease` is always `"linear"` (B19b): the
+    RDP-simplified pan track is a polyline, not a curve with distinct
+    ease-in/out segments, matching `@montaj/edg` MKF2's `Keyframe.ease`.
+    """
+
     t_ms: int
     cx: float
     cy: float
     scale: float
+    ease: str = "linear"
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +107,15 @@ def build_reframe_track(
     window_fraction = 1.0 / scale
     max_step = max_velocity_per_s * (SAMPLE_INTERVAL_MS / 1000)
 
+    # `subject_track` is sorted ascending by `t_ms` (`track_subject`'s contract);
+    # a lookup table keyed on that lets every `_subject_center_at` call below do
+    # a binary search (O(log n)) instead of the O(n) linear scan a naive
+    # `min(..., key=...)` would repeat at every one of this loop's ~10/s samples
+    # — O(n^2) over a whole clip, which measured at nearly a minute on a
+    # 30-minute synthetic proxy at 10 Hz before this fix (B19b's performance
+    # measurement, final report).
+    track_times = [t for t, _, _ in subject_track]
+
     samples: list[tuple[int, float]] = []
     current_cx: float | None = None
 
@@ -107,7 +123,7 @@ def build_reframe_track(
         first_sample_ms = scene_start
         t_ms = first_sample_ms
         while t_ms < scene_end:
-            target_cx = _subject_center_at(subject_track, t_ms)
+            target_cx = _subject_center_at(subject_track, track_times, t_ms)
             if t_ms == first_sample_ms:
                 # Hard cut at every scene boundary (including the first scene).
                 current_cx = target_cx
@@ -131,8 +147,21 @@ def build_reframe_track(
     )
 
 
-def _subject_center_at(subject_track: list[tuple[int, float, float]], t_ms: int) -> float:
-    nearest = min(subject_track, key=lambda p: abs(p[0] - t_ms))
+def _subject_center_at(
+    subject_track: list[tuple[int, float, float]], track_times: list[int], t_ms: int
+) -> float:
+    """The subject track's `cx` nearest `t_ms`, found by binary search over
+    `track_times` (`subject_track`'s own `t_ms` column, precomputed once by
+    the caller) rather than a linear scan — see `build_reframe_track`'s
+    comment on why that matters at 10 Hz over a long clip.
+    """
+    index = bisect_left(track_times, t_ms)
+    if index <= 0:
+        return subject_track[0][1]
+    if index >= len(track_times):
+        return subject_track[-1][1]
+    before, after = subject_track[index - 1], subject_track[index]
+    nearest = before if (t_ms - before[0]) <= (after[0] - t_ms) else after
     return nearest[1]
 
 

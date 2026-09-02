@@ -15,6 +15,7 @@ import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { EdgService } from "../edg/index.js";
 import type { JobCompletionContext } from "../jobs/completion-handlers.js";
 import type { JobEventsService } from "../jobs/job-events.service.js";
+import type { EventEmitter2 } from "@nestjs/event-emitter";
 import type { Job } from "@prisma/client";
 
 const JOB_ID = "01JCJOB000000000000000000A";
@@ -106,6 +107,7 @@ interface Harness {
   append: ReturnType<typeof vi.fn>;
   terms: ReturnType<typeof vi.fn>;
   registry: JobCompletionRegistry;
+  emit: ReturnType<typeof vi.fn>;
 }
 
 function harness(): Harness {
@@ -128,6 +130,7 @@ function harness(): Harness {
     mediaAssets: [{ width: 1080, height: 1920 }],
   }));
   const registry = new JobCompletionRegistry();
+  const emit = vi.fn();
 
   const handler = new TranscribeCompletionHandler(
     { project: { findFirst: findProject } } as unknown as PrismaService,
@@ -136,8 +139,9 @@ function harness(): Harness {
     { terms } as unknown as MemoryGlossarySource,
     { append } as unknown as JobEventsService,
     registry,
+    { emit } as unknown as EventEmitter2,
   );
-  return { handler, persist, initialise, append, terms, findProject, registry };
+  return { handler, persist, initialise, append, terms, findProject, registry, emit };
 }
 
 function context(overrides: Partial<JobCompletionContext> = {}): JobCompletionContext {
@@ -185,6 +189,17 @@ describe("TranscribeCompletionHandler", () => {
     // The worker's own allocation counter survives the round trip: ids are never
     // reused, so a chunk that issued more ids than it kept words must say so.
     expect(written.chunks.map((entry) => entry.nextWordSeq)).toEqual([3, 2]);
+  });
+
+  it("emits transcript.completed once the transcript is persisted (B14b)", async () => {
+    await h.handler.handle(context());
+
+    expect(h.emit).toHaveBeenCalledWith("transcript.completed", {
+      workspaceId: WS,
+      projectId: PROJECT,
+      transcriptId: TRANSCRIPT,
+      jobId: JOB_ID,
+    });
   });
 
   it("records the two-signal language verdict rather than the provider's alone", async () => {

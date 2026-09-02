@@ -40,6 +40,55 @@ export interface ExportDialogDeps {
   readonly catalogue: ReadonlyMap<string, StyleDoc>;
   readonly registry: FontRegistry | undefined;
   readonly shaper: Shaper | undefined;
+  /**
+   * Passed straight through to `runExport` (`lib/export/engine.ts`'s
+   * `RunExportOptions`). Defaults to `true` — a real user click is a trusted
+   * gesture, so `createExportTarget` reaches for `showSaveFilePicker` before
+   * falling back to a plain download. A caller only ever sets this to drive
+   * the engine at a specific target in a unit test; production callers should
+   * leave it unset and let the E2E override below (a synthetic Playwright
+   * click is never a trusted gesture, so `showSaveFilePicker` throws
+   * `NotAllowedError` and the whole export aborts) do its job instead.
+   */
+  readonly preferFileSystemAccess?: boolean;
+}
+
+/**
+ * `window.__aksharoE2E` — an escape hatch that lets `apps/web/e2e/export.
+ * spec.ts` click all the way through the export dialog, never armed for a
+ * real user.
+ *
+ * A synthetic click is not a "user activation" as far as `showSaveFilePicker`
+ * is concerned, so without this flag the dialog's real button is
+ * un-automatable: the picker call rejects with `NotAllowedError` and the
+ * export ends in `phase: "error"` before a single frame renders. Setting
+ * `noFilePicker: true` (`export.spec.ts`'s `page.addInitScript`, before the
+ * app's own scripts run) is Playwright's side of the handshake.
+ *
+ * **Why this does not gate on `process.env.NODE_ENV`.** The brief's original
+ * ask was "non-production builds only", the obvious-looking check — but
+ * `playwright.config.ts`'s web project runs `next build && next start` on
+ * purpose (`10-build-plan.md`'s "what the review screenshots should show"),
+ * and Next.js inlines `process.env.NODE_ENV` as the literal string
+ * `"production"` in every client bundle it builds, watch mode or not
+ * (webpack's `DefinePlugin`, unconditionally, not only for `NEXT_PUBLIC_*`
+ * vars). A `NODE_ENV` check here would therefore read `"production"` in
+ * exactly the one build this flag needs to work in, and never fire — a
+ * literal reading of the brief that cannot pass its own acceptance
+ * criterion. The loopback-origin check below is the property `NODE_ENV` was
+ * standing in for ("never armed for a paying user's own domain") and, unlike
+ * `NODE_ENV`, it is a real runtime check the build cannot inline away.
+ */
+interface AksharoE2EWindow {
+  readonly __aksharoE2E?: { readonly noFilePicker?: boolean };
+}
+
+/** `true` only on a loopback origin (this suite's own `127.0.0.1`/`localhost`) that opted in. */
+function e2eNoFilePicker(): boolean {
+  if (typeof window === "undefined") return false;
+  const { hostname } = window.location;
+  if (hostname !== "127.0.0.1" && hostname !== "localhost" && hostname !== "[::1]") return false;
+  return (window as unknown as AksharoE2EWindow).__aksharoE2E?.noFilePicker === true;
 }
 
 export type ExportPhase =
@@ -190,6 +239,12 @@ export function useExportDialog(deps: ExportDialogDeps): {
         // (`audio.strategy === "replace"`); the engine refuses to proceed on
         // "replace" without it.
         const cleanAudioSource = sources.cleanedAudioUrl;
+        // An E2E run's flag wins over whatever the caller passed: a synthetic
+        // click can never satisfy `showSaveFilePicker`'s activation check, so
+        // there is no scenario where automation wants the picker anyway.
+        const preferFileSystemAccess = e2eNoFilePicker()
+          ? false
+          : (deps.preferFileSystemAccess ?? true);
         const result = await runExport({
           manifest,
           source: sourceUrl,
@@ -199,6 +254,7 @@ export function useExportDialog(deps: ExportDialogDeps): {
           registry: deps.registry,
           shaper: deps.shaper,
           signal: controller.signal,
+          preferFileSystemAccess,
           aacEncodable: probe.audio.aac,
           aacPolyfillAvailable: true,
           fetchWatermarkAsset:

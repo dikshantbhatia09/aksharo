@@ -8,8 +8,543 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A23b — a real Postgres 40P01 ("deadlock detected") in `auth-harness.ts`'s
+  `reset()`.** Several background writers the API starts inside a test app
+  outlive the HTTP request a test awaits: `AccessLogInterceptor` fires
+  `recordAccess` from a `tap()` that runs after the response has gone out, and
+  a plain `this.events.emit(...)` (`members.service.ts`'s
+  `MEMBERSHIP_SEAT_EVENTS.seatsChanged`, and the same pattern in `referrals`,
+  `invoices`, `webhooks`, `credits`, `exports`) starts an `@OnEvent` listener —
+  `SeatBillingListener` among them — without awaiting it. Either can still be
+  writing `access_logs`/`audit_log`/`subscriptions`/`credit_accounts` when the
+  next test's `beforeEach` truncates those tables, racing `TRUNCATE`'s
+  `AccessExclusiveLock` and occasionally losing to Postgres's own deadlock
+  detector. `test/auth-harness.ts` now patches (test-only, nothing under
+  `src/` changed) `EventEmitter2.prototype._on` and
+  `CommonAuditService.prototype.record`/`recordAccess` to track every such
+  write, and `reset()` drains them — alongside the existing `NotifyConsumer`
+  drain — before truncating, with a 40P01 retry (5 attempts, growing 150ms
+  backoff) as a last line of defence. Two new regression tests in
+  `users-workspaces.e2e-spec.ts` reproduce each race directly (a fire-and-forget
+  `recordAccess`, and a throwaway `EventEmitter2` listener) and assert `reset()`
+  waits for them. `scripts/verify-wave.mjs` and `docker-compose.test.yml` were
+  run end to end once on this host; see `docs/verification/verify-wave-2026-09-03.md`.
+
 ### Added
 
+- **C06 — Premiere Pro apply modes: transcript injection, MOGRT captions, alpha
+  overlay, SRT to bin, cuts/zooms/audio, transactions, host-id map + re-sync.**
+  `PremiereHost` (`plugins/premiere-uxp/src/host/premiere.ts`) grows the apply-mode
+  surface — `importTranscript`, `insertMogrt`/`setMogrtParams`/`getMogrtParams`,
+  `rippleDelete`, `setMotionKeyframes`, `importMediaToBin`/`placeOnTrack`,
+  `replaceAudioRange`, `transaction`, `setItemMetadata`/`getItemMetadata`/
+  `listAksharoItems`/`removeItem` — each cited to an Adobe UXP doc path,
+  implemented deterministically in `MockPremiereHost` (including true
+  snapshot/rollback for `transaction()`), and left throwing a clear
+  `"... (Gate C)"` error in `createRealPremiereHost()`. New `src/apply/**`:
+  `transcript.ts` builds an idempotent EDG→transcript import; `mogrtCaptions.ts`
+  resolves the appendix param table by name (with an index-fallback helper for
+  a host adapter that turns out to need it) and runs a start-up self-test that
+  inserts a scratch MOGRT instance and confirms params round-trip;
+  `alphaOverlay.ts`/`srtBin.ts` import a downloaded render/SRT into the bin;
+  `cutsZoomsAudio.ts` ripple-deletes accepted cuts, converts decoded MKF2 rows to
+  frame-relative Motion keyframes for accepted zooms, and replaces a cleaned-audio
+  range; `runApply.ts` wraps a selected mode set in one `host.transaction`,
+  reporting `apply.begin/step/commit/abort` to the bridge (rollback + abort on any
+  thrown step) and computes dry-run preview counts (`planApply`); `resync.ts`
+  diffs marker-guid host-id map entries against a fetched EDG revision, removing
+  items whose segment is gone and flagging the rest `stale`/`upToDate` without
+  re-applying anything on the caller's behalf. New panel component
+  `src/ui/components/ApplyPanel.tsx`: one checkbox + dry-run count per apply mode,
+  a mode disabled with a message (e.g. a failed MOGRT self-test), and an Apply
+  button gated on at least one selection. `docs/GATE-C-CHECKLIST.md` gained a
+  verification item per new host call. Per-word caption highlight
+  (`HighlightStart`/`HighlightEnd` keyframes inside one MOGRT instance) is scoped
+  down to `computeWordHighlightWindows` (the per-word time windows only) — real
+  keyframing of a MOGRT's own component params is unverified until Gate C, flagged
+  as a follow-up rather than invented. Native captions-track writing remains out
+  of scope, per the brief.
+
+- **C08 — DaVinci Resolve `aksharo_core`: Workspace ▸ Scripts launcher, in-Resolve
+  loopback server, bridge client, Text+ captions, cuts, dynamic zoom, marker
+  customData map.** New workspace `plugins/resolve` (Python 3.12, same
+  `pyproject.toml`/`scripts/py.mjs` tooling as `apps/worker-ai`): the Resolve
+  entry bootstrap `aksharo_core.py` (installed to Fusion's `Scripts/Utility`
+  by C10) delegates to the real, unit-tested library `aksharo_core_app/`.
+  `host/resolve.py` is the only module importing the real
+  `DaVinciResolveScript` (lazily); `FakeResolveHost` mirrors the documented
+  object model (ProjectManager → Project → MediaPool → Timeline →
+  TimelineItem, plus a Fusion comp for Text+) so everything else — the Text+
+  caption builder (`captions.py`, with an alpha-overlay fallback for styles
+  A18a marks `assRenderable=false`), the accepted-cut applier (`cuts.py`,
+  `Timeline.DeleteClips(items, ripple=True)`), the accepted-zoom applier
+  (`zooms.py`, MKF2-decoded keyframes collapsed to Resolve's two-point Dynamic
+  Zoom via `TimelineItem.SetProperty`), and the `{aksharo: {projectId,
+segmentId|itemId, rev}}` marker `customData` re-sync mapping
+  (`markers.py`) — is tested headless. `keyframes.py` ports
+  `packages/edg/src/passes/keyframes.ts`'s MKF2 codec byte-for-byte
+  (round-trip tested against fixture bytes produced by the TS encoder).
+  `bridge/` is a `websockets`-based JSON-RPC 2.0 client for the C01 local
+  bridge protocol plus a Python port of `apps/bridge/src/device-auth.ts`'s
+  B08b device-code bootstrap (`clientKind: "resolve"`). `server.py` is the
+  in-Resolve loopback JSON-RPC server (`host.info`, `timeline.current`,
+  `apply.*`, ports 47841-47843, bearer from a new `~/.aksharo/resolve.json`
+  discovery file distinct from the desktop bridge's). `tools/release/src/
+commands/packageResolve.ts` now stages and zips the real `aksharo_core.py` +
+  `aksharo_core_app/` tree (previously a placeholder `.lua` file) plus per-OS
+  installer scripts. `docs/GATE-C-CHECKLIST.md` (new) records the manual
+  first-run steps for a real DaVinci Resolve (Free and Studio) once human
+  spike A00-04 reports; several Resolve-side assumptions (the Utility-script
+  `resolve` global on Free, whether a loopback server may run inside Resolve,
+  the exact `SetProperty` keys Dynamic Zoom keyframes, and the absence of a
+  scriptable undo-transaction API) are called out there and in
+  `plugins/resolve/README.md` as unverified pending that spike.
+- **C08b — Resolve Fusion Text+ macro authoring, style→param mapping, style
+  coverage report.** New `plugins/resolve/aksharo_core_app/fusion/`:
+  `macro.py` generates and parses `AksharoCaption.setting`
+  (`scripts/generate_macro.py`; golden-file + round-trip tested) — a
+  deterministic Text+-based Fusion macro with 11 published inputs (`Text`,
+  `Font`, `Size`, `Colour`, `StrokeColour`, `StrokeWidth`, `ShadowOpacity`,
+  `PositionY`, `HighlightColour`, and keyframed `HighlightStart`/
+  `HighlightEnd` character-range highlight timing) plus a `StyleId` comment;
+  there is no Resolve/Fusion on this build host, so the generator emits and
+  parses a small, explicitly-documented text subset rather than Fusion's real
+  `.setting` grammar byte-for-byte (real-Fusion verification is
+  `docs/GATE-C-CHECKLIST.md` §8). `style_map.py` classifies each of the 30
+  `@montaj/caption-styles` documents (font onto a bundled OFL font from
+  `@montaj/fonts`, plus supported/approximate/unsupported against Text+'s
+  capabilities) using the explicit predicate table in
+  `classification_rules.json` — the same table C06b mirrors for its Premiere
+  MOGRT style→param mapping — and writes
+  `plugins/resolve/docs/RESOLVE-STYLE-COVERAGE.md`
+  (`scripts/generate_style_coverage.py`; 19 supported, 6 approximate, 5
+  unsupported of 30). Every style still reaches picture regardless of this
+  classification: C08's alpha-overlay fallback is unchanged.
+  `aksharo_core_app/captions.py`'s `build_segment_item` now uses the macro
+  (via `fusion_macro_available()`) when installed, adding
+  `fusion_macro`/`highlight_color`/`highlight_keyframes` to the existing
+  minimal params dict, and falls through to the C08 minimal Text+ path
+  unchanged when it is not; `CaptionStyle.highlight_color` and
+  `CaptionSegment.word_highlights` are new optional fields (both default to
+  `None`/prior behaviour). `plugins/resolve/installer/manifest.json` (new)
+  lists the macro file and the per-OS Fusion `Macros` folder destinations for
+  C10's installer to copy it into; `tools/release`'s existing
+  `packageResolve.ts` already stages the whole `aksharo_core_app/` tree, so
+  the new `fusion/` subpackage (including the generated `.setting`) is
+  included in `pnpm release package-resolve --dry-run` with no change there.
+- **C05a — Premiere Pro UXP plugin foundation.** New workspace
+  `plugins/premiere-uxp` (`@montaj/premiere-uxp`): UXP manifest v5
+  (`ai.aksharo.panel`, host `PPRO` min `25.6`, minimal `requiredPermissions`
+  — no clipboard, no `launchProcess`, network limited to the API origin and
+  the loopback bridge ports 47831–47833); every UXP/Premiere-specific call is
+  isolated behind `src/host/premiere.ts`'s `PremiereHost` interface, with
+  `MockPremiereHost` exercised by every test and `createRealPremiereHost()`
+  written (typechecks) but throwing on `requestMixdown`/`readFile` until the
+  A00-03 human spike confirms the underlying EncoderManager/file-system calls
+  (`docs/GATE-C-CHECKLIST.md`). Bridge sign-in: a typed JSON-RPC caller over
+  `@montaj/bridge-core`'s protocol (`src/bridge/client.ts`) plus a `fetch`-based
+  production transport (`src/bridge/httpTransport.ts`); `src/auth/session.ts`
+  is a device-code/tray-gesture pairing state machine that holds the session
+  **in memory only** (THREAT-MODEL T13 / D25 — a deliberate deviation from the
+  WP brief's "UXP secure storage" line, documented in the plugin README).
+  Sequence/in-out/selection reads, an audio-mixdown-to-transcribe pipeline
+  (`src/upload/mixdown.ts`: mixdown → `media.uploadTicket` → presigned PUT →
+  `POST /transcribe`), a `/plugins/manifest` min/max-version update banner
+  (`src/version/manifestCheck.ts`), and a React panel UI (sign-in, source +
+  "Transcribe this sequence", status/progress, open-in-web-editor link,
+  footer version line with the D65 non-affiliation copy) round out the
+  foundation. `src/i18n/strings.ts` is this package's own English/Hindi
+  string table (no shared `packages/i18n` exists yet). Coverage gate 60/50
+  lines/branches (CONTRACTS §9's `apps/web` UI tier) added via
+  `coverageThresholds()` in the package's own `vitest.config.ts`.
+
+- **B10b — Audio clean wiring: `SetAudio.clean.cleanId`, Audio panel mounted,
+  audio parity gate, API e2e, RSS bound.** `packages/edg`: `AudioCleanSchema`
+  (`schemas/document.ts`) gains a first-class `cleanId` field (CONTRACTS §2,
+  amended 2026-09-03), replacing B10's interim `preset: "b10:<cleanId>"`
+  encoding; the EDG v2 loader (`migrations/migrate.ts`) rewrites any stored
+  document still carrying that encoding on load, and
+  `exports.service.ts#resolveAudioClean` reads `cleanId` directly (falling
+  back to the old `preset` form belt-and-braces). `apps/web`: the editor's
+  right panel gains an "Audio" tab (`RightPanel.tsx`) mounting B10's
+  `AudioPanel`, wired to the editor's `EdgOpQueue` via a new `onSetAudio`
+  handler in `editor-client.tsx` (undoable, like every other panel op);
+  `use-audio-clean.ts`'s `applyCleanOp`/`clearCleanOp` now build
+  `{clean: {enabled, cleanId, targetLufs}}` instead of the preset string. D82:
+  the panel exposes a Quick clean / Deep clean tier toggle, greying Deep clean
+  out with "coming to cloud renders" copy until the server-read
+  `AUDIO_DEEP_CLEAN_ENABLED=1` (new env var, `.env.example`) is set. Parity:
+  `apps/render/parity/audio-parity.ts` hashes the audio bytes the browser
+  export path (`sources.cleanedAudioUrl`) and the cloud render path
+  (`manifest.audio.cleanKey`) would each mux in for `audio.strategy:
+"replace"`, reporting a match; `parity:audio` writes this package's
+  `parity/results.json` `audio` block (render README documents both parity
+  sections). `apps/api/test/audio.e2e-spec.ts`: clean → simulated worker
+  completion → signed URLs and metrics → `SetAudio.clean.cleanId` applied →
+  a browser export's manifest and sources carry the cleaned track, end to
+  end against real Postgres/Redis. `apps/worker-ai`: fixed a real defect the
+  orchestrator's addendum flagged after a host-memory-pressure failure —
+  `true_peak_dbtp` oversampled the _whole_ reassembled signal 4x in one
+  `np.interp` allocation (~5.5 GB at 60 minutes), defeating
+  `run_clean_chain`'s 10-minute denoise chunking entirely; `true_peak_dbtp`
+  and `integrated_loudness`'s high-pass stage (`clean/dsp.py`) now measure in
+  bounded 30 s windows with boundary carry-over, and a new `slow`
+  (`RUN_SLOW=1`) test asserts < 2 GB peak RSS over baseline on a synthetic
+  60-minute file (`psutil`, added to worker-ai's dev deps).
+
+- **B19b — Reframe/zoom wiring: one keyframe codec, keyframe storage, `zoom`
+  pass type, word-timed emphasis cues, frame/RMS sampling from the proxy.**
+  `packages/edg`: `src/keyframes.ts` (`MKF1`) is deleted — `src/passes/
+keyframes.ts`'s `encodeKeyframes`/`decodeKeyframes` (`MKF2`) is the only
+  packed-keyframe codec now; `schemas/pass.ts`'s `PassTypeSchema` gains
+  `"zoom"`, and `ZoomPayloadSchema`/`ReframePayloadSchema` accept exactly one
+  of `keyframes` (base64 inline, <= 64 KiB) or `keyframesRef` (derived
+  storage) per the amended CONTRACTS §2 keyframe payload rule.
+  `apps/worker-ai`: `worker_ai/passes/frame_sampling.py` (new) samples video
+  frames and RMS audio energy from the 540p proxy at 10 Hz, downscaled to
+  <= 320 px wide (piped as raw `rgb24`, no JPEG round trip); `processors/
+reframe_zoom_pass.py` calls it (`_sample_from_proxy`) whenever the producer
+  sent no `detections`/`sceneFrames`/`rmsSamples`, feeds frames through
+  `BrightBlobDetector` (gated behind `PASS_FACE_DETECTOR=yunet` +
+  `PASS_FACE_DETECTOR_WEIGHTS` for a real detector, unprovisioned this WP,
+  H-22), and packs `MKF2` (`pack_keyframes`, now `{tMs, zoom, cx, cy, ease}`
+  rows); `_keyframe_storage_fields` mints each item's id and decides inline
+  vs. an `ObjectStore.upload` to `ws/{workspaceId}/passes/{passId}/{itemId}.mkf`
+  (CONTRACTS §6). `apps/worker-media`: `src/frames/sample.ts` (new) — a
+  10 Hz, <= 320 px JPEG filmstrip helper via ffmpeg's `fps` filter, for a TS
+  consumer (worker-ai samples the proxy itself instead, in-process). `apps/api`:
+  `passes.service.ts`'s `startZoom`/`startReframe` reject a project with no
+  proxy (`passes/proxy_required`, 409) and resolve emphasis cues to the
+  emphasised word's own `s` (`emphasisCuesOf`, was the segment's `startMs`);
+  `passes-completion.handler.ts` lands a zoom pass as `type: "zoom"` (was
+  `"reframe"`) and implements the inline/derived keyframe payload rule instead
+  of computing an unwritten `keyframesRef`. `prisma/schema.prisma`'s
+  `PassType` enum gains `zoom` (migration `20260903120000_b19b_zoom_pass_type`).
+
+- **C01 — Local bridge v2: `packages/bridge-core` + `apps/bridge` (Node SEA);
+  relay-first WSS; loopback HTTPS + per-install cert; pairing; api
+  `bridge-relay` module.** `packages/bridge-core`: a JSON-RPC 2.0 protocol
+  (`hello`, `pair.request`/`pair.confirm`, `session.exchange`, `host.list`,
+  `engine.status`, `fs.pickMedia`, `media.stat`/`uploadTicket`,
+  `transcript.push`, `apply.begin/step/commit/abort`, `events.subscribe`) with
+  zod schemas for every method; a loopback HTTPS+WS server on the first free
+  port of 47831-47833 bound to `127.0.0.1` with bearer-on-every-route
+  (constant-time compare), `Host` allowlist, `Origin` allowlist (`null` never
+  allowed, Chrome Local Network Access header only for allowlisted origins),
+  message-size and rate limits; a per-install self-signed leaf certificate
+  (RSA 2048 — see the ECDSA P-256 deviation note in `cert.ts`) cached under
+  `~/.aksharo/cert/` and fingerprinted into the `~/.aksharo/bridge.json`
+  discovery file (mode 0600); tray-gesture pairing with an 8-character
+  code fallback and 12-hour HMAC-signed scoped pair tokens, revocable by
+  `clientId`; a relay client (`RelayClient`) with heartbeat and jittered
+  exponential-backoff reconnection; a small documented public API
+  (`BridgeCore`: `start`/`stop`/`getStatus`/`status` events/pairing) that is
+  the only surface `apps/bridge` and the desktop shell (C02) import. 45 tests,
+  85.7%/82.2% line/branch coverage (threshold 75/70). `apps/bridge`: the Node
+  22 SEA wrapper (`main.ts` + `config.ts` for `~/.aksharo/config.json`);
+  `scripts/build-sea.mjs` bundles with esbuild, runs
+  `--experimental-sea-config`, and injects the blob with `postject`; smoke
+  tested locally on Windows (binary starts, binds a loopback port, writes a
+  valid discovery file, exits clean) and wired into CI as the `bridge-sea`
+  matrix job (Windows + macOS) via `scripts/ci/bridge-sea-smoke.mjs`. A real
+  system tray (brief §5) is not implemented — `createConsoleTray` is the
+  documented headless fallback; see the WP report for why and what a
+  follow-up needs. `apps/api/src/bridge-relay`: the `/bridge/relay` WS module
+  pairing one bridge connection to one client connection per workspace and
+  forwarding opaque JSON-RPC text between them (payloads are never parsed or
+  stored), with bearer/rate-limit/message-size guards, heartbeat, and a
+  `bridge_sessions` audit table (new Prisma model + migration
+  `20260902195854_c01_bridge_sessions`); e2e-tested against real Postgres with
+  a fake bridge and fake client. Deviation: the brief assumes a per-device
+  bridge token: CONTRACTS §5's `sub` claim is always the user id and B08
+  registers devices by fingerprint under a normal user session rather than
+  minting one token per device, so relay pairing is keyed by
+  workspace+user (one paired bridge per signed-in user per workspace) until a
+  follow-up work package adds a real per-device bridge credential — see the
+  WP report's open questions.
+- **C01b — Bridge follow-ups: native tray for standalone installs, OS
+  keychain/DPAPI for the per-install key, CI matrix dry run.** `apps/bridge`:
+  a real system tray (`native-tray.ts`) via `systray2` (MIT) — a prebuilt
+  per-OS helper binary spawned over stdio, the only tray option compatible
+  with the Node SEA bundling model (a native addon has no stable path once
+  `esbuild` folds everything into one `dist/bundle.cjs`); `build-sea.mjs`
+  copies `systray2`'s helper binaries into `dist/traybin` next to the
+  packaged executable. Falls back to `bridge-core`'s console tray on Linux
+  with no `DISPLAY`, in any `CI` environment, if the helper binary is
+  missing, or if the helper fails/times out (3 s) — the CI-env skip exists
+  because the tray helper was observed to hang indefinitely on this runner
+  outside that guard, which would otherwise make the `bridge-sea` matrix job
+  flaky. `packages/bridge-core`: a `KeyStore` interface (`keystore.ts`) with
+  `KeychainKeyStore` (macOS, shells out to `security`), `DpapiKeyStore`
+  (Windows, shells out to `powershell.exe`'s
+  `System.Security.Cryptography.ProtectedData`), `FileKeyStore` (the
+  original `0600` file, kept as the documented fallback) and
+  `InMemoryKeyStore` for tests; `createDefaultKeyStore()` probes the
+  platform-appropriate backend once and falls back to the file store if the
+  probe fails. No new native/npm dependency: a real keychain client library
+  is a native addon on every OS, incompatible with the SEA bundle for the
+  same reason a native tray is. `cert.ts`'s `loadOrCreateCertificate` now
+  stores the private key through a `KeyStore` (defaulting to
+  `createDefaultKeyStore()`) instead of a plaintext file, migrating an
+  existing plaintext `leaf.key.pem` into the key store (and deleting it) on
+  first run so existing pairings survive the upgrade; it is now `async`.
+  CI: `.github/workflows/ci.yml` gained `workflow_dispatch: {}` so the
+  `bridge-sea` job (and the rest of the matrix) can be re-run manually
+  without an empty commit; the local dry-run steps are documented in
+  `apps/bridge/README.md`. `apps/desktop/src/bridge/adapter.ts`: replaced the
+  pre-C01 stub with `createBridgeAdapter`, a real `BridgeAdapter` wrapping
+  `BridgeCore` (`createStubBridgeAdapter` is kept for a "bridge disabled"
+  caller). Documented interface gap: `approvePairing`'s `BridgePairResult`
+  predates `bridge-core`'s actual protocol — a local/tray approval only
+  flips a pairing to `"approved"`; the pairing _client_ mints its own
+  `clientId` by calling `pair.confirm` afterwards, so the approver never
+  observes that id synchronously. `createBridgeAdapter` returns the
+  `pairingId` in its place (documented, not the wire `clientId`) rather than
+  inventing an unverified shape — flagged for whoever wires this into C02's
+  UI. 12 new tests across the three packages (bridge-core: `keystore.test.ts`
+  - cert migration tests; apps/bridge: `native-tray.test.ts`; apps/desktop:
+    two new `createBridgeAdapter` cases), all suites green.
+- **C02b — Desktop shell follow-ups: real bridge adapter wiring, pairing
+  approval UX, `approvePairing` contract, Electron e2e in CI, packaging via
+  C00.** Resolves the C01b/C02 interface gap: `packages/bridge-core`'s
+  `BridgeCore` now emits a `clientConnected` event (`{pairingId, clientId,
+clientKind}`) once `pair.confirm` mints the real wire `clientId` (in-process
+  only — no wire `events.subscribe` broadcast transport exists yet;
+  `BridgeEventKind`/`events.subscribe` stay schema-only in `protocol.ts`).
+  `apps/desktop/src/bridge/adapter.ts`: `approvePairing(pairingId)` now
+  returns `{pairingId, approved: true}` (no `clientId`) per the ruling; added
+  `denyPairing(pairingId)`, `onPairingRequested` (fires with the pending
+  pairing's code/clientKind/clientName/expiresAt) and `onClientConnected`
+  (fires once the real `clientId` is known) to `BridgeAdapter`. New pairing
+  approval window (`src/main/pairing-window.ts` + `pairing-approval.{html,ts}`
+  - `pairing-preload.ts`): a small, focused window showing the code and
+    client name/kind, Approve/Deny buttons, 60s auto-deny — its own minimal
+    `contextIsolation`/`sandbox` preload, no new privileges on the main hosted
+    renderer (THREAT-MODEL T25). Tray (`src/tray/index.ts`) gained a
+    `hasPendingPairing()`-driven "Approve pairing…" item that re-focuses the
+    approval window; `main/index.ts` wires tray/approval-window/preload to
+    whichever `BridgeAdapter` is active and can swap the stub adapter for a real
+    one at runtime (`attachRealBridge`) once a device/bridge-token exists.
+    New device bootstrap (`src/bridge/device-bootstrap.ts`): registers this
+    install (`POST /devices/register`, B08) and mints a `kind:"bridge"` token
+    (`POST /devices/{id}/bridge-token`, B08b) given a user access token, caching
+    both (plus a generated per-install fingerprint) in `bridge-core`'s OS
+    keystore so a restart skips re-registration until the lease needs
+    refreshing; never logs the token in plaintext. The access-token hand-off
+    itself (`desktop:bridge-provide-access-token` IPC/preload
+    `bridge.provideAccessToken`) is wired on the desktop side only — the hosted
+    web app calling it is out of this WP's `apps/desktop/**` boundary (open
+    question for whoever owns that `apps/web` integration). CI:
+    `.github/workflows/release-desktop.yml` gained an `e2e` job (mac/win
+    matrix, real runners) running `pnpm --filter @montaj/desktop build`,
+    `electron-builder --dir`, then the Playwright-Electron smoke — the smoke
+    stays a documented manual step locally
+    (`pnpm --filter @montaj/desktop test:e2e`), since it needs a real Electron
+    runtime/display this sandbox doesn't have (ran it here: fails with "Process
+    failed to launch!", consistent with the brief's "Chromium network-service
+    crash under container restrictions" note, reproduced twice as instructed
+    then stopped). Packaging: `tools/release/src/commands/buildDesktop.ts`'s
+    `ensureAppTree` now prefers a real `electron-builder --dir` output under
+    `<desktopAppDir>/release` (`findRealElectronBuilderOutput`) over the
+    synthesized placeholder tree, falling back to the placeholder when no real
+    output is present yet — verified with new tests
+    (`tests/buildDesktopRealOutput.test.ts`) constructing a fake real tree.
+    **Known blocker, not introduced by this WP:** running the real
+    `electron-builder --dir` in this pnpm workspace fails before producing
+    output — `node_modules/@montaj/{bridge-core,config}` are pnpm symlinks
+    whose real path resolves outside `apps/desktop/`, and app-builder-lib's
+    asar packager throws `"<file> must be under <appDir>"` for their contents.
+    Reproduces with only pre-existing C01/C02 dependencies; flagged for C00
+    (release pipeline owner) rather than worked around — the standard fix
+    (`pnpm deploy`, an app-local hoisted linker, or bundling the main process)
+    is bigger than this WP's boundary. The new CI `e2e` job's
+    `electron-builder --dir` step will likely hit the same failure until that's
+    fixed. 25 new/changed tests across bridge-core, apps/desktop and
+    tools/release, all suites green (`pnpm lint`/`typecheck`/`format:check`
+    scoped to touched packages).
+- **B08b — Per-device bridge credential: `kind:"bridge"` tokens carry
+  `deviceId`; relay pairing keyed per device (resolves C01's deviation).**
+  `TokenService.mintAccessToken` now requires (and `verifyAccessToken`/the
+  interim realtime verifier both parse) a `deviceId` claim whenever
+  `kind === "bridge"` (CONTRACTS §5, amended 2026-09-03); minting one without
+  it is refused. New `POST /devices/{id}/bridge-token`: for a registered,
+  leased device the caller owns, mints that bridge token; refuses with
+  `licensing/device_revoked` (the device was revoked) or
+  `licensing/device_lease_expired` (its lease needs renewing first, via
+  `POST /devices/register`) — the same `licensing/device_revoked` code
+  `plugins.service.ts`'s heartbeat already used. `bridge-relay.gateway.ts`:
+  pairing is now keyed by `workspaceId:deviceId` instead of
+  `workspaceId:sub`, and `handleUpgrade` refuses a bridge token without
+  `deviceId` before it ever reaches the connection map — several devices for
+  the same user now pair and relay concurrently (e2e: two devices, one user,
+  both attached and relaying independently). Guard rail: `JwtAuthGuard`
+  refuses a `kind:"bridge"` token on any route unless it opts in with the new
+  `@AllowBridgeToken()` decorator; nothing does yet, so this is a flat
+  refusal today (contract test in `common/guards/guards.test.ts`).
+  `apps/bridge`: a new `device-auth.ts` gets this install its own credential
+  on first run — the RFC 8628 device-code grant as `kind:"desktop"` (a
+  bridge-kind device code is never redeemed directly: no device row exists
+  yet at that point, and `mintAccessToken` would refuse it), then
+  `POST /devices/register`, then `POST /devices/{id}/bridge-token` — and
+  re-mints the bridge token on later runs via `POST /auth/refresh` without
+  the pairing screen again, falling back to a fresh sign-in once the stored
+  refresh token is no longer good for anything; `config.ts` gained
+  `apiOrigin`/`deviceId`/`sessionRefreshToken`/`deviceTokenExpiresAt`
+  alongside the existing `deviceToken`/`relayUrl`/`autostart`. Deviation
+  (documented, out of this WP's file boundary but required for the
+  acceptance criteria): `AccessTokenClaims`/`AuthPrincipal`
+  (`common/guards/principal.ts`), `JwtAuthGuard`
+  (`common/guards/jwt-auth.guard.ts`, `public.decorator.ts`) and the interim
+  realtime verifier (`realtime/auth/access-token.ts`) all needed the
+  `deviceId` claim and the bridge-token guard rail threaded through; each
+  change is additive (a new optional field, a new decorator) and does not
+  alter behaviour for any other `kind`.
+- **B20 — Passes tab, ProposalCard, bulk accept, timeline lanes; export application
+  of accepted cuts/zoom/reframe through `@montaj/timemap` (browser + cloud).**
+  - **Review UI** (`apps/web/components/editor/passes/**`): `PassesTab` (run-autocut
+    dialog with a client-side credits estimate, kind/status/confidence filters, bulk
+    accept — "Accept all ≥ 0.8", "Accept all cuts", "Reset decisions" — a summary bar,
+    J/K/A/R/Space keyboard review) and `ProposalCard` (reason, confidence,
+    accept/reject/undo, a before/after preview callback seam). Decisions are real
+    `DecideItems` ops sent through the existing `EditorStore.submitOps` (A12's
+    debounce/optimistic-apply/rebase path, unmodified). `apps/web/lib/passes/**`:
+    `decisions.ts` (pure op-builder + filter/bulk-accept predicates + `summaryDurations`
+    over `@montaj/timemap`), `client.ts`/`quote.ts` (the `startAutocutPass` endpoint
+    descriptor + a client-side quote estimate), `realtime.ts`
+    (`usePassRunProgress`, a `job.progress`/`job.completed` subscription).
+  - **Timeline lanes** (`apps/web/lib/timeline/lanes.ts`, `components/editor/timeline/
+Timeline.tsx`, extending A17): the merged "Zoom & reframe" lane split into
+    separate `zoom`/`reframe` rows; `laneItemStrokeStyle` — accepted dimmed +
+    struck-through, proposed dashed; hover reports an item's reason
+    (`onHoverPassItem`) and click selects it (`onSelectPassItem`).
+  - **Export application, browser + cloud** — the render-manifest schema gained an
+    optional `timemap.keyframes: KeyframeTrack[]` field (`{itemId, itemStartMs,
+kind, packed}`, base64 of B19's real `@montaj/edg` `passes/keyframes.ts`
+    ("MKF2") rows). `packages/render-core`'s new `frame/crop-window.ts`
+    (`sampleCropWindow`, pure interpolation + easing over a normalised source crop
+    rect) and `frame/keyframe-track.ts` (`outputCropKeyframesFromTracks`: decode +
+    remap onto the output clock via `TimeMap.mapKeyframes`, pinning at every
+    splice) are the one implementation both `apps/web/lib/export/engine.ts`
+    (samples the crop window per frame, draws the corresponding sub-rect of the
+    cover-fit source canvas) and `apps/render`'s ffmpeg graph (a hand-verified
+    `crop=w:h:x:y` expression builder, `ffmpeg/crop-expr.ts`, spliced before the
+    cover-fit scale) consume — proven to agree via
+    `apps/render/src/ffmpeg/crop-parity.test.ts`'s two fixtures (cut+zoom,
+    cut+reframe).
+  - **Output-length verification** (B18's leftover TODO): `apps/web/lib/export/
+output-length.test.ts` proves only `accepted` cut items shorten
+    `fromAcceptedItems`' `outputDurationMs`.
+  - **Known gaps, reported not fixed here:** (1) the API's manifest builder
+    (`apps/api/src/exports/manifest-builder.ts`) has the additive
+    `keyframeTracks` field wired but nothing populates it from accepted
+    zoom/reframe items yet — blocked on B19's keyframe-bytes storage (its own
+    final report already flags this as the "keyframesRef gap"); (2) drag-to-adjust
+    cut boundaries needs an `EditPassItem` op that does not exist in CONTRACTS §2 —
+    not added unilaterally, per the brief's own instruction to report first;
+    (3) A18a's parity gate (`packages/ass-exporter/parity`) measures caption
+    _style_ rendering fidelity and has no axis for "a cut/zoom was applied" — the
+    crop-window parity is proven separately (above) rather than forced into that
+    harness; (4) the CanvasKit preview's live zoom-rectangle/reframe-crop-window
+    overlay and "preview with cuts" scrubbing are not implemented — the shared
+    crop-window primitives are ready for that integration.
+- **B18b — Protected ranges end to end: `SetProtectedRanges` op, editor
+  marking UI, passes honour the stored set.** `packages/edg`: `EdgHot.protected[]`
+  (CONTRACTS §2) and the `SetProtectedRanges{ranges:[{id,s,e}]}` op — apply
+  clamps every range to the primary media's duration, merges overlapping or
+  touching ranges, drops empty ones, and stamps `reason: "user"`; rebase adds
+  the `doc:protected` field (last write wins); a property test
+  (`ops/properties.test.ts`) holds the stored set sorted and non-overlapping
+  after any sequence of ops; `edg-v2.json`/`edg-ops-v2.json` regenerated.
+  `apps/api/src/passes/passes.service.ts`: `protectedRanges` sent to every
+  `ai.pass` is now the stored `EdgHot.protected` set concatenated with the
+  existing emphasis/textOverrides-derived `guardedRanges`; e2e in
+  `passes.e2e-spec.ts` proves a `SetProtectedRanges` op reaches the enqueued
+  autocut job's `protectedRanges`. `apps/web`: `lib/edg/ops.ts` gets
+  `setProtectedRanges`, `toggleProtectedRange` (adds, merges, subtracts or
+  removes a range against the current selection) and `isFullyProtected`, plus
+  a `SetProtectedRanges` inverse for undo; `Timeline.tsx` draws a
+  `--color-info` band for every protected range and wires the "P" key (and a
+  "Protect (P)" button) to toggle protection on the selected segment or word;
+  one chromium Playwright case in `timeline.spec.ts`.
+- **B12 — Academy tracks, Help centre, in-app Changelog and What's-new, and
+  support tickets with diagnostics.** Four outcome-based Academy tracks (MDX,
+  `apps/web/content/academy/**`) with step-by-step progress
+  (`academy_progress`), a one-time per-track credit reward
+  (`academy_rewards`, capped 25/track and 100/workspace lifetime, granted via
+  `CreditsFacade.grantLot({ source: "adjust", ... })` — CONTRACTS §4 has no
+  `"academy"` source, flagged as a conflict) and automatic completion on
+  `export.completed`; ten real Help articles (`apps/web/content/help/**`)
+  with a build-time MiniSearch index and a "Contact support" entry; an
+  in-app `/updates` changelog (renamed from `/changelog`, which the
+  marketing site already owns) sourced from MDX plus an RSS feed and a
+  per-user "What's new" modal (`changelog_dismissals`);
+  `POST/GET /support/tickets`
+  (`support_tickets`) with an optional consent-gated diagnostics bundle
+  (app version, browser/OS, workspace id, last 10 job statuses, a
+  console-error ring buffer — never media), emailed to `BRAND.supportEmail`
+  via a new `notify` kind (`support-ticket-created`) and listed back in
+  Settings → Support.
+- **C00 — Signing & release pipeline (dry-run only; credentials do not exist yet).**
+  New `tools/release` package (`@montaj/release`) exposing `pnpm release <cmd>`:
+  `version` (conventional-commit semver bump + `CHANGELOG.md` section assembly),
+  `build-desktop --platform mac|win --channel alpha|beta|stable --dry-run`
+  (electron-builder config generated from one root `release.config.ts`; builds
+  against a placeholder app tree when `apps/desktop` has no code yet),
+  `sign-nested` (walks a built app and signs/verifies every Mach-O/PE binary —
+  main, helpers, engine sidecar, ffmpeg, bridge SEA, updater — outer bundle
+  last), `notarize` (notarytool submit/wait/staple; records a ledger entry and
+  enforces the **24h buffer** before the `stable` channel, `--force --reason`
+  to override), `package-ccx` (UXP plugin -> `.ccx` zip, `manifest.json`
+  validated against `ai.aksharo.panel` / Premiere minVersion 25.6),
+  `sign-zxp` (AE CEP panel -> `.zxp`, ZXPSignCmd in signed mode / self-signed
+  dev-cert marker in dry-run), `package-resolve` (`aksharo_core` script +
+  per-OS installer scripts), `sbom` (CycloneDX document), `checksums`
+  (`CHECKSUMS.sha256` + HMAC-signed `SIGNATURES.txt`), `publish --channel`
+  (artifacts + `latest.yml`/`latest-mac.yml` electron-updater feeds; `.release/publish/<channel>`
+  locally in dry-run, R2 in signed mode), `promote --from --to` (channel
+  promotion; re-checks the 24h gate for `stable`), `verify-release`
+  (re-hashes a published channel against its checksum manifest).
+  `SignProvider` interface with `AzureTrustedSigningProvider` (brief default),
+  `DigiCertKeyLockerProvider` (practical default — see "Known gap" below) and
+  `MacDeveloperIdProvider`, all behind `RELEASE_MODE` (`dry-run` default,
+  never touches a real signer/notarytool/R2; `signed` fails closed —
+  `ReleaseFailClosedError` — listing every missing secret). New GitHub
+  Actions workflows `release-desktop.yml` (mac/win matrix, unsigned dry-run
+  on PRs, signed only on `release/*` tags behind `release-mac`/`release-win`
+  environments), `release-plugins.yml` (ccx/zxp/resolve), `promote.yml`
+  (manual channel promotion with the 24h check) plus SLSA provenance
+  attestation (`actions/attest-build-provenance`). `docs/RELEASE.md` runbook.
+  Adds `tools/*` to the pnpm workspace and a root `pnpm release` script.
+  **Known gap (reported, not fixed here):** RR-07 §P0 — Azure Trusted
+  Signing public-trust certs are not issued to an Indian entity (D69), so
+  `WIN_SIGN_PROVIDER=digicert-key-locker` is the practical default until
+  that changes or the entity structure does; `AzureTrustedSigningProvider`
+  still ships per the brief with the same fail-closed secret gate.
+  **CONTRACTS §1 ruling (2026-09-03):** the ~20 release-pipeline secret names
+  (Apple notarisation, Azure/DigiCert signing, ZXP, R2 publish,
+  checksum-manifest signing) are CI/GitHub-environment secrets, not
+  application runtime config, so they do **not** go into CONTRACTS §1 or the
+  root `.env.example` (that would fail `packages/config`'s one-key-per-contract-
+  variable parity test). They live in `tools/release/.env.example` instead;
+  the CLI loads `tools/release/.env` itself (`src/env.ts::loadReleaseDotEnv`).
+  `docs/RELEASE.md` lists them as the GitHub-environment secrets to set.
+
+- **B14b — Webhook events: real event emits replace the poller.**
+  `transcript.completed` (`transcripts/transcribe.handler.ts`), `job.failed`
+  (`jobs/jobs.service.ts::complete()`, after DLQ handling) and `credits.low`
+  (`credits/credits-low-balance.notifier.ts`) are now real `EventEmitter2`
+  emits at their producers, each with its own `<module>/*.event.ts` name +
+  payload contract (the `referrals/export-completed.event.ts` precedent) and
+  a `webhooks/listeners/*.listener.ts` subscriber. `WebhookEventPollerService`
+  and its Redis cursors are deleted; `webhooks.e2e-spec.ts` proves the whole
+  chain (API key → `/v1` project → simulated worker completion → a signed
+  delivery a receiver can verify, plus retries on a receiver that fails
+  twice) end to end. `WebhookDeliveryService.sendOverride` is a new,
+  production-inert test seam (parallel to `sendWebhook`'s own resolver/
+  transport seams) that lets that suite's in-process receiver stand in for a
+  real internet endpoint without touching the SSRF guard.
 - **B15 — share links, threaded review comments, intermediary-hygiene report
   flow and batch orchestration.** `ShareLinksService`/`PublicViewerController`
   add a `scope` (`view|comment|approve`), password (argon2), expiry, view-cap
@@ -90,6 +625,117 @@ admin-step-up.{controller,service,dto,constants}.ts`: TOTP enrol/verify
   `admin_roles` grant (`superadmin` always satisfies any role list). Role
   matrix contract test: `apps/api/src/admin/admin.guard.test.ts`.
 
+- **B13b — Admin users/workspaces search+detail, credits adjust/reverse,
+  refunds + credit notes.** `apps/api/src/admin/users/**`: read-only
+  cross-tenant search and detail (memberships, device count, active admin
+  roles; owner, member count, credit account, subscription) — open to any
+  admin role, no `@AdminRoles(...)` restriction (the brief's own e2e case:
+  support can view). `admin-credits.controller.ts` gains `POST
+/admin/credits/adjust` (wraps `CreditsFacade.grantLot(source: "adjust")`)
+  and `POST /admin/credits/reverse` (wraps `LedgerCreditsFacade.reverse()`,
+  named in that method's own doc comment as one of its two intended
+  callers), both `finance`/`superadmin` only, reason mandatory (min 10
+  chars), audited. `apps/api/src/admin/billing/**`: `POST
+/admin/billing/passes/:id/refund` — `admin-refund-policy.ts`'s pure
+  policy (within 7 days of purchase: full refund of the amount on file;
+  after: pro-rated by the fraction of the purchase's credits still unspent,
+  via `credit_lots.remaining_tenths`/`granted_tenths`) composed with B01's
+  `RefundsService.refundPassPurchase` (provider refund + credits clawback)
+  and B05's `InvoicesService.generateCreditNote` (skipped, not failed, when
+  no original tax invoice is on file). `AdminBillingModule`/
+  `AdminUsersModule` are their own modules (not folded into `AdminModule`)
+  to avoid a cycle: `InvoicesModule` already imports `AdminModule`.
+  `test/auth-harness.ts`'s new `createAdminContext` mints a real `kind:
+"admin"` token via an actual step-up (grant admin_roles, enrol a
+  deterministic TOTP secret, verify, step up) — every existing admin e2e
+  fixture (`dlq.e2e-spec.ts`, `offers.e2e-spec.ts`,
+  `users-workspaces.e2e-spec.ts`) that used to hand-mint a plain `kind:
+"web"` admin token now goes through it.
+
+- **B13c — Admin flags CRUD, styles catalogue publish/unpublish, routing
+  weight overrides.** `apps/api/src/admin/flags/**`: full CRUD over
+  `feature_flags` — reads open to any admin role, every mutation
+  `superadmin`-only with a mandatory reason and a before/after audit diff.
+  `FlagTargetsSchema` (the shape `schema.prisma`'s own comment had promised
+  since A05) adds `excludeWorkspaceIds` — B13's "holdouts" — as an additive
+  extension to `workspaces/entitlement.service.ts`'s existing
+  `flagTargets()`, checked first so a held-out workspace stays excluded even
+  if it also matches the allow-list. `apps/api/src/admin/styles/**`: the
+  system style catalogue with the A18a parity gate's own results
+  (`assRenderable`/`assExportable`/`requiresLayoutMetrics`/`parityScore`,
+  read-only here) and a new `published` column (migration `20260903030000`)
+  so `content`/`superadmin` can unpublish a style without deleting it.
+  `apps/api/src/admin/routing/**`: a `routing_weight_overrides` table (same
+  migration), CRUD, validation (weight 0-100, id shapes matching
+  `routing.yaml`/the provider registry), history via `audit_log` —
+  deliberately does NOT read or merge against
+  `apps/worker-ai/worker_ai/routing.yaml` at runtime (separately deployed
+  process/repo; see the controller's own doc comment and this WP's final
+  report "open questions" for the seam this leaves: the worker reading its
+  table from this store instead of the bundled YAML).
+
+- **B13d — job monitor + cancel, mandate/dunning monitor, TDS reports,
+  affiliate review + chained self-referral hold, DSR/breach (consumed,
+  B16), share-link report resolution, support stub (B12 absent).**
+  `apps/api/src/admin/jobs/**`: cross-tenant job list/stats/cancel — the
+  live-queue half of "job monitor (queues, counts, failed, DLQ)"; A08b's
+  `AdminDlqController` already had the dead-letter half.
+  `apps/api/src/admin/billing/admin-billing.controller.ts` gains `GET
+/admin/billing/dunning` (past-due subscriptions with mandate status/next
+  actions — read-only). `apps/api/src/admin/affiliates/**`: pending-review
+  list, `GET .../tds/:fy/export.csv` (every affiliate's FY gross/TDS/net),
+  `GET .../:id/form16a` (B07's existing PDF stub renderer, wired to a
+  controller for the first time); the 4 existing admin approve/suspend/
+  reject/revoke-code routes in `affiliates.controller.ts` now carry
+  `@AdminRoles("ops", "finance", "superadmin")`. **Orchestrator addendum**
+  (chained self-referral): `referral_rewards.hold_reason` (migration
+  `20260903040000`) — a referred workspace whose owner claimed as referred
+  for a different referrer within 90 days stays `pending` and is held out
+  of `grantForExport`'s auto-grant; `apps/api/src/admin/referrals/**`
+  reviews the queue (`ops`/`finance`/`superadmin`) and approves (settles
+  through the normal cap-check path) or rejects. The addendum's other
+  signal — a bare device/IP fingerprint match against any prior claim — was
+  tried and dropped: it false-positived on every claim sharing a
+  reused/NAT'd IP or common user agent (real traffic, not just this WP's
+  own e2e fixtures), which is exactly the failure mode
+  `immediateRejectionReason`'s narrowly-scoped "same as the referrer's OWN
+  session" check was built to avoid; left as a follow-up rather than shipped
+  as a blunt instrument. `apps/api/src/admin/share/**`: `GET
+/admin/share-reports` + `POST .../:id/resolve` (take-down calls a new
+  `ShareLinksService.adminTakedown`; "notify" is not wired — no
+  NOTIFY_KINDS template exists for it, see "open questions").
+  `apps/api/src/admin/support/admin-support.controller.ts`: a stub
+  (`GET /admin/support/status`) — `apps/api/src/support/**` (B12) had not
+  merged as of this commit.
+
+- **B13e — the `(admin)` web shell, dashboard, admin e2e (role matrix +
+  refund).** `apps/web/app/(admin)/**`: a separate layout with no product
+  chrome; the admin session (a `kind: "admin"` step-up token) lives in
+  `sessionStorage` (`lib/admin/admin-session.ts`), distinct from the regular
+  product session — `lib/admin/admin-fetch.ts` is a small standalone fetch
+  wrapper for it (the shared `@montaj/api-client` stays wired to the
+  regular session's token). New typed endpoints `adminAuth.{totpEnroll,
+totpVerify,stepUp}` in `packages/api-client` for step-up itself (the one
+  call still made with the regular session's bearer token); every other
+  admin route is called directly by the shell. Panels: users/workspaces
+  search+detail, credits adjust/reverse, refunds, flags, routing weight
+  overrides, styles catalogue, affiliates (pending queue + TDS CSV export),
+  referral review queue, share-report resolution, jobs monitor (list/
+  stats/cancel), a support stub, and a small numbers-only dashboard (no
+  chart library — see "open questions", the scope this WP still had to
+  cover left no room for it). `pnpm gen:client` regenerated (272
+  operations). **Simplifications flagged rather than hidden:** the layout
+  gates on session presence, not a genuine server-side "404 for
+  non-admins" (every panel's own fetch still 403s against `AdminGuard`
+  regardless of what the shell renders); no Playwright browser e2e for the
+  admin UI (would need its own step-up-aware browser harness) — instead,
+  `apps/api/test/admin-billing.e2e-spec.ts` proves the brief's literal
+  acceptance case ("support role can view but not refund; finance can
+  refund with reason") end to end against real Postgres/Redis, seeding a
+  genuine top-up purchase + credit lot (billing-harness.ts binds
+  `CREDITS_FACADE` to `NoopCreditsFacade` on purpose, so the lot is seeded
+  directly rather than re-testing B02's own ledger).
+
 - **A23 — Gate A e2e journey, sample-project seed, wave verification script,
   X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)
   through onboarding, a real MinIO upload, transcription completion via the
@@ -116,6 +762,37 @@ admin-step-up.{controller,service,dto,constants}.ts`: TOTP enrol/verify
   `docs/verification/load-<date>.md`. `.github/workflows/e2e.yml`: the Gate
   A journey plus the load harness against the compose stack, on PRs into a
   wave branch.
+
+### Added
+
+- **A07b — a `media.proxy` completion handler, and a real-dialog export e2e.**
+  `apps/api/src/media/proxy.handler.ts` (`MediaProxyCompletionHandler`)
+  registers on `JobCompletionRegistry` alongside A07's probe handler: it
+  independently flips `media_assets.status` to `ready`/`failed` off the
+  job's own completion, alongside (never instead of) the worker's `PATCH
+/internal/media/{id}` write-back — closing the gap A23 found where a
+  completed `media.proxy` job left the asset stuck unless that separate
+  write-back happened to land. Idempotent both ways: the same outcome
+  twice is a no-op, and a conflicting outcome always resolves to `failed`
+  (a stray `ready` is overwritten; a success completion never undoes an
+  existing `failed`). Failure completions needed a new, additive
+  `JobCompletionHandler.handleFailure?` hook (`apps/api/src/jobs/
+completion-handlers.ts`) and one call site in `JobsService.complete`
+  (`apps/api/src/jobs/jobs.service.ts`) — every existing handler is
+  unaffected since none implements it. `apps/web/e2e/gate-a.spec.ts` no
+  longer needs `patchMediaForTest` to reach `status: "ready"`.
+
+  `apps/web/components/editor/export/use-export-dialog.ts` now accepts a
+  `preferFileSystemAccess` dep (default `true`) and, in non-production
+  builds only, reads `window.__aksharoE2E?.noFilePicker` to force `false`
+  — a synthetic Playwright click is not a "user activation"
+  `showSaveFilePicker` recognises, so without this a real click on the
+  export dialog's own button aborted the export before this fix.
+  `apps/web/e2e/export.spec.ts` adds a second chromium test that drives the
+  real `ExportDialog` end to end (open → Video tab → Export → the software-
+  encoder cloud-offer override where a headless browser needs it → `export-
+done`), verified against `GET /projects/{id}/exports`, alongside the
+  existing `/export-harness`-driven ffprobe assertion.
 
 ### Fixed
 

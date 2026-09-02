@@ -68,12 +68,14 @@ def _unpack_header(blob: bytes) -> tuple[bytes, int, int]:
 
 
 async def test_pack_keyframes_matches_documented_header() -> None:
-    packed = pack_keyframes([(0.0, 0.5, 0.5, 1.0), (180.0, 0.5, 0.5, 1.2)])
+    packed = pack_keyframes(
+        [(0.0, 1.0, 0.5, 0.5, "linear"), (180.0, 1.2, 0.5, 0.5, "inOut")]
+    )
     magic, version, count = _unpack_header(packed)
-    assert magic == b"MKF1"
+    assert magic == b"MKF2"
     assert version == 1
     assert count == 2
-    assert len(packed) == 12 + 2 * 16
+    assert len(packed) == 12 + 2 * 20
 
 
 async def test_pack_keyframes_empty() -> None:
@@ -84,11 +86,15 @@ async def test_pack_keyframes_empty() -> None:
 
 
 async def test_pack_keyframes_sorts_by_time() -> None:
-    packed = pack_keyframes([(500.0, 0.1, 0.1, 1.0), (0.0, 0.2, 0.2, 1.0)])
-    rows = struct.unpack_from("<ffff", packed, 12)
+    packed = pack_keyframes(
+        [(500.0, 1.0, 0.1, 0.1, "linear"), (0.0, 1.0, 0.2, 0.2, "inOut")]
+    )
+    rows = struct.unpack_from("<fffff", packed, 12)
     assert rows[0] == pytest.approx(0.0)
-    second_row = struct.unpack_from("<ffff", packed, 12 + 16)
+    assert rows[4] == pytest.approx(1.0)  # ease "inOut"
+    second_row = struct.unpack_from("<fffff", packed, 12 + 20)
     assert second_row[0] == pytest.approx(500.0)
+    assert second_row[4] == pytest.approx(0.0)  # ease "linear"
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +106,7 @@ def _zoom_payload(**overrides: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "passType": "zoom",
         "passId": "01JPASS0000000000000000001",
+        "mediaId": MEDIA_ID,
         "durationMs": 10_000,
         "preset": "standard",
         "emphasisWords": [{"tMs": 2000}, {"tMs": 8000}],
@@ -148,6 +155,7 @@ def _reframe_payload(**overrides: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "passType": "reframe",
         "passId": "01JPASS0000000000000000002",
+        "mediaId": MEDIA_ID,
         "durationMs": 4_000,
         "detections": [
             {"tMs": t, "boxes": [{"x": 0.4, "y": 0.3, "w": 0.2, "h": 0.3}]}
@@ -172,12 +180,19 @@ async def test_reframe_pass_produces_one_item_with_packed_keyframes() -> None:
     assert count > 0
 
 
-async def test_reframe_pass_empty_detections_fails_non_retryable() -> None:
+async def test_reframe_pass_empty_detections_samples_the_proxy_and_needs_storage() -> None:
+    """B19b: empty `detections`/`sceneFrames`/`rmsSamples` no longer means "give
+    up" — it means the producer left the worker to sample the proxy itself
+    (`_payload_needs_sampling`). The API producer is expected to have already
+    rejected a project with no proxy (`passes/proxy_required`), so a worker
+    that gets this far but has no R2 configured fails with a clear storage
+    error rather than silently reasoning about an empty subject track.
+    """
     payload = _reframe_payload(detections=[])
     context = _context(**payload)
     with pytest.raises(JobFailureError) as raised:
         await process_pass(context)
-    assert raised.value.code == "worker/invalid_payload"
+    assert raised.value.code == "worker/storage_unconfigured"
     assert raised.value.retryable is False
 
 

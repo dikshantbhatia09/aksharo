@@ -33,6 +33,7 @@ const claimsSchema = z.object({
   exp: z.number().int().nonnegative(),
   iss: z.string().min(1),
   adminRoles: z.array(z.enum(ADMIN_ROLE_NAMES)).optional(),
+  deviceId: z.string().min(1).optional(),
 });
 
 /** CONTRACTS §5: 15 minutes for every kind except `"admin"`, which gets 30. */
@@ -47,6 +48,12 @@ export interface MintAccessTokenInput {
   readonly jti?: string;
   /** Required, and only honoured, when `kind === "admin"` (B13 step-up). */
   readonly adminRoles?: readonly $Enums.AdminRoleName[];
+  /**
+   * Required, and only honoured, when `kind === "bridge"` (B08b, CONTRACTS §5
+   * amended 2026-09-03 after C01): the B08 device row this bridge token is
+   * for, so relay pairing is keyed per device rather than per user.
+   */
+  readonly deviceId?: string;
 }
 
 export interface MintedAccessToken {
@@ -95,6 +102,17 @@ export class TokenService implements AccessTokenVerifier {
         HttpStatus.FORBIDDEN,
       );
     }
+    if (input.kind === "bridge" && (input.deviceId === undefined || input.deviceId === "")) {
+      // CONTRACTS §5 amended 2026-09-03 after C01: a bridge token without a
+      // `deviceId` is not a valid bridge credential — the relay rejects it,
+      // so refusing to mint one here is the earliest place to catch a caller
+      // that still tries the old per-user shortcut.
+      throw new AppException(
+        ERROR_CODES.forbidden,
+        "A bridge token must carry a deviceId.",
+        HttpStatus.FORBIDDEN,
+      );
+    }
     const issuedAt = Math.floor(Date.now() / 1000);
     const ttl = input.kind === "admin" ? ADMIN_ACCESS_TOKEN_TTL_SEC : ACCESS_TOKEN_TTL_SEC;
     const claims: AccessTokenClaims = {
@@ -107,6 +125,7 @@ export class TokenService implements AccessTokenVerifier {
       exp: issuedAt + ttl,
       iss: this.issuer,
       ...(input.kind === "admin" ? { adminRoles: input.adminRoles } : {}),
+      ...(input.kind === "bridge" ? { deviceId: input.deviceId } : {}),
     };
 
     const signingInput = `${base64urlJson({ alg: "RS256", typ: "JWT" })}.${base64urlJson(claims)}`;

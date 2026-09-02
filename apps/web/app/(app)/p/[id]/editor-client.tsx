@@ -20,6 +20,7 @@ import type { FontRegistry, Shaper } from "@montaj/render-core";
 import { fromAcceptedItems } from "@montaj/timemap";
 import type { TimeMap } from "@montaj/timemap";
 
+import type { SetAudioCleanOp } from "@/components/editor/audio/use-audio-clean";
 import type { EditorSnapshot, EditorStore } from "@/lib/edg/store";
 
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
@@ -56,8 +57,10 @@ import {
   nextWordIdInChunk,
   panelOpToEdgOp,
   setEmphasis,
+  setProtectedRanges,
   setWordTiming,
   splitSegment,
+  toggleProtectedRange,
 } from "@/lib/edg/ops";
 import { PlayheadStore } from "@/lib/edg/playhead";
 import { toRenderProjection } from "@/lib/edg/render-projection";
@@ -69,6 +72,8 @@ import { useTimelineMedia } from "@/lib/timeline/use-timeline-media";
 
 export interface EditorClientProps {
   readonly projectId: string;
+  /** D82: server-read `AUDIO_DEEP_CLEAN_ENABLED` flag for the Audio panel's Deep clean tier. */
+  readonly deepCleanEnabled?: boolean;
 }
 
 /**
@@ -95,7 +100,10 @@ const DEFAULT_RESEGMENT_PARAMS: ResegmentParams = {
   dropFillers: false,
 };
 
-export function EditorClient({ projectId }: EditorClientProps): React.JSX.Element {
+export function EditorClient({
+  projectId,
+  deepCleanEnabled = false,
+}: EditorClientProps): React.JSX.Element {
   const load = useEditorStore(projectId);
   useEdgRealtime(projectId, load.store);
 
@@ -159,6 +167,7 @@ export function EditorClient({ projectId }: EditorClientProps): React.JSX.Elemen
       setReflowBusy={setReflowBusy}
       registry={renderer.engine?.registry}
       shaper={renderer.engine?.shaper}
+      deepCleanEnabled={deepCleanEnabled}
     />
   );
 }
@@ -188,6 +197,7 @@ interface EditorReadyProps {
   readonly setReflowBusy: (value: boolean) => void;
   readonly registry: FontRegistry | undefined;
   readonly shaper: Shaper | undefined;
+  readonly deepCleanEnabled: boolean;
 }
 
 function EditorReady(props: EditorReadyProps): React.JSX.Element {
@@ -215,6 +225,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     setReflowBusy,
     registry,
     shaper,
+    deepCleanEnabled,
   } = props;
 
   // Word-level ops (`EditWord`) only ever fire while a word-level script tab
@@ -305,6 +316,22 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     store.submitOp(panelOpToEdgOp({ ...op, opId: newId() }, state));
   }
 
+  // --- Audio (B10b) -------------------------------------------------------
+  // The Audio panel builds a `SetAudio` payload with no `opId`/`type` — it
+  // does not talk to the queue directly (`AudioPanel.tsx`'s own doc comment)
+  // — so this is the one place that mints a real op id and hands it to
+  // `EdgOpQueue` via `store.submitOp`, exactly as `submitPanelOp` does above.
+  function onSetAudio(op: SetAudioCleanOp): void {
+    store.submitOp(
+      { type: "SetAudio", opId: newId(), clean: op.clean },
+      { label: op.clean.enabled ? "Apply audio clean" : "Remove audio clean" },
+    );
+  }
+
+  const audioClean = (state.hot.audio as { clean?: { cleanId?: string | null } } | undefined)
+    ?.clean;
+  const appliedCleanId = typeof audioClean?.cleanId === "string" ? audioClean.cleanId : undefined;
+
   function onEditWord(wordId: string, text: string): void {
     store.submitOp(editWord(wordId, text, wordScript, newId), {
       label: "Edit word",
@@ -362,6 +389,12 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
 
   function onTimelineSetWordTiming(op: WordTimingOp): void {
     store.submitOp(setWordTiming(op.wordId, op.s, op.e, newId), { label: "Retime word" });
+  }
+
+  function onToggleProtection(s: number, e: number): void {
+    const current = state.hot.protected ?? [];
+    const next = toggleProtectedRange(current, s, e, newId);
+    store.submitOp(setProtectedRanges(next, newId), { label: "Toggle protected range" });
   }
 
   function onMergeWithNext(segmentId?: string): void {
@@ -649,7 +682,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         </div>
 
         <div
-          className="flex w-80 shrink-0 flex-col gap-2 border-l border-white/10 p-3"
+          className="flex w-80 min-h-0 shrink-0 flex-col gap-2 border-l border-white/10 p-3"
           data-coach-mark="style"
         >
           {reflow?.current.belowComfortableMinimum === true ? (
@@ -665,6 +698,13 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
             style={effectiveStyle}
             scope={scope}
             onOp={submitPanelOp}
+            audio={{
+              projectId,
+              ...(primaryMedia?.mediaId === undefined ? {} : { mediaId: primaryMedia.mediaId }),
+              ...(appliedCleanId === undefined ? {} : { appliedCleanId }),
+              onSetAudio,
+              deepCleanEnabled,
+            }}
           />
         </div>
       </div>
@@ -674,6 +714,8 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           words={allLiveWords}
           segments={segments}
           passItems={passItems}
+          protectedRanges={state.hot.protected ?? []}
+          onToggleProtection={onToggleProtection}
           {...(timelineMedia.waveform === undefined ? {} : { waveform: timelineMedia.waveform })}
           durationMs={primaryMedia?.durationMs ?? 0}
           playheadMs={playheadSnapshot.ms}

@@ -77,8 +77,3 @@ export const audioEndpoints = {
     auth: "bearer",
   }),
 } as const;
-
-/** `SetAudio.clean.preset`'s B10 convention (`exports.service.ts`'s `resolveAudioClean`). */
-export function presetFor(cleanId: string): string {
-  return `b10:${cleanId}`;
-}

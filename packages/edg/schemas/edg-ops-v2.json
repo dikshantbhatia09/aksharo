@@ -41,6 +41,9 @@
           "$ref": "#/$defs/InsertWordAfter"
         },
         {
+          "$ref": "#/$defs/SetProtectedRanges"
+        },
+        {
           "$ref": "#/$defs/SetWordTiming"
         },
         {
@@ -441,6 +444,46 @@
       "additionalProperties": false,
       "title": "InsertWordAfter"
     },
+    "SetProtectedRanges": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "SetProtectedRanges"
+        },
+        "ranges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/Ulid"
+              },
+              "s": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "title": "Milliseconds"
+              },
+              "e": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "title": "Milliseconds"
+              }
+            },
+            "required": ["id", "s", "e"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["opId", "type", "ranges"],
+      "additionalProperties": false,
+      "title": "SetProtectedRanges"
+    },
     "SetWordTiming": {
       "type": "object",
       "properties": {
@@ -602,7 +645,7 @@
     },
     "PassType": {
       "type": "string",
-      "enum": ["autocut", "reframe", "sfx", "music", "textfx", "prompted"],
+      "enum": ["autocut", "reframe", "zoom", "sfx", "music", "textfx", "prompted"],
       "title": "PassType"
     },
     "PassStatus": {
@@ -951,6 +994,9 @@
         "easing": {
           "$ref": "#/$defs/Easing"
         },
+        "keyframes": {
+          "$ref": "#/$defs/KeyframesInline"
+        },
         "keyframesRef": {
           "$ref": "#/$defs/KeyframesRef"
         }
@@ -992,17 +1038,25 @@
       "enum": ["velocity", "easeInOut"],
       "title": "Easing"
     },
+    "KeyframesInline": {
+      "type": "string",
+      "minLength": 1,
+      "title": "KeyframesInline"
+    },
     "ReframePayload": {
       "type": "object",
       "properties": {
         "aspect": {
           "$ref": "#/$defs/Aspect"
         },
+        "keyframes": {
+          "$ref": "#/$defs/KeyframesInline"
+        },
         "keyframesRef": {
           "$ref": "#/$defs/KeyframesRef"
         }
       },
-      "required": ["aspect", "keyframesRef"],
+      "required": ["aspect"],
       "additionalProperties": false,
       "title": "ReframePayload"
     },
@@ -1097,6 +1151,16 @@
       "properties": {
         "enabled": {
           "type": "boolean"
+        },
+        "cleanId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ulid"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "preset": {
           "type": "string",

@@ -63,7 +63,7 @@ export function fixtureManifest(
       height: 1920,
       fps: 30,
     },
-    timemap: { sourceDurationMs: 10_000, edits: [], snapCutsToFrames: false },
+    timemap: { sourceDurationMs: 10_000, edits: [], snapCutsToFrames: false, keyframes: [] },
     output: {
       kind: "video",
       preset: "reels",

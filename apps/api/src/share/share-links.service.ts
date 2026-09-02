@@ -183,6 +183,38 @@ export class ShareLinksService {
   }
 
   /**
+   * B13: the admin take-down path for a reported share link — no
+   * `workspaceId`/`projectId` scoping (the caller is platform staff, not a
+   * workspace member), and always succeeds (idempotent) rather than 404ing a
+   * link that was already revoked by the time an admin gets to the report.
+   */
+  async adminTakedown(shareLinkId: string, actorId: string, reason: string): Promise<void> {
+    const link = await this.prisma.shareLink.findUnique({
+      where: { id: shareLinkId },
+      select: { revokedAt: true, projectId: true, project: { select: { workspaceId: true } } },
+    });
+    if (link === null) {
+      throw new AppException(SHARE_ERRORS.notFound, "Share link not found.", HttpStatus.NOT_FOUND);
+    }
+    if (link.revokedAt !== null) return;
+
+    await this.prisma.shareLink.update({
+      where: { id: shareLinkId },
+      data: { revokedAt: new Date() },
+    });
+
+    await this.audit.record({
+      action: "admin.share.link_taken_down",
+      resource: "share_link",
+      resourceId: shareLinkId,
+      workspaceId: link.project.workspaceId,
+      actorId,
+      actorKind: "admin",
+      data: { projectId: link.projectId, reason },
+    });
+  }
+
+  /**
    * The one liveness check every public route runs first: not revoked, not
    * expired, and under any view cap (view cap is only *counted* here — the
    * increment happens in {@link recordView}, once per page load, not once per

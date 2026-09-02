@@ -1,0 +1,11 @@
+{
+  "generatedAt": "2026-09-02T22:05:57.986Z",
+  "audio": {
+    "description": "Browser-export vs cloud-render audio-track hash comparison for audio.strategy: \"replace\" (B10b).",
+    "strategy": "replace",
+    "match": true,
+    "browserHash": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193",
+    "cloudHash": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193",
+    "byteLength": 4096
+  }
+}

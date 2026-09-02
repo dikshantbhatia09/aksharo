@@ -14,6 +14,15 @@
 import { defineEndpoint } from "./http.js";
 
 import type {
+  AcademyProgressResponse,
+  AdminStepUpResponse,
+  AdminTotpCodeRequest,
+  AdminTotpEnrollResponse,
+  ChangelogDismissedResponse,
+  CreateSupportTicketRequest,
+  ListSupportTicketsResponse,
+  MarkStepDoneResult,
+  SupportTicketView,
   AffiliateProfile,
   AffiliateStats,
   ApiKeyView,
@@ -180,6 +189,32 @@ export const authEndpoints = {
     path: "/auth/oauth/complete",
     auth: "public",
     operationId: "OAuthController_complete",
+  }),
+} as const;
+
+/**
+ * B13: admin step-up only. Called with the REGULAR session's bearer token
+ * (`auth: "bearer"`) — everything past step-up uses the admin session's own
+ * token via `apps/web/lib/admin/admin-fetch.ts`, not this client.
+ */
+export const adminAuthEndpoints = {
+  totpEnroll: defineEndpoint<void, AdminTotpEnrollResponse>({
+    method: "POST",
+    path: "/admin/auth/totp/enroll",
+    auth: "bearer",
+    operationId: "adminTotpEnroll",
+  }),
+  totpVerify: defineEndpoint<AdminTotpCodeRequest, void>({
+    method: "POST",
+    path: "/admin/auth/totp/verify",
+    auth: "bearer",
+    operationId: "adminTotpVerify",
+  }),
+  stepUp: defineEndpoint<AdminTotpCodeRequest, AdminStepUpResponse>({
+    method: "POST",
+    path: "/admin/auth/step-up",
+    auth: "bearer",
+    operationId: "adminStepUp",
   }),
 } as const;
 
@@ -649,6 +684,50 @@ export const referralsEndpoints = {
   }),
 } as const;
 
+/** Academy tracks, progress, rewards and the What's-new marker (B12). */
+export const academyEndpoints = {
+  progress: defineEndpoint<void, AcademyProgressResponse>({
+    method: "GET",
+    path: "/academy/progress",
+    auth: "bearer",
+    operationId: "getAcademyProgress",
+  }),
+  markStepDone: defineEndpoint<void, MarkStepDoneResult>({
+    method: "POST",
+    path: "/academy/tracks/{trackId}/steps/{stepId}/done",
+    auth: "bearer",
+    operationId: "markAcademyStepDone",
+  }),
+  getDismissedChangelog: defineEndpoint<void, ChangelogDismissedResponse>({
+    method: "GET",
+    path: "/academy/changelog/dismissed",
+    auth: "bearer",
+    operationId: "getDismissedChangelogVersion",
+  }),
+  dismissChangelog: defineEndpoint<{ version: string }, ChangelogDismissedResponse>({
+    method: "POST",
+    path: "/academy/changelog/dismissed",
+    auth: "bearer",
+    operationId: "dismissChangelogVersion",
+  }),
+} as const;
+
+/** Support tickets, optionally with a consent-gated diagnostics bundle (B12). */
+export const supportEndpoints = {
+  create: defineEndpoint<CreateSupportTicketRequest, SupportTicketView>({
+    method: "POST",
+    path: "/support/tickets",
+    auth: "bearer",
+    operationId: "createSupportTicket",
+  }),
+  list: defineEndpoint<void, ListSupportTicketsResponse>({
+    method: "GET",
+    path: "/support/tickets",
+    auth: "bearer",
+    operationId: "listSupportTickets",
+  }),
+} as const;
+
 /** Scripts and translation (A22): `apps/api/src/transcripts/scripts`. */
 export const transcriptScriptsEndpoints = {
   transliterate: defineEndpoint<TransliterateRequest, TransliterateAccepted>({
@@ -873,6 +952,7 @@ const webhookEndpoints2 = {
 
 export const endpoints = {
   auth: authEndpoints,
+  adminAuth: adminAuthEndpoints,
   device: deviceEndpoints,
   account: accountEndpoints,
   jobs: jobEndpoints,
@@ -891,6 +971,8 @@ export const endpoints = {
   licensing: licensingEndpoints,
   clientTags: clientTagEndpoints,
   referrals: referralsEndpoints,
+  academy: academyEndpoints,
+  support: supportEndpoints,
   memory: memoryEndpoints,
   streak: streakEndpoints,
   apiKeys: apiKeyEndpoints,
@@ -901,6 +983,7 @@ export const endpoints = {
 /** Flat list, for the contract test. */
 export const ALL_ENDPOINTS = [
   ...Object.entries(authEndpoints),
+  ...Object.entries(adminAuthEndpoints),
   ...Object.entries(deviceEndpoints),
   ...Object.entries(registeredDeviceEndpoints),
   ...Object.entries(licensingEndpoints),
@@ -919,6 +1002,8 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(creditsEndpoints),
   ...Object.entries(offersEndpoints),
   ...Object.entries(referralsEndpoints),
+  ...Object.entries(academyEndpoints),
+  ...Object.entries(supportEndpoints),
   ...Object.entries(memoryEndpoints),
   ...Object.entries(streakEndpoints),
   ...Object.entries(apiKeyEndpoints),

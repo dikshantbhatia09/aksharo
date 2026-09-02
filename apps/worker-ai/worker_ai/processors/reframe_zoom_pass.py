@@ -39,13 +39,15 @@ itself::
 
 from __future__ import annotations
 
+import os
 import struct
 from typing import Any
 
 from worker_ai.callbacks import JobUsage
+from worker_ai.passes.frame_sampling import FrameSample, sample_frames, sample_rms
 from worker_ai.passes.reframe import build_reframe_track
 from worker_ai.passes.scenes import FrameStat, SceneBoundary, detect_scenes, scene_ranges
-from worker_ai.passes.tracking import Detection, track_subject
+from worker_ai.passes.tracking import BrightBlobDetector, Detection, FrameDetector, track_subject
 from worker_ai.passes.zoom import (
     Cue,
     ZoomEvent,
@@ -54,23 +56,143 @@ from worker_ai.passes.zoom import (
     detect_sentence_start_cues,
 )
 from worker_ai.processors.context import JobContext, JobFailureError, ProcessorOutcome
+from worker_ai.storage import StorageError, derived_key
+from worker_ai.ulid import new_ulid
 
 __all__ = ["pack_keyframes", "process_reframe", "process_zoom"]
 
-_KEYFRAME_MAGIC = b"MKF1"
+_KEYFRAME_MAGIC = b"MKF2"
 _KEYFRAME_VERSION = 1
+_EASE_TO_FLOAT = {"linear": 0.0, "inOut": 1.0}
+
+#: Keyframe payload rule (CONTRACTS §2, added 2026-09-03 after B19b): a packed
+#: MKF2 curve <= 64 KiB rides inline as base64 on `PassItem.payload.keyframes`;
+#: a larger one is uploaded to derived storage and referenced by
+#: `keyframesRef`. The worker (not the API) does the upload, mirroring B10's
+#: `ai.clean` — the one other processor in this worker that writes derived
+#: media rather than only reading it.
+INLINE_LIMIT_BYTES = 64 * 1024
 
 
-def pack_keyframes(rows: list[tuple[float, float, float, float]]) -> bytes:
+def pack_keyframes(rows: list[tuple[float, float, float, float, str]]) -> bytes:
     """Byte-for-byte the same little-endian packed format
-    `@montaj/edg`'s `packKeyframes` writes (`packages/edg/README.md`):
-    a 12-byte header (magic, version, count) then 16 bytes per row
-    (`tMs, cx, cy, scale`, each an IEEE-754 binary32).
+    `@montaj/edg`'s `encodeKeyframes` writes (`packages/edg/src/passes/
+    keyframes.ts`, the one codec after B19b unified `MKF1`/`MKF2`): a 12-byte
+    header (magic `MKF2`, version, count) then 20 bytes per row
+    (`tMs, zoom, cx, cy, ease`, each an IEEE-754 binary32; `ease` packed as
+    `0.0 = "linear"`, `1.0 = "inOut"`).
     """
     ordered = sorted(rows, key=lambda row: row[0])
     header = struct.pack("<4sII", _KEYFRAME_MAGIC, _KEYFRAME_VERSION, len(ordered))
-    body = b"".join(struct.pack("<ffff", *row) for row in ordered)
+    body = b"".join(
+        struct.pack("<fffff", t_ms, zoom, cx, cy, _EASE_TO_FLOAT[ease])
+        for t_ms, zoom, cx, cy, ease in ordered
+    )
     return header + body
+
+
+def _payload_needs_sampling(payload: dict[str, Any]) -> bool:
+    """True when the producer sent no pre-extracted frame/audio statistics —
+    the common case now that `passes.service.ts` no longer sends them empty
+    (B19b) — so this processor should sample the proxy itself. A payload that
+    already carries `detections`/`sceneFrames`/`rmsSamples` (a unit test's own
+    fixture, or a future producer that samples upstream) is honoured as-is.
+    """
+    return not (
+        _nonempty_list(payload.get("detections"))
+        or _nonempty_list(payload.get("sceneFrames"))
+        or _nonempty_list(payload.get("rmsSamples"))
+    )
+
+
+def _nonempty_list(value: Any) -> bool:
+    return isinstance(value, list) and len(value) > 0
+
+
+def _build_face_detector(frames: list[FrameSample]) -> FrameDetector:
+    """The B19b detector seam (brief ruling 6): `PASS_FACE_DETECTOR=yunet`
+    would select a real ONNX face detector, but its weights are not
+    provisioned in this work package (H-22 provisions them at image build),
+    so any other value — including unset — keeps the `BrightBlobDetector`
+    stand-in `worker_ai.passes.tracking` already ships.
+    """
+    requested = os.environ.get("PASS_FACE_DETECTOR", "").strip().lower()
+    if requested == "yunet":
+        weights = os.environ.get("PASS_FACE_DETECTOR_WEIGHTS", "").strip()
+        if not weights:
+            raise JobFailureError(
+                "worker/config_missing",
+                "PASS_FACE_DETECTOR=yunet needs PASS_FACE_DETECTOR_WEIGHTS "
+                "(a weights path provisioned at image build, H-22); it is not "
+                "set, so this deployment cannot run the real detector yet",
+                retryable=False,
+            )
+        raise JobFailureError(
+            "worker/not_implemented",
+            "a YuNet FrameDetector is not implemented in this work package "
+            "(brief ruling 6) — unset PASS_FACE_DETECTOR to use the "
+            "BrightBlobDetector stand-in",
+            retryable=False,
+        )
+    return BrightBlobDetector(frames=[sample.gray for sample in frames])
+
+
+async def _sample_from_proxy(
+    context: JobContext, duration_ms: int
+) -> tuple[list[FrameStat], list[dict[str, Any]], list[tuple[int, float]]]:
+    """Download the 540p proxy (CONTRACTS §6) and sample scene-cut frame
+    stats, subject-tracking detections and RMS audio energy at 10 Hz (brief
+    ruling 4). Raises `JobFailureError` (`worker/proxy_required`,
+    non-retryable) when no proxy key can be resolved, and
+    `worker/storage_unavailable` (retryable) when the download itself fails —
+    the API producer is expected to have already rejected a project with no
+    proxy (`passes/proxy_required`), so reaching this function without one
+    means the media row changed underneath the job.
+    """
+    project_id = context.payload_str("projectId") or (context.envelope.project_id or "")
+    media_id = context.payload_str("mediaId", required=True)
+    if not project_id:
+        raise JobFailureError(
+            "worker/invalid_payload",
+            "derived media keys need a projectId (CONTRACTS section 6)",
+            retryable=False,
+        )
+    store = context.services.derived_store
+    if store is None:
+        raise JobFailureError(
+            "worker/storage_unconfigured",
+            "R2_ENDPOINT, R2_BUCKET_DERIVED and the R2 credentials are required",
+            retryable=False,
+        )
+    try:
+        key = derived_key(context.envelope.workspace_id, project_id, media_id, "proxy540.mp4")
+        destination = context.workdir / "proxy540.mp4"
+        store.download(key, destination)
+    except StorageError as error:
+        raise JobFailureError(
+            "worker/storage_unavailable", str(error), retryable=True
+        ) from error
+
+    frames = sample_frames(destination, duration_ms)
+    scene_frames = [
+        FrameStat(t_ms=frame.t_ms, hue=frame.hue, sat=frame.sat, val=frame.val)
+        for frame in frames
+    ]
+    detector = _build_face_detector(frames)
+    detections: list[dict[str, Any]] = []
+    for index, frame in enumerate(frames):
+        boxes = detector.detect(index, frame.t_ms)
+        detections.append(
+            {
+                "tMs": frame.t_ms,
+                "boxes": [
+                    {"x": box.x, "y": box.y, "w": box.w, "h": box.h, "score": box.score}
+                    for box in boxes
+                ],
+            }
+        )
+    rms_samples = sample_rms(destination, duration_ms)
+    return scene_frames, detections, rms_samples
 
 
 async def process_zoom(context: JobContext) -> ProcessorOutcome:
@@ -78,6 +200,18 @@ async def process_zoom(context: JobContext) -> ProcessorOutcome:
     pass_id = context.payload_str("passId", required=True)
     preset = context.payload_str("preset", default="standard")
     duration_ms = _int(payload.get("durationMs"), default=0)
+
+    if _payload_needs_sampling(payload):
+        await context.progress(5, message="sampling frames and audio from the proxy")
+        scene_frames, detections, rms_samples = await _sample_from_proxy(context, duration_ms)
+        payload = {
+            **payload,
+            "sceneFrames": [
+                {"tMs": f.t_ms, "hue": f.hue, "sat": f.sat, "val": f.val} for f in scene_frames
+            ],
+            "detections": detections,
+            "rmsSamples": [[t, v] for t, v in rms_samples],
+        }
 
     await context.progress(10, message="detecting scenes")
     scene_cuts_ms = _scene_cut_points(payload, duration_ms)
@@ -108,7 +242,7 @@ async def process_zoom(context: JobContext) -> ProcessorOutcome:
             "passId": pass_id,
             "passType": "zoom",
             "preset": preset,
-            "items": [_zoom_item_wire(event) for event in events],
+            "items": [_zoom_item_wire(context, pass_id, event) for event in events],
         },
         usage=JobUsage(media_seconds=duration_ms / 1000 if duration_ms else None),
     )
@@ -122,6 +256,18 @@ async def process_reframe(context: JobContext) -> ProcessorOutcome:
     target_aspect = _float(payload.get("targetAspect"), default=9 / 16)
     deadzone_fraction = _float(payload.get("deadzoneFraction"), default=0.08)
     max_velocity_per_s = _float(payload.get("maxVelocityPerS"), default=0.8)
+
+    if _payload_needs_sampling(payload):
+        await context.progress(5, message="sampling frames and audio from the proxy")
+        scene_frames, detections, rms_samples = await _sample_from_proxy(context, duration_ms)
+        payload = {
+            **payload,
+            "sceneFrames": [
+                {"tMs": f.t_ms, "hue": f.hue, "sat": f.sat, "val": f.val} for f in scene_frames
+            ],
+            "detections": detections,
+            "rmsSamples": [[t, v] for t, v in rms_samples],
+        }
 
     await context.progress(10, message="detecting scenes")
     scene_cuts_ms = _scene_cut_points(payload, duration_ms)
@@ -153,7 +299,7 @@ async def process_reframe(context: JobContext) -> ProcessorOutcome:
         )
 
     packed = pack_keyframes(
-        [(float(k.t_ms), k.cx, k.cy, k.scale) for k in result.keyframes]
+        [(float(k.t_ms), k.scale, k.cx, k.cy, k.ease) for k in result.keyframes]
     )
     aspect_label = _aspect_label(target_aspect)
 
@@ -163,10 +309,10 @@ async def process_reframe(context: JobContext) -> ProcessorOutcome:
             "passType": "reframe",
             "items": [
                 {
+                    **_keyframe_storage_fields(context, pass_id, packed),
                     "startMs": 0,
                     "endMs": duration_ms,
                     "aspect": aspect_label,
-                    "keyframes": packed.hex(),
                     "letterboxScenes": list(result.letterbox_scenes),
                     "reason": "reframe",
                     "confidence": 0.7,
@@ -183,12 +329,47 @@ def _aspect_label(target_aspect: float) -> str:
     return "9:16"
 
 
-def _zoom_item_wire(event: ZoomEvent) -> dict[str, Any]:
-    packed = pack_keyframes([(float(k.t_ms), k.cx, k.cy, k.scale) for k in event.keyframes])
+def _keyframe_storage_fields(context: JobContext, pass_id: str, packed: bytes) -> dict[str, Any]:
+    """Mint this item's id and decide inline vs. derived storage for its
+    packed keyframes (CONTRACTS §2 keyframe payload rule, B19b).
+
+    The item id is minted here, not by the API's completion handler, because
+    the derived key (`ws/{workspaceId}/passes/{passId}/{itemId}.mkf`,
+    CONTRACTS §6) needs it before the object can be uploaded — the API is
+    told to use this id verbatim rather than minting its own.
+    """
+    item_id = new_ulid()
+    if len(packed) <= INLINE_LIMIT_BYTES:
+        return {"itemId": item_id, "keyframes": packed.hex()}
+
+    store = context.services.derived_store
+    if store is None:
+        raise JobFailureError(
+            "worker/storage_unconfigured",
+            "R2_ENDPOINT, R2_BUCKET_DERIVED and the R2 credentials are required "
+            "to upload a keyframe curve over the 64 KiB inline limit",
+            retryable=False,
+        )
+    key = f"ws/{context.envelope.workspace_id}/passes/{pass_id}/{item_id}.mkf"
+    local = context.workdir / f"{item_id}.mkf"
+    local.write_bytes(packed)
+    try:
+        store.upload(local, key)
+    except StorageError as error:
+        raise JobFailureError(
+            "worker/storage_unavailable", str(error), retryable=True
+        ) from error
+    return {"itemId": item_id, "keyframesRef": key}
+
+
+def _zoom_item_wire(context: JobContext, pass_id: str, event: ZoomEvent) -> dict[str, Any]:
+    packed = pack_keyframes(
+        [(float(k.t_ms), k.scale, k.cx, k.cy, k.ease) for k in event.keyframes]
+    )
     return {
+        **_keyframe_storage_fields(context, pass_id, packed),
         "startMs": event.start_ms,
         "endMs": event.end_ms,
-        "keyframes": packed.hex(),
         "scaleFrom": 1.0,
         "scaleTo": event.keyframes[2].scale if len(event.keyframes) > 2 else 1.0,
         "target": {
