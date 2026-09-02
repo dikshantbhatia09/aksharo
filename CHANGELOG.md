@@ -88,6 +88,36 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `creditsOnly`/`lastNudgeAt`/`createdAt` (migration `20260902122834_b06_streak_experiment`,
   additive only, a throwaway `freezes_month` default keeps it safe against a
   populated table).
+- **A21b — api: browser-path gaps A19 found (source URLs, H.264/audio eligibility, HDR).**
+  - **`sources: {rawUrl, proxyUrl?, watermarkUrl?}`** alongside a browser manifest
+    (never inside it — it is not signed, and is freely re-issuable): 15-minute
+    presigned GETs for the ORIGINAL media (S3, `RAW_STORE`) — a 540p proxy cannot
+    produce a clean 1080p export — the proxy when one exists, and the watermark
+    PNG (R2, `brandAssetKey`) when the manifest carries one. Built from the signed
+    manifest's own `source.mediaId`, never the project's current primary media, so
+    a refresh minutes later still points at exactly what was signed.
+  - **`GET /exports/manifests/{id}/sources`** reissues a fresh set once the
+    originals expire mid-export. Same ownership checks as
+    `POST .../complete` (workspace-owned, browser mode, not expired) minus the
+    nonce claim — refreshing does not consume anything, so a manifest already
+    completed has nothing left to refresh (`export/manifest_already_consumed`).
+  - **`decision.ts`: H.264 decode+encode and a usable audio path, at every
+    resolution.** Previously the capability gate only ran inside the 4K branch;
+    it now runs first, for 1080p too. `capabilities.codecs` is A19's own wire
+    shape (`VideoEncoder.isConfigSupported` results, gated on `VideoDecoder`
+    existing at all) rather than the brief's literal `capabilities.codecs.h264`
+    object — an avc1-prefixed entry is evidence of both decode and encode, so
+    the existing DTO did not need a breaking shape change; noted as an adapted
+    deviation, not a silent redesign. `capabilities.audioEncoder`, or the new
+    `audioCopyPossible` escape hatch (an audio strategy that needs no
+    re-encode — always `false` today; `ExportsService` does not yet probe the
+    source's audio codec, a documented simplification) must also hold.
+  - **HDR sources (`MediaAsset.hdr`) are cloud-only.** Wired into
+    `ExportDecisionInput.isHdrSource`; refused the browser path with a
+    tone-mapping reason, exactly like alpha/green-screen and mobile.
+  - 61 decision-table tests (up from 44), 6 new e2e cases for the sources
+    shape/TTL and the refresh route's ownership checks
+    (`test/exports.e2e-spec.ts`), against a real Postgres and Redis.
 
 - **B03 — web Subscription pages, checkout sheet and `UpgradeGate` wiring.** `/billing`
   (Overview: plan card with status/renewal/mandate cap, credits meter with lots and
