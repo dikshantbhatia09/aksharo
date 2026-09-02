@@ -90,9 +90,7 @@ export class AttributionService {
    * signup is a self-referral (brief §2: "self-referral detection ... reject
    * with audit").
    */
-  async attach(
-    input: AttachInput,
-  ): Promise<{
+  async attach(input: AttachInput): Promise<{
     status: "attributed" | "rejected" | "none";
     reason?: string;
     affiliateId?: string;
