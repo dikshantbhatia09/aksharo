@@ -13,7 +13,8 @@
     "apps/*",
     "packages/*",
     "plugins/*",
-    "engine/*"
+    "engine/*",
+    "tools/*"
   ],
   "scripts": {
     "build": "turbo run build",
@@ -21,6 +22,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "release": "tsx tools/release/src/cli.ts",
     "test:e2e": "turbo run test:e2e",
     "test:scripts": "node --test scripts/*.test.mjs",
     "e2e": "pnpm --filter @montaj/web test:e2e",

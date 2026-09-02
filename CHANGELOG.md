@@ -10,6 +10,88 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **C00 — Signing & release pipeline (dry-run only; credentials do not exist yet).**
+  New `tools/release` package (`@montaj/release`) exposing `pnpm release <cmd>`:
+  `version` (conventional-commit semver bump + `CHANGELOG.md` section assembly),
+  `build-desktop --platform mac|win --channel alpha|beta|stable --dry-run`
+  (electron-builder config generated from one root `release.config.ts`; builds
+  against a placeholder app tree when `apps/desktop` has no code yet),
+  `sign-nested` (walks a built app and signs/verifies every Mach-O/PE binary —
+  main, helpers, engine sidecar, ffmpeg, bridge SEA, updater — outer bundle
+  last), `notarize` (notarytool submit/wait/staple; records a ledger entry and
+  enforces the **24h buffer** before the `stable` channel, `--force --reason`
+  to override), `package-ccx` (UXP plugin -> `.ccx` zip, `manifest.json`
+  validated against `ai.aksharo.panel` / Premiere minVersion 25.6),
+  `sign-zxp` (AE CEP panel -> `.zxp`, ZXPSignCmd in signed mode / self-signed
+  dev-cert marker in dry-run), `package-resolve` (`aksharo_core` script +
+  per-OS installer scripts), `sbom` (CycloneDX document), `checksums`
+  (`CHECKSUMS.sha256` + HMAC-signed `SIGNATURES.txt`), `publish --channel`
+  (artifacts + `latest.yml`/`latest-mac.yml` electron-updater feeds; `.release/publish/<channel>`
+  locally in dry-run, R2 in signed mode), `promote --from --to` (channel
+  promotion; re-checks the 24h gate for `stable`), `verify-release`
+  (re-hashes a published channel against its checksum manifest).
+  `SignProvider` interface with `AzureTrustedSigningProvider` (brief default),
+  `DigiCertKeyLockerProvider` (practical default — see "Known gap" below) and
+  `MacDeveloperIdProvider`, all behind `RELEASE_MODE` (`dry-run` default,
+  never touches a real signer/notarytool/R2; `signed` fails closed —
+  `ReleaseFailClosedError` — listing every missing secret). New GitHub
+  Actions workflows `release-desktop.yml` (mac/win matrix, unsigned dry-run
+  on PRs, signed only on `release/*` tags behind `release-mac`/`release-win`
+  environments), `release-plugins.yml` (ccx/zxp/resolve), `promote.yml`
+  (manual channel promotion with the 24h check) plus SLSA provenance
+  attestation (`actions/attest-build-provenance`). `docs/RELEASE.md` runbook.
+  Adds `tools/*` to the pnpm workspace and a root `pnpm release` script.
+  **Known gap (reported, not fixed here):** RR-07 §P0 — Azure Trusted
+  Signing public-trust certs are not issued to an Indian entity (D69), so
+  `WIN_SIGN_PROVIDER=digicert-key-locker` is the practical default until
+  that changes or the entity structure does; `AzureTrustedSigningProvider`
+  still ships per the brief with the same fail-closed secret gate.
+  **CONTRACTS §1 ruling (2026-09-03):** the ~20 release-pipeline secret names
+  (Apple notarisation, Azure/DigiCert signing, ZXP, R2 publish,
+  checksum-manifest signing) are CI/GitHub-environment secrets, not
+  application runtime config, so they do **not** go into CONTRACTS §1 or the
+  root `.env.example` (that would fail `packages/config`'s one-key-per-contract-
+  variable parity test). They live in `tools/release/.env.example` instead;
+  the CLI loads `tools/release/.env` itself (`src/env.ts::loadReleaseDotEnv`).
+  `docs/RELEASE.md` lists them as the GitHub-environment secrets to set.
+
+- **B14b — Webhook events: real event emits replace the poller.**
+  `transcript.completed` (`transcripts/transcribe.handler.ts`), `job.failed`
+  (`jobs/jobs.service.ts::complete()`, after DLQ handling) and `credits.low`
+  (`credits/credits-low-balance.notifier.ts`) are now real `EventEmitter2`
+  emits at their producers, each with its own `<module>/*.event.ts` name +
+  payload contract (the `referrals/export-completed.event.ts` precedent) and
+  a `webhooks/listeners/*.listener.ts` subscriber. `WebhookEventPollerService`
+  and its Redis cursors are deleted; `webhooks.e2e-spec.ts` proves the whole
+  chain (API key → `/v1` project → simulated worker completion → a signed
+  delivery a receiver can verify, plus retries on a receiver that fails
+  twice) end to end. `WebhookDeliveryService.sendOverride` is a new,
+  production-inert test seam (parallel to `sendWebhook`'s own resolver/
+  transport seams) that lets that suite's in-process receiver stand in for a
+  real internet endpoint without touching the SSRF guard.
+- **B15 — share links, threaded review comments, intermediary-hygiene report
+  flow and batch orchestration.** `ShareLinksService`/`PublicViewerController`
+  add a `scope` (`view|comment|approve`), password (argon2), expiry, view-cap
+  and `clientTag` to `share_links` (previously A12/B16 groundwork only), and
+  the public `/s/:token` surface: resolve, password unlock (`X-Share-Session`
+  header, HMAC-signed, no cookie middleware added), report-abuse
+  (`share_reports`, category-driven SLA — 3h NCII / 36h other, matching
+  `ShareReportSlaTask`) with automatic disable after 3 pending reports, and the
+  approve/request-changes decision (new `projects.review_status`).
+  `CommentsService`/`CommentsController` add threaded, time-anchored comments
+  reachable from a workspace member or a public `comment`/`approve`-scope
+  reviewer (a guest's email is hashed, never stored), notifying the project
+  owner via the existing `share-comment` notify kind.
+  `BatchService`/`BatchController` add `/batch/quote`, `/batch` (tags the
+  projects `POST /projects/batch` already creates with a new `batches` row and
+  `projects.batch_id`) and `/batch/:id/apply` (enqueues `TranscriptsService.
+transcribe()` per project), plus `/batch/:id` for per-project progress.
+  Migrations: `20260903000000_b15_share_review_batch` (share-link scope/
+  password/expiry/views/client-tag, `comments.author_email_hash`,
+  `projects.review_status`), `20260903001000_b15_batch` (`batches`,
+  `projects.batch_id`). Replace-media re-alignment and import-transcript-align
+  (brief §5, §6) are not implemented in this work package — see its final
+  report.
 - **B11b — LLM follow-up reconciliation: per-kind burn rates, one filler
   lexicon, EDG-segment transcript payload.** `packages/config/src/credits.ts`:
   the flat `chaptersSummaryHook` burn rate (2 credits/job for every kind) is
