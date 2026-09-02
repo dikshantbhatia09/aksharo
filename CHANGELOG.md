@@ -34,6 +34,39 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **C06 — Premiere Pro apply modes: transcript injection, MOGRT captions, alpha
+  overlay, SRT to bin, cuts/zooms/audio, transactions, host-id map + re-sync.**
+  `PremiereHost` (`plugins/premiere-uxp/src/host/premiere.ts`) grows the apply-mode
+  surface — `importTranscript`, `insertMogrt`/`setMogrtParams`/`getMogrtParams`,
+  `rippleDelete`, `setMotionKeyframes`, `importMediaToBin`/`placeOnTrack`,
+  `replaceAudioRange`, `transaction`, `setItemMetadata`/`getItemMetadata`/
+  `listAksharoItems`/`removeItem` — each cited to an Adobe UXP doc path,
+  implemented deterministically in `MockPremiereHost` (including true
+  snapshot/rollback for `transaction()`), and left throwing a clear
+  `"... (Gate C)"` error in `createRealPremiereHost()`. New `src/apply/**`:
+  `transcript.ts` builds an idempotent EDG→transcript import; `mogrtCaptions.ts`
+  resolves the appendix param table by name (with an index-fallback helper for
+  a host adapter that turns out to need it) and runs a start-up self-test that
+  inserts a scratch MOGRT instance and confirms params round-trip;
+  `alphaOverlay.ts`/`srtBin.ts` import a downloaded render/SRT into the bin;
+  `cutsZoomsAudio.ts` ripple-deletes accepted cuts, converts decoded MKF2 rows to
+  frame-relative Motion keyframes for accepted zooms, and replaces a cleaned-audio
+  range; `runApply.ts` wraps a selected mode set in one `host.transaction`,
+  reporting `apply.begin/step/commit/abort` to the bridge (rollback + abort on any
+  thrown step) and computes dry-run preview counts (`planApply`); `resync.ts`
+  diffs marker-guid host-id map entries against a fetched EDG revision, removing
+  items whose segment is gone and flagging the rest `stale`/`upToDate` without
+  re-applying anything on the caller's behalf. New panel component
+  `src/ui/components/ApplyPanel.tsx`: one checkbox + dry-run count per apply mode,
+  a mode disabled with a message (e.g. a failed MOGRT self-test), and an Apply
+  button gated on at least one selection. `docs/GATE-C-CHECKLIST.md` gained a
+  verification item per new host call. Per-word caption highlight
+  (`HighlightStart`/`HighlightEnd` keyframes inside one MOGRT instance) is scoped
+  down to `computeWordHighlightWindows` (the per-word time windows only) — real
+  keyframing of a MOGRT's own component params is unverified until Gate C, flagged
+  as a follow-up rather than invented. Native captions-track writing remains out
+  of scope, per the brief.
+
 - **C08 — DaVinci Resolve `aksharo_core`: Workspace ▸ Scripts launcher, in-Resolve
   loopback server, bridge client, Text+ captions, cuts, dynamic zoom, marker
   customData map.** New workspace `plugins/resolve` (Python 3.12, same
