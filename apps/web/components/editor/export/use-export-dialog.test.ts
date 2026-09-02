@@ -12,7 +12,10 @@ import type { ExportDialogDeps } from "./use-export-dialog";
  * itself is mocked to the minimum that clears those checks. What IS under
  * test is a single wire: whatever `preferFileSystemAccess` resolves to must be
  * exactly what reaches `runExport`, given the deps default, an explicit
- * override, the E2E window flag, and production suppressing that flag (A07b).
+ * override, the E2E window flag (armed only on a loopback origin — this
+ * repo's e2e suite production-builds the app, so `NODE_ENV` cannot be the
+ * gate; see `use-export-dialog.ts`'s comment on `e2eNoFilePicker`), and a
+ * real (non-loopback) origin suppressing that flag (A07b).
  */
 
 const runExport = vi.fn(async (_options: unknown) => ({
@@ -65,10 +68,23 @@ function setE2EFlag(noFilePicker: boolean): void {
   (window as unknown as E2EWindow).__aksharoE2E = { noFilePicker };
 }
 
+/**
+ * jsdom's default test origin is `http://localhost:3000/` — a loopback host.
+ * `window.location` is not writable by simple assignment, so this replaces
+ * the whole property (restored to `localhost` in `afterEach` below) rather
+ * than navigating, which jsdom refuses across origins.
+ */
+function setHostname(hostname: string): void {
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: { ...window.location, hostname, href: `http://${hostname}/` },
+  });
+}
+
 afterEach(() => {
   runExport.mockClear();
   delete (window as unknown as E2EWindow).__aksharoE2E;
-  vi.unstubAllEnvs();
+  setHostname("localhost");
 });
 
 describe("useExportDialog — preferFileSystemAccess (A07b)", () => {
@@ -83,7 +99,7 @@ describe("useExportDialog — preferFileSystemAccess (A07b)", () => {
     expect(runExport.mock.calls[0]?.[0]).toMatchObject({ preferFileSystemAccess: false });
   });
 
-  it("a non-production window.__aksharoE2E.noFilePicker flag forces false", async () => {
+  it("a window.__aksharoE2E.noFilePicker flag on a loopback origin forces false", async () => {
     setE2EFlag(true);
     await runStartExport(deps());
     expect(runExport.mock.calls[0]?.[0]).toMatchObject({ preferFileSystemAccess: false });
@@ -95,8 +111,8 @@ describe("useExportDialog — preferFileSystemAccess (A07b)", () => {
     expect(runExport.mock.calls[0]?.[0]).toMatchObject({ preferFileSystemAccess: false });
   });
 
-  it("never applies in a production build, flag or not", async () => {
-    vi.stubEnv("NODE_ENV", "production");
+  it("never applies on a real (non-loopback) origin, flag or not", async () => {
+    setHostname("app.aksharo.example");
     setE2EFlag(true);
     await runStartExport(deps());
     expect(runExport.mock.calls[0]?.[0]).toMatchObject({ preferFileSystemAccess: true });

@@ -54,9 +54,9 @@ export interface ExportDialogDeps {
 }
 
 /**
- * `window.__aksharoE2E` — a non-production-only escape hatch, never shipped to
- * a real user (see the `process.env.NODE_ENV` guard below), that lets
- * `apps/web/e2e/export.spec.ts` click all the way through the export dialog.
+ * `window.__aksharoE2E` — an escape hatch that lets `apps/web/e2e/export.
+ * spec.ts` click all the way through the export dialog, never armed for a
+ * real user.
  *
  * A synthetic click is not a "user activation" as far as `showSaveFilePicker`
  * is concerned, so without this flag the dialog's real button is
@@ -64,15 +64,30 @@ export interface ExportDialogDeps {
  * export ends in `phase: "error"` before a single frame renders. Setting
  * `noFilePicker: true` (`export.spec.ts`'s `page.addInitScript`, before the
  * app's own scripts run) is Playwright's side of the handshake.
+ *
+ * **Why this does not gate on `process.env.NODE_ENV`.** The brief's original
+ * ask was "non-production builds only", the obvious-looking check — but
+ * `playwright.config.ts`'s web project runs `next build && next start` on
+ * purpose (`10-build-plan.md`'s "what the review screenshots should show"),
+ * and Next.js inlines `process.env.NODE_ENV` as the literal string
+ * `"production"` in every client bundle it builds, watch mode or not
+ * (webpack's `DefinePlugin`, unconditionally, not only for `NEXT_PUBLIC_*`
+ * vars). A `NODE_ENV` check here would therefore read `"production"` in
+ * exactly the one build this flag needs to work in, and never fire — a
+ * literal reading of the brief that cannot pass its own acceptance
+ * criterion. The loopback-origin check below is the property `NODE_ENV` was
+ * standing in for ("never armed for a paying user's own domain") and, unlike
+ * `NODE_ENV`, it is a real runtime check the build cannot inline away.
  */
 interface AksharoE2EWindow {
   readonly __aksharoE2E?: { readonly noFilePicker?: boolean };
 }
 
-/** `true` only in a non-production build, and only when the page opted in. */
+/** `true` only on a loopback origin (this suite's own `127.0.0.1`/`localhost`) that opted in. */
 function e2eNoFilePicker(): boolean {
-  if (process.env.NODE_ENV === "production") return false;
   if (typeof window === "undefined") return false;
+  const { hostname } = window.location;
+  if (hostname !== "127.0.0.1" && hostname !== "localhost" && hostname !== "[::1]") return false;
   return (window as unknown as AksharoE2EWindow).__aksharoE2E?.noFilePicker === true;
 }
 
