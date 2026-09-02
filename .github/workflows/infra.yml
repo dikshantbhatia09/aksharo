@@ -44,6 +44,18 @@ jobs:
       - uses: actions/checkout@v4
 
       # -----------------------------------------------------------------------
+      # Egress inventory generator unit tests (X08). Node is preinstalled on
+      # this runner image, and neither script has a dependency beyond
+      # node:fs/node:path/node:child_process, so no pnpm install is needed
+      # here. (infra/scripts/validate-chart-local.test.mjs is excluded: it
+      # needs the workspace's `yaml` package, and it exists only as a local
+      # stand-in for a host with no Helm — real `helm lint`/`helm
+      # template`/kubeconform below already supersede it in CI.)
+      # -----------------------------------------------------------------------
+      - name: infra/scripts unit tests (X08)
+        run: node --test infra/scripts/egress-hosts.test.mjs infra/scripts/generate-egress-inventory.test.mjs
+
+      # -----------------------------------------------------------------------
       # Terraform
       # -----------------------------------------------------------------------
       - name: Install Terraform
@@ -129,19 +141,33 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: kubeconform (Cilium FQDN egress variant)
-        # The FQDN policy is off by default, so it would otherwise never be
-        # rendered or validated.
+      - name: helm lint (Cilium FQDN egress variants: audit, enforce)
+        # The FQDN policy is off by default, so these would otherwise never be
+        # linted. X08: the staged-rollout "audit" mode sits between the chart's
+        # default ("off") and the enforced end state.
         run: |
           set -euo pipefail
-          helm template montaj infra/k8s/montaj \
-            -f infra/k8s/montaj/values-prod.yaml \
-            --set networkPolicy.fqdn.enabled=true > /tmp/montaj-fqdn.yaml
-          kubeconform -strict -summary \
-            -kubernetes-version "${KUBERNETES_VERSION}" \
-            -schema-location default \
-            -schema-location "${CRD_SCHEMAS}" \
-            /tmp/montaj-fqdn.yaml
+          for mode in audit enforce; do
+            helm lint infra/k8s/montaj \
+              -f infra/k8s/montaj/values-prod.yaml \
+              --set networkPolicy.fqdn.mode="$mode"
+          done
+
+      - name: kubeconform (Cilium FQDN egress variants: audit, enforce)
+        run: |
+          set -euo pipefail
+          for mode in audit enforce; do
+            echo "::group::kubeconform fqdn.mode=$mode"
+            helm template montaj infra/k8s/montaj \
+              -f infra/k8s/montaj/values-prod.yaml \
+              --set networkPolicy.fqdn.mode="$mode" > "/tmp/montaj-fqdn-$mode.yaml"
+            kubeconform -strict -summary \
+              -kubernetes-version "${KUBERNETES_VERSION}" \
+              -schema-location default \
+              -schema-location "${CRD_SCHEMAS}" \
+              "/tmp/montaj-fqdn-$mode.yaml"
+            echo "::endgroup::"
+          done
 
       - name: kubeconform (observability)
         run: |
@@ -197,15 +223,39 @@ jobs:
           exit $fail
 
       - name: Worker egress is denied by default
-        # X05 acceptance criterion 4. Checked on both environments and on the
-        # Cilium variant, since each renders a different set of policies.
+        # X05 acceptance criterion 4. Checked on both environments and on both
+        # Cilium modes, since each renders a different set of policies.
         run: |
           set -euo pipefail
-          for manifest in /tmp/montaj-staging.yaml /tmp/montaj-prod.yaml /tmp/montaj-fqdn.yaml; do
+          for manifest in /tmp/montaj-staging.yaml /tmp/montaj-prod.yaml \
+                          /tmp/montaj-fqdn-audit.yaml /tmp/montaj-fqdn-enforce.yaml; do
             echo "::group::network policy $(basename "$manifest")"
             python3 infra/scripts/check-network-policy.py "$manifest"
             echo "::endgroup::"
           done
+
+      - name: Cilium audit mode is annotated, enforce mode is not (X08)
+        # policy-audit-mode toggle for staged rollout: "audit" must carry the
+        # per-policy annotation Cilium reads to log instead of drop; "enforce"
+        # must not, or a rollout would silently stay in observe-only forever.
+        run: |
+          set -euo pipefail
+          if ! grep -q 'policy.cilium.io/audit-mode: "true"' /tmp/montaj-fqdn-audit.yaml; then
+            echo "::error::fqdn.mode=audit did not render the audit-mode annotation"
+            exit 1
+          fi
+          if grep -q 'policy.cilium.io/audit-mode' /tmp/montaj-fqdn-enforce.yaml; then
+            echo "::error::fqdn.mode=enforce must not carry the audit-mode annotation"
+            exit 1
+          fi
+          echo "OK: audit annotated, enforce is not"
+
+      - name: Egress inventory is current and complete (X08)
+        # infra/policies/egress-inventory.json is generated from a source scan
+        # (infra/scripts/generate-egress-inventory.mjs). --check fails on drift
+        # against the committed file and, separately, on any outbound hostname
+        # found in code with no owner/purpose entry in VENDOR_METADATA.
+        run: node infra/scripts/generate-egress-inventory.mjs --check
 
       # -----------------------------------------------------------------------
       # Observability
