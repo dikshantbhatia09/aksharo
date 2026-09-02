@@ -42,6 +42,8 @@ export const CONTRACT_ENV_VARS = [
   "ANTHROPIC_API_KEY",
   "OPENAI_API_KEY",
   "GPU_PROVIDER",
+  "GPU_PROVIDER_URL",
+  "GPU_PROVIDER_TOKEN",
   "SENTRY_DSN",
   "POSTHOG_KEY",
   "FEATURE_FLAGS_JSON",
@@ -176,8 +178,13 @@ export const envSchema = z.object({
   ANTHROPIC_API_KEY: optionalSecret(),
   OPENAI_API_KEY: optionalSecret(),
 
-  // --- GPU ---
+  // --- GPU (A09; the endpoint the serverless pool is invoked at) ---
   GPU_PROVIDER: z.enum(GPU_PROVIDERS).default("none"),
+  GPU_PROVIDER_URL: optionalSecret().refine(
+    (value) => value === undefined || /^https?:\/\/[^\s]+$/.test(value),
+    "GPU_PROVIDER_URL must be an http(s) URL",
+  ),
+  GPU_PROVIDER_TOKEN: optionalSecret(),
 
   // --- Observability (optional; empty disables the integration) ---
   SENTRY_DSN: optionalSecret(),

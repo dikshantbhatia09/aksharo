@@ -269,11 +269,11 @@ overrides for the long ones:
 | `render` | 2        | 30 s                  | 0.3    | 5 min | 60 s        |
 | `notify` | 5        | 2 s                   | 0.5    | 30 s  | 15 s        |
 
-| Queue override                 | Lock   |
-| ------------------------------ | ------ |
-| `ai.transcribe`, `ai.diarise`  | 10 min |
-| `ai.align`                     | 5 min  |
-| `render.video`                 | 10 min |
+| Queue override                | Lock   |
+| ----------------------------- | ------ |
+| `ai.transcribe`, `ai.diarise` | 10 min |
+| `ai.align`                    | 5 min  |
+| `render.video`                | 10 min |
 
 Jitter is not decoration: a provider outage fails every in-flight job at almost
 the same instant, and an un-jittered exponential backoff retries them all at
@@ -459,7 +459,7 @@ Two variables shape a test run:
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MONTAJ_QUEUE_PREFIX`       | Redis key prefix for BullMQ and realtime. `setup-env.ts` sets a per-process value so two runs never share keys; a deployment leaves it at `bull`, which is what the workers expect. |
 | `MONTAJ_SCHEDULER_DISABLED` | `1` stops this process running the scheduler worker. Set in tests, which call `ScheduledTasksService.runNow(name)` instead.                                                         |
-| `MONTAJ_METRICS_TOKEN`      | When set, `GET /internal/metrics` requires `Authorization: Bearer <token>`. Unset, the endpoint is open (A08b).                                                                    |
+| `MONTAJ_METRICS_TOKEN`      | When set, `GET /internal/metrics` requires `Authorization: Bearer <token>`. Unset, the endpoint is open (A08b).                                                                     |
 | `NOTIFY_WORKER_ENABLED`     | `0` stops this process draining the `notify` queue. `setup-env.ts` sets it; `test/auth-harness.ts` turns it back on, because that suite delivers to the outbox and reads it.        |
 
 ## Adding a module

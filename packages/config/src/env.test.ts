@@ -214,3 +214,28 @@ describe("transactional mail (CONTRACTS §1, added after A04)", () => {
     ).toThrow(EnvValidationError);
   });
 });
+
+describe("the serverless GPU endpoint (CONTRACTS §1, added after A09)", () => {
+  it("is optional, because the local default is GPU_PROVIDER=none", () => {
+    const env = loadEnv({ source: validEnv() });
+    expect(env.GPU_PROVIDER).toBe("none");
+    expect(env.GPU_PROVIDER_URL).toBeUndefined();
+    expect(env.GPU_PROVIDER_TOKEN).toBeUndefined();
+  });
+
+  it("takes an http(s) endpoint and a token, and refuses anything else as a URL", () => {
+    const env = loadEnv({
+      source: validEnv({
+        GPU_PROVIDER: "runpod",
+        GPU_PROVIDER_URL: "https://api.runpod.ai/v2/abc/run",
+        GPU_PROVIDER_TOKEN: "rp-token",
+      }),
+    });
+    expect(env.GPU_PROVIDER_URL).toBe("https://api.runpod.ai/v2/abc/run");
+    expect(env.GPU_PROVIDER_TOKEN).toBe("rp-token");
+
+    expect(() => loadEnv({ source: validEnv({ GPU_PROVIDER_URL: "api.runpod.ai" }) })).toThrow(
+      EnvValidationError,
+    );
+  });
+});

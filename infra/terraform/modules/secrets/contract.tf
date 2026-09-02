@@ -173,6 +173,16 @@ locals {
       human       = false
       description = "runpod | modal | replicate | none. See infra/gpu."
     }
+    GPU_PROVIDER_URL = {
+      secret      = false
+      human       = false
+      description = "Endpoint the serverless GPU pool is invoked at. Not a credential: it is the address, and the token beside it is what authorises the call."
+    }
+    GPU_PROVIDER_TOKEN = {
+      secret      = true
+      human       = true
+      description = "Bearer token for the serverless GPU endpoint. Pasted once by a human, like the other provider keys."
+    }
     SENTRY_DSN = {
       secret      = true
       human       = true

@@ -362,7 +362,13 @@ export function createFakePrisma(db: FakeDb) {
         [...db.notifications.values()].filter((row) =>
           matches(row as unknown as Row, args["where"] as Row),
         ).length,
-      updateMany: async ({ where, data }: { where: Row; data: Row }): Promise<{ count: number }> => {
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: Row;
+        data: Row;
+      }): Promise<{ count: number }> => {
         let count = 0;
         for (const row of [...db.notifications.values()]) {
           if (!matches(row as unknown as Row, where)) continue;
@@ -415,13 +421,7 @@ export function createFakePrisma(db: FakeDb) {
           ),
           args,
         ),
-      update: async ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: Row;
-      }): Promise<DlqEntry> => {
+      update: async ({ where, data }: { where: { id: string }; data: Row }): Promise<DlqEntry> => {
         const current = db.dlq.get(where.id);
         if (current === undefined) throw new Error(`no dlq entry ${where.id}`);
         const next = { ...current, ...data } as DlqEntry;

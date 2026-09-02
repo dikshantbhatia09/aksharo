@@ -12,7 +12,7 @@ import {
 import { isCriticalKind, isInAppKind, isNotifyKind } from "./notify.kinds.js";
 import { AppException, ERROR_CODES, maskEmail, PrismaService } from "../common/index.js";
 import { buildJobEnvelope } from "../jobs/contracts/job-envelope.js";
-import { retryPolicyFor } from "../jobs/jobs.config.js";
+import { queuePolicyFor } from "../jobs/jobs.config.js";
 import { QueueRegistry } from "../jobs/queue.registry.js";
 import { RealtimePublisher } from "../realtime/realtime.publisher.js";
 
@@ -152,12 +152,15 @@ export class NotifyService {
    * durable record is the `notifications` row and the audit trail, not Redis.
    */
   private jobOptions(idempotencyKey: string, priority: number): JobsOptions {
-    const policy = retryPolicyFor("notify");
+    const policy = queuePolicyFor("notify");
     return {
       jobId: idempotencyKey,
       priority,
       attempts: policy.attempts,
-      backoff: { type: "exponential", delay: policy.backoffMs },
+      // Jitter for the same reason A08b added it everywhere else: a provider
+      // outage that recovers must not have every queued notification retry into
+      // it at the same millisecond.
+      backoff: { type: "exponential", delay: policy.backoffMs, jitter: policy.backoffJitter },
       removeOnComplete: { age: 3_600, count: 1_000 },
       removeOnFail: { age: 7 * 24 * 3_600, count: 5_000 },
     };
