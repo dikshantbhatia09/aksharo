@@ -131,6 +131,34 @@ export const API_OPERATIONS = [
     summary: "Start a device sign-in",
   },
   {
+    operationId: "discardDeadLetter",
+    method: "POST",
+    path: "/admin/dlq/{id}/discard",
+    tags: ["admin"],
+    summary: "Discard one dead letter",
+  },
+  {
+    operationId: "discardDeadLetters",
+    method: "POST",
+    path: "/admin/dlq/discard",
+    tags: ["admin"],
+    summary: "Discard many dead letters",
+  },
+  {
+    operationId: "getDeadLetter",
+    method: "GET",
+    path: "/admin/dlq/{id}",
+    tags: ["admin"],
+    summary: "One dead letter, by entry id or by job id",
+  },
+  {
+    operationId: "getDeadLetterStats",
+    method: "GET",
+    path: "/admin/dlq/stats",
+    tags: ["admin"],
+    summary: "Per-queue dead-letter counts",
+  },
+  {
     operationId: "getHealth",
     method: "GET",
     path: "/health",
@@ -150,6 +178,13 @@ export const API_OPERATIONS = [
     path: "/health/ready",
     tags: ["health"],
     summary: "Readiness probe (db, redis, storage)",
+  },
+  {
+    operationId: "listDeadLetters",
+    method: "GET",
+    path: "/admin/dlq",
+    tags: ["admin"],
+    summary: "List dead-lettered jobs, newest first",
   },
   {
     operationId: "listJobEvents",
@@ -199,6 +234,20 @@ export const API_OPERATIONS = [
     path: "/auth/oauth/google/start",
     tags: ["auth"],
     summary: "Begin Google sign-in",
+  },
+  {
+    operationId: "replayDeadLetter",
+    method: "POST",
+    path: "/admin/dlq/{id}/replay",
+    tags: ["admin"],
+    summary: "Replay one dead letter",
+  },
+  {
+    operationId: "replayDeadLetters",
+    method: "POST",
+    path: "/admin/dlq/replay",
+    tags: ["admin"],
+    summary: "Replay many dead letters",
   },
 ] as const satisfies readonly ApiOperation[];
 

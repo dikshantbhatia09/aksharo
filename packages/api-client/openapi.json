@@ -1587,6 +1587,315 @@
         ]
       }
     },
+    "/admin/dlq": {
+      "get": {
+        "description": "Filter by `queue`, `status`, `workspaceId`, a `reason` substring of the last error's code or message, and a `since`/`until` window. Cursor pagination: pass the previous page's `nextCursor`.",
+        "operationId": "listDeadLetters",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DlqPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List dead-lettered jobs, newest first",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/dlq/stats": {
+      "get": {
+        "description": "How many, since when, and how many distinct error messages — the three numbers `docs/runbooks/dlq-replay.md` asks for before anything is replayed.",
+        "operationId": "getDeadLetterStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DlqStatsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Per-queue dead-letter counts",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/dlq/replay": {
+      "post": {
+        "description": "By explicit `ids` (entry ids or job ids) or by filter. `dryRun` defaults to true: it reports what would be enqueued and reserves nothing. Capped at 100 entries a call, because a full-throttle replay competes with live traffic for the same workers.",
+        "operationId": "replayDeadLetters",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkReplayDlqDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkOutcomeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Replay many dead letters",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/dlq/discard": {
+      "post": {
+        "description": "`discardReason` is mandatory and is recorded on every row.",
+        "operationId": "discardDeadLetters",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDiscardDlqDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkOutcomeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Discard many dead letters",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/dlq/{id}": {
+      "get": {
+        "operationId": "getDeadLetter",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DlqEntryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          },
+          "404": {
+            "description": "`jobs/dlq_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One dead letter, by entry id or by job id",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/dlq/{id}/replay": {
+      "post": {
+        "description": "Re-enqueues the same job row with a fresh `attemptId` and the next `attemptNo`, preserving `jobKey`, and reserves the original hold again through the credits facade.",
+        "operationId": "replayDeadLetter",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          },
+          "404": {
+            "description": "`jobs/dlq_not_found`."
+          },
+          "409": {
+            "description": "`jobs/dlq_already_resolved` or `jobs/dlq_job_not_failed`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Replay one dead letter",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/dlq/{id}/discard": {
+      "post": {
+        "description": "Releases the credit hold and records the reason. `reason` is mandatory.",
+        "operationId": "discardDeadLetter",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscardDlqDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscardResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          },
+          "404": {
+            "description": "`jobs/dlq_not_found`."
+          },
+          "409": {
+            "description": "`jobs/dlq_already_resolved`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Discard one dead letter",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "getHealth",
@@ -1924,6 +2233,374 @@
         "required": [
           "items",
           "unread"
+        ]
+      },
+      "DlqEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "ULID of the dead-letter entry."
+          },
+          "jobId": {
+            "type": "string",
+            "description": "The job that failed."
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "object",
+            "nullable": true
+          },
+          "queue": {
+            "type": "string",
+            "enum": [
+              "media.probe",
+              "media.proxy",
+              "ai.vad",
+              "ai.transcribe",
+              "ai.align",
+              "ai.diarise",
+              "ai.translate",
+              "ai.transliterate",
+              "ai.clean",
+              "ai.pass",
+              "ai.llm",
+              "render.video",
+              "render.subtitle",
+              "notify"
+            ]
+          },
+          "jobKey": {
+            "type": "string",
+            "description": "Deduplication key of the failed job."
+          },
+          "attemptId": {
+            "type": "string",
+            "description": "The attempt that gave up."
+          },
+          "attemptNo": {
+            "type": "number",
+            "description": "1-based ordinal of that attempt."
+          },
+          "attempts": {
+            "type": "number",
+            "description": "Attempts made in total."
+          },
+          "payload": {
+            "type": "object",
+            "nullable": true,
+            "description": "The queue payload."
+          },
+          "lastError": {
+            "type": "object",
+            "nullable": true,
+            "description": "`{code, message, retryable}` of the final attempt."
+          },
+          "worstCaseTenths": {
+            "type": "number",
+            "description": "Credits held in tenths; a replay reserves this again."
+          },
+          "failedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "replayed",
+              "discarded"
+            ]
+          },
+          "resolvedBy": {
+            "type": "object",
+            "nullable": true
+          },
+          "resolvedAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "resolution": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "jobId",
+          "workspaceId",
+          "queue",
+          "jobKey",
+          "attemptId",
+          "attemptNo",
+          "attempts",
+          "worstCaseTenths",
+          "failedAt",
+          "status"
+        ]
+      },
+      "DlqPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DlqEntryDto"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "DlqQueueStatsDto": {
+        "type": "object",
+        "properties": {
+          "queue": {
+            "type": "string",
+            "enum": [
+              "media.probe",
+              "media.proxy",
+              "ai.vad",
+              "ai.transcribe",
+              "ai.align",
+              "ai.diarise",
+              "ai.translate",
+              "ai.transliterate",
+              "ai.clean",
+              "ai.pass",
+              "ai.llm",
+              "render.video",
+              "render.subtitle",
+              "notify"
+            ]
+          },
+          "pending": {
+            "type": "number"
+          },
+          "replayed": {
+            "type": "number"
+          },
+          "discarded": {
+            "type": "number"
+          },
+          "oldestFailedAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "newestFailedAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "distinctErrors": {
+            "type": "number",
+            "description": "Distinct error codes among the pending rows."
+          }
+        },
+        "required": [
+          "queue",
+          "pending",
+          "replayed",
+          "discarded",
+          "distinctErrors"
+        ]
+      },
+      "DlqStatsDto": {
+        "type": "object",
+        "properties": {
+          "queues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DlqQueueStatsDto"
+            }
+          },
+          "pending": {
+            "type": "number",
+            "description": "Pending entries across every queue."
+          }
+        },
+        "required": [
+          "queues",
+          "pending"
+        ]
+      },
+      "BulkReplayDlqDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "BulkEntryOutcomeDto": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "queue": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "replayed",
+              "discarded",
+              "would_replay",
+              "would_discard",
+              "failed"
+            ]
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entryId",
+          "jobId",
+          "queue",
+          "outcome"
+        ]
+      },
+      "BulkOutcomeDto": {
+        "type": "object",
+        "properties": {
+          "selected": {
+            "type": "number",
+            "description": "Entries the filter selected."
+          },
+          "replayed": {
+            "type": "number"
+          },
+          "discarded": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "number"
+          },
+          "dryRun": {
+            "type": "boolean",
+            "description": "Nothing changed; the counts are a projection."
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BulkEntryOutcomeDto"
+            }
+          }
+        },
+        "required": [
+          "selected",
+          "replayed",
+          "discarded",
+          "failed",
+          "dryRun",
+          "entries"
+        ]
+      },
+      "BulkDiscardDlqDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReplayResultDto": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "attemptId": {
+            "type": "string",
+            "description": "The ULID minted for the replay."
+          },
+          "attemptNo": {
+            "type": "number",
+            "description": "1-based: three failures then a replay is 4."
+          },
+          "queue": {
+            "type": "string",
+            "enum": [
+              "media.probe",
+              "media.proxy",
+              "ai.vad",
+              "ai.transcribe",
+              "ai.align",
+              "ai.diarise",
+              "ai.translate",
+              "ai.transliterate",
+              "ai.clean",
+              "ai.pass",
+              "ai.llm",
+              "render.video",
+              "render.subtitle",
+              "notify"
+            ]
+          }
+        },
+        "required": [
+          "entryId",
+          "jobId",
+          "attemptId",
+          "attemptNo",
+          "queue"
+        ]
+      },
+      "DiscardDlqDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "DiscardResultDto": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "queue": {
+            "type": "string",
+            "enum": [
+              "media.probe",
+              "media.proxy",
+              "ai.vad",
+              "ai.transcribe",
+              "ai.align",
+              "ai.diarise",
+              "ai.translate",
+              "ai.transliterate",
+              "ai.clean",
+              "ai.pass",
+              "ai.llm",
+              "render.video",
+              "render.subtitle",
+              "notify"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "holdReleased": {
+            "type": "boolean",
+            "description": "Whether a credit hold was actually released."
+          }
+        },
+        "required": [
+          "entryId",
+          "jobId",
+          "queue",
+          "reason",
+          "holdReleased"
         ]
       },
       "HealthResponseDto": {
