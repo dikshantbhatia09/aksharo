@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-02T10:50:10.313Z",
+  "generatedAt": "2026-09-02T10:52:02.000Z",
   "maxDiffRatio": 0.01,
   "libassMeasured": true,
   "styles": {
@@ -10,8 +10,10 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:06.322Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:24.762Z"
     },
     "bold-drop": {
       "styleId": "bold-drop",
@@ -20,8 +22,10 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:08.172Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:26.562Z"
     },
     "box-block": {
       "styleId": "box-block",
@@ -30,8 +34,10 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:09.509Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:27.496Z"
     },
     "bubble-soft": {
       "styleId": "bubble-soft",
@@ -40,8 +46,10 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:11.407Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:28.842Z"
     },
     "caption-card": {
       "styleId": "caption-card",
@@ -50,8 +58,10 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:13.210Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:30.260Z"
     },
     "duo-tone": {
       "styleId": "duo-tone",
@@ -60,8 +70,10 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:15.765Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:31.873Z"
     },
     "glitch-shift": {
       "styleId": "glitch-shift",
@@ -70,8 +82,10 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:17.942Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:33.221Z"
     },
     "gradient-sweep": {
       "styleId": "gradient-sweep",
@@ -80,8 +94,10 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:19.487Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:34.451Z"
     },
     "highlight-marker": {
       "styleId": "highlight-marker",
@@ -90,8 +106,10 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:23.289Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:35.620Z"
     },
     "hype-bold": {
       "styleId": "hype-bold",
@@ -100,8 +118,10 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:27.670Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:37.285Z"
     },
     "impact-shout": {
       "styleId": "impact-shout",
@@ -111,7 +131,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": [],
-      "measuredAt": "2026-09-02T10:49:30.380Z"
+      "measuredAt": "2026-09-02T10:51:38.262Z"
     },
     "karaoke-fill": {
       "styleId": "karaoke-fill",
@@ -120,8 +140,10 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["karaoke_non_latin_disabled"],
-      "measuredAt": "2026-09-02T10:49:31.971Z"
+      "warnings": [
+        "karaoke_non_latin_disabled"
+      ],
+      "measuredAt": "2026-09-02T10:51:38.978Z"
     },
     "liquid-glass": {
       "styleId": "liquid-glass",
@@ -130,8 +152,10 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:36.233Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:40.117Z"
     },
     "minimal-lower-third": {
       "styleId": "minimal-lower-third",
@@ -141,7 +165,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T10:49:38.106Z"
+      "measuredAt": "2026-09-02T10:51:40.673Z"
     },
     "neon-glow": {
       "styleId": "neon-glow",
@@ -150,8 +174,10 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["glow_reduced_to_outline"],
-      "measuredAt": "2026-09-02T10:49:40.839Z"
+      "warnings": [
+        "glow_reduced_to_outline"
+      ],
+      "measuredAt": "2026-09-02T10:51:41.881Z"
     },
     "news-ticker": {
       "styleId": "news-ticker",
@@ -160,8 +186,10 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:42.845Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:42.557Z"
     },
     "outline-only": {
       "styleId": "outline-only",
@@ -170,8 +198,10 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:46.973Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:44.077Z"
     },
     "podcast-duo": {
       "styleId": "podcast-duo",
@@ -180,8 +210,10 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:49.824Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:45.507Z"
     },
     "prism-split": {
       "styleId": "prism-split",
@@ -190,8 +222,10 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:52.663Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:47.149Z"
     },
     "punch-pop": {
       "styleId": "punch-pop",
@@ -200,8 +234,10 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:49:55.560Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:49.264Z"
     },
     "quote-frame": {
       "styleId": "quote-frame",
@@ -211,7 +247,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T10:49:57.765Z"
+      "measuredAt": "2026-09-02T10:51:50.520Z"
     },
     "soft-serif": {
       "styleId": "soft-serif",
@@ -221,7 +257,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T10:49:59.567Z"
+      "measuredAt": "2026-09-02T10:51:51.805Z"
     },
     "spotlight-word": {
       "styleId": "spotlight-word",
@@ -230,8 +266,10 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:50:01.305Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:53.250Z"
     },
     "stroke-heavy": {
       "styleId": "stroke-heavy",
@@ -240,8 +278,10 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:50:02.225Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:54.492Z"
     },
     "subtitle-classic": {
       "styleId": "subtitle-classic",
@@ -251,7 +291,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T10:50:04.055Z"
+      "measuredAt": "2026-09-02T10:51:56.008Z"
     },
     "tape-retro": {
       "styleId": "tape-retro",
@@ -260,8 +300,10 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:50:05.701Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:57.499Z"
     },
     "typewriter-mono": {
       "styleId": "typewriter-mono",
@@ -270,8 +312,10 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:50:06.384Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:51:58.210Z"
     },
     "vertical-clean": {
       "styleId": "vertical-clean",
@@ -281,7 +325,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T10:50:07.578Z"
+      "measuredAt": "2026-09-02T10:51:59.529Z"
     },
     "whisper-thin": {
       "styleId": "whisper-thin",
@@ -290,8 +334,10 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:50:08.750Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:52:00.678Z"
     },
     "word-pop": {
       "styleId": "word-pop",
@@ -300,8 +346,10 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:50:10.312Z"
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:52:02.000Z"
     }
   }
 }
