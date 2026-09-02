@@ -355,6 +355,9 @@ importers:
       eslint:
         specifier: ^9.39.5
         version: 9.39.5(jiti@2.7.0)
+      fake-indexeddb:
+        specifier: ^6.2.2
+        version: 6.2.5
       ioredis:
         specifier: ^5.11.1
         version: 5.11.1
@@ -595,7 +598,7 @@ importers:
         version: 22.20.1
       '@vitest/coverage-v8':
         specifier: ^3.2.7
-        version: 3.2.7(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0))
+        version: 3.2.7(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0))
       canvaskit-wasm:
         specifier: 0.42.0
         version: 0.42.0
@@ -613,7 +616,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.7
-        version: 3.2.7(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0)
+        version: 3.2.7(@types/node@22.20.1)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0)
 
   packages/prompts:
     devDependencies:
@@ -4543,6 +4546,10 @@ packages:
 
   exsolve@1.1.1:
     resolution: {integrity: sha512-9U/jZUgjnSGyntRr6y5Muu1MJcwFl6kPu7k8qLF0IMNfLqvw0NZ4nnVDq0RVoZ0RvCyumib4Ez3KYrVfilrw+g==}
+
+  fake-indexeddb@6.2.5:
+    resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==}
+    engines: {node: '>=18'}
 
   fast-check@3.23.2:
     resolution: {integrity: sha512-h5+1OzzfCC3Ef7VbtKdcv7zsstUQwUDlYpUTvjeUsJAssPgLn7QzbboPtL5ro04Mq0rPOsMzl7q5hIbRs2wD1A==}
@@ -10381,6 +10388,8 @@ snapshots:
       - supports-color
 
   exsolve@1.1.1: {}
+
+  fake-indexeddb@6.2.5: {}
 
   fast-check@3.23.2:
     dependencies:

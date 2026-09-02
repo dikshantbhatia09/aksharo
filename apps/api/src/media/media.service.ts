@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 import { ulid } from "ulid";
 
@@ -106,6 +109,26 @@ export interface MediaUrls {
 
 /** Media states in which the bytes are known to be present and complete. */
 const SETTLED_STATUSES: readonly string[] = ["uploaded", "probing", "ready"];
+
+/** `apps/api/fixtures/sample-project/welcome.wav` — three seconds, ~48 KB. */
+const SAMPLE_CLIP_FILENAME = "welcome.wav";
+const SAMPLE_CLIP_MIME = "audio/wav";
+let sampleClipCache: Buffer | undefined;
+
+/**
+ * The bundled sample clip's bytes, read once and cached.
+ *
+ * `resolve(__dirname, "..", "..", "fixtures", ...)` reaches the same file
+ * whether this runs from `src/media/` (vitest, `nest start --watch`) or from
+ * the compiled `dist/media/` (`nest build` sets `rootDir: ./src`, so `dist/`
+ * mirrors `src/` with no extra segment) — both are two levels below `apps/api`.
+ */
+function loadSampleClip(): Buffer {
+  sampleClipCache ??= readFileSync(
+    resolve(__dirname, "..", "..", "fixtures", "sample-project", SAMPLE_CLIP_FILENAME),
+  );
+  return sampleClipCache;
+}
 
 /**
  * Media ingest: presigned multipart upload, completion, derived URLs, replace.
@@ -404,6 +427,63 @@ export class MediaService {
     });
 
     return this.startPipeline(updated, project, toMediaView(updated));
+  }
+
+  /**
+   * Ingest the bundled sample clip into a freshly created project.
+   *
+   * `SampleProjectController` (A14) creates the project row through
+   * `ProjectsService` and then calls this. The clip is a few tens of kilobytes,
+   * and the caller is this process rather than a browser, so
+   * `ObjectStore.put` — already used for the imported-subtitle sidecar — is the
+   * right tool: there is no reason to open a multipart upload with one part.
+   *
+   * From here the sequence is `complete()`'s tail, unchanged: a `media_assets`
+   * row, the plan's purge dates, the project's retention pushed out, and
+   * `media.probe` enqueued. A sample behaves exactly like any other upload to
+   * everything downstream of this call — including a worker that is not
+   * running, in which case it simply sits at `uploaded` like any upload would.
+   */
+  async attachSample(workspaceId: string, project: Project): Promise<CompletedUpload> {
+    const limits = mediaLimitsFor(await this.entitlements.forWorkspace(workspaceId));
+    const bytes = loadSampleClip();
+    const mediaId = ulid();
+    const key = rawKey(workspaceId, project.id, mediaId, "wav");
+
+    await this.raw.put({ key, body: bytes, contentType: SAMPLE_CLIP_MIME, tags: RAW_OBJECT_TAGS });
+
+    const uploadedAt = new Date();
+    const created = await this.prisma.mediaAsset.create({
+      data: {
+        id: mediaId,
+        projectId: project.id,
+        role: "primary",
+        bucket: this.raw.kind,
+        storageKey: key,
+        filename: SAMPLE_CLIP_FILENAME,
+        mime: SAMPLE_CLIP_MIME,
+        sizeBytes: BigInt(bytes.length),
+        status: "uploaded",
+        uploadedAt,
+        rawPurgeAt: rawPurgeAt(uploadedAt),
+        derivedPurgeAt: derivedPurgeAt(uploadedAt, limits),
+      },
+    });
+
+    await this.prisma.project.update({
+      where: { id: project.id },
+      data: {
+        lastActivityAt: uploadedAt,
+        retentionUntil: derivedPurgeAt(uploadedAt, limits),
+        status: "active",
+      },
+    });
+
+    await this.raw.tag(key, RAW_OBJECT_TAGS).catch((error: unknown) => {
+      this.logger.debug({ key, err: describe(error) }, "raw tagging skipped");
+    });
+
+    return this.startPipeline(created, project, toMediaView(created));
   }
 
   // -------------------------------------------------------------------------

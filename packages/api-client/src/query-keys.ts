@@ -20,6 +20,26 @@ export const queryKeys = {
   deviceApproval: (userCode: string) => ["auth", "device", userCode] as const,
   jobs: (workspaceId: string) => ["ws", workspaceId, "jobs"] as const,
   job: (workspaceId: string, jobId: string) => ["ws", workspaceId, "jobs", jobId] as const,
+  /**
+   * Jobs for one project (a card's progress poll). Nested *under* `jobs()`
+   * (`["ws", id, "jobs", "byProject", projectId]`), not under `projects()`, on
+   * purpose: `AppShell` already invalidates every `["ws", workspaceId, "jobs"]`
+   * query on every `job.progress` / `job.completed` realtime event (08 §2), and
+   * TanStack Query's partial key matching only catches a query nested under
+   * that prefix. Nesting this under `projects()` instead would silently drop
+   * back to the polling fallback for every project card, realtime channel
+   * connected or not.
+   */
+  projectJobs: (workspaceId: string, projectId: string) =>
+    ["ws", workspaceId, "jobs", "byProject", projectId] as const,
+  projects: (workspaceId: string, query: Readonly<Record<string, unknown>> = {}) =>
+    ["ws", workspaceId, "projects", query] as const,
+  project: (workspaceId: string, projectId: string) =>
+    ["ws", workspaceId, "projects", projectId] as const,
+  projectMedia: (workspaceId: string, projectId: string) =>
+    ["ws", workspaceId, "projects", projectId, "media"] as const,
+  folders: (workspaceId: string) => ["ws", workspaceId, "folders"] as const,
+  styles: (workspaceId: string) => ["ws", workspaceId, "styles"] as const,
 } as const;
 
 export type QueryKeys = typeof queryKeys;
