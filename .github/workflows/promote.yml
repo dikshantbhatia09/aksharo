@@ -1,0 +1,71 @@
+name: Promote release channel
+
+# Manual channel promotion (alpha -> beta -> stable). Promoting to `stable` re-checks the 24h
+# notarisation buffer (docs/RELEASE.md); `force` requires a `reason` and is audited in the
+# run log. Requires the `release-publish` environment's R2 credentials.
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: "Source channel"
+        required: true
+        type: choice
+        options: [alpha, beta, stable]
+      to:
+        description: "Destination channel"
+        required: true
+        type: choice
+        options: [alpha, beta, stable]
+      artifact_name:
+        description: "Artifact filename to gate on (required when promoting to stable)"
+        required: false
+      force:
+        description: "Override the 24h stable gate (requires reason)"
+        required: false
+        type: boolean
+        default: false
+      reason:
+        description: "Reason for --force (ignored unless force is true)"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-${{ inputs.to }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote ${{ inputs.from }} -> ${{ inputs.to }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release-publish
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @montaj/release... build
+
+      - name: Promote
+        run: >
+          pnpm release promote
+          --from ${{ inputs.from }}
+          --to ${{ inputs.to }}
+          ${{ inputs.artifact_name && format('--artifact-name {0}', inputs.artifact_name) || '' }}
+          ${{ inputs.force == 'true' && '--force' || '' }}
+          ${{ inputs.force == 'true' && inputs.reason && format('--reason "{0}"', inputs.reason) || '' }}
+        env:
+          RELEASE_MODE: signed
+          RELEASE_R2_ENDPOINT: ${{ secrets.RELEASE_R2_ENDPOINT }}
+          RELEASE_R2_BUCKET: ${{ secrets.RELEASE_R2_BUCKET }}
+          RELEASE_R2_ACCESS_KEY: ${{ secrets.RELEASE_R2_ACCESS_KEY }}
+          RELEASE_R2_SECRET_KEY: ${{ secrets.RELEASE_R2_SECRET_KEY }}
+
+      - name: Verify promoted channel
+        run: pnpm release verify-release --channel-dir .release/publish/${{ inputs.to }}

@@ -22,6 +22,12 @@ import { queryKeys } from "./query-keys.js";
 
 import type { ApiClient } from "./http.js";
 import type {
+  AcademyProgressResponse,
+  ChangelogDismissedResponse,
+  CreateSupportTicketRequest,
+  ListSupportTicketsResponse,
+  MarkStepDoneResult,
+  SupportTicketView,
   AffiliateProfile,
   AffiliateStats,
   ApiKeyView,
@@ -1141,6 +1147,106 @@ export function useMarkReferralPromptShown(): UseMutationResult<
     onSuccess: () => {
       if (workspaceId === null) return;
       void queryClient.invalidateQueries({ queryKey: queryKeys.referrals(workspaceId) });
+    },
+  });
+}
+
+// -----------------------------------------------------------------------
+// Academy (B12): track progress, one-time rewards, What's-new.
+// -----------------------------------------------------------------------
+
+/** This workspace's Academy progress — completed steps per track, and rewards granted. */
+export function useAcademyProgress(): UseQueryResult<AcademyProgressResponse> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.academyProgress(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.academy.progress),
+  });
+}
+
+/** Mark an Academy step done ("Mark done"). Idempotent; may grant the track's reward. */
+export function useMarkAcademyStepDone(): UseMutationResult<
+  MarkStepDoneResult,
+  Error,
+  { trackId: string; stepId: string }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: ({ trackId, stepId }) =>
+      client.call(endpoints.academy.markStepDone, { params: { trackId, stepId } }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.academyProgress(workspaceId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.credits(workspaceId) });
+    },
+  });
+}
+
+/** The last changelog version this user has dismissed the What's-new modal for. */
+export function useDismissedChangelogVersion(): UseQueryResult<ChangelogDismissedResponse> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.changelogDismissed(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.academy.getDismissedChangelog),
+  });
+}
+
+/** Marks the What's-new modal seen for a changelog version. */
+export function useDismissChangelogVersion(): UseMutationResult<
+  ChangelogDismissedResponse,
+  Error,
+  string
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (version) => client.call(endpoints.academy.dismissChangelog, { body: { version } }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.changelogDismissed(workspaceId) });
+    },
+  });
+}
+
+// -----------------------------------------------------------------------
+// Support tickets (B12).
+// -----------------------------------------------------------------------
+
+/** This workspace's support tickets, newest first. */
+export function useSupportTickets(): UseQueryResult<ListSupportTicketsResponse> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.supportTickets(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.support.list),
+  });
+}
+
+/** File a support ticket, optionally with a consent-gated diagnostics bundle. */
+export function useCreateSupportTicket(): UseMutationResult<
+  SupportTicketView,
+  Error,
+  CreateSupportTicketRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) => client.call(endpoints.support.create, { body }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.supportTickets(workspaceId) });
     },
   });
 }

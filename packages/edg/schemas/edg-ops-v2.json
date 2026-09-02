@@ -41,6 +41,9 @@
           "$ref": "#/$defs/InsertWordAfter"
         },
         {
+          "$ref": "#/$defs/SetProtectedRanges"
+        },
+        {
           "$ref": "#/$defs/SetWordTiming"
         },
         {
@@ -440,6 +443,46 @@
       "required": ["opId", "type", "wordId", "newWordId", "text", "s", "e"],
       "additionalProperties": false,
       "title": "InsertWordAfter"
+    },
+    "SetProtectedRanges": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "SetProtectedRanges"
+        },
+        "ranges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/Ulid"
+              },
+              "s": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "title": "Milliseconds"
+              },
+              "e": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "title": "Milliseconds"
+              }
+            },
+            "required": ["id", "s", "e"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["opId", "type", "ranges"],
+      "additionalProperties": false,
+      "title": "SetProtectedRanges"
     },
     "SetWordTiming": {
       "type": "object",

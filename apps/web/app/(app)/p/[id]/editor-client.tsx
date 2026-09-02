@@ -57,8 +57,10 @@ import {
   nextWordIdInChunk,
   panelOpToEdgOp,
   setEmphasis,
+  setProtectedRanges,
   setWordTiming,
   splitSegment,
+  toggleProtectedRange,
 } from "@/lib/edg/ops";
 import { PlayheadStore } from "@/lib/edg/playhead";
 import { toRenderProjection } from "@/lib/edg/render-projection";
@@ -390,6 +392,12 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     store.submitOp(setWordTiming(op.wordId, op.s, op.e, newId), { label: "Retime word" });
   }
 
+  function onToggleProtection(s: number, e: number): void {
+    const current = state.hot.protected ?? [];
+    const next = toggleProtectedRange(current, s, e, newId);
+    store.submitOp(setProtectedRanges(next, newId), { label: "Toggle protected range" });
+  }
+
   function onMergeWithNext(segmentId?: string): void {
     const id = segmentId ?? selectedSegmentId;
     if (id === undefined) return;
@@ -707,6 +715,8 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           words={allLiveWords}
           segments={segments}
           passItems={passItems}
+          protectedRanges={state.hot.protected ?? []}
+          onToggleProtection={onToggleProtection}
           {...(timelineMedia.waveform === undefined ? {} : { waveform: timelineMedia.waveform })}
           durationMs={primaryMedia?.durationMs ?? 0}
           playheadMs={playheadSnapshot.ms}

@@ -79,6 +79,11 @@ const samples: Record<EdgOpType, EdgOp> = {
     s: 12_000,
     e: 12_400,
   },
+  SetProtectedRanges: {
+    opId: id(),
+    type: "SetProtectedRanges",
+    ranges: [{ id: id(), s: 1_000, e: 2_000 }],
+  },
   SetWordTiming: { opId: id(), type: "SetWordTiming", wordId: "0:3", s: 1_200, e: 1_600 },
   Resegment: { opId: id(), type: "Resegment", maxChars: 42, maxLines: 2, minMs: 800, maxMs: 5_000 },
   DecideItems: { opId: id(), type: "DecideItems", itemIds: [id()], state: "accepted" },
@@ -115,7 +120,7 @@ const samples: Record<EdgOpType, EdgOp> = {
 describe("EdgOp union", () => {
   it("covers exactly the op types CONTRACTS §2 lists", () => {
     expect(Object.keys(samples).sort()).toEqual([...EDG_OP_TYPES].sort());
-    expect(EDG_OP_TYPES).toHaveLength(17);
+    expect(EDG_OP_TYPES).toHaveLength(18);
   });
 
   it.each(EDG_OP_TYPES.map((type) => [type, samples[type]] as const))(

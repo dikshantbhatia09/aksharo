@@ -78,6 +78,14 @@ const DATA: Readonly<Record<NotifyKind, TemplateData>> = {
     days: 14,
     link: "https://app.example.test/projects/p1",
   },
+  "support-ticket-created": {
+    subject: "Export stuck at 90%",
+    category: "export",
+    workspaceId: "01JWORKSPACE0000000000000",
+    ticketId: "01JTICKET00000000000000000",
+    diagnostics: "attached",
+    link: "https://app.example.test/admin/support/01JTICKET00000000000000000",
+  },
 };
 
 const UNSUBSCRIBE = "https://app.example.test/settings/notifications";

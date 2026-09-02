@@ -9,13 +9,14 @@ import {
 } from "@nestjs/swagger";
 
 import {
+  bridgeTokenResponseSchema,
   deviceViewSchema,
   RegisterDeviceDto,
   registerDeviceSchema,
   RenameDeviceDto,
   renameDeviceSchema,
 } from "./devices.dto.js";
-import { type DeviceView, DevicesService } from "./devices.service.js";
+import { type BridgeTokenView, type DeviceView, DevicesService } from "./devices.service.js";
 import { zodArrayResponse, zodBody, zodResponse } from "../auth/dto/openapi.js";
 import { CurrentUser, JwtAuthGuard, Roles, RolesGuard } from "../common/guards/index.js";
 import { PrismaService } from "../common/index.js";
@@ -121,6 +122,32 @@ export class DevicesController {
     );
     const currentDeviceId = await this.currentDeviceId(principal.jti);
     return toView(device, currentDeviceId);
+  }
+
+  @Post(":deviceId/bridge-token")
+  @UseGuards(JwtAuthGuard, WorkspaceMemberGuard, RolesGuard)
+  @Roles("viewer")
+  @ApiBearerAuth("access-token")
+  @ApiOperation({
+    summary: "Mint a bridge credential for this device",
+    description:
+      'For a registered, leased device the caller owns: mints a `kind:"bridge"` ' +
+      "access token carrying this device's id (CONTRACTS §5), which is what the " +
+      "local bridge presents to `/bridge/relay`. Refreshed the same way the " +
+      "device's entitlement lease is, via `POST /devices/register`. Refuses with " +
+      "`licensing/device_revoked` (the device was revoked) or " +
+      "`licensing/device_lease_expired` (the lease needs renewing first).",
+    operationId: "mintDeviceBridgeToken",
+  })
+  @ApiOkResponse(zodResponse(bridgeTokenResponseSchema, "A short-lived bridge access token."))
+  async bridgeToken(
+    @Param("deviceId") deviceId: string,
+    @CurrentUser() principal: AuthPrincipal,
+  ): Promise<BridgeTokenView> {
+    return this.devices.mintBridgeToken(principal.workspaceId, deviceId, {
+      userId: principal.userId,
+      role: principal.role,
+    });
   }
 
   @Delete(":deviceId")

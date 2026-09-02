@@ -34,8 +34,11 @@
  *    encoder is behind, the pipe fills and `write()` stops returning true.
  */
 
+import type { CropKeyframe } from "@montaj/render-core";
 import { coverScaleCrop, type RenderManifest } from "@montaj/render-manifest";
 import type { TimeSpan } from "@montaj/timemap";
+
+import { buildDynamicCropFilter } from "./crop-expr.js";
 
 /** Encoders the service can select between; `05 §5.2`'s NVENC hook. */
 export const VIDEO_ENCODERS = ["libx264", "h264_nvenc"] as const;
@@ -77,6 +80,14 @@ export interface GraphInput {
   readonly encoder: VideoEncoder;
   /** ffmpeg log level; `error` in production, `info` when a render is being chased. */
   readonly logLevel?: string;
+  /**
+   * B20: accepted zoom/reframe curve, already decoded and remapped onto the
+   * output clock (`@montaj/render-core`'s `outputCropKeyframesFromTracks`,
+   * called by `render/pipeline.ts` against the manifest's `timemap.keyframes`
+   * and its own `timemap`). Empty/omitted renders exactly as before B20 — the
+   * dynamic `crop` filter is skipped entirely rather than inserted as a no-op.
+   */
+  readonly cropKeyframes?: readonly CropKeyframe[];
 }
 
 export interface GraphPlan {
@@ -415,7 +426,39 @@ export function buildFfmpegArgs(input: GraphInput): GraphPlan {
 
     const cuts = buildCutList(input, hasAudio && !replacing);
     filters.push(...cuts.parts);
-    filters.push(`[${cuts.videoLabel}]${buildFit(input)},fps=${String(fps)}[base]`);
+    // B20: the dynamic zoom/reframe crop runs on the post-cut, still
+    // full-source-resolution video — `t` in its expressions is exactly the
+    // output clock at this point, because `cuts.videoLabel` is already the
+    // concatenated (spliced) stream. It has to run *before* `buildFit`'s
+    // cover-fit crop, which changes the coordinate space to the output
+    // aspect; composing the two is a straight filter chain, not a merged
+    // transform, because ffmpeg filters apply pixel-for-pixel in sequence.
+    const dynamicCrop = buildDynamicCropFilter(
+      input.cropKeyframes ?? [],
+      input.sourceWidth,
+      input.sourceHeight,
+    );
+    if (dynamicCrop === null) {
+      filters.push(`[${cuts.videoLabel}]${buildFit(input)},fps=${String(fps)}[base]`);
+    } else {
+      // A dynamic crop's window is the review UI's chosen composition (already
+      // at, or proportioned to, the output aspect — CONTRACTS §2 `zoom`/
+      // `reframe` items pick their `target`/crop rect with the project's
+      // aspect in mind), so unlike the static path this skips `buildFit`'s
+      // own cover-fit crop and just scales the cropped, dynamically-sized
+      // frame to fill the output — the same choice
+      // `apps/web/lib/export/engine.ts` makes (stretching the crop window's
+      // fraction of the frame to the output canvas). Composing a *second*,
+      // static cover-fit crop on top of a per-frame varying-size crop is not
+      // expressible as one ffmpeg `scale`/`crop` pair and was out of reach in
+      // this pass — reported as an open question in the final report.
+      const { width, height } = input.manifest.output;
+      filters.push(
+        `[${cuts.videoLabel}]${dynamicCrop},` +
+          `scale=${String(width)}:${String(height)}:flags=bicubic,setsar=1,` +
+          `fps=${String(fps)}[base]`,
+      );
+    }
     filters.push(`[base][1:v]overlay=x=0:y=0:eof_action=pass:format=auto[vout]`);
     videoLabel = "vout";
     audioLabel = replacing ? "2:a" : cuts.audioLabel;
