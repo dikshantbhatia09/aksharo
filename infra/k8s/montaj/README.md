@@ -30,8 +30,8 @@ Full procedure, including the one-time steps: [`docs/runbooks/deploy.md`](../../
 
 The chart uses four CRD groups and will not install without them:
 `external-secrets.io`, `keda.sh`, `networking.k8s.io/Ingress` with an ingress
-controller, and — only when `networkPolicy.fqdn.enabled=true` — `cilium.io`.
-`infra/README.md` step 5 lists the add-ons and the order.
+controller, and — only when `networkPolicy.fqdn.mode` is `audit` or `enforce` —
+`cilium.io`. `infra/README.md` step 5 lists the add-ons and the order.
 
 ## Values you must set per environment
 
@@ -89,13 +89,29 @@ Two honest limits, both stated in the template and worth repeating:
    link-local and the IMDS address excluded, so it cannot become an SSRF path
    back into the VPC — THREAT-MODEL T6), and the real allow-list lives at the
    egress proxy.
-2. **On Cilium it becomes real.** `networkPolicy.fqdn.enabled=true` renders a
-   `CiliumNetworkPolicy` with `toFQDNs` and removes the broad rule, so a worker
-   may open 443 to `api.elevenlabs.io` and nothing else. That is the intended end
-   state, and CI validates that variant too.
+2. **On Cilium it becomes real, in two steps.** `networkPolicy.fqdn.mode: audit`
+   renders the same `CiliumNetworkPolicy` with `toFQDNs`, but with a
+   `policy.cilium.io/audit-mode: "true"` annotation: a denial is logged (Hubble,
+   `cilium monitor`), never dropped, and the broad rule stays up underneath it.
+   `mode: enforce` drops the broad rule and lets Cilium reject anything outside
+   the allow-list, so a worker may open 443 to `api.elevenlabs.io` and nothing
+   else. `enforce` is the intended end state; `audit` is the staged-rollout step
+   in between (`docs/runbooks/egress-policy.md`), and CI renders and validates
+   all three modes.
 
 `infra/scripts/check-network-policy.py` asserts both properties against the
-rendered manifest on every push.
+rendered manifest on every push, for every mode.
+
+## Egress inventory
+
+`infra/policies/egress-inventory.json` lists every external hostname the `api`,
+`worker-ai`, `worker-media` and `render` code reaches (plus `model-server`,
+which runs outside this chart on the serverless GPU provider), with an owner
+and a purpose for each. `node infra/scripts/generate-egress-inventory.mjs`
+regenerates it from a source scan; `--check` fails if the committed file is
+stale or if a hostname was added to a provider adapter without also adding it
+(owner + purpose) to `VENDOR_METADATA` in `infra/scripts/egress-hosts.mjs` —
+the mechanism that keeps a new outbound path from shipping undocumented.
 
 ## Pod security
 
