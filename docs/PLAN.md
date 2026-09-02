@@ -114,8 +114,8 @@ C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 
 | ID | Package | Deps | Status |
 |---|---|---|---|
-| C11 | Plugin licensing & devices UI (activation limits, revoke, offline lease, activation card) | B08, B08b, C01 | running |
-| C12 | Desktop/plugin telemetry (consent), crash reporting, diagnostics bundle | C02, A05, B12, B16 | running |
+| C11 | Plugin licensing & devices UI (activation limits, revoke, offline lease, activation card) | B08, B08b, C01 | done pending merge (8c196c4: activation card v2 at /plugins→/plugins-app, GET /plugins/manifest stub, middleware prefix bug fixed; cue mounted by B20b) |
+| C12 | Desktop/plugin telemetry (consent), crash reporting, diagnostics bundle | C02, A05, B12, B16 | done pending verification (a296f94: telemetry consent, events/crash endpoints, 30-day retention, shared redaction, diagnostics bundle → ticket; bridge consent sync is a follow-up) |
 | C05a | Premiere UXP plugin foundation over a mocked host adapter (Gate C runs it on a real machine) | C01, C00, A00-03 | done (merged: manifest v5 ai.aksharo.panel, PremiereHost + mock, in-memory session per T13, .ccx packaged; C06/C06b running) |
 | C08 | Resolve `aksharo_core` over a FakeResolve adapter | C01, A00-04 | done (merged + verified 58 tests; DynamicZoom property keys flagged for Gate C; C08b running) |
 | C08b | Fusion Text+ macro generator + style coverage report | C08 | done (merged + verified: 19 supported / 6 approximate / 5 unsupported of 30; classification_rules.json is the reference; real-Fusion check at Gate C) |
