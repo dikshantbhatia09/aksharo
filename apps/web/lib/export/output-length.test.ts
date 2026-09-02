@@ -72,7 +72,7 @@ describe("accepted cuts → projected output length", () => {
         kind: "zoom",
         startMs: 1_000,
         endMs: 2_000,
-        payload: { target: { x: 0.4, y: 0.4, w: 0.2, h: 0.2 }, scaleFrom: 1, scaleTo: 1.5, easing: "linear" },
+        payload: { target: { x: 0.4, y: 0.4, w: 0.2, h: 0.2 }, scaleFrom: 1, scaleTo: 1.5, easing: "easeInOut" },
         state: "accepted",
       },
     ];

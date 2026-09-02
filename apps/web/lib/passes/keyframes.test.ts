@@ -35,8 +35,9 @@ describe("decodeKeyframes", () => {
     view.setFloat32(20, 2, true); // scale
     const rows = decodeKeyframes(buf, "zoom");
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.rect.w).toBeCloseTo(0.5, 4);
-    expect(rows[0]?.rect.x + (rows[0]?.rect.w ?? 0) / 2).toBeCloseTo(0.5, 4);
+    const row = rows[0]!;
+    expect(row.rect.w).toBeCloseTo(0.5, 4);
+    expect(row.rect.x + row.rect.w / 2).toBeCloseTo(0.5, 4);
   });
 
   it("throws on a buffer that is not a whole multiple of the row size", () => {
