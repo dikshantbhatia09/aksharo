@@ -56,6 +56,38 @@ function graph(
   });
 }
 
+describe("B20: dynamic zoom/reframe crop", () => {
+  it("adds no crop filter when cropKeyframes is absent — byte-identical to pre-B20", () => {
+    const plan = graph();
+    expect(plan.filterGraph).not.toContain("crop=w=");
+  });
+
+  it("splices the dynamic crop filter before the cover-fit scale when cropKeyframes is given", () => {
+    const plan = graph(
+      {},
+      {
+        cropKeyframes: [
+          { tMs: 0, rect: { x: 0, y: 0, w: 1, h: 1 } },
+          { tMs: 1_000, rect: { x: 0.25, y: 0.25, w: 0.5, h: 0.5 } },
+        ],
+      },
+    );
+    expect(plan.filterGraph).toContain("crop=w=");
+    // The crop must run before the scale to the output size, on the same
+    // filter chain, not as a separate disconnected pad.
+    const cropIndex = plan.filterGraph.indexOf("crop=w=");
+    const scaleIndex = plan.filterGraph.indexOf("scale=", cropIndex);
+    expect(cropIndex).toBeGreaterThanOrEqual(0);
+    expect(scaleIndex).toBeGreaterThan(cropIndex);
+  });
+
+  it("an empty cropKeyframes array behaves exactly like omitting it", () => {
+    const withEmpty = graph({}, { cropKeyframes: [] });
+    const withOmitted = graph();
+    expect(withEmpty.filterGraph).toBe(withOmitted.filterGraph);
+  });
+});
+
 describe("the encoder selection", () => {
   it("knows only the two encoders the service supports", () => {
     expect(VIDEO_ENCODERS).toEqual(["libx264", "h264_nvenc"]);

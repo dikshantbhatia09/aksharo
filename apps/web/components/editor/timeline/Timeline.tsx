@@ -37,7 +37,13 @@ import {
   zoomAround,
   type Viewport,
 } from "@/lib/timeline/coords";
-import { buildLanes, laneStateColor, type LaneRow } from "@/lib/timeline/lanes";
+import {
+  buildLanes,
+  laneItemStrokeStyle,
+  laneStateColor,
+  type LaneItem,
+  type LaneRow,
+} from "@/lib/timeline/lanes";
 import {
   noopNudgeSink,
   segmentEdgeNudge,
@@ -107,6 +113,10 @@ export interface TimelineProps {
   readonly displayMode?: TimeDisplayMode;
   readonly onDisplayModeChange?: (mode: TimeDisplayMode) => void;
   readonly nudgeSink?: TimingNudgeSink;
+  /** B20 §4: hover a lane item to see its reason; `undefined` on mouse-leave. */
+  readonly onHoverPassItem?: (item: LaneItem | undefined) => void;
+  /** B20 §4: click a lane item to select its `ProposalCard` in the Passes tab. */
+  readonly onSelectPassItem?: (item: LaneItem) => void;
   readonly className?: string;
 }
 
@@ -153,6 +163,8 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     displayMode = "source",
     onDisplayModeChange,
     nudgeSink = noopNudgeSink,
+    onHoverPassItem,
+    onSelectPassItem,
     className,
   } = props;
 
@@ -174,6 +186,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   const [scrollMs, setScrollMs] = useState(0);
   const [selectedEdge, setSelectedEdge] = useState<"start" | "end" | undefined>(undefined);
   const [selectedWordEdge, setSelectedWordEdge] = useState<"start" | "end" | undefined>(undefined);
+  const [hoveredPassItemId, setHoveredPassItemId] = useState<string | undefined>(undefined);
   const [, forceRedraw] = useState(0);
 
   useLayoutEffect(() => {
@@ -365,7 +378,9 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       }
     }
 
-    // Pass lanes (read-only)
+    // Pass lanes: dimmed+struck-through when accepted, dashed when proposed
+    // (brief §4); a hovered item gets a highlight outline so a reviewer can
+    // tell the lane is what their pointer is over before the tooltip lands.
     lanes.forEach((lane, laneIndex) => {
       const top = laneTops.passTops[laneIndex];
       if (top === undefined) return;
@@ -374,10 +389,33 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         const x0 = msToPx(item.startMs, viewport);
         const x1 = msToPx(item.endMs, viewport);
         const w = Math.max(1, x1 - x0);
+        const style = laneItemStrokeStyle(item.state);
         ctx.fillStyle = laneStateColor(item.state);
-        ctx.globalAlpha = item.state === "rejected" ? 0.25 : 0.6;
+        ctx.globalAlpha = style.alpha;
         ctx.fillRect(x0, top, w, PASS_LANE_HEIGHT);
+        if (style.dash.length > 0) {
+          ctx.save();
+          ctx.setLineDash(style.dash);
+          ctx.strokeStyle = laneStateColor(item.state);
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x0 + 0.5, top + 0.5, w - 1, PASS_LANE_HEIGHT - 1);
+          ctx.restore();
+        }
+        if (style.struckThrough) {
+          ctx.strokeStyle = "#0a0a0a";
+          ctx.globalAlpha = 0.6;
+          ctx.beginPath();
+          ctx.moveTo(x0, top + PASS_LANE_HEIGHT / 2);
+          ctx.lineTo(x1, top + PASS_LANE_HEIGHT / 2);
+          ctx.stroke();
+        }
         ctx.globalAlpha = 1;
+        if (hoveredPassItemId === item.itemId) {
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x0, top, w, PASS_LANE_HEIGHT);
+          ctx.lineWidth = 1;
+        }
       }
     });
 
@@ -408,11 +446,54 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     displayMode,
     timeMap,
     msPerPx,
+    hoveredPassItemId,
   ]);
 
   // ---------------------------------------------------------------------
   // Pointer interaction
   // ---------------------------------------------------------------------
+
+  /** B20 §4: which lane item, if any, sits under `(px, py)`. */
+  const hitTestPassItem = useCallback(
+    (px: number, py: number): LaneItem | undefined => {
+      for (const [laneIndex, lane] of lanes.entries()) {
+        const top = laneTops.passTops[laneIndex];
+        if (top === undefined || py < top || py > top + PASS_LANE_HEIGHT) continue;
+        for (const item of lane.items) {
+          const x0 = msToPx(item.startMs, viewport);
+          const x1 = msToPx(item.endMs, viewport);
+          if (px >= x0 && px <= x1) return item;
+        }
+      }
+      return undefined;
+    },
+    [lanes, laneTops.passTops, viewport],
+  );
+
+  const onCanvasMouseMove = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (dragRef.current !== undefined) return; // a drag owns the pointer
+      const rect = event.currentTarget.getBoundingClientRect();
+      const hit = hitTestPassItem(event.clientX - rect.left, event.clientY - rect.top);
+      setHoveredPassItemId(hit?.itemId);
+      onHoverPassItem?.(hit);
+    },
+    [hitTestPassItem, onHoverPassItem],
+  );
+
+  const onCanvasMouseLeave = useCallback(() => {
+    setHoveredPassItemId(undefined);
+    onHoverPassItem?.(undefined);
+  }, [onHoverPassItem]);
+
+  const onCanvasClick = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const hit = hitTestPassItem(event.clientX - rect.left, event.clientY - rect.top);
+      if (hit !== undefined) onSelectPassItem?.(hit);
+    },
+    [hitTestPassItem, onSelectPassItem],
+  );
 
   const hitTestSegmentEdge = useCallback(
     (px: number, py: number): { segment: Segment; edge: "start" | "end" } | undefined => {
@@ -917,6 +998,9 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onMouseMove={onCanvasMouseMove}
+        onMouseLeave={onCanvasMouseLeave}
+        onClick={onCanvasClick}
         onDoubleClick={onDoubleClick}
         onWheel={onWheel}
       />

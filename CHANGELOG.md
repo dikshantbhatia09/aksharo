@@ -51,6 +51,55 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   workspace+user (one paired bridge per signed-in user per workspace) until a
   follow-up work package adds a real per-device bridge credential — see the
   WP report's open questions.
+- **B20 — Passes tab, ProposalCard, bulk accept, timeline lanes; export application
+  of accepted cuts/zoom/reframe through `@montaj/timemap` (browser + cloud).**
+  - **Review UI** (`apps/web/components/editor/passes/**`): `PassesTab` (run-autocut
+    dialog with a client-side credits estimate, kind/status/confidence filters, bulk
+    accept — "Accept all ≥ 0.8", "Accept all cuts", "Reset decisions" — a summary bar,
+    J/K/A/R/Space keyboard review) and `ProposalCard` (reason, confidence,
+    accept/reject/undo, a before/after preview callback seam). Decisions are real
+    `DecideItems` ops sent through the existing `EditorStore.submitOps` (A12's
+    debounce/optimistic-apply/rebase path, unmodified). `apps/web/lib/passes/**`:
+    `decisions.ts` (pure op-builder + filter/bulk-accept predicates + `summaryDurations`
+    over `@montaj/timemap`), `client.ts`/`quote.ts` (the `startAutocutPass` endpoint
+    descriptor + a client-side quote estimate), `realtime.ts`
+    (`usePassRunProgress`, a `job.progress`/`job.completed` subscription).
+  - **Timeline lanes** (`apps/web/lib/timeline/lanes.ts`, `components/editor/timeline/
+Timeline.tsx`, extending A17): the merged "Zoom & reframe" lane split into
+    separate `zoom`/`reframe` rows; `laneItemStrokeStyle` — accepted dimmed +
+    struck-through, proposed dashed; hover reports an item's reason
+    (`onHoverPassItem`) and click selects it (`onSelectPassItem`).
+  - **Export application, browser + cloud** — the render-manifest schema gained an
+    optional `timemap.keyframes: KeyframeTrack[]` field (`{itemId, itemStartMs,
+kind, packed}`, base64 of B19's real `@montaj/edg` `passes/keyframes.ts`
+    ("MKF2") rows). `packages/render-core`'s new `frame/crop-window.ts`
+    (`sampleCropWindow`, pure interpolation + easing over a normalised source crop
+    rect) and `frame/keyframe-track.ts` (`outputCropKeyframesFromTracks`: decode +
+    remap onto the output clock via `TimeMap.mapKeyframes`, pinning at every
+    splice) are the one implementation both `apps/web/lib/export/engine.ts`
+    (samples the crop window per frame, draws the corresponding sub-rect of the
+    cover-fit source canvas) and `apps/render`'s ffmpeg graph (a hand-verified
+    `crop=w:h:x:y` expression builder, `ffmpeg/crop-expr.ts`, spliced before the
+    cover-fit scale) consume — proven to agree via
+    `apps/render/src/ffmpeg/crop-parity.test.ts`'s two fixtures (cut+zoom,
+    cut+reframe).
+  - **Output-length verification** (B18's leftover TODO): `apps/web/lib/export/
+output-length.test.ts` proves only `accepted` cut items shorten
+    `fromAcceptedItems`' `outputDurationMs`.
+  - **Known gaps, reported not fixed here:** (1) the API's manifest builder
+    (`apps/api/src/exports/manifest-builder.ts`) has the additive
+    `keyframeTracks` field wired but nothing populates it from accepted
+    zoom/reframe items yet — blocked on B19's keyframe-bytes storage (its own
+    final report already flags this as the "keyframesRef gap"); (2) drag-to-adjust
+    cut boundaries needs an `EditPassItem` op that does not exist in CONTRACTS §2 —
+    not added unilaterally, per the brief's own instruction to report first;
+    (3) A18a's parity gate (`packages/ass-exporter/parity`) measures caption
+    _style_ rendering fidelity and has no axis for "a cut/zoom was applied" — the
+    crop-window parity is proven separately (above) rather than forced into that
+    harness; (4) the CanvasKit preview's live zoom-rectangle/reframe-crop-window
+    overlay and "preview with cuts" scrubbing are not implemented — the shared
+    crop-window primitives are ready for that integration.
+
 - **C00 — Signing & release pipeline (dry-run only; credentials do not exist yet).**
   New `tools/release` package (`@montaj/release`) exposing `pnpm release <cmd>`:
   `version` (conventional-commit semver bump + `CHANGELOG.md` section assembly),
