@@ -138,7 +138,7 @@ D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for 
 
 ## Gate definitions
 - **Gate A:** new user captions a Hinglish sample end to end in the browser; cloud render works; parity gate green; X02 passes.
-- **Gate B:** Razorpay test payment with mandate; credits reserved/settled/reconciled; Rule 46 invoice PDF; affiliate attributed by code and cookie; referral credits; autocut + zoom reviewed and exported in sync.
+- **Gate B** (procedure: `05-build/_orchestration/GATE-B-CHECKLIST.md`): Razorpay test payment with mandate; credits reserved/settled/reconciled; Rule 46 invoice PDF; affiliate attributed by code and cookie; referral credits; autocut + zoom reviewed and exported in sync.
 - **Gate C (human):** clean Windows + macOS installs; Premiere UXP sign-in, transcript injection, MOGRT captions; Resolve Free script captions; signed/notarised artefacts.
 - **Gate D:** 20-minute gaming clip to reviewed export with cuts, zooms, SFX, captions in < 10 min user time; eval thresholds met.
 
