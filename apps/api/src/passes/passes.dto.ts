@@ -1,7 +1,7 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { z } from "zod";
 
-import { AUTOCUT_PRESETS } from "./passes.errors.js";
+import { AUTOCUT_PRESETS, REFRAME_ASPECTS, ZOOM_PRESETS } from "./passes.errors.js";
 import { zodDto } from "../common/validation/zod-validation.pipe.js";
 
 /**
@@ -28,6 +28,25 @@ const StartAutocutRequest = z.object({
 });
 
 export class StartAutocutRequestDto extends zodDto(StartAutocutRequest) {}
+
+/** Overrides on the reframe crop's own thresholds (B19 §4) — all optional, all bounded. */
+const ReframeOptions = z.object({
+  deadzoneFraction: z.number().min(0).max(0.5).optional(),
+  maxVelocityPerS: z.number().gt(0).max(5).optional(),
+});
+
+const StartZoomRequest = z.object({
+  preset: z.enum(ZOOM_PRESETS).default("standard"),
+});
+
+export class StartZoomRequestDto extends zodDto(StartZoomRequest) {}
+
+const StartReframeRequest = z.object({
+  aspect: z.enum(REFRAME_ASPECTS).default("9:16"),
+  options: ReframeOptions.optional(),
+});
+
+export class StartReframeRequestDto extends zodDto(StartReframeRequest) {}
 
 export class PassAcceptedDto {
   @ApiProperty({

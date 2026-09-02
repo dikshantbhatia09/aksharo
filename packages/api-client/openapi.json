@@ -10198,6 +10198,119 @@
         ]
       }
     },
+    "/admin/auth/totp/enroll": {
+      "post": {
+        "operationId": "adminTotpEnroll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotpEnrollResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "The caller holds no active admin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start TOTP enrolment for an admin account",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/totp/verify": {
+      "post": {
+        "operationId": "adminTotpVerify",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TotpCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "The caller holds no active admin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Confirm TOTP enrolment with the first valid code",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/step-up": {
+      "post": {
+        "description": "CONTRACTS §5: mints `kind: \"admin\"`, never refreshable.",
+        "operationId": "adminStepUp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TotpCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStepUpResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "The caller holds no active admin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Exchange a normal session plus a TOTP code for a 30-minute admin token",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/dlq": {
       "get": {
         "description": "Filter by `queue`, `status`, `workspaceId`, a `reason` substring of the last error's code or message, and a `since`/`until` window. Cursor pagination: pass the previous page's `nextCursor`.",
@@ -11666,6 +11779,124 @@
           }
         ],
         "summary": "Start an autocut pass",
+        "tags": [
+          "passes"
+        ]
+      }
+    },
+    "/projects/{projectId}/passes/zoom": {
+      "post": {
+        "description": "Quotes the job from the primary media's probed duration (`reframeZoomPass` burn rate, source minutes), holds the credits and enqueues `ai.pass`. Proposed punch-in events land as `edg_pass_items` (kind `zoom`, state `proposed`) once the worker's completion arrives and `MergePass` merges them; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`.",
+        "operationId": "startZoomPass",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartZoomRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          },
+          "409": {
+            "description": "`pass/media_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start a zoom pass",
+        "tags": [
+          "passes"
+        ]
+      }
+    },
+    "/projects/{projectId}/passes/reframe": {
+      "post": {
+        "description": "Quotes the job from the primary media's probed duration (`reframeZoomPass` burn rate, source minutes), holds the credits and enqueues `ai.pass`. A crop-window keyframe curve lands as one `edg_pass_items` row (kind `reframe`, state `proposed`) once the worker's completion arrives and `MergePass` merges it; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`.",
+        "operationId": "startReframePass",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartReframeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          },
+          "409": {
+            "description": "`pass/media_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start a reframe pass",
         "tags": [
           "passes"
         ]
@@ -20653,6 +20884,51 @@
           "segments"
         ]
       },
+      "TotpEnrollResponseDto": {
+        "type": "object",
+        "properties": {
+          "secret": {
+            "type": "string",
+            "description": "Base32 TOTP secret; also encoded in `otpauthUrl`."
+          },
+          "otpauthUrl": {
+            "type": "string",
+            "description": "otpauth:// URI for a QR code in an authenticator app."
+          }
+        },
+        "required": [
+          "secret",
+          "otpauthUrl"
+        ]
+      },
+      "TotpCodeDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdminStepUpResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "A `kind: \"admin\"` access token (CONTRACTS §5)."
+          },
+          "expiresIn": {
+            "type": "number",
+            "description": "Seconds until the admin token expires (1800)."
+          },
+          "adminRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "accessToken",
+          "expiresIn",
+          "adminRoles"
+        ]
+      },
       "DlqEntryDto": {
         "type": "object",
         "properties": {
@@ -21346,6 +21622,14 @@
           "deduplicated",
           "quote"
         ]
+      },
+      "StartZoomRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "StartReframeRequestDto": {
+        "type": "object",
+        "properties": {}
       },
       "PassSummaryListDto": {
         "type": "object",
