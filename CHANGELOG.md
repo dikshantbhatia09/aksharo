@@ -10,6 +10,25 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **C02 — Desktop shell.** `@montaj/desktop`: Electron main/preload loading
+  the hosted web app (`?desktop=1`, `AksharoDesktop/<version>` User-Agent
+  suffix, decision D71 — one web codebase, no packaged bundle until C04),
+  `contextIsolation`/`sandbox`/`nodeIntegration:false`/`webSecurity:true`,
+  navigation/`window.open`/`shell.openExternal` allowlists
+  (`src/security/allowlist.ts`), strict-CSP packaged offline page with retry,
+  `aksharo://` deep links (`auth/callback`, `project/<ulid>`, `pair`) with
+  single-instance-lock hand-off, `electron-updater` wired to C00's
+  `releases/<channel>/` feed layout with alpha/beta/stable channels and a
+  deterministic staged-rollout gate, native menu + tray (bridge/pairing status,
+  approve pairing, check for updates, copy diagnostics), Electron fuses
+  flipped in the `electron-builder` `afterPack` hook. `src/bridge/adapter.ts`
+  defines the `BridgeAdapter` interface and a stub implementation, since C01
+  (`bridge-core`) is not yet merged. `apps/web/lib/desktop.ts`: the
+  desktop-detection hook agreed with A13. Unit tests (vitest) for the
+  allowlists, deep-link parsing, updater feed/rollout math and the bridge
+  stub; a Playwright-Electron smoke suite (`e2e/smoke.spec.ts`, run via
+  `pnpm test:e2e`, needs a built app and a display).
+
 - **A23 — Gate A e2e journey, sample-project seed, wave verification script,
   X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)
   through onboarding, a real MinIO upload, transcription completion via the
