@@ -1,7 +1,9 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 
 import { TENTHS_PER_CREDIT } from "@montaj/config";
 
+import { CREDITS_LOW_EVENT } from "./credits-low.event.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { NotifyService } from "../notify/notify.service.js";
 
@@ -36,6 +38,7 @@ export class CreditsLowBalanceNotifier {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notify: NotifyService,
+    private readonly emitter: EventEmitter2,
   ) {}
 
   /**
@@ -71,6 +74,11 @@ export class CreditsLowBalanceNotifier {
         // balance oscillating around the same threshold within a burst of jobs
         // must not become a burst of e-mails.
         idempotencyKey: `low-credits:${input.workspaceId}:${String(crossed)}:${new Date().toISOString().slice(0, 10)}`,
+      });
+      this.emitter.emit(CREDITS_LOW_EVENT, {
+        workspaceId: input.workspaceId,
+        thresholdFraction: crossed,
+        balanceTenths: input.afterTenths,
       });
     } catch (error) {
       this.logger.warn(

@@ -1,9 +1,11 @@
 import { Inject, Injectable, Logger, Optional, type OnModuleInit } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { z } from "zod";
 
 import { segmentScript } from "@montaj/edg/segmenter";
 
 import { MemoryGlossarySource, postProcess } from "./postprocess/index.js";
+import { TRANSCRIPT_COMPLETED_EVENT } from "./transcript-completed.event.js";
 import { quoteTranscription, settlementFor } from "./transcripts.quote.js";
 import { TranscriptsRepository } from "./transcripts.repository.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
@@ -219,6 +221,7 @@ export class TranscribeCompletionHandler implements JobCompletionHandler, OnModu
     private readonly glossary: MemoryGlossarySource,
     private readonly events: JobEventsService,
     private readonly registry: JobCompletionRegistry,
+    private readonly emitter: EventEmitter2,
     /**
      * The font stack the caption fit budget measures through (D78). Optional:
      * A18b registers the production subset faces, and until it binds this the
@@ -346,6 +349,13 @@ export class TranscribeCompletionHandler implements JobCompletionHandler, OnModu
       },
       "transcript persisted and the editing document initialised",
     );
+
+    this.emitter.emit(TRANSCRIPT_COMPLETED_EVENT, {
+      workspaceId: job.workspaceId,
+      projectId,
+      transcriptId,
+      jobId: job.id,
+    });
 
     return {
       actualTenths,
