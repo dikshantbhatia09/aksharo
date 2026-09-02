@@ -60,7 +60,9 @@ const HOSTNAME = "(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,}";
 
 const HOST_PATTERNS = [
   // Python: `SARVAM_DEFAULT_BASE_URL = "https://api.sarvam.ai"`, `ASSEMBLYAI_DEFAULT_BASE_URL = "..."`.
-  new RegExp(`^\\s*[A-Z][A-Z0-9_]*(?:_DEFAULT)?_(?:BASE_URL|ENDPOINT)\\s*=\\s*"(https?://${HOSTNAME})`),
+  new RegExp(
+    `^\\s*[A-Z][A-Z0-9_]*(?:_DEFAULT)?_(?:BASE_URL|ENDPOINT)\\s*=\\s*"(https?://${HOSTNAME})`,
+  ),
   // TypeScript: `const RAZORPAYX_BASE_URL = "https://api.razorpay.com/v1"`,
   // `export const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"`.
   new RegExp(
@@ -242,7 +244,8 @@ export const VENDOR_METADATA = [
     host: "api.pwnedpasswords.com",
     matchType: "exact",
     owner: "platform-auth",
-    purpose: "Have I Been Pwned k-anonymity range lookup, breached-password check (THREAT-MODEL T1)",
+    purpose:
+      "Have I Been Pwned k-anonymity range lookup, breached-password check (THREAT-MODEL T1)",
     workloads: ["api"],
     source: "code",
   },

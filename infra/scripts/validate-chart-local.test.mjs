@@ -48,11 +48,18 @@ const GOOD_VALUES_YAML = [
   "",
 ].join("\n");
 
-const GOOD_TEMPLATE = ["{{- if .Values.networkPolicy.enabled }}", "kind: NetworkPolicy", "{{- end }}", ""].join(
-  "\n",
-);
+const GOOD_TEMPLATE = [
+  "{{- if .Values.networkPolicy.enabled }}",
+  "kind: NetworkPolicy",
+  "{{- end }}",
+  "",
+].join("\n");
 
-function makeChart({ chartYaml = GOOD_CHART_YAML, values = GOOD_VALUES_YAML, template = GOOD_TEMPLATE } = {}) {
+function makeChart({
+  chartYaml = GOOD_CHART_YAML,
+  values = GOOD_VALUES_YAML,
+  template = GOOD_TEMPLATE,
+} = {}) {
   const root = mkdtempSync(join(tmpdir(), "validate-chart-local-test-"));
   const chartDir = join(root, "infra", "k8s", "montaj");
   mkdirSync(join(chartDir, "templates"), { recursive: true });
@@ -72,7 +79,11 @@ test("validate-chart-local passes on a well-formed minimal chart", () => {
   const root = makeChart();
   try {
     const result = run(root);
-    assert.equal(result.status, 0, `expected exit 0, got ${result.status}\nstderr: ${result.stderr}`);
+    assert.equal(
+      result.status,
+      0,
+      `expected exit 0, got ${result.status}\nstderr: ${result.stderr}`,
+    );
     assert.ok(result.stdout.includes("all checks passed"));
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -104,7 +115,11 @@ test("validate-chart-local fails on a providerAllowlist entry missing a reason",
   });
   try {
     const result = run(root);
-    assert.equal(result.status, 1, `expected exit 1, got ${result.status}\nstdout: ${result.stdout}`);
+    assert.equal(
+      result.status,
+      1,
+      `expected exit 1, got ${result.status}\nstdout: ${result.stdout}`,
+    );
     assert.ok(result.stderr.includes("missing a 'reason'"));
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -151,7 +166,11 @@ test("validate-chart-local fails enforce mode with allowProviderEgress but an em
   });
   try {
     const result = run(root);
-    assert.equal(result.status, 1, `expected exit 1, got ${result.status}\nstdout: ${result.stdout}`);
+    assert.equal(
+      result.status,
+      1,
+      `expected exit 1, got ${result.status}\nstdout: ${result.stdout}`,
+    );
     assert.ok(result.stderr.includes("would be dropped from all provider egress"));
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -159,7 +178,9 @@ test("validate-chart-local fails enforce mode with allowProviderEgress but an em
 });
 
 test("validate-chart-local fails on an unbalanced {{- if }} in a template", () => {
-  const root = makeChart({ template: "{{- if .Values.networkPolicy.enabled }}\nkind: NetworkPolicy\n" });
+  const root = makeChart({
+    template: "{{- if .Values.networkPolicy.enabled }}\nkind: NetworkPolicy\n",
+  });
   try {
     const result = run(root);
     assert.equal(result.status, 1);
@@ -206,7 +227,11 @@ test("validate-chart-local ignores a disabled component missing kind/repository/
   });
   try {
     const result = run(root);
-    assert.equal(result.status, 0, `expected exit 0, got ${result.status}\nstderr: ${result.stderr}`);
+    assert.equal(
+      result.status,
+      0,
+      `expected exit 0, got ${result.status}\nstderr: ${result.stderr}`,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

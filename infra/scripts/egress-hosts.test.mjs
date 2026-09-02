@@ -47,7 +47,7 @@ test("scanCodeHosts finds a Python *_DEFAULT_BASE_URL constant", async () => {
 test("scanCodeHosts finds a TypeScript exported *_ENDPOINT constant", async () => {
   const root = makeFixtureTree({
     "apps/api/src/auth/google-oauth.provider.ts": [
-      "export const GOOGLE_TOKEN_ENDPOINT = \"https://oauth2.googleapis.com/token\";",
+      'export const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";',
     ].join("\n"),
   });
   try {
@@ -76,7 +76,8 @@ test("scanCodeHosts ignores test files", async () => {
 
 test("scanCodeHosts de-duplicates the same host across files and collects every occurrence", async () => {
   const root = makeFixtureTree({
-    "apps/worker-ai/worker_ai/providers/sarvam.py": 'SARVAM_DEFAULT_BASE_URL = "https://api.sarvam.ai"\n',
+    "apps/worker-ai/worker_ai/providers/sarvam.py":
+      'SARVAM_DEFAULT_BASE_URL = "https://api.sarvam.ai"\n',
     "apps/worker-ai/worker_ai/translate/providers/sarvam_mayura.py":
       'SARVAM_TRANSLATE_DEFAULT_BASE_URL = "https://api.sarvam.ai"\n',
   });
@@ -107,7 +108,10 @@ test("every VENDOR_METADATA entry has a non-empty owner, purpose and workloads l
     assert.ok(["exact", "suffix"].includes(entry.matchType), `${entry.host}: bad matchType`);
     assert.ok(entry.owner.length > 0, `${entry.host}: missing owner`);
     assert.ok(entry.purpose.length > 0, `${entry.host}: missing purpose`);
-    assert.ok(Array.isArray(entry.workloads) && entry.workloads.length > 0, `${entry.host}: missing workloads`);
+    assert.ok(
+      Array.isArray(entry.workloads) && entry.workloads.length > 0,
+      `${entry.host}: missing workloads`,
+    );
     assert.ok(["code", "declared"].includes(entry.source), `${entry.host}: bad source`);
   }
 });
@@ -144,7 +148,8 @@ test("buildInventory includes declared hosts (R2, Sentry, RunPod, AWS) with no c
 
 test("buildInventory fails a new, unrecognised host instead of silently allowing it", async () => {
   const root = makeFixtureTree({
-    "apps/worker-ai/worker_ai/providers/evil.py": 'EVIL_DEFAULT_BASE_URL = "https://api.evil-exfil.test"\n',
+    "apps/worker-ai/worker_ai/providers/evil.py":
+      'EVIL_DEFAULT_BASE_URL = "https://api.evil-exfil.test"\n',
   });
   try {
     const { entries, unknown } = await buildInventory(root, ["apps/worker-ai/worker_ai"]);

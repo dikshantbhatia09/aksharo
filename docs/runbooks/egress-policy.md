@@ -15,11 +15,11 @@ regardless of mode.
 environment in `values-staging.yaml` / `values-prod.yaml`) has three values.
 Move through them in this order, never straight to `enforce`:
 
-| Mode      | What's rendered                                                                                   | What happens to a call outside the allow-list                       |
-| --------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `off`     | No `CiliumNetworkPolicy`. The coarse rule in `templates/networkpolicy.yaml` is the only control: 443 to anywhere off the private ranges. | Allowed (the coarse rule does not know hostnames).                    |
-| `audit`   | `CiliumNetworkPolicy` rendered with `policy.cilium.io/audit-mode: "true"`. The coarse rule stays up underneath it. | Logged (Hubble, `cilium monitor`), not dropped — the coarse rule still lets it through. |
-| `enforce` | `CiliumNetworkPolicy` rendered without the audit annotation. The coarse rule is no longer rendered for that component. | Dropped at the DNS proxy / Cilium agent.                               |
+| Mode      | What's rendered                                                                                                                          | What happens to a call outside the allow-list                                           |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `off`     | No `CiliumNetworkPolicy`. The coarse rule in `templates/networkpolicy.yaml` is the only control: 443 to anywhere off the private ranges. | Allowed (the coarse rule does not know hostnames).                                      |
+| `audit`   | `CiliumNetworkPolicy` rendered with `policy.cilium.io/audit-mode: "true"`. The coarse rule stays up underneath it.                       | Logged (Hubble, `cilium monitor`), not dropped — the coarse rule still lets it through. |
+| `enforce` | `CiliumNetworkPolicy` rendered without the audit annotation. The coarse rule is no longer rendered for that component.                   | Dropped at the DNS proxy / Cilium agent.                                                |
 
 `off` and `enforce` are decision D73's two named states; `audit` is the
 staged-rollout step X08 adds between them, specifically so that turning on
@@ -75,7 +75,7 @@ DNS query that resolved it — read the query name, not just the IP, since the
 same IP can serve several hostnames behind a CDN. Cross-reference that
 hostname against `infra/policies/egress-inventory.json` (§4 below) before
 concluding it needs adding: a denial for a hostname already in the allow-list
-under a *different* component is a routing bug, not a missing entry.
+under a _different_ component is a routing bug, not a missing entry.
 
 ## 4. Add a vendor
 

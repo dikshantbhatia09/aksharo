@@ -39,7 +39,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 - **X08 — Cilium FQDN egress adoption for production (D73's staged rollout,
   prod hardening before Gate C).** `infra/k8s/montaj/values.yaml`'s
   `networkPolicy.fqdn.enabled` boolean becomes `networkPolicy.fqdn.mode:
-  off | audit | enforce`: `off` is unchanged from X05 (the coarse
+off | audit | enforce`: `off` is unchanged from X05 (the coarse
   `0.0.0.0/0:443`-minus-private-ranges rule); `audit` (new) renders the
   `CiliumNetworkPolicy` with Cilium's `policy.cilium.io/audit-mode: "true"`
   annotation so a denial is logged (Hubble/`cilium monitor`) rather than
@@ -69,7 +69,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   and a `network` block, cross-checked against the allow-list when
   `allowProviderEgress` is set), plus balanced `{{- if/range/with/define }}`/
   `{{- end }}` counts across every template; the real `helm
-  lint`/`helm template`/`kubeconform` pipeline still runs in
+lint`/`helm template`/`kubeconform` pipeline still runs in
   `.github/workflows/infra.yml`, which already had Helm 3.19 and kubeconform
   0.8 installed from X05. New `docs/runbooks/egress-policy.md`: the mode
   table, how to roll a mode change out and back, reading a DNS-proxy denial via

@@ -162,7 +162,13 @@ function scanAllowlists(text) {
   const providerAllowlist =
     allowlistLine === -1 ? [] : scanListOfMaps(lines, allowlistLine + 1, 2).entries;
 
-  const suffixesLine = findNestedKey(lines, networkPolicyLine + 1, 2, "providerAllowlistSuffixes", 0);
+  const suffixesLine = findNestedKey(
+    lines,
+    networkPolicyLine + 1,
+    2,
+    "providerAllowlistSuffixes",
+    0,
+  );
   const providerAllowlistSuffixes =
     suffixesLine === -1 ? [] : scanListOfMaps(lines, suffixesLine + 1, 2).entries;
 
@@ -197,7 +203,14 @@ function scanComponents(text) {
       continue;
     }
     const name = nameMatch[1];
-    const component = { name, enabled: false, kind: null, repository: null, hasNetworkBlock: false, allowProviderEgress: false };
+    const component = {
+      name,
+      enabled: false,
+      kind: null,
+      repository: null,
+      hasNetworkBlock: false,
+      allowProviderEgress: false,
+    };
 
     let j = i + 1;
     for (; j < lines.length; j += 1) {
@@ -237,14 +250,19 @@ async function checkValuesShape(root) {
   let problems = [];
 
   for (const entry of providerAllowlist) {
-    if (!entry.host) problems.push(`providerAllowlist entry missing a 'host': ${JSON.stringify(entry)}`);
-    if (!entry.reason) problems.push(`providerAllowlist entry for ${entry.host} missing a 'reason'`);
+    if (!entry.host)
+      problems.push(`providerAllowlist entry missing a 'host': ${JSON.stringify(entry)}`);
+    if (!entry.reason)
+      problems.push(`providerAllowlist entry for ${entry.host} missing a 'reason'`);
   }
   for (const entry of providerAllowlistSuffixes) {
     if (!entry.host || !entry.host.startsWith(".")) {
-      problems.push(`providerAllowlistSuffixes entry must have a host starting with '.': ${JSON.stringify(entry)}`);
+      problems.push(
+        `providerAllowlistSuffixes entry must have a host starting with '.': ${JSON.stringify(entry)}`,
+      );
     }
-    if (!entry.reason) problems.push(`providerAllowlistSuffixes entry for ${entry.host} missing a 'reason'`);
+    if (!entry.reason)
+      problems.push(`providerAllowlistSuffixes entry for ${entry.host} missing a 'reason'`);
   }
 
   for (const c of components) {
@@ -284,10 +302,14 @@ async function checkEnvValues(root, envName) {
   const text = await readFile(path, "utf8");
   const match = /^\s*mode\s*:\s*"?([a-z]+)"?\s*$/m.exec(text);
   if (match && !FQDN_MODES.includes(match[1])) {
-    fail(`values-${envName}.yaml sets networkPolicy.fqdn.mode to ${JSON.stringify(match[1])}, expected one of ${FQDN_MODES.join("/")}`);
+    fail(
+      `values-${envName}.yaml sets networkPolicy.fqdn.mode to ${JSON.stringify(match[1])}, expected one of ${FQDN_MODES.join("/")}`,
+    );
     return;
   }
-  ok(`values-${envName}.yaml: fqdn.mode is ${match ? match[1] : "unset (defaults to values.yaml)"}, a recognised value`);
+  ok(
+    `values-${envName}.yaml: fqdn.mode is ${match ? match[1] : "unset (defaults to values.yaml)"}, a recognised value`,
+  );
 }
 
 /** Counts a Go-template action's opens vs. closes on a stripped-comment copy of the file. */
@@ -319,7 +341,8 @@ async function checkTemplates(root) {
     const text = await readFile(join(templatesDir, name), "utf8");
     if (!checkBalancedActions(text, name)) allBalanced = false;
   }
-  if (allBalanced) ok(`${String(files.length)} template file(s) have balanced if/range/with/define...end`);
+  if (allBalanced)
+    ok(`${String(files.length)} template file(s) have balanced if/range/with/define...end`);
 }
 
 async function main() {

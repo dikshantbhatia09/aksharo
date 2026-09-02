@@ -7,9 +7,7 @@
       "matchType": "suffix",
       "owner": "platform-infra",
       "purpose": "AWS SDK regional endpoints: SES (transactional mail, MAIL_PROVIDER=ses) and SNS (bounce/complaint webhooks) — built by the SDK from AWS_REGION, not a code literal (docs/runbooks/deploy.md 'Email (SES) setup')",
-      "workloads": [
-        "api"
-      ],
+      "workloads": ["api"],
       "source": "declared",
       "discoveredIn": []
     },
@@ -18,15 +16,7 @@
       "matchType": "suffix",
       "owner": "platform-infra",
       "purpose": "Error reporting (CONTRACTS SENTRY_DSN) — env-configured, not a code literal",
-      "workloads": [
-        "api",
-        "web",
-        "realtime",
-        "worker-media",
-        "worker-ai",
-        "render",
-        "scheduler"
-      ],
+      "workloads": ["api", "web", "realtime", "worker-media", "worker-ai", "render", "scheduler"],
       "source": "declared",
       "discoveredIn": []
     },
@@ -35,12 +25,7 @@
       "matchType": "suffix",
       "owner": "platform-infra",
       "purpose": "Derived object storage (CONTRACTS R2_ENDPOINT) — env-configured, not a code literal",
-      "workloads": [
-        "api",
-        "worker-media",
-        "worker-ai",
-        "render"
-      ],
+      "workloads": ["api", "worker-media", "worker-ai", "render"],
       "source": "declared",
       "discoveredIn": []
     },
@@ -49,39 +34,21 @@
       "matchType": "exact",
       "owner": "platform-auth",
       "purpose": "Google OAuth authorization endpoint and issuer (CONTRACTS GOOGLE_OAUTH_CLIENT_ID)",
-      "workloads": [
-        "api"
-      ],
+      "workloads": ["api"],
       "source": "code",
-      "discoveredIn": [
-        {
-          "file": "apps/api/src/auth/google-oauth.provider.ts",
-          "line": 10
-        }
-      ]
+      "discoveredIn": [{ "file": "apps/api/src/auth/google-oauth.provider.ts", "line": 10 }]
     },
     {
       "host": "api.anthropic.com",
       "matchType": "exact",
       "owner": "platform-ai",
       "purpose": "LLM extras when LLM_PROVIDER=anthropic",
-      "workloads": [
-        "worker-ai"
-      ],
+      "workloads": ["worker-ai"],
       "source": "code",
       "discoveredIn": [
-        {
-          "file": "apps/worker-ai/worker_ai/llm/providers/anthropic.py",
-          "line": 27
-        },
-        {
-          "file": "apps/worker-ai/worker_ai/llm/providers/anthropic.py",
-          "line": 28
-        },
-        {
-          "file": "apps/worker-ai/worker_ai/llm/providers/anthropic.py",
-          "line": 29
-        }
+        { "file": "apps/worker-ai/worker_ai/llm/providers/anthropic.py", "line": 27 },
+        { "file": "apps/worker-ai/worker_ai/llm/providers/anthropic.py", "line": 28 },
+        { "file": "apps/worker-ai/worker_ai/llm/providers/anthropic.py", "line": 29 }
       ]
     },
     {
@@ -89,67 +56,38 @@
       "matchType": "exact",
       "owner": "platform-ai",
       "purpose": "AssemblyAI Universal-2 ASR (CONTRACTS ASSEMBLYAI_API_KEY)",
-      "workloads": [
-        "worker-ai"
-      ],
+      "workloads": ["worker-ai"],
       "source": "code",
-      "discoveredIn": [
-        {
-          "file": "apps/worker-ai/worker_ai/providers/assemblyai.py",
-          "line": 62
-        }
-      ]
+      "discoveredIn": [{ "file": "apps/worker-ai/worker_ai/providers/assemblyai.py", "line": 62 }]
     },
     {
       "host": "api.elevenlabs.io",
       "matchType": "exact",
       "owner": "platform-ai",
       "purpose": "ElevenLabs Scribe v2 ASR (CONTRACTS ELEVENLABS_API_KEY)",
-      "workloads": [
-        "worker-ai"
-      ],
+      "workloads": ["worker-ai"],
       "source": "code",
-      "discoveredIn": [
-        {
-          "file": "apps/worker-ai/worker_ai/providers/elevenlabs.py",
-          "line": 76
-        }
-      ]
+      "discoveredIn": [{ "file": "apps/worker-ai/worker_ai/providers/elevenlabs.py", "line": 76 }]
     },
     {
       "host": "api.in.residency.elevenlabs.io",
       "matchType": "exact",
       "owner": "platform-ai",
       "purpose": "ElevenLabs Scribe v2 ASR, India-residency endpoint",
-      "workloads": [
-        "worker-ai"
-      ],
+      "workloads": ["worker-ai"],
       "source": "code",
-      "discoveredIn": [
-        {
-          "file": "apps/worker-ai/worker_ai/providers/elevenlabs.py",
-          "line": 79
-        }
-      ]
+      "discoveredIn": [{ "file": "apps/worker-ai/worker_ai/providers/elevenlabs.py", "line": 79 }]
     },
     {
       "host": "api.openai.com",
       "matchType": "exact",
       "owner": "platform-ai",
       "purpose": "LLM extras when LLM_PROVIDER=openai",
-      "workloads": [
-        "worker-ai"
-      ],
+      "workloads": ["worker-ai"],
       "source": "code",
       "discoveredIn": [
-        {
-          "file": "apps/worker-ai/worker_ai/llm/providers/openai.py",
-          "line": 19
-        },
-        {
-          "file": "apps/worker-ai/worker_ai/llm/providers/openai.py",
-          "line": 21
-        }
+        { "file": "apps/worker-ai/worker_ai/llm/providers/openai.py", "line": 19 },
+        { "file": "apps/worker-ai/worker_ai/llm/providers/openai.py", "line": 21 }
       ]
     },
     {
@@ -157,41 +95,25 @@
       "matchType": "exact",
       "owner": "platform-auth",
       "purpose": "Have I Been Pwned k-anonymity range lookup, breached-password check (THREAT-MODEL T1)",
-      "workloads": [
-        "api"
-      ],
+      "workloads": ["api"],
       "source": "code",
-      "discoveredIn": [
-        {
-          "file": "apps/api/src/auth/breached-password.service.ts",
-          "line": 11
-        }
-      ]
+      "discoveredIn": [{ "file": "apps/api/src/auth/breached-password.service.ts", "line": 11 }]
     },
     {
       "host": "api.razorpay.com",
       "matchType": "exact",
       "owner": "platform-billing",
       "purpose": "Razorpay checkout/orders and RazorpayX payouts (CONTRACTS RAZORPAY_KEY_ID)",
-      "workloads": [
-        "api"
-      ],
+      "workloads": ["api"],
       "source": "code",
-      "discoveredIn": [
-        {
-          "file": "apps/api/src/affiliates/payouts/razorpayx.provider.ts",
-          "line": 10
-        }
-      ]
+      "discoveredIn": [{ "file": "apps/api/src/affiliates/payouts/razorpayx.provider.ts", "line": 10 }]
     },
     {
       "host": "api.runpod.ai",
       "matchType": "exact",
       "owner": "platform-ai",
       "purpose": "Serverless GPU control plane (decision D15)",
-      "workloads": [
-        "worker-ai"
-      ],
+      "workloads": ["worker-ai"],
       "source": "declared",
       "discoveredIn": []
     },
@@ -200,9 +122,7 @@
       "matchType": "exact",
       "owner": "platform-ai",
       "purpose": "Serverless GPU job submission (decision D15)",
-      "workloads": [
-        "worker-ai"
-      ],
+      "workloads": ["worker-ai"],
       "source": "declared",
       "discoveredIn": []
     },
@@ -211,19 +131,11 @@
       "matchType": "exact",
       "owner": "platform-ai",
       "purpose": "Sarvam Saaras v4 ASR and Mayura translate (CONTRACTS SARVAM_API_KEY)",
-      "workloads": [
-        "worker-ai"
-      ],
+      "workloads": ["worker-ai"],
       "source": "code",
       "discoveredIn": [
-        {
-          "file": "apps/worker-ai/worker_ai/providers/sarvam.py",
-          "line": 74
-        },
-        {
-          "file": "apps/worker-ai/worker_ai/translate/providers/sarvam_mayura.py",
-          "line": 42
-        }
+        { "file": "apps/worker-ai/worker_ai/providers/sarvam.py", "line": 74 },
+        { "file": "apps/worker-ai/worker_ai/translate/providers/sarvam_mayura.py", "line": 42 }
       ]
     },
     {
@@ -231,25 +143,16 @@
       "matchType": "exact",
       "owner": "platform-ai",
       "purpose": "LLM extras, EU data-residency endpoint when LLM_PROVIDER=openai",
-      "workloads": [
-        "worker-ai"
-      ],
+      "workloads": ["worker-ai"],
       "source": "code",
-      "discoveredIn": [
-        {
-          "file": "apps/worker-ai/worker_ai/llm/providers/openai.py",
-          "line": 20
-        }
-      ]
+      "discoveredIn": [{ "file": "apps/worker-ai/worker_ai/llm/providers/openai.py", "line": 20 }]
     },
     {
       "host": "eu.i.posthog.com",
       "matchType": "exact",
       "owner": "platform-infra",
       "purpose": "Product analytics (CONTRACTS POSTHOG_KEY), browser-side default host — not scanned from apps/web (out of this chart's egress scope: it never leaves the visitor's browser) and not a cluster egress path",
-      "workloads": [
-        "web"
-      ],
+      "workloads": ["web"],
       "source": "declared",
       "discoveredIn": []
     },
@@ -258,16 +161,9 @@
       "matchType": "exact",
       "owner": "platform-auth",
       "purpose": "Google OAuth token endpoint (CONTRACTS GOOGLE_OAUTH_CLIENT_ID)",
-      "workloads": [
-        "api"
-      ],
+      "workloads": ["api"],
       "source": "code",
-      "discoveredIn": [
-        {
-          "file": "apps/api/src/auth/google-oauth.provider.ts",
-          "line": 11
-        }
-      ]
+      "discoveredIn": [{ "file": "apps/api/src/auth/google-oauth.provider.ts", "line": 11 }]
     }
   ]
 }

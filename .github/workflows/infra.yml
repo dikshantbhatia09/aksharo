@@ -44,16 +44,15 @@ jobs:
       - uses: actions/checkout@v4
 
       # -----------------------------------------------------------------------
-      # Egress inventory generator unit tests (X08). Node is preinstalled on
-      # this runner image, and neither script has a dependency beyond
-      # node:fs/node:path/node:child_process, so no pnpm install is needed
-      # here. (infra/scripts/validate-chart-local.test.mjs is excluded: it
-      # needs the workspace's `yaml` package, and it exists only as a local
-      # stand-in for a host with no Helm — real `helm lint`/`helm
-      # template`/kubeconform below already supersede it in CI.)
+      # infra/scripts unit tests (X08). Node is preinstalled on this runner
+      # image, and none of these scripts have a dependency beyond
+      # node:fs/node:path/node:child_process, so no pnpm install is needed here.
+      # (validate-chart-local.mjs is a local stand-in for a host with no Helm;
+      # the real `helm lint`/`helm template`/kubeconform below supersede it in
+      # CI, but its own tests are cheap and still worth running.)
       # -----------------------------------------------------------------------
       - name: infra/scripts unit tests (X08)
-        run: node --test infra/scripts/egress-hosts.test.mjs infra/scripts/generate-egress-inventory.test.mjs
+        run: node --test infra/scripts/*.test.mjs
 
       # -----------------------------------------------------------------------
       # Terraform
@@ -141,7 +140,7 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: helm lint (Cilium FQDN egress variants: audit, enforce)
+      - name: "helm lint (Cilium FQDN egress variants: audit, enforce)"
         # The FQDN policy is off by default, so these would otherwise never be
         # linted. X08: the staged-rollout "audit" mode sits between the chart's
         # default ("off") and the enforced end state.
@@ -153,7 +152,7 @@ jobs:
               --set networkPolicy.fqdn.mode="$mode"
           done
 
-      - name: kubeconform (Cilium FQDN egress variants: audit, enforce)
+      - name: "kubeconform (Cilium FQDN egress variants: audit, enforce)"
         run: |
           set -euo pipefail
           for mode in audit enforce; do

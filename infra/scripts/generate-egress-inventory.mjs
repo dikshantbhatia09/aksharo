@@ -19,7 +19,9 @@
 
 import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { buildInventory } from "./egress-hosts.mjs";
 
@@ -49,8 +51,7 @@ async function main() {
         unknown
           .map(
             ({ host, occurrences }) =>
-              `  ${host}\n` +
-              occurrences.map((o) => `    ${o.file}:${String(o.line)}`).join("\n"),
+              `  ${host}\n` + occurrences.map((o) => `    ${o.file}:${String(o.line)}`).join("\n"),
           )
           .join("\n") +
         `\nAdd each to VENDOR_METADATA in infra/scripts/egress-hosts.mjs with an owner and a purpose, ` +
@@ -66,16 +67,30 @@ async function main() {
     // which is exactly the noise `--check` exists to avoid.
     entries,
   };
-  const serialised = `${JSON.stringify(document, null, 2)}\n`;
 
   if (check) {
-    let existing = "";
+    // Structural comparison only, deliberately not byte-for-byte: `--check`
+    // is the CI gate (`.github/workflows/infra.yml`'s `infra-validate`, which
+    // never runs `pnpm install`), so it must not depend on Prettier being
+    // resolvable. A real formatting drift is `pnpm format:changed:check`'s
+    // job, not this script's — this only asks "does the committed file
+    // reflect the current code scan," which JSON.parse + a content compare
+    // answers without caring how the file is indented.
+    let existingText = "";
     try {
-      existing = await readFile(outputPath, "utf8");
+      existingText = await readFile(outputPath, "utf8");
     } catch {
       fail(`${OUTPUT_RELATIVE} does not exist — run without --check to create it`);
     }
-    if (existing !== serialised) {
+    let existingDocument;
+    try {
+      existingDocument = JSON.parse(existingText);
+    } catch (error) {
+      fail(
+        `${OUTPUT_RELATIVE} is not valid JSON: ${error instanceof Error ? error.message : error}`,
+      );
+    }
+    if (JSON.stringify(existingDocument.entries) !== JSON.stringify(document.entries)) {
       fail(
         `${OUTPUT_RELATIVE} is out of date with the code scan. Run: ` +
           `node infra/scripts/generate-egress-inventory.mjs`,
@@ -85,6 +100,31 @@ async function main() {
       `generate-egress-inventory — up to date, ${String(entries.length)} host(s)\n`,
     );
     return;
+  }
+
+  // Write mode: formatted through the workspace's own Prettier when it is
+  // resolvable — the same Prettier `pnpm format:changed:check` runs, so the
+  // committed file matches what that separate gate expects (Prettier
+  // collapses a short array like `"workloads": ["api"]` onto one line; plain
+  // `JSON.stringify(..., null, 2)` never does). This is the developer-facing
+  // path (`node infra/scripts/generate-egress-inventory.mjs`, run where
+  // `pnpm install` has already happened) — CI only ever runs `--check` above,
+  // which needs none of this.
+  let serialised;
+  try {
+    const require = createRequire(pathToFileURL(join(root, "package.json")));
+    const loaded = await import(pathToFileURL(require.resolve("prettier", { paths: [root] })).href);
+    const prettier = typeof loaded.format === "function" ? loaded : loaded.default;
+    serialised = await prettier.format(JSON.stringify(document), {
+      ...(await prettier.resolveConfig(outputPath)),
+      filepath: outputPath,
+    });
+  } catch {
+    serialised = `${JSON.stringify(document, null, 2)}\n`;
+    process.stderr.write(
+      "generate-egress-inventory — could not resolve Prettier (run `pnpm install` first); " +
+        `wrote plain-JSON formatting instead. Run: pnpm format:changed -- ${OUTPUT_RELATIVE}\n`,
+    );
   }
 
   await writeFile(outputPath, serialised, "utf8");
