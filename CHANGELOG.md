@@ -19,8 +19,10 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `"academy"` source, flagged as a conflict) and automatic completion on
   `export.completed`; ten real Help articles (`apps/web/content/help/**`)
   with a build-time MiniSearch index and a "Contact support" entry; an
-  in-app `/changelog` sourced from MDX plus a per-user "What's new" modal
-  (`changelog_dismissals`); `POST/GET /support/tickets`
+  in-app `/updates` changelog (renamed from `/changelog`, which the
+  marketing site already owns) sourced from MDX plus an RSS feed and a
+  per-user "What's new" modal (`changelog_dismissals`);
+  `POST/GET /support/tickets`
   (`support_tickets`) with an optional consent-gated diagnostics bundle
   (app version, browser/OS, workspace id, last 10 job statuses, a
   console-error ring buffer — never media), emailed to `BRAND.supportEmail`
