@@ -9360,6 +9360,98 @@
         ]
       }
     },
+    "/admin/metrics/streak": {
+      "get": {
+        "description": "Week-4 retention and export frequency, per 04 §Streak rewards.",
+        "operationId": "getStreakCohortMetrics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Experiment vs holdout cohort metrics.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "experiment": {
+                      "type": "object",
+                      "properties": {
+                        "workspaces": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "week4RetentionPct": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "avgExportsPerWeek": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "workspaces",
+                        "week4RetentionPct",
+                        "avgExportsPerWeek"
+                      ]
+                    },
+                    "holdout": {
+                      "type": "object",
+                      "properties": {
+                        "workspaces": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "week4RetentionPct": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "avgExportsPerWeek": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "workspaces",
+                        "week4RetentionPct",
+                        "avgExportsPerWeek"
+                      ]
+                    },
+                    "generatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "experiment",
+                    "holdout",
+                    "generatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Streak experiment vs holdout cohort metrics",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/offers/eligibility": {
       "get": {
         "description": "Every amount is read from the same catalogue `/billing/passes/checkout` quotes from — the export dialog never hardcodes a price.",
@@ -13515,6 +13607,154 @@
         ]
       }
     },
+    "/streak": {
+      "get": {
+        "operationId": "getStreak",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Streak state; `eligible:false` when not assigned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "eligible": {
+                      "type": "boolean"
+                    },
+                    "holdout": {
+                      "type": "boolean"
+                    },
+                    "creditsOnly": {
+                      "type": "boolean"
+                    },
+                    "level": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 5
+                    },
+                    "publishDaysThisWeek": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "bar": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "paused": {
+                      "type": "boolean"
+                    },
+                    "freezesRemaining": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "consecutiveWeeks": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "weekWindowStart": {
+                      "type": "string"
+                    },
+                    "weekWindowEnd": {
+                      "type": "string"
+                    },
+                    "nextRewardLabel": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "discountPercent": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "creditGrantTenths": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "eligible",
+                    "holdout",
+                    "creditsOnly",
+                    "level",
+                    "publishDaysThisWeek",
+                    "bar",
+                    "paused",
+                    "freezesRemaining",
+                    "consecutiveWeeks",
+                    "weekWindowStart",
+                    "weekWindowEnd",
+                    "nextRewardLabel",
+                    "discountPercent",
+                    "creditGrantTenths"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "This workspace's streak state",
+        "tags": [
+          "streak"
+        ]
+      }
+    },
+    "/streak/test-hooks": {
+      "post": {
+        "operationId": "streakTestHooks",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publishDays": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 7
+                  },
+                  "rolloverWeek": {
+                    "type": "boolean"
+                  },
+                  "resetMonth": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "403": {
+            "description": "`common/forbidden` outside a test environment."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Simulate weeks (test environment only)",
+        "tags": [
+          "streak"
+        ]
+      }
+    },
     "/invoices": {
       "get": {
         "operationId": "InvoicesController_list",
@@ -13677,6 +13917,2028 @@
         "summary": "Monthly export-filing CSV for a given `month` (YYYY-MM).",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/devices": {
+      "get": {
+        "operationId": "listDevices",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Devices, revoked ones last.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "platform": {
+                        "type": "string"
+                      },
+                      "host": {
+                        "type": "string",
+                        "enum": [
+                          "web",
+                          "desktop",
+                          "premiere",
+                          "ae",
+                          "resolve"
+                        ]
+                      },
+                      "hostVersion": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "appVersion": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "lastActiveAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "leaseUntil": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "revokedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "isCurrentSession": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "platform",
+                      "host",
+                      "hostVersion",
+                      "appVersion",
+                      "lastActiveAt",
+                      "leaseUntil",
+                      "revokedAt",
+                      "createdAt",
+                      "isCurrentSession"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "This workspace's registered devices",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/devices/register": {
+      "post": {
+        "description": "Same fingerprint refreshes the 7-day lease without counting twice against the plan's device limit; a genuinely new device beyond the limit is refused with `devices/limit_reached` and the revocable list.",
+        "operationId": "registerDevice",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fingerprint": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 256
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "platform": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "host": {
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "desktop",
+                      "premiere",
+                      "ae",
+                      "resolve"
+                    ]
+                  },
+                  "hostVersion": {
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "appVersion": {
+                    "type": "string",
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "fingerprint",
+                  "name",
+                  "platform",
+                  "host"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The registered device.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "host": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "premiere",
+                        "ae",
+                        "resolve"
+                      ]
+                    },
+                    "hostVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "appVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastActiveAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "leaseUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revokedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "isCurrentSession": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "platform",
+                    "host",
+                    "hostVersion",
+                    "appVersion",
+                    "lastActiveAt",
+                    "leaseUntil",
+                    "revokedAt",
+                    "createdAt",
+                    "isCurrentSession"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`devices/limit_reached`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Register (or refresh) this device",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/devices/{deviceId}": {
+      "patch": {
+        "operationId": "renameDevice",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The renamed device.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "host": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "premiere",
+                        "ae",
+                        "resolve"
+                      ]
+                    },
+                    "hostVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "appVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastActiveAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "leaseUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revokedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "isCurrentSession": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "platform",
+                    "host",
+                    "hostVersion",
+                    "appVersion",
+                    "lastActiveAt",
+                    "leaseUntil",
+                    "revokedAt",
+                    "createdAt",
+                    "isCurrentSession"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Rename a device",
+        "tags": [
+          "devices"
+        ]
+      },
+      "delete": {
+        "description": "The next heartbeat against this device's lease/licence fails.",
+        "operationId": "revokeDevice",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The revoked device.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "host": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "premiere",
+                        "ae",
+                        "resolve"
+                      ]
+                    },
+                    "hostVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "appVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastActiveAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "leaseUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revokedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "isCurrentSession": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "platform",
+                    "host",
+                    "hostVersion",
+                    "appVersion",
+                    "lastActiveAt",
+                    "leaseUntil",
+                    "revokedAt",
+                    "createdAt",
+                    "isCurrentSession"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke a device",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/workspaces/{id}/transfer-ownership": {
+      "post": {
+        "description": "Owner only. The first call (no confirmToken) mints a 10-minute confirmation token and mails it to the current owner; the second call, with that token, executes the transfer. Sessions are unaffected.",
+        "operationId": "transferWorkspaceOwnership",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "toMembershipId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "confirmToken": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "toMembershipId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Confirmation sent, or transfer applied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "confirmation_sent",
+                        "transferred"
+                      ]
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "newOwnerMembershipId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Transfer workspace ownership",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}/client-tags": {
+      "get": {
+        "operationId": "listClientTags",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tags in use.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "tag": {
+                        "type": "string"
+                      },
+                      "projectCount": {
+                        "type": "number"
+                      },
+                      "folderCount": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "tag",
+                      "projectCount",
+                      "folderCount"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Client tags in use, with counts",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}/client-tags/{tag}/projects": {
+      "get": {
+        "operationId": "listProjectsForClientTag",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Projects with this tag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Projects carrying a client tag",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}/projects/{projectId}/client-tag": {
+      "patch": {
+        "operationId": "setProjectClientTag",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clientTag": {
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "clientTag"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The project's new client tag."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Set (or clear) a project's client tag",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}/folders/{folderId}/client-tag": {
+      "patch": {
+        "operationId": "setFolderClientTag",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "folderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clientTag": {
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "clientTag"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The folder's new client tag."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Set (or clear) a folder's client tag",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}/license-keys": {
+      "get": {
+        "operationId": "listLicenseKeys",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Licence keys.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "key": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "maxActivations": {
+                        "type": "number"
+                      },
+                      "activationCount": {
+                        "type": "number"
+                      },
+                      "offlineUntil": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "revokedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "revocationSerial": {
+                        "type": "number"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "key",
+                      "label",
+                      "maxActivations",
+                      "activationCount",
+                      "offlineUntil",
+                      "revokedAt",
+                      "revocationSerial",
+                      "createdAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "This workspace's licence keys",
+        "tags": [
+          "licensing"
+        ]
+      },
+      "post": {
+        "description": "Returns `AK-XXXX-XXXX-XXXX`, shown once in full.",
+        "operationId": "createLicenseKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "maxActivations": {
+                    "default": 1,
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 1000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new licence key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "maxActivations": {
+                      "type": "number"
+                    },
+                    "activationCount": {
+                      "type": "number"
+                    },
+                    "offlineUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revokedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revocationSerial": {
+                      "type": "number"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "key",
+                    "label",
+                    "maxActivations",
+                    "activationCount",
+                    "offlineUntil",
+                    "revokedAt",
+                    "revocationSerial",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a licence key",
+        "tags": [
+          "licensing"
+        ]
+      }
+    },
+    "/workspaces/{id}/license-keys/{keyId}": {
+      "delete": {
+        "description": "Every device it activated is revoked too; propagates on next heartbeat.",
+        "operationId": "revokeLicenseKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The revoked licence key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "maxActivations": {
+                      "type": "number"
+                    },
+                    "activationCount": {
+                      "type": "number"
+                    },
+                    "offlineUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revokedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revocationSerial": {
+                      "type": "number"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "key",
+                    "label",
+                    "maxActivations",
+                    "activationCount",
+                    "offlineUntil",
+                    "revokedAt",
+                    "revocationSerial",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke a licence key",
+        "tags": [
+          "licensing"
+        ]
+      }
+    },
+    "/plugins/activate": {
+      "post": {
+        "description": "Exactly one of licenseKey or deviceCode. Returns a devices row and a signed licenseSnapshot verifiable offline for 7 days.",
+        "operationId": "activatePlugin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "licenseKey": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "deviceCode": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "device": {
+                    "type": "object",
+                    "properties": {
+                      "fingerprint": {
+                        "type": "string",
+                        "minLength": 8,
+                        "maxLength": 256
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "platform": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 60
+                      },
+                      "host": {
+                        "type": "string",
+                        "enum": [
+                          "web",
+                          "desktop",
+                          "premiere",
+                          "ae",
+                          "resolve"
+                        ]
+                      },
+                      "hostVersion": {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      "appVersion": {
+                        "type": "string",
+                        "maxLength": 60
+                      }
+                    },
+                    "required": [
+                      "fingerprint",
+                      "name",
+                      "platform",
+                      "host"
+                    ]
+                  }
+                },
+                "required": [
+                  "device"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Device registered; licence snapshot issued."
+          }
+        },
+        "summary": "Activate a device with a licence key or a device code",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
+    "/plugins/heartbeat": {
+      "post": {
+        "description": "Returns the current revocationSerial and a refreshed licenseSnapshot.",
+        "operationId": "pluginHeartbeat",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nonce": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "licenseKey": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "nonce",
+                  "deviceId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Lease renewed."
+          }
+        },
+        "summary": "Renew the 7-day entitlement lease",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
+    "/plugins/revocation-snapshot": {
+      "get": {
+        "operationId": "pluginRevocationSnapshot",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "A signed, compact snapshot token."
+          }
+        },
+        "summary": "Signed daily revocation snapshot for fully offline clients",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
+    "/affiliate/apply": {
+      "post": {
+        "operationId": "applyAffiliate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "legalName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "pan": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{5}[0-9]{4}[A-Z]$"
+                  },
+                  "gstin": {
+                    "type": "string"
+                  },
+                  "payoutMethod": {
+                    "type": "object",
+                    "properties": {
+                      "rail": {
+                        "type": "string",
+                        "enum": [
+                          "neft",
+                          "imps",
+                          "rtgs",
+                          "upi"
+                        ]
+                      },
+                      "vpaOrAccountNumber": {
+                        "type": "string",
+                        "minLength": 4,
+                        "maxLength": 64
+                      },
+                      "ifsc": {
+                        "type": "string",
+                        "minLength": 11,
+                        "maxLength": 11
+                      },
+                      "accountHolderName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      }
+                    },
+                    "required": [
+                      "rail",
+                      "vpaOrAccountNumber",
+                      "accountHolderName"
+                    ]
+                  },
+                  "acceptedDisclosure": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  }
+                },
+                "required": [
+                  "legalName",
+                  "pan",
+                  "payoutMethod",
+                  "acceptedDisclosure"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new affiliate profile, status pending.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "tier": {
+                      "type": "string"
+                    },
+                    "legalName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "panLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstin": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "balanceMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "referralLink": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "status",
+                    "tier",
+                    "legalName",
+                    "panLast4",
+                    "gstin",
+                    "balanceMinor",
+                    "currency",
+                    "approvedAt",
+                    "createdAt",
+                    "referralLink"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Apply to the affiliate programme (India only)",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/me": {
+      "get": {
+        "operationId": "getMyAffiliate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Affiliate profile, wrapped so `affiliate: null` is a real JSON body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "affiliate": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "tier": {
+                          "type": "string"
+                        },
+                        "legalName": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "panLast4": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "gstin": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "balanceMinor": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "approvedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "referralLink": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "code",
+                        "status",
+                        "tier",
+                        "legalName",
+                        "panLast4",
+                        "gstin",
+                        "balanceMinor",
+                        "currency",
+                        "approvedAt",
+                        "createdAt",
+                        "referralLink"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "affiliate"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The caller's own affiliate profile, or null",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/me/stats": {
+      "get": {
+        "operationId": "getMyAffiliateStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Clicks, sign-ups, pending/available/paid, FY TDS.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "clicks": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "signups": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "paidReferrals": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "activeReferrals": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "pendingCommissionMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "availableCommissionMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "paidOutMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "fyLabel": {
+                      "type": "string"
+                    },
+                    "fyGrossMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "fyTdsMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "fyNetMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "tier": {
+                      "type": "string"
+                    },
+                    "activeReferralsForTierUpgrade": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "clicks",
+                    "signups",
+                    "paidReferrals",
+                    "activeReferrals",
+                    "pendingCommissionMinor",
+                    "availableCommissionMinor",
+                    "paidOutMinor",
+                    "fyLabel",
+                    "fyGrossMinor",
+                    "fyTdsMinor",
+                    "fyNetMinor",
+                    "tier",
+                    "activeReferralsForTierUpgrade"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Dashboard stats for the caller's affiliate profile",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/r/click": {
+      "post": {
+        "operationId": "recordAffiliateClick",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16
+                  },
+                  "ipHash": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "deviceHash": {
+                    "type": "string",
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Record a /r/<code> click (called by the web route)",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/attribution/attach": {
+      "post": {
+        "operationId": "attachAffiliateAttribution",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "referredWorkspaceId": {
+                    "type": "string"
+                  },
+                  "referredUserId": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16
+                  },
+                  "cookieCode": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16
+                  },
+                  "cookieExpiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "ipHash": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "deviceHash": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "paymentFingerprint": {
+                    "type": "string",
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "referredWorkspaceId",
+                  "referredUserId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Resolve attribution for a newly-created workspace (code beats cookie)",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/admin/{affiliateId}/approve": {
+      "post": {
+        "operationId": "adminApproveAffiliate",
+        "parameters": [
+          {
+            "name": "affiliateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The approved affiliate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "tier": {
+                      "type": "string"
+                    },
+                    "legalName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "panLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstin": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "balanceMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "referralLink": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "status",
+                    "tier",
+                    "legalName",
+                    "panLast4",
+                    "gstin",
+                    "balanceMinor",
+                    "currency",
+                    "approvedAt",
+                    "createdAt",
+                    "referralLink"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Approve a pending affiliate application (admin)",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/admin/{affiliateId}/suspend": {
+      "post": {
+        "operationId": "adminSuspendAffiliate",
+        "parameters": [
+          {
+            "name": "affiliateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The suspended affiliate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "tier": {
+                      "type": "string"
+                    },
+                    "legalName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "panLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstin": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "balanceMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "referralLink": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "status",
+                    "tier",
+                    "legalName",
+                    "panLast4",
+                    "gstin",
+                    "balanceMinor",
+                    "currency",
+                    "approvedAt",
+                    "createdAt",
+                    "referralLink"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Suspend an affiliate (admin)",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/admin/{affiliateId}/reject": {
+      "post": {
+        "operationId": "adminRejectAffiliate",
+        "parameters": [
+          {
+            "name": "affiliateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The rejected affiliate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "tier": {
+                      "type": "string"
+                    },
+                    "legalName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "panLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstin": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "balanceMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "referralLink": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "status",
+                    "tier",
+                    "legalName",
+                    "panLast4",
+                    "gstin",
+                    "balanceMinor",
+                    "currency",
+                    "approvedAt",
+                    "createdAt",
+                    "referralLink"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reject a pending affiliate application (admin)",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/admin/{affiliateId}/revoke-code": {
+      "post": {
+        "operationId": "adminRevokeAffiliateCode",
+        "parameters": [
+          {
+            "name": "affiliateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The affiliate with a new code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "tier": {
+                      "type": "string"
+                    },
+                    "legalName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "panLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstin": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "balanceMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "referralLink": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "status",
+                    "tier",
+                    "legalName",
+                    "panLast4",
+                    "gstin",
+                    "balanceMinor",
+                    "currency",
+                    "approvedAt",
+                    "createdAt",
+                    "referralLink"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke and regenerate an affiliate's code (admin)",
+        "tags": [
+          "affiliate"
         ]
       }
     }
@@ -14061,7 +16323,8 @@
               "renewal-notice",
               "low-credits",
               "export-ready",
-              "share-comment"
+              "share-comment",
+              "streak-nudge"
             ],
             "description": "What happened. The client renders its own wording per locale, so the row carries no text of its own."
           },
@@ -15660,6 +17923,10 @@
           "version",
           "checks"
         ]
+      },
+      "Function": {
+        "type": "object",
+        "properties": {}
       }
     }
   }

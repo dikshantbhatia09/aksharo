@@ -14,28 +14,39 @@
 import { defineEndpoint } from "./http.js";
 
 import type {
+  AffiliateProfile,
+  AffiliateStats,
+  ApplyAffiliateRequest,
   AvailableScripts,
   BatchCreateProjectsRequest,
+  ChangeRoleRequest,
   ClaimReferralRequest,
   ClaimReferralResult,
+  ClientTagView,
   CompletedUpload,
   CompleteUploadRequest,
   ConsentState,
   CreateFolderRequest,
+  CreateLicenseKeyRequest,
   CreateProjectRequest,
   CreditsSummary,
   CurrentUser,
   DeviceApproveRequest,
+  DeviceView,
   DismissReferralPromptResult,
   Entitlement,
   Folder,
   InitUploadRequest,
+  InviteMemberRequest,
   JobPage,
   JobSummary,
+  LicenseKeyView,
   LoginRequest,
   MagicLinkResponse,
   Media,
   MediaUrls,
+  MemberView,
+  MembershipStatus,
   MemoryEntry,
   OAuthCompleteRequest,
   OffersEligibilityView,
@@ -47,11 +58,14 @@ import type {
   Project,
   ProjectPage,
   ReferralStats,
+  RenameDeviceRequest,
   RightsRequest,
   SessionSummary,
+  SetClientTagRequest,
   SetConsentRequest,
   SignUpRequest,
   SignUpResponse,
+  StreakView,
   StyleCatalogueEntry,
   StylePresetRequest,
   SubscriptionView,
@@ -59,6 +73,8 @@ import type {
   TopupCheckoutRequest,
   TranscribeAccepted,
   TranscribeRequest,
+  TransferOwnershipRequest,
+  TransferOwnershipResult,
   TranslateAccepted,
   TranslateRequest,
   TransliterateAccepted,
@@ -213,6 +229,103 @@ export const accountEndpoints = {
     path: "/me",
     auth: "bearer",
     operationId: "deleteMe",
+  }),
+  // --- Members and ownership transfer (A05, B08) ---------------------------
+  listMembers: defineEndpoint<void, MemberView[]>({
+    method: "GET",
+    path: "/workspaces/{id}/members",
+    auth: "bearer",
+    operationId: "listWorkspaceMembers",
+  }),
+  inviteMember: defineEndpoint<InviteMemberRequest, MemberView>({
+    method: "POST",
+    path: "/workspaces/{id}/members",
+    auth: "bearer",
+    operationId: "inviteWorkspaceMember",
+  }),
+  changeMemberRole: defineEndpoint<ChangeRoleRequest, MemberView>({
+    method: "PATCH",
+    path: "/workspaces/{id}/members/{membershipId}",
+    auth: "bearer",
+    operationId: "changeWorkspaceMemberRole",
+  }),
+  removeMember: defineEndpoint<void, { id: string; status: MembershipStatus }>({
+    method: "DELETE",
+    path: "/workspaces/{id}/members/{membershipId}",
+    auth: "bearer",
+    operationId: "removeWorkspaceMember",
+  }),
+  transferOwnership: defineEndpoint<TransferOwnershipRequest, TransferOwnershipResult>({
+    method: "POST",
+    path: "/workspaces/{id}/transfer-ownership",
+    auth: "bearer",
+    operationId: "transferWorkspaceOwnership",
+  }),
+} as const;
+
+/** Registered devices (B08) -- distinct from `deviceEndpoints` (the device-code grant). */
+export const registeredDeviceEndpoints = {
+  list: defineEndpoint<void, DeviceView[]>({
+    method: "GET",
+    path: "/devices",
+    auth: "bearer",
+    operationId: "listDevices",
+  }),
+  rename: defineEndpoint<RenameDeviceRequest, DeviceView>({
+    method: "PATCH",
+    path: "/devices/{deviceId}",
+    auth: "bearer",
+    operationId: "renameDevice",
+  }),
+  revoke: defineEndpoint<void, DeviceView>({
+    method: "DELETE",
+    path: "/devices/{deviceId}",
+    auth: "bearer",
+    operationId: "revokeDevice",
+  }),
+} as const;
+
+/** Licence keys (B08). */
+export const licensingEndpoints = {
+  list: defineEndpoint<void, LicenseKeyView[]>({
+    method: "GET",
+    path: "/workspaces/{id}/license-keys",
+    auth: "bearer",
+    operationId: "listLicenseKeys",
+  }),
+  create: defineEndpoint<CreateLicenseKeyRequest, LicenseKeyView>({
+    method: "POST",
+    path: "/workspaces/{id}/license-keys",
+    auth: "bearer",
+    operationId: "createLicenseKey",
+  }),
+  revoke: defineEndpoint<void, LicenseKeyView>({
+    method: "DELETE",
+    path: "/workspaces/{id}/license-keys/{keyId}",
+    auth: "bearer",
+    operationId: "revokeLicenseKey",
+  }),
+} as const;
+
+/** Client tags (B08, Agency). */
+export const clientTagEndpoints = {
+  list: defineEndpoint<void, ClientTagView[]>({
+    method: "GET",
+    path: "/workspaces/{id}/client-tags",
+    auth: "bearer",
+    operationId: "listClientTags",
+  }),
+  setProjectTag: defineEndpoint<SetClientTagRequest, { id: string; clientTag: string | null }>({
+    method: "PATCH",
+    path: "/workspaces/{id}/projects/{projectId}/client-tag",
+    auth: "bearer",
+    operationId: "setProjectClientTag",
+  }),
+  setFolderTag: defineEndpoint<SetClientTagRequest, { id: string; clientTag: string | null }>({
+    method: "PATCH",
+    path: "/workspaces/{id}/folders/{folderId}/client-tag",
+    auth: "bearer",
+    operationId: "setFolderClientTag",
   }),
 } as const;
 
@@ -451,6 +564,16 @@ export const billingEndpoints = {
   }),
 } as const;
 
+/** The streak experiment (B06): sidebar chip and Subscription widget. */
+export const streakEndpoints = {
+  getStreak: defineEndpoint<void, StreakView>({
+    method: "GET",
+    path: "/streak",
+    auth: "bearer",
+    operationId: "getStreak",
+  }),
+} as const;
+
 /** Credits (B02) — only the balance summary; usage history is out of scope here. */
 export const creditsEndpoints = {
   getBalance: defineEndpoint<void, CreditsSummary>({
@@ -555,6 +678,29 @@ export const pendingEndpoints = {
   }),
 } as const;
 
+/** Affiliate v2 (B07). `apply`/`me`/`stats` are scoped to the caller's own affiliate profile. */
+export const affiliateEndpoints = {
+  apply: defineEndpoint<ApplyAffiliateRequest, AffiliateProfile>({
+    method: "POST",
+    path: "/affiliate/apply",
+    auth: "bearer",
+    operationId: "applyAffiliate",
+  }),
+  /** Wrapped `{ affiliate }` — see `hooks.ts useMyAffiliate`'s doc-comment for why. */
+  me: defineEndpoint<void, { affiliate: AffiliateProfile | null }>({
+    method: "GET",
+    path: "/affiliate/me",
+    auth: "bearer",
+    operationId: "getMyAffiliate",
+  }),
+  stats: defineEndpoint<void, AffiliateStats>({
+    method: "GET",
+    path: "/affiliate/me/stats",
+    auth: "bearer",
+    operationId: "getMyAffiliateStats",
+  }),
+} as const;
+
 export const endpoints = {
   auth: authEndpoints,
   device: deviceEndpoints,
@@ -567,9 +713,14 @@ export const endpoints = {
   transcripts: transcriptEndpoints,
   transcriptScripts: transcriptScriptsEndpoints,
   billing: billingEndpoints,
+  affiliate: affiliateEndpoints,
   credits: creditsEndpoints,
   offers: offersEndpoints,
+  registeredDevices: registeredDeviceEndpoints,
+  licensing: licensingEndpoints,
+  clientTags: clientTagEndpoints,
   referrals: referralsEndpoints,
+  streak: streakEndpoints,
   pending: pendingEndpoints,
 } as const;
 
@@ -577,6 +728,9 @@ export const endpoints = {
 export const ALL_ENDPOINTS = [
   ...Object.entries(authEndpoints),
   ...Object.entries(deviceEndpoints),
+  ...Object.entries(registeredDeviceEndpoints),
+  ...Object.entries(licensingEndpoints),
+  ...Object.entries(clientTagEndpoints),
   ...Object.entries(accountEndpoints),
   ...Object.entries(jobEndpoints),
   ...Object.entries(projectEndpoints),
@@ -586,6 +740,7 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(transcriptEndpoints),
   ...Object.entries(transcriptScriptsEndpoints),
   ...Object.entries(billingEndpoints),
+  ...Object.entries(affiliateEndpoints),
   ...Object.entries(creditsEndpoints),
   ...Object.entries(offersEndpoints),
   ...Object.entries(referralsEndpoints),

@@ -18,6 +18,7 @@ export const NOTIFY_KINDS = [
   "low-credits",
   "export-ready",
   "share-comment",
+  "streak-nudge",
 ] as const;
 
 export type NotifyKind = (typeof NOTIFY_KINDS)[number];
@@ -64,6 +65,7 @@ export const IN_APP_KINDS: readonly NotifyKind[] = [
   "low-credits",
   "export-ready",
   "share-comment",
+  "streak-nudge",
 ];
 
 const IN_APP_SET: ReadonlySet<string> = new Set<string>(IN_APP_KINDS);
@@ -81,7 +83,11 @@ export function isInAppKind(kind: NotifyKind): boolean {
  * e-mandate rules) — and an unsubscribe footer on a transactional message is
  * both a lie and a support ticket.
  */
-export const NON_TRANSACTIONAL_KINDS: readonly NotifyKind[] = ["low-credits", "share-comment"];
+export const NON_TRANSACTIONAL_KINDS: readonly NotifyKind[] = [
+  "low-credits",
+  "share-comment",
+  "streak-nudge",
+];
 
 const NON_TRANSACTIONAL_SET: ReadonlySet<string> = new Set<string>(NON_TRANSACTIONAL_KINDS);
 

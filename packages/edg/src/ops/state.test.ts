@@ -293,10 +293,11 @@ describe("the segment order helpers", () => {
   it("reports a segment that is not in the order", () => {
     const { state, segmentIds } = setup();
     const draft = toDraft(state);
-    expect(orderIndexOf(draft, segmentIds[1] ?? "", "V")).toBe(-1);
-    expect(
-      orderIndexOf(draft, "not-a-segment", draft.segments.get(segmentIds[0] ?? "")?.seq ?? "V"),
-    ).toBe(-1);
+    // A seq no fixture segment actually holds — not a real neighbour of any
+    // of the three `seqSequence(3)` mints, just a mismatch to detect.
+    const wrongSeq = "zzzz";
+    expect(orderIndexOf(draft, segmentIds[1] ?? "", wrongSeq)).toBe(-1);
+    expect(orderIndexOf(draft, "not-a-segment", wrongSeq)).toBe(-1);
   });
 
   it("removing a segment that was never there is a no-op", () => {

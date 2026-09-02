@@ -17,10 +17,13 @@ export const queryKeys = {
   sessions: () => ["auth", "sessions"] as const,
   consents: () => ["consents"] as const,
   memory: () => ["memory"] as const,
+  affiliate: () => ["affiliate", "me"] as const,
+  affiliateStats: () => ["affiliate", "me", "stats"] as const,
   deviceApproval: (userCode: string) => ["auth", "device", userCode] as const,
   jobs: (workspaceId: string) => ["ws", workspaceId, "jobs"] as const,
   job: (workspaceId: string, jobId: string) => ["ws", workspaceId, "jobs", jobId] as const,
   subscription: (workspaceId: string) => ["ws", workspaceId, "subscription"] as const,
+  streak: (workspaceId: string) => ["ws", workspaceId, "streak"] as const,
   credits: (workspaceId: string) => ["ws", workspaceId, "credits"] as const,
   offersEligibility: (workspaceId: string) => ["ws", workspaceId, "offers", "eligibility"] as const,
   offersPasses: (workspaceId: string) => ["ws", workspaceId, "offers", "passes"] as const,
@@ -47,6 +50,10 @@ export const queryKeys = {
   styles: (workspaceId: string) => ["ws", workspaceId, "styles"] as const,
   transcriptScripts: (workspaceId: string, projectId: string) =>
     ["ws", workspaceId, "projects", projectId, "transcript", "scripts"] as const,
+  members: (workspaceId: string) => ["ws", workspaceId, "members"] as const,
+  devices: (workspaceId: string) => ["ws", workspaceId, "devices"] as const,
+  licenseKeys: (workspaceId: string) => ["ws", workspaceId, "licenseKeys"] as const,
+  clientTags: (workspaceId: string) => ["ws", workspaceId, "clientTags"] as const,
 } as const;
 
 export type QueryKeys = typeof queryKeys;

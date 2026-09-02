@@ -10,6 +10,24 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Fixed
 
+- **A18a-c — fixed the stale seed parity-flag assertion in
+  `apps/api/test/database.e2e-spec.ts`.** The "leaves the parity flags at their
+  pessimistic defaults" test predated A18a's change to `apps/api/prisma/seed.ts`,
+  which reads each system style's `parity` block (from
+  `packages/caption-styles/styles/*.json`, written by the parity gate's
+  `apply-flags`) into `style_presets.assRenderable`/`assExportable`/
+  `requiresLayoutMetrics`/`parityScore` — so the old test failed on main whenever a
+  style's gate result was `assRenderable: true` (13/30 styles). Replaced it with
+  "seeds each system style's parity flags from its own style document (D33)": for
+  every seeded system style, the four columns equal the style document's own
+  `parity` block when present, and the schema defaults (`false`/`false`/`true`/
+  `null`) when absent, plus a style-doc/flag consistency check
+  (`assRenderable: true` implies a numeric `parityScore`) — already covered more
+  strongly for every shipped style by
+  `packages/caption-styles/src/registry.test.ts`'s "has parity flags written by
+  the A18a gate for every shipped style (D33)", referenced in the new test rather
+  than duplicated.
+
 - **B03b — unified the two `apps/web/lib/billing/razorpay.ts` modules B03 and B04 each
   wrote (add/add conflict merging main).** One module now backs both: the checkout
   sheet's subscription/mandate flow and B04's one-time purchases (`ExportUpsellPanel`'s
@@ -56,6 +74,48 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   already nudges a selected segment. Drag/nudge deltas feed `lib/timeline/nudge.ts`'s
   sink through two new kinds, `word-start`/`word-end`, alongside the existing
   `segment-start`/`segment-end`.
+- **B06 — streak experiment: 3-day weekly bar, auto-freezes, pause-not-reset,
+  level-ups, discounts/credit grants, holdout, and the widget.** `apps/api/src/streak/`:
+  a pure state machine (`streak.engine.ts`, table-tested with fake clocks) —
+  deterministic 50/50 holdout by `sha256(workspaceId)`, a Mon-Sun week window in the
+  workspace's own IANA timezone, a 3-publish-day bar, 2 auto-applied freezes/month
+  (consumed before a pause is ever reached), pause-not-reset on a missed week with no
+  freeze left, 4 consecutive kept weeks → level up (a level never decreases, capped at
+  L5), L2 5%/L3 10% off renewals, L4 +50/L5 +100 credits/month, yearly subscribers
+  start at L4, and a Free-plan credits-only variant (+5 credits after a two-week kept
+  streak). `StreakService` orchestrates assignment (`ensureAssigned`, minors and a
+  disabled `streak_experiment` flag both refuse a row), the `GET /streak` read model,
+  the weekly rollover (`StreakRolloverTask`, self-registered hourly against
+  `common/scheduler`) and the Tuesday-evening nudge (`StreakNudgeTask`, the new
+  `streak-nudge` notify kind, in-app + email, for 0-1 publish days by Tuesday
+  evening local time). `POST /streak/test-hooks` (refused outside `NODE_ENV=test`)
+  simulates publish days and forces a rollover for tests. A holdout workspace's row
+  still tracks real state (for cohort measurement) but `rolloverOne` never calls
+  `CreditsFacade.grantLot` for it, and `getView`/`getDiscountPercent` always answer
+  `0` for one.
+  **Billing integration**: `billing/money.ts` gained `applyDiscountWithinCap`
+  (never below zero, never above the undiscounted `listPriceMinor` — which already
+  IS the mandate cap); `RenewalService` takes an `@Optional()` `STREAK_DISCOUNT_PROVIDER`
+  (`streak/streak-discount.port.ts`, bound to `StreakDiscountService` inside
+  `StreakModule`, imported by `BillingModule`) and applies it to both the pre-debit
+  notice amount and the manual dunning retry charge — 0% with no provider bound, so
+  every existing billing test keeps passing unchanged.
+  **Credits integration**: rewards go through the existing `CreditsFacade.grantLot`
+  (`source: "grant"`), the monthly L4/L5 grant expiring at the end of the calendar
+  month it was granted in.
+  **Admin**: `GET /admin/metrics/streak` (`admin/streak/`) reports week-4 retention
+  and average exports/week, experiment vs holdout, behind `AdminGuard`.
+  **Web**: `apps/web/components/streak/streak-chip.tsx` (sidebar, "3 of 3 publish
+  days · L2 · 2 freezes left", paused reads "streak paused — one export restores it",
+  never a reset) and `streak-widget.tsx` (the Subscription overview's slot,
+  `overview-panel.tsx`) — both render nothing at all for an ineligible or holdout
+  workspace. `packages/api-client` gained `StreakView`, `streakEndpoints.getStreak`
+  and `useStreak()` (hand-written, generated `operations.ts` regenerated via
+  `pnpm gen:client`).
+  **Schema**: `streak_experiments` gained `freezesRemaining`/`freezesMonth`/`paused`/
+  `creditsOnly`/`lastNudgeAt`/`createdAt` (migration `20260902122834_b06_streak_experiment`,
+  additive only, a throwaway `freezes_month` default keeps it safe against a
+  populated table).
 
 - **B03 — web Subscription pages, checkout sheet and `UpgradeGate` wiring.** `/billing`
   (Overview: plan card with status/renewal/mandate cap, credits meter with lots and
@@ -124,6 +184,15 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B08 — api: team/agency seat billing sync + pooled credits, ownership transfer, client tags, devices, licence keys, plugin activate/heartbeat; web: Team, Devices (registered devices), Licence keys pages.**
+  - **Seat billing and pooled credits react to membership changes.** `workspaces/teams/seat-billing.service.ts` listens for `workspaces.membership.seats_changed` (emitted by `members.service.ts#accept`/`#remove`, a two-line, documented deviation outside this work package's file boundary) and (1) syncs a live Studio/Agency subscription's `seats` to the workspace's actual active-membership count through `SubscriptionService.changePlan` — the same proration/mandate-reregistration path a manual plan change uses — and (2) raises `credit_accounts.monthly_grant_tenths` to match the recomputed entitlement, granting the difference as an immediate lot (`CreditsFacade.grantLot`), never clawing back. `EntitlementService.compute()` (A05) is extended to multiply `creditsPerMonthTenths` and `entitlements.activeDevices` by the live subscription's billed seats for a plan marked `perSeat` (Agency) — the one change to an existing file outside `teams/`.
+  - **Ownership transfer** (orchestrator addendum after A05): `POST /workspaces/{id}/transfer-ownership {toMembershipId, confirmToken?}` — owner only, target must be an active member, a two-step confirmation-token flow (10-minute single-use token, mailed to the _current_ owner through a new `WorkspaceNotifier.ownershipTransferRequested`) rather than re-authentication, which an HTTP-only service has no way to verify. Sessions are left untouched.
+  - **Client tags** on projects (already existed, A06) and now folders (`folders.client_tag`, migration `20260902090000_b08_folder_client_tag`): `GET/PATCH .../client-tag`, `GET /workspaces/{id}/client-tags` (tag catalogue with counts), `GET .../client-tags/{tag}/projects` (the filter).
+  - **Devices** (`devices/`): `POST /devices/register` (fingerprint-keyed upsert, refreshes the 7-day lease without double-counting), `GET/PATCH/DELETE /devices`, enforcing the plan's device limit (Free 1, Starter 1, Creator 2, Studio 5, Agency 3 per seat, read from the now-per-seat-scaled entitlement) with `409 devices/limit_reached` and the revocable list.
+  - **Licence keys** (`licensing/`): `POST/GET/DELETE /workspaces/{id}/license-keys` mint `AK-XXXX-XXXX-XXXX` (22-symbol unambiguous alphabet); `POST /plugins/activate {licenseKey|deviceCode, device}` (the `deviceCode` branch polls the same `DeviceCodeService.poll` `POST /auth/device/token` uses — no forked state machine) and `POST /plugins/heartbeat {nonce, deviceId, licenseKey?}` renew a device's 7-day lease and return the licence's `revocationSerial`; `GET /plugins/revocation-snapshot` is a signed daily snapshot (24h cached) for fully offline clients. `signing.service.ts` signs both the per-activation `licenseSnapshot` and the revocation snapshot with `JWT_PRIVATE_KEY`/`JWT_PUBLIC_KEY` (reused rather than a new key pair; `LICENSE_SIGNING_KID` new env var, default `k1`) using the same hand-rolled RS256 compact-token scheme `auth/token.service.ts` uses for access tokens; `licensing/offline-verify.ts` is the client-side reference verifier (unit-tested for signature tampering, wrong key, `alg:none`, and the 7-day window ± 5-minute clock skew).
+  - **web**: `/team` (members, invite, role change, remove, seats/cost preview from `useEntitlement`, client tags, ownership transfer dialog), `/plugins/keys` (create — key shown once — list, revoke), and a new "Devices" section on `/settings/devices` alongside the existing session list (a `devices` row is a plugin/desktop registration counted against the plan limit, distinct from an auth session). `packages/api-client` gained hand-written types/endpoints/hooks for members (previously unwired despite A05 shipping the routes), devices, licensing and client tags, plus the generated `operations.ts`/`openapi.json` refresh (`pnpm gen:client`).
+  - **Tests**: `test/b08-teams.e2e-spec.ts` (seat proration incl. the mandate-reregistration D40 edge case, pooled credits, ownership transfer incl. the invalid-target case, client tags, a role-matrix contract test) and `test/b08-devices-licensing.e2e-spec.ts` (device limits/revocation → heartbeat failure, per-seat Agency device scaling, licence key creation/activation/heartbeat/nonce-replay/revocation propagation, device-code activation), both against a real Postgres/Redis; `licensing/offline-verify.test.ts` and `licensing/license-key.util.test.ts` (pure unit tests, signature/clock-skew); `apps/web/e2e/team-devices-licensing.spec.ts` (functional, chromium + WebKit) and three new screens added to `apps/web/e2e/a11y.spec.ts`'s existing signed-in axe pass.
+  - **Deviations** (reported per the brief, not hidden): (1) `members.service.ts` and `auth/auth.module.ts`/`workspaces/workspaces.module.ts` needed small additive edits outside this work package's stated file boundary — an event emit, an `AuthModule` export, a `WORKSPACE_NOTIFIER` export — the same pattern B05's `billing-events.ts` used for the equivalent billing-events edit. (2) Licence-key signing reuses the access-token RSA key pair rather than a second one — no second key pair exists anywhere in this codebase's env schema, and the brief only names `kid`, not a distinct pair. (3) A licence-key-activated device (no signed-in person) is attributed to the workspace owner (`devices.user_id` is `NOT NULL`; 06 does not say who else it could be). (4) A real, pre-existing bug found while writing these tests and fixed in the same commit: `test/billing-harness.ts`'s pattern of clearing `billing_events` between tests was not something this suite's own new harness copied at first, which silently made `FakeProvider`'s deterministic event ids collide across tests and get treated as webhook replays — fixed in `test/b08-harness.ts#reset()`.
 - **B07b — the give-get referral loop (D53, F-607): personal `AK-XXXXXX` codes, claim at onboarding, 30/30 credits on the referred workspace's first completed export, caps and abuse rules, the tiered bonus, the in-app prompt and the Invite-friends tab.**
   - **`apps/api/src/referrals/**` (new `ReferralsModule`).** `POST /referrals/claim
 {code}` classifies a posted code by prefix (`AK-` is a referral code; anything
@@ -182,6 +251,104 @@ status = 'pending'` idempotency trick `claimManifest` uses for a replayed
     not by calling the service directly); web component tests for both components;
     `apps/web/e2e/referral-prompt.spec.ts` (Playwright + axe: the sheet opens once,
     marks itself shown, does not reopen, no serious/critical a11y violations).
+- **A19 — web: browser-native export (WebCodecs + Mediabunny + CanvasKit).**
+  `apps/web/lib/export/**`: a capability probe (H.264 codec ladder, AAC/`AudioEncoder`,
+  File System Access, a 2 s throughput sample), manifest handling (`RenderManifest`
+  request/sanity-check/completion against the real, HMAC-signed `@montaj/render-manifest`
+  document — no client-side signature verification, see the deviation below), the
+  audio decision tree (packet copy / native AAC encode / lazy `@mediabunny/aac-encoder`
+  polyfill / cloud), client-side SRT/VTT/TXT subtitle generation from the projection +
+  `@montaj/timemap`, and the decode → composite → encode → mux engine itself: Mediabunny
+  `Input`/`CanvasSink` decodes the source, `@montaj/render-core`'s `renderFrame` (same
+  `DrawCommand[]` the cloud renderer uses, watermark included whenever the manifest
+  carries one) is rasterised per frame by `@montaj/render-canvaskit` and composited over
+  the decoded frame, and Mediabunny's `CanvasSource`/`EncodedAudioPacketSource`/
+  `AudioBufferSource` encode and mux to MP4 — streamed to a File System Access sink when
+  available, else buffered in memory, with progress, cancellation and a hard duration cap
+  (1080p ≤ 20 min, 4K ≤ 10 min desktop-Chromium-only). `apps/web/components/editor/export/**`:
+  the editor's Export dialog (Video/Subtitles/To-editor tabs, a watermark notice with no
+  client-side toggle, credit cost, progress and cancel), mounted from a new `ExportButton`
+  in `editor-client.tsx`'s toolbar. `apps/web/app/(app)/export-harness/page.tsx` is a bare,
+  unlinked page exposing the engine on `window` for the Playwright suite to drive with real
+  WebCodecs. `apps/web/next.config.ts` rewrites `node:` specifiers to their bare form for the
+  client bundle (`NormalModuleReplacementPlugin`) so `@montaj/render-manifest`'s
+  `node:crypto` import (server-only signing code, unreachable at runtime from the browser
+  exporter) does not fail the webpack build. New Playwright specs: `e2e/export.spec.ts`
+  (chromium) exports a real 10 s fixture MP4 end to end — real API-issued signed manifest,
+  real WebCodecs decode/encode, `ffprobe`-verified duration and codec, a sampled frame
+  hashed, `POST /exports/manifests/{id}/complete` accepted — and `e2e/export-fallback.spec.ts`
+  (webkit) asserts the capability probe reports the browser path ineligible and that the
+  dialog's own mode selection (never `"auto"` for an ineligible probe) still gets a working
+  cloud decision back. See `apps/web/lib/export/README.md` for the full design, the browser
+  support matrix, and every deviation from the brief (no client-side manifest signature
+  verification — the package signs with a symmetric HMAC, not a keypair, mirroring A21's own
+  reported deviation; the raw-bucket source and the watermark-asset bytes have no
+  client-reachable signed-URL endpoint yet; `@montaj/ass-exporter` is still A01's unimplemented
+  skeleton so ASS export is greyed out; the cleaned/cut audio re-encode path is wired through
+  the audio decision tree but not yet connected to a resampled sample source).
+- **B07 — api + web: Affiliate v2 (apply with PAN, 60-day cookie + code attribution,
+  rate tiers, FY-to-date TDS accumulator, RazorpayX payouts, fraud rules, dashboard,
+  asset pack pages).**
+  - **Application (`POST /affiliate/apply`).** India-only at launch (`affiliate/
+region_unsupported` otherwise); PAN validated (`AAAAA9999A`) and stored
+    AES-256-GCM-encrypted at rest (key HKDF-derived from `INTERNAL_CALLBACK_SECRET`,
+    domain-separated — no new frozen-contract env var); a non-guessable 8-character
+    Crockford-base32 code, revocable by admin. Admin `approve`/`suspend`/`reject`/
+    `revoke-code` routes behind `AdminGuard` (UI is B13's).
+  - **Attribution (`/r/<code>` in web, `apps/web/app/(site)/r/[code]/route.ts`).** Sets a
+    first-party, `httpOnly`, 60-day last-click cookie and records an `affiliate_clicks`
+    row; `POST /affiliate/attribution/attach` resolves precedence — an entered code
+    always wins over an unexpired cookie (`affiliates/attribution.ts`, pure and unit
+    tested) — and rejects a self-referral (same user, device, or payment fingerprint)
+    with an audit row.
+  - **Commission engine (`affiliates/commission-schedule.ts` + `commission.service.ts`).**
+    Months 1–3 of a monthly subscription at 40%, months 4–12 at 15%, a yearly payment at
+    20% once per referral; after 10 active paying referrals the affiliate's tier becomes
+    `while_subscribed_30` — a flat 30% on every subsequent payment, forward-only. Base
+    excludes GST (the invoice's `taxableValueMinor`); commissions are `pending` with a
+    30-day `availableAt` hold, `clawed_back` (negative reconciliation against the running
+    balance) on a refund/chargeback credit note. Driven by two new events
+    (`affiliates/invoice-events.ts`) emitted from `invoices/invoices.service.ts` right
+    after its two existing "issued" transitions — additive, observe-only, mirroring the
+    precedent `invoices/billing-events.ts` already set for B01→B05.
+  - **TDS (`affiliates/tds.ts`).** `affiliate_fy_totals` FY (Apr–Mar) accumulator; once
+    the running gross crosses ₹20,000 the crossing commission and every later one that FY
+    are taxed at 2% (20% without a verified PAN), `tdsSection` always `194H` — the
+    `affiliate_tds_section` flag only switches the Form 16A stub between final and a
+    "DRAFT — pending CA confirmation" watermark (H-18/RR-05, 194H vs 194-O).
+  - **Payouts (`affiliates/payouts/`).** `PayoutProvider` interface, `FakePayoutProvider`
+    (every test in this environment — no RazorpayX keys) and a `RazorpayXProvider` stub
+    reading the public Payouts API shape (unverified without live keys, documented in
+    `affiliates/README.md`); monthly batch task sweeps `payable` commissions per
+    affiliate, skips a batch under the ₹1,000 net minimum (rolls forward), records
+    `providerFeeMinor`/`challanRef`/`tdsTotalMinor` on `payouts`.
+  - **Fraud (`affiliates/fraud.ts` + `fraud.service.ts`, THREAT-MODEL T17).** Burst
+    sign-ups from one IP/device hash and a refund ratio over 30% of an affiliate's
+    referrals both move it to `suspended_review` (new `AffiliateStatus` value); a
+    suspended or under-review affiliate earns nothing (`CommissionService` checks
+    `status === "approved"` before recording).
+  - **Dashboard (`apps/web/app/(app)/affiliate/**`).** Apply form with PAN and the ASCI
+    disclosure clause verbatim; once approved, the link/code with copy, clicks/sign-ups/
+    paid/pending/available/paid-out stats, tier progress toward `while_subscribed_30`,
+    FY-to-date gross/TDS/net, and a link to `/affiliate/assets` (scripts, 9:16 demo cut
+    and before/after-clip placeholders, the permitted disclosure labels table, and the
+    programme rules).
+  - Two scheduler tasks (`affiliates.commission-maturation`, `affiliates.payout-batch`)
+    register with the shared `ScheduledTasksService` for B16 to wire a production cron
+    trigger to; this work package implements the task bodies and drives them directly
+    (`runNow`) in tests.
+  - Schema: `AffiliateStatus.suspended_review`; `affiliates.tier`/`fraudFlag`; new
+    `affiliate_clicks` table; `referrals.ipHash`/`deviceHash`/`paymentFingerprint`/
+    `monthlyPaidCount`/`yearlyCommissionPaid`/`countsTowardTier` (migration
+    `20260902090000_b07_affiliate_v2`, additive only).
+  - Tests: attribution precedence and expiry, the full commission schedule table
+    (exact minor-unit arithmetic), the TDS threshold crossing with/without a verified
+    PAN, self-referral/burst/refund-ratio fraud predicates — all pure-function unit
+    tests — plus an API e2e suite (`apps/api/test/affiliates.e2e-spec.ts`) covering
+    attribution → a real paid invoice (via B01's `FakeProvider`) → pending commission →
+    30-day maturation → payout batch, and self-referral rejection; a Playwright spec
+    (`apps/web/e2e/affiliate.spec.ts`) axe-checks the apply form, the pending-state
+    dashboard, and the asset pack page.
 
 - **B04 — api: the `offers` module (real signup-gift/₹9-pass/week-pass/top-up backing, ₹9 eligibility, instrumentation); web: export-dialog upsell panel, credits-meter top-up card, Subscription overview pass chips.**
   - **`OffersModule` backs the interfaces A21 left as no-ops.** `PassesNinePassLedger`

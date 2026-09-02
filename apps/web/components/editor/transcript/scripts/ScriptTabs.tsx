@@ -34,6 +34,7 @@ import {
 import {
   Button,
   Tabs,
+  TabsContent,
   TabsList,
   TabsTrigger,
   Tooltip,
@@ -122,7 +123,11 @@ export function ScriptTabs({
     <div className={cn("flex flex-col gap-2", className)}>
       <Tabs value={activeScript} onValueChange={onScriptChange}>
         <TabsList>
-          <TabsTrigger value="roman" onClick={() => requestScript("roman")}>
+          <TabsTrigger
+            value="roman"
+            onClick={() => requestScript("roman")}
+            data-testid="script-tab-roman"
+          >
             Roman
             {!romanAvailable &&
             transliterate.isPending &&
@@ -130,7 +135,11 @@ export function ScriptTabs({
               <span className="text-fg-3 ml-1 text-xs">…</span>
             ) : null}
           </TabsTrigger>
-          <TabsTrigger value="native" onClick={() => requestScript("native")}>
+          <TabsTrigger
+            value="native"
+            onClick={() => requestScript("native")}
+            data-testid="script-tab-native"
+          >
             Native
             {!nativeAvailable &&
             transliterate.isPending &&
@@ -138,12 +147,29 @@ export function ScriptTabs({
               <span className="text-fg-3 ml-1 text-xs">…</span>
             ) : null}
           </TabsTrigger>
-          <TabsTrigger value="translated" onClick={handleTranslatedClick} disabled={isPending}>
+          <TabsTrigger
+            value="translated"
+            onClick={handleTranslatedClick}
+            disabled={isPending}
+            data-testid="script-tab-translated"
+          >
             {translated?.available === true
               ? `Translated (${translated.language?.toUpperCase() ?? "?"})`
               : "+ Add translation…"}
           </TabsTrigger>
         </TabsList>
+        {/*
+         * Radix's TabsTrigger always renders `aria-controls` pointing at a
+         * same-value TabsContent's id — this component doesn't own what's
+         * displayed under each tab (see the file doc comment), so without a
+         * real (if empty) panel here that id resolves to nothing and axe
+         * flags it as a critical `aria-valid-attr-value` violation. These
+         * panels are intentionally empty; the transcript editor / caption
+         * preview render the actual content elsewhere in the page.
+         */}
+        <TabsContent value="roman" />
+        <TabsContent value="native" />
+        <TabsContent value="translated" />
       </Tabs>
 
       {error ? (

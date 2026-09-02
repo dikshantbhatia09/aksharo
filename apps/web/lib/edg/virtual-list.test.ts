@@ -81,4 +81,24 @@ describe("VirtualList", () => {
     // Generous budget for a shared CI machine; the point is "not linear per call".
     expect(elapsed).toBeLessThan(200);
   });
+
+  it("stays O(log n) even when every scroll frame also reports a fresh measured height", () => {
+    // The realistic pattern `TranscriptList.tsx` produces: each frame's newly
+    // visible rows report their real height via `ResizeObserver` right after
+    // `visibleRange` renders them, so a real scroll interleaves writes and
+    // reads rather than doing all the writes up front (A15b perf run — an
+    // earlier version rebuilt its whole prefix-sum array on the next read
+    // after any `setHeight`, which made exactly this interleaving O(n) per
+    // frame and measured at ~13 fps against the ≥ 55 fps target).
+    const list = new VirtualList(54_000, 64);
+    const start = performance.now();
+    for (let i = 0; i < 500; i += 1) {
+      const range = list.visibleRange((i * 3457) % (54_000 * 64), 900, 6);
+      for (let index = range.startIndex; index <= range.endIndex; index += 1) {
+        list.setHeight(index, 64 + (index % 40));
+      }
+    }
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(200);
+  });
 });

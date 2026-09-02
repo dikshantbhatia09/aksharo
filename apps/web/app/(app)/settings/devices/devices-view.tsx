@@ -4,9 +4,15 @@ import { MonitorSmartphone } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 
-import { useRevokeSession, useSessions } from "@montaj/api-client";
-import type { SessionSummary } from "@montaj/api-client";
-import { Badge, Button, Card, EmptyState, Skeleton, toast } from "@montaj/ui";
+import {
+  useDevices,
+  useRenameDevice,
+  useRevokeDevice,
+  useRevokeSession,
+  useSessions,
+} from "@montaj/api-client";
+import type { DeviceView as RegisteredDevice, SessionSummary } from "@montaj/api-client";
+import { Badge, Button, Card, EmptyState, Input, Skeleton, toast } from "@montaj/ui";
 
 import { SettingsSection } from "@/components/settings/section";
 import { messageForError } from "@/lib/errors";
@@ -89,6 +95,8 @@ export function DevicesView(): React.JSX.Element {
           . We will never ask you for that code over the phone or by email.
         </p>
       </Card>
+
+      <RegisteredDevicesSection />
     </SettingsSection>
   );
 }
@@ -128,4 +136,117 @@ export function shortUserAgent(ua: string | null): string {
   const platformName = platform === "Macintosh" ? "macOS" : platform;
   if (browserName === undefined && platformName === undefined) return "Unknown device";
   return [browserName, platformName].filter((part) => part !== undefined).join(" on ");
+}
+
+/**
+ * Registered devices (B08): the `devices` row per plugin/desktop
+ * installation, distinct from the auth session list above — a session is a
+ * login; a device is the machine a licence key or a plugin sign-in counted
+ * against the plan's device limit. Rename and revoke; revoking here fails the
+ * device's next heartbeat (THREAT-MODEL T15).
+ */
+function RegisteredDevicesSection(): React.JSX.Element {
+  const devices = useDevices();
+  const rename = useRenameDevice();
+  const revoke = useRevokeDevice();
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editingName, setEditingName] = React.useState("");
+
+  const active = (devices.data ?? []).filter((d) => d.revokedAt === null);
+
+  return (
+    <div className="flex flex-col gap-2" data-testid="registered-devices">
+      <h2 className="text-fg-0 text-base font-medium">Devices</h2>
+      <p className="text-fg-2 text-sm">
+        Plugins and the desktop app, counted against your plan&apos;s device limit.
+      </p>
+      {devices.isPending ? (
+        <Skeleton className="h-16" />
+      ) : devices.isError ? (
+        <p className="text-rejected text-sm" role="alert">
+          {messageForError(devices.error)}
+        </p>
+      ) : active.length === 0 ? (
+        <EmptyState
+          icon={<MonitorSmartphone />}
+          title="No registered devices"
+          description="A plugin or the desktop app will appear here once you sign in."
+        />
+      ) : (
+        <ul className="flex flex-col gap-2" data-testid="device-list">
+          {active.map((device: RegisteredDevice) => (
+            <li key={device.id}>
+              <Card className="flex items-center justify-between gap-4 p-4">
+                <div className="flex min-w-0 flex-col gap-1">
+                  {editingId === device.id ? (
+                    <form
+                      className="flex items-center gap-2"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        rename.mutate(
+                          { deviceId: device.id, name: editingName.trim() || device.name },
+                          { onSettled: () => setEditingId(null) },
+                        );
+                      }}
+                    >
+                      <Input
+                        autoFocus
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                      <Button type="submit" size="sm">
+                        Save
+                      </Button>
+                    </form>
+                  ) : (
+                    <p className="text-fg-0 flex items-center gap-2 text-sm font-medium">
+                      {device.name}
+                      {device.isCurrentSession ? <Badge tone="accent">This device</Badge> : null}
+                    </p>
+                  )}
+                  <p className="text-fg-2 truncate text-xs">
+                    {device.platform}
+                    {device.leaseUntil !== null
+                      ? ` · lease until ${new Date(device.leaseUntil).toLocaleDateString()}`
+                      : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {editingId !== device.id ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingId(device.id);
+                        setEditingName(device.name);
+                      }}
+                    >
+                      Rename
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={revoke.isPending}
+                    data-testid={`revoke-device-${device.id}`}
+                    onClick={() => {
+                      revoke.mutate(device.id, {
+                        onError: (error) =>
+                          toast.error("Could not revoke that device", {
+                            description: messageForError(error),
+                          }),
+                      });
+                    }}
+                  >
+                    Revoke
+                  </Button>
+                </div>
+              </Card>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }

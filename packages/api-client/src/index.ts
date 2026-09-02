@@ -85,8 +85,12 @@ export type {
 
 export { CONSENT_PURPOSES } from "./types.js";
 export type {
-  BillingInterval,
+  AffiliatePayoutMethod,
+  AffiliateProfile,
+  AffiliateStats,
+  ApplyAffiliateRequest,
   AvailableScripts,
+  BillingInterval,
   BatchCreateProjectsRequest,
   ClientKind,
   CompletedUpload,
@@ -140,6 +144,7 @@ export type {
   SetConsentRequest,
   SignUpRequest,
   SignUpResponse,
+  StreakView,
   StyleCatalogueEntry,
   StylePresetRequest,
   SubscriptionView,
@@ -164,6 +169,19 @@ export type {
   WeekPassEligibilityView,
   WorkspaceRole,
   WorkspaceSummary,
+  ChangeRoleRequest,
+  ClientTagView,
+  CreateLicenseKeyRequest,
+  DeviceHost,
+  DeviceView,
+  InviteMemberRequest,
+  LicenseKeyView,
+  MemberView,
+  MembershipStatus,
+  RenameDeviceRequest,
+  SetClientTagRequest,
+  TransferOwnershipRequest,
+  TransferOwnershipResult,
 } from "./types.js";
 
 /** Build-time identity of this package, used by diagnostics bundles. */

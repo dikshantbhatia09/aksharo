@@ -156,6 +156,20 @@ export function quotePrice(input: {
   };
 }
 
+/**
+ * Apply a streak renewal discount (B06, D52: L2 5% / L3 10% off) to a list
+ * price, never exceeding the mandate cap. `listPriceMinor` already IS the cap
+ * (this file's own doc comment on {@link PriceQuote.listPriceMinor}), so this
+ * is really "never below zero, never above the undiscounted price" — the
+ * clamp exists for a caller passing a percent outside 0-100 by mistake, not
+ * because the arithmetic could otherwise exceed the cap.
+ */
+export function applyDiscountWithinCap(listPriceMinor: number, percentOff: number): number {
+  const clampedPercent = Math.min(100, Math.max(0, percentOff));
+  const discounted = Math.round(listPriceMinor * (1 - clampedPercent / 100));
+  return Math.min(listPriceMinor, Math.max(0, discounted));
+}
+
 /** Does this plan/currency have a `halfyear` price at all (Studio/INR today)? */
 export function hasHalfyearPrice(plan: PlanForPricing, currency: $Enums.Currency): boolean {
   const prices = parsePlanPrices(plan.prices);

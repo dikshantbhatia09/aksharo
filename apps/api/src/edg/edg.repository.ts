@@ -1473,7 +1473,15 @@ export class EdgRepository implements EdgRepositoryContract {
 
         return { edgId: input.edgId, revision: 1, segments: input.segments.length };
       },
-      { timeoutMs: 30_000, maxWaitMs: 10_000 },
+      // A real 3-hour/54k-word transcript's first-ever segmentation writes
+      // tens of thousands of segment rows plus the revision-1 snapshot in
+      // this one transaction; 30s (this file's usual op-commit budget,
+      // sized for an ordinary edit batch) measured short at that scale on a
+      // dev machine — observed at ~39s (A15b perf run) — and Prisma's
+      // interactive-transaction timeout does not resize itself to the
+      // document being created. 120s gives real headroom without leaving an
+      // ordinary small-transcript create waiting any longer than before.
+      { timeoutMs: 120_000, maxWaitMs: 10_000 },
     );
   }
 

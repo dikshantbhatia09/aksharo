@@ -601,6 +601,26 @@ export interface PassCheckoutResponse {
   creditsGrantedTenths: number;
 }
 
+/** `GET /streak` (B06). `eligible:false` when the flag is off, the caller is a
+ * declared minor, or the workspace is not otherwise in the experiment. */
+export interface StreakView {
+  eligible: boolean;
+  /** `true` for the holdout arm — the caller should still never render a reward for it. */
+  holdout: boolean;
+  creditsOnly: boolean;
+  level: number;
+  publishDaysThisWeek: number;
+  bar: number;
+  paused: boolean;
+  freezesRemaining: number;
+  consecutiveWeeks: number;
+  weekWindowStart: string;
+  weekWindowEnd: string;
+  nextRewardLabel: string | null;
+  discountPercent: number;
+  creditGrantTenths: number;
+}
+
 export interface SubscriptionView {
   id: string;
   planKey: PlanKey;
@@ -699,6 +719,89 @@ export interface PlanCatalogueEntry {
   hasHalfyear: { INR: boolean; USD: boolean };
 }
 
+// --- Teams, devices, licensing (B08) -------------------------------------------
+
+export type MembershipStatus = "invited" | "active" | "removed";
+
+export interface MemberView {
+  id: string;
+  userId: string | null;
+  email: string | null;
+  name: string | null;
+  avatarUrl: string | null;
+  role: WorkspaceRole;
+  status: MembershipStatus;
+  seatBilled: boolean;
+  createdAt: string;
+}
+
+export interface InviteMemberRequest {
+  email: string;
+  role: WorkspaceRole;
+}
+
+export interface ChangeRoleRequest {
+  role: WorkspaceRole;
+}
+
+export interface TransferOwnershipRequest {
+  toMembershipId: string;
+  confirmToken?: string;
+}
+
+export interface TransferOwnershipResult {
+  status: "confirmation_sent" | "transferred";
+  workspaceId?: string;
+  newOwnerMembershipId?: string;
+}
+
+export type DeviceHost = "web" | "desktop" | "premiere" | "ae" | "resolve";
+
+export interface DeviceView {
+  id: string;
+  name: string;
+  platform: string;
+  host: DeviceHost;
+  hostVersion: string | null;
+  appVersion: string | null;
+  lastActiveAt: string | null;
+  leaseUntil: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  isCurrentSession: boolean;
+}
+
+export interface RenameDeviceRequest {
+  name: string;
+}
+
+export interface LicenseKeyView {
+  id: string;
+  key: string;
+  label: string | null;
+  maxActivations: number;
+  activationCount: number;
+  offlineUntil: string | null;
+  revokedAt: string | null;
+  revocationSerial: number;
+  createdAt: string;
+}
+
+export interface CreateLicenseKeyRequest {
+  label?: string;
+  maxActivations?: number;
+}
+
+export interface ClientTagView {
+  tag: string;
+  projectCount: number;
+  folderCount: number;
+}
+
+export interface SetClientTagRequest {
+  clientTag: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Referrals (B07b): the give-get loop.
 // ---------------------------------------------------------------------------
@@ -728,4 +831,55 @@ export interface ReferralStats {
 
 export interface DismissReferralPromptResult {
   shownAt: string;
+}
+
+// --- Affiliate (B07) -----------------------------------------------------------
+
+export interface AffiliatePayoutMethod {
+  rail: "neft" | "imps" | "rtgs" | "upi";
+  vpaOrAccountNumber: string;
+  ifsc?: string;
+  accountHolderName: string;
+}
+
+export interface ApplyAffiliateRequest {
+  legalName: string;
+  /** `AAAAA9999A` — validated and stored encrypted server-side. */
+  pan: string;
+  gstin?: string;
+  payoutMethod: AffiliatePayoutMethod;
+  /** Acceptance of the ASCI disclosure clause verbatim (04 §Affiliate). */
+  acceptedDisclosure: true;
+}
+
+export interface AffiliateProfile {
+  id: string;
+  code: string;
+  status: "pending" | "approved" | "suspended" | "rejected" | "suspended_review";
+  tier: "standard" | "while_subscribed_30";
+  legalName: string | null;
+  panLast4: string | null;
+  gstin: string | null;
+  balanceMinor: number;
+  currency: string;
+  approvedAt: string | null;
+  createdAt: string;
+  /** `BRAND.domain/r/<code>` (brief §1). */
+  referralLink: string;
+}
+
+export interface AffiliateStats {
+  clicks: number;
+  signups: number;
+  paidReferrals: number;
+  activeReferrals: number;
+  pendingCommissionMinor: number;
+  availableCommissionMinor: number;
+  paidOutMinor: number;
+  fyLabel: string;
+  fyGrossMinor: number;
+  fyTdsMinor: number;
+  fyNetMinor: number;
+  tier: string;
+  activeReferralsForTierUpgrade: number;
 }

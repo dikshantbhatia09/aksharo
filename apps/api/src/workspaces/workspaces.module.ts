@@ -31,6 +31,15 @@ import { UsersModule } from "../users/users.module.js";
   // `/workspaces/:id/credits` under it (THREAT-MODEL T4), and Nest can only
   // resolve a guard passed to `@UseGuards` as a class if it is a provider of a
   // module reachable from the one declaring the route.
-  exports: [WorkspacesService, MembersService, EntitlementService, WorkspaceMemberGuard],
+  // B08's `teams/ownership-transfer.service.ts` needs `WORKSPACE_NOTIFIER` for
+  // the transfer confirmation mail (same port `MembersService` uses for
+  // invitations); exported rather than reinventing a second notifier.
+  exports: [
+    WorkspacesService,
+    MembersService,
+    EntitlementService,
+    WorkspaceMemberGuard,
+    WORKSPACE_NOTIFIER,
+  ],
 })
 export class WorkspacesModule {}

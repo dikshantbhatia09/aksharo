@@ -418,6 +418,50 @@ Aksharo की ओर से भेजा गया। कोई सवाल? �
 }
 `;
 
+exports[`rendering > renders streak-nudge in English 1`] = `
+{
+  "subject": "One export from keeping your streak this week",
+  "text": "Aksharo
+
+Your streak needs one more export this week
+
+Hi Asha, it is Tuesday and your streak has 1 publish day so far this week — three keeps it.
+
+One export or apply before Sunday keeps L2 moving.
+
+Open the app:
+https://app.example.test/billing
+
+A freeze can cover a missed week automatically, but nothing beats a real export.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+Turn off these emails: https://app.example.test/settings/notifications
+",
+}
+`;
+
+exports[`rendering > renders streak-nudge in Hindi 1`] = `
+{
+  "subject": "इस हफ़्ते अपनी स्ट्रीक बचाने के लिए एक एक्सपोर्ट बाकी है",
+  "text": "Aksharo
+
+इस हफ़्ते एक और एक्सपोर्ट चाहिए
+
+नमस्ते Asha, आज मंगलवार है और इस हफ़्ते अभी तक 1 दिन पब्लिश हुए हैं — तीन दिन से स्ट्रीक बनी रहती है।
+
+रविवार से पहले एक एक्सपोर्ट या अप्लाई करने से L2 बना रहेगा।
+
+ऐप खोलें:
+https://app.example.test/billing
+
+फ्रीज़ अपने आप एक छूटा हफ़्ता बचा सकता है, पर असली एक्सपोर्ट से बेहतर कुछ नहीं।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+ये ईमेल बंद करें: https://app.example.test/settings/notifications
+",
+}
+`;
+
 exports[`rendering > renders verify-email in English 1`] = `
 {
   "subject": "Confirm your email address",

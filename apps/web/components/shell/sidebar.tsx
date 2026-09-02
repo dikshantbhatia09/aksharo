@@ -21,6 +21,7 @@ import { ProfileMenu } from "./profile-menu";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 import { useRuntimeConfig } from "@/components/providers";
+import { StreakChip } from "@/components/streak/streak-chip";
 import { isActivePath, PRIMARY_NAV } from "@/lib/nav";
 
 /**
@@ -122,6 +123,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
             showStreak={config.flags["growth.streakWidget"] === true}
           />
         </div>
+
+        <StreakChip />
 
         <a
           href={`https://${BRAND.domain}/download`}

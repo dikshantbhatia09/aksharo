@@ -593,6 +593,50 @@ function applyResegment(draft: EdgDraft, op: ResegmentOp, ctx: ApplyContext): vo
 
   for (const segment of previous) removeSegment(draft, segment.id);
   for (const segment of rebuilt) putSegment(draft, segment);
+
+  // The client's "reflow available" banner (apps/web's `checkReflow`,
+  // lib/edg/caption-budgets.ts) compares the *current* style's fit budget
+  // against what `meta.engineVersions.captionBudgets` says the document was
+  // last segmented with. Without updating that record here, a Resegment
+  // that used exactly the offered budget would still look stale forever —
+  // the banner never clears, because nothing else ever rewrites this key
+  // after `initialise` sets it. `op.maxChars`/`op.maxLines` *are* the budget
+  // this resegment just cut to, so they are what gets recorded; every other
+  // field of the stored shape (script/aspect/styleRef/canvas/source) carries
+  // over unchanged since a Resegment does not change the style or canvas.
+  const previousBudgets = parseStoredCaptionBudgets(draft.hot.meta.engineVersions);
+  if (previousBudgets !== undefined) {
+    const updated: Record<string, unknown> = {
+      ...previousBudgets,
+      maxChars: op.maxChars,
+      maxLines: op.maxLines,
+    };
+    draft.hot = {
+      ...draft.hot,
+      meta: {
+        ...draft.hot.meta,
+        engineVersions: {
+          ...draft.hot.meta.engineVersions,
+          captionBudgets: JSON.stringify(updated),
+        },
+      },
+    };
+  }
+}
+
+/** Mirrors `apps/web/lib/edg/caption-budgets.ts`'s parser without importing app code into the engine package. */
+function parseStoredCaptionBudgets(
+  engineVersions: Readonly<Record<string, string>> | undefined,
+): Record<string, unknown> | undefined {
+  const raw = engineVersions?.["captionBudgets"];
+  if (raw === undefined) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return undefined;
+    return parsed as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
 }
 
 function isSegment(segment: Segment | undefined): segment is Segment {
