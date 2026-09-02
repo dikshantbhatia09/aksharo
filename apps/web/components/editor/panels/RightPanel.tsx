@@ -59,7 +59,7 @@ export function RightPanel({
 
   return (
     <aside
-      className={cn("flex h-full w-80 flex-col gap-4 p-3", className)}
+      className={cn("flex h-full min-h-0 w-80 flex-col gap-4 p-3", className)}
       data-testid="right-panel"
     >
       <div className="flex gap-1" role="tablist" aria-label="Caption settings">
@@ -89,6 +89,7 @@ export function RightPanel({
           selectedStyleId={style.id}
           scope={scope}
           onOp={onOp}
+          className="min-h-0 flex-1"
           {...(onSaveTemplate === undefined ? {} : { onSaveTemplate })}
         />
       ) : tab === "audio" ? (

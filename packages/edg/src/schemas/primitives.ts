@@ -88,12 +88,22 @@ export const JsonObjectSchema = z
 /** ISO-8601 instant (CONTRACTS §0 — times are ISO-8601 in JSON). */
 export const IsoDateTimeSchema = z.iso.datetime({ offset: true }).meta({ title: "IsoDateTime" });
 
-/** Reference to a stored keyframe curve (packed float32 rows, D28). */
+/** Reference to a stored keyframe curve (packed MKF2 rows, `passes/keyframes.ts`, B19b). */
 export const KeyframesRefSchema = z
   .string()
   .min(1)
   .max(256)
   .meta({ id: "KeyframesRef", title: "KeyframesRef" });
+
+/**
+ * Base64 of a packed MKF2 keyframe buffer carried inline on `PassItem.payload.keyframes`
+ * (CONTRACTS §2, added 2026-09-03 after B19b) when the packed form is <= 64 KiB.
+ * Larger curves go to derived storage instead and are referenced by `keyframesRef`.
+ */
+export const KeyframesInlineSchema = z
+  .string()
+  .min(1)
+  .meta({ id: "KeyframesInline", title: "KeyframesInline" });
 
 export type Ulid = z.infer<typeof UlidSchema>;
 export type SeqKey = z.infer<typeof SeqKeySchema>;

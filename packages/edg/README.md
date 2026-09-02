@@ -326,50 +326,20 @@ implements: `loadHot`, `loadSegments(cursor)`, `loadItems(passId)`, `appendRevis
 which either returns the new revision or the `{latestRevision, opsSince}` conflict, never
 the document — and `snapshotEvery = 100`.
 
-## Packed keyframes (B19)
+## Packed keyframes (B19, codec unified in B19b)
 
-`PassItem.keyframesRef` (CONTRACTS §2) points at a dense curve for a `zoom` or
-`reframe` pass item, stored out of band as packed little-endian float32 rows.
-`packKeyframes`/`unpackKeyframes` (`src/keyframes.ts`) are the one encoder/decoder
-pair every producer (`worker-ai`) and every consumer (the API, `render-core`,
-B20's UI) shares.
+`PassItem.payload.keyframes`/`keyframesRef` (CONTRACTS §2, keyframe payload rule
+amended 2026-09-03 after B19b) carries a dense curve for a `zoom` or `reframe`
+pass item: `encodeKeyframes`/`decodeKeyframes` (`src/passes/keyframes.ts`) are the
+**one** encoder/decoder pair every producer (`worker-ai`) and every consumer (the
+API, `render-core`, B20's UI) shares, over a `Keyframe = { tMs, zoom, cx, cy, ease:
+"linear"|"inOut" }`, packed as the little-endian `MKF2` format below.
 
-```ts
-import { loadKeyframes, packKeyframes, unpackKeyframes } from "@montaj/edg";
-
-const bytes = packKeyframes([
-  { tMs: 0, cx: 0.5, cy: 0.42, scale: 1.0 },
-  { tMs: 180, cx: 0.5, cy: 0.42, scale: 1.2 },
-]);
-const rows = unpackKeyframes(bytes); // sorted by tMs, round-trips exactly
-```
-
-Byte layout, version 1:
-
-```
-offset  size  field
-0       4     magic   ASCII "MKF1"
-4       4     version uint32 LE, currently 1
-8       4     count   uint32 LE, number of rows
-12      16*n  rows    n x { tMs: f32, cx: f32, cy: f32, scale: f32 }, all LE
-```
-
-`tMs` is milliseconds relative to the item's `startMs`; `cx`/`cy` are the subject
-centre normalised 0..1; `scale` is the zoom factor (>= 1). `loadKeyframes` resolves
-either storage form (`{kind: "inline", bytes}` or `{kind: "ref", ref}`, fetched
-through an injected `readRef`) to rows, for a render path that does not care which
-form a given item used. `fitsInline`/`INLINE_LIMIT_BYTES` mirror the 64 KiB
-inline-vs-derived-storage rule from the 2026-09-02 orchestrator addendum.
-
-### `src/passes/keyframes.ts`: B20's consumption interface
-
-B20 (proposal UI + export application) codes against a second, narrower interface:
-`encodeKeyframes`/`decodeKeyframes` over a `Keyframe = { tMs, zoom, cx, cy, ease:
-"linear"|"inOut" }`, packed as its own little-endian `MKF2` format (20-byte rows —
-the same four floats as above, `scale` renamed `zoom`, plus a per-row `ease` this
-work package's pass items only carry once per item). It is a distinct on-disk
-format from `MKF1` above; see that file's module docstring for why the two are not
-yet unified, flagged as an open question in the final report.
+B19 shipped a second codec (`MKF1`, `src/keyframes.ts`, `{tMs, cx, cy, scale}`
+rows with no per-row ease) alongside this one; B19b's ruling (CONTRACTS §2
+amendment) deleted it — `MKF2` is the only wire format now, and every caller that
+used to pack/unpack `MKF1` (`worker-ai`'s `reframe_zoom_pass.pack_keyframes`, the
+API's completion handler) was moved onto `encodeKeyframes`/`decodeKeyframes`.
 
 ```ts
 import { decodeKeyframes, encodeKeyframes } from "@montaj/edg";
@@ -380,6 +350,31 @@ const bytes = encodeKeyframes([
 ]);
 const frames = decodeKeyframes(bytes); // sorted by tMs, round-trips exactly
 ```
+
+Byte layout, version 1:
+
+```
+offset  size  field
+0       4     magic   ASCII "MKF2"
+4       4     version uint32 LE, currently 1
+8       4     count   uint32 LE, number of rows
+12      20*n  rows    n x { tMs: f32, zoom: f32, cx: f32, cy: f32, ease: f32 }, all LE
+```
+
+`tMs` is milliseconds relative to the item's `startMs`; `cx`/`cy` are the subject
+centre normalised 0..1; `zoom` is the zoom factor (>= 1); `ease` is packed as a
+float (`0.0 = "linear"`, `1.0 = "inOut"`) so every row stays a flat run of
+IEEE-754 binary32 values.
+
+### Storage: inline vs. derived (B19b)
+
+A packed payload <= 64 KiB rides inline as base64 on `PassItem.payload.keyframes`;
+a larger one is uploaded by the worker to derived storage at
+`ws/{workspaceId}/passes/{passId}/{itemId}.mkf` (CONTRACTS §6) and referenced by
+`PassItem.payload.keyframesRef`. `ZoomPayloadSchema`/`ReframePayloadSchema`
+(`src/schemas/pass.ts`) require exactly one of the two fields; a reader resolves
+either form the same way `loadKeyframes` used to for `MKF1` — decode the inline
+base64 directly, or fetch `keyframesRef` first.
 
 ## Fixtures
 

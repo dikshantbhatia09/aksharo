@@ -43,6 +43,35 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   bounded 30 s windows with boundary carry-over, and a new `slow`
   (`RUN_SLOW=1`) test asserts < 2 GB peak RSS over baseline on a synthetic
   60-minute file (`psutil`, added to worker-ai's dev deps).
+- **B19b — Reframe/zoom wiring: one keyframe codec, keyframe storage, `zoom`
+  pass type, word-timed emphasis cues, frame/RMS sampling from the proxy.**
+  `packages/edg`: `src/keyframes.ts` (`MKF1`) is deleted — `src/passes/
+keyframes.ts`'s `encodeKeyframes`/`decodeKeyframes` (`MKF2`) is the only
+  packed-keyframe codec now; `schemas/pass.ts`'s `PassTypeSchema` gains
+  `"zoom"`, and `ZoomPayloadSchema`/`ReframePayloadSchema` accept exactly one
+  of `keyframes` (base64 inline, <= 64 KiB) or `keyframesRef` (derived
+  storage) per the amended CONTRACTS §2 keyframe payload rule.
+  `apps/worker-ai`: `worker_ai/passes/frame_sampling.py` (new) samples video
+  frames and RMS audio energy from the 540p proxy at 10 Hz, downscaled to
+  <= 320 px wide (piped as raw `rgb24`, no JPEG round trip); `processors/
+reframe_zoom_pass.py` calls it (`_sample_from_proxy`) whenever the producer
+  sent no `detections`/`sceneFrames`/`rmsSamples`, feeds frames through
+  `BrightBlobDetector` (gated behind `PASS_FACE_DETECTOR=yunet` +
+  `PASS_FACE_DETECTOR_WEIGHTS` for a real detector, unprovisioned this WP,
+  H-22), and packs `MKF2` (`pack_keyframes`, now `{tMs, zoom, cx, cy, ease}`
+  rows); `_keyframe_storage_fields` mints each item's id and decides inline
+  vs. an `ObjectStore.upload` to `ws/{workspaceId}/passes/{passId}/{itemId}.mkf`
+  (CONTRACTS §6). `apps/worker-media`: `src/frames/sample.ts` (new) — a
+  10 Hz, <= 320 px JPEG filmstrip helper via ffmpeg's `fps` filter, for a TS
+  consumer (worker-ai samples the proxy itself instead, in-process). `apps/api`:
+  `passes.service.ts`'s `startZoom`/`startReframe` reject a project with no
+  proxy (`passes/proxy_required`, 409) and resolve emphasis cues to the
+  emphasised word's own `s` (`emphasisCuesOf`, was the segment's `startMs`);
+  `passes-completion.handler.ts` lands a zoom pass as `type: "zoom"` (was
+  `"reframe"`) and implements the inline/derived keyframe payload rule instead
+  of computing an unwritten `keyframesRef`. `prisma/schema.prisma`'s
+  `PassType` enum gains `zoom` (migration `20260903120000_b19b_zoom_pass_type`).
+
 - **C01 — Local bridge v2: `packages/bridge-core` + `apps/bridge` (Node SEA);
   relay-first WSS; loopback HTTPS + per-install cert; pairing; api
   `bridge-relay` module.** `packages/bridge-core`: a JSON-RPC 2.0 protocol
