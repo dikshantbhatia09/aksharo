@@ -103,6 +103,21 @@ export const AudioDuckingSchema = z
   .meta({ id: "AudioDucking", title: "AudioDucking" });
 
 /**
+ * A range no pass may cut, zoom or reframe (CONTRACTS §2, added after B18).
+ * Only `reason: "user"` rows are ever stored — `emphasis`/`override` rows are
+ * derived on the fly by whoever consumes `protected[]` (`passes.service`) and
+ * never round-trip through `SetProtectedRanges`.
+ */
+export const ProtectedRangeSchema = z
+  .object({
+    id: UlidSchema,
+    s: MsSchema,
+    e: MsSchema,
+    reason: z.enum(["user", "emphasis", "override"]).optional(),
+  })
+  .meta({ id: "ProtectedRange", title: "ProtectedRange" });
+
+/**
  * The hot document stored in `edg_documents.doc` — under 64 KB, no segments and
  * no pass items (D28). Frozen as `EdgHot` in CONTRACTS §2.
  */
@@ -117,6 +132,8 @@ export const EdgHotSchema = z
     audio: JsonObjectSchema.optional(),
     /** `{presets?}` by convention; frozen as an open record in CONTRACTS §2. */
     render: JsonObjectSchema.optional(),
+    /** User-marked ranges no pass may cut, zoom or reframe (CONTRACTS §2). */
+    protected: z.array(ProtectedRangeSchema).optional(),
   })
   .meta({
     id: "EdgHot",
@@ -147,5 +164,6 @@ export type Canvas = z.infer<typeof CanvasSchema>;
 export type DocStyles = z.infer<typeof DocStylesSchema>;
 export type AudioClean = z.infer<typeof AudioCleanSchema>;
 export type AudioDucking = z.infer<typeof AudioDuckingSchema>;
+export type ProtectedRange = z.infer<typeof ProtectedRangeSchema>;
 export type EdgHot = z.infer<typeof EdgHotSchema>;
 export type EdgProjection = z.infer<typeof EdgProjectionSchema>;

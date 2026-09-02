@@ -8,7 +8,9 @@
   `speech_regions()` helper `ai.align` uses)
 - `guardedRanges`: millisecond ranges of every segment carrying `emphasis` or
   `textOverrides` (CONTRACTS §2) — the one protection guard `Segment` can express today
-- `protectedRanges: []` always — see "CONTRACTS gap" below
+- `protectedRanges`: the user-marked `EdgHot.protected[]` set (`SetProtectedRanges`,
+  CONTRACTS §2, B18b) concatenated with `guardedRanges` — every `ai.pass` is refused an
+  item inside either half
 
 `GET /projects/{id}/passes` is a thin read over `EdgService.passes` (A12); it exists at
 this path because the B18 brief names it directly, not because the read is implemented
@@ -25,14 +27,6 @@ the one write path `MergePass` has (CONTRACTS §2) — landed through
 The worker attaches `wordIds` to each proposed item for audit/bookkeeping; this handler
 reads them for the job event and drops them before persisting — `CutPayloadSchema` is
 frozen empty (CONTRACTS §2), so a cut item's payload is always `{}` on the wire.
-
-## CONTRACTS gap: `EdgHot.protected[]`
-
-The brief (B18 §2) names user-marked protected ranges via `EdgHot.protected[]`. That
-field does not exist in `packages/edg`'s frozen `EdgHot` type. `PassesService` always
-sends `protectedRanges: []`; a future ADR would add the field to `EdgHot`, an op to set
-it, and wire it through here. Flagged for Fable rather than added unilaterally — CONTRACTS
-is changed only via an approved ADR.
 
 ## Algorithm
 
