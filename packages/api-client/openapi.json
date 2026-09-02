@@ -35,18 +35,11 @@
                     },
                     "jurisdiction": {
                       "type": "string",
-                      "enum": [
-                        "IN",
-                        "EU",
-                        "OTHER"
-                      ]
+                      "enum": ["IN", "EU", "OTHER"]
                     },
                     "ageBracket": {
                       "type": "string",
-                      "enum": [
-                        "adult",
-                        "minor"
-                      ]
+                      "enum": ["adult", "minor"]
                     },
                     "marketingOptIn": {
                       "type": "boolean"
@@ -76,10 +69,7 @@
                           "type": "string"
                         }
                       },
-                      "required": [
-                        "id",
-                        "role"
-                      ]
+                      "required": ["id", "role"]
                     }
                   },
                   "required": [
@@ -112,9 +102,7 @@
           }
         ],
         "summary": "The signed-in person's profile",
-        "tags": [
-          "me"
-        ]
+        "tags": ["me"]
       },
       "patch": {
         "description": "A change to `marketingOptIn` also writes a `consent_records` row, because the DPDP notice-and-choice record has to say when and from where the choice was made (D61).",
@@ -198,18 +186,11 @@
                     },
                     "jurisdiction": {
                       "type": "string",
-                      "enum": [
-                        "IN",
-                        "EU",
-                        "OTHER"
-                      ]
+                      "enum": ["IN", "EU", "OTHER"]
                     },
                     "ageBracket": {
                       "type": "string",
-                      "enum": [
-                        "adult",
-                        "minor"
-                      ]
+                      "enum": ["adult", "minor"]
                     },
                     "marketingOptIn": {
                       "type": "boolean"
@@ -239,10 +220,7 @@
                           "type": "string"
                         }
                       },
-                      "required": [
-                        "id",
-                        "role"
-                      ]
+                      "required": ["id", "role"]
                     }
                   },
                   "required": [
@@ -275,9 +253,7 @@
           }
         ],
         "summary": "Update name, avatar, locale, onboarding state or marketing opt-in",
-        "tags": [
-          "me"
-        ]
+        "tags": ["me"]
       },
       "delete": {
         "description": "Records a `dsr_requests` row of kind `erasure`, marks the account deleted, anonymises the address and revokes every session immediately. The cascade over media, transcripts and derived objects is B16 and has 30 days to run.",
@@ -296,13 +272,7 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "received",
-                        "verifying",
-                        "in_progress",
-                        "completed",
-                        "rejected"
-                      ]
+                      "enum": ["received", "verifying", "in_progress", "completed", "rejected"]
                     },
                     "requestedAt": {
                       "type": "string"
@@ -316,13 +286,7 @@
                       "maximum": 9007199254740991
                     }
                   },
-                  "required": [
-                    "requestId",
-                    "status",
-                    "requestedAt",
-                    "dueAt",
-                    "sessionsRevoked"
-                  ]
+                  "required": ["requestId", "status", "requestedAt", "dueAt", "sessionsRevoked"]
                 }
               }
             }
@@ -337,9 +301,7 @@
           }
         ],
         "summary": "Erase the account",
-        "tags": [
-          "me"
-        ]
+        "tags": ["me"]
       }
     },
     "/me/data": {
@@ -360,13 +322,7 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "received",
-                        "verifying",
-                        "in_progress",
-                        "completed",
-                        "rejected"
-                      ]
+                      "enum": ["received", "verifying", "in_progress", "completed", "rejected"]
                     },
                     "requestedAt": {
                       "type": "string"
@@ -386,12 +342,7 @@
                       "maximum": 9007199254740991
                     }
                   },
-                  "required": [
-                    "requestId",
-                    "status",
-                    "requestedAt",
-                    "dueAt"
-                  ]
+                  "required": ["requestId", "status", "requestedAt", "dueAt"]
                 }
               }
             }
@@ -409,9 +360,7 @@
           }
         ],
         "summary": "Export everything the account holds about you",
-        "tags": [
-          "me"
-        ]
+        "tags": ["me"]
       }
     },
     "/auth/signup": {
@@ -453,11 +402,7 @@
                   },
                   "jurisdiction": {
                     "type": "string",
-                    "enum": [
-                      "IN",
-                      "EU",
-                      "OTHER"
-                    ]
+                    "enum": ["IN", "EU", "OTHER"]
                   },
                   "consents": {
                     "type": "object",
@@ -474,12 +419,7 @@
                     }
                   }
                 },
-                "required": [
-                  "email",
-                  "password",
-                  "dateOfBirth",
-                  "jurisdiction"
-                ]
+                "required": ["email", "password", "dateOfBirth", "jurisdiction"]
               }
             }
           }
@@ -494,18 +434,13 @@
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "verification_sent"
-                      ]
+                      "enum": ["verification_sent"]
                     },
                     "email": {
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "status",
-                    "email"
-                  ]
+                  "required": ["status", "email"]
                 }
               }
             }
@@ -518,9 +453,7 @@
           }
         },
         "summary": "Create an account",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/verify-email": {
@@ -540,9 +473,7 @@
                     "maxLength": 256
                   }
                 },
-                "required": [
-                  "token"
-                ]
+                "required": ["token"]
               }
             }
           }
@@ -553,9 +484,7 @@
           }
         },
         "summary": "Confirm an email address with a single-use token",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/login": {
@@ -584,21 +513,10 @@
                   },
                   "kind": {
                     "type": "string",
-                    "enum": [
-                      "web",
-                      "desktop",
-                      "bridge",
-                      "premiere",
-                      "ae",
-                      "resolve",
-                      "api"
-                    ]
+                    "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
                   }
                 },
-                "required": [
-                  "email",
-                  "password"
-                ]
+                "required": ["email", "password"]
               }
             }
           }
@@ -624,9 +542,7 @@
                     },
                     "tokenType": {
                       "type": "string",
-                      "enum": [
-                        "Bearer"
-                      ]
+                      "enum": ["Bearer"]
                     },
                     "sessionId": {
                       "type": "string",
@@ -638,24 +554,11 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": [
-                        "owner",
-                        "admin",
-                        "editor",
-                        "viewer"
-                      ]
+                      "enum": ["owner", "admin", "editor", "viewer"]
                     },
                     "kind": {
                       "type": "string",
-                      "enum": [
-                        "web",
-                        "desktop",
-                        "bridge",
-                        "premiere",
-                        "ae",
-                        "resolve",
-                        "api"
-                      ]
+                      "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
                     }
                   },
                   "required": [
@@ -677,9 +580,7 @@
           }
         },
         "summary": "Sign in with email and password",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/magic-link": {
@@ -701,9 +602,7 @@
                     "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   }
                 },
-                "required": [
-                  "email"
-                ]
+                "required": ["email"]
               }
             }
           }
@@ -714,9 +613,7 @@
           }
         },
         "summary": "Email a single-use sign-in link (15 minutes)",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/magic-link/consume": {
@@ -737,20 +634,10 @@
                   },
                   "kind": {
                     "type": "string",
-                    "enum": [
-                      "web",
-                      "desktop",
-                      "bridge",
-                      "premiere",
-                      "ae",
-                      "resolve",
-                      "api"
-                    ]
+                    "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
                   }
                 },
-                "required": [
-                  "token"
-                ]
+                "required": ["token"]
               }
             }
           }
@@ -776,9 +663,7 @@
                     },
                     "tokenType": {
                       "type": "string",
-                      "enum": [
-                        "Bearer"
-                      ]
+                      "enum": ["Bearer"]
                     },
                     "sessionId": {
                       "type": "string",
@@ -790,24 +675,11 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": [
-                        "owner",
-                        "admin",
-                        "editor",
-                        "viewer"
-                      ]
+                      "enum": ["owner", "admin", "editor", "viewer"]
                     },
                     "kind": {
                       "type": "string",
-                      "enum": [
-                        "web",
-                        "desktop",
-                        "bridge",
-                        "premiere",
-                        "ae",
-                        "resolve",
-                        "api"
-                      ]
+                      "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
                     }
                   },
                   "required": [
@@ -826,9 +698,7 @@
           }
         },
         "summary": "Exchange a magic-link token for tokens",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/refresh": {
@@ -849,9 +719,7 @@
                     "maxLength": 256
                   }
                 },
-                "required": [
-                  "refreshToken"
-                ]
+                "required": ["refreshToken"]
               }
             }
           }
@@ -877,9 +745,7 @@
                     },
                     "tokenType": {
                       "type": "string",
-                      "enum": [
-                        "Bearer"
-                      ]
+                      "enum": ["Bearer"]
                     },
                     "sessionId": {
                       "type": "string",
@@ -891,24 +757,11 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": [
-                        "owner",
-                        "admin",
-                        "editor",
-                        "viewer"
-                      ]
+                      "enum": ["owner", "admin", "editor", "viewer"]
                     },
                     "kind": {
                       "type": "string",
-                      "enum": [
-                        "web",
-                        "desktop",
-                        "bridge",
-                        "premiere",
-                        "ae",
-                        "resolve",
-                        "api"
-                      ]
+                      "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
                     }
                   },
                   "required": [
@@ -930,9 +783,7 @@
           }
         },
         "summary": "Rotate a refresh token",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/logout": {
@@ -953,9 +804,7 @@
                     "maxLength": 256
                   }
                 },
-                "required": [
-                  "refreshToken"
-                ]
+                "required": ["refreshToken"]
               }
             }
           }
@@ -966,9 +815,7 @@
           }
         },
         "summary": "Revoke a refresh-token family",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/token/exchange": {
@@ -988,9 +835,7 @@
                     "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
                   }
                 },
-                "required": [
-                  "workspaceId"
-                ]
+                "required": ["workspaceId"]
               }
             }
           }
@@ -1016,9 +861,7 @@
                     },
                     "tokenType": {
                       "type": "string",
-                      "enum": [
-                        "Bearer"
-                      ]
+                      "enum": ["Bearer"]
                     },
                     "sessionId": {
                       "type": "string",
@@ -1030,24 +873,11 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": [
-                        "owner",
-                        "admin",
-                        "editor",
-                        "viewer"
-                      ]
+                      "enum": ["owner", "admin", "editor", "viewer"]
                     },
                     "kind": {
                       "type": "string",
-                      "enum": [
-                        "web",
-                        "desktop",
-                        "bridge",
-                        "premiere",
-                        "ae",
-                        "resolve",
-                        "api"
-                      ]
+                      "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
                     }
                   },
                   "required": [
@@ -1069,9 +899,7 @@
           }
         },
         "summary": "Switch the active workspace",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/sessions": {
@@ -1094,15 +922,7 @@
                       },
                       "kind": {
                         "type": "string",
-                        "enum": [
-                          "web",
-                          "desktop",
-                          "bridge",
-                          "premiere",
-                          "ae",
-                          "resolve",
-                          "api"
-                        ]
+                        "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
                       },
                       "workspaceId": {
                         "type": "string",
@@ -1148,9 +968,7 @@
           }
         },
         "summary": "List this account's live sessions",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/sessions/{sessionId}": {
@@ -1172,9 +990,7 @@
           }
         },
         "summary": "Revoke one session (and its refresh-token family)",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/parental-waitlist": {
@@ -1198,16 +1014,10 @@
                   },
                   "jurisdiction": {
                     "type": "string",
-                    "enum": [
-                      "IN",
-                      "EU",
-                      "OTHER"
-                    ]
+                    "enum": ["IN", "EU", "OTHER"]
                   }
                 },
-                "required": [
-                  "email"
-                ]
+                "required": ["email"]
               }
             }
           }
@@ -1218,9 +1028,7 @@
           }
         },
         "summary": "Join the parental-consent waitlist",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/oauth/google/start": {
@@ -1233,11 +1041,7 @@
             "required": false,
             "in": "query",
             "schema": {
-              "enum": [
-                "web",
-                "desktop",
-                "bridge"
-              ],
+              "enum": ["web", "desktop", "bridge"],
               "type": "string"
             }
           },
@@ -1256,9 +1060,7 @@
           }
         },
         "summary": "Begin Google sign-in",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/oauth/google/callback": {
@@ -1297,9 +1099,7 @@
           }
         },
         "summary": "Google redirects here",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/oauth/complete": {
@@ -1325,11 +1125,7 @@
                   },
                   "jurisdiction": {
                     "type": "string",
-                    "enum": [
-                      "IN",
-                      "EU",
-                      "OTHER"
-                    ]
+                    "enum": ["IN", "EU", "OTHER"]
                   },
                   "consents": {
                     "type": "object",
@@ -1346,9 +1142,7 @@
                     }
                   }
                 },
-                "required": [
-                  "code"
-                ]
+                "required": ["code"]
               }
             }
           }
@@ -1374,9 +1168,7 @@
                     },
                     "tokenType": {
                       "type": "string",
-                      "enum": [
-                        "Bearer"
-                      ]
+                      "enum": ["Bearer"]
                     },
                     "sessionId": {
                       "type": "string",
@@ -1388,24 +1180,11 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": [
-                        "owner",
-                        "admin",
-                        "editor",
-                        "viewer"
-                      ]
+                      "enum": ["owner", "admin", "editor", "viewer"]
                     },
                     "kind": {
                       "type": "string",
-                      "enum": [
-                        "web",
-                        "desktop",
-                        "bridge",
-                        "premiere",
-                        "ae",
-                        "resolve",
-                        "api"
-                      ]
+                      "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
                     }
                   },
                   "required": [
@@ -1424,9 +1203,7 @@
           }
         },
         "summary": "Exchange the handoff code for tokens",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/device/code": {
@@ -1443,23 +1220,11 @@
                 "properties": {
                   "clientKind": {
                     "type": "string",
-                    "enum": [
-                      "desktop",
-                      "bridge",
-                      "premiere",
-                      "ae",
-                      "resolve"
-                    ]
+                    "enum": ["desktop", "bridge", "premiere", "ae", "resolve"]
                   },
                   "hostApp": {
                     "type": "string",
-                    "enum": [
-                      "web",
-                      "desktop",
-                      "premiere",
-                      "ae",
-                      "resolve"
-                    ]
+                    "enum": ["web", "desktop", "premiere", "ae", "resolve"]
                   },
                   "deviceInfo": {
                     "type": "object",
@@ -1469,9 +1234,7 @@
                     }
                   }
                 },
-                "required": [
-                  "clientKind"
-                ]
+                "required": ["clientKind"]
               }
             }
           }
@@ -1521,9 +1284,7 @@
           }
         },
         "summary": "Start a device sign-in",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/device/token": {
@@ -1544,9 +1305,7 @@
                     "maxLength": 256
                   }
                 },
-                "required": [
-                  "deviceCode"
-                ]
+                "required": ["deviceCode"]
               }
             }
           }
@@ -1572,9 +1331,7 @@
                     },
                     "tokenType": {
                       "type": "string",
-                      "enum": [
-                        "Bearer"
-                      ]
+                      "enum": ["Bearer"]
                     },
                     "sessionId": {
                       "type": "string",
@@ -1586,24 +1343,11 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": [
-                        "owner",
-                        "admin",
-                        "editor",
-                        "viewer"
-                      ]
+                      "enum": ["owner", "admin", "editor", "viewer"]
                     },
                     "kind": {
                       "type": "string",
-                      "enum": [
-                        "web",
-                        "desktop",
-                        "bridge",
-                        "premiere",
-                        "ae",
-                        "resolve",
-                        "api"
-                      ]
+                      "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
                     }
                   },
                   "required": [
@@ -1625,9 +1369,7 @@
           }
         },
         "summary": "Poll for the result",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/device/code/{userCode}": {
@@ -1657,26 +1399,12 @@
                     },
                     "clientKind": {
                       "type": "string",
-                      "enum": [
-                        "web",
-                        "desktop",
-                        "bridge",
-                        "premiere",
-                        "ae",
-                        "resolve",
-                        "api"
-                      ]
+                      "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
                     },
                     "hostApp": {
                       "nullable": true,
                       "type": "string",
-                      "enum": [
-                        "web",
-                        "desktop",
-                        "premiere",
-                        "ae",
-                        "resolve"
-                      ]
+                      "enum": ["web", "desktop", "premiere", "ae", "resolve"]
                     },
                     "deviceInfo": {
                       "type": "object",
@@ -1705,24 +1433,14 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "userCode",
-                    "clientKind",
-                    "hostApp",
-                    "deviceInfo",
-                    "ip",
-                    "location",
-                    "expiresAt"
-                  ]
+                  "required": ["userCode", "clientKind", "hostApp", "deviceInfo", "ip", "location", "expiresAt"]
                 }
               }
             }
           }
         },
         "summary": "What is asking for approval",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/auth/device/approve": {
@@ -1748,15 +1466,10 @@
                   },
                   "decision": {
                     "type": "string",
-                    "enum": [
-                      "approve",
-                      "deny"
-                    ]
+                    "enum": ["approve", "deny"]
                   }
                 },
-                "required": [
-                  "userCode"
-                ]
+                "required": ["userCode"]
               }
             }
           }
@@ -1767,9 +1480,7 @@
           }
         },
         "summary": "Approve or decline a device sign-in",
-        "tags": [
-          "auth"
-        ]
+        "tags": ["auth"]
       }
     },
     "/workspaces": {
@@ -1798,29 +1509,18 @@
                       },
                       "type": {
                         "type": "string",
-                        "enum": [
-                          "personal",
-                          "team",
-                          "agency"
-                        ]
+                        "enum": ["personal", "team", "agency"]
                       },
                       "ownerId": {
                         "type": "string"
                       },
                       "region": {
                         "type": "string",
-                        "enum": [
-                          "in",
-                          "eu",
-                          "us"
-                        ]
+                        "enum": ["in", "eu", "us"]
                       },
                       "currency": {
                         "type": "string",
-                        "enum": [
-                          "INR",
-                          "USD"
-                        ]
+                        "enum": ["INR", "USD"]
                       },
                       "billingCountry": {
                         "type": "string"
@@ -1850,12 +1550,7 @@
                         "properties": {
                           "defaultAspect": {
                             "type": "string",
-                            "enum": [
-                              "9:16",
-                              "16:9",
-                              "1:1",
-                              "4:5"
-                            ]
+                            "enum": ["9:16", "16:9", "1:1", "4:5"]
                           },
                           "defaultLanguage": {
                             "type": "string",
@@ -1883,12 +1578,7 @@
                       },
                       "role": {
                         "type": "string",
-                        "enum": [
-                          "owner",
-                          "admin",
-                          "editor",
-                          "viewer"
-                        ]
+                        "enum": ["owner", "admin", "editor", "viewer"]
                       },
                       "memberCount": {
                         "type": "integer",
@@ -1935,9 +1625,7 @@
           }
         ],
         "summary": "The workspaces the caller belongs to",
-        "tags": [
-          "workspaces"
-        ]
+        "tags": ["workspaces"]
       },
       "post": {
         "description": "The caller becomes its owner. Region and currency follow their declared jurisdiction and the billing country starts **unconfirmed** — a guess until somebody sets a tax profile on it.",
@@ -1963,15 +1651,10 @@
                   },
                   "type": {
                     "type": "string",
-                    "enum": [
-                      "team",
-                      "agency"
-                    ]
+                    "enum": ["team", "agency"]
                   }
                 },
-                "required": [
-                  "name"
-                ]
+                "required": ["name"]
               }
             }
           }
@@ -1995,29 +1678,18 @@
                     },
                     "type": {
                       "type": "string",
-                      "enum": [
-                        "personal",
-                        "team",
-                        "agency"
-                      ]
+                      "enum": ["personal", "team", "agency"]
                     },
                     "ownerId": {
                       "type": "string"
                     },
                     "region": {
                       "type": "string",
-                      "enum": [
-                        "in",
-                        "eu",
-                        "us"
-                      ]
+                      "enum": ["in", "eu", "us"]
                     },
                     "currency": {
                       "type": "string",
-                      "enum": [
-                        "INR",
-                        "USD"
-                      ]
+                      "enum": ["INR", "USD"]
                     },
                     "billingCountry": {
                       "type": "string"
@@ -2047,12 +1719,7 @@
                       "properties": {
                         "defaultAspect": {
                           "type": "string",
-                          "enum": [
-                            "9:16",
-                            "16:9",
-                            "1:1",
-                            "4:5"
-                          ]
+                          "enum": ["9:16", "16:9", "1:1", "4:5"]
                         },
                         "defaultLanguage": {
                           "type": "string",
@@ -2080,12 +1747,7 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": [
-                        "owner",
-                        "admin",
-                        "editor",
-                        "viewer"
-                      ]
+                      "enum": ["owner", "admin", "editor", "viewer"]
                     },
                     "memberCount": {
                       "type": "integer",
@@ -2134,9 +1796,7 @@
           }
         ],
         "summary": "Create a team or agency workspace",
-        "tags": [
-          "workspaces"
-        ]
+        "tags": ["workspaces"]
       }
     },
     "/workspaces/{id}": {
@@ -2171,29 +1831,18 @@
                     },
                     "type": {
                       "type": "string",
-                      "enum": [
-                        "personal",
-                        "team",
-                        "agency"
-                      ]
+                      "enum": ["personal", "team", "agency"]
                     },
                     "ownerId": {
                       "type": "string"
                     },
                     "region": {
                       "type": "string",
-                      "enum": [
-                        "in",
-                        "eu",
-                        "us"
-                      ]
+                      "enum": ["in", "eu", "us"]
                     },
                     "currency": {
                       "type": "string",
-                      "enum": [
-                        "INR",
-                        "USD"
-                      ]
+                      "enum": ["INR", "USD"]
                     },
                     "billingCountry": {
                       "type": "string"
@@ -2223,12 +1872,7 @@
                       "properties": {
                         "defaultAspect": {
                           "type": "string",
-                          "enum": [
-                            "9:16",
-                            "16:9",
-                            "1:1",
-                            "4:5"
-                          ]
+                          "enum": ["9:16", "16:9", "1:1", "4:5"]
                         },
                         "defaultLanguage": {
                           "type": "string",
@@ -2256,12 +1900,7 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": [
-                        "owner",
-                        "admin",
-                        "editor",
-                        "viewer"
-                      ]
+                      "enum": ["owner", "admin", "editor", "viewer"]
                     },
                     "memberCount": {
                       "type": "integer",
@@ -2310,9 +1949,7 @@
           }
         ],
         "summary": "One workspace",
-        "tags": [
-          "workspaces"
-        ]
+        "tags": ["workspaces"]
       },
       "patch": {
         "description": "`settings` is merged, not replaced, so a partial patch keeps the rest.",
@@ -2350,12 +1987,7 @@
                     "properties": {
                       "defaultAspect": {
                         "type": "string",
-                        "enum": [
-                          "9:16",
-                          "16:9",
-                          "1:1",
-                          "4:5"
-                        ]
+                        "enum": ["9:16", "16:9", "1:1", "4:5"]
                       },
                       "defaultLanguage": {
                         "type": "string",
@@ -2397,29 +2029,18 @@
                     },
                     "type": {
                       "type": "string",
-                      "enum": [
-                        "personal",
-                        "team",
-                        "agency"
-                      ]
+                      "enum": ["personal", "team", "agency"]
                     },
                     "ownerId": {
                       "type": "string"
                     },
                     "region": {
                       "type": "string",
-                      "enum": [
-                        "in",
-                        "eu",
-                        "us"
-                      ]
+                      "enum": ["in", "eu", "us"]
                     },
                     "currency": {
                       "type": "string",
-                      "enum": [
-                        "INR",
-                        "USD"
-                      ]
+                      "enum": ["INR", "USD"]
                     },
                     "billingCountry": {
                       "type": "string"
@@ -2449,12 +2070,7 @@
                       "properties": {
                         "defaultAspect": {
                           "type": "string",
-                          "enum": [
-                            "9:16",
-                            "16:9",
-                            "1:1",
-                            "4:5"
-                          ]
+                          "enum": ["9:16", "16:9", "1:1", "4:5"]
                         },
                         "defaultLanguage": {
                           "type": "string",
@@ -2482,12 +2098,7 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": [
-                        "owner",
-                        "admin",
-                        "editor",
-                        "viewer"
-                      ]
+                      "enum": ["owner", "admin", "editor", "viewer"]
                     },
                     "memberCount": {
                       "type": "integer",
@@ -2539,9 +2150,7 @@
           }
         ],
         "summary": "Rename a workspace or change its settings",
-        "tags": [
-          "workspaces"
-        ]
+        "tags": ["workspaces"]
       },
       "delete": {
         "description": "Soft delete; every session scoped to it is revoked. Refused when it is the caller's only workspace — `DELETE /me` is how a person leaves altogether.",
@@ -2573,9 +2182,7 @@
           }
         ],
         "summary": "Delete a workspace",
-        "tags": [
-          "workspaces"
-        ]
+        "tags": ["workspaces"]
       }
     },
     "/workspaces/{id}/tax-profile": {
@@ -2618,9 +2225,7 @@
                     "maxLength": 200
                   }
                 },
-                "required": [
-                  "billingCountry"
-                ]
+                "required": ["billingCountry"]
               }
             }
           }
@@ -2644,29 +2249,18 @@
                     },
                     "type": {
                       "type": "string",
-                      "enum": [
-                        "personal",
-                        "team",
-                        "agency"
-                      ]
+                      "enum": ["personal", "team", "agency"]
                     },
                     "ownerId": {
                       "type": "string"
                     },
                     "region": {
                       "type": "string",
-                      "enum": [
-                        "in",
-                        "eu",
-                        "us"
-                      ]
+                      "enum": ["in", "eu", "us"]
                     },
                     "currency": {
                       "type": "string",
-                      "enum": [
-                        "INR",
-                        "USD"
-                      ]
+                      "enum": ["INR", "USD"]
                     },
                     "billingCountry": {
                       "type": "string"
@@ -2696,12 +2290,7 @@
                       "properties": {
                         "defaultAspect": {
                           "type": "string",
-                          "enum": [
-                            "9:16",
-                            "16:9",
-                            "1:1",
-                            "4:5"
-                          ]
+                          "enum": ["9:16", "16:9", "1:1", "4:5"]
                         },
                         "defaultLanguage": {
                           "type": "string",
@@ -2729,12 +2318,7 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": [
-                        "owner",
-                        "admin",
-                        "editor",
-                        "viewer"
-                      ]
+                      "enum": ["owner", "admin", "editor", "viewer"]
                     },
                     "memberCount": {
                       "type": "integer",
@@ -2786,9 +2370,7 @@
           }
         ],
         "summary": "Set the billing country, State and GSTIN",
-        "tags": [
-          "workspaces"
-        ]
+        "tags": ["workspaces"]
       }
     },
     "/workspaces/{id}/entitlement": {
@@ -2818,13 +2400,7 @@
                     },
                     "planKey": {
                       "type": "string",
-                      "enum": [
-                        "free",
-                        "starter",
-                        "creator",
-                        "studio",
-                        "agency"
-                      ]
+                      "enum": ["free", "starter", "creator", "studio", "agency"]
                     },
                     "planName": {
                       "type": "string"
@@ -2876,9 +2452,7 @@
           }
         ],
         "summary": "What this workspace may do",
-        "tags": [
-          "workspaces"
-        ]
+        "tags": ["workspaces"]
       }
     },
     "/workspaces/{id}/members": {
@@ -2925,21 +2499,11 @@
                       },
                       "role": {
                         "type": "string",
-                        "enum": [
-                          "owner",
-                          "admin",
-                          "editor",
-                          "viewer"
-                        ]
+                        "enum": ["owner", "admin", "editor", "viewer"]
                       },
                       "status": {
                         "type": "string",
-                        "enum": [
-                          "invited",
-                          "active",
-                          "suspended",
-                          "removed"
-                        ]
+                        "enum": ["invited", "active", "suspended", "removed"]
                       },
                       "seatBilled": {
                         "type": "boolean"
@@ -2974,9 +2538,7 @@
           }
         ],
         "summary": "The workspace's members and outstanding invitations",
-        "tags": [
-          "workspaces"
-        ]
+        "tags": ["workspaces"]
       },
       "post": {
         "description": "Creates a pending `memberships` row and sends the invitation. The row becomes a membership only when that person accepts it themselves, from a verified address.",
@@ -3007,17 +2569,10 @@
                   },
                   "role": {
                     "type": "string",
-                    "enum": [
-                      "admin",
-                      "editor",
-                      "viewer"
-                    ]
+                    "enum": ["admin", "editor", "viewer"]
                   }
                 },
-                "required": [
-                  "email",
-                  "role"
-                ]
+                "required": ["email", "role"]
               }
             }
           }
@@ -3051,21 +2606,11 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": [
-                        "owner",
-                        "admin",
-                        "editor",
-                        "viewer"
-                      ]
+                      "enum": ["owner", "admin", "editor", "viewer"]
                     },
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "invited",
-                        "active",
-                        "suspended",
-                        "removed"
-                      ]
+                      "enum": ["invited", "active", "suspended", "removed"]
                     },
                     "seatBilled": {
                       "type": "boolean"
@@ -3102,9 +2647,7 @@
           }
         ],
         "summary": "Invite an address to the workspace",
-        "tags": [
-          "workspaces"
-        ]
+        "tags": ["workspaces"]
       }
     },
     "/workspaces/{id}/members/{membershipId}": {
@@ -3138,16 +2681,10 @@
                 "properties": {
                   "role": {
                     "type": "string",
-                    "enum": [
-                      "admin",
-                      "editor",
-                      "viewer"
-                    ]
+                    "enum": ["admin", "editor", "viewer"]
                   }
                 },
-                "required": [
-                  "role"
-                ]
+                "required": ["role"]
               }
             }
           }
@@ -3181,21 +2718,11 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": [
-                        "owner",
-                        "admin",
-                        "editor",
-                        "viewer"
-                      ]
+                      "enum": ["owner", "admin", "editor", "viewer"]
                     },
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "invited",
-                        "active",
-                        "suspended",
-                        "removed"
-                      ]
+                      "enum": ["invited", "active", "suspended", "removed"]
                     },
                     "seatBilled": {
                       "type": "boolean"
@@ -3235,9 +2762,7 @@
           }
         ],
         "summary": "Change a member's role",
-        "tags": [
-          "workspaces"
-        ]
+        "tags": ["workspaces"]
       },
       "delete": {
         "description": "Every session that member holds in this workspace is revoked at once.",
@@ -3280,9 +2805,7 @@
           }
         ],
         "summary": "Remove a member or withdraw an invitation",
-        "tags": [
-          "workspaces"
-        ]
+        "tags": ["workspaces"]
       }
     },
     "/invitations": {
@@ -3311,12 +2834,7 @@
                       },
                       "role": {
                         "type": "string",
-                        "enum": [
-                          "owner",
-                          "admin",
-                          "editor",
-                          "viewer"
-                        ]
+                        "enum": ["owner", "admin", "editor", "viewer"]
                       },
                       "invitedEmail": {
                         "nullable": true,
@@ -3326,14 +2844,7 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "id",
-                      "workspaceId",
-                      "workspaceName",
-                      "role",
-                      "invitedEmail",
-                      "createdAt"
-                    ]
+                    "required": ["id", "workspaceId", "workspaceName", "role", "invitedEmail", "createdAt"]
                   }
                 }
               }
@@ -3349,9 +2860,7 @@
           }
         ],
         "summary": "Invitations waiting for the caller's address",
-        "tags": [
-          "invitations"
-        ]
+        "tags": ["invitations"]
       }
     },
     "/invitations/{id}/accept": {
@@ -3381,25 +2890,14 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": [
-                        "owner",
-                        "admin",
-                        "editor",
-                        "viewer"
-                      ]
+                      "enum": ["owner", "admin", "editor", "viewer"]
                     },
                     "next": {
                       "type": "string",
-                      "enum": [
-                        "POST /auth/token/exchange"
-                      ]
+                      "enum": ["POST /auth/token/exchange"]
                     }
                   },
-                  "required": [
-                    "workspaceId",
-                    "role",
-                    "next"
-                  ]
+                  "required": ["workspaceId", "role", "next"]
                 }
               }
             }
@@ -3417,9 +2915,7 @@
           }
         ],
         "summary": "Accept an invitation",
-        "tags": [
-          "invitations"
-        ]
+        "tags": ["invitations"]
       }
     },
     "/invitations/{id}": {
@@ -3452,9 +2948,7 @@
           }
         ],
         "summary": "Decline an invitation",
-        "tags": [
-          "invitations"
-        ]
+        "tags": ["invitations"]
       }
     },
     "/consents": {
@@ -3483,13 +2977,7 @@
                         "properties": {
                           "purpose": {
                             "type": "string",
-                            "enum": [
-                              "analytics",
-                              "memory",
-                              "marketing",
-                              "share_upload",
-                              "affiliate"
-                            ]
+                            "enum": ["analytics", "memory", "marketing", "share_upload", "affiliate"]
                           },
                           "granted": {
                             "type": "boolean"
@@ -3510,22 +2998,11 @@
                             "type": "boolean"
                           }
                         },
-                        "required": [
-                          "purpose",
-                          "granted",
-                          "version",
-                          "decidedAt",
-                          "withdrawnAt",
-                          "recorded"
-                        ]
+                        "required": ["purpose", "granted", "version", "decidedAt", "withdrawnAt", "recorded"]
                       }
                     }
                   },
-                  "required": [
-                    "noticeVersion",
-                    "reconsentRequired",
-                    "purposes"
-                  ]
+                  "required": ["noticeVersion", "reconsentRequired", "purposes"]
                 }
               }
             }
@@ -3540,9 +3017,7 @@
           }
         ],
         "summary": "The caller's current answer for every purpose",
-        "tags": [
-          "consents"
-        ]
+        "tags": ["consents"]
       },
       "post": {
         "description": "Appends a `consent_records` row with the caller's address, user agent and the current notice version. A refusal is recorded as a row, not as an absent row: the record has to show what was asked as well as what was agreed.",
@@ -3557,22 +3032,13 @@
                 "properties": {
                   "purpose": {
                     "type": "string",
-                    "enum": [
-                      "analytics",
-                      "memory",
-                      "marketing",
-                      "share_upload",
-                      "affiliate"
-                    ]
+                    "enum": ["analytics", "memory", "marketing", "share_upload", "affiliate"]
                   },
                   "granted": {
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "purpose",
-                  "granted"
-                ]
+                "required": ["purpose", "granted"]
               }
             }
           }
@@ -3598,13 +3064,7 @@
                         "properties": {
                           "purpose": {
                             "type": "string",
-                            "enum": [
-                              "analytics",
-                              "memory",
-                              "marketing",
-                              "share_upload",
-                              "affiliate"
-                            ]
+                            "enum": ["analytics", "memory", "marketing", "share_upload", "affiliate"]
                           },
                           "granted": {
                             "type": "boolean"
@@ -3625,22 +3085,11 @@
                             "type": "boolean"
                           }
                         },
-                        "required": [
-                          "purpose",
-                          "granted",
-                          "version",
-                          "decidedAt",
-                          "withdrawnAt",
-                          "recorded"
-                        ]
+                        "required": ["purpose", "granted", "version", "decidedAt", "withdrawnAt", "recorded"]
                       }
                     }
                   },
-                  "required": [
-                    "noticeVersion",
-                    "reconsentRequired",
-                    "purposes"
-                  ]
+                  "required": ["noticeVersion", "reconsentRequired", "purposes"]
                 }
               }
             }
@@ -3658,9 +3107,7 @@
           }
         ],
         "summary": "Grant or withdraw one purpose",
-        "tags": [
-          "consents"
-        ]
+        "tags": ["consents"]
       }
     },
     "/privacy/notice": {
@@ -3720,34 +3167,18 @@
                             "type": "boolean"
                           }
                         },
-                        "required": [
-                          "purpose",
-                          "title",
-                          "summary",
-                          "essential",
-                          "defaultGranted"
-                        ]
+                        "required": ["purpose", "title", "summary", "essential", "defaultGranted"]
                       }
                     }
                   },
-                  "required": [
-                    "version",
-                    "effectiveFrom",
-                    "url",
-                    "contactEmail",
-                    "responseDays",
-                    "rights",
-                    "purposes"
-                  ]
+                  "required": ["version", "effectiveFrom", "url", "contactEmail", "responseDays", "rights", "purposes"]
                 }
               }
             }
           }
         },
         "summary": "The current itemised privacy notice",
-        "tags": [
-          "privacy"
-        ]
+        "tags": ["privacy"]
       }
     },
     "/jobs": {
@@ -3776,9 +3207,7 @@
           }
         ],
         "summary": "List the workspace's jobs, newest first",
-        "tags": [
-          "jobs"
-        ]
+        "tags": ["jobs"]
       }
     },
     "/jobs/{id}": {
@@ -3818,9 +3247,7 @@
           }
         ],
         "summary": "Fetch one job",
-        "tags": [
-          "jobs"
-        ]
+        "tags": ["jobs"]
       }
     },
     "/jobs/{id}/events": {
@@ -3861,9 +3288,7 @@
           }
         ],
         "summary": "The job's event log, oldest first",
-        "tags": [
-          "jobs"
-        ]
+        "tags": ["jobs"]
       }
     },
     "/jobs/{id}/cancel": {
@@ -3907,9 +3332,2847 @@
           }
         ],
         "summary": "Cancel a queued or running job",
-        "tags": [
-          "jobs"
-        ]
+        "tags": ["jobs"]
+      }
+    },
+    "/projects": {
+      "get": {
+        "description": "Cursor pagination: pass the previous page's `nextCursor` as `cursor`. Filters: `q` (title substring), `status`, `folder` (a folder id or `root`) and `clientTag`. Deleted projects are never returned.",
+        "operationId": "listProjects",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "One page of projects.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "workspaceId": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "folderId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "clientTag": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "sourceLanguage": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "scripts": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "aspect": {
+                            "type": "string",
+                            "enum": ["9:16", "16:9", "1:1", "4:5"]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["draft", "active", "archived"]
+                          },
+                          "thumbnailKey": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "durationMs": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "mediaCount": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "lastActivityAt": {
+                            "type": "string"
+                          },
+                          "retentionUntil": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "workspaceId",
+                          "title",
+                          "folderId",
+                          "clientTag",
+                          "sourceLanguage",
+                          "scripts",
+                          "aspect",
+                          "status",
+                          "thumbnailKey",
+                          "durationMs",
+                          "mediaCount",
+                          "lastActivityAt",
+                          "retentionUntil",
+                          "createdBy",
+                          "createdAt"
+                        ]
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": ["items", "nextCursor"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List the workspace's projects, newest first",
+        "tags": ["projects"]
+      },
+      "post": {
+        "description": "The retention window opens now, at the plan's length, and every upload pushes it out again (D47).",
+        "operationId": "createProject",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "folderId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "clientTag": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "aspect": {
+                    "type": "string",
+                    "enum": ["9:16", "16:9", "1:1", "4:5"]
+                  },
+                  "sourceLanguage": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 16
+                  }
+                },
+                "required": ["title"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "folderId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "clientTag": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "sourceLanguage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "scripts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "aspect": {
+                      "type": "string",
+                      "enum": ["9:16", "16:9", "1:1", "4:5"]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["draft", "active", "archived"]
+                    },
+                    "thumbnailKey": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "durationMs": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "mediaCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "lastActivityAt": {
+                      "type": "string"
+                    },
+                    "retentionUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "title",
+                    "folderId",
+                    "clientTag",
+                    "sourceLanguage",
+                    "scripts",
+                    "aspect",
+                    "status",
+                    "thumbnailKey",
+                    "durationMs",
+                    "mediaCount",
+                    "lastActivityAt",
+                    "retentionUntil",
+                    "createdBy",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/folder_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a project",
+        "tags": ["projects"]
+      }
+    },
+    "/projects/batch": {
+      "post": {
+        "description": "One transaction: the batch lands whole or not at all. This creates the rows only — batch *orchestration* (upload, transcribe and report as one unit) is a later work package and builds on these.",
+        "operationId": "batchCreateProjects",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projects": {
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "folderId": {
+                          "type": "string",
+                          "minLength": 26,
+                          "maxLength": 26,
+                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                        },
+                        "clientTag": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "aspect": {
+                          "type": "string",
+                          "enum": ["9:16", "16:9", "1:1", "4:5"]
+                        },
+                        "sourceLanguage": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 16
+                        }
+                      },
+                      "required": ["title"]
+                    }
+                  },
+                  "folderId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "clientTag": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": ["projects"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The projects created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "created": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "workspaceId": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "folderId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "clientTag": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "sourceLanguage": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "scripts": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "aspect": {
+                            "type": "string",
+                            "enum": ["9:16", "16:9", "1:1", "4:5"]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["draft", "active", "archived"]
+                          },
+                          "thumbnailKey": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "durationMs": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "mediaCount": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "lastActivityAt": {
+                            "type": "string"
+                          },
+                          "retentionUntil": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "workspaceId",
+                          "title",
+                          "folderId",
+                          "clientTag",
+                          "sourceLanguage",
+                          "scripts",
+                          "aspect",
+                          "status",
+                          "thumbnailKey",
+                          "durationMs",
+                          "mediaCount",
+                          "lastActivityAt",
+                          "retentionUntil",
+                          "createdBy",
+                          "createdAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["created"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create several projects at once",
+        "tags": ["projects"]
+      }
+    },
+    "/projects/{projectId}": {
+      "get": {
+        "operationId": "getProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "folderId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "clientTag": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "sourceLanguage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "scripts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "aspect": {
+                      "type": "string",
+                      "enum": ["9:16", "16:9", "1:1", "4:5"]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["draft", "active", "archived"]
+                    },
+                    "thumbnailKey": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "durationMs": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "mediaCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "lastActivityAt": {
+                      "type": "string"
+                    },
+                    "retentionUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "title",
+                    "folderId",
+                    "clientTag",
+                    "sourceLanguage",
+                    "scripts",
+                    "aspect",
+                    "status",
+                    "thumbnailKey",
+                    "durationMs",
+                    "mediaCount",
+                    "lastActivityAt",
+                    "retentionUntil",
+                    "createdBy",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/not_found`, including another tenant's id."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Fetch one project",
+        "tags": ["projects"]
+      },
+      "patch": {
+        "description": "Archiving is `status: \"archived\"`; there is no separate route for it.",
+        "operationId": "updateProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "folderId": {
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "clientTag": {
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "aspect": {
+                    "type": "string",
+                    "enum": ["9:16", "16:9", "1:1", "4:5"]
+                  },
+                  "sourceLanguage": {
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 16
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["draft", "active", "archived"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "folderId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "clientTag": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "sourceLanguage": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "scripts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "aspect": {
+                      "type": "string",
+                      "enum": ["9:16", "16:9", "1:1", "4:5"]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["draft", "active", "archived"]
+                    },
+                    "thumbnailKey": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "durationMs": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "mediaCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "lastActivityAt": {
+                      "type": "string"
+                    },
+                    "retentionUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "title",
+                    "folderId",
+                    "clientTag",
+                    "sourceLanguage",
+                    "scripts",
+                    "aspect",
+                    "status",
+                    "thumbnailKey",
+                    "durationMs",
+                    "mediaCount",
+                    "lastActivityAt",
+                    "retentionUntil",
+                    "createdBy",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/not_found` or `project/folder_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Rename, re-file, re-tag or archive a project",
+        "tags": ["projects"]
+      },
+      "delete": {
+        "description": "A soft delete: the row is marked and the objects go when retention runs (D47), so an accidental click is recoverable until then.",
+        "operationId": "deleteProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete a project",
+        "tags": ["projects"]
+      }
+    },
+    "/folders": {
+      "get": {
+        "description": "The whole tree, ordered by `position` then name; nesting is shallow by design.",
+        "operationId": "listFolders",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Every live folder in the workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "parentId": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "position": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "projectCount": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["id", "workspaceId", "name", "parentId", "position", "projectCount", "createdAt"]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The workspace's folders",
+        "tags": ["projects"]
+      },
+      "post": {
+        "operationId": "createFolder",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "parentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000
+                  }
+                },
+                "required": ["name"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new folder.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "parentId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "projectCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "workspaceId", "name", "parentId", "position", "projectCount", "createdAt"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "409": {
+            "description": "`project/folder_cycle` when it would nest too deep."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a folder",
+        "tags": ["projects"]
+      }
+    },
+    "/folders/{folderId}": {
+      "get": {
+        "operationId": "getFolder",
+        "parameters": [
+          {
+            "name": "folderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The folder.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "parentId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "projectCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "workspaceId", "name", "parentId", "position", "projectCount", "createdAt"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/folder_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Fetch one folder",
+        "tags": ["projects"]
+      },
+      "patch": {
+        "description": "Moving a folder inside itself or one of its descendants is `project/folder_cycle`.",
+        "operationId": "updateFolder",
+        "parameters": [
+          {
+            "name": "folderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "parentId": {
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated folder.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "parentId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "position": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "projectCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "workspaceId", "name", "parentId", "position", "projectCount", "createdAt"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/folder_not_found`."
+          },
+          "409": {
+            "description": "`project/folder_cycle`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Rename, move or reorder a folder",
+        "tags": ["projects"]
+      },
+      "delete": {
+        "description": "Refused while projects or child folders are still in it (`project/folder_not_empty`): silently orphaning what is inside is how somebody loses work they can still see.",
+        "operationId": "deleteFolder",
+        "parameters": [
+          {
+            "name": "folderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/folder_not_found`."
+          },
+          "409": {
+            "description": "`project/folder_not_empty`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete an empty folder",
+        "tags": ["projects"]
+      }
+    },
+    "/projects/{projectId}/media": {
+      "get": {
+        "description": "Includes imported subtitle sidecars, which carry the role `subtitle`.",
+        "operationId": "listProjectMedia",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every media asset in the project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "projectId": {
+                        "type": "string"
+                      },
+                      "role": {
+                        "type": "string"
+                      },
+                      "bucket": {
+                        "type": "string",
+                        "enum": ["s3", "r2"]
+                      },
+                      "storageKey": {
+                        "type": "string"
+                      },
+                      "filename": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "mime": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "sizeBytes": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "contentHash": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "durationMs": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "fps": {
+                        "nullable": true,
+                        "type": "number"
+                      },
+                      "width": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "height": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "audioChannels": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": ["pending", "uploading", "uploaded", "probing", "ready", "failed", "purged"]
+                      },
+                      "needsRealign": {
+                        "type": "boolean"
+                      },
+                      "uploadedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "rawPurgeAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "derivedPurgeAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "derived": {
+                        "type": "object",
+                        "properties": {
+                          "proxy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "audio16k": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "audio48k": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "waveform": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "thumbs": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": ["proxy", "audio16k", "audio48k", "waveform", "thumbs"]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "projectId",
+                      "role",
+                      "bucket",
+                      "storageKey",
+                      "filename",
+                      "mime",
+                      "sizeBytes",
+                      "contentHash",
+                      "durationMs",
+                      "fps",
+                      "width",
+                      "height",
+                      "audioChannels",
+                      "status",
+                      "needsRealign",
+                      "uploadedAt",
+                      "rawPurgeAt",
+                      "derivedPurgeAt",
+                      "derived",
+                      "createdAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The project's media, oldest first",
+        "tags": ["media"]
+      }
+    },
+    "/projects/{projectId}/media/init": {
+      "post": {
+        "description": "Checks the declared size against the plan, opens a multipart upload on the raw bucket and returns one presigned URL per 16 MiB part. PUT each part, keep its `ETag`, then call `completeMediaUpload`. When `contentHash` matches an upload this workspace already has, the existing media is returned with `duplicate: true` and no parts to upload.",
+        "operationId": "initMediaUpload",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filename": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1099511627776
+                  },
+                  "mime": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 255
+                  },
+                  "contentHash": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": ["primary", "broll", "audio"]
+                  }
+                },
+                "required": ["filename", "size", "mime"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Presigned parts, or a duplicate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mediaId": {
+                      "type": "string"
+                    },
+                    "uploadId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "bucket": {
+                      "type": "string",
+                      "enum": ["s3", "r2"]
+                    },
+                    "partSizeBytes": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "partNumber": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["partNumber", "url"]
+                      }
+                    },
+                    "expiresAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicate": {
+                      "type": "boolean"
+                    },
+                    "media": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "projectId": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "bucket": {
+                          "type": "string",
+                          "enum": ["s3", "r2"]
+                        },
+                        "storageKey": {
+                          "type": "string"
+                        },
+                        "filename": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "mime": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "contentHash": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "durationMs": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "fps": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "width": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "audioChannels": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["pending", "uploading", "uploaded", "probing", "ready", "failed", "purged"]
+                        },
+                        "needsRealign": {
+                          "type": "boolean"
+                        },
+                        "uploadedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rawPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derivedPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derived": {
+                          "type": "object",
+                          "properties": {
+                            "proxy": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio16k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio48k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "waveform": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "thumbs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": ["proxy", "audio16k", "audio48k", "waveform", "thumbs"]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "projectId",
+                        "role",
+                        "bucket",
+                        "storageKey",
+                        "filename",
+                        "mime",
+                        "sizeBytes",
+                        "contentHash",
+                        "durationMs",
+                        "fps",
+                        "width",
+                        "height",
+                        "audioChannels",
+                        "status",
+                        "needsRealign",
+                        "uploadedAt",
+                        "rawPurgeAt",
+                        "derivedPurgeAt",
+                        "derived",
+                        "createdAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "mediaId",
+                    "uploadId",
+                    "key",
+                    "bucket",
+                    "partSizeBytes",
+                    "parts",
+                    "expiresAt",
+                    "duplicate",
+                    "media"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`project/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Begin an upload",
+        "tags": ["media"]
+      }
+    },
+    "/projects/{projectId}/media/{mediaId}/complete": {
+      "post": {
+        "description": "Identical to `completeMediaUpload`; this is the path `07-api-and-contracts.md` spells, kept so a client can stay inside `/projects/{id}` for the whole ingest.",
+        "operationId": "completeProjectMediaUpload",
+        "parameters": [
+          {
+            "name": "mediaId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "etags": {
+                    "minItems": 1,
+                    "maxItems": 10000,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    }
+                  }
+                },
+                "required": ["etags"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The media and its two jobs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "media": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "projectId": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "bucket": {
+                          "type": "string",
+                          "enum": ["s3", "r2"]
+                        },
+                        "storageKey": {
+                          "type": "string"
+                        },
+                        "filename": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "mime": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "contentHash": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "durationMs": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "fps": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "width": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "audioChannels": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["pending", "uploading", "uploaded", "probing", "ready", "failed", "purged"]
+                        },
+                        "needsRealign": {
+                          "type": "boolean"
+                        },
+                        "uploadedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rawPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derivedPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derived": {
+                          "type": "object",
+                          "properties": {
+                            "proxy": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio16k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio48k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "waveform": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "thumbs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": ["proxy", "audio16k", "audio48k", "waveform", "thumbs"]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "projectId",
+                        "role",
+                        "bucket",
+                        "storageKey",
+                        "filename",
+                        "mime",
+                        "sizeBytes",
+                        "contentHash",
+                        "durationMs",
+                        "fps",
+                        "width",
+                        "height",
+                        "audioChannels",
+                        "status",
+                        "needsRealign",
+                        "uploadedAt",
+                        "rawPurgeAt",
+                        "derivedPurgeAt",
+                        "derived",
+                        "createdAt"
+                      ]
+                    },
+                    "probeJobId": {
+                      "type": "string"
+                    },
+                    "proxyJobId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["media", "probeJobId", "proxyJobId"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Finish an upload (project-scoped form)",
+        "tags": ["media"]
+      }
+    },
+    "/projects/{projectId}/media/{mediaId}/replace": {
+      "post": {
+        "description": "A fresh upload onto the SAME media row, so transcripts, the EDG document and exports keep pointing at it. The row is flagged `needsRealign`: the words survive, the timings do not.",
+        "operationId": "replaceMedia",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mediaId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filename": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1099511627776
+                  },
+                  "mime": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 255
+                  },
+                  "contentHash": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": ["primary", "broll", "audio"]
+                  }
+                },
+                "required": ["filename", "size", "mime"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Presigned parts for the new bytes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mediaId": {
+                      "type": "string"
+                    },
+                    "uploadId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "bucket": {
+                      "type": "string",
+                      "enum": ["s3", "r2"]
+                    },
+                    "partSizeBytes": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "partNumber": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["partNumber", "url"]
+                      }
+                    },
+                    "expiresAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "duplicate": {
+                      "type": "boolean"
+                    },
+                    "media": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "projectId": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "bucket": {
+                          "type": "string",
+                          "enum": ["s3", "r2"]
+                        },
+                        "storageKey": {
+                          "type": "string"
+                        },
+                        "filename": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "mime": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "contentHash": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "durationMs": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "fps": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "width": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "audioChannels": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["pending", "uploading", "uploaded", "probing", "ready", "failed", "purged"]
+                        },
+                        "needsRealign": {
+                          "type": "boolean"
+                        },
+                        "uploadedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rawPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derivedPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derived": {
+                          "type": "object",
+                          "properties": {
+                            "proxy": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio16k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio48k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "waveform": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "thumbs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": ["proxy", "audio16k", "audio48k", "waveform", "thumbs"]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "projectId",
+                        "role",
+                        "bucket",
+                        "storageKey",
+                        "filename",
+                        "mime",
+                        "sizeBytes",
+                        "contentHash",
+                        "durationMs",
+                        "fps",
+                        "width",
+                        "height",
+                        "audioChannels",
+                        "status",
+                        "needsRealign",
+                        "uploadedAt",
+                        "rawPurgeAt",
+                        "derivedPurgeAt",
+                        "derived",
+                        "createdAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "mediaId",
+                    "uploadId",
+                    "key",
+                    "bucket",
+                    "partSizeBytes",
+                    "parts",
+                    "expiresAt",
+                    "duplicate",
+                    "media"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`media/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Replace a media item's bytes",
+        "tags": ["media"]
+      }
+    },
+    "/projects/{projectId}/media/{mediaId}/urls": {
+      "get": {
+        "description": "Proxy, 16 kHz and 48 kHz audio, waveform and thumbnails, from the derived bucket, valid five minutes. Only artefacts that exist are signed, so the response doubles as `what is ready`.",
+        "operationId": "getMediaUrls",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mediaId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Short-lived download URLs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mediaId": {
+                      "type": "string"
+                    },
+                    "proxy": {
+                      "type": "string"
+                    },
+                    "audio16k": {
+                      "type": "string"
+                    },
+                    "audio48k": {
+                      "type": "string"
+                    },
+                    "waveform": {
+                      "type": "string"
+                    },
+                    "thumbs": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["mediaId", "thumbs", "expiresAt"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`media/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Signed URLs for the derived objects",
+        "tags": ["media"]
+      }
+    },
+    "/projects/{projectId}/import": {
+      "post": {
+        "description": "Parses SRT, WebVTT, ASS or plain text into one normalised cue list, stores it as a sidecar in the derived bucket and enqueues `ai.align`. Plain text carries no timings, so `timed` is false and alignment supplies them. At most 2 MB.",
+        "operationId": "importSubtitles",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["srt", "vtt", "ass", "txt"]
+                  },
+                  "content": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2097152
+                  },
+                  "language": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 16
+                  },
+                  "mediaId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  }
+                },
+                "required": ["kind", "content"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The stored cue list and its align job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mediaId": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["srt", "vtt", "ass", "txt"]
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "cueCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "timed": {
+                      "type": "boolean"
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "jobId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["mediaId", "kind", "key", "cueCount", "timed", "warnings", "jobId"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "422": {
+            "description": "`import/unparsable`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Import an existing subtitle file",
+        "tags": ["media"]
+      }
+    },
+    "/projects/{projectId}/import-url": {
+      "post": {
+        "description": "The same import, fetched first through the egress-restricted client: http(s) only, addresses resolved and judged before the connection, the resolved address pinned, at most three redirects and 2 MB (THREAT-MODEL T6). A refused URL is `import/blocked_url`, with no detail about why.",
+        "operationId": "importSubtitlesFromUrl",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 2048
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": ["srt", "vtt", "ass", "txt"]
+                  },
+                  "language": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 16
+                  },
+                  "mediaId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  }
+                },
+                "required": ["url"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The stored cue list and its align job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mediaId": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["srt", "vtt", "ass", "txt"]
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "cueCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "timed": {
+                      "type": "boolean"
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "jobId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["mediaId", "kind", "key", "cueCount", "timed", "warnings", "jobId"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "422": {
+            "description": "`import/unparsable`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Import a subtitle file from a URL",
+        "tags": ["media"]
+      }
+    },
+    "/media/{mediaId}": {
+      "get": {
+        "operationId": "getMedia",
+        "parameters": [
+          {
+            "name": "mediaId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The media asset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "projectId": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "bucket": {
+                      "type": "string",
+                      "enum": ["s3", "r2"]
+                    },
+                    "storageKey": {
+                      "type": "string"
+                    },
+                    "filename": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "mime": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "sizeBytes": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "contentHash": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "durationMs": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "fps": {
+                      "nullable": true,
+                      "type": "number"
+                    },
+                    "width": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "height": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "audioChannels": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending", "uploading", "uploaded", "probing", "ready", "failed", "purged"]
+                    },
+                    "needsRealign": {
+                      "type": "boolean"
+                    },
+                    "uploadedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "rawPurgeAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "derivedPurgeAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "derived": {
+                      "type": "object",
+                      "properties": {
+                        "proxy": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "audio16k": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "audio48k": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "waveform": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "thumbs": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": ["proxy", "audio16k", "audio48k", "waveform", "thumbs"]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "role",
+                    "bucket",
+                    "storageKey",
+                    "filename",
+                    "mime",
+                    "sizeBytes",
+                    "contentHash",
+                    "durationMs",
+                    "fps",
+                    "width",
+                    "height",
+                    "audioChannels",
+                    "status",
+                    "needsRealign",
+                    "uploadedAt",
+                    "rawPurgeAt",
+                    "derivedPurgeAt",
+                    "derived",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`media/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Fetch one media asset",
+        "tags": ["media"]
+      }
+    },
+    "/media/{mediaId}/complete": {
+      "post": {
+        "description": "Completes the multipart upload from the part `ETag`s **in part order**, records the store's own byte count, sets `rawPurgeAt` (upload + 7 days) and `derivedPurgeAt` (the plan's retention), then enqueues `media.probe` and `media.proxy`. Idempotent: a retry returns the same two job ids.",
+        "operationId": "completeMediaUpload",
+        "parameters": [
+          {
+            "name": "mediaId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "etags": {
+                    "minItems": 1,
+                    "maxItems": 10000,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    }
+                  }
+                },
+                "required": ["etags"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The media and its two jobs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "media": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "projectId": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "bucket": {
+                          "type": "string",
+                          "enum": ["s3", "r2"]
+                        },
+                        "storageKey": {
+                          "type": "string"
+                        },
+                        "filename": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "mime": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "contentHash": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "durationMs": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "fps": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "width": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "audioChannels": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["pending", "uploading", "uploaded", "probing", "ready", "failed", "purged"]
+                        },
+                        "needsRealign": {
+                          "type": "boolean"
+                        },
+                        "uploadedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rawPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derivedPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derived": {
+                          "type": "object",
+                          "properties": {
+                            "proxy": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio16k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio48k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "waveform": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "thumbs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": ["proxy", "audio16k", "audio48k", "waveform", "thumbs"]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "projectId",
+                        "role",
+                        "bucket",
+                        "storageKey",
+                        "filename",
+                        "mime",
+                        "sizeBytes",
+                        "contentHash",
+                        "durationMs",
+                        "fps",
+                        "width",
+                        "height",
+                        "audioChannels",
+                        "status",
+                        "needsRealign",
+                        "uploadedAt",
+                        "rawPurgeAt",
+                        "derivedPurgeAt",
+                        "derived",
+                        "createdAt"
+                      ]
+                    },
+                    "probeJobId": {
+                      "type": "string"
+                    },
+                    "proxyJobId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["media", "probeJobId", "proxyJobId"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`media/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Finish an upload and start the pipeline",
+        "tags": ["media"]
       }
     },
     "/admin/dlq": {
@@ -3941,9 +6204,7 @@
           }
         ],
         "summary": "List dead-lettered jobs, newest first",
-        "tags": [
-          "admin"
-        ]
+        "tags": ["admin"]
       }
     },
     "/admin/dlq/stats": {
@@ -3975,9 +6236,7 @@
           }
         ],
         "summary": "Per-queue dead-letter counts",
-        "tags": [
-          "admin"
-        ]
+        "tags": ["admin"]
       }
     },
     "/admin/dlq/replay": {
@@ -4019,9 +6278,7 @@
           }
         ],
         "summary": "Replay many dead letters",
-        "tags": [
-          "admin"
-        ]
+        "tags": ["admin"]
       }
     },
     "/admin/dlq/discard": {
@@ -4063,9 +6320,7 @@
           }
         ],
         "summary": "Discard many dead letters",
-        "tags": [
-          "admin"
-        ]
+        "tags": ["admin"]
       }
     },
     "/admin/dlq/{id}": {
@@ -4108,9 +6363,7 @@
           }
         ],
         "summary": "One dead letter, by entry id or by job id",
-        "tags": [
-          "admin"
-        ]
+        "tags": ["admin"]
       }
     },
     "/admin/dlq/{id}/replay": {
@@ -4157,9 +6410,7 @@
           }
         ],
         "summary": "Replay one dead letter",
-        "tags": [
-          "admin"
-        ]
+        "tags": ["admin"]
       }
     },
     "/admin/dlq/{id}/discard": {
@@ -4216,9 +6467,7 @@
           }
         ],
         "summary": "Discard one dead letter",
-        "tags": [
-          "admin"
-        ]
+        "tags": ["admin"]
       }
     },
     "/admin/parental-waitlist": {
@@ -4256,18 +6505,11 @@
                           },
                           "jurisdiction": {
                             "type": "string",
-                            "enum": [
-                              "IN",
-                              "EU",
-                              "OTHER"
-                            ]
+                            "enum": ["IN", "EU", "OTHER"]
                           },
                           "ageBracket": {
                             "type": "string",
-                            "enum": [
-                              "adult",
-                              "minor"
-                            ]
+                            "enum": ["adult", "minor"]
                           },
                           "createdAt": {
                             "type": "string"
@@ -4277,22 +6519,11 @@
                             "type": "string"
                           }
                         },
-                        "required": [
-                          "id",
-                          "emailHash",
-                          "jurisdiction",
-                          "ageBracket",
-                          "createdAt",
-                          "notifiedAt"
-                        ]
+                        "required": ["id", "emailHash", "jurisdiction", "ageBracket", "createdAt", "notifiedAt"]
                       }
                     }
                   },
-                  "required": [
-                    "total",
-                    "nextCursor",
-                    "items"
-                  ]
+                  "required": ["total", "nextCursor", "items"]
                 }
               }
             }
@@ -4310,9 +6541,7 @@
           }
         ],
         "summary": "The parental-consent waiting list, oldest first",
-        "tags": [
-          "admin"
-        ]
+        "tags": ["admin"]
       }
     },
     "/health": {
@@ -4332,9 +6561,7 @@
           }
         },
         "summary": "Liveness probe",
-        "tags": [
-          "health"
-        ]
+        "tags": ["health"]
       }
     },
     "/health/ready": {
@@ -4364,9 +6591,7 @@
           }
         },
         "summary": "Readiness probe (db, redis, storage)",
-        "tags": [
-          "health"
-        ]
+        "tags": ["health"]
       }
     }
   },
@@ -4422,13 +6647,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "queued",
-              "running",
-              "succeeded",
-              "failed",
-              "cancelled"
-            ]
+            "enum": ["queued", "running", "succeeded", "failed", "cancelled"]
           },
           "priority": {
             "type": "number",
@@ -4498,16 +6717,7 @@
             "format": "date-time"
           }
         },
-        "required": [
-          "id",
-          "type",
-          "status",
-          "priority",
-          "progress",
-          "jobKey",
-          "creditsChargedTenths",
-          "queuedAt"
-        ]
+        "required": ["id", "type", "status", "priority", "progress", "jobKey", "creditsChargedTenths", "queuedAt"]
       },
       "JobPageDto": {
         "type": "object",
@@ -4524,9 +6734,7 @@
             "description": "Pass as `cursor` for the next page."
           }
         },
-        "required": [
-          "items"
-        ]
+        "required": ["items"]
       },
       "JobEventDto": {
         "type": "object",
@@ -4540,12 +6748,7 @@
           },
           "level": {
             "type": "string",
-            "enum": [
-              "debug",
-              "info",
-              "warn",
-              "error"
-            ]
+            "enum": ["debug", "info", "warn", "error"]
           },
           "message": {
             "type": "string"
@@ -4555,12 +6758,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "id",
-          "at",
-          "level",
-          "message"
-        ]
+        "required": ["id", "at", "level", "message"]
       },
       "JobEventPageDto": {
         "type": "object",
@@ -4576,9 +6774,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "items"
-        ]
+        "required": ["items"]
       },
       "DlqEntryDto": {
         "type": "object",
@@ -4653,11 +6849,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "pending",
-              "replayed",
-              "discarded"
-            ]
+            "enum": ["pending", "replayed", "discarded"]
           },
           "resolvedBy": {
             "type": "object",
@@ -4701,9 +6893,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "items"
-        ]
+        "required": ["items"]
       },
       "DlqQueueStatsDto": {
         "type": "object",
@@ -4751,13 +6941,7 @@
             "description": "Distinct error codes among the pending rows."
           }
         },
-        "required": [
-          "queue",
-          "pending",
-          "replayed",
-          "discarded",
-          "distinctErrors"
-        ]
+        "required": ["queue", "pending", "replayed", "discarded", "distinctErrors"]
       },
       "DlqStatsDto": {
         "type": "object",
@@ -4773,10 +6957,7 @@
             "description": "Pending entries across every queue."
           }
         },
-        "required": [
-          "queues",
-          "pending"
-        ]
+        "required": ["queues", "pending"]
       },
       "BulkReplayDlqDto": {
         "type": "object",
@@ -4796,24 +6977,13 @@
           },
           "outcome": {
             "type": "string",
-            "enum": [
-              "replayed",
-              "discarded",
-              "would_replay",
-              "would_discard",
-              "failed"
-            ]
+            "enum": ["replayed", "discarded", "would_replay", "would_discard", "failed"]
           },
           "error": {
             "type": "string"
           }
         },
-        "required": [
-          "entryId",
-          "jobId",
-          "queue",
-          "outcome"
-        ]
+        "required": ["entryId", "jobId", "queue", "outcome"]
       },
       "BulkOutcomeDto": {
         "type": "object",
@@ -4842,14 +7012,7 @@
             }
           }
         },
-        "required": [
-          "selected",
-          "replayed",
-          "discarded",
-          "failed",
-          "dryRun",
-          "entries"
-        ]
+        "required": ["selected", "replayed", "discarded", "failed", "dryRun", "entries"]
       },
       "BulkDiscardDlqDto": {
         "type": "object",
@@ -4892,13 +7055,7 @@
             ]
           }
         },
-        "required": [
-          "entryId",
-          "jobId",
-          "attemptId",
-          "attemptNo",
-          "queue"
-        ]
+        "required": ["entryId", "jobId", "attemptId", "attemptNo", "queue"]
       },
       "DiscardDlqDto": {
         "type": "object",
@@ -4940,13 +7097,7 @@
             "description": "Whether a credit hold was actually released."
           }
         },
-        "required": [
-          "entryId",
-          "jobId",
-          "queue",
-          "reason",
-          "holdReleased"
-        ]
+        "required": ["entryId", "jobId", "queue", "reason", "holdReleased"]
       },
       "HealthResponseDto": {
         "type": "object",
@@ -4954,9 +7105,7 @@
           "status": {
             "type": "string",
             "example": "ok",
-            "enum": [
-              "ok"
-            ]
+            "enum": ["ok"]
           },
           "version": {
             "type": "string",
@@ -4964,20 +7113,14 @@
             "description": "Deployed API version."
           }
         },
-        "required": [
-          "status",
-          "version"
-        ]
+        "required": ["status", "version"]
       },
       "DependencyCheckDto": {
         "type": "object",
         "properties": {
           "status": {
             "type": "string",
-            "enum": [
-              "up",
-              "down"
-            ]
+            "enum": ["up", "down"]
           },
           "latencyMs": {
             "type": "number",
@@ -4989,10 +7132,7 @@
             "description": "Present only when the check failed."
           }
         },
-        "required": [
-          "status",
-          "latencyMs"
-        ]
+        "required": ["status", "latencyMs"]
       },
       "ReadinessChecksDto": {
         "type": "object",
@@ -5007,21 +7147,14 @@
             "$ref": "#/components/schemas/DependencyCheckDto"
           }
         },
-        "required": [
-          "db",
-          "redis",
-          "storage"
-        ]
+        "required": ["db", "redis", "storage"]
       },
       "ReadinessResponseDto": {
         "type": "object",
         "properties": {
           "status": {
             "type": "string",
-            "enum": [
-              "ok",
-              "degraded"
-            ]
+            "enum": ["ok", "degraded"]
           },
           "version": {
             "type": "string",
@@ -5031,11 +7164,7 @@
             "$ref": "#/components/schemas/ReadinessChecksDto"
           }
         },
-        "required": [
-          "status",
-          "version",
-          "checks"
-        ]
+        "required": ["status", "version", "checks"]
       }
     }
   }

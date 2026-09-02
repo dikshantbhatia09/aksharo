@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiConflictResponse,
@@ -19,9 +19,7 @@ import {
   toJobEventDto,
 } from "./jobs.dto.js";
 import { JobsService } from "./jobs.service.js";
-import { AccessTokenGuard, principalOf } from "../realtime/auth/access-token.guard.js";
-
-import type { AuthenticatedRequest } from "../realtime/auth/access-token.guard.js";
+import { CurrentWorkspace, JwtAuthGuard, Roles, RolesGuard } from "../common/guards/index.js";
 
 /**
  * The public jobs API.
@@ -34,16 +32,23 @@ import type { AuthenticatedRequest } from "../realtime/auth/access-token.guard.j
  * Every route is scoped to the caller's workspace from the token's `ws` claim
  * (THREAT-MODEL T4, T5): a job id from another workspace is a 404, not a 403, so
  * the endpoint cannot be used to test whether an id exists.
+ *
+ * A08 shipped this behind an interim access-token guard, because A04's real one
+ * did not exist yet. A06 finished the migration: `JwtAuthGuard` verifies the
+ * token, `@CurrentWorkspace()` reads the claim, `RolesGuard` judges the role, and
+ * the interim guard is deleted. Reading a job is `viewer`; cancelling one throws
+ * away work somebody else may be waiting on, so it is `editor`.
  */
 @ApiTags("jobs")
 @ApiBearerAuth("access-token")
 @ApiUnauthorizedResponse({ description: "Missing or invalid access token." })
-@UseGuards(AccessTokenGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller("jobs")
 export class JobsController {
   constructor(private readonly jobs: JobsService) {}
 
   @Get()
+  @Roles("viewer")
   @ApiOperation({
     summary: "List the workspace's jobs, newest first",
     description:
@@ -53,24 +58,24 @@ export class JobsController {
   })
   @ApiOkResponse({ type: JobPageDto })
   async list(
-    @Req() request: AuthenticatedRequest,
+    @CurrentWorkspace() workspaceId: string,
     @Query() query: ListJobsQueryDto,
   ): Promise<JobPageDto> {
-    const principal = principalOf(request);
-    const page = await this.jobs.list({ workspaceId: principal.ws, ...query });
+    const page = await this.jobs.list({ workspaceId, ...query });
     return { items: page.items.map(toJobDto), nextCursor: page.nextCursor };
   }
 
   @Get(":id")
+  @Roles("viewer")
   @ApiOperation({ summary: "Fetch one job", operationId: "getJob" })
   @ApiOkResponse({ type: JobDto })
   @ApiNotFoundResponse({ description: "`jobs/not_found`." })
-  async get(@Req() request: AuthenticatedRequest, @Param("id") id: string): Promise<JobDto> {
-    const principal = principalOf(request);
-    return toJobDto(await this.jobs.get(id, principal.ws));
+  async get(@CurrentWorkspace() workspaceId: string, @Param("id") id: string): Promise<JobDto> {
+    return toJobDto(await this.jobs.get(id, workspaceId));
   }
 
   @Get(":id/events")
+  @Roles("viewer")
   @ApiOperation({
     summary: "The job's event log, oldest first",
     description: "Rows are purged 30 days after they are written (`data.retainUntil`).",
@@ -79,12 +84,11 @@ export class JobsController {
   @ApiOkResponse({ type: JobEventPageDto })
   @ApiNotFoundResponse({ description: "`jobs/not_found`." })
   async events(
-    @Req() request: AuthenticatedRequest,
+    @CurrentWorkspace() workspaceId: string,
     @Param("id") id: string,
     @Query() query: ListEventsQueryDto,
   ): Promise<JobEventPageDto> {
-    const principal = principalOf(request);
-    const page = await this.jobs.listEvents(id, principal.ws, query);
+    const page = await this.jobs.listEvents(id, workspaceId, query);
     return {
       items: page.items.map(toJobEventDto),
       nextCursor: page.nextCursor,
@@ -92,6 +96,7 @@ export class JobsController {
   }
 
   @Post(":id/cancel")
+  @Roles("editor")
   @ApiOperation({
     summary: "Cancel a queued or running job",
     description: "Releases the credit hold. A finished job is `jobs/invalid_state` (409).",
@@ -100,8 +105,7 @@ export class JobsController {
   @ApiOkResponse({ type: JobDto })
   @ApiNotFoundResponse({ description: "`jobs/not_found`." })
   @ApiConflictResponse({ description: "`jobs/invalid_state`." })
-  async cancel(@Req() request: AuthenticatedRequest, @Param("id") id: string): Promise<JobDto> {
-    const principal = principalOf(request);
-    return toJobDto(await this.jobs.cancel(id, principal.ws));
+  async cancel(@CurrentWorkspace() workspaceId: string, @Param("id") id: string): Promise<JobDto> {
+    return toJobDto(await this.jobs.cancel(id, workspaceId));
   }
 }

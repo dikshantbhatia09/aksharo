@@ -10,6 +10,51 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A06 — api: projects, folders, media ingest, derived URLs, subtitle import and
+  retention.**
+  - `apps/api/src/common/storage/`: an `ObjectStore` port with two instances —
+    `RAW_STORE` (`S3_BUCKET_RAW`, AWS S3 `ap-south-1` in production) and
+    `DERIVED_STORE` (`R2_BUCKET_DERIVED`, Cloudflare R2), both MinIO locally.
+    Presigned multipart PUT, presigned GET with a five-minute TTL, HEAD, delete
+    and object tagging over the AWS SDK v3. `storage.keys.ts` is the TypeScript
+    twin of `apps/worker-ai/worker_ai/storage.py` and refuses to build a
+    CONTRACTS section 6 key from anything that is not a ULID (THREAT-MODEL T5).
+  - **The bytes never pass through the API.** `POST /projects/{id}/media/init`
+    checks the plan cap and returns one presigned URL per 16 MiB part;
+    `POST /media/{mediaId}/complete` closes the multipart upload, records the
+    store's own byte count, sets `raw_purge_at` (upload + 7 days) and
+    `derived_purge_at` (the plan's retention), and enqueues `media.probe` then
+    `media.proxy`. Both are deduplicated on `jobKey`, so a retried completion
+    returns the same two job ids rather than four jobs.
+  - `POST /projects/{id}/media/{mediaId}/replace` puts new bytes on the **same**
+    media row — transcripts, the EDG document and exports all reference that id —
+    clears everything that described the old bytes and sets `needs_realign`.
+  - `GET /projects/{id}/media/{mediaId}/urls` signs only the derived artefacts
+    that exist, so the response doubles as "what is ready".
+  - `POST /projects/{id}/import` and `/import-url` parse SRT, WebVTT, ASS and
+    plain text into one normalised cue list (BOM and CRLF handled, ASS override
+    tags stripped, Devanagari untouched), store it as a JSON sidecar under the
+    media prefix as a `media_assets` row with role `subtitle`, and enqueue
+    `ai.align`. Plain text is marked untimed, which is the signal alignment needs.
+  - `apps/api/src/common/net/safe-fetch.ts`: the egress-restricted client of
+    THREAT-MODEL **T6** — http(s) on ports 80/443 only, every resolved address
+    judged against a deny list (RFC1918, loopback, link-local including
+    `169.254.169.254`, CGNAT, IPv6 ULA, multicast, IPv4-mapped and NAT64), the
+    vetted address **pinned** for the connection, three redirects, 2 MB and ten
+    seconds. A refusal reaches the caller as `import/blocked_url` with no detail.
+  - `RetentionService.purgeDueMedia()` (D47): two independent clocks, raw at seven
+    days and derived at the plan's retention. The object is deleted before the row
+    is marked, so a crash leaves a retryable sweep rather than stranded storage.
+    It registers no schedule — B16 owns that wiring.
+  - `POST /projects/batch` creates up to 50 projects in one transaction; folders
+    are a real table with cycle and depth checks and an "empty before delete" rule.
+  - Every `/projects`, `/folders` and `/media` route wears `JwtAuthGuard`,
+    `WorkspaceMemberGuard` and `RolesGuard`. Another tenant's id is a **404**, never
+    a 403 (T5).
+  - Media types are an allow-list (T7): `application/octet-stream` is accepted only
+    when the filename's extension is one we know, and the extension that reaches a
+    key is chosen from the same lists, never from the filename directly.
+
 - **A09 — worker-ai: the BullMQ Python worker, provider interface, VAD and
   chunking, alignment and diarisation registries, evals.**
   - `apps/worker-ai/worker_ai/runtime.py`: one `bullmq.Worker` per `ai.*` queue.
@@ -37,7 +82,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     CI and the property tests run on.
   - `worker_ai/providers/`: the `Provider` interface with a capability record, a
     cost estimate and a `ProviderSubmission` trail, plus a registry that reports
-    *why* an adapter is disabled. `MockProvider` (deterministic, Hinglish sample),
+    _why_ an adapter is disabled. `MockProvider` (deterministic, Hinglish sample),
     `LocalWhisperProvider` (faster-whisper, optional `local-asr` extra) and
     `ServerlessWhisperProvider` (the D15 per-second GPU endpoint) ship; ElevenLabs
     Scribe v2, Sarvam Saaras v4 and AssemblyAI are shells carrying their
@@ -547,6 +592,25 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Changed
 
+- **A06 — `WorkspaceMemberGuard` now guards routes with no workspace id in the
+  path.** On a `/workspaces/:id` route both of its rules are unchanged; on a route
+  without an `:id` — every `/projects/*` route — there is nothing to compare, so it
+  performs only its second check (an active membership still exists, and the
+  principal's role is re-read from the database). It previously returned `true`
+  there, which was correct while only `/workspaces/:id` wore it and would have been
+  a silent hole the moment another controller did.
+- **A06 — `/jobs` moved onto A04's `JwtAuthGuard` and the interim access-token
+  guard is deleted.** `JobsController` now uses `JwtAuthGuard`,
+  `@CurrentWorkspace()` and `RolesGuard` (reads are `viewer`, cancel is `editor`),
+  and `src/realtime/auth/access-token.guard.ts` is gone. `AccessTokenService`
+  stays: a WebSocket handshake is not a Nest route, and the gateway has to verify
+  the token itself. A04's verifier pins the `iss` claim to `API_ORIGIN`, which the
+  interim guard did not check, so A08's e2e suite mints tokens with it.
+- **A06 — schema.** New `folders` table, `projects.folder_id` converted to a real
+  foreign key, `media_assets` gains `filename`, `upload_id`, `part_size_bytes`,
+  `needs_realign`, `thumb_keys`, `raw_purged_at` and `derived_purged_at`, and
+  `MediaRole` gains `subtitle`
+  (`prisma/migrations/20260902050000_a06_folders_media_upload`).
 - **A02b** — `OpRejectionReasonSchema` gained `invalid-range`, `not-contiguous`,
   `invariant`, `rebased-away` and `stale-after-resegment`. The reason list is a
   closed enum that the ops engine was always meant to extend rather than send free
