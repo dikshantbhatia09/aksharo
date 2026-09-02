@@ -80,7 +80,7 @@ Sub-wave order: {A10, A11, A12, A13, A16, A18b, A20, A25, A26} → {A14, A15, A2
 | B01 | api billing core: `BillingProvider`, Razorpay subscriptions/orders, mandate cap + ₹15,000 UPI rule, half-yearly Studio, idempotent webhooks, dunning primitives | A03, A08 | done |
 | B02 | api credits: lots, atomic conditional reserve, holds/settle/release/reversal, grants/expiry, entitlements engine, real `CreditsFacade`, concurrency property test | A03, A08 | done |
 | B03 | web Subscription pages (overview, plans, methods/mandates, invoices, usage), checkout sheet with tax-profile step, `UpgradeGate` | B01, B02, B05, A13 | in-progress |
-| B04 | Offers: signup-gift export, ₹9 clean export, ₹59 week pass, pay-once, ₹149 Free top-up; export-dialog upsell | B01, B02, A21 | in-progress |
+| B04 | Offers: signup-gift export, ₹9 clean export, ₹59 week pass, pay-once, ₹149 Free top-up; export-dialog upsell | B01, B02, A21 | done |
 | B05 | api invoices (Rule 46, series, credit notes, export under LUT, PDF + signature, IRN hook) + tax engine + FIRC records | B01 | done |
 | B06 | Streak experiment engine (holdout flag, freezes, pause-not-reset, rewards) + widget | B01, B02, A21 | briefed |
 | B07 | Affiliate v2: apply with PAN, 60-day cookie + code attribution, rate tiers, TDS accumulator, RazorpayX payouts, dashboard | B01, B02, B05 | in-progress |
