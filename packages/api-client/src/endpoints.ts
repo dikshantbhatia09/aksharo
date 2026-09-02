@@ -60,6 +60,9 @@ import type {
   PlanCatalogueEntry,
   Project,
   ProjectPage,
+  RecordSpellingFixRequest,
+  RecordStylePrefRequest,
+  RecordTimingNudgeRequest,
   ReferralStats,
   RenameDeviceRequest,
   RightsRequest,
@@ -698,6 +701,25 @@ export const memoryEndpoints = {
     path: "/memory/import",
     auth: "bearer",
     operationId: "importMemoryGlossary",
+  }),
+  // --- Learning hooks (B09b) ------------------------------------------------
+  recordSpellingFix: defineEndpoint<RecordSpellingFixRequest, MemoryEntry | undefined>({
+    method: "POST",
+    path: "/memory/hooks/spelling-fix",
+    auth: "bearer",
+    operationId: "recordSpellingFixMemory",
+  }),
+  recordTimingNudge: defineEndpoint<RecordTimingNudgeRequest, MemoryEntry>({
+    method: "POST",
+    path: "/memory/hooks/timing-nudge",
+    auth: "bearer",
+    operationId: "recordTimingNudgeMemory",
+  }),
+  recordStylePref: defineEndpoint<RecordStylePrefRequest, MemoryEntry>({
+    method: "POST",
+    path: "/memory/hooks/style-pref",
+    auth: "bearer",
+    operationId: "recordStylePrefMemory",
   }),
 } as const;
 

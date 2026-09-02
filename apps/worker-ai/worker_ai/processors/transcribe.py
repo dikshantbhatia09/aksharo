@@ -56,6 +56,7 @@ from worker_ai.chunking import ChunkPlanEntry, plan_chunks
 from worker_ai.diarisation.base import DiarisationUnavailableError
 from worker_ai.diarisation.mapping import assign_speakers, speaker_ids
 from worker_ai.diarisation.pyannote import PYANNOTE_ATTRIBUTION, PyannoteCommunityDiariser
+from worker_ai.hints import prepare_hints
 from worker_ai.languages import base_tag, is_code_mix_tag
 from worker_ai.lid import (
     IndicLidClassifier,
@@ -652,10 +653,18 @@ def _needs_cutting(entry: ChunkPlanEntry, audio: MediaAudio) -> bool:
 
 
 def _hints(context: JobContext) -> tuple[str, ...]:
-    """Glossary terms from the payload; B09 supplies them for real (`09 §3`)."""
+    """Glossary terms from the payload, shaped by `prepare_hints()` (B09/B09b, `09 §3`).
+
+    The API assembles `params.hints` at enqueue from request-time hints plus the
+    workspace's consented `memory_entries` glossary/spelling terms
+    (`transcripts.service.ts::buildHints`), capped at 200 there. This is the one
+    shared dedupe/trim/cap step every provider adapter needs done before it shapes
+    its own vocabulary parameter (`word_boost`, `vocabulary`, `keyterms`,
+    `initial_prompt`) — see `worker_ai/hints/glossary.py`.
+    """
     raw = context.envelope.payload.get("hints")
     if isinstance(raw, list):
-        return tuple(str(item) for item in raw if str(item).strip())
+        return prepare_hints(str(item) for item in raw if str(item).strip())
     return ()
 
 

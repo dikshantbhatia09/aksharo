@@ -53,6 +53,7 @@ import {
   type TimeDisplayMode,
 } from "@/lib/timeline/output-clock";
 import { resolveSegmentDrag, resolveWordEdgeDrag, type Neighbour } from "@/lib/timeline/snapping";
+import { useMemoryNudgeSink } from "@/lib/timeline/use-memory-nudge-sink";
 import { reduceWaveform, type WaveformLike } from "@/lib/timeline/waveform-view";
 import { cn } from "@/lib/utils";
 
@@ -154,6 +155,14 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     nudgeSink = noopNudgeSink,
     className,
   } = props;
+
+  // B09b: the real sink (`memory-nudge-sink.ts`, consent-gated) is the
+  // effective default. A caller passing its own `nudgeSink` (a test double,
+  // or a future override) still wins — only the shared `noopNudgeSink`
+  // singleton is replaced, by identity, never a sink that merely behaves
+  // like it.
+  const memoryNudgeSink = useMemoryNudgeSink();
+  const resolvedNudgeSink = nudgeSink === noopNudgeSink ? memoryNudgeSink : nudgeSink;
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -632,7 +641,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                 ? { endWordId: endWord.wid }
                 : {}),
             });
-            nudgeSink.record(segmentEdgeNudge(drag.edge, segment.id, fromMs, toMs));
+            resolvedNudgeSink.record(segmentEdgeNudge(drag.edge, segment.id, fromMs, toMs));
           }
         }
       }
@@ -645,7 +654,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
           const toMs = drag.edge === "start" ? resolved.startMs : resolved.endMs;
           if (fromMs !== toMs) {
             onSetWordTiming({ wordId: word.wid, s: resolved.startMs, e: resolved.endMs });
-            nudgeSink.record(wordEdgeNudge(drag.edge, word.wid, fromMs, toMs));
+            resolvedNudgeSink.record(wordEdgeNudge(drag.edge, word.wid, fromMs, toMs));
           }
         }
       }
@@ -654,7 +663,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       dragPreviewRef.current = undefined;
       forceRedraw((n) => n + 1);
     },
-    [segments, wordBoundariesOf, liveWords, onSetSegmentBounds, onSetWordTiming, nudgeSink],
+    [segments, wordBoundariesOf, liveWords, onSetSegmentBounds, onSetWordTiming, resolvedNudgeSink],
   );
 
   const onDoubleClick = useCallback(
@@ -744,7 +753,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         const toMs = edge === "start" ? resolved.startMs : resolved.endMs;
         if (toMs !== current) {
           onSetWordTiming({ wordId: word.wid, s: resolved.startMs, e: resolved.endMs });
-          nudgeSink.record(wordEdgeNudge(edge, word.wid, current, toMs));
+          resolvedNudgeSink.record(wordEdgeNudge(edge, word.wid, current, toMs));
         }
         return;
       }
@@ -776,7 +785,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
             startMs: resolved.startMs,
             endMs: resolved.endMs,
           });
-          nudgeSink.record(segmentEdgeNudge(edge, segment.id, current, toMs));
+          resolvedNudgeSink.record(segmentEdgeNudge(edge, segment.id, current, toMs));
         }
         return;
       }
@@ -796,7 +805,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       wordNeighbours,
       onSetSegmentBounds,
       onSetWordTiming,
-      nudgeSink,
+      resolvedNudgeSink,
     ],
   );
 

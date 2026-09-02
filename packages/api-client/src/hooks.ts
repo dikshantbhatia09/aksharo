@@ -59,6 +59,9 @@ import type {
   PendingApproval,
   Project,
   ProjectPage,
+  RecordSpellingFixRequest,
+  RecordStylePrefRequest,
+  RecordTimingNudgeRequest,
   ReferralStats,
   RightsRequest,
   SessionSummary,
@@ -310,6 +313,64 @@ export function useImportMemoryGlossary(): UseMutationResult<
   return useMutation({
     mutationFn: (body: ImportGlossaryRequest) =>
       client.call(endpoints.memory.importGlossary, { body }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
+  });
+}
+
+// --- Learning hooks (B09b) --------------------------------------------------
+
+/**
+ * A15's "Fix spelling everywhere" → `POST /memory/hooks/spelling-fix`. The
+ * caller is responsible for the consent gate (`readPrivacy().memory`) and for
+ * calling this only after the correction's own op batch has been
+ * acknowledged (`editor-client.tsx`) — a memory write is a side effect of a
+ * successful edit, never a precondition for one.
+ */
+export function useRecordSpellingFixMemory(): UseMutationResult<
+  MemoryEntry | undefined,
+  Error,
+  RecordSpellingFixRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RecordSpellingFixRequest) =>
+      client.call(endpoints.memory.recordSpellingFix, { body }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
+  });
+}
+
+/**
+ * A17/A02d's timing-nudge sink → `POST /memory/hooks/timing-nudge`. Callers
+ * debounce per drag and are consent-gated the same way
+ * (`useRecordSpellingFixMemory`'s doc-comment); this hook itself fires
+ * unconditionally, exactly once per `mutate()` call.
+ */
+export function useRecordTimingNudgeMemory(): UseMutationResult<
+  MemoryEntry,
+  Error,
+  RecordTimingNudgeRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RecordTimingNudgeRequest) =>
+      client.call(endpoints.memory.recordTimingNudge, { body }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
+  });
+}
+
+/** Last style/template used per aspect ratio → `POST /memory/hooks/style-pref`. */
+export function useRecordStylePrefMemory(): UseMutationResult<
+  MemoryEntry,
+  Error,
+  RecordStylePrefRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RecordStylePrefRequest) =>
+      client.call(endpoints.memory.recordStylePref, { body }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
   });
 }

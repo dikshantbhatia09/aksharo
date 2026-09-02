@@ -392,6 +392,49 @@ export class MemoryService {
     });
   }
 
+  /**
+   * Consent-gated glossary/spelling terms for transcription hints (brief §2,
+   * `transcripts.service.ts`'s enqueue). Unlike the mutating calls this never
+   * throws on a missing grant — it is read on every enqueue, and "no consent"
+   * simply means "no memory hints", the same silence `MemoryGlossarySource`
+   * (`transcripts/postprocess/glossary.source.ts`) answers with for reading.
+   * Terms are the canonical/correct text (`value.value`), most recently
+   * created first, deduplicated, unexpired only.
+   */
+  async glossaryTermsFor(workspaceId: string, userId: string): Promise<readonly string[]> {
+    const consent = await this.prisma.consentRecord.findFirst({
+      where: { userId, purpose: "memory", granted: true, withdrawnAt: null },
+      orderBy: { grantedAt: "desc" },
+      select: { id: true },
+    });
+    if (consent === null) return [];
+
+    const rows = await this.prisma.memoryEntry.findMany({
+      where: {
+        workspaceId,
+        kind: { in: ["glossary", "spelling"] },
+        expiresAt: { gt: new Date() },
+        consent: { purpose: "memory", granted: true, withdrawnAt: null },
+      },
+      select: { value: true },
+      orderBy: { createdAt: "desc" },
+      take: MAX_MEMORY_ENTRIES_PER_KIND,
+    });
+
+    const seen = new Set<string>();
+    const terms: string[] = [];
+    for (const row of rows) {
+      const parsed = readValue(row.value);
+      const term = typeof parsed.value === "string" ? parsed.value.trim() : "";
+      if (term === "") continue;
+      const key = term.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      terms.push(term);
+    }
+    return terms;
+  }
+
   /** Usage-counter refresh: `hits += 1`, `lastUsedAt = now`, TTL rolled forward. */
   async touch(id: string): Promise<void> {
     const row = await this.prisma.memoryEntry.findUnique({ where: { id } });

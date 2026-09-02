@@ -270,6 +270,27 @@ export interface ImportGlossaryResult {
   skipped: number;
 }
 
+// --- Memory learning hooks (B09/B09b) ---------------------------------------
+
+/** A15's "Fix spelling everywhere" → `POST /memory/hooks/spelling-fix`. */
+export interface RecordSpellingFixRequest {
+  wrong: string;
+  right: string;
+  script?: string;
+}
+
+/** A17/A02d's timing-nudge sink → `POST /memory/hooks/timing-nudge`. */
+export interface RecordTimingNudgeRequest {
+  /** Signed drag delta, ms. */
+  deltaMs: number;
+}
+
+/** Last style/template used per aspect ratio → `POST /memory/hooks/style-pref`. */
+export interface RecordStylePrefRequest {
+  aspect: string;
+  styleId: string;
+}
+
 // --- Projects, folders and media (A06, A14) ---------------------------------
 
 export type ProjectAspect = "9:16" | "16:9" | "1:1" | "4:5";
