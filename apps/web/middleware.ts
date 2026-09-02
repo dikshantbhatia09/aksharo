@@ -14,8 +14,14 @@ import type { NextRequest } from "next/server";
 
 const SESSION_COOKIE = "aksharo_rt";
 
-/** Everything behind a session. `/device` approves a sign-in, so it counts. */
-const PROTECTED = ["/studio", "/settings", "/onboarding", "/device"];
+/**
+ * Everything behind a session. `/device` approves a sign-in, so it counts.
+ * `/p` (A15's editor route, 08 §4) joined it so an unauthenticated request
+ * redirects before any HTML ships, matching every other route the shell
+ * protects — `AppShell` already refuses it client-side, but that alone flashes
+ * the shell first.
+ */
+const PROTECTED = ["/studio", "/settings", "/onboarding", "/device", "/p"];
 
 /** Signed-in users have no business on these. */
 const AUTH_ONLY = ["/login", "/signup", "/magic"];
@@ -53,6 +59,7 @@ export const config = {
     "/settings/:path*",
     "/onboarding/:path*",
     "/device",
+    "/p/:path*",
     "/login",
     "/signup",
     "/magic",

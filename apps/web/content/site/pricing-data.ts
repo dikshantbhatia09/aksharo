@@ -2,23 +2,17 @@
  * The plan catalogue the marketing site renders (04-pricing-and-monetization.md
  * §Plans, §Offers, §Streak rewards).
  *
- * **Provenance, not invention.** Every number below is transcribed from
- * `apps/api/prisma/seed-data.ts` (`PLAN_SEEDS`, the table the API seeds into
- * Postgres — CONTRACTS §0 money shape: integer minor units, ISO currency) and
- * cross-checked against `03-architecture/04-pricing-and-monetization.md §Plans`.
- * Nothing here is a marketing-page guess.
- *
- * **Why this is a static file and not a live fetch.** `07-api-and-contracts.md`
- * §Billing documents a public `GET /billing/plans`, but no billing module exists
- * in `apps/api/src` yet (Billing is Wave 2, work packages B01–B03; only Wave 1
- * work packages — the `A*` ones — have shipped). A24's file boundary is
- * `apps/web/app/(site)/**`, `apps/web/content/site/**`, `apps/web/public/**` and
- * `CHANGELOG.md`: it does not extend to `apps/api` or `packages/api-client`, so
- * this WP cannot stand up the endpoint the brief assumes. `getPlanCatalogue()`
- * below is the seam: it is the only function the pricing page calls, its
- * signature already matches what a `@montaj/api-client` `getPlans()` would
- * return, and swapping the body for a fetch is a one-function change that
- * touches no page component. Reported as a deviation in the WP's final report.
+ * **Provenance.** The numbers below were originally transcribed from
+ * `apps/api/prisma/seed-data.ts` (`PLAN_SEEDS`) and cross-checked against
+ * `03-architecture/04-pricing-and-monetization.md §Plans` — that cross-check
+ * still matters, because this array is now the **fallback**, not the source of
+ * truth. B01 shipped `GET /billing/plans` (public); `content/site/pricing-live.ts`
+ * fetches it at request/ISR time through `@montaj/api-client` and falls back to
+ * `FALLBACK_PLAN_CATALOGUE` below only when the API is unreachable. The array
+ * still carries every plan's marketing copy (tagline, highlights, CTA label,
+ * `mostPopular`) — B01's catalogue has no notion of those — so a live fetch
+ * merges the API's numbers onto this array's copy by plan key rather than
+ * replacing it outright (see `mergeLivePlans` in `pricing-live.ts`).
  */
 
 export type Currency = "INR" | "USD";
@@ -47,7 +41,7 @@ export interface PlanCatalogueEntry {
 }
 
 /** Plans in ladder order — index doubles as the tier comparison (seed-data.ts). */
-export const PLAN_CATALOGUE: readonly PlanCatalogueEntry[] = [
+export const FALLBACK_PLAN_CATALOGUE: readonly PlanCatalogueEntry[] = [
   {
     key: "free",
     name: "Free",
@@ -146,7 +140,7 @@ export const PLAN_CATALOGUE: readonly PlanCatalogueEntry[] = [
 ];
 
 export function planByKey(key: PlanKey): PlanCatalogueEntry {
-  const plan = PLAN_CATALOGUE.find((entry) => entry.key === key);
+  const plan = FALLBACK_PLAN_CATALOGUE.find((entry) => entry.key === key);
   if (plan === undefined) throw new Error(`unknown plan key: ${key}`);
   return plan;
 }

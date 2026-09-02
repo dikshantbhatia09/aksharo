@@ -48,6 +48,7 @@ export {
   jobEndpoints,
   offersEndpoints,
   pendingEndpoints,
+  transcriptScriptsEndpoints,
 } from "./endpoints.js";
 
 export { decodeAccessToken, REFRESH_SKEW_MS, SessionStore } from "./session.js";
@@ -80,6 +81,7 @@ export type {
 export { CONSENT_PURPOSES } from "./types.js";
 export type {
   BillingInterval,
+  AvailableScripts,
   ClientKind,
   ConsentPurpose,
   ConsentRecord,
@@ -106,7 +108,9 @@ export type {
   PassView,
   PendingApproval,
   PlanKey,
+  PlanCatalogueEntry,
   RightsRequest,
+  ScriptAvailability,
   SessionSummary,
   SetConsentRequest,
   SignUpRequest,
@@ -115,6 +119,12 @@ export type {
   TokenResponse,
   TopupCheckoutRequest,
   TopupEligibilityView,
+  TranslateAccepted,
+  TranslateRequest,
+  TranslateTargetAccepted,
+  TranslationQuote,
+  TransliterateAccepted,
+  TransliterateRequest,
   UpdateMeRequest,
   UsageSummary,
   WeekPassEligibilityView,

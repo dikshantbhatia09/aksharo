@@ -274,6 +274,34 @@ class CallbackClient:
             f"/internal/jobs/{job_id}/complete", attempt_id, completion.to_wire()
         )
 
+    async def write_transcript_scripts(
+        self, transcript_id: str, attempt_id: str, payload: dict[str, Any]
+    ) -> CallbackAck:
+        """``POST /internal/transcripts/{id}/scripts`` — A22's ``ai.transliterate`` write.
+
+        A word-level write, not a job-completion one: `TransliterateCompletionHandler`
+        only settles credits and logs the job event, so this call carries the actual
+        `word.scripts` merge (A22's transcripts/scripts module) and happens *before*
+        the job is completed, exactly like a `media.probe` completion patches
+        `/internal/media/{id}` before it calls `complete`.
+        """
+        return await self._post(
+            f"/internal/transcripts/{transcript_id}/scripts", attempt_id, payload
+        )
+
+    async def apply_edg_ops(
+        self, project_id: str, attempt_id: str, payload: dict[str, Any]
+    ) -> CallbackAck:
+        """``POST /internal/projects/{id}/edg/ops`` — the worker's signed EDG write path.
+
+        A22's ``ai.translate`` submits a `SetSegmentText` batch here (`source:
+        "worker"` is implied by the signature, never sent on the wire — CONTRACTS
+        section 2, `apps/api/src/edg/edg-internal.controller.ts`). Any other queue
+        that ever needs `MergePass` or another worker-authored op batch calls the
+        same method.
+        """
+        return await self._post(f"/internal/projects/{project_id}/edg/ops", attempt_id, payload)
+
     async def _post(self, path: str, attempt_id: str, payload: dict[str, Any]) -> CallbackAck:
         body = encode_body(payload)
         url = f"{self._origin}{path}"

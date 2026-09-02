@@ -24,6 +24,8 @@ export const queryKeys = {
   credits: (workspaceId: string) => ["ws", workspaceId, "credits"] as const,
   offersEligibility: (workspaceId: string) => ["ws", workspaceId, "offers", "eligibility"] as const,
   offersPasses: (workspaceId: string) => ["ws", workspaceId, "offers", "passes"] as const,
+  transcriptScripts: (workspaceId: string, projectId: string) =>
+    ["ws", workspaceId, "projects", projectId, "transcript", "scripts"] as const,
 } as const;
 
 export type QueryKeys = typeof queryKeys;

@@ -9,7 +9,7 @@ import { CurrencyToggle, useCurrency } from "./currency-toggle";
 import { PlanCard } from "./plan-card";
 import { PlanMatrix } from "./plan-matrix";
 
-import { CREDITS_TO_OUTCOMES, OFFERS, PLAN_CATALOGUE } from "@/content/site/pricing-data";
+import { CREDITS_TO_OUTCOMES, OFFERS, type PlanCatalogueEntry } from "@/content/site/pricing-data";
 import { OUR_OBJECTIONS, PAUSE_OBJECTIONS, type FaqEntry } from "@/content/site/pricing-faq";
 
 /**
@@ -37,12 +37,18 @@ function FaqList({ entries }: { readonly entries: readonly FaqEntry[] }): React.
   );
 }
 
-export function PricingContent(): React.JSX.Element {
+export interface PricingContentProps {
+  readonly plans: readonly PlanCatalogueEntry[];
+  /** Whether `plans` came from the live API or the static fallback (content/site/pricing-live.ts). */
+  readonly source: "live" | "fallback";
+}
+
+export function PricingContent({ plans, source }: PricingContentProps): React.JSX.Element {
   const [currency, setCurrency] = useCurrency();
   const [interval, setInterval] = useState<"month" | "year">("month");
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+    <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6" data-plan-source={source}>
       <header className="mx-auto max-w-2xl text-center">
         <h1 className="font-display text-fg-0 text-4xl font-semibold tracking-tight sm:text-5xl">
           One credit pool. Every surface.
@@ -82,7 +88,7 @@ export function PricingContent(): React.JSX.Element {
       </div>
 
       <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {PLAN_CATALOGUE.map((plan) => (
+        {plans.map((plan) => (
           <PlanCard key={plan.key} plan={plan} currency={currency} interval={interval} />
         ))}
       </div>
@@ -222,7 +228,7 @@ export function PricingContent(): React.JSX.Element {
           Compare every plan
         </h2>
         <div className="mt-6">
-          <PlanMatrix />
+          <PlanMatrix plans={plans} />
         </div>
       </section>
 

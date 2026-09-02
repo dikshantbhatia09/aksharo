@@ -7,6 +7,7 @@ import {
   isExportFormat,
   liveWords,
   renderExport,
+  segmentSourceTexts,
   timecode,
   toCues,
   TRANSCRIPT_EXPORT_FORMATS,
@@ -164,5 +165,94 @@ describe("transcript exports", () => {
       chunks: { chunkIdx: number }[];
     };
     expect(parsed.chunks.map((chunk) => chunk.chunkIdx)).toEqual([0, 1]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A22: script-aware export (`?script=`)
+// ---------------------------------------------------------------------------
+
+const SCRIPTED_CHUNK: TranscriptChunk = {
+  chunkIdx: 0,
+  startMs: 0,
+  endMs: 3_000,
+  words: [
+    word(0, "yeh", 0, 400, { scripts: { native: "यह" } }),
+    word(1, "video", 400, 900, {}), // English, no transliteration variant
+    word(2, "acha", 900, 1_300, { scripts: { native: "अच्छा" } }),
+  ],
+};
+const SCRIPTED_SEGMENT: Segment[] = [
+  { id: "SEG1", seq: "V", startWordId: "0:0", endWordId: "0:2", startMs: 0, endMs: 1_300 },
+];
+const SCRIPTED_INPUT: ExportInput = {
+  transcriptId: "01JCTRANSCRIPT0000000000000",
+  revision: 1,
+  language: "hi",
+  chunks: [SCRIPTED_CHUNK],
+  segments: SCRIPTED_SEGMENT,
+};
+
+describe("A22: script-aware export", () => {
+  it("projects each word onto its script variant, falling back to `t`", () => {
+    const [cue] = toCues({ ...SCRIPTED_INPUT, script: "native" });
+    expect(cue?.text).toBe("यह video अच्छा");
+  });
+
+  it("with no script, keeps the pre-A22 default (primary text)", () => {
+    const [cue] = toCues(SCRIPTED_INPUT);
+    expect(cue?.text).toBe("yeh video acha");
+  });
+
+  it("a segment's own textOverrides[script] wins over the words", () => {
+    const overridden: ExportInput = {
+      ...SCRIPTED_INPUT,
+      segments: [{ ...SCRIPTED_SEGMENT[0]!, textOverrides: { native: "यह बहुत बढ़िया है" } }],
+    };
+    const [cue] = toCues({ ...overridden, script: "native" });
+    expect(cue?.text).toBe("यह बहुत बढ़िया है");
+  });
+
+  it("a `translated` override is read verbatim; words are never consulted for it", () => {
+    const withTranslation: ExportInput = {
+      ...SCRIPTED_INPUT,
+      segments: [{ ...SCRIPTED_SEGMENT[0]!, textOverrides: { translated: "this is very nice" } }],
+    };
+    const [cue] = toCues({ ...withTranslation, script: "translated" });
+    expect(cue?.text).toBe("this is very nice");
+  });
+
+  it("asking for `translated` with no override falls back to the primary words", () => {
+    const [cue] = toCues({ ...SCRIPTED_INPUT, script: "translated" });
+    expect(cue?.text).toBe("yeh video acha");
+  });
+
+  it("exports render in the requested script end to end (SRT)", () => {
+    const srt = renderExport("srt", { ...SCRIPTED_INPUT, script: "native" });
+    expect(srt).toContain("यह video अच्छा");
+  });
+
+  describe("segmentSourceTexts", () => {
+    it("returns the primary text per segment, ignoring every override", () => {
+      const withOverride: ExportInput = {
+        ...SCRIPTED_INPUT,
+        segments: [{ ...SCRIPTED_SEGMENT[0]!, textOverrides: { translated: "should be ignored" } }],
+      };
+      expect(segmentSourceTexts(withOverride)).toEqual([
+        { segmentId: "SEG1", text: "yeh video acha" },
+      ]);
+    });
+
+    it("skips a hidden segment", () => {
+      const hidden: ExportInput = {
+        ...SCRIPTED_INPUT,
+        segments: [{ ...SCRIPTED_SEGMENT[0]!, hidden: true }],
+      };
+      expect(segmentSourceTexts(hidden)).toEqual([]);
+    });
+
+    it("is empty for a transcript with no segments yet", () => {
+      expect(segmentSourceTexts({ ...SCRIPTED_INPUT, segments: [] })).toEqual([]);
+    });
   });
 });

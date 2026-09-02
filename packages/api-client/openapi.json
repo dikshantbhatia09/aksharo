@@ -7832,273 +7832,6 @@
         ]
       }
     },
-    "/admin/metrics/offers": {
-      "get": {
-        "description": "`04-pricing-and-monetization.md` §Offers; `12-redesign-decisions.md` D55.",
-        "operationId": "getOffersMetrics",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Purchase/upgrade counts, conversion rate, keep/replace verdict."
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "403": {
-            "description": "`common/forbidden` — the caller is not an administrator."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "₹9 clean-export hypothesis: purchases, upgrades within 60 days, recommendation",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/offers/eligibility": {
-      "get": {
-        "description": "Every amount is read from the same catalogue `/billing/passes/checkout` quotes from — the export dialog never hardcodes a price.",
-        "operationId": "getOffersEligibility",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Signup gift, ₹9 pass, week pass, top-up.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "signupGift": {
-                      "type": "object",
-                      "properties": {
-                        "available": {
-                          "type": "boolean"
-                        }
-                      },
-                      "required": [
-                        "available"
-                      ]
-                    },
-                    "ninePass": {
-                      "type": "object",
-                      "properties": {
-                        "available": {
-                          "type": "boolean"
-                        },
-                        "eligibleToBuy": {
-                          "type": "boolean"
-                        },
-                        "reason": {
-                          "nullable": true,
-                          "type": "string",
-                          "enum": [
-                            "currency_not_inr",
-                            "on_paid_plan",
-                            "purchased_within_30_days"
-                          ]
-                        },
-                        "nextEligibleAt": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "priceMinor": {
-                          "type": "number"
-                        },
-                        "currency": {
-                          "type": "string",
-                          "enum": [
-                            "INR",
-                            "USD"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "available",
-                        "eligibleToBuy",
-                        "reason",
-                        "nextEligibleAt",
-                        "priceMinor",
-                        "currency"
-                      ]
-                    },
-                    "weekPass": {
-                      "type": "object",
-                      "properties": {
-                        "active": {
-                          "type": "boolean"
-                        },
-                        "endsAt": {
-                          "nullable": true,
-                          "type": "string"
-                        },
-                        "priceMinor": {
-                          "type": "number"
-                        },
-                        "currency": {
-                          "type": "string",
-                          "enum": [
-                            "INR",
-                            "USD"
-                          ]
-                        },
-                        "creditsGrantedTenths": {
-                          "type": "number"
-                        },
-                        "days": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "active",
-                        "endsAt",
-                        "priceMinor",
-                        "currency",
-                        "creditsGrantedTenths",
-                        "days"
-                      ]
-                    },
-                    "topupFree149": {
-                      "type": "object",
-                      "properties": {
-                        "available": {
-                          "type": "boolean"
-                        },
-                        "priceMinor": {
-                          "type": "number"
-                        },
-                        "currency": {
-                          "type": "string",
-                          "enum": [
-                            "INR",
-                            "USD"
-                          ]
-                        },
-                        "credits": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "available",
-                        "priceMinor",
-                        "currency",
-                        "credits"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "signupGift",
-                    "ninePass",
-                    "weekPass",
-                    "topupFree149"
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "What this workspace may buy right now, and why not otherwise",
-        "tags": [
-          "offers"
-        ]
-      }
-    },
-    "/offers/passes": {
-      "get": {
-        "description": "Backs the Subscription overview's pass status chips (expiry, credits left).",
-        "operationId": "listOffersPasses",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Passes, newest first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "kind": {
-                        "type": "string",
-                        "enum": [
-                          "first_export",
-                          "week_pass",
-                          "pay_once",
-                          "topup"
-                        ]
-                      },
-                      "status": {
-                        "type": "string",
-                        "enum": [
-                          "pending_payment",
-                          "available",
-                          "active",
-                          "redeemed",
-                          "expired"
-                        ]
-                      },
-                      "startsAt": {
-                        "type": "string"
-                      },
-                      "endsAt": {
-                        "nullable": true,
-                        "type": "string"
-                      },
-                      "creditsGrantedTenths": {
-                        "type": "number"
-                      },
-                      "redeemedAt": {
-                        "nullable": true,
-                        "type": "string"
-                      },
-                      "createdAt": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "kind",
-                      "status",
-                      "startsAt",
-                      "endsAt",
-                      "creditsGrantedTenths",
-                      "redeemedAt",
-                      "createdAt"
-                    ]
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Every pass this workspace has bought, newest first",
-        "tags": [
-          "offers"
-        ]
-      }
-    },
     "/projects/{projectId}/edg": {
       "get": {
         "description": "The hot state is under 64 KB. Segments are paged — `nextCursor` continues at `/edg/segments` — because a long-form project has thousands and an editor opens on the first screenful.",
@@ -8745,6 +8478,158 @@
           }
         ],
         "summary": "Download the transcript",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript/transliterate": {
+      "post": {
+        "description": "Free (`04 §Credits`). Enqueues `ai.transliterate`, which writes per-word `scripts` variants — Hinglish stays Roman-first, English words are preserved — and never touches `t`, timings or a script the user has already edited via `textOverrides`.",
+        "operationId": "transliterateProjectTranscript",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransliterateRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransliterateAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Transliterate the transcript into a script",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript/translate": {
+      "post": {
+        "description": "0.5 credit per media minute per target language (`04 §Credits`); English on Starter+, every language on Creator+. One `ai.translate` job per target, each held and quoted on its own. The result lands as `textOverrides.translated` through the ordinary EDG op path, so it is revisioned and undoable, and a concurrent edit to the same segment's `translated` text comes back as a 409 the job reports as failed rather than a silent overwrite.",
+        "operationId": "translateProjectTranscript",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranslateRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslateAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`transcript/plan_required`."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Translate the transcript's captions",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript/scripts": {
+      "get": {
+        "description": "`roman` / `native` / `en` come from the words themselves; `translated` from the editing document's segment overrides. Each carries the job that produced it when one is known, for the editor's script tabs and the \"regenerate\" confirmation.",
+        "operationId": "getProjectTranscriptScripts",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableScriptsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Which scripts this transcript has, and where they came from",
         "tags": [
           "transcripts"
         ]
@@ -11548,75 +11433,168 @@
         ]
       }
     },
-    "/offers/dev/simulate-nine-pass-payment": {
-      "post": {
-        "operationId": "simulateNinePassPayment",
+    "/invoices": {
+      "get": {
+        "operationId": "InvoicesController_list",
         "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "passPurchaseId": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "passPurchaseId"
-                ]
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
-            "description": "The webhook outcome, same shape as `POST /billing/webhooks/razorpay`."
-          },
-          "403": {
-            "description": "`offers/dev_simulator_unavailable` — a live provider is wired."
-          },
-          "409": {
-            "description": "`offers/pass_purchase_not_found`."
+            "description": ""
           }
         },
-        "summary": "Dev/test only: simulate a ₹9 pass payment landing (FakeProvider environments)",
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List the caller's workspace's invoices, most recent first.",
         "tags": [
-          "offers"
+          "invoices"
         ]
       }
     },
-    "/offers/dev/consume-signup-gift": {
-      "post": {
-        "operationId": "devConsumeSignupGift",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "workspaceId": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "workspaceId"
-                ]
-              }
+    "/invoices/{invoiceId}/download": {
+      "get": {
+        "operationId": "InvoicesController_download",
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
             }
           }
-        },
+        ],
         "responses": {
           "200": {
-            "description": "`{ consumed: true }`."
+            "description": ""
           }
         },
-        "summary": "Dev/test only: mark a workspace's signup gift already spent",
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "A short-lived signed URL for the invoice PDF.",
         "tags": [
-          "offers"
+          "invoices"
+        ]
+      }
+    },
+    "/admin/tax-registrations": {
+      "get": {
+        "operationId": "TaxRegistrationsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List every tax registration (GSTIN, LUT) on file.",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "TaxRegistrationsController_upsert",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create or update a tax registration (upsert on jurisdiction+taxIdType+taxId).",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/tax-registrations/{id}": {
+      "delete": {
+        "operationId": "TaxRegistrationsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove a tax registration row.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/firc-records": {
+      "get": {
+        "operationId": "FircController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List FIRC records, most recent settlement first.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/firc-records/csv": {
+      "get": {
+        "operationId": "FircController_csv",
+        "parameters": [
+          {
+            "name": "month",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Monthly export-filing CSV for a given `month` (YYYY-MM).",
+        "tags": [
+          "admin"
         ]
       }
     }
@@ -13083,6 +13061,166 @@
           "transcript",
           "chunks",
           "nextCursor"
+        ]
+      },
+      "TransliterateRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "TransliterateAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
+          },
+          "targetScript": {
+            "type": "string",
+            "enum": [
+              "roman",
+              "native"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when a transliteration to this script was already running."
+          }
+        },
+        "required": [
+          "jobId",
+          "targetScript",
+          "status",
+          "deduplicated"
+        ]
+      },
+      "TranslateRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "TranslationQuoteDto": {
+        "type": "object",
+        "properties": {
+          "tenths": {
+            "type": "number",
+            "description": "Credits held for this job, in tenths."
+          },
+          "credits": {
+            "type": "string",
+            "description": "\"1.5\" — for display only, never for arithmetic."
+          }
+        },
+        "required": [
+          "tenths",
+          "credits"
+        ]
+      },
+      "TranslateTargetAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "targetLanguage": {
+            "type": "string",
+            "description": "BCP-47 tag this job translates to."
+          },
+          "status": {
+            "type": "string"
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when a translation to this language was already running."
+          },
+          "quote": {
+            "$ref": "#/components/schemas/TranslationQuoteDto"
+          }
+        },
+        "required": [
+          "jobId",
+          "targetLanguage",
+          "status",
+          "deduplicated",
+          "quote"
+        ]
+      },
+      "TranslateAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "targets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranslateTargetAcceptedDto"
+            }
+          },
+          "quote": {
+            "description": "Sum across every target.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TranslationQuoteDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "targets",
+          "quote"
+        ]
+      },
+      "ScriptAvailabilityDto": {
+        "type": "object",
+        "properties": {
+          "script": {
+            "type": "string",
+            "enum": [
+              "roman",
+              "native",
+              "en",
+              "translated"
+            ]
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "transcription",
+              "transliteration",
+              "translation"
+            ]
+          },
+          "provider": {
+            "type": "object",
+            "nullable": true
+          },
+          "language": {
+            "type": "string",
+            "description": "For `translated`: the BCP-47 target it currently holds."
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "script",
+          "available"
+        ]
+      },
+      "AvailableScriptsDto": {
+        "type": "object",
+        "properties": {
+          "scripts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScriptAvailabilityDto"
+            }
+          }
+        },
+        "required": [
+          "scripts"
         ]
       },
       "ExportRequestDto": {

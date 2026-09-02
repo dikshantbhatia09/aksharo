@@ -27,6 +27,7 @@ import { AppModule } from "../src/app.module.js";
 import { redisKeys } from "../src/auth/auth.constants.js";
 import { GOOGLE_OAUTH_PROVIDER } from "../src/auth/google-oauth.provider.js";
 import { HttpExceptionFilter } from "../src/common/errors/http-exception.filter.js";
+import { redisKeyPrefix } from "../src/common/redis/redis-keys.js";
 import { resetEnvCache } from "../src/config/config.module.js";
 import { NotifyConsumer } from "../src/notify/notify.consumer.js";
 import { setupOpenApi } from "../src/openapi.js";
@@ -207,9 +208,12 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
       // write its outbox entry into the next test.
       await app.get(NotifyConsumer).drain();
       await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${TABLES.join(", ")} CASCADE`);
-      // Safe to sweep the whole `montaj:` namespace: A23a gives this suite its own
-      // logical Redis database, so nothing else in the run has keys in here.
-      const authKeys = await redis.keys("montaj:*");
+      // This suite's namespace, not the whole `montaj:` one. A23a gave each suite
+      // a logical Redis database, which held until the package passed sixteen
+      // suites and two of them started sharing — at which point this sweep took
+      // the sibling's dev-outbox messages with it (A21). A23b made the namespace
+      // per-suite, so the sweep is exact again however the databases fall out.
+      const authKeys = await redis.keys(`${redisKeyPrefix()}:*`);
       if (authKeys.length > 0) await redis.del(...authKeys);
       google.profiles.clear();
       google.authorizations.length = 0;

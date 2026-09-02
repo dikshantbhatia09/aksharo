@@ -14,6 +14,7 @@
 import { defineEndpoint } from "./http.js";
 
 import type {
+  AvailableScripts,
   ConsentState,
   CreditsSummary,
   CurrentUser,
@@ -28,6 +29,7 @@ import type {
   PassCheckoutResponse,
   PassView,
   PendingApproval,
+  PlanCatalogueEntry,
   RightsRequest,
   SessionSummary,
   SetConsentRequest,
@@ -36,6 +38,10 @@ import type {
   SubscriptionView,
   TokenResponse,
   TopupCheckoutRequest,
+  TranslateAccepted,
+  TranslateRequest,
+  TransliterateAccepted,
+  TransliterateRequest,
   UpdateMeRequest,
   UsageSummary,
   WorkspaceSummary,
@@ -202,8 +208,14 @@ export const jobEndpoints = {
   }),
 } as const;
 
-/** Billing (B01) — plan checkout is out of scope here; only what B04 needs. */
+/** Billing (B01, B04). Plan catalogue is public; checkout/subscription need a session. */
 export const billingEndpoints = {
+  listPlans: defineEndpoint<void, PlanCatalogueEntry[]>({
+    method: "GET",
+    path: "/billing/plans",
+    auth: "public",
+    operationId: "listPlans",
+  }),
   getSubscription: defineEndpoint<void, SubscriptionView | null>({
     method: "GET",
     path: "/billing/subscription",
@@ -254,6 +266,28 @@ export const offersEndpoints = {
   }),
 } as const;
 
+/** Scripts and translation (A22): `apps/api/src/transcripts/scripts`. */
+export const transcriptScriptsEndpoints = {
+  transliterate: defineEndpoint<TransliterateRequest, TransliterateAccepted>({
+    method: "POST",
+    path: "/projects/{projectId}/transcript/transliterate",
+    auth: "bearer",
+    operationId: "transliterateProjectTranscript",
+  }),
+  translate: defineEndpoint<TranslateRequest, TranslateAccepted>({
+    method: "POST",
+    path: "/projects/{projectId}/transcript/translate",
+    auth: "bearer",
+    operationId: "translateProjectTranscript",
+  }),
+  scripts: defineEndpoint<void, AvailableScripts>({
+    method: "GET",
+    path: "/projects/{projectId}/transcript/scripts",
+    auth: "bearer",
+    operationId: "getProjectTranscriptScripts",
+  }),
+} as const;
+
 /**
  * Routes `07-api-and-contracts.md` specifies whose work package has not landed.
  *
@@ -290,6 +324,7 @@ export const endpoints = {
   billing: billingEndpoints,
   credits: creditsEndpoints,
   offers: offersEndpoints,
+  transcriptScripts: transcriptScriptsEndpoints,
   pending: pendingEndpoints,
 } as const;
 
@@ -302,5 +337,6 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(billingEndpoints),
   ...Object.entries(creditsEndpoints),
   ...Object.entries(offersEndpoints),
+  ...Object.entries(transcriptScriptsEndpoints),
   ...Object.entries(pendingEndpoints),
 ] as const;
