@@ -209,6 +209,19 @@ export {
   stylesWithCapabilities,
 } from "./styles/capabilities.js";
 export {
+  budgetFillingWords,
+  budgetProbes,
+  type FitContext,
+  type FitProbe,
+  type FitResult,
+  LANDSCAPE_CANVAS,
+  LANDSCAPE_MIN_SHRINK,
+  PORTRAIT_CANVAS,
+  PORTRAIT_MIN_SHRINK,
+  sweep,
+  worstFit,
+} from "./styles/fit.js";
+export {
   PREVIEW_DURATION_MS,
   PREVIEW_SCRIPTS,
   previewFor,

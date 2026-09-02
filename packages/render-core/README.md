@@ -87,6 +87,37 @@ their left.
 **Anchoring** addresses the ink box, not the taller line-height block, so `box`,
 `paddedBox` and the safe-area clamp all talk about the same rectangle.
 
+### Type sizes are tuned so shrink never fires
+
+The segmenter's budgets — 32 Latin, 24 Devanagari, 22 Tamil characters a line
+(`09 §3`) — are readability decisions and do not move. A style's `sizePct` is a look
+decision and does. `src/styles/fit.ts` measures the worst shrink a style suffers over
+the four caption fixtures **and** a budget-filling caption in each script, at every
+instant a `wordsPerCue` style rotates through, on both canvases;
+`scripts/tune-style-sizes.ts` bisects `sizePct` until the worst case clears 0.95 at
+1080×1920 and 0.9 at 1920×1080, and `src/styles/fit.test.ts` holds it there.
+
+The point is not tidiness. With shrink-to-fit doing the work, a short caption is drawn
+big and the next one smaller, so the type size jitters shot to shot inside one video —
+and the picker's tile, which previews short text, never shrinks and so never shows what
+a real caption will look like.
+
+**The binding constraint is Tamil, and it is arithmetic.** `charCount` counts base code
+points and excludes combining marks, so a 22-_character_ Tamil line is around 37 code
+points and about **21 em** wide, against 15.3 em for a full 32-character Latin line. A
+21 em line inside `maxWidthPct` 78% of a 1080-wide frame forces an em of about 40 px —
+2.1% of the frame height. That is why the tuned sizes are what they are; the A16b entry
+in `CHANGELOG.md` records the trade-off and the alternatives.
+
+## The watermark
+
+`animate({ watermarkAssetId })` draws the mark; nothing in this package decides whether
+there should be one. The signed export manifest (A21) carries
+`watermark: { assetId, position, opacity } | null`, and A19/A20 pass
+`manifest.watermark.assetId` through. The editor preview takes a different route —
+`renderFrame` reads `projection.render.watermarkAssetId` — because a preview has no
+signed manifest to read.
+
 ## Sizing
 
 A StyleDoc carries no pixels. Type size, caption position and the safe-area margin are
@@ -145,10 +176,12 @@ read the diff, and commit the reason with it.
 
 ## Scripts
 
-| Script                                           | What it does                                      |
-| ------------------------------------------------ | ------------------------------------------------- |
-| `pnpm --filter @montaj/render-core build`        | `tsc` to `dist/` (CJS) and `dist/esm/` (ESM)      |
-| `pnpm --filter @montaj/render-core typecheck`    | type-check including tests                        |
-| `pnpm --filter @montaj/render-core lint`         | ESLint flat config from `@montaj/config/eslint`   |
-| `pnpm --filter @montaj/render-core test`         | Vitest, including the golden and benchmark suites |
-| `pnpm --filter @montaj/render-core golden:build` | regenerate `fixtures/goldens/`                    |
+| Script                                           | What it does                                             |
+| ------------------------------------------------ | -------------------------------------------------------- |
+| `pnpm --filter @montaj/render-core build`        | `tsc` to `dist/` (CJS) and `dist/esm/` (ESM)             |
+| `pnpm --filter @montaj/render-core typecheck`    | type-check including tests                               |
+| `pnpm --filter @montaj/render-core lint`         | ESLint flat config from `@montaj/config/eslint`          |
+| `pnpm --filter @montaj/render-core test`         | Vitest, including the golden and benchmark suites        |
+| `pnpm --filter @montaj/render-core golden:build` | regenerate `fixtures/goldens/`                           |
+| `pnpm --filter @montaj/render-core styles:tune`  | re-bisect every style's `sizePct` (`-- --write` applies) |
+| `pnpm --filter @montaj/render-core styles:fit`   | report the worst shrink per style, both canvases         |

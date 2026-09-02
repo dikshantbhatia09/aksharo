@@ -142,6 +142,18 @@ widened schema; see `stylesWithCapabilities()`.
 | `pnpm --filter @montaj/caption-styles test`          | Vitest                                          |
 | `pnpm --filter @montaj/caption-styles test:coverage` | Vitest with the 90/85 gate (CONTRACTS §9)       |
 
+## Type sizes
+
+`typography.sizePct` is not hand-picked: it is bisected by
+`pnpm --filter @montaj/render-core styles:tune` so that a budget-filling caption in
+Latin, Devanagari **and** Tamil fits without the renderer shrinking it (≥ 0.95 at
+1080×1920, ≥ 0.9 at 1920×1080). Change a style's size by hand and
+`render-core`'s `styles/fit.test.ts` will say so.
+
+The binding script is Tamil: the segmenter's budget counts base characters and excludes
+combining marks, so 22 Tamil characters is ~37 code points and roughly twice the width
+of the same character count in Latin. See the A16b entry in the root `CHANGELOG.md`.
+
 ## Previews
 
 `previews/<id>.png` is a still of each style, rendered by the real pipeline

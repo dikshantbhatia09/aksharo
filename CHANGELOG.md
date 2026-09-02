@@ -10,6 +10,40 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A16b — every system style retuned so the renderer never shrinks it.**
+  - The segmenter's per-script character budgets (32 Latin, 24 Devanagari, 22 Tamil a
+    line, `09 §3`) are readability decisions and stay. The 30 styles' `sizePct` values
+    did not agree with them: 28 of 30 hit the shrink floor on a budget-filling caption,
+    so a short caption was drawn big and the next one smaller — the type size jittered
+    shot to shot inside one video, and the picker's tile (short preview text, never
+    shrunk) showed a size no real caption would use.
+  - `src/styles/fit.ts` is the shared definition of the worst case: the four caption
+    fixtures **and** a budget-filling caption in each script, at every instant a
+    `wordsPerCue` style rotates through, on the 9:16 master and the 16:9 canvas.
+    `scripts/tune-style-sizes.ts` bisects `sizePct` against it — bisection rather than a
+    multiplicative step, because the shrink the layout reports is clamped at
+    `MIN_SHRINK` and a style already on the floor cannot say how far past it is.
+    `src/styles/fit.test.ts` asserts shrink ≥ 0.95 at 1080×1920 and ≥ 0.9 at 1920×1080
+    for all 30 styles, over both probe sets (124 assertions).
+  - Nothing but `typography.sizePct` moved: names, categories, colours, animation and
+    the parity flags are untouched. Line height and padding needed no change — width
+    binds everywhere, height never does. Goldens, PNG baselines and the 30 catalogue
+    previews were regenerated.
+  - **The trade-off, recorded because it is a product decision and not a bug.** The
+    binding case is Tamil, and it is arithmetic: `charCount` counts base code points and
+    excludes combining marks, so a 22-_character_ Tamil line is about 37 code points and
+    ~21 em wide, against 15.3 em for a full 32-character Latin line. A 21 em line inside
+    `maxWidthPct` 78% of a 1080-wide frame forces an em of ~40 px — **2.1% of the frame
+    height**. Tuned sizes therefore land at 1.84–3.52% for the 28 changed styles (they
+    were 3.2–7.8%), i.e. subtitle-sized rather than creator-caption-sized.
+    `word-pop` and `impact-shout` are unchanged at 8.2% and 8.5% because they show one
+    word at a time and never meet a full line.
+  - Three ways out, none of them this work package's to choose: lower the Indic budgets
+    (they were set for reading speed, not width); give `StyleDoc` a per-script size
+    multiplier so Latin keeps its 5–7% while Indic drops; or compute one shrink for the
+    whole caption track instead of per caption, which removes the jitter without
+    shrinking anything that already fits.
+
 - **A16 — `@montaj/render-core`, `@montaj/render-canvaskit`, the 30 system styles and
   the editor's caption canvas.**
   - `@montaj/render-core` is implemented: `(StyleDoc, segment, words, time, canvas) →
