@@ -4,7 +4,6 @@ import type { ChangelogEntry } from "@/lib/content/schema";
 
 import { MarkdownBody } from "@/lib/content/markdown";
 
-
 export function ChangelogList({
   entries,
 }: {
@@ -36,7 +35,10 @@ export function ChangelogList({
                 {entry.tags.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {entry.tags.map((tag) => (
-                      <span key={tag} className="bg-bg-2 text-fg-2 rounded-full px-2 py-0.5 text-2xs">
+                      <span
+                        key={tag}
+                        className="bg-bg-2 text-fg-2 rounded-full px-2 py-0.5 text-2xs"
+                      >
                         {tag}
                       </span>
                     ))}

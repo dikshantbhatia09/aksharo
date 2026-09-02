@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { loadHelpArticles } from "@/lib/content/loader";
-
 import { HELP_SLUGS, helpUrlFor, isHelpSlug } from "./help-slug-map";
+
+import { loadHelpArticles } from "@/lib/content/loader";
 
 describe("help-slug map (contextual help links)", () => {
   it("every declared help slug resolves to a real, published article", () => {

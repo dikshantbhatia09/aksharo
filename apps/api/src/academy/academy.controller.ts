@@ -45,7 +45,9 @@ export class AcademyController {
     summary: "This workspace's Academy progress",
     operationId: "getAcademyProgress",
   })
-  @ApiOkResponse(zodResponse(academyProgressResponseSchema, "Per-track completed steps and rewards."))
+  @ApiOkResponse(
+    zodResponse(academyProgressResponseSchema, "Per-track completed steps and rewards."),
+  )
   async progress(@CurrentUser() principal: AuthPrincipal): Promise<AcademyProgressResponse> {
     return this.academy.getProgress(principal.workspaceId, principal.userId);
   }
@@ -59,7 +61,9 @@ export class AcademyController {
       "credit reward (capped 25/track, 100/workspace lifetime) automatically.",
     operationId: "markAcademyStepDone",
   })
-  @ApiOkResponse(zodResponse(markStepDoneResultSchema, "Whether the track completed and a reward was granted."))
+  @ApiOkResponse(
+    zodResponse(markStepDoneResultSchema, "Whether the track completed and a reward was granted."),
+  )
   async markStepDone(
     @CurrentUser() principal: AuthPrincipal,
     @Param("trackId") trackId: string,
@@ -78,7 +82,12 @@ export class AcademyController {
       resourceId: `${trackId}:${stepId}`,
       actorId: principal.userId,
       workspaceId: principal.workspaceId,
-      data: { trackId, stepId, trackCompleted: result.trackCompleted, rewardGranted: result.rewardGranted },
+      data: {
+        trackId,
+        stepId,
+        trackCompleted: result.trackCompleted,
+        rewardGranted: result.rewardGranted,
+      },
     });
     return result;
   }

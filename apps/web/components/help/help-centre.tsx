@@ -11,7 +11,6 @@ import type { HelpSearchDoc } from "@/lib/content/search";
 
 import { loadHelpSearchIndex } from "@/lib/content/search";
 
-
 const CATEGORY_LABEL: Record<HelpCategory, string> = {
   "getting-started": "Getting started",
   editing: "Editing",
@@ -57,7 +56,9 @@ export function HelpCentre({
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="font-display text-fg-0 text-2xl font-semibold tracking-tight">Help centre</h1>
+        <h1 className="font-display text-fg-0 text-2xl font-semibold tracking-tight">
+          Help centre
+        </h1>
         <p className="text-fg-2 text-sm">Search, or browse by category.</p>
       </div>
 
@@ -100,7 +101,10 @@ export function HelpCentre({
               <ul className="flex flex-col gap-2">
                 {categoryArticles.map((article) => (
                   <li key={article.slug}>
-                    <Link href={`/help/${article.slug}`} data-testid={`help-article-${article.slug}`}>
+                    <Link
+                      href={`/help/${article.slug}`}
+                      data-testid={`help-article-${article.slug}`}
+                    >
                       <Card className="p-4 transition hover:shadow-sm">
                         <p className="text-fg-0 text-sm font-medium">{article.title}</p>
                         <p className="text-fg-2 text-xs">{article.summary}</p>

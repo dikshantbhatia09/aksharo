@@ -21,7 +21,7 @@ Design references: `03-architecture/03-feature-spec.md` F-801/F-802;
 
 ## Content vs. state
 
-Track/step *copy* (titles, outcome text, demo video placeholder, body markdown)
+Track/step _copy_ (titles, outcome text, demo video placeholder, body markdown)
 lives as MDX in `apps/web/content/academy/*.mdx`, validated at build by zod
 schemas in `apps/web/lib/content/schema.ts`. This module does **not** read
 those files — a different app, a different deploy. Instead,

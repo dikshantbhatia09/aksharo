@@ -100,7 +100,12 @@ export function loadChangelogEntries(): readonly ChangelogEntry[] {
     changelogCache = readMdxFiles("changelog")
       .map(({ raw }) => {
         const { data, content } = matter(raw);
-        const frontmatter = parseOrThrow(ChangelogFrontmatterSchema, "changelog", data.version ?? "unknown", data);
+        const frontmatter = parseOrThrow(
+          ChangelogFrontmatterSchema,
+          "changelog",
+          data.version ?? "unknown",
+          data,
+        );
         return { ...frontmatter, body: content.trim() };
       })
       .sort((a, b) => (a.date < b.date ? 1 : -1));

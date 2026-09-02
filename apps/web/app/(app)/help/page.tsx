@@ -4,7 +4,6 @@ import { HelpCentre } from "@/components/help/help-centre";
 import { loadHelpArticles } from "@/lib/content/loader";
 import { buildHelpSearchIndex } from "@/lib/content/search";
 
-
 export const metadata: Metadata = { title: "Help centre" };
 
 /**

@@ -51,22 +51,27 @@ describe("academy catalogue vs. apps/web/content/academy MDX", () => {
     expect(catalogIds).toEqual(contentIds);
   });
 
-  it.skipIf(!contentAvailable)("matches step ids, completionEvent and creditReward per track", () => {
-    const byId = new Map(loadContentTracks().map((track) => [track.id, track]));
-    for (const catalogTrack of ACADEMY_TRACKS) {
-      const contentTrack = byId.get(catalogTrack.id);
-      expect(contentTrack, `content track "${catalogTrack.id}" is missing`).toBeDefined();
-      if (!contentTrack) continue;
+  it.skipIf(!contentAvailable)(
+    "matches step ids, completionEvent and creditReward per track",
+    () => {
+      const byId = new Map(loadContentTracks().map((track) => [track.id, track]));
+      for (const catalogTrack of ACADEMY_TRACKS) {
+        const contentTrack = byId.get(catalogTrack.id);
+        expect(contentTrack, `content track "${catalogTrack.id}" is missing`).toBeDefined();
+        if (!contentTrack) continue;
 
-      expect(catalogTrack.creditReward, `${catalogTrack.id} creditReward`).toBe(contentTrack.creditReward);
-      expect(
-        catalogTrack.steps.map((step) => step.id),
-        `${catalogTrack.id} step ids`,
-      ).toEqual(contentTrack.steps.map((step) => step.id));
-      expect(
-        catalogTrack.steps.map((step) => step.completionEvent ?? null),
-        `${catalogTrack.id} completionEvent per step`,
-      ).toEqual(contentTrack.steps.map((step) => step.completionEvent ?? null));
-    }
-  });
+        expect(catalogTrack.creditReward, `${catalogTrack.id} creditReward`).toBe(
+          contentTrack.creditReward,
+        );
+        expect(
+          catalogTrack.steps.map((step) => step.id),
+          `${catalogTrack.id} step ids`,
+        ).toEqual(contentTrack.steps.map((step) => step.id));
+        expect(
+          catalogTrack.steps.map((step) => step.completionEvent ?? null),
+          `${catalogTrack.id} completionEvent per step`,
+        ).toEqual(contentTrack.steps.map((step) => step.completionEvent ?? null));
+      }
+    },
+  );
 });

@@ -4,7 +4,14 @@ import Link from "next/link";
 import * as React from "react";
 
 import { useDismissChangelogVersion, useDismissedChangelogVersion } from "@montaj/api-client";
-import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@montaj/ui";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@montaj/ui";
 
 interface LatestChangelog {
   readonly version: string | null;

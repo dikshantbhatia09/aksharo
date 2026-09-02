@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { AcademyTrackList } from "@/components/academy/academy-track-list";
 import { loadAcademyTracks } from "@/lib/content/loader";
 
-
 export const metadata: Metadata = { title: "Academy" };
 
 /**

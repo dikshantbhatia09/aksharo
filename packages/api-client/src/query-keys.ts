@@ -29,7 +29,8 @@ export const queryKeys = {
   offersPasses: (workspaceId: string) => ["ws", workspaceId, "offers", "passes"] as const,
   referrals: (workspaceId: string) => ["ws", workspaceId, "referrals"] as const,
   academyProgress: (workspaceId: string) => ["ws", workspaceId, "academy", "progress"] as const,
-  changelogDismissed: (workspaceId: string) => ["ws", workspaceId, "academy", "changelog", "dismissed"] as const,
+  changelogDismissed: (workspaceId: string) =>
+    ["ws", workspaceId, "academy", "changelog", "dismissed"] as const,
   supportTickets: (workspaceId: string) => ["ws", workspaceId, "support", "tickets"] as const,
   /**
    * Jobs for one project (a card's progress poll). Nested *under* `jobs()`

@@ -2,7 +2,13 @@
 
 import * as React from "react";
 
-import { useApiClient, useCreateSupportTicket, useSupportTickets, useWorkspaceId, endpoints } from "@montaj/api-client";
+import {
+  useApiClient,
+  useCreateSupportTicket,
+  useSupportTickets,
+  useWorkspaceId,
+  endpoints,
+} from "@montaj/api-client";
 import type { SupportCategory, SupportDiagnostics } from "@montaj/api-client";
 import { Badge, Button, Card, Checkbox, Field, Skeleton, Textarea, toast } from "@montaj/ui";
 
@@ -15,8 +21,6 @@ import {
 
 import { SettingsSection } from "@/components/settings/section";
 import { messageForError } from "@/lib/errors";
-
-
 
 const CATEGORIES: { value: SupportCategory; label: string }[] = [
   { value: "bug", label: "Something's broken" },
@@ -100,7 +104,11 @@ export function SupportView(): React.JSX.Element {
       testId="settings-support"
     >
       <Card className="p-5">
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit} data-testid="support-ticket-form">
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={handleSubmit}
+          data-testid="support-ticket-form"
+        >
           <Field label="Subject" htmlFor="support-subject">
             <input
               id="support-subject"
@@ -148,8 +156,8 @@ export function SupportView(): React.JSX.Element {
               data-testid="support-include-diagnostics"
             />
             <span className="text-fg-1">
-              Include diagnostics (app version, browser/OS, workspace id, your last 10 job
-              statuses, recent console errors). Never includes your media or transcript.
+              Include diagnostics (app version, browser/OS, workspace id, your last 10 job statuses,
+              recent console errors). Never includes your media or transcript.
             </span>
           </label>
 
@@ -176,7 +184,13 @@ export function SupportView(): React.JSX.Element {
                       {ticket.category} · {new Date(ticket.createdAt).toLocaleDateString()}
                     </p>
                   </div>
-                  <Badge tone={ticket.status === "resolved" || ticket.status === "closed" ? "accepted" : "info"}>
+                  <Badge
+                    tone={
+                      ticket.status === "resolved" || ticket.status === "closed"
+                        ? "accepted"
+                        : "info"
+                    }
+                  >
                     {STATUS_LABEL[ticket.status] ?? ticket.status}
                   </Badge>
                 </Card>

@@ -45,7 +45,9 @@ export function AcademyTrackList({
                   <div className="flex items-start justify-between gap-2">
                     <GraduationCap className="text-accent size-5 shrink-0" aria-hidden />
                     <Badge tone={trackProgress?.rewardGranted ? "accepted" : "neutral"}>
-                      {trackProgress?.rewardGranted ? "Reward earned" : `${track.creditReward} credits`}
+                      {trackProgress?.rewardGranted
+                        ? "Reward earned"
+                        : `${track.creditReward} credits`}
                     </Badge>
                   </div>
                   <div>

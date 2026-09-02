@@ -143,7 +143,7 @@ export const HI_MESSAGES: MessageCatalogue = {
       subject: "[{category}] {subject}",
       heading: "नया सपोर्ट टिकट: {subject}",
       paragraphs: [
-        "वर्कस्पेस {workspaceId} ने एक {category} टिकट दर्ज किया: \"{subject}\"।",
+        'वर्कस्पेस {workspaceId} ने एक {category} टिकट दर्ज किया: "{subject}"।',
         "डायग्नोस्टिक्स: {diagnostics}।",
       ],
       cta: "एडमिन में खोलें",

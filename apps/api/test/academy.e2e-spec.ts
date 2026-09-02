@@ -18,6 +18,7 @@ import { LedgerCreditsFacade } from "../src/credits/ledger-credits.facade.js";
 import type { TestDatabase } from "./db-harness.js";
 import type { PrismaService } from "../src/common/prisma/prisma.service.js";
 import type { NotifyService } from "../src/notify/notify.service.js";
+import type { EventEmitter2 } from "@nestjs/event-emitter";
 import type { PrismaClient } from "@prisma/client";
 
 const available = isDatabaseAvailable();
@@ -43,7 +44,9 @@ describe.skipIf(!available)("AcademyService (e2e)", () => {
       enqueue: async () => ({ idempotencyKey: "stub", enqueued: false }),
     } as unknown as NotifyService;
 
-    const notifier = new CreditsLowBalanceNotifier(prismaService, stubNotify);
+    const notifier = new CreditsLowBalanceNotifier(prismaService, stubNotify, {
+      emit: () => undefined,
+    } as unknown as EventEmitter2);
     credits = new LedgerCreditsFacade(prismaService, notifier);
     academy = new AcademyService(prismaService, credits);
   }, 180_000);
@@ -62,7 +65,13 @@ describe.skipIf(!available)("AcademyService (e2e)", () => {
     const workspaceId = id("wsp");
     await prisma.user.create({ data: { id: userId, email: `${userId}@example.test` } });
     await prisma.workspace.create({
-      data: { id: workspaceId, slug: workspaceId.toLowerCase(), name: "Test workspace", ownerId: userId, billingCountry: "IN" },
+      data: {
+        id: workspaceId,
+        slug: workspaceId.toLowerCase(),
+        name: "Test workspace",
+        ownerId: userId,
+        billingCountry: "IN",
+      },
     });
     return { workspaceId, userId };
   }
@@ -85,9 +94,9 @@ describe.skipIf(!available)("AcademyService (e2e)", () => {
 
   it("marking an unknown track throws academy/unknown_track", async () => {
     const { workspaceId, userId } = await newWorkspace();
-    await expect(academy.markStepDone(workspaceId, userId, "no-such-track", "step", "manual")).rejects.toThrow(
-      AppException,
-    );
+    await expect(
+      academy.markStepDone(workspaceId, userId, "no-such-track", "step", "manual"),
+    ).rejects.toThrow(AppException);
   });
 
   it("marking an unknown step of a real track throws academy/unknown_step", async () => {
@@ -99,9 +108,21 @@ describe.skipIf(!available)("AcademyService (e2e)", () => {
 
   it("is idempotent: marking the same step twice reports alreadyDone the second time", async () => {
     const { workspaceId, userId } = await newWorkspace();
-    const first = await academy.markStepDone(workspaceId, userId, "hinglish-reel", "upload-clip", "manual");
+    const first = await academy.markStepDone(
+      workspaceId,
+      userId,
+      "hinglish-reel",
+      "upload-clip",
+      "manual",
+    );
     expect(first.alreadyDone).toBe(false);
-    const second = await academy.markStepDone(workspaceId, userId, "hinglish-reel", "upload-clip", "manual");
+    const second = await academy.markStepDone(
+      workspaceId,
+      userId,
+      "hinglish-reel",
+      "upload-clip",
+      "manual",
+    );
     expect(second.alreadyDone).toBe(true);
   });
 
@@ -109,17 +130,35 @@ describe.skipIf(!available)("AcademyService (e2e)", () => {
     const { workspaceId, userId } = await newWorkspace();
     const steps = ["upload-clip", "review-transcript", "pick-style"];
     for (const stepId of steps) {
-      const result = await academy.markStepDone(workspaceId, userId, "hinglish-reel", stepId, "manual");
+      const result = await academy.markStepDone(
+        workspaceId,
+        userId,
+        "hinglish-reel",
+        stepId,
+        "manual",
+      );
       expect(result.trackCompleted).toBe(false);
       expect(result.rewardGranted).toBe(false);
     }
-    const last = await academy.markStepDone(workspaceId, userId, "hinglish-reel", "export", "manual");
+    const last = await academy.markStepDone(
+      workspaceId,
+      userId,
+      "hinglish-reel",
+      "export",
+      "manual",
+    );
     expect(last.trackCompleted).toBe(true);
     expect(last.rewardGranted).toBe(true);
     expect(await balanceOf(workspaceId)).toBe(150); // 15 credits = 150 tenths
 
     // Re-marking the last step again (a retried request) must not grant twice.
-    const repeat = await academy.markStepDone(workspaceId, userId, "hinglish-reel", "export", "manual");
+    const repeat = await academy.markStepDone(
+      workspaceId,
+      userId,
+      "hinglish-reel",
+      "export",
+      "manual",
+    );
     expect(repeat.rewardGranted).toBe(false);
     expect(await balanceOf(workspaceId)).toBe(150);
   });
@@ -169,17 +208,35 @@ describe.skipIf(!available)("AcademyService (e2e)", () => {
       reason: "test fixture: push workspace to the cap boundary",
     });
     await prisma.academyReward.create({
-      data: { id: id("rwd"), workspaceId, trackId: "__fixture-cap-filler", tenths: 700, lotId: fixtureLot.lotId },
+      data: {
+        id: id("rwd"),
+        workspaceId,
+        trackId: "__fixture-cap-filler",
+        tenths: 700,
+        lotId: fixtureLot.lotId,
+      },
     });
 
     const balanceBeforeAgency = await balanceOf(workspaceId);
     expect(balanceBeforeAgency).toBe(1_200);
 
-    const last = await academy.markStepDone(workspaceId, userId, "agency-workflow", "invite-team", "manual");
+    const last = await academy.markStepDone(
+      workspaceId,
+      userId,
+      "agency-workflow",
+      "invite-team",
+      "manual",
+    );
     expect(last.trackCompleted).toBe(false);
     await academy.markStepDone(workspaceId, userId, "agency-workflow", "tag-clients", "manual");
     await academy.markStepDone(workspaceId, userId, "agency-workflow", "apply-brand-kit", "manual");
-    const final = await academy.markStepDone(workspaceId, userId, "agency-workflow", "export-report", "manual");
+    const final = await academy.markStepDone(
+      workspaceId,
+      userId,
+      "agency-workflow",
+      "export-report",
+      "manual",
+    );
 
     expect(final.trackCompleted).toBe(true);
     expect(final.rewardGranted).toBe(false); // blocked: would cross ACADEMY_LIFETIME_CAP_TENTHS
@@ -189,7 +246,11 @@ describe.skipIf(!available)("AcademyService (e2e)", () => {
 
   it("export.completed auto-completes the matching step for the workspace owner", async () => {
     const { workspaceId, userId } = await newWorkspace();
-    await completeAllSteps(workspaceId, userId, "hinglish-reel", ["upload-clip", "review-transcript", "pick-style"]);
+    await completeAllSteps(workspaceId, userId, "hinglish-reel", [
+      "upload-clip",
+      "review-transcript",
+      "pick-style",
+    ]);
 
     await academy.completeExportStepsForWorkspace(workspaceId);
 

@@ -6,7 +6,11 @@ import { BRAND } from "@montaj/config";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { NotifyService } from "../notify/notify.service.js";
 
-import type { CreateSupportTicketInput, ListSupportTicketsResponse, SupportTicketView } from "./support.dto.js";
+import type {
+  CreateSupportTicketInput,
+  ListSupportTicketsResponse,
+  SupportTicketView,
+} from "./support.dto.js";
 import type { SupportTicket } from "@prisma/client";
 
 function toView(ticket: SupportTicket): SupportTicketView {
@@ -74,7 +78,10 @@ export class SupportService {
         idempotencyKey: `support-ticket-created-${ticket.id}`,
       });
     } catch (error) {
-      this.logger.error({ err: error, ticketId: ticket.id }, "support ticket email failed to enqueue");
+      this.logger.error(
+        { err: error, ticketId: ticket.id },
+        "support ticket email failed to enqueue",
+      );
     }
 
     return toView(ticket);

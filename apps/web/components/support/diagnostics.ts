@@ -32,19 +32,26 @@ export function recentConsoleErrors(): string[] {
 export function describeUserAgent(): { browser: string; os: string } {
   if (typeof navigator === "undefined") return { browser: "unknown", os: "unknown" };
   const ua = navigator.userAgent;
-  const browser =
-    /Edg\//.test(ua) ? "Edge"
-    : /Chrome\//.test(ua) ? "Chrome"
-    : /Firefox\//.test(ua) ? "Firefox"
-    : /Safari\//.test(ua) ? "Safari"
-    : "unknown browser";
-  const os =
-    /Windows/.test(ua) ? "Windows"
-    : /Mac OS X/.test(ua) ? "macOS"
-    : /Linux/.test(ua) ? "Linux"
-    : /Android/.test(ua) ? "Android"
-    : /iPhone|iPad/.test(ua) ? "iOS"
-    : "unknown OS";
+  const browser = /Edg\//.test(ua)
+    ? "Edge"
+    : /Chrome\//.test(ua)
+      ? "Chrome"
+      : /Firefox\//.test(ua)
+        ? "Firefox"
+        : /Safari\//.test(ua)
+          ? "Safari"
+          : "unknown browser";
+  const os = /Windows/.test(ua)
+    ? "Windows"
+    : /Mac OS X/.test(ua)
+      ? "macOS"
+      : /Linux/.test(ua)
+        ? "Linux"
+        : /Android/.test(ua)
+          ? "Android"
+          : /iPhone|iPad/.test(ua)
+            ? "iOS"
+            : "unknown OS";
   return { browser, os };
 }
 

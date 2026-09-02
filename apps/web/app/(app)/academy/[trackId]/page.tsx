@@ -5,7 +5,6 @@ import type { Metadata } from "next";
 import { AcademyTrackDetail } from "@/components/academy/academy-track-detail";
 import { getAcademyTrack } from "@/lib/content/loader";
 
-
 export async function generateMetadata({
   params,
 }: {

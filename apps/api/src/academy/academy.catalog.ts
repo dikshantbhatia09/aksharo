@@ -78,7 +78,10 @@ export function getCatalogTrack(trackId: string): AcademyCatalogTrack | undefine
 }
 
 /** Tracks whose given step id is `completionEvent: "export.completed"`. */
-export function tracksCompletedByExport(): readonly { track: AcademyCatalogTrack; stepId: string }[] {
+export function tracksCompletedByExport(): readonly {
+  track: AcademyCatalogTrack;
+  stepId: string;
+}[] {
   const matches: { track: AcademyCatalogTrack; stepId: string }[] = [];
   for (const track of ACADEMY_TRACKS) {
     for (const step of track.steps) {

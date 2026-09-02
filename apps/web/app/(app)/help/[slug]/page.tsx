@@ -5,7 +5,6 @@ import type { Metadata } from "next";
 import { HelpArticleView } from "@/components/help/help-article-view";
 import { getHelpArticle } from "@/lib/content/loader";
 
-
 export async function generateMetadata({
   params,
 }: {

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 
 import { SupportView } from "@/components/support/support-view";
 
-
 /**
  * Settings → Support (brief §5). Note on file boundaries: the brief's stated
  * boundary lists `apps/web/app/(app)/{academy,help,changelog}/**`, but the

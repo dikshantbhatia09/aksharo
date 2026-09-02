@@ -135,7 +135,7 @@ export const EN_MESSAGES: MessageCatalogue = {
       subject: "[{category}] {subject}",
       heading: "New support ticket: {subject}",
       paragraphs: [
-        "Workspace {workspaceId} filed a {category} ticket: \"{subject}\".",
+        'Workspace {workspaceId} filed a {category} ticket: "{subject}".',
         "Diagnostics: {diagnostics}.",
       ],
       cta: "Open in admin",

@@ -21,9 +21,7 @@ export const SupportDiagnosticsSchema = z.object({
   browser: z.string().max(120),
   os: z.string().max(120),
   workspaceId: z.string().length(26),
-  jobs: z
-    .array(z.object({ jobId: z.string().max(26), status: z.string().max(32) }))
-    .max(10),
+  jobs: z.array(z.object({ jobId: z.string().max(26), status: z.string().max(32) })).max(10),
   consoleErrors: z.array(z.string().max(500)).max(20),
 });
 export type SupportDiagnostics = z.infer<typeof SupportDiagnosticsSchema>;

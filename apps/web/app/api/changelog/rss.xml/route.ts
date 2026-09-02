@@ -1,5 +1,6 @@
-import { BRAND, brandUrl } from "@montaj/config";
 import { NextResponse } from "next/server";
+
+import { BRAND, brandUrl } from "@montaj/config";
 
 import { loadChangelogEntries } from "@/lib/content/loader";
 
@@ -43,5 +44,7 @@ ${items}
   </channel>
 </rss>`;
 
-  return new NextResponse(xml, { headers: { "Content-Type": "application/rss+xml; charset=utf-8" } });
+  return new NextResponse(xml, {
+    headers: { "Content-Type": "application/rss+xml; charset=utf-8" },
+  });
 }

@@ -12,7 +12,6 @@ import type { AcademyTrack } from "@/lib/content/schema";
 import { MarkdownBody } from "@/lib/content/markdown";
 import { messageForError } from "@/lib/errors";
 
-
 /** `/academy/{trackId}`: steps, "Mark done", the embedded demo placeholder, body. */
 export function AcademyTrackDetail({ track }: { readonly track: AcademyTrack }): React.JSX.Element {
   const progress = useAcademyProgress();
@@ -118,7 +117,10 @@ export function AcademyTrackDetail({ track }: { readonly track: AcademyTrack }):
 
       <Card className="flex items-center justify-between gap-3 p-4">
         <p className="text-fg-1 text-sm">Need a hand with something specific?</p>
-        <Link href="/help" className="text-accent inline-flex items-center gap-1 text-sm hover:underline">
+        <Link
+          href="/help"
+          className="text-accent inline-flex items-center gap-1 text-sm hover:underline"
+        >
           Help centre <ExternalLink className="size-3.5" />
         </Link>
       </Card>

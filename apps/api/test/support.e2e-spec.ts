@@ -42,7 +42,13 @@ describe.skipIf(!available)("SupportService (e2e)", () => {
     const workspaceId = id("wsp");
     await prisma.user.create({ data: { id: userId, email: `${userId}@example.test` } });
     await prisma.workspace.create({
-      data: { id: workspaceId, slug: workspaceId.toLowerCase(), name: "Test workspace", ownerId: userId, billingCountry: "IN" },
+      data: {
+        id: workspaceId,
+        slug: workspaceId.toLowerCase(),
+        name: "Test workspace",
+        ownerId: userId,
+        billingCountry: "IN",
+      },
     });
     return { workspaceId, userId };
   }
@@ -122,9 +128,21 @@ describe.skipIf(!available)("SupportService (e2e)", () => {
     const a = await newWorkspace();
     const b = await newWorkspace();
 
-    await support.createTicket(a.workspaceId, a.userId, { subject: "A1", body: "body", category: "other" });
-    await support.createTicket(b.workspaceId, b.userId, { subject: "B1", body: "body", category: "other" });
-    await support.createTicket(a.workspaceId, a.userId, { subject: "A2", body: "body", category: "other" });
+    await support.createTicket(a.workspaceId, a.userId, {
+      subject: "A1",
+      body: "body",
+      category: "other",
+    });
+    await support.createTicket(b.workspaceId, b.userId, {
+      subject: "B1",
+      body: "body",
+      category: "other",
+    });
+    await support.createTicket(a.workspaceId, a.userId, {
+      subject: "A2",
+      body: "body",
+      category: "other",
+    });
 
     const { tickets } = await support.listTickets(a.workspaceId);
     expect(tickets.map((t) => t.subject)).toEqual(["A2", "A1"]);

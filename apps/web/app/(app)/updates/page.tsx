@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { ChangelogList } from "@/components/academy/changelog-list";
 import { loadChangelogEntries } from "@/lib/content/loader";
 
-
 export const metadata: Metadata = { title: "Changelog" };
 
 /**
