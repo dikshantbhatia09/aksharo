@@ -144,26 +144,29 @@ widened schema; see `stylesWithCapabilities()`.
 
 ## Type sizes and `typography.scriptScale`
 
-`sizePct` is the size the style was drawn for and it stays. `scriptScale` is an
-optional per-script multiplier on it, keyed by the lowercase OpenType tag:
+`sizePct` is the size the style was drawn for and it stays — captions are cut to
+fit it, not the other way round (decision D78). `render-core`'s `fitBudget`
+derives the line budget from the style, the font metrics and the canvas, capped
+by the 32/24/22 readability maxima.
+
+`scriptScale` is an optional per-script multiplier on `sizePct`, keyed by the
+lowercase OpenType tag:
 
 ```json
-"scriptScale": { "latn": 0.72, "deva": 0.85, "taml": 0.52 }
+"scriptScale": { "deva": 0.85, "taml": 0.52 }
 ```
 
-It is additive — the schema stays at generation 2, and a document without the field
-renders exactly as before.
+It is additive — the schema stays at generation 2, and a document without the
+field renders exactly as before.
 
-It exists because the segmenter's line budgets are counted in **base characters**, with
-combining marks excluded, since that is what reading speed depends on. Width is a
-different question: 22 Tamil characters is around 37 code points and roughly twice the
-width of 32 Latin characters. A single size per style cannot satisfy both, and shrinking
-the style until Tamil fits would make the Latin caption a subtitle.
+It is **not** there to make Indic fit; the budget does that. It is there for
+readability: at the same em, a Tamil budget collapses to five or six characters —
+one short word a line — where a modest reduction roughly doubles it. No style
+carries a `latn` entry, because Latin needs none.
 
 The multipliers are not hand-picked. `pnpm --filter @montaj/render-core styles:tune`
-bisects each one until a budget-filling line in that script fits without the renderer
-shrinking it (≥ 0.95 at 1080×1920, ≥ 0.9 at 1920×1080); `render-core`'s
-`styles/fit.test.ts` fails if a hand edit breaks it.
+bisects each one; `render-core`'s `styles/fit.test.ts` fails if a hand edit breaks
+the result.
 
 ## Previews
 

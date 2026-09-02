@@ -203,10 +203,11 @@ describe("applying the track shrink", () => {
         computeTrackShrink({ projection: projection(), catalogue, registry, shaper }),
       ).values(),
     ];
-    // The map stores the shrink quantised to three decimals, so the uniform size
-    // lands on or a hair under the tightest caption's — never above it.
-    expect(Math.max(...uniform)).toBeLessThanOrEqual(Math.min(...perCaption));
-    expect(Math.max(...uniform)).toBeCloseTo(Math.min(...perCaption), 1);
+    // The map floors the shrink to two decimals, so the uniform size is at or
+    // below the tightest caption's — never above it — and within one percent.
+    const tightest = Math.min(...perCaption);
+    expect(Math.max(...uniform)).toBeLessThanOrEqual(tightest);
+    expect(Math.max(...uniform)).toBeGreaterThan(tightest * 0.99);
   });
 
   it("is ignored when the map has nothing to say about a style", () => {

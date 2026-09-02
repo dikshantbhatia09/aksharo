@@ -28,7 +28,7 @@ import { type Shaper } from "../fonts/shaper.js";
 import { type FontRegistry } from "../fonts/types.js";
 import { layoutSegment } from "../layout/layout.js";
 import { type WordScript } from "../script.js";
-import { assertCanvas, type CanvasSize, q } from "../units.js";
+import { assertCanvas, type CanvasSize } from "../units.js";
 
 /**
  * The minimum shrink per `styleId|script`. A `Map` rather than an object so the
@@ -101,8 +101,15 @@ export function computeTrackShrink(options: ComputeTrackShrinkOptions): TrackShr
       tMs: segment.startMs + (segment.endMs - segment.startMs) / 2,
     });
     const key = trackShrinkKey(style.id, layout.script);
+    // Floored to two decimals, not rounded to three. `Layout.shrink` is already
+    // quantised to nearest, so a three-decimal floor can still sit a hair above
+    // some caption's true need — and that caption would then keep its own size
+    // while the rest took the track's, showing two sizes instead of one. Two
+    // decimals is always at or below every caption's need, which is what makes
+    // the track uniform; it costs at most one percent of type size.
+    const shrink = Math.floor(layout.shrink * 100) / 100;
     const current = worst.get(key);
-    if (current === undefined || layout.shrink < current) worst.set(key, q(layout.shrink));
+    if (current === undefined || shrink < current) worst.set(key, shrink);
   }
 
   return worst;

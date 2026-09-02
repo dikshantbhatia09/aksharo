@@ -31,30 +31,18 @@ import { scriptScaleKey, type WordScript } from "../src/script.js";
 import {
   budgetProbes,
   type FitContext,
-  type FitProbe,
   LANDSCAPE_CANVAS,
   LANDSCAPE_MIN_SHRINK,
   PORTRAIT_CANVAS,
   PORTRAIT_MIN_SHRINK,
   worstFitForScript,
 } from "../src/styles/fit.js";
-import { CAPTION_FIXTURES, createFixtureRenderer, GOLDEN_TIMESTAMPS_MS } from "../src/testing.js";
+import { createFixtureRenderer } from "../src/testing.js";
 
 const require = createRequire(__filename);
 
 /** The scripts the catalogue is tuned for; anything else falls back to 1. */
 const SCRIPTS: readonly WordScript[] = ["latin", "devanagari", "tamil"];
-
-/** The four caption fixtures, at exactly the instants the goldens capture. */
-function fixtureProbes(): FitProbe[] {
-  return CAPTION_FIXTURES.map((fixture) => ({
-    name: `fixture:${fixture.name}`,
-    script: fixture.script,
-    words: fixture.words,
-    segment: fixture.segment,
-    timestamps: GOLDEN_TIMESTAMPS_MS,
-  }));
-}
 
 function withScale(style: StyleDoc, script: WordScript, scale: number): StyleDoc {
   return {
@@ -69,7 +57,10 @@ function withScale(style: StyleDoc, script: WordScript, scale: number): StyleDoc
 /** True when a style at this multiplier clears both canvases for one script. */
 function fits(style: StyleDoc, script: WordScript, scale: number, context: FitContext): boolean {
   const candidate = withScale(style, script, scale);
-  const probes = [...fixtureProbes(), ...budgetProbes(candidate)];
+  const probes = [
+    ...budgetProbes(candidate, context, PORTRAIT_CANVAS),
+    ...budgetProbes(candidate, context, LANDSCAPE_CANVAS),
+  ];
   const portrait = worstFitForScript(candidate, probes, PORTRAIT_CANVAS, context, "9:16", script);
   if (portrait !== undefined && portrait.shrink < PORTRAIT_MIN_SHRINK) return false;
   const landscape = worstFitForScript(candidate, probes, LANDSCAPE_CANVAS, context, "16:9", script);

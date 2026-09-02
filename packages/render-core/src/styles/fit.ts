@@ -16,6 +16,7 @@ import { type FontRegistry } from "../fonts/types.js";
 import { layoutSegment } from "../layout/layout.js";
 import { type RenderWord } from "../layout/types.js";
 import { charCount, limitsFor, type WordScript } from "../script.js";
+import { fitBudget } from "./budget.js";
 import { type CanvasSize } from "../units.js";
 
 /** The master canvas the catalogue is authored against. */
@@ -36,10 +37,54 @@ export const LANDSCAPE_MIN_SHRINK = 0.9;
  * words the segmenter actually cuts.
  */
 const WORD_POOL: Readonly<Record<WordScript, readonly string[]>> = {
-  latin: ["editing", "transcript", "brother", "simple", "caption", "video", "today", "learn"],
-  devanagari: ["ट्रांसक्रिप्ट", "मुश्किल", "करेंगे", "बारे", "पहले", "आसान", "देखो", "बहुत"],
-  tamil: ["எடிட்டிங்", "வீடியோ", "பேசுவோம்", "இன்று", "பற்றி", "நாம்", "வசனங்கள்", "இப்படி"],
-  other: ["editing", "transcript", "brother", "simple", "caption", "video", "today", "learn"],
+  latin: [
+    "editing",
+    "transcript",
+    "brother",
+    "simple",
+    "caption",
+    "video",
+    "today",
+    "learn",
+    "cut",
+    "now",
+  ],
+  devanagari: [
+    "ट्रांसक्रिप्ट",
+    "मुश्किल",
+    "करेंगे",
+    "बारे",
+    "पहले",
+    "आसान",
+    "देखो",
+    "बहुत",
+    "अब",
+    "लो",
+  ],
+  tamil: [
+    "எடிட்டிங்",
+    "வீடியோ",
+    "பேசுவோம்",
+    "இன்று",
+    "பற்றி",
+    "நாம்",
+    "வசனங்கள்",
+    "இப்படி",
+    "இது",
+    "நல்ல",
+  ],
+  other: [
+    "editing",
+    "transcript",
+    "brother",
+    "simple",
+    "caption",
+    "video",
+    "today",
+    "learn",
+    "cut",
+    "now",
+  ],
 };
 
 /**
@@ -50,9 +95,14 @@ export function budgetFillingWords(
   script: WordScript,
   maxLines: number,
   durationMs = 3000,
+  maxChars?: number,
 ): RenderWord[] {
-  const pool = WORD_POOL[script];
-  const budget = limitsFor(script).maxCharsPerLine;
+  const budget = maxChars ?? limitsFor(script).maxCharsPerLine;
+  // A word longer than the whole budget could never appear in a caption the
+  // segmenter cut to it, so it must not appear in the probe either — otherwise
+  // the probe measures a caption the product cannot produce.
+  const fitting = WORD_POOL[script].filter((word) => charCount(word) <= budget);
+  const pool = fitting.length > 0 ? fitting : WORD_POOL[script];
   const texts: string[] = [];
   let lines = 1;
   let lineChars = 0;
@@ -101,15 +151,22 @@ export function sweep(durationMs: number, steps = 12): number[] {
   );
 }
 
-/** The budget-filling caption for one style, in each of the three scripts. */
-export function budgetProbes(style: StyleDoc): FitProbe[] {
-  return (["latin", "devanagari", "tamil"] as const).map((script) => ({
-    name: `budget:${script}`,
-    script,
-    words: budgetFillingWords(script, style.layout.maxLines),
-    segment: { id: `probe-${script}`, startMs: 0, endMs: 3000 },
-    timestamps: sweep(3000),
-  }));
+/**
+ * The budget-filling caption for one style, in each of the three scripts —
+ * filled to the budget `fitBudget` measures for that style on that canvas, not
+ * to the readability cap, because that is the caption the segmenter would cut.
+ */
+export function budgetProbes(style: StyleDoc, context: FitContext, canvas: CanvasSize): FitProbe[] {
+  return (["latin", "devanagari", "tamil"] as const).map((script) => {
+    const budget = fitBudget({ style, script, canvas, ...context });
+    return {
+      name: `budget:${script}`,
+      script,
+      words: budgetFillingWords(script, budget.maxLines, 3000, budget.maxChars),
+      segment: { id: `probe-${script}`, startMs: 0, endMs: 3000 },
+      timestamps: sweep(3000),
+    };
+  });
 }
 
 export interface FitResult {

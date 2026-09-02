@@ -220,6 +220,16 @@ export {
   stylesWithCapabilities,
 } from "./styles/capabilities.js";
 export {
+  averageAdvanceEm,
+  BUDGET_SAMPLES,
+  fitBudget,
+  type FitBudgetOptions,
+  fitBudgetsByScript,
+  type LineBudget,
+  MIN_BUDGET_CHARS,
+  READABILITY_MAX_LINES,
+} from "./styles/budget.js";
+export {
   budgetFillingWords,
   budgetProbes,
   type FitContext,
