@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from worker_ai.processors.align import process_align
+from worker_ai.processors.autocut_pass import process_pass
 from worker_ai.processors.context import (
     JobContext,
     JobFailureError,
@@ -27,6 +28,7 @@ __all__ = [
     "process_diarise",
     "process_llm",
     "process_not_implemented",
+    "process_pass",
     "process_transcribe",
     "process_translate",
     "process_transliterate",

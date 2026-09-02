@@ -1,0 +1,22 @@
+{
+  "language": "ur",
+  "version": 1,
+  "description": "Urdu filler lexicon (minimal seed set, B18) for the autocut pass.",
+  "entries": [
+    {
+      "token": "مطلب",
+      "scripts": { "native": "مطلب", "roman": "matlab" },
+      "contextRule": "isolated_only",
+      "weight": 0.58
+    },
+    { "token": "تو", "scripts": { "native": "تو", "roman": "toh" }, "contextRule": "isolated_only", "weight": 0.45 },
+    {
+      "token": "یعنی",
+      "scripts": { "native": "یعنی", "roman": "yaani" },
+      "contextRule": "isolated_only",
+      "weight": 0.55
+    },
+    { "token": "um", "scripts": { "roman": "um" }, "contextRule": "always", "weight": 0.9 },
+    { "token": "hmm", "scripts": { "roman": "hmm" }, "contextRule": "always", "weight": 0.88 }
+  ]
+}

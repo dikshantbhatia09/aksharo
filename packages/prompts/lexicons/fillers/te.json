@@ -1,0 +1,17 @@
+{
+  "language": "te",
+  "version": 1,
+  "description": "Telugu filler lexicon (minimal seed set, B18) for the autocut pass.",
+  "entries": [
+    {
+      "token": "అంటే",
+      "scripts": { "native": "అంటే", "roman": "ante" },
+      "contextRule": "isolated_only",
+      "weight": 0.55
+    },
+    { "token": "ఆ", "scripts": { "native": "ఆ", "roman": "aa" }, "contextRule": "isolated_only", "weight": 0.45 },
+    { "token": "మరి", "scripts": { "native": "మరి", "roman": "mari" }, "contextRule": "isolated_only", "weight": 0.45 },
+    { "token": "um", "scripts": { "roman": "um" }, "contextRule": "always", "weight": 0.9 },
+    { "token": "hmm", "scripts": { "roman": "hmm" }, "contextRule": "always", "weight": 0.88 }
+  ]
+}

@@ -115,6 +115,32 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `apps/api/src/insights/README.md` for the credits/region/PII notes and the
   eval report format.
 
+- **B18 — autocut pass: VAD silences, filler lexicons, repeated takes, protection
+  rules, pacing presets → `edg_pass_items`.** Worker (`apps/worker-ai`):
+  `worker_ai/passes/autocut.py` — a pure, deterministic pipeline (silence gaps
+  between VAD speech regions, mid-sentence long pauses, per-language filler
+  lexicon with `always`/`isolated_only` context rules, adjacent-sentence retake
+  detection by n-gram similarity, protection/merge/removal-cap post-processing)
+  behind `run_autocut()`; `processors/autocut_pass.py` wires it to `ai.pass`
+  (`passType: "autocut"`; real VAD when `mediaId` is given, else a word-derived
+  approximation) — `ai.pass` moves from `not_implemented` to
+  `IMPLEMENTED_AI_QUEUES` (any other `passType`, e.g. B19's reframe/zoom, still
+  answers `worker/not_implemented` from inside the processor). Lexicons:
+  `packages/prompts/lexicons/fillers/{en,hi,hinglish,ta,te,bn,mr,gu,kn,ml,pa,ur}.json`
+  (en/hi/hinglish curated in depth; the other nine seeded and unit-tested, flagged
+  for follow-up linguistic review). API: `apps/api/src/passes/` —
+  `POST /projects/{id}/passes/autocut` (quotes `BURN_RATES.autocutPass`, holds
+  credits, enqueues `ai.pass` with the transcript's words, real VAD hint, and
+  guarded ranges from segments carrying `emphasis`/`textOverrides`),
+  `GET /projects/{id}/passes`, and `PassCompletionHandler`, which turns the
+  worker's proposed cuts into a `MergePass` op (A12) — idempotent per `passId`.
+  Pacing presets: gentle (1.0s/15%), standard (0.6s/30%), tight (0.4s/45%);
+  80ms padding; 350ms minimum kept segment; retake window 20s at similarity
+  ≥0.8. **CONTRACTS gap**: `EdgHot.protected[]` (user-marked protected ranges)
+  does not exist yet — `protectedRanges` is always sent empty; only the
+  `emphasis`/`textOverrides` guard is enforced today. See the B18 final report
+  for the full metrics/coverage summary.
+
 - **A19c — browser export throughput: offscreen WebGL CanvasKit surface,
   hardware-encoder capability probe, cloud-default policy above 1080p, 5ms
   splice fades.** `packages/render-canvaskit`: `createExportSurface(ck,
