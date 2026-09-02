@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 
 __all__ = [
     "CONTRACT_ENV_VARS",
+    "DEFAULT_CACHE_MAX_ENTRY_BYTES",
     "DEFAULT_CONCURRENCY",
     "DEFAULT_CONTROL_PORT",
     "REQUIRED_ENV_VARS",
@@ -40,6 +41,9 @@ DEFAULT_CONCURRENCY = 4
 #: 8091 rather than the more common 8081, which collides on many dev machines.
 DEFAULT_CONTROL_PORT = 8091
 
+#: Largest transcription result the `09 §1` cache will store, in bytes.
+DEFAULT_CACHE_MAX_ENTRY_BYTES = 512 * 1024
+
 #: Deployment naming this worker reads straight from the process environment.
 #:
 #: None of these are in CONTRACTS section 1, which is the frozen list of
@@ -55,6 +59,16 @@ WORKER_ENV_VARS: tuple[str, ...] = (
     "WORKER_AI_VAD_MODEL",
     "WORKER_AI_WHISPER_MODEL",
     "WORKER_AI_ALLOW_MOCK",
+    "WORKER_AI_ALIGN_MODEL_DIR",
+    "WORKER_AI_INDICLID_DIR",
+    "WORKER_AI_CACHE",
+    "WORKER_AI_CACHE_MAX_BYTES",
+    "WORKER_AI_ROUTING_OVERRIDES_FROM_API",
+    "ROUTING_OVERRIDES_JSON",
+    "ELEVENLABS_BASE_URL",
+    "ELEVENLABS_ZERO_RETENTION",
+    "SARVAM_BASE_URL",
+    "ASSEMBLYAI_BASE_URL",
     # GPU_PROVIDER_URL and GPU_PROVIDER_TOKEN started here and moved into
     # CONTRACTS section 1 (added 2026-09-02 after A09), so they are product
     # configuration now and live in CONTRACT_ENV_VARS above.
@@ -174,6 +188,23 @@ class Settings:
     gpu_provider_url: str = ""
     gpu_provider_token: str = ""
     allow_mock: bool | None = None
+    #: Vendor endpoints. The defaults are the global ones; Indian production
+    #: media belongs on the residency endpoints once A00-06 signs the terms.
+    elevenlabs_base_url: str = ""
+    elevenlabs_zero_retention: bool = True
+    sarvam_base_url: str = ""
+    assemblyai_base_url: str = ""
+    #: Model directories for the D13 aligners and the IndicLID classifier. Both
+    #: fall back to a model-free path when unset, so CI never downloads weights.
+    align_model_dir: str = ""
+    indiclid_dir: str = ""
+    #: ``redis`` (default when REDIS_URL is set), ``memory`` or ``none``.
+    cache_backend: str = ""
+    cache_max_entry_bytes: int = 0
+    #: Admin routing weights: JSON in the environment, and/or fetched from the
+    #: API's ``GET /internal/routing`` when that endpoint exists (B13).
+    routing_overrides_json: str = ""
+    routing_overrides_from_api: bool = False
     feature_flags: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -186,6 +217,19 @@ class Settings:
         return any(
             (self.sarvam_api_key, self.elevenlabs_api_key, self.assemblyai_api_key),
         )
+
+    @property
+    def cache_kind(self) -> str:
+        """Which result cache to build (`09 §1`): ``redis``, ``memory`` or ``none``.
+
+        Redis is already a hard dependency of this worker — BullMQ lives there —
+        so the default is ``redis`` whenever a URL is configured, and the explicit
+        setting exists for a test or a pod that must not share the cache.
+        """
+        explicit = self.cache_backend.strip().lower()
+        if explicit in {"redis", "memory", "none"}:
+            return explicit
+        return "redis" if self.redis_url else "none"
 
     @property
     def mock_allowed(self) -> bool:
@@ -290,6 +334,18 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
 
     concurrency = _positive_int(env, "WORKER_AI_CONCURRENCY", DEFAULT_CONCURRENCY, problems)
     control_port = _positive_int(env, "WORKER_AI_PORT", DEFAULT_CONTROL_PORT, problems)
+    cache_max_bytes = _positive_int(
+        env, "WORKER_AI_CACHE_MAX_BYTES", DEFAULT_CACHE_MAX_ENTRY_BYTES, problems
+    )
+
+    cache_backend = env.get("WORKER_AI_CACHE", "").strip().lower()
+    if cache_backend and cache_backend not in {"redis", "memory", "none"}:
+        problems.append("WORKER_AI_CACHE: must be one of redis, memory, none")
+
+    for variable in ("ELEVENLABS_BASE_URL", "SARVAM_BASE_URL", "ASSEMBLYAI_BASE_URL"):
+        value = env.get(variable, "").strip()
+        if value and not value.startswith(("http://", "https://")):
+            problems.append(variable + ": must be an http(s) URL")
 
     if problems:
         raise EnvValidationError(sorted(set(problems)))
@@ -334,6 +390,18 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
         gpu_provider_url=gpu_provider_url.rstrip("/"),
         gpu_provider_token=env.get("GPU_PROVIDER_TOKEN", "").strip(),
         allow_mock=_optional_bool(env.get("WORKER_AI_ALLOW_MOCK")),
+        elevenlabs_base_url=env.get("ELEVENLABS_BASE_URL", "").strip().rstrip("/"),
+        elevenlabs_zero_retention=_optional_bool(env.get("ELEVENLABS_ZERO_RETENTION")) is not False,
+        sarvam_base_url=env.get("SARVAM_BASE_URL", "").strip().rstrip("/"),
+        assemblyai_base_url=env.get("ASSEMBLYAI_BASE_URL", "").strip().rstrip("/"),
+        align_model_dir=env.get("WORKER_AI_ALIGN_MODEL_DIR", "").strip(),
+        indiclid_dir=env.get("WORKER_AI_INDICLID_DIR", "").strip(),
+        cache_backend=env.get("WORKER_AI_CACHE", "").strip(),
+        cache_max_entry_bytes=cache_max_bytes,
+        routing_overrides_json=env.get("ROUTING_OVERRIDES_JSON", "").strip(),
+        routing_overrides_from_api=(
+            _optional_bool(env.get("WORKER_AI_ROUTING_OVERRIDES_FROM_API")) is True
+        ),
         feature_flags=feature_flags,
     )
 

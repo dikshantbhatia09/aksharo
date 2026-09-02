@@ -164,12 +164,37 @@ Two properties fall out of that, both deliberate:
 suite run two gateways in one process and assert the fan-out with no
 infrastructure at all.
 
+### Connecting (A08c)
+
+`RedisService` builds its client with `lazyConnect: true` — so constructing the
+module graph does not dial Redis — and `enableOfflineQueue: false`, which is what
+BullMQ wants of a connection it blocks on. `duplicate()` inherits **both**, so a
+freshly duplicated subscriber sits in `wait` and its first `SUBSCRIBE` is not
+queued until the socket opens: it is rejected outright with
+`Stream isn't writeable and enableOfflineQueue options is false`. Nothing retries
+it, so the room is simply never delivered to.
+
+`RedisRealtimeBus` therefore brings each connection up explicitly before issuing a
+command, on both the subscriber and the shared publishing client. ioredis restores
+subscriptions itself across a reconnect, so nothing here replays them.
+
+A room whose subscription cannot be established is **refused** — `subscribed`
+comes back with `refused: [{ room, reason: "unavailable" }]` and no local
+membership is left behind — rather than joined silently. A client told it is in a
+room it will never receive an event for is worse off than one told to try again.
+
 ## Testing
 
 ```bash
 pnpm --filter @montaj/api test realtime
 ```
 
-`test/realtime.e2e-spec.ts` boots a real HTTP server, a real `ws` client and two
-gateways sharing one in-memory broker. `MONTAJ_SKIP_REDIS_TESTS=1` skips the
-variant that additionally requires the compose Redis.
+| Suite                             | Needs                                                          |
+| --------------------------------- | -------------------------------------------------------------- |
+| `test/realtime.e2e-spec.ts`       | nothing — two gateways over one in-memory broker.              |
+| `test/realtime-redis.e2e-spec.ts` | the compose Redis; two gateways with their own `RedisService`. |
+
+Both boot a real HTTP server and drive a real `ws` client.
+`MONTAJ_SKIP_REDIS_TESTS=1` skips the Redis one, which exists because the
+in-memory bus cannot catch a defect in the _connection_ handling: A08 shipped a
+`RedisRealtimeBus` that could not subscribe at all, and every test passed.

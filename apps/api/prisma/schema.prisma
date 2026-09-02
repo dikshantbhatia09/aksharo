@@ -1093,6 +1093,10 @@ model EdgSegment {
   @@index([edgId])
   @@index([edgId, seq])
   @@index([edgId, startMs])
+  /// A12: `DeleteWord` shrinks the segments a word bounds, wherever they sit in the
+  /// document, so the working-set read looks them up by word id rather than by `seq`.
+  @@index([edgId, startWordId])
+  @@index([edgId, endWordId])
   @@map("edg_segments")
 }
 
@@ -1127,6 +1131,10 @@ model EdgPassItem {
   payload         Json      @default("{}") @db.JsonB
   /// Packed float32 `[tMs, x, y, w, h]` keyframes.
   keyframes       Bytes?
+  /// Where the curve lives when it is not inline (`PassItem.keyframesRef`, CONTRACTS §2).
+  /// Added by A12: the frozen domain type carries the reference, the table only had
+  /// the bytes, so a `MergePass` could not round-trip an item that used one.
+  keyframesRef    String?   @map("keyframes_ref")
   confidence      Float?
   reason          String?
   state           ItemState @default(proposed)
@@ -1159,6 +1167,9 @@ model EdgRevision {
 
   edg EdgDocument @relation(fields: [edgId], references: [id], onDelete: Cascade)
 
+  /// GIN index `edg_revisions_client_op_ids_idx` on `client_op_ids`
+  /// (`prisma/sql/0006-a12-edg.sql`): the idempotency check is an array-overlap test
+  /// (`&&`), which Prisma has no `@@index` syntax for.
   @@unique([edgId, revision])
   @@index([edgId])
   @@map("edg_revisions")

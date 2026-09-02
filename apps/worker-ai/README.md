@@ -4,10 +4,15 @@ Python 3.12 worker: the **official BullMQ Python** consumer for the `ai.*` queue
 provider adapters (ASR, alignment, diarisation), VAD and chunk planning, the eval
 harness, and a small FastAPI control app for probes.
 
-**Status:** A09 — `ai.vad`, `ai.transcribe`, `ai.align` and `ai.diarise` run end to
-end with signed completion callbacks. Vendor adapters (ElevenLabs Scribe v2,
-Sarvam Saaras v4, AssemblyAI), the model-backed aligners and pyannote diarisation
-are **A10**; post-processing and transcript persistence are **A11**.
+**Status:** A10 — the three vendor adapters (ElevenLabs Scribe v2, Sarvam Saaras
+v4 Batch, AssemblyAI Universal-2), two-signal LID, the routing chain with
+fallbacks, the model-backed forced aligners, pyannote community-1 diarisation and
+the result cache are all in. Post-processing, glossary correction and transcript
+persistence are **A11**; translation and transliteration are **A22**.
+
+**No vendor keys exist yet** (A00-06). Every adapter is tested against recorded
+HTTP fixtures, and the manual smoke path for the day the keys arrive is below,
+under "Vendor smoke tests".
 
 ## Why Python here and nowhere else
 
@@ -46,11 +51,12 @@ On a healthy boot the worker logs one JSON line naming its queues, the enabled
 providers and the VAD backend it loaded. The FastAPI control app answers on
 `WORKER_AI_PORT` (default **8091**) and is **pod-internal** — never expose it.
 
-| Route             | Purpose                                                       |
-| ----------------- | ------------------------------------------------------------- |
-| `GET /health`     | liveness; touches neither Redis nor a model                    |
-| `GET /providers`  | every adapter, its enable flag and *why* it is off; routing    |
-| `POST /evals/run` | stub (501); the harness is a CLI in A09                        |
+| Route             | Purpose                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------- |
+| `GET /health`     | liveness; touches neither Redis nor a model                                         |
+| `GET /providers`  | every adapter and _why_ it is off; routing, aligners, diarisers, LID backend, cache |
+| `GET /metrics`    | Prometheus counters per provider, language and lane (`09 §1`)                       |
+| `POST /evals/run` | stub (501); the harness is a CLI                                                    |
 
 ## Queues
 
@@ -58,12 +64,12 @@ providers and the VAD backend it loaded. The FastAPI control app answers on
 `apps/api/src/jobs/contracts/queue-names.test.ts` parses this file, so the two
 copies cannot drift.
 
-| Queue                                                    | A09                                       |
-| -------------------------------------------------------- | ----------------------------------------- |
-| `ai.vad`                                                 | Silero/energy VAD + the D14 chunk plan     |
-| `ai.transcribe`                                          | route → per-chunk ASR → stable word ids    |
-| `ai.align`                                               | the D13 aligner registry                   |
-| `ai.diarise`                                             | whole-file speaker turns                   |
+| Queue                                                           | A09                                                                          |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `ai.vad`                                                        | Silero/energy VAD + the D14 chunk plan                                       |
+| `ai.transcribe`                                                 | route → per-chunk ASR → stable word ids                                      |
+| `ai.align`                                                      | the D13 aligner registry                                                     |
+| `ai.diarise`                                                    | whole-file speaker turns                                                     |
 | `ai.translate` `ai.transliterate` `ai.clean` `ai.pass` `ai.llm` | consumed, and answered `worker/not_implemented` naming the WP that owns them |
 
 The last row matters: a queue nobody consumes leaves jobs in Redis until the
@@ -86,7 +92,7 @@ X-Montaj-Signature: hex(hmac_sha256(INTERNAL_CALLBACK_SECRET, timestamp + "." + 
 posts them — never a re-encoding, because `json.dumps` and `JSON.stringify`
 disagree on separators. The worker always signs with the **primary**
 `INTERNAL_CALLBACK_SECRET`; `INTERNAL_CALLBACK_SECRET_NEXT` is the API's second
-*verification* key during a rotation, and a worker is rolled onto a new secret by
+_verification_ key during a rotation, and a worker is rolled onto a new secret by
 restarting it. Delivery is at-least-once and the API is idempotent on
 `(jobId, attemptId)`, so a replay answers 200 `applied: false` and that is treated
 as success.
@@ -96,12 +102,12 @@ the `jobs` row has a single `attemptId` — so a failed completion posted on the
 first attempt moves the row to `failed` and the API rejects the second attempt's
 completion as `already_completed`. Hence:
 
-| Failure                     | Completion posted            | Exception re-raised  |
-| --------------------------- | ---------------------------- | -------------------- |
-| retryable, attempts remain  | **no**                       | yes — BullMQ retries |
-| retryable, final attempt    | yes, `finalAttempt: true`    | yes — BullMQ fails   |
-| non-retryable, any attempt  | yes, `error.retryable:false` | yes                  |
-| envelope does not parse     | no (there is no `jobId`)     | yes                  |
+| Failure                    | Completion posted            | Exception re-raised  |
+| -------------------------- | ---------------------------- | -------------------- |
+| retryable, attempts remain | **no**                       | yes — BullMQ retries |
+| retryable, final attempt   | yes, `finalAttempt: true`    | yes — BullMQ fails   |
+| non-retryable, any attempt | yes, `error.retryable:false` | yes                  |
+| envelope does not parse    | no (there is no `jobId`)     | yes                  |
 
 `finalAttempt` and `error.retryable: false` are the two flags
 `markDeadLetterIfFinal` reads, so an exhausted job reaches the DLQ with its last
@@ -116,11 +122,11 @@ inside the BullMQ job options, but `lockDurationMs`, `stalledIntervalMs` and
 has to read — so `tests/test_policies.py` parses the TypeScript and fails on any
 drift, the same guard the queue names have.
 
-| Queue                          | Lock   | Stall check | Heartbeat |
-| ------------------------------ | ------ | ----------- | --------- |
-| `ai.transcribe`, `ai.diarise`  | 10 min | 60 s        | 200 s     |
-| `ai.align`                     | 5 min  | 60 s        | 100 s     |
-| every other `ai.*`             | 2 min  | 30 s        | 40 s      |
+| Queue                         | Lock   | Stall check | Heartbeat |
+| ----------------------------- | ------ | ----------- | --------- |
+| `ai.transcribe`, `ai.diarise` | 10 min | 60 s        | 200 s     |
+| `ai.align`                    | 5 min  | 60 s        | 100 s     |
+| every other `ai.*`            | 2 min  | 30 s        | 40 s      |
 
 Every `ai.*` queue gets 2 attempts, 15 s exponential backoff with 0.3 jitter, and
 `maxStalledCount: 1` — a job that stalls twice is not unlucky, it is killing its
@@ -149,16 +155,22 @@ worker_ai/
   vad.py             Silero (ONNX) and energy backends, region post-processing
   chunking.py        the D14 chunk planner
   transcript.py      stable word ids, chunk assembly, the A11 post-process hook
-  routing.py         loader/resolver for routing.yaml
+  routing.py         loader, admin overrides, and the fallback chain resolver
   routing.yaml       the v2 routing table of 09 §1 as data
+  languages.py       one spelling per language, whatever a vendor calls it
+  lid.py             two-signal language identification (D14)
+  cache.py           the contentHash + language + provider + model cache (09 §1)
+  metrics.py         per-provider, per-language counters for GET /metrics
   logging_setup.py   one JSON line per record, matching the Node workers
   control.py         FastAPI: /health, /providers, /evals/run
   processors/        one module per queue
-  providers/         Provider interface, registry, mock, local + serverless Whisper
-  alignment/         the D13 registry: proportional + VAD, A10 shells above it
-  diarisation/       the D13 registry: noop, pyannote shell
-  evals/             manifest format, WER/CER, runner, CLI
-  fixtures/          eval sets that ship with the worker
+  providers/         Provider interface, registry, the shared vendor HTTP client,
+                     mock, local + serverless Whisper, Scribe v2, Saaras v4, Universal-2
+  alignment/         the D13 registry: CTC forced alignment (Indic + XLSR-53), ElevenLabs FA,
+                     proportional + VAD, and the script projections they need
+  diarisation/       the D13 registry: pyannote community-1, noop, the word join
+  evals/             manifest format, WER/CER, runner, CLI, vendor replay
+  fixtures/          eval sets, the CC0 speech clip, recorded vendor sessions
 tests/               pytest + hypothesis
 ```
 
@@ -175,7 +187,7 @@ tests/               pytest + hypothesis
 - **Providers never touch storage or the database.** They return data; the caller
   persists it, so an adapter can be swapped or shadow-run for evals (D08).
 - **Every external call is a `ProviderSubmission`** — `{provider, endpoint,
-  artefact}` — which the completion payload carries so the API can write
+artefact}` — which the completion payload carries so the API can write
   `provider_submissions` and honour a later erasure request.
 - **Errors declare their retryability.** `ProviderError(retryable=False)` fails the
   job now; `True` lets BullMQ retry.
@@ -183,26 +195,60 @@ tests/               pytest + hypothesis
   `diarisation`, `max_duration_s`, `batch`, `languages`, plus the `supported` set)
   and `cost_estimate(seconds)` returns the list price in paise.
 
-### Adapters today
+### The adapter matrix
 
-| Adapter               | What it is                                              |
-| --------------------- | ------------------------------------------------------- |
-| `mock`                | deterministic words from a fixture; the CI/dev lane      |
-| `local-whisper`       | faster-whisper in-process; optional extra `local-asr`    |
-| `serverless-whisper`  | HTTP client for the D15 per-second GPU endpoint          |
-| `elevenlabs` `sarvam` `assemblyai` | **A10** — capability and price metadata only |
+| Adapter                    | Transcribe | Word timings             | Diarisation                | Alignment              | Languages routed to it                                | Rs/min | Shape                                          |
+| -------------------------- | ---------- | ------------------------ | -------------------------- | ---------------------- | ----------------------------------------------------- | ------ | ---------------------------------------------- |
+| `elevenlabs` (Scribe v2)   | yes        | **yes**                  | **yes**, up to 32 speakers | yes (Forced Alignment) | hi, en-IN, ta, te, kn, ml, bn, mr, gu, or, ne, as, pa | 0.35   | one multipart request per chunk                |
+| `sarvam` (Saaras v4)       | yes        | **no**, chunk-level only | no (pyannote instead)      | no                     | hi-en, ur, sd, kok, ks, sa, sat, mni, brx, mai, doi   | 0.53   | **Batch**: init, upload, start, poll, download |
+| `assemblyai` (Universal-2) | yes        | yes                      | yes                        | no                     | en, en-IN, and the global fallback                    | 0.24   | upload, submit, poll                           |
+| `serverless-whisper`       | yes        | yes                      | no                         | no                     | any; the global lane (D15)                            | 0.11   | one request per chunk                          |
+| `local-whisper`            | yes        | yes                      | no                         | no                     | any; desktop and the `slow` tests                     | 0      | in-process, optional extra                     |
+| `mock`                     | yes        | yes                      | no                         | yes                    | any; CI and development                               | 0      | fixture words, no I/O                          |
 
-### How A10 adds a vendor
+Bhashini is **not** an adapter and will not become one while its public API is
+proof-of-concept-only by its own terms (RR-02 F3, D63). `routing.NEVER_ROUTE`
+turns a `routing.yaml` that names it into a load-time error.
 
-1. Fill in the module under `providers/` — the class, its `capabilities` and its
-   `cost_per_minute_inr` are already there and already tested.
+### How to add a vendor
+
+1. Write the module under `providers/` against `providers/base.py`, using
+   `providers/http.py` for retries, `Retry-After` handling and error mapping.
 2. Add its credential to the `unmet` check in `providers/registry.py:build_registry`
-   (the pattern is one `credential(...)` line) and flip `implemented=True`.
-3. Point a lane at it in `routing.yaml`. Nothing else changes: `routing.resolve`
-   walks the lane in order and takes the first provider the deployment enables, so
+   (one `credential(...)` line) and set `implemented=True`.
+3. Point a lane at it in `routing.yaml`. Nothing else changes: `routing.resolve_chain`
+   walks the lane in order and returns every provider the deployment enables, so
    a vendor that is not configured is skipped with a reason rather than an error.
-4. Add the vendor's fixtures to `evals/` and run the harness before changing any
-   weight — `09 §8` blocks a routing change on a WER regression over one point.
+4. Record HTTP fixtures under `worker_ai/fixtures/vendor/<name>/` and run the eval
+   harness against them before changing any weight — `09 §8` blocks a routing
+   change on a WER regression over one point.
+
+### Vendor smoke tests (when the keys arrive)
+
+A00-06 signs the DPAs and issues the keys. Until then nothing in this repository
+has ever spoken to a vendor: the adapters are driven entirely by recorded
+fixtures. The first thing to run on the day the keys land:
+
+```bash
+# 1. One chunk through each vendor, against a real clip.
+export ELEVENLABS_API_KEY=... SARVAM_API_KEY=... ASSEMBLYAI_API_KEY=...
+export RUN_VENDOR_SMOKE=1
+python -m pytest tests/test_vendor_smoke.py -v      # skipped without the keys
+
+# 2. The eval harness through each adapter, live rather than replayed.
+python -m worker_ai.evals run --set hinglish-mini --provider sarvam
+python -m worker_ai.evals run --set hinglish-mini --provider elevenlabs
+
+# 3. GET /providers should report all three enabled; GET /metrics should count them.
+curl -s localhost:8091/providers | jq ".providers[] | {name, enabled, reason}"
+```
+
+**What to check first**, because the fixtures cannot verify it: the exact field
+names in each vendor response (`words[].type` on Scribe, `timestamps.chunks[]` on
+Saaras, `words[].start` in _milliseconds_ on AssemblyAI); that the Saaras Batch
+storage paths really are Azure blob SAS containers; and that ElevenLabs honours
+`enable_logging=false` on the India residency host. Each is called out in its
+module docstring, and each is a one-function change if a name differs.
 
 ## The routing table
 
@@ -216,6 +262,101 @@ Lanes are matched in order on the detected language (exact tag, then base subtag
 and a code-mix signal wins outright. `alignment: required` marks a provider that
 returns no word timings — Sarvam — so the worker runs the aligner registry behind
 it. Override the file with `WORKER_AI_ROUTING_FILE`.
+
+## Language identification (D14, `09 §1.1`)
+
+Two signals, and the rule is **agreement**, not confidence — because RR-02 F4
+measured IndicLID's romanised head at F1 0.75, which is too weak to put a job on
+the dearer code-mix lane by itself.
+
+| Signal   | What it is                                             | Where it comes from                                                                             |
+| -------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| acoustic | Whisper `detect_language` over 60 s + two 15 s windows | `local-asr` extra, else the D15 model server, else the routed provider's own answer             |
+| textual  | a local classifier over the first chunk's text         | IndicLID from `WORKER_AI_INDICLID_DIR`, else a script-share + romanised-Hindi-lexicon heuristic |
+
+- **Code-mix lane** when both signals say Hindi/Hinglish _and_ `codeMixScore ≥ 0.3`
+  — or the user hinted Hinglish, which always wins.
+- **Agreed language** when both point at the same base tag.
+- **The acoustic signal, flagged `lowConfidence`**, when they disagree.
+
+`codeMixScore` is the romanised-Hindi share of the Latin tokens, from a small
+closed-class function-word lexicon, so the number is explainable in a support
+ticket. Words spelled the same in both languages ("the", "main", "par") count for
+neither side.
+
+The whole decision — signals, score, reason — is logged per job and travels in
+the completion `result` under `lid`, so "why did this go to Sarvam?" is answerable
+from `jobs.result` without a re-run.
+
+**How it costs one chunk, not one extra call.** The first chunk is transcribed on
+the provisional lane and _that_ is the acoustic signal; the classifier reads its
+text. Only if the two signals move the job to a **different lane** is that chunk
+transcribed again — and the discarded call is still recorded as a
+`provider_submission` and still counted in `usage.costMinor`, because the vendor
+charged for it.
+
+## Models, licences and where their weights live
+
+Nothing here is committed and nothing is downloaded at run time. Every rung
+reports itself unavailable, by name, when its directory or credential is absent,
+and the chain falls through to something that needs neither.
+
+| Component           | Model                                              | Licence                                                           | Configured by                                    |
+| ------------------- | -------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
+| Diarisation         | `pyannote/speaker-diarization-community-1`         | **CC-BY-4.0** — attribution required, shipped in `engineVersions` | `GPU_PROVIDER_URL` (D15 model server)            |
+| Alignment, Indic    | `ai4bharat/indicwav2vec` CTC heads                 | **MIT**                                                           | `WORKER_AI_ALIGN_MODEL_DIR/indicwav2vec/<lang>/` |
+| Alignment, global   | `jonatasgrosman/wav2vec2-large-xlsr-53-<language>` | **Apache-2.0**                                                    | `WORKER_AI_ALIGN_MODEL_DIR/xlsr53/<lang>/`       |
+| Alignment, paid     | ElevenLabs Forced Alignment                        | vendor terms                                                      | `ELEVENLABS_API_KEY` + flag `align.elevenlabs`   |
+| Alignment, fallback | proportional + VAD                                 | none needed                                                       | always available                                 |
+| LID, acoustic       | faster-whisper                                     | MIT                                                               | optional extra `local-asr`                       |
+| LID, textual        | AI4Bharat IndicLID                                 | **MIT**                                                           | `WORKER_AI_INDICLID_DIR`                         |
+| VAD                 | Silero v5 (ONNX)                                   | MIT                                                               | `WORKER_AI_VAD_MODEL`                            |
+
+> **Attribution notice.** Speaker diarisation is by pyannote
+> `speaker-diarization-community-1` (Hervé Bredin et al.), used under
+> [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/). This notice ships in
+> the job's `engineVersions.attribution` whenever pyannote ran.
+
+### CTC checkpoint layout
+
+```
+$WORKER_AI_ALIGN_MODEL_DIR/
+  indicwav2vec/hi/model.onnx      # exported CTC head, float32 [1, N] in
+  indicwav2vec/hi/vocab.json      # {"<pad>": 0, "|": 4, "क": 5, ...}
+  indicwav2vec/hi/config.json     # optional: {"frameMs": 20}
+  xlsr53/fr/model.onnx            # one Apache-2.0 fine-tune per language
+```
+
+Roman-script Hinglish is projected onto Devanagari before tokenising (`09 §2`),
+by a rule table in `alignment/romanisation.py`, not a model. Nothing is
+romanised: every XLSR-53 fine-tune carries its own vocabulary in its own script.
+
+### Meta MMS is excluded (D77)
+
+Rung 3 was `facebook/mms-300m-1130-forced-aligner` until decision **D77**. Its
+widely distributed export is **CC-BY-NC-4.0** — non-commercial — so it is
+excluded from the product: the module is deleted, not disabled, and `mms` sits in
+`routing.NEVER_ROUTE` alongside Bhashini. Naming it in `routing.yaml`, in an
+admin routing override, or in the aligner registry raises at load time rather
+than at the first job that needs it, because a licence exclusion an operator can
+switch back on is not an exclusion.
+
+The replacement splits rung 3 by language family instead of by breadth:
+IndicWav2Vec (MIT) for the eleven Indic languages, XLSR-53 (Apache-2.0) for the
+global ones, and the proportional + VAD fallback for everything neither covers.
+
+## Caching and cost
+
+A transcription result is cached in Redis under
+`contentHash + language + provider + model + mode + chunk span` for **30 days**,
+with a per-entry size cap (`WORKER_AI_CACHE_MAX_BYTES`). A hit skips the vendor
+call entirely and sets `usage.cached: true` on the completion, so the API does not
+count it as a fresh charge. A cache that is down is a _miss_, never a failure.
+
+`GET /metrics` exposes, per provider / language / lane: call counts by outcome,
+media seconds, estimated list price in paise, cache hits and misses, and routing
+fallbacks. Nothing is ever labelled with a workspace, project or media id — a
+metric label is a cardinality bomb and a privacy leak in the same field.
 
 ## VAD and chunking (D14)
 
@@ -245,6 +386,20 @@ python -m worker_ai.evals run --set fixtures/hinglish-mini
 python -m worker_ai.evals run --set hinglish-mini --json --max-wer 0.15
 ```
 
+Every adapter can be scored, vendors included — a vendor lane **replays its
+recorded session** by default, so the harness runs on a laptop with no keys:
+
+```bash
+python -m worker_ai.evals run --set vendor-replay --provider sarvam
+python -m worker_ai.evals run --set vendor-replay --provider elevenlabs --json
+python -m worker_ai.evals run --set vendor-replay --provider sarvam --live   # A00-06
+```
+
+The `vendor-replay` set pairs the CC0 clip in `fixtures/speech-5s` with the
+transcript the recorded sessions return, so a corpus WER of 0 means "every
+adapter parsed its response correctly" and **nothing at all** about how well any
+vendor transcribes Hindi. Quality needs the hand-labelled sets of A00-05.
+
 `--max-wer` exits 1 on a regression, which is the hook `09 §8` needs to block a
 routing change. A set is a directory under `fixtures/` with a `manifest.yaml`
 (format in `evals/manifest.py`); `audioAvailable: false` says the references are
@@ -257,29 +412,40 @@ set and the mock still exercises the harness. The real sets arrive with **A00-05
 and names every offending variable without ever echoing a value (THREAT-MODEL T21).
 
 These are **deployment naming**, read straight from the process environment and
-deliberately *not* in CONTRACTS §1 — the same precedent the API set for
+deliberately _not_ in CONTRACTS §1 — the same precedent the API set for
 `MONTAJ_QUEUE_PREFIX` and the OpenTelemetry variables:
 
-| Variable                 | Default        | Meaning                                        |
-| ------------------------ | -------------- | ---------------------------------------------- |
-| `MONTAJ_QUEUE_PREFIX`    | `bull`         | Redis key prefix; must match the API's          |
-| `WORKER_AI_CONCURRENCY`  | `4`            | jobs in flight per queue                        |
-| `WORKER_AI_PORT`         | `8091`         | control app port (pod-internal)                 |
-| `WORKER_AI_QUEUES`       | every `ai.*`   | pin a pool to a subset, e.g. a GPU pool         |
-| `WORKER_AI_ROUTING_FILE` | packaged       | override `routing.yaml`                         |
-| `WORKER_AI_VAD_MODEL`    | —              | path to `silero_vad.onnx`                       |
-| `WORKER_AI_WHISPER_MODEL`| `small`        | faster-whisper model for the local adapter      |
-| `WORKER_AI_ALLOW_MOCK`   | auto           | force the mock lane on or off                   |
-| `GPU_PROVIDER_URL`       | —              | serverless GPU endpoint (D15)                   |
-| `GPU_PROVIDER_TOKEN`     | —              | bearer token for it                             |
-| `FFMPEG_BIN` `FFPROBE_BIN` | on `PATH`    | explicit binary paths                           |
+| Variable                               | Default                         | Meaning                                                                      |
+| -------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------- |
+| `MONTAJ_QUEUE_PREFIX`                  | `bull`                          | Redis key prefix; must match the API's                                       |
+| `WORKER_AI_CONCURRENCY`                | `4`                             | jobs in flight per queue                                                     |
+| `WORKER_AI_PORT`                       | `8091`                          | control app port (pod-internal)                                              |
+| `WORKER_AI_QUEUES`                     | every `ai.*`                    | pin a pool to a subset, e.g. a GPU pool                                      |
+| `WORKER_AI_ROUTING_FILE`               | packaged                        | override `routing.yaml`                                                      |
+| `WORKER_AI_VAD_MODEL`                  | —                               | path to `silero_vad.onnx`                                                    |
+| `WORKER_AI_WHISPER_MODEL`              | `small`                         | faster-whisper model for the local adapter                                   |
+| `WORKER_AI_ALLOW_MOCK`                 | auto                            | force the mock lane on or off                                                |
+| `WORKER_AI_ALIGN_MODEL_DIR`            | —                               | CTC checkpoints for the D13 aligners (layout below)                          |
+| `WORKER_AI_INDICLID_DIR`               | —                               | IndicLID heads; without them LID signal 2 is the built-in heuristic          |
+| `WORKER_AI_CACHE`                      | `redis` when `REDIS_URL` is set | `redis`, `memory` or `none`                                                  |
+| `WORKER_AI_CACHE_MAX_BYTES`            | `524288`                        | largest transcript the cache will store                                      |
+| `WORKER_AI_ROUTING_OVERRIDES_FROM_API` | off                             | fetch admin weights from `GET /internal/routing` (B13)                       |
+| `ROUTING_OVERRIDES_JSON`               | —                               | admin routing weights as JSON, laid over `routing.yaml`                      |
+| `ELEVENLABS_BASE_URL`                  | `https://api.elevenlabs.io`     | India residency: `https://api.in.residency.elevenlabs.io`                    |
+| `ELEVENLABS_ZERO_RETENTION`            | on                              | sends `enable_logging=false` on every request                                |
+| `SARVAM_BASE_URL`                      | `https://api.sarvam.ai`         | override for a private endpoint                                              |
+| `ASSEMBLYAI_BASE_URL`                  | `https://api.assemblyai.com`    | override for a private endpoint                                              |
+| `GPU_PROVIDER_URL`                     | —                               | serverless GPU endpoint (D15); also serves `/diarise` and `/detect-language` |
+| `GPU_PROVIDER_TOKEN`                   | —                               | bearer token for it                                                          |
+| `FFMPEG_BIN` `FFPROBE_BIN`             | on `PATH`                       | explicit binary paths                                                        |
 
 `GPU_PROVIDER_URL` is a **raise for the orchestrator**: CONTRACTS §1 freezes
 `GPU_PROVIDER` but not its endpoint, and A09 may not edit that file. It is
 documented here until §1 gains it.
 
 Provider enablement is `credential present` AND `feature flag not off`. Flags come
-from `FEATURE_FLAGS_JSON` and are named `asr.<provider>`.
+from `FEATURE_FLAGS_JSON` and are named `asr.<provider>`; the two non-ASR stages
+have flags too, `align.elevenlabs` (the paid aligner) and `diarise.pyannote`.
 
 ## Dependencies
 
@@ -308,15 +474,26 @@ docker build -f apps/worker-ai/Dockerfile apps/worker-ai
 ```
 
 The CPU image carries ffmpeg, onnxruntime, faster-whisper and the Silero model.
-`Dockerfile.gpu` documents the serverless-GPU image contract (D15) and is a
-placeholder until A10 builds it.
+That is the image this work package's code runs in: A10 is the _client_ of the
+GPU model server, never the server.
+
+`Dockerfile.gpu` still documents the D15 model-server contract, and X05 has since
+written the real image at `infra/gpu/runpod/Dockerfile` with `infra/gpu/modal/app.py`
+alongside it. **Neither builds today**: both reference
+`apps/worker-ai/requirements-gpu.lock` and a `montaj_worker_ai.gpu` package that
+do not exist, and neither this brief nor X05's built them. The three routes the
+CPU worker calls — `POST /transcribe`, `/align`, `/diarise`, plus
+`/detect-language` for LID signal 1 — are specified in `Dockerfile.gpu`,
+`providers/serverless_whisper.py`, `diarisation/pyannote.py` and `lid.py`, and
+are replayed in `fixtures/vendor/gpu-whisper/session.json`, so whoever builds the
+image has a contract and a fixture to build against. Raised for the orchestrator.
 
 ## Quality gates
 
-| Command                                     | Gate                                                 |
-| ------------------------------------------- | ---------------------------------------------------- |
-| `pnpm --filter @montaj/worker-ai lint`      | ruff (pyflakes, isort, bugbear, bandit, annotations) |
-| `pnpm --filter @montaj/worker-ai typecheck` | `mypy --strict`                                      |
+| Command                                     | Gate                                                     |
+| ------------------------------------------- | -------------------------------------------------------- |
+| `pnpm --filter @montaj/worker-ai lint`      | ruff (pyflakes, isort, bugbear, bandit, annotations)     |
+| `pnpm --filter @montaj/worker-ai typecheck` | `mypy --strict`                                          |
 | `pnpm --filter @montaj/worker-ai test`      | pytest + hypothesis, with the CONTRACTS §9 coverage gate |
 
 Two markers gate the slow paths: `slow` (a real model download; `RUN_SLOW=1`) and

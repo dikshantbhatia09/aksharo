@@ -185,7 +185,7 @@ function parseArgs(argv) {
   }
   if (options.command === "discard" && (options.reason ?? "").trim() === "") {
     throw new UsageError(
-      "discard needs --reason=\"...\". The DLQ is also the record of what the system could not do.",
+      'discard needs --reason="...". The DLQ is also the record of what the system could not do.',
     );
   }
   if (

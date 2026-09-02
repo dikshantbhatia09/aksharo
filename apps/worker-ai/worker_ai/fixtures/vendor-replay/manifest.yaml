@@ -1,0 +1,35 @@
+# The set that exercises every vendor adapter, end to end, with no key.
+#
+# `09 §8`'s regression harness has to be able to run each adapter or it cannot
+# block a routing change on a WER regression. No vendor key exists yet (A00-06),
+# so this set pairs the CC0 clip in `../speech-5s` with the transcript the
+# recorded sessions under `../vendor/` return:
+#
+#   python -m worker_ai.evals run --set vendor-replay --provider sarvam
+#   python -m worker_ai.evals run --set vendor-replay --provider elevenlabs
+#   python -m worker_ai.evals run --set vendor-replay --provider assemblyai
+#   python -m worker_ai.evals run --set vendor-replay --provider serverless-whisper
+#
+# **What this measures is the plumbing, not the vendor.** The reference matches
+# the fixture by construction, so a corpus WER of 0 means "the adapter parsed the
+# recorded response correctly and the harness scored it", and nothing at all about
+# how well any vendor transcribes Hindi. A non-zero WER here is a *bug in an
+# adapter*, which is exactly the regression this set is meant to catch between now
+# and A00-05.
+#
+# Quality lives in the sets A00-05 is building. Do not change a routing weight on
+# the strength of this file.
+
+set: vendor-replay
+language: hi-en
+codeMix: true
+audioAvailable: true
+description: >
+  Adapter plumbing check: the CC0 five-second clip against the transcript every
+  recorded vendor session returns. Proves each adapter parses; measures no vendor.
+
+items:
+  - id: vr-001
+    audio: ../speech-5s/clip.wav
+    reference: "toh aaj hum baat karenge video editing ke baare mein"
+    hints: ["Aksharo"]

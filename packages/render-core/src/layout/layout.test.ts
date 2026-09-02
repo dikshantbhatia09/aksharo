@@ -232,12 +232,15 @@ describe("layoutSegment", () => {
   });
 
   it("keeps the segmenter's split when the metrics fit", () => {
+    // The wrap is at the budget `fitBudget` measured for this style and canvas
+    // (D78), not at the readability cap — so 17 characters take two lines here,
+    // and neither line has to shrink.
     const doc = style("vertical-clean");
     const list = words(["Bhai", "aaj", "hum", "baat"]);
     const layout = lay(doc, list);
     expect(layout.shrink).toBe(1);
-    expect(layout.lines).toHaveLength(1);
-    expect(layout.lines[0]?.text).toBe("Bhai aaj hum baat");
+    expect(layout.lines).toHaveLength(2);
+    expect(layout.lines.map((line) => line.text).join(" ")).toBe("Bhai aaj hum baat");
   });
 
   it("shrinks rather than re-wrapping when the metrics overflow", () => {
@@ -290,7 +293,9 @@ describe("layoutSegment", () => {
     const list = words(["Bhai", "aaj", "hum", "baat"]);
     const master = lay(doc, list, 100, GOLDEN_CANVAS);
     const proxy = lay(doc, list, 100, PROXY_CANVAS);
-    expect(master.fontSizePx / proxy.fontSizePx).toBeCloseTo(2, 6);
+    // Coordinates are quantised to three decimals, so at the proxy size the
+    // ratio carries a few parts per hundred thousand of rounding.
+    expect(master.fontSizePx / proxy.fontSizePx).toBeCloseTo(2, 3);
     expect(rectWidth(master.box) / rectWidth(proxy.box)).toBeCloseTo(2, 3);
     expect(master.box[0] / proxy.box[0]).toBeCloseTo(2, 3);
   });

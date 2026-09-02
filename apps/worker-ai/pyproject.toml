@@ -55,7 +55,18 @@ include = ["worker_ai*"]
 [tool.setuptools.package-data]
 # The routing table and the eval fixtures are data the worker reads at runtime,
 # so a container built from the wheel must carry them.
-worker_ai = ["routing.yaml", "py.typed", "fixtures/**/*.yaml", "fixtures/**/*.json"]
+worker_ai = [
+  "routing.yaml",
+  "py.typed",
+  "fixtures/**/*.yaml",
+  "fixtures/**/*.json",
+  # The CC0 speech clip and its licence: the `slow` tests and the vendor-replay
+  # eval set both read them, and a wheel without the licence would ship media
+  # with no provenance.
+  "fixtures/**/*.wav",
+  "fixtures/**/LICENSE",
+  "fixtures/**/*.md",
+]
 
 # ---------------------------------------------------------------------------
 # ruff — lint + format
@@ -133,6 +144,7 @@ filterwarnings = ["error"]
 markers = [
   "slow: needs a real model download or GPU; runs only with RUN_SLOW=1",
   "integration: needs the compose stack (Redis) and a running API; RUN_INTEGRATION=1",
+  "vendor: calls a real vendor and spends real money; RUN_VENDOR_SMOKE=1 (A00-06)",
 ]
 
 # ---------------------------------------------------------------------------
@@ -144,6 +156,9 @@ source = ["worker_ai"]
 omit = [
   # Process wiring: exercised by the integration run, not by unit tests.
   "worker_ai/__main__.py",
+  # A fixture generator, not shipped code: it runs once to produce clip.wav and
+  # is committed so the file can be reproduced rather than trusted.
+  "worker_ai/fixtures/speech-5s/make_clip.py",
 ]
 
 [tool.coverage.report]

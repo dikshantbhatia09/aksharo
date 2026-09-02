@@ -12,7 +12,8 @@
     "sizePct": 4.4,
     "lineHeight": 1.3,
     "letterSpacingEm": 0.005,
-    "textTransform": "none"
+    "textTransform": "none",
+    "scriptScale": { "deva": 0.79, "taml": 0.48 }
   },
   "colors": {
     "text": "#ffffff",

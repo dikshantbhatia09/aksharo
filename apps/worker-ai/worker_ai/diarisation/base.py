@@ -6,8 +6,11 @@ speaker ids survive chunk boundaries. A chunk-local diariser that renumbers
 speakers per chunk is worse than none, because the editor would show "Speaker 1"
 changing identity every ten minutes.
 
-A09 ships :class:`~worker_ai.diarisation.noop.NoopDiariser`; A10 adds pyannote
-community-1 behind the same interface.
+Two implementations sit behind the interface:
+:class:`~worker_ai.diarisation.pyannote.PyannoteCommunityDiariser`, which calls
+the D15 model server, and :class:`~worker_ai.diarisation.noop.NoopDiariser`,
+which labels everything one speaker and is the right answer for the
+one-person-to-camera footage that is most of this product's input.
 """
 
 from __future__ import annotations
@@ -46,6 +49,14 @@ class Diariser(ABC):
         """Speaker turns in file time, in order."""
         raise NotImplementedError
 
+    def drain_submissions(self) -> tuple[Any, ...]:
+        """External calls made since the last drain, and forget them.
+
+        A diariser instance is process-wide, so a caller that only *read* the
+        list would attach one job's submissions to the next job's completion.
+        """
+        return ()
+
 
 @dataclass(frozen=True, slots=True)
 class DiariserRegistry:
@@ -55,10 +66,28 @@ class DiariserRegistry:
 
     @classmethod
     def default(cls) -> DiariserRegistry:
+        """The chain with nothing configured: pyannote is present but unreachable."""
         from worker_ai.diarisation.noop import NoopDiariser
         from worker_ai.diarisation.pyannote import PyannoteCommunityDiariser
 
         return cls(diarisers=(PyannoteCommunityDiariser(), NoopDiariser()))
+
+    @classmethod
+    def from_settings(cls, settings: Any) -> DiariserRegistry:
+        """The chain a deployment can run: pyannote on the D15 model server (D13)."""
+        from worker_ai.diarisation.noop import NoopDiariser
+        from worker_ai.diarisation.pyannote import PyannoteCommunityDiariser
+
+        return cls(
+            diarisers=(
+                PyannoteCommunityDiariser(
+                    str(getattr(settings, "gpu_provider_url", "") or ""),
+                    token=str(getattr(settings, "gpu_provider_token", "") or ""),
+                    enabled=bool(settings.flag("diarise.pyannote", default=True)),
+                ),
+                NoopDiariser(),
+            )
+        )
 
     def resolve(self) -> Diariser:
         skipped: list[str] = []
@@ -75,6 +104,8 @@ class DiariserRegistry:
                 "name": diariser.name,
                 "rank": diariser.rank,
                 "globalLabels": diariser.global_labels,
+                "model": str(getattr(diariser, "model", "") or ""),
+                "licence": str(getattr(diariser, "licence", "") or ""),
                 "available": diariser.available() is None,
                 "reason": diariser.available(),
             }

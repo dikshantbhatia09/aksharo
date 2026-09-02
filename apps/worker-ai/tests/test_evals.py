@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -265,5 +266,56 @@ def test_the_cli_reports_an_unknown_set(capsys: pytest.CaptureFixture[str]) -> N
 
 
 def test_the_cli_refuses_a_provider_it_cannot_run() -> None:
-    with pytest.raises(SystemExit, match="A10"):
-        main(["run", "--set", "hinglish-mini", "--provider", "sarvam"])
+    with pytest.raises(SystemExit, match="unknown provider"):
+        main(["run", "--set", "hinglish-mini", "--provider", "deepgram"])
+
+
+@pytest.mark.parametrize(
+    "provider", ["mock", "sarvam", "elevenlabs", "assemblyai", "serverless-whisper"]
+)
+def test_the_harness_scores_every_adapter_from_its_recorded_session(
+    provider: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`09 §8` needs the harness to be able to run each lane, key or no key."""
+    assert main(["run", "--set", "vendor-replay", "--provider", provider]) == 0
+    printed = capsys.readouterr().out
+    assert "provider " + provider in printed
+    assert "corpus" in printed
+
+
+@pytest.mark.parametrize("provider", ["sarvam", "elevenlabs", "assemblyai"])
+def test_a_replayed_vendor_parses_its_own_fixture_exactly(provider: str) -> None:
+    """A non-zero WER here is an adapter bug, not a vendor measurement."""
+    from worker_ai.evals.replay import build_replay_provider
+    from worker_ai.evals.runner import run_eval_set
+
+    adapter, _session = build_replay_provider(provider)
+    report = asyncio.run(run_eval_set(load_eval_set("vendor-replay"), adapter))
+    assert report.skipped == ()
+    assert report.corpus_wer == 0.0
+
+
+def test_live_asks_the_registry_rather_than_the_fixtures(
+    contract_env: dict[str, str],
+) -> None:
+    """`--live` is the A00-06 path and must fail loudly without a key.
+
+    ``contract_env`` is what makes this a test rather than a report on the
+    machine: without it the environment is whatever the developer's `.env` says,
+    and the failure would be "REDIS_URL is missing" on a fresh clone or no failure
+    at all on a machine that has a Sarvam key.
+    """
+    del contract_env
+    with pytest.raises(SystemExit, match="cannot run live here"):
+        main(["run", "--set", "vendor-replay", "--provider", "sarvam", "--live"])
+
+
+def test_live_reports_a_broken_environment_rather_than_a_stack_trace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The other half: no environment at all is a message, not a traceback."""
+    for name in ("REDIS_URL", "API_ORIGIN", "INTERNAL_CALLBACK_SECRET"):
+        monkeypatch.setenv(name, "")
+    monkeypatch.setattr("worker_ai.evals.__main__.load_repo_dotenv", lambda: None)
+    with pytest.raises(SystemExit, match="Invalid environment"):
+        main(["run", "--set", "vendor-replay", "--provider", "sarvam", "--live"])

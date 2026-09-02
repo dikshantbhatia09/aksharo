@@ -323,6 +323,48 @@ schemas/                generated JSON Schema documents (committed)
 fixtures/               sample projection, transcript, goldens, v1 document (committed)
 ```
 
+## Budgets come from `fitBudget`; readability caps are maxima
+
+The 32/24/22 characters a line and two lines a caption in `09 §3` are
+**readability caps** — what a viewer can read in the time the caption is up. They
+are maxima, not targets, and they are not on their own a statement about what
+fits on screen (decision D78).
+
+What fits depends on the style's type size, the font's metrics for the script,
+the caption box and the canvas: a 22-character Tamil line is around 37 code
+points and roughly twice the width of 32 Latin characters, and a 9:16 frame is
+1080 px wide where a 16:9 frame is 1920. `fitBudget` in `@montaj/render-core`
+measures that and returns `min(readabilityCap, whatFits)`:
+
+```ts
+import { fitBudgetsByScript } from "@montaj/render-core";
+
+const { maxCharsByScript, maxLines } = fitBudgetsByScript({
+  style,
+  canvas,
+  registry,
+  shaper,
+});
+const segments = segmentWords(words, { ...DEFAULT_SEGMENTER_PARAMS, maxCharsByScript, maxLines });
+```
+
+`SegmenterParams` therefore takes budgets three ways, most specific first:
+
+| Field              | Meaning                                                                          |
+| ------------------ | -------------------------------------------------------------------------------- |
+| `maxCharsByScript` | per script — what `fitBudget` produces, and what a mixed-script transcript needs |
+| `maxChars`         | one number for every script                                                      |
+| neither            | the readability table (`SCRIPT_LIMITS`)                                          |
+
+The per-script form matters for Hinglish: the segmenter resolves the limit from
+the script of the words in the run it is closing, so a Roman run and a Devanagari
+run in the same transcript take different budgets.
+
+A11 computes the budget at EDG initialisation from the project's aspect and
+default style. A15 offers "Reflow captions" — a `Resegment` op — when a style
+change moves it, because changing the style does not retroactively re-cut
+captions.
+
 ## Scripts
 
 | Script                                    | What it does                                             |

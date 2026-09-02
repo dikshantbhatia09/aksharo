@@ -186,7 +186,10 @@ async def test_transcribe_numbers_words_per_chunk_with_monotonic_timings(
     assert outcome.result["provider"] == "mock"
     assert outcome.result["wordCount"] == sum(len(chunk["words"]) for chunk in chunks)
     assert outcome.result["providerSubmissions"][0]["provider"] == "mock"
-    assert len(outcome.result["providerSubmissions"]) == len(chunks)
+    # One per chunk, plus the LID probe's own call when it moved the lane (D14).
+    # Every call is recorded, discarded or not: an erasure request has to be able
+    # to find the audio that actually left (`06 §Invariant 5`).
+    assert len(outcome.result["providerSubmissions"]) >= len(chunks)
 
 
 async def test_transcribe_honours_a_chunk_plan_from_the_payload(wav_file: Path) -> None:
@@ -260,10 +263,14 @@ async def test_transcribe_aligns_segment_only_results(
     services = build_services()
     lane = services.routing.lane("hinglish")
     monkeypatch.setattr(
-        "worker_ai.processors.transcribe.resolve",
-        lambda *args, **kwargs: RoutingDecision(
-            lane=lane,
-            candidate=RoutingCandidate(provider="mock", model="fixture-v1", alignment="required"),
+        "worker_ai.processors.transcribe.resolve_chain",
+        lambda *args, **kwargs: (
+            RoutingDecision(
+                lane=lane,
+                candidate=RoutingCandidate(
+                    provider="mock", model="fixture-v1", alignment="required"
+                ),
+            ),
         ),
     )
 

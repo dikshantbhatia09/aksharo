@@ -25,8 +25,23 @@ import { charCount, dominantScript, limitsFor, type WordScript } from "./script.
 
 /** Segmentation limits. `undefined` means "use the per-script table" (09 §3). */
 export interface SegmenterParams {
-  /** Characters per line; overrides the script's own limit when set. */
+  /**
+   * Characters per line for every script; overrides the table when set.
+   * `maxCharsByScript` wins over it where both name a script.
+   */
   maxChars?: number;
+  /**
+   * Characters per line **per script**, keyed by `WordScript`. This is the shape
+   * `fitBudget` in `@montaj/render-core` produces (decision D78): the budget a
+   * caption is cut to comes from the style, the font metrics and the canvas, and
+   * the 32/24/22 table is the readability **maximum** it is capped by, not the
+   * target. A Hinglish transcript needs the per-script form, because the
+   * segmenter picks the limit from the script of the words in the run it is
+   * closing, and Latin and Devanagari runs get different budgets.
+   *
+   * Unset scripts fall back to `maxChars`, then to the table.
+   */
+  maxCharsByScript?: Partial<Record<WordScript, number>>;
   /** Lines a caption may occupy. */
   maxLines: number;
   /** Shortest caption, in ms. */
@@ -129,7 +144,7 @@ function resolveLimits(entries: readonly Prepared[], params: SegmenterParams): R
   const limits = limitsFor(script);
   return {
     script,
-    maxCharsPerLine: params.maxChars ?? limits.maxCharsPerLine,
+    maxCharsPerLine: params.maxCharsByScript?.[script] ?? params.maxChars ?? limits.maxCharsPerLine,
     maxCps: params.maxCps ?? limits.maxCps,
   };
 }

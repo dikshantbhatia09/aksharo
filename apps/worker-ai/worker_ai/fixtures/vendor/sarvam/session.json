@@ -1,0 +1,73 @@
+{
+  "provider": "sarvam",
+  "baseUrl": "https://api.sarvam.test",
+  "exchanges": [
+    {
+      "method": "POST",
+      "path": "/speech-to-text/job/init",
+      "status": 200,
+      "json": {
+        "job_id": "job-1",
+        "input_storage_path": "https://sarvamblob.test/job-1?sv=2026-01-01&sig=replay",
+        "output_storage_path": "https://sarvamblob.test/job-1-out?sv=2026-01-01&sig=replay"
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "sarvamblob.test/job-1/",
+      "status": 201,
+      "text": ""
+    },
+    {
+      "method": "POST",
+      "path": "/speech-to-text/job",
+      "status": 200,
+      "json": {
+        "job_id": "job-1",
+        "job_state": "Pending"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/speech-to-text/job/job-1/status",
+      "status": 200,
+      "json": {
+        "job_id": "job-1",
+        "job_state": "Running"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/speech-to-text/job/job-1/status",
+      "status": 200,
+      "json": {
+        "job_id": "job-1",
+        "job_state": "Completed"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "sarvamblob.test/job-1-out/",
+      "status": 200,
+      "json": {
+        "language_code": "hi-IN",
+        "language_probability": 0.94,
+        "transcript": "toh aaj hum baat karenge video editing ke baare mein",
+        "timestamps": {
+          "chunks": [
+            {
+              "text": "toh aaj hum baat karenge",
+              "start_time_seconds": 0.12,
+              "end_time_seconds": 2.1
+            },
+            {
+              "text": "video editing ke baare mein",
+              "start_time_seconds": 2.2,
+              "end_time_seconds": 3.98
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
