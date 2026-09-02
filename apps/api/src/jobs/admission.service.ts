@@ -41,6 +41,24 @@ export interface AdmissionDecision {
 export class AdmissionService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * The plan's limits, with no cap checked.
+   *
+   * For a job the API has already decided must run: `media.probe` completing and
+   * asking for its `media.proxy` (A07). The proxy is the second half of one piece
+   * of work the workspace was admitted for at upload, and making it queue behind a
+   * fresh admission decision would 429 the *pipeline* on a Free workspace whose
+   * lane the still-open probe is itself occupying. The priority and the queue-wait
+   * budget still come from the plan, because those are scheduling, not rationing.
+   *
+   * Never reachable from a worker: `EnqueueChildSchema` has no field that selects
+   * it, so `POST /internal/jobs/{id}/enqueue-child` always goes through
+   * {@link admit} (THREAT-MODEL T23).
+   */
+  async limitsFor(workspaceId: string): Promise<PlanLimits> {
+    return planLimits(await resolveWorkspacePlan(this.prisma, workspaceId));
+  }
+
   /** @throws AppException 429 when either cap is exceeded. */
   async admit(input: {
     readonly workspaceId: string;

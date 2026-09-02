@@ -171,11 +171,11 @@ async function seed(): Promise<void> {
     },
   });
 
-  // The FREE plan's concurrency lane is two jobs, and one upload enqueues exactly
-  // two (probe and proxy) — so a suite on the free plan would 429 on its second
-  // upload. A creator subscription gives admission control the headroom the test
-  // needs without touching the entitlement the plan CAPS come from, which stays
-  // the Free stub until B02.
+  // A creator subscription gives admission control the headroom the suite needs —
+  // it uploads many files without retiring their jobs between cases — without
+  // touching the entitlement the plan CAPS come from, which stays the Free stub
+  // until B02. Since A07 one upload enqueues one job rather than two, so the Free
+  // lane of two is no longer the binding constraint it was.
   const plan = await prisma.plan.upsert({
     where: { key: "creator" },
     update: {},
@@ -321,7 +321,7 @@ beforeAll(async () => {
 /**
  * Retire the jobs each test enqueued.
  *
- * Every upload enqueues two jobs and every import one, and a job in `queued`
+ * Every upload enqueues one job and every import one, and a job in `queued`
  * occupies the workspace's concurrency lane (eight on the creator plan) until it
  * finishes. Without this the suite would 429 partway through — on the admission
  * control A08 built, working exactly as designed, rather than on anything A06
@@ -472,12 +472,10 @@ describe.skipIf(!CAN_RUN)("media upload against a real object store", () => {
       derivedBucket: "r2",
     });
 
-    // `media.proxy` follows it onto its own queue.
-    const proxyRow = await prisma.job.findUniqueOrThrow({
-      where: { id: completed.body.proxyJobId as string },
-    });
-    expect(proxyRow.type).toBe("media.proxy");
-    expect((await readEnvelope(proxyRow)).jobKey).toBe(`media.proxy:${ticket.mediaId}`);
+    // `media.proxy` is NOT enqueued here (A07): it is a child of the probe's
+    // completion, so one upload takes one admission slot rather than two.
+    expect(completed.body.proxyJobId).toBeNull();
+    expect(await prisma.job.count({ where: { projectId, type: "media.proxy" } })).toBe(0);
 
     // --- idempotency ------------------------------------------------------
     const again = await api().post(`/media/${ticket.mediaId}/complete`).send({ etags }).expect(201);

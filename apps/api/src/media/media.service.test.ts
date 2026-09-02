@@ -316,8 +316,11 @@ describe("MediaService.complete", () => {
     expect(Math.round((raw.getTime() - uploadedAt.getTime()) / 86_400_000)).toBe(7);
     expect(Math.round((derived.getTime() - uploadedAt.getTime()) / 86_400_000)).toBe(7);
 
-    expect(harness.jobs.enqueue).toHaveBeenCalledTimes(2);
-    const [probe, proxy] = harness.jobs.enqueue.mock.calls.map((call) => call[0]);
+    // ONE job, not two (A07). Enqueuing the proxy here as well took two admission
+    // slots for one upload, so a Free workspace — lane of two — 429'd on its
+    // second concurrent file. The proxy now rides on the probe's completion.
+    expect(harness.jobs.enqueue).toHaveBeenCalledTimes(1);
+    const [probe] = harness.jobs.enqueue.mock.calls.map((call) => call[0]);
     expect(probe).toMatchObject({
       type: "media.probe",
       workspaceId: WORKSPACE,
@@ -325,9 +328,11 @@ describe("MediaService.complete", () => {
       jobKey: MEDIA_JOB_KEYS.probe(MEDIA),
       worstCaseTenths: 0,
     });
-    expect(proxy).toMatchObject({ type: "media.proxy", jobKey: MEDIA_JOB_KEYS.proxy(MEDIA) });
+    expect(
+      harness.jobs.enqueue.mock.calls.map((call) => (call[0] as { type?: string }).type ?? ""),
+    ).not.toContain("media.proxy");
     expect(result.probeJobId).toContain("media.probe");
-    expect(result.proxyJobId).toContain("media.proxy");
+    expect(result.proxyJobId).toBeNull();
   });
 
   it("uses the plan's retention for the derived clock", async () => {
@@ -347,6 +352,7 @@ describe("MediaService.complete", () => {
     const result = await harness.service.complete(WORKSPACE, MEDIA, ["etag-1"]);
     expect(harness.raw.completeMultipartUpload).not.toHaveBeenCalled();
     expect(result.probeJobId).toContain("media.probe");
+    expect(result.proxyJobId).toBeNull();
   });
 
   it("refuses when there is no upload and nothing has landed", async () => {

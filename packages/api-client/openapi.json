@@ -6038,6 +6038,7 @@
                       "type": "string"
                     },
                     "proxyJobId": {
+                      "nullable": true,
                       "type": "string"
                     }
                   },
@@ -7137,6 +7138,7 @@
                       "type": "string"
                     },
                     "proxyJobId": {
+                      "nullable": true,
                       "type": "string"
                     }
                   },

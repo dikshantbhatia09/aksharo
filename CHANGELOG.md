@@ -287,6 +287,95 @@ audioSeconds, model, batchSize}` on every response, the arithmetic behind it,
     when the filename's extension is one we know, and the extension that reaches a
     key is chosen from the same lists, never from the filename directly.
 
+- **A07 — worker-media: probe, 16 kHz + 48 kHz audio, 540p proxy, waveform,
+  thumbnails.**
+  - `apps/worker-media`: a BullMQ worker consuming `media.probe` and
+    `media.proxy` (CONTRACTS §3) with concurrency and queue selection from
+    `WORKER_MEDIA_*` env, a ten-minute lock with a heartbeat at a third of it
+    (`src/policies.ts`, kept in step with `apps/api/src/jobs/jobs.config.ts` by
+    a source-parsing drift guard, same as the Python worker's), graceful
+    shutdown that aborts every ffmpeg child before closing the workers, and
+    structured logs with `jobId` on every line. Refuses to start when
+    ffmpeg/ffprobe are missing or older than major 6
+    (`assertMediaToolsAvailable`) rather than silently producing flat HDR
+    proxies and no progress.
+  - **The source is never downloaded.** ffprobe and ffmpeg read the raw object
+    through a presigned GET URL; the only files on disk are the outputs
+    `+faststart` and a patched WAV header need a seekable destination for, in a
+    scratch directory `withWorkspace` deletes in a `finally`.
+  - **`media.probe`**: `ffprobe` for duration, fps, dimensions, rotation
+    (display-matrix side data, not just the `rotate` tag), codec, audio
+    channels/sample rate and HDR (`smpte2084`/`arib-std-b67` transfer curves);
+    one audio-only `ebur128`+`silencedetect` decode for loudness range, true
+    peak and silence ratio/spans, never fatal to the probe itself. Writes the
+    measured facts through `PATCH /internal/media/{id}` and reports the full
+    result on `POST /internal/jobs/{id}/complete`; the plan's duration cap and
+    whether a proxy gets built at all are the API's decision, not the worker's.
+  - **`media.proxy`**: `audio16k.wav` (mono PCM s16le, for ASR/alignment),
+    `audio48k.wav` (mono PCM s16le, `09 §5` mastering), `waveform.json` (peaks
+    at 100/s and RMS at 10/s, both 0–1 of full scale, streamed off the 16 kHz
+    WAV in 64 KiB chunks so a sixty-minute file never sits in memory),
+    `proxy540.mp4` (H.264 main profile, short side 540 computed in TypeScript
+    and never upscaled, CRF 28, faststart, AAC 96k) and ten `thumb-{n}.jpg`
+    filmstrip frames (320px wide, midpoints of even slices, input-seek so a
+    sixty-minute source costs one range request per frame instead of a decode
+    from zero). Audio-only inputs skip the video half entirely; a silent video
+    skips the audio half. HDR sources are tone-mapped to BT.709
+    (`zscale` → `tonemap=hable` → `zscale`) ahead of the scale filter, with a
+    same-job fallback to a flat SDR encode when this ffmpeg has no `libzimg`.
+    CONTRACTS §6 names no poster key, so `thumb-0.jpg` is the poster and an
+    audio-only asset simply has an empty `thumbKeys`.
+  - **A06's upload path changes here**: `POST /media/{id}/complete` now
+    enqueues only `media.probe`.
+    `apps/api/src/media/probe.handler.ts` (`MediaProbeCompletionHandler`) is
+    the probe's completion handler and enqueues `media.proxy` as a **child
+    job** via `JobsService.enqueueChild({ skipAdmission: true })` — the proxy
+    is the second half of one piece of work the workspace was already admitted
+    for at upload, and enqueuing it from `complete` used to cost two admission
+    slots for one file, 429ing a Free workspace on its second concurrent
+    upload. `skipAdmission` is unreachable from a worker (THREAT-MODEL T23): it
+    keeps the plan's priority and queue-wait budget but checks neither cap, and
+    only `MediaProbeCompletionHandler` ever sets it. `probeJobId`/`proxyJobId`
+    stay in the `complete` response for compatibility; `proxyJobId` is now
+    always `null`.
+  - `apps/api/src/jobs/completion-handlers.ts` (`JobCompletionRegistry`): one
+    completion handler per queue, registered by the feature module that owns
+    it rather than a `switch` inside `JobsService`. Runs **before** the
+    conditional status-flip `UPDATE`, so a handler that throws leaves the job
+    `running` and the callback answers 5xx for the worker to retry — flipping
+    first would make the first transient failure permanent, since a replay
+    would find a terminal job and never reach the handler again.
+  - `apps/api/src/internal/internal-media.controller.ts`: `PATCH
+/internal/media/{id}`'s allow-list gained `codec`, `hasAudio`, `hdr`,
+    `failureReason` (a closed `media/*` set — `MEDIA_FAILURE_REASONS` in
+    `apps/api/src/media/media.constants.ts` — since it is rendered to the
+    user) and `thumbKeys`, plus `assertOwnKeys()`: every derived key in a
+    patch must resolve, after rejecting `..`, under the asset's own
+    `ws/{ws}/p/{project}/media/{media}` prefix rebuilt from the row — never
+    from anything in the request body — so a worker with a stolen callback
+    secret can write nonsense about its own asset but cannot repoint
+    `proxyKey` at another tenant's object (THREAT-MODEL T5).
+  - `media_assets` gained `codec`, `has_audio`, `hdr` and `failure_reason`
+    (all nullable with no default — `NULL` means "not probed yet", a different
+    statement from `false`).
+  - `apps/api/src/jobs/jobs.config.ts` and the Python `worker_ai/policies.py`
+    both give `media.probe`/`media.proxy` a 600 000 ms lock: the family
+    default of two minutes was sized for "ffprobe a short clip", and would
+    declare a 4K sixty-minute proxy encode stalled and hand it to a second
+    worker while the first is still writing the same derived keys.
+  - Tests: unit coverage for every module above; `processors.test.ts` runs
+    both processors against real ffmpeg (fixtures generated with
+    `testsrc`/`sine` at test time, never committed) with the object store
+    faked; `apps/api/test/media-pipeline.e2e-spec.ts` uploads a synthetic clip
+    through A06's presigned flow to MinIO, spawns the built worker as a
+    process against the shared Redis, and asserts every CONTRACTS §6 object
+    exists, that the row was updated through the allow-listed patch, and that
+    the proxy ran as a child job — plus the audio-only, HDR and corrupt-input
+    paths.
+  - `apps/worker-media/Dockerfile`: a `turbo prune`-based multi-stage build
+    (Debian trixie, ffmpeg from the distro archive) so a media pod carries
+    ffmpeg and this package's compiled output and nothing else.
+
 - **A20 — the cloud render service: `apps/render`, `@montaj/render-skia-node`,
   `@montaj/render-manifest`.**
   - `@montaj/render-skia-node` is implemented: the same `DrawCommand[]` the browser
@@ -344,6 +433,7 @@ audioSeconds, model, batchSize}` on every response, the arithmetic behind it,
     rasterising blocks Node's only thread, the two optimisations tried (bounded layer
     surfaces, landed, 0.69× → ~1.1×; a pipe run-ahead buffer, reverted, slower), and the
     worker-thread change that would close the gap.
+
 - **A10b — Meta MMS excluded on licence grounds (D77); tests no longer read a
   developer's `.env`.**
   - `worker_ai/alignment/mms.py` is **deleted**. The common
