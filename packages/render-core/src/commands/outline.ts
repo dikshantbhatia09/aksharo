@@ -16,7 +16,13 @@
 
 import { type Shaper } from "../fonts/shaper.js";
 import { q } from "../units.js";
-import { type DrawCommand, type Fill, type GlyphRun, type PathCommand, type Stroke } from "./types.js";
+import {
+  type DrawCommand,
+  type Fill,
+  type GlyphRun,
+  type PathCommand,
+  type Stroke,
+} from "./types.js";
 
 const COMMAND_LETTERS = new Set(["M", "L", "Q", "C", "Z", "m", "l", "q", "c", "z"]);
 

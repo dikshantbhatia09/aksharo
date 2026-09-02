@@ -17,7 +17,15 @@ export default mergeConfig(
         include: ["lib/**/*.test.ts", "components/**/*.test.ts"],
         coverage: {
           include: ["lib/**/*.ts", "components/**/*.ts"],
-          exclude: ["**/*.test.ts", "**/*.tsx", "**/index.ts"],
+          // `use-canvaskit.ts` instantiates two wasm modules against a DOM; the
+          // Playwright lane covers it, and a jsdom stand-in would only assert
+          // that the mock was called.
+          exclude: [
+            "**/*.test.ts",
+            "**/*.tsx",
+            "**/index.ts",
+            "components/editor/canvas/use-canvaskit.ts",
+          ],
         },
       },
     }),

@@ -13,9 +13,14 @@
 import { useEffect, useRef } from "react";
 
 import type { StyleDoc } from "@montaj/caption-styles";
-import { animate, layoutSegment, PREVIEW_DURATION_MS, previewFor, previewStillMs } from "@montaj/render-core";
+import {
+  animate,
+  layoutSegment,
+  PREVIEW_DURATION_MS,
+  previewFor,
+  previewStillMs,
+} from "@montaj/render-core";
 import type { WordScript } from "@montaj/render-core";
-
 
 import { useRenderer } from "./use-canvaskit";
 

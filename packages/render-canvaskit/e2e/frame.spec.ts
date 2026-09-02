@@ -14,7 +14,6 @@ import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-
 import { loadCanvasKit } from "../src/canvaskit.js";
 import { BASELINE_CANVAS, BASELINE_FRAMES } from "../src/frames.js";
 import { comparePixels, PARITY_MAX_DIFF_RATIO } from "../src/testing.js";
@@ -60,9 +59,8 @@ test.describe("CanvasKit in the browser", () => {
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto("/");
     await page.waitForFunction(() => globalThis.__aksharoHarness !== undefined);
-    const summary = (await page.evaluate(
-      async () => globalThis.__aksharoHarness?.ready,
-    )) as HarnessSummary | undefined;
+    const summary = (await page.evaluate(async () => globalThis.__aksharoHarness?.ready)) as
+      HarnessSummary | undefined;
     expect(errors, `the page threw: ${errors.join("; ")}`).toEqual([]);
     expect(summary, "the harness never became ready").toBeDefined();
   });
@@ -105,7 +103,9 @@ test.describe("CanvasKit in the browser", () => {
   }
 
   test("keeps drawing after a hundred frames without leaking a surface", async ({ page }) => {
-    const first = await page.evaluate(() => globalThis.__aksharoHarness?.renderFrame("punch-pop-hinglish"));
+    const first = await page.evaluate(() =>
+      globalThis.__aksharoHarness?.renderFrame("punch-pop-hinglish"),
+    );
     const last = await page.evaluate(() => {
       for (let index = 0; index < 99; index += 1) {
         globalThis.__aksharoHarness?.renderFrame("punch-pop-hinglish");

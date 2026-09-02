@@ -150,7 +150,10 @@ function round(value: number): number {
 }
 
 /** True when two positions would produce the same `SetSegmentPosition`. */
-export function samePosition(a: SegmentPosition | undefined, b: SegmentPosition | undefined): boolean {
+export function samePosition(
+  a: SegmentPosition | undefined,
+  b: SegmentPosition | undefined,
+): boolean {
   if (a === undefined || b === undefined) return a === b;
   return a.x === b.x && a.y === b.y && a.anchor === b.anchor;
 }
@@ -180,7 +183,10 @@ export function boxContains(box: Box, point: Point): boolean {
 }
 
 /** A project-pixel box in CSS pixels, for positioning the drag handle. */
-export function boxToCss(box: Box, fit: StageFit): { left: number; top: number; width: number; height: number } {
+export function boxToCss(
+  box: Box,
+  fit: StageFit,
+): { left: number; top: number; width: number; height: number } {
   return {
     left: fit.left + box[0] * fit.scale,
     top: fit.top + box[1] * fit.scale,

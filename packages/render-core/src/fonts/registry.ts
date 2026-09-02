@@ -52,7 +52,13 @@ function readCharacterMap(data: Uint8Array): Set<number> {
     const encoding = view.getUint16(record + 2);
     const offset = view.getUint32(record + 4);
     const rank =
-      platform === 3 && encoding === 10 ? 3 : platform === 3 && encoding === 1 ? 2 : platform === 0 ? 1 : 0;
+      platform === 3 && encoding === 10
+        ? 3
+        : platform === 3 && encoding === 1
+          ? 2
+          : platform === 0
+            ? 1
+            : 0;
     if (rank > bestRank) {
       bestRank = rank;
       best = cmapOffset + offset;

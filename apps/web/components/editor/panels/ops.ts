@@ -45,8 +45,7 @@ export type PanelOp = SetStyleOp | SetSegmentPositionOp | SetEmphasisOp;
 
 /** Where a panel change applies. */
 export type PanelScope =
-  | { readonly kind: "doc" }
-  | { readonly kind: "segment"; readonly segmentId: string };
+  { readonly kind: "doc" } | { readonly kind: "segment"; readonly segmentId: string };
 
 /** Injected so tests get stable ids and the app gets ULIDs. */
 export type OpIdFactory = () => OpId;
@@ -55,7 +54,11 @@ let counter = 0;
 const defaultOpId: OpIdFactory = () => `panel-${String((counter += 1))}`;
 
 /** Picking a style from the picker. */
-export function setStyleRef(scope: PanelScope, styleRef: string, newOpId: OpIdFactory = defaultOpId): SetStyleOp {
+export function setStyleRef(
+  scope: PanelScope,
+  styleRef: string,
+  newOpId: OpIdFactory = defaultOpId,
+): SetStyleOp {
   return {
     op: "SetStyle",
     opId: newOpId(),
@@ -152,7 +155,8 @@ function mergeDeep(
   const result: Record<string, unknown> = { ...base };
   for (const [key, value] of Object.entries(patch)) {
     const current = result[key];
-    result[key] = isPlainObject(value) && isPlainObject(current) ? mergeDeep(current, value) : value;
+    result[key] =
+      isPlainObject(value) && isPlainObject(current) ? mergeDeep(current, value) : value;
   }
   return result;
 }

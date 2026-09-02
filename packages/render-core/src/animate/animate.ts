@@ -41,7 +41,14 @@ import {
   text as makeText,
   transform,
 } from "../commands/build.js";
-import { type DrawCommand, type Fill, type GlyphRun, type Paint, type Rect, type Stroke } from "../commands/types.js";
+import {
+  type DrawCommand,
+  type Fill,
+  type GlyphRun,
+  type Paint,
+  type Rect,
+  type Stroke,
+} from "../commands/types.js";
 import { type Layout, type LayoutLine, type LayoutWord, type PlacedRun } from "../layout/types.js";
 import { capabilitiesOf, gradientOf } from "../styles/capabilities.js";
 import { blurRadiusToSigma, clamp01, ofFontSize, q } from "../units.js";
@@ -137,9 +144,14 @@ export function cueTiming(layout: Layout, style: StyleDoc, tMs: number): Phase {
   const startMs = perWord && first !== undefined ? first.startMs : layout.startMs;
   const endMs = perWord && first !== undefined ? first.endMs : layout.endMs;
 
-  const enter = cuePhase(style.animation.in.type, progress(tMs, startMs, style.animation.in.durationMs), layout.lineHeightPx);
+  const enter = cuePhase(
+    style.animation.in.type,
+    progress(tMs, startMs, style.animation.in.durationMs),
+    layout.lineHeightPx,
+  );
   const outDuration = style.animation.out.durationMs;
-  const leaving = outDuration > 0 ? clamp01((tMs - (endMs - outDuration)) / outDuration) : tMs >= endMs ? 1 : 0;
+  const leaving =
+    outDuration > 0 ? clamp01((tMs - (endMs - outDuration)) / outDuration) : tMs >= endMs ? 1 : 0;
   const exit = cuePhase(style.animation.out.type, 1 - leaving, layout.lineHeightPx);
   return combine(enter, exit);
 }
@@ -154,7 +166,8 @@ export function wordState(word: LayoutWord, tMs: number): WordState {
 }
 
 function highlightProgress(word: LayoutWord, tMs: number, durationMs: number): number {
-  if (durationMs <= 0) return clamp01((tMs - word.startMs) / Math.max(1, word.endMs - word.startMs));
+  if (durationMs <= 0)
+    return clamp01((tMs - word.startMs) / Math.max(1, word.endMs - word.startMs));
   return progress(tMs, word.startMs, durationMs);
 }
 
@@ -174,10 +187,14 @@ export function wordColour(
     if (state === "sung") return style.colors.activeText ?? base;
     return style.colors.upcomingText ?? base;
   }
-  if (state === "speaking" && (highlight === "color" || highlight === "scale" || highlight === "glow")) {
+  if (
+    state === "speaking" &&
+    (highlight === "color" || highlight === "scale" || highlight === "glow")
+  ) {
     return style.colors.activeText ?? style.colors.accent ?? base;
   }
-  if (state === "upcoming" && style.colors.upcomingText !== undefined) return style.colors.upcomingText;
+  if (state === "upcoming" && style.colors.upcomingText !== undefined)
+    return style.colors.upcomingText;
   return base;
 }
 
@@ -213,14 +230,20 @@ function boxFill(style: StyleDoc, box: Rect): Fill {
     const dy = (Math.sin(radians) * (box[3] - box[1])) / 2;
     const cx = (box[0] + box[2]) / 2;
     const cy = (box[1] + box[3]) / 2;
-    return makeFill(linearGradient([cx - dx, cy - dy], [cx + dx, cy + dy], gradient.stops), style.box.opacity);
+    return makeFill(
+      linearGradient([cx - dx, cy - dy], [cx + dx, cy + dy], gradient.stops),
+      style.box.opacity,
+    );
   }
   return makeFill(style.box.fill ?? "#000000", style.box.opacity);
 }
 
 function typeStroke(style: StyleDoc, layout: Layout): Stroke | undefined {
   if (!style.stroke.enabled || style.stroke.widthPct <= 0) return undefined;
-  return makeStroke(style.stroke.color ?? "#000000", ofFontSize(style.stroke.widthPct, layout.fontSizePx));
+  return makeStroke(
+    style.stroke.color ?? "#000000",
+    ofFontSize(style.stroke.widthPct, layout.fontSizePx),
+  );
 }
 
 /** Ink for one word: stroke under fill, one command per placed run. */
@@ -242,12 +265,20 @@ function karaokeOverlay(word: LayoutWord, style: StyleDoc, tMs: number): DrawCom
   const colour = style.colors.activeText ?? style.colors.accent ?? style.colors.text;
   const sweepRight = word.box[0] + rectWidth(word.box) * fraction;
   return [
-    clipRect([word.box[0], word.box[1], sweepRight, word.box[3]], wordInk(word, makeFill(colour), undefined)),
+    clipRect(
+      [word.box[0], word.box[1], sweepRight, word.box[3]],
+      wordInk(word, makeFill(colour), undefined),
+    ),
   ];
 }
 
 /** The ground drawn behind the word being spoken, per `animation.wordHighlight`. */
-function highlightGround(word: LayoutWord, style: StyleDoc, layout: Layout, tMs: number): DrawCommand[] {
+function highlightGround(
+  word: LayoutWord,
+  style: StyleDoc,
+  layout: Layout,
+  tMs: number,
+): DrawCommand[] {
   if (wordState(word, tMs) !== "speaking") return [];
   const { type, durationMs } = style.animation.wordHighlight;
   const eased = easeOutCubic(highlightProgress(word, tMs, durationMs));
@@ -257,7 +288,9 @@ function highlightGround(word: LayoutWord, style: StyleDoc, layout: Layout, tMs:
   switch (type) {
     case "box": {
       const box = inflate(word.box, padding * 0.5);
-      return [roundRect(box, boxRadius(box, 26), boxRadius(box, 26), { fill: makeFill(accent, eased) })];
+      return [
+        roundRect(box, boxRadius(box, 26), boxRadius(box, 26), { fill: makeFill(accent, eased) }),
+      ];
     }
     case "underline": {
       const thickness = ofFontSize(8, layout.fontSizePx);
@@ -292,17 +325,27 @@ function emphasisGround(preset: EmphasisPreset, word: LayoutWord, layout: Layout
   switch (preset.effect) {
     case "highlight": {
       const box = inflate(word.box, ofFontSize(8, layout.fontSizePx));
-      return [roundRect(box, boxRadius(box, 18), boxRadius(box, 18), { fill: makeFill(colour, 0.9) })];
+      return [
+        roundRect(box, boxRadius(box, 18), boxRadius(box, 18), { fill: makeFill(colour, 0.9) }),
+      ];
     }
     case "underline": {
       const thickness = ofFontSize(9, layout.fontSizePx);
       const top = word.box[3] + thickness * 0.3;
-      return [makeRect([word.box[0], top, word.box[2], top + thickness], { fill: makeFill(colour) })];
+      return [
+        makeRect([word.box[0], top, word.box[2], top + thickness], { fill: makeFill(colour) }),
+      ];
     }
     case "glow":
       return [
         makeShadow(
-          { dx: 0, dy: 0, sigma: blurRadiusToSigma(ofFontSize(24, layout.fontSizePx)), color: colour, shadowOnly: true },
+          {
+            dx: 0,
+            dy: 0,
+            sigma: blurRadiusToSigma(ofFontSize(24, layout.fontSizePx)),
+            color: colour,
+            shadowOnly: true,
+          },
           wordInk(word, makeFill(colour), undefined),
         ),
       ];
@@ -328,10 +371,18 @@ function wordCommands(
     ...(style.box.enabled && style.box.mode === "word"
       ? [
           (() => {
-            const box = inflate(word.box, ofFontSize(style.box.paddingPct, layout.fontSizePx) * 0.5);
-            return roundRect(box, boxRadius(box, style.box.radiusPct), boxRadius(box, style.box.radiusPct), {
-              fill: boxFill(style, box),
-            });
+            const box = inflate(
+              word.box,
+              ofFontSize(style.box.paddingPct, layout.fontSizePx) * 0.5,
+            );
+            return roundRect(
+              box,
+              boxRadius(box, style.box.radiusPct),
+              boxRadius(box, style.box.radiusPct),
+              {
+                fill: boxFill(style, box),
+              },
+            );
           })(),
         ]
       : []),
@@ -352,14 +403,21 @@ function wordCommands(
   // A heavier emphasis weight cannot re-shape the run (the face was resolved at
   // layout time), so it is drawn as a faux bold: a hairline stroke in the fill
   // colour. Documented in the README as a deliberate approximation.
-  if (preset?.weight !== undefined && preset.weight > style.typography.weight && stroke === undefined) {
+  if (
+    preset?.weight !== undefined &&
+    preset.weight > style.typography.weight &&
+    stroke === undefined
+  ) {
     const delta = (preset.weight - style.typography.weight) / 900;
     stroke = makeStroke(colour, ofFontSize(6 * delta, layout.fontSizePx));
   }
 
   const ink =
     highlight.type === "karaoke-fill"
-      ? [...wordInk(word, makeFill(textPaint(style, layout, colour)), stroke), ...karaokeOverlay(word, style, tMs)]
+      ? [
+          ...wordInk(word, makeFill(textPaint(style, layout, colour)), stroke),
+          ...karaokeOverlay(word, style, tMs),
+        ]
       : wordInk(word, makeFill(textPaint(style, layout, colour)), stroke);
 
   const children = [...ground, ...ink];
@@ -367,11 +425,17 @@ function wordCommands(
   // Per-word scale: the highlight's own growth multiplied by the emphasis scale.
   const highlightScale =
     state === "speaking" && highlight.type === "scale"
-      ? lerp(1, highlight.scale ?? 1.15, easeOutBack(highlightProgress(word, tMs, highlight.durationMs)))
+      ? lerp(
+          1,
+          highlight.scale ?? 1.15,
+          easeOutBack(highlightProgress(word, tMs, highlight.durationMs)),
+        )
       : 1;
   const scale = highlightScale * (preset?.scale ?? 1);
   const shake =
-    preset?.effect === "shake" ? shakeOffset(tMs, ofFontSize(3, layout.fontSizePx), word.index) : { x: 0, y: 0 };
+    preset?.effect === "shake"
+      ? shakeOffset(tMs, ofFontSize(3, layout.fontSizePx), word.index)
+      : { x: 0, y: 0 };
 
   if (scale === 1 && shake.x === 0 && shake.y === 0) return children;
   const cx = (word.box[0] + word.box[2]) / 2;
@@ -413,16 +477,23 @@ function blockGround(style: StyleDoc, layout: Layout): DrawCommand[] {
 }
 
 /** Deterministic RGB-split / warble copies for the raster styles. */
-function rasterCopies(style: StyleDoc, layout: Layout, tMs: number, body: readonly DrawCommand[]): DrawCommand[] {
+function rasterCopies(
+  style: StyleDoc,
+  layout: Layout,
+  tMs: number,
+  body: readonly DrawCommand[],
+): DrawCommand[] {
   if (!capabilitiesOf(style.id).raster) return [...body];
   const amplitude = ofFontSize(style.id === "tape-retro" ? 2.5 : 5, layout.fontSizePx);
   const offset = shakeOffset(tMs, amplitude, 1);
-  const red = transform([1, 0, 0, 1, q(-offset.x), q(-offset.y * 0.3)], [
-    group(body, "raster:left", 0.55),
-  ]);
-  const cyan = transform([1, 0, 0, 1, q(offset.x), q(offset.y * 0.3)], [
-    group(body, "raster:right", 0.55),
-  ]);
+  const red = transform(
+    [1, 0, 0, 1, q(-offset.x), q(-offset.y * 0.3)],
+    [group(body, "raster:left", 0.55)],
+  );
+  const cyan = transform(
+    [1, 0, 0, 1, q(offset.x), q(offset.y * 0.3)],
+    [group(body, "raster:right", 0.55)],
+  );
   return [red, cyan, ...body];
 }
 
@@ -493,4 +564,11 @@ export function watermarkCommand(assetId: string, layout: Layout): DrawCommand {
 }
 
 /** Exposed for the animation tests; not part of the public surface. */
-export const __testing = { cuePhase, combine, highlightGround, wordCommands, rasterCopies, boxRadius };
+export const __testing = {
+  cuePhase,
+  combine,
+  highlightGround,
+  wordCommands,
+  rasterCopies,
+  boxRadius,
+};

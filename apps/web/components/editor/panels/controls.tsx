@@ -14,7 +14,6 @@ import { type PanelScope, setStyleField, type SetStyleOp } from "./ops";
 
 import { cn } from "@/lib/utils";
 
-
 export interface FieldProps<T> {
   readonly label: string;
   /** Dotted path into the StyleDoc, e.g. `"typography.sizePct"`. */
@@ -35,7 +34,10 @@ export function ColourField({
 }: FieldProps<string>): React.JSX.Element {
   const id = `field-${path.replace(/\./g, "-")}`;
   return (
-    <label className={cn("flex items-center justify-between gap-3 text-sm", className)} htmlFor={id}>
+    <label
+      className={cn("flex items-center justify-between gap-3 text-sm", className)}
+      htmlFor={id}
+    >
       <span className="text-white/80">{label}</span>
       <input
         id={id}
@@ -112,7 +114,10 @@ export function SelectField<T extends string>({
 }: SelectFieldProps<T>): React.JSX.Element {
   const id = `field-${path.replace(/\./g, "-")}`;
   return (
-    <label className={cn("flex items-center justify-between gap-3 text-sm", className)} htmlFor={id}>
+    <label
+      className={cn("flex items-center justify-between gap-3 text-sm", className)}
+      htmlFor={id}
+    >
       <span className="text-white/80">{label}</span>
       <select
         id={id}
@@ -143,7 +148,10 @@ export function ToggleField({
 }: FieldProps<boolean>): React.JSX.Element {
   const id = `field-${path.replace(/\./g, "-")}`;
   return (
-    <label className={cn("flex items-center justify-between gap-3 text-sm", className)} htmlFor={id}>
+    <label
+      className={cn("flex items-center justify-between gap-3 text-sm", className)}
+      htmlFor={id}
+    >
       <span className="text-white/80">{label}</span>
       <input
         id={id}

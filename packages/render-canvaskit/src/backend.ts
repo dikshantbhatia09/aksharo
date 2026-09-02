@@ -9,7 +9,6 @@
  * differs, which is why the fallback is a warning and not an error.
  */
 
-
 import type { DrawCommand, FontResource } from "@montaj/render-core";
 
 import { Arena } from "./arena.js";
@@ -115,7 +114,11 @@ export class CanvasKitBackend {
   }
 
   /** Draws one frame onto an existing canvas (the editor's preview surface). */
-  drawFrame(canvas: Canvas, commands: readonly DrawCommand[], options: DrawFrameOptions = {}): void {
+  drawFrame(
+    canvas: Canvas,
+    commands: readonly DrawCommand[],
+    options: DrawFrameOptions = {},
+  ): void {
     const arena = new Arena();
     this.#missing = [];
     const context: ExecutionContext = {
@@ -155,13 +158,18 @@ export class CanvasKitBackend {
       );
     }
     try {
-      this.drawFrame(surface.getCanvas(), commands, { background: options.background ?? "#00000000" });
+      this.drawFrame(surface.getCanvas(), commands, {
+        background: options.background ?? "#00000000",
+      });
       surface.flush();
       const image = surface.makeImageSnapshot();
       try {
         const png = image.encodeToBytes();
         if (png === null) {
-          throw new CanvasKitError("canvaskit/encode-failed", "Skia could not encode the frame as a PNG");
+          throw new CanvasKitError(
+            "canvaskit/encode-failed",
+            "Skia could not encode the frame as a PNG",
+          );
         }
         return png;
       } finally {

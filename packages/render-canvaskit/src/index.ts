@@ -26,7 +26,12 @@ export {
   type MissingResource,
   type RenderToPngOptions,
 } from "./backend.js";
-export { CANVASKIT_VERSION, loadCanvasKit, type LoadCanvasKitOptions, resetCanvasKit } from "./canvaskit.js";
+export {
+  CANVASKIT_VERSION,
+  loadCanvasKit,
+  type LoadCanvasKitOptions,
+  resetCanvasKit,
+} from "./canvaskit.js";
 export { executeCommands, type ExecutionContext, toMatrix3x3 } from "./execute.js";
 export {
   BASELINE_BACKGROUND,

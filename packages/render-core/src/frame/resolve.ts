@@ -36,12 +36,13 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  */
 export function mergeOverrides<T>(base: T, overrides: StyleOverrides | undefined): T {
   if (overrides === undefined) return base;
-  if (!isPlainObject(base)) return (overrides as unknown) as T;
+  if (!isPlainObject(base)) return overrides as unknown as T;
   const result: Record<string, unknown> = { ...(base as unknown as Record<string, unknown>) };
   for (const [key, value] of Object.entries(overrides)) {
     if (value === undefined) continue;
     const current = result[key];
-    result[key] = isPlainObject(value) && isPlainObject(current) ? mergeOverrides(current, value) : value;
+    result[key] =
+      isPlainObject(value) && isPlainObject(current) ? mergeOverrides(current, value) : value;
   }
   return result as unknown as T;
 }

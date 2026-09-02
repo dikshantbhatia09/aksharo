@@ -18,7 +18,7 @@ import { CanvasKitBackend, createBrowserSurface } from "@montaj/render-canvaskit
 
 const backend = await CanvasKitBackend.create({
   locateFile: (file) => `/canvaskit/${file}`, // same-origin: a .wasm cannot be fetched cross-origin
-  fonts,                                       // the same FontResource[] the layout used
+  fonts, // the same FontResource[] the layout used
 });
 
 const { surface, backend: kind } = createBrowserSurface(backend.ck, canvasElement);
@@ -27,7 +27,7 @@ surface.flush();
 ```
 
 `kind` is `"webgl"` or `"cpu"`: both are Skia and produce the same pixels, only the
-speed differs, which is why the fallback is something to *show* the user rather than to
+speed differs, which is why the fallback is something to _show_ the user rather than to
 fail on.
 
 For a still — the golden PNG baselines, a thumbnail, the parity gate:
@@ -91,10 +91,10 @@ fixtures/baselines/ the committed PNGs and command lists
 
 ## Scripts
 
-| Script                                              | What it does                                     |
-| --------------------------------------------------- | ------------------------------------------------ |
-| `pnpm --filter @montaj/render-canvaskit build`      | `tsc` to `dist/` (CJS) and `dist/esm/` (ESM)     |
-| `pnpm --filter @montaj/render-canvaskit test`       | Vitest, including the PNG baseline comparison    |
-| `pnpm --filter @montaj/render-canvaskit test:e2e`   | the chromium parity lane                         |
+| Script                                                  | What it does                                  |
+| ------------------------------------------------------- | --------------------------------------------- |
+| `pnpm --filter @montaj/render-canvaskit build`          | `tsc` to `dist/` (CJS) and `dist/esm/` (ESM)  |
+| `pnpm --filter @montaj/render-canvaskit test`           | Vitest, including the PNG baseline comparison |
+| `pnpm --filter @montaj/render-canvaskit test:e2e`       | the chromium parity lane                      |
 | `pnpm --filter @montaj/render-canvaskit baseline:build` | regenerate `fixtures/baselines/`              |
 | `pnpm --filter @montaj/render-canvaskit previews:build` | regenerate the style catalogue previews       |

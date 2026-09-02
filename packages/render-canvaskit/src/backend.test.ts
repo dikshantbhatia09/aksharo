@@ -13,7 +13,12 @@ import { CANVASKIT_VERSION, loadCanvasKit, resetCanvasKit } from "./canvaskit.js
 import { toMatrix3x3 } from "./execute.js";
 import { BASELINE_BACKGROUND, BASELINE_CANVAS, BASELINE_FRAMES } from "./frames.js";
 import { PACKAGE_INFO } from "./package-info.js";
-import { buildBaselineCommands, comparePixels, loadFixtureFonts, PARITY_MAX_DIFF_RATIO } from "./testing.js";
+import {
+  buildBaselineCommands,
+  comparePixels,
+  loadFixtureFonts,
+  PARITY_MAX_DIFF_RATIO,
+} from "./testing.js";
 
 import type { CanvasKit } from "canvaskit-wasm";
 
@@ -118,10 +123,12 @@ describe("the arena", () => {
         },
       });
     };
-    expect(withArena((arena) => {
-      track(arena);
-      return 7;
-    })).toBe(7);
+    expect(
+      withArena((arena) => {
+        track(arena);
+        return 7;
+      }),
+    ).toBe(7);
     expect(() =>
       withArena((arena) => {
         track(arena);
@@ -214,14 +221,17 @@ describe("drawing", () => {
       const drawn = decode(render(frame.name));
       const baseline = decode(readFileSync(join(BASELINE_DIR, `${frame.name}.png`)));
       const diff = comparePixels(drawn, baseline);
-      expect(diff.ratio, `${frame.name}: ${String(diff.differing)} pixels differ`).toBeLessThanOrEqual(
-        PARITY_MAX_DIFF_RATIO,
-      );
+      expect(
+        diff.ratio,
+        `${frame.name}: ${String(diff.differing)} pixels differ`,
+      ).toBeLessThanOrEqual(PARITY_MAX_DIFF_RATIO);
     }
   });
 
   it("is deterministic: the same commands encode to the same bytes", () => {
-    expect(Buffer.from(render("punch-pop-hinglish")).equals(Buffer.from(render("punch-pop-hinglish")))).toBe(true);
+    expect(
+      Buffer.from(render("punch-pop-hinglish")).equals(Buffer.from(render("punch-pop-hinglish"))),
+    ).toBe(true);
   });
 
   it("actually puts ink on the canvas", () => {
@@ -249,7 +259,14 @@ describe("drawing", () => {
     const missingFont: DrawCommand[] = [
       {
         kind: "text",
-        run: { fontId: "ghost-400", fontSizePx: 40, glyphs: [1], positions: [10, 40], clusters: [0], text: "x" },
+        run: {
+          fontId: "ghost-400",
+          fontSizePx: 40,
+          glyphs: [1],
+          positions: [10, 40],
+          clusters: [0],
+          text: "x",
+        },
         fill: { paint: { type: "solid", color: "#ffffffff" } },
       },
     ];
@@ -258,30 +275,47 @@ describe("drawing", () => {
   });
 
   it("reports an image it could not find instead of throwing", () => {
-    backend.renderToPng([{ kind: "image", assetId: "nope", dest: [0, 0, 10, 10] }], { width: 32, height: 32 });
+    backend.renderToPng([{ kind: "image", assetId: "nope", dest: [0, 0, 10, 10] }], {
+      width: 32,
+      height: 32,
+    });
     expect(backend.missingResources).toEqual([{ kind: "image", id: "nope" }]);
   });
 
   it("draws an image once it is registered", () => {
     backend.registerImage("mark", render("vertical-clean-tamil"));
-    const png = backend.renderToPng([{ kind: "image", assetId: "mark", dest: [0, 0, 64, 64], opacity: 0.5 }], {
-      width: 64,
-      height: 64,
-      background: "#000000ff",
-    });
+    const png = backend.renderToPng(
+      [{ kind: "image", assetId: "mark", dest: [0, 0, 64, 64], opacity: 0.5 }],
+      {
+        width: 64,
+        height: 64,
+        background: "#000000ff",
+      },
+    );
     const pixels = decode(png);
-    const blank = decode(backend.renderToPng([], { width: 64, height: 64, background: "#000000ff" }));
+    const blank = decode(
+      backend.renderToPng([], { width: 64, height: 64, background: "#000000ff" }),
+    );
     expect(comparePixels(pixels, blank).differing).toBeGreaterThan(0);
     expect(backend.missingResources).toEqual([]);
   });
 
   it("executes every command kind the union defines", () => {
     const every: DrawCommand[] = [
-      { kind: "rect", rect: [0, 0, 40, 40], fill: { paint: { type: "solid", color: "#ff0000ff" } } },
       {
         kind: "rect",
         rect: [0, 0, 40, 40],
-        stroke: { paint: { type: "solid", color: "#00ff00ff" }, widthPx: 2, join: "miter", cap: "butt" },
+        fill: { paint: { type: "solid", color: "#ff0000ff" } },
+      },
+      {
+        kind: "rect",
+        rect: [0, 0, 40, 40],
+        stroke: {
+          paint: { type: "solid", color: "#00ff00ff" },
+          widthPx: 2,
+          join: "miter",
+          cap: "butt",
+        },
       },
       {
         kind: "roundRect",
@@ -299,7 +333,12 @@ describe("drawing", () => {
             ],
           },
         },
-        stroke: { paint: { type: "solid", color: "#ffffffff" }, widthPx: 1, join: "bevel", cap: "square" },
+        stroke: {
+          paint: { type: "solid", color: "#ffffffff" },
+          widthPx: 1,
+          join: "bevel",
+          cap: "square",
+        },
       },
       {
         kind: "path",
@@ -316,26 +355,49 @@ describe("drawing", () => {
             ],
           },
         },
-        stroke: { paint: { type: "solid", color: "#000000ff" }, widthPx: 1, join: "round", cap: "round" },
+        stroke: {
+          paint: { type: "solid", color: "#000000ff" },
+          widthPx: 1,
+          join: "round",
+          cap: "round",
+        },
       },
       { kind: "path", d: "not a path", fill: { paint: { type: "solid", color: "#ffffffff" } } },
       {
         kind: "group",
         id: "faded",
         opacity: 0.4,
-        children: [{ kind: "rect", rect: [0, 0, 20, 20], fill: { paint: { type: "solid", color: "#ffffffff" } } }],
+        children: [
+          {
+            kind: "rect",
+            rect: [0, 0, 20, 20],
+            fill: { paint: { type: "solid", color: "#ffffffff" } },
+          },
+        ],
       },
       { kind: "group", children: [{ kind: "rect", rect: [0, 0, 5, 5] }] },
       {
         kind: "transform",
         matrix: [1, 0, 0, 1, 5, 5],
-        children: [{ kind: "rect", rect: [0, 0, 8, 8], fill: { paint: { type: "solid", color: "#123456ff" } } }],
+        children: [
+          {
+            kind: "rect",
+            rect: [0, 0, 8, 8],
+            fill: { paint: { type: "solid", color: "#123456ff" } },
+          },
+        ],
       },
       {
         kind: "clip",
         shape: { type: "rect", rect: [0, 0, 30, 30] },
         antiAlias: true,
-        children: [{ kind: "rect", rect: [0, 0, 64, 64], fill: { paint: { type: "solid", color: "#0000ffff" } } }],
+        children: [
+          {
+            kind: "rect",
+            rect: [0, 0, 64, 64],
+            fill: { paint: { type: "solid", color: "#0000ffff" } },
+          },
+        ],
       },
       {
         kind: "clip",
@@ -361,7 +423,13 @@ describe("drawing", () => {
         dy: 2,
         sigma: 3,
         color: "#000000aa",
-        children: [{ kind: "rect", rect: [20, 20, 40, 40], fill: { paint: { type: "solid", color: "#ffffffff" } } }],
+        children: [
+          {
+            kind: "rect",
+            rect: [20, 20, 40, 40],
+            fill: { paint: { type: "solid", color: "#ffffffff" } },
+          },
+        ],
       },
       {
         kind: "shadow",
@@ -370,13 +438,25 @@ describe("drawing", () => {
         sigma: 4,
         color: "#ff00ffff",
         shadowOnly: true,
-        children: [{ kind: "rect", rect: [20, 20, 40, 40], fill: { paint: { type: "solid", color: "#ffffffff" } } }],
+        children: [
+          {
+            kind: "rect",
+            rect: [20, 20, 40, 40],
+            fill: { paint: { type: "solid", color: "#ffffffff" } },
+          },
+        ],
       },
       {
         kind: "blur",
         sigmaX: 2,
         sigmaY: 2,
-        children: [{ kind: "rect", rect: [10, 10, 50, 50], fill: { paint: { type: "solid", color: "#00ff00ff" } } }],
+        children: [
+          {
+            kind: "rect",
+            rect: [10, 10, 50, 50],
+            fill: { paint: { type: "solid", color: "#00ff00ff" } },
+          },
+        ],
       },
       {
         kind: "blur",
@@ -384,11 +464,25 @@ describe("drawing", () => {
         sigmaY: 6,
         backdrop: true,
         bounds: [0, 0, 64, 64],
-        children: [{ kind: "rect", rect: [0, 0, 64, 64], fill: { paint: { type: "solid", color: "#ffffff22" } } }],
+        children: [
+          {
+            kind: "rect",
+            rect: [0, 0, 64, 64],
+            fill: { paint: { type: "solid", color: "#ffffff22" } },
+          },
+        ],
       },
-      { kind: "blur", sigmaX: 1, sigmaY: 1, backdrop: true, children: [{ kind: "rect", rect: [0, 0, 4, 4] }] },
+      {
+        kind: "blur",
+        sigmaX: 1,
+        sigmaY: 1,
+        backdrop: true,
+        children: [{ kind: "rect", rect: [0, 0, 4, 4] }],
+      },
     ];
-    expect(() => backend.renderToPng(every, { width: 64, height: 64, background: "#101018ff" })).not.toThrow();
+    expect(() =>
+      backend.renderToPng(every, { width: 64, height: 64, background: "#101018ff" }),
+    ).not.toThrow();
   });
 
   it("refuses a command kind that is not in the union", () => {

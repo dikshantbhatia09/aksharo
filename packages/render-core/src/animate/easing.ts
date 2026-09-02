@@ -84,7 +84,11 @@ export function lerp(from: number, to: number, t: number): number {
  * incommensurable sine waves give a jitter that never repeats inside a caption
  * but is identical on every machine, every time.
  */
-export function shakeOffset(tMs: number, amplitude: number, seed: number): { x: number; y: number } {
+export function shakeOffset(
+  tMs: number,
+  amplitude: number,
+  seed: number,
+): { x: number; y: number } {
   const phase = tMs / 1000 + seed * 0.37;
   return {
     x: Math.sin(phase * 47.1) * amplitude,

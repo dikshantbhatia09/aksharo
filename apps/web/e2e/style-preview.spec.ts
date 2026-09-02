@@ -9,7 +9,10 @@ import { expect, test } from "@playwright/test";
  * drawn, a click producing the right op. The cross-browser lane is A18a's.
  */
 test.describe("style preview canvas", () => {
-  test.skip(({ browserName }) => browserName !== "chromium", "CanvasKit is exercised on chromium here");
+  test.skip(
+    ({ browserName }) => browserName !== "chromium",
+    "CanvasKit is exercised on chromium here",
+  );
 
   test.beforeEach(async ({ page }) => {
     await page.goto("/studio/styles");

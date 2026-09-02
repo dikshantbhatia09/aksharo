@@ -43,7 +43,6 @@ import verticalClean from "@montaj/caption-styles/styles/vertical-clean.json";
 import whisperThin from "@montaj/caption-styles/styles/whisper-thin.json";
 import wordPop from "@montaj/caption-styles/styles/word-pop.json";
 
-
 /**
  * The import is type-only on purpose: `@montaj/caption-styles`' runtime entry
  * pulls in the catalogue loader, which reads the filesystem. The documents are

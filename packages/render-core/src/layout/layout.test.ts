@@ -25,7 +25,13 @@ import {
   __testing,
 } from "./layout.js";
 import { type Layout, type RenderWord } from "./types.js";
-import { balanceIntoLines, breakWordAtClusters, toWrapItems, wrapByCharacters, wrapByWidth } from "./wrap.js";
+import {
+  balanceIntoLines,
+  breakWordAtClusters,
+  toWrapItems,
+  wrapByCharacters,
+  wrapByWidth,
+} from "./wrap.js";
 
 const styles = loadSystemStyleMap();
 let registry: FontRegistry;
@@ -51,7 +57,12 @@ function words(texts: readonly string[], startMs = 0, endMs = 3000): RenderWord[
   }));
 }
 
-function lay(styleDoc: StyleDoc, list: readonly RenderWord[], tMs = 1500, canvas = GOLDEN_CANVAS): Layout {
+function lay(
+  styleDoc: StyleDoc,
+  list: readonly RenderWord[],
+  tMs = 1500,
+  canvas = GOLDEN_CANVAS,
+): Layout {
   return layoutSegment({
     style: styleDoc,
     segment: { id: "seg", startMs: 0, endMs: 3000 },
@@ -109,11 +120,7 @@ describe("wrapping", () => {
     // first word that does not fit the Latin budget of 32.
     const items = toWrapItems(["Bhai", "aaj", "hum", "baat", "karenge", "video", "editing"]);
     expect(wrapByCharacters(items, 32)).toEqual([[0, 1, 2, 3, 4, 5], [6]]);
-    expect(wrapByCharacters(items, 20)).toEqual([
-      [0, 1, 2, 3],
-      [4, 5],
-      [6],
-    ]);
+    expect(wrapByCharacters(items, 20)).toEqual([[0, 1, 2, 3], [4, 5], [6]]);
     expect(wrapByCharacters([], 32)).toEqual([]);
   });
 
@@ -132,16 +139,15 @@ describe("wrapping", () => {
   });
 
   it("never leaves a balanced line empty", () => {
-    expect(balanceIntoLines(toWrapItems(["a", "b"]), 4).every((line) => line.length > 0)).toBe(true);
+    expect(balanceIntoLines(toWrapItems(["a", "b"]), 4).every((line) => line.length > 0)).toBe(
+      true,
+    );
     expect(balanceIntoLines(toWrapItems(["a", "b"]), 4)).toHaveLength(2);
   });
 
   it("wraps by measured width when asked", () => {
     const items = toWrapItems(["a", "b", "c"]);
-    expect(wrapByWidth(items, () => 40, 10, 100)).toEqual([
-      [0, 1],
-      [2],
-    ]);
+    expect(wrapByWidth(items, () => 40, 10, 100)).toEqual([[0, 1], [2]]);
     expect(wrapByWidth([], () => 1, 1, 1)).toEqual([]);
   });
 
@@ -163,7 +169,9 @@ describe("visible words", () => {
   });
 
   it("shows one word at a time for a per-word style", () => {
-    const perWord = style("word-pop", { animation: { ...style("word-pop").animation, perWord: true } });
+    const perWord = style("word-pop", {
+      animation: { ...style("word-pop").animation, perWord: true },
+    });
     expect(visibleWords(list, perWord, 100)).toHaveLength(1);
     expect(visibleWords(list, perWord, 2900)?.[0]?.t).toBe("six");
   });
@@ -171,7 +179,12 @@ describe("visible words", () => {
   it("shows one chunk at a time when the style sets wordsPerCue", () => {
     const chunked = style("punch-pop");
     expect(chunked.layout.wordsPerCue).toBe(4);
-    expect(visibleWords(list, chunked, 100).map((word) => word.t)).toEqual(["one", "two", "three", "four"]);
+    expect(visibleWords(list, chunked, 100).map((word) => word.t)).toEqual([
+      "one",
+      "two",
+      "three",
+      "four",
+    ]);
     expect(visibleWords(list, chunked, 2900).map((word) => word.t)).toEqual(["five", "six"]);
   });
 
@@ -293,7 +306,12 @@ describe("layoutSegment", () => {
   it("lets a segment position override the style's anchor", () => {
     const layout = layoutSegment({
       style: style("vertical-clean"),
-      segment: { id: "seg", startMs: 0, endMs: 3000, position: { x: 0.25, y: 0.25, anchor: "top-left" } },
+      segment: {
+        id: "seg",
+        startMs: 0,
+        endMs: 3000,
+        position: { x: 0.25, y: 0.25, anchor: "top-left" },
+      },
       words: words(["one", "two"]),
       canvas: GOLDEN_CANVAS,
       registry,
@@ -307,7 +325,12 @@ describe("layoutSegment", () => {
   it("clamps a caption back inside the safe area", () => {
     const layout = layoutSegment({
       style: style("vertical-clean"),
-      segment: { id: "seg", startMs: 0, endMs: 3000, position: { x: 0.5, y: 0.995, anchor: "bottom-center" } },
+      segment: {
+        id: "seg",
+        startMs: 0,
+        endMs: 3000,
+        position: { x: 0.5, y: 0.995, anchor: "bottom-center" },
+      },
       words: words(["one", "two"]),
       canvas: GOLDEN_CANVAS,
       registry,
@@ -338,7 +361,10 @@ describe("layoutSegment", () => {
   });
 
   it("keeps every word box on its own line and in reading order", () => {
-    const layout = lay(style("vertical-clean"), words(["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"]));
+    const layout = lay(
+      style("vertical-clean"),
+      words(["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"]),
+    );
     layout.words.forEach((word, index) => {
       expect(word.index).toBe(index);
       expect(layout.lines[word.lineIndex]?.words).toContain(word);

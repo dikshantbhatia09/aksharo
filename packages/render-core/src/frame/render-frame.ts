@@ -28,7 +28,6 @@ import { layoutSegment } from "../layout/layout.js";
 import { type Layout, type RenderSegment } from "../layout/types.js";
 import { type CanvasSize, assertCanvas } from "../units.js";
 
-
 /** A segment as the projection hands it over (CONTRACTS §2 plus the ordering key). */
 export interface ProjectedSegment extends RenderSegment {
   /** Fractional index; segments are drawn in this order. */
@@ -101,7 +100,10 @@ export function visibleSegments(
   sourceMs: number,
 ): ProjectedSegment[] {
   return segments
-    .filter((segment) => segment.hidden !== true && sourceMs >= segment.startMs && sourceMs < segment.endMs)
+    .filter(
+      (segment) =>
+        segment.hidden !== true && sourceMs >= segment.startMs && sourceMs < segment.endMs,
+    )
     .sort((a, b) => (a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : a.id.localeCompare(b.id)));
 }
 
@@ -113,7 +115,9 @@ export function layoutFrame(options: RenderFrameOptions): { layout: Layout; styl
   const source = {
     catalogue,
     defaultStyleId: projection.styles.defaultStyleId,
-    ...(projection.styles.inline?.doc === undefined ? {} : { documentOverrides: projection.styles.inline.doc }),
+    ...(projection.styles.inline?.doc === undefined
+      ? {}
+      : { documentOverrides: projection.styles.inline.doc }),
   };
 
   const results: { layout: Layout; style: StyleDoc }[] = [];
@@ -146,7 +150,9 @@ export function renderFrame(options: RenderFrameOptions): DrawCommand[] {
         layout,
         style,
         tMs: sourceMs,
-        ...(projection.speakerColours === undefined ? {} : { speakerColours: projection.speakerColours }),
+        ...(projection.speakerColours === undefined
+          ? {}
+          : { speakerColours: projection.speakerColours }),
       }),
     );
   }

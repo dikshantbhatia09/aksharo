@@ -13,12 +13,7 @@ import {
   resetHarfBuzz,
 } from "./harfbuzz.js";
 import { createFontRegistry, resolveFontOrThrow, __testing } from "./registry.js";
-import {
-  advanceOfClusterRange,
-  clusterBoundaries,
-  codePointsOf,
-  type Shaper,
-} from "./shaper.js";
+import { advanceOfClusterRange, clusterBoundaries, codePointsOf, type Shaper } from "./shaper.js";
 import { type FontResource } from "./types.js";
 
 function fixture(file: string): Uint8Array {
@@ -74,7 +69,9 @@ describe("the registry", () => {
 
   it("matches a family case- and whitespace-insensitively", () => {
     const registry = createFontRegistry([face({ family: "  Noto   Sans " })]);
-    expect(registry.resolve({ family: "noto sans", weight: 400, italic: false })?.id).toBe("latin-400");
+    expect(registry.resolve({ family: "noto sans", weight: 400, italic: false })?.id).toBe(
+      "latin-400",
+    );
   });
 
   it("prefers the nearest weight and never swaps slant for weight", () => {
@@ -90,7 +87,12 @@ describe("the registry", () => {
   it("falls back through the style's list before guessing", () => {
     const registry = createFontRegistry([
       face(),
-      face({ id: "deva", family: "Noto Sans Devanagari", data: DEVANAGARI, scripts: ["devanagari"] }),
+      face({
+        id: "deva",
+        family: "Noto Sans Devanagari",
+        data: DEVANAGARI,
+        scripts: ["devanagari"],
+      }),
     ]);
     const resolved = registry.resolve(
       { family: "Inter", fallbacks: ["Noto Sans Devanagari"], weight: 400, italic: false },
@@ -105,33 +107,46 @@ describe("the registry", () => {
       face({ id: "tamil", family: "Noto Sans Tamil", data: TAMIL, scripts: ["tamil"] }),
     ]);
     expect(
-      registry.resolve({ family: "Inter", weight: 400, italic: false, script: "tamil" }, codePointsOf("இன்று"))?.id,
+      registry.resolve(
+        { family: "Inter", weight: 400, italic: false, script: "tamil" },
+        codePointsOf("இன்று"),
+      )?.id,
     ).toBe("tamil");
   });
 
   it("falls back to anything that covers the text as a last resort", () => {
     const registry = createFontRegistry([face({ scripts: undefined })]);
-    expect(registry.resolve({ family: "Nothing", weight: 400, italic: false }, codePointsOf("abc"))?.id).toBe(
-      "latin-400",
-    );
+    expect(
+      registry.resolve({ family: "Nothing", weight: 400, italic: false }, codePointsOf("abc"))?.id,
+    ).toBe("latin-400");
   });
 
   it("never lets a space decide the fallback", () => {
     const registry = createFontRegistry([face()]);
-    expect(registry.resolve({ family: "Noto Sans", weight: 400, italic: false }, codePointsOf("a b"))).toBeDefined();
+    expect(
+      registry.resolve({ family: "Noto Sans", weight: 400, italic: false }, codePointsOf("a b")),
+    ).toBeDefined();
   });
 
   it("returns undefined, and throws on demand, when nothing can draw the text", () => {
     const registry = createFontRegistry([face()]);
-    expect(registry.resolve({ family: "Noto Sans", weight: 400, italic: false }, codePointsOf("हिंदी"))).toBeUndefined();
-    expect(() => resolveFontOrThrow(registry, { family: "Noto Sans", weight: 400, italic: false, script: "devanagari" }, codePointsOf("हिंदी"))).toThrow(
-      /no registered font/,
-    );
+    expect(
+      registry.resolve({ family: "Noto Sans", weight: 400, italic: false }, codePointsOf("हिंदी")),
+    ).toBeUndefined();
+    expect(() =>
+      resolveFontOrThrow(
+        registry,
+        { family: "Noto Sans", weight: 400, italic: false, script: "devanagari" },
+        codePointsOf("हिंदी"),
+      ),
+    ).toThrow(/no registered font/);
   });
 
   it("scores faces the way the docstring says", () => {
     expect(__testing.familyKey(" Noto  Sans ")).toBe("noto sans");
-    expect(__testing.faceDistance(face(), { family: "x", weight: 400, italic: true })).toBeGreaterThan(1000);
+    expect(
+      __testing.faceDistance(face(), { family: "x", weight: 400, italic: true }),
+    ).toBeGreaterThan(1000);
   });
 });
 
@@ -155,7 +170,11 @@ describe("the HarfBuzz shaper", () => {
   });
 
   it("reorders a Devanagari matra ahead of its consonant", () => {
-    const run = shaper.shape({ text: "हि", fontId: "noto-sans-devanagari-400", script: "devanagari" });
+    const run = shaper.shape({
+      text: "हि",
+      fontId: "noto-sans-devanagari-400",
+      script: "devanagari",
+    });
     // "ि" is typed after "ह" but drawn before it, and both belong to cluster 0.
     expect(run.glyphs.length).toBeGreaterThan(1);
     expect(run.glyphs.every((glyph) => glyph.cluster === 0)).toBe(true);
@@ -182,7 +201,9 @@ describe("the HarfBuzz shaper", () => {
 
   it("caches a shaped run and returns the identical object", () => {
     const first = shaper.shape({ text: "cache me", fontId: "noto-sans-400", script: "latin" });
-    expect(shaper.shape({ text: "cache me", fontId: "noto-sans-400", script: "latin" })).toBe(first);
+    expect(shaper.shape({ text: "cache me", fontId: "noto-sans-400", script: "latin" })).toBe(
+      first,
+    );
   });
 
   it("evicts the oldest entry once the cache is full", async () => {
@@ -216,7 +237,9 @@ describe("the HarfBuzz shaper", () => {
   });
 
   it("refuses to shape with a font that was never registered", () => {
-    expect(() => shaper.shape({ text: "x", fontId: "ghost", script: "latin" })).toThrow(/not registered/);
+    expect(() => shaper.shape({ text: "x", fontId: "ghost", script: "latin" })).toThrow(
+      /not registered/,
+    );
   });
 
   it("can be handed an already-initialised module and reset", async () => {

@@ -58,7 +58,10 @@ function projection(overrides: Partial<EdgProjection> = {}): EdgProjection {
 
 describe("mergeOverrides", () => {
   it("wins at every leaf and recurses into objects", () => {
-    expect(mergeOverrides({ a: 1, b: { c: 2, d: 3 } }, { b: { c: 9 } })).toEqual({ a: 1, b: { c: 9, d: 3 } });
+    expect(mergeOverrides({ a: 1, b: { c: 2, d: 3 } }, { b: { c: 9 } })).toEqual({
+      a: 1,
+      b: { c: 9, d: 3 },
+    });
   });
 
   it("replaces arrays rather than concatenating them", () => {
@@ -98,7 +101,9 @@ describe("resolveStyle", () => {
       {},
     );
     expect(resolved.typography.sizePct).toBe(9);
-    expect(resolved.typography.fontFamily).toBe(catalogue.get("vertical-clean")?.typography.fontFamily);
+    expect(resolved.typography.fontFamily).toBe(
+      catalogue.get("vertical-clean")?.typography.fontFamily,
+    );
   });
 
   it("lets the segment's own overrides beat the document's", () => {
@@ -130,18 +135,16 @@ describe("resolveWords", () => {
       "karenge",
     ]);
     expect(
-      resolveWords({ segment, words: WORDS, script: "roman", dropFillers: true }).map((word) => word.t),
+      resolveWords({ segment, words: WORDS, script: "roman", dropFillers: true }).map(
+        (word) => word.t,
+      ),
     ).toEqual(["Bhai", "aaj", "baat", "karenge"]);
   });
 
   it("shows the requested script, falling back to the stored text", () => {
-    expect(resolveWords({ segment, words: WORDS, script: "native" }).map((word) => word.t)).toEqual([
-      "भाई",
-      "आज",
-      "umm",
-      "बात",
-      "karenge",
-    ]);
+    expect(resolveWords({ segment, words: WORDS, script: "native" }).map((word) => word.t)).toEqual(
+      ["भाई", "आज", "umm", "बात", "karenge"],
+    );
   });
 
   it("carries the speaker and the emphasis preset onto the word", () => {
@@ -179,9 +182,13 @@ describe("resolveWords", () => {
   });
 
   it("returns nothing for an override that is only whitespace", () => {
-    expect(resolveWords({ segment: { ...segment, textOverrides: { en: "   " } }, words: WORDS, script: "en" })).toEqual(
-      [],
-    );
+    expect(
+      resolveWords({
+        segment: { ...segment, textOverrides: { en: "   " } },
+        words: WORDS,
+        script: "en",
+      }),
+    ).toEqual([]);
   });
 });
 
@@ -210,8 +217,16 @@ describe("segment selection", () => {
   });
 
   it("slices the word list a segment covers", () => {
-    expect(wordsBetween(WORDS, "0:1", "0:3").map((word) => word.wid)).toEqual(["0:1", "0:2", "0:3"]);
-    expect(wordsBetween(WORDS, "0:3", "9:9").map((word) => word.wid)).toEqual(["0:3", "0:4", "0:5"]);
+    expect(wordsBetween(WORDS, "0:1", "0:3").map((word) => word.wid)).toEqual([
+      "0:1",
+      "0:2",
+      "0:3",
+    ]);
+    expect(wordsBetween(WORDS, "0:3", "9:9").map((word) => word.wid)).toEqual([
+      "0:3",
+      "0:4",
+      "0:5",
+    ]);
     expect(wordsBetween(WORDS, "9:9", "0:1")).toEqual([]);
   });
 });
@@ -232,7 +247,14 @@ describe("renderFrame", () => {
 
   it("draws nothing when no segment is on screen", () => {
     expect(
-      renderFrame({ projection: projection(), timemap: null, catalogue, registry, shaper, outputMs: 9000 }),
+      renderFrame({
+        projection: projection(),
+        timemap: null,
+        catalogue,
+        registry,
+        shaper,
+        outputMs: 9000,
+      }),
     ).toEqual([]);
   });
 
@@ -271,7 +293,10 @@ describe("renderFrame", () => {
     });
     const bigger = layoutFrame({
       projection: projection({
-        styles: { defaultStyleId: "vertical-clean", inline: { doc: { typography: { sizePct: 8 } } } },
+        styles: {
+          defaultStyleId: "vertical-clean",
+          inline: { doc: { typography: { sizePct: 8 } } },
+        },
       }),
       timemap: null,
       catalogue,
@@ -299,7 +324,16 @@ describe("renderFrame", () => {
     const empty = projection({
       segments: [{ ...SEGMENT, startWordId: "9:9", endWordId: "9:9" }],
     });
-    expect(renderFrame({ projection: empty, timemap: null, catalogue, registry, shaper, outputMs: 1500 })).toEqual([]);
+    expect(
+      renderFrame({
+        projection: empty,
+        timemap: null,
+        catalogue,
+        registry,
+        shaper,
+        outputMs: 1500,
+      }),
+    ).toEqual([]);
   });
 
   it("burns in a watermark when the render manifest asks for one", () => {
@@ -326,7 +360,10 @@ describe("renderFrame", () => {
 
   it("colours a caption by speaker when the projection says who is talking", () => {
     const coloured = renderFrame({
-      projection: projection({ styles: { defaultStyleId: "podcast-duo" }, speakerColours: { sp1: "#f2a541" } }),
+      projection: projection({
+        styles: { defaultStyleId: "podcast-duo" },
+        speakerColours: { sp1: "#f2a541" },
+      }),
       timemap: null,
       catalogue,
       registry,

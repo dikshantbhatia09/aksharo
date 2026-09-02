@@ -65,8 +65,12 @@ describe("setStyleField", () => {
   });
 
   it("carries a boolean and a string as faithfully as a number", () => {
-    expect(setStyleField(DOC, "box.enabled", false, opId).overrides).toEqual({ box: { enabled: false } });
-    expect(setStyleField(DOC, "layout.align", "left", opId).overrides).toEqual({ layout: { align: "left" } });
+    expect(setStyleField(DOC, "box.enabled", false, opId).overrides).toEqual({
+      box: { enabled: false },
+    });
+    expect(setStyleField(DOC, "layout.align", "left", opId).overrides).toEqual({
+      layout: { align: "left" },
+    });
   });
 });
 
@@ -100,7 +104,9 @@ describe("setStyleFields", () => {
 
 describe("setSegmentPosition", () => {
   it("carries the dropped position", () => {
-    expect(setSegmentPosition("seg", { x: 0.5, y: 0.8, anchor: "bottom-center" }, opId)).toMatchObject({
+    expect(
+      setSegmentPosition("seg", { x: 0.5, y: 0.8, anchor: "bottom-center" }, opId),
+    ).toMatchObject({
       op: "SetSegmentPosition",
       segmentId: "seg",
       position: { x: 0.5, y: 0.8, anchor: "bottom-center" },

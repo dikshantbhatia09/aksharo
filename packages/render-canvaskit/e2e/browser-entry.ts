@@ -11,7 +11,6 @@
  * page loads the wasm from a script tag.
  */
 
-
 import type { DrawCommand } from "@montaj/render-core";
 
 import { CanvasKitBackend, createBrowserSurface } from "../src/index.js";
@@ -32,9 +31,8 @@ interface Harness {
 }
 
 declare global {
-   
   var CanvasKitInit: (options: { locateFile: (file: string) => string }) => Promise<CanvasKit>;
-   
+
   var __aksharoHarness: Harness | undefined;
 }
 
@@ -46,11 +44,24 @@ const FONT_FILES = [
     file: "NotoSansDevanagari-Regular-subset.ttf",
     script: "devanagari",
   },
-  { id: "noto-sans-tamil", family: "Noto Sans Tamil", file: "NotoSansTamil-Regular-subset.ttf", script: "tamil" },
+  {
+    id: "noto-sans-tamil",
+    family: "Noto Sans Tamil",
+    file: "NotoSansTamil-Regular-subset.ttf",
+    script: "tamil",
+  },
 ] as const;
 
 /** The same aliases `@montaj/render-core/testing` registers in Node. */
-const ALIASES = ["Inter", "Poppins", "Montserrat", "Bebas Neue", "Anton", "Roboto Mono", "Playfair Display"];
+const ALIASES = [
+  "Inter",
+  "Poppins",
+  "Montserrat",
+  "Bebas Neue",
+  "Anton",
+  "Roboto Mono",
+  "Playfair Display",
+];
 const WEIGHTS = [400, 700, 900];
 
 function toBase64(bytes: Uint8Array): string {
@@ -64,7 +75,9 @@ async function boot(): Promise<{ backend: "webgl" | "cpu"; fonts: number; frames
 
   const [bundle, ...fontBuffers] = await Promise.all([
     fetch("/commands.json").then(async (response) => (await response.json()) as FrameBundle),
-    ...FONT_FILES.map(async (font) => new Uint8Array(await (await fetch(`/fonts/${font.file}`)).arrayBuffer())),
+    ...FONT_FILES.map(
+      async (font) => new Uint8Array(await (await fetch(`/fonts/${font.file}`)).arrayBuffer()),
+    ),
   ]);
 
   const backend = await CanvasKitBackend.create({ canvasKit: ck });
@@ -72,7 +85,13 @@ async function boot(): Promise<{ backend: "webgl" | "cpu"; fonts: number; frames
     const data = fontBuffers[index];
     if (data === undefined) continue;
     for (const weight of WEIGHTS) {
-      backend.registerFont({ id: `${font.id}-${String(weight)}`, family: font.family, weight, italic: false, data });
+      backend.registerFont({
+        id: `${font.id}-${String(weight)}`,
+        family: font.family,
+        weight,
+        italic: false,
+        data,
+      });
     }
   }
   const latin = fontBuffers[0];
@@ -125,7 +144,11 @@ async function boot(): Promise<{ backend: "webgl" | "cpu"; fonts: number; frames
 
   const status = document.getElementById("status");
   if (status !== null) status.textContent = `ready:${surfaceBackend}`;
-  return { backend: surfaceBackend, fonts: backend.registeredFontIds.length, frames: Object.keys(bundle.frames) };
+  return {
+    backend: surfaceBackend,
+    fonts: backend.registeredFontIds.length,
+    frames: Object.keys(bundle.frames),
+  };
 }
 
 const ready = boot();

@@ -42,14 +42,14 @@ pnpm --filter @montaj/web exec shadcn@latest add dialog
 `components/editor/canvas/` and `components/editor/panels/` are the editor's
 rendering surface, mounted for real by A15.
 
-| Piece                  | What it is                                                                    |
-| ---------------------- | ----------------------------------------------------------------------------- |
-| `use-canvaskit.ts`     | loads CanvasKit and HarfBuzz **once per page** and shares them                 |
-| `StylePreviewCanvas`   | one StyleDoc drawn live — a still, or its looping three-second preview         |
-| `CaptionStage`         | the proxy `<video>` with the CanvasKit overlay, safe zones and a draggable box |
-| `stage-geometry.ts`    | the letterbox fit, the drag maths and the safe-area clamp — pure, unit-tested  |
-| `panels/ops.ts`        | every control's change as one `EdgOp` — pure, unit-tested                      |
-| `RightPanel`           | the Style, Colors, Look and Anim tabs                                          |
+| Piece                | What it is                                                                     |
+| -------------------- | ------------------------------------------------------------------------------ |
+| `use-canvaskit.ts`   | loads CanvasKit and HarfBuzz **once per page** and shares them                 |
+| `StylePreviewCanvas` | one StyleDoc drawn live — a still, or its looping three-second preview         |
+| `CaptionStage`       | the proxy `<video>` with the CanvasKit overlay, safe zones and a draggable box |
+| `stage-geometry.ts`  | the letterbox fit, the drag maths and the safe-area clamp — pure, unit-tested  |
+| `panels/ops.ts`      | every control's change as one `EdgOp` — pure, unit-tested                      |
+| `RightPanel`         | the Style, Colors, Look and Anim tabs                                          |
 
 The overlay is drawn by `renderFrame` — the same function the cloud renderer calls —
 so what is on screen is what gets burned in. The clock is

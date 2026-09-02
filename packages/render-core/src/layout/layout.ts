@@ -25,15 +25,18 @@ import { type StyleDoc } from "@montaj/caption-styles";
 import { type Rect } from "../commands/types.js";
 import { RenderError } from "../errors.js";
 import { resolveFontOrThrow } from "../fonts/registry.js";
-import {
-  clusterBoundaries,
-  codePointsOf,
-  type ShapedRun,
-  type Shaper,
-} from "../fonts/shaper.js";
+import { clusterBoundaries, codePointsOf, type ShapedRun, type Shaper } from "../fonts/shaper.js";
 import { type FontRegistry } from "../fonts/types.js";
 import { charCount, dominantScript, limitsFor, type WordScript } from "../script.js";
-import { assertCanvas, type CanvasSize, clamp, ofCanvasHeight, ofCanvasWidth, ofFontSize, q } from "../units.js";
+import {
+  assertCanvas,
+  type CanvasSize,
+  clamp,
+  ofCanvasHeight,
+  ofCanvasWidth,
+  ofFontSize,
+  q,
+} from "../units.js";
 import { itemise, type ItemisedRun } from "./itemise.js";
 import {
   type Layout,
@@ -44,7 +47,13 @@ import {
   type RenderSegment,
   type RenderWord,
 } from "./types.js";
-import { balanceIntoLines, breakWordAtClusters, toWrapItems, wrapByCharacters, wrapByWidth } from "./wrap.js";
+import {
+  balanceIntoLines,
+  breakWordAtClusters,
+  toWrapItems,
+  wrapByCharacters,
+  wrapByWidth,
+} from "./wrap.js";
 
 /** The smallest fraction of the style's type size shrink-to-fit may use. */
 export const MIN_SHRINK = 0.55;
@@ -76,14 +85,20 @@ interface Measured {
 }
 
 /** `textTransform` from the style, applied before anything is counted or shaped. */
-export function applyTextTransform(text: string, transform: StyleDoc["typography"]["textTransform"]): string {
+export function applyTextTransform(
+  text: string,
+  transform: StyleDoc["typography"]["textTransform"],
+): string {
   switch (transform) {
     case "uppercase":
       return text.toLocaleUpperCase();
     case "lowercase":
       return text.toLocaleLowerCase();
     case "capitalize":
-      return text.replace(/(^|\s)(\S)/gu, (_match, lead: string, first: string) => lead + first.toLocaleUpperCase());
+      return text.replace(
+        /(^|\s)(\S)/gu,
+        (_match, lead: string, first: string) => lead + first.toLocaleUpperCase(),
+      );
     default:
       return text;
   }
@@ -140,7 +155,11 @@ function measure(
       defaultScript: script,
     }).map((itemised) => ({
       itemised,
-      shaped: shaper.shape({ text: itemised.text, fontId: itemised.fontId, script: itemised.script }),
+      shaped: shaper.shape({
+        text: itemised.text,
+        fontId: itemised.fontId,
+        script: itemised.script,
+      }),
     }));
 
     let widthEm = 0;
@@ -155,12 +174,21 @@ function measure(
 }
 
 /** Advance of one space in the caption's primary face, in em. */
-function spaceEm(primaryFontId: string, script: WordScript, style: StyleDoc, shaper: Shaper): number {
+function spaceEm(
+  primaryFontId: string,
+  script: WordScript,
+  style: StyleDoc,
+  shaper: Shaper,
+): number {
   const run = shaper.shape({ text: " ", fontId: primaryFontId, script });
   return run.advance / run.upem + style.typography.letterSpacingEm;
 }
 
-function lineWidthEm(line: readonly number[], measured: readonly Measured[], space: number): number {
+function lineWidthEm(
+  line: readonly number[],
+  measured: readonly Measured[],
+  space: number,
+): number {
   let width = 0;
   for (const [position, index] of line.entries()) {
     const item = measured[index];
@@ -170,7 +198,11 @@ function lineWidthEm(line: readonly number[], measured: readonly Measured[], spa
   return width;
 }
 
-function widestLineEm(lines: readonly number[][], measured: readonly Measured[], space: number): number {
+function widestLineEm(
+  lines: readonly number[][],
+  measured: readonly Measured[],
+  space: number,
+): number {
   let widest = 0;
   for (const line of lines) widest = Math.max(widest, lineWidthEm(line, measured, space));
   return widest;
@@ -184,7 +216,11 @@ function anchorOffsets(anchor: Anchor): { readonly h: number; readonly v: number
   return { h, v };
 }
 
-function alignOffset(align: StyleDoc["layout"]["align"], blockWidth: number, lineWidth: number): number {
+function alignOffset(
+  align: StyleDoc["layout"]["align"],
+  blockWidth: number,
+  lineWidth: number,
+): number {
   if (align === "left") return 0;
   if (align === "right") return blockWidth - lineWidth;
   return (blockWidth - lineWidth) / 2;
@@ -339,7 +375,10 @@ export function layoutSegment(options: LayoutOptions): Layout {
   // Pass 1 — the segmenter's character wrap.
   let lines = wrapByCharacters(toWrapItems(measured.map((item) => item.word.t)), maxChars);
   if (lines.length > style.layout.maxLines) {
-    lines = balanceIntoLines(toWrapItems(measured.map((item) => item.word.t)), style.layout.maxLines);
+    lines = balanceIntoLines(
+      toWrapItems(measured.map((item) => item.word.t)),
+      style.layout.maxLines,
+    );
   }
 
   // Pass 2 — shrink to fit.
@@ -388,7 +427,10 @@ export function layoutSegment(options: LayoutOptions): Layout {
       lines =
         byWidth.length <= style.layout.maxLines
           ? byWidth
-          : balanceIntoLines(toWrapItems(measured.map((item) => item.word.t)), style.layout.maxLines);
+          : balanceIntoLines(
+              toWrapItems(measured.map((item) => item.word.t)),
+              style.layout.maxLines,
+            );
       shrink = fit(lines, measured);
     }
   }

@@ -23,7 +23,9 @@ describe("the browser style catalogue", () => {
   it("validates every document against the StyleDoc schema", () => {
     for (const style of SYSTEM_STYLES) {
       const parsed = StyleDocSchema.safeParse(style);
-      expect(parsed.success, `${style.id}: ${parsed.success ? "" : parsed.error.message}`).toBe(true);
+      expect(parsed.success, `${style.id}: ${parsed.success ? "" : parsed.error.message}`).toBe(
+        true,
+      );
     }
   });
 

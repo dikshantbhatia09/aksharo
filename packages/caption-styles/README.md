@@ -154,5 +154,4 @@ pnpm --filter @montaj/render-canvaskit previews:build
 ```
 
 The build script lives in `@montaj/render-canvaskit` rather than here because this
-package must not depend on the renderer: `render-core` depends on *it*.
-
+package must not depend on the renderer: `render-core` depends on _it_.

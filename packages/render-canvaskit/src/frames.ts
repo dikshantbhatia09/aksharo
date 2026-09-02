@@ -32,7 +32,8 @@ export const BASELINE_FRAMES: readonly BaselineFrame[] = [
     styleId: "punch-pop",
     fixture: "hinglish",
     tMs: 1500,
-    covers: "stroked type, drop shadow, per-word scale transform, Latin + Devanagari in one caption",
+    covers:
+      "stroked type, drop shadow, per-word scale transform, Latin + Devanagari in one caption",
   },
   {
     name: "karaoke-fill-hindi",

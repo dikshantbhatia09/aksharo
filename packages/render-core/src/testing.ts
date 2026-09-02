@@ -182,12 +182,7 @@ export const CAPTION_FIXTURES: readonly CaptionFixture[] = [
     name: "tamil",
     script: "tamil",
     segment: { id: "fx-tamil", startMs: 0, endMs: 3000 },
-    words: evenlyTimed(
-      ["இன்று", "நாம்", "வீடியோ", "எடிட்டிங்", "பற்றி", "பேசுவோம்"],
-      0,
-      3000,
-      "2",
-    ),
+    words: evenlyTimed(["இன்று", "நாம்", "வீடியோ", "எடிட்டிங்", "பற்றி", "பேசுவோம்"], 0, 3000, "2"),
   },
   {
     name: "english",

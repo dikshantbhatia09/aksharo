@@ -87,7 +87,9 @@ async function main(): Promise<void> {
     `${JSON.stringify({ canvas: GOLDEN_CANVAS, entries: hashes }, null, 1)}\n`,
     "utf8",
   );
-  console.log(`wrote ${String(hashes.length)} golden hashes and ${String(CAPTION_FIXTURES.length)} snapshots`);
+  console.log(
+    `wrote ${String(hashes.length)} golden hashes and ${String(CAPTION_FIXTURES.length)} snapshots`,
+  );
 }
 
 void main().catch((error: unknown) => {

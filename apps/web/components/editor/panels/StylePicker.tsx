@@ -18,8 +18,6 @@ import { StylePreviewCanvas } from "../canvas/StylePreviewCanvas";
 
 import { cn } from "@/lib/utils";
 
-
-
 export interface StylePickerProps {
   readonly styles: readonly StyleDoc[];
   readonly selectedStyleId?: string;
@@ -60,7 +58,8 @@ export function StylePicker({
   const visible = useMemo(
     () =>
       styles.filter(
-        (style) => (category === "all" || style.category === category) && matchesQuery(style, query),
+        (style) =>
+          (category === "all" || style.category === category) && matchesQuery(style, query),
       ),
     [styles, category, query],
   );

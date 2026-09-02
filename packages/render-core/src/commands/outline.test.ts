@@ -8,7 +8,12 @@ import { type FontRegistry } from "../fonts/types.js";
 import { layoutSegment } from "../layout/layout.js";
 import { CAPTION_FIXTURES, createFixtureRenderer, GOLDEN_CANVAS } from "../testing.js";
 import { fill, stroke } from "./build.js";
-import { glyphRunToPath, outlineGlyphRun, outlineTextCommands, transformGlyphPath } from "./outline.js";
+import {
+  glyphRunToPath,
+  outlineGlyphRun,
+  outlineTextCommands,
+  transformGlyphPath,
+} from "./outline.js";
 import { type DrawCommand, walkCommands } from "./types.js";
 
 let registry: FontRegistry;
@@ -37,7 +42,9 @@ function commandsFor(fixtureName: string, styleId = "punch-pop"): DrawCommand[] 
 describe("transformGlyphPath", () => {
   it("flips y and scales into canvas space", () => {
     // A unit square in font units at upem 1000, drawn at 100 px, origin (10, 200).
-    expect(transformGlyphPath("M0,0L1000,0L1000,1000Z", 10, 200, 0.1)).toBe("M10 200L110 200L110 100Z");
+    expect(transformGlyphPath("M0,0L1000,0L1000,1000Z", 10, 200, 0.1)).toBe(
+      "M10 200L110 200L110 100Z",
+    );
   });
 
   it("handles quadratic and cubic segments", () => {
@@ -50,13 +57,17 @@ describe("transformGlyphPath", () => {
   });
 
   it("refuses a path command it was never promised", () => {
-    expect(() => transformGlyphPath("M0,0A1 1 0 0 1 2 2", 0, 0, 1)).toThrow(/unsupported glyph path token/);
+    expect(() => transformGlyphPath("M0,0A1 1 0 0 1 2 2", 0, 0, 1)).toThrow(
+      /unsupported glyph path token/,
+    );
   });
 });
 
 describe("glyphRunToPath", () => {
   it("produces one path for a whole run", () => {
-    const text = [...walkCommands(commandsFor("english"))].find((command) => command.kind === "text");
+    const text = [...walkCommands(commandsFor("english"))].find(
+      (command) => command.kind === "text",
+    );
     expect(text?.kind).toBe("text");
     if (text?.kind !== "text") return;
     const path = glyphRunToPath(text.run, shaper);
@@ -66,16 +77,23 @@ describe("glyphRunToPath", () => {
 
   it("outlines Devanagari and Tamil, marks included", () => {
     for (const fixture of ["hindi", "tamil"]) {
-      const text = [...walkCommands(commandsFor(fixture))].find((command) => command.kind === "text");
+      const text = [...walkCommands(commandsFor(fixture))].find(
+        (command) => command.kind === "text",
+      );
       if (text?.kind !== "text") throw new Error("no text command");
       expect(glyphRunToPath(text.run, shaper).length).toBeGreaterThan(100);
     }
   });
 
   it("keeps the paints when it turns a run into a path command", () => {
-    const text = [...walkCommands(commandsFor("english"))].find((command) => command.kind === "text");
+    const text = [...walkCommands(commandsFor("english"))].find(
+      (command) => command.kind === "text",
+    );
     if (text?.kind !== "text") throw new Error("no text command");
-    const path = outlineGlyphRun(text.run, shaper, { fill: fill("#ffffff"), stroke: stroke("#000000", 4) });
+    const path = outlineGlyphRun(text.run, shaper, {
+      fill: fill("#ffffff"),
+      stroke: stroke("#000000", 4),
+    });
     expect(path.kind).toBe("path");
     expect(path.fillRule).toBe("nonzero");
     expect(path.fill).toBeDefined();
@@ -84,7 +102,14 @@ describe("glyphRunToPath", () => {
 
   it("skips a glyph with no outline, such as a space", () => {
     const empty = glyphRunToPath(
-      { fontId: "noto-sans-400", fontSizePx: 48, glyphs: [], positions: [], clusters: [], text: "" },
+      {
+        fontId: "noto-sans-400",
+        fontSizePx: 48,
+        glyphs: [],
+        positions: [],
+        clusters: [],
+        text: "",
+      },
       shaper,
     );
     expect(empty).toBe("");

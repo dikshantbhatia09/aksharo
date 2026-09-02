@@ -13,8 +13,6 @@ import { useState } from "react";
 
 import type { StyleDoc } from "@montaj/caption-styles";
 
-
-
 import { ColourField, SelectField, SliderField, ToggleField } from "./controls";
 import { type PanelScope, type SetStyleOp } from "./ops";
 import { StylePicker } from "./StylePicker";
@@ -55,7 +53,10 @@ export function RightPanel({
   const [tab, setTab] = useState<PanelTab>("style");
 
   return (
-    <aside className={cn("flex h-full w-80 flex-col gap-4 p-3", className)} data-testid="right-panel">
+    <aside
+      className={cn("flex h-full w-80 flex-col gap-4 p-3", className)}
+      data-testid="right-panel"
+    >
       <div className="flex gap-1" role="tablist" aria-label="Caption settings">
         {PANEL_TABS.map((entry) => (
           <button
@@ -113,7 +114,13 @@ interface TabProps {
 export function ColorsPanel({ style, scope, onOp }: TabProps): React.JSX.Element {
   return (
     <div className="flex flex-col gap-3" data-testid="colors-panel">
-      <ColourField label="Text" path="colors.text" value={style.colors.text} scope={scope} onOp={onOp} />
+      <ColourField
+        label="Text"
+        path="colors.text"
+        value={style.colors.text}
+        scope={scope}
+        onOp={onOp}
+      />
       <ColourField
         label="Highlight"
         path="colors.activeText"
@@ -128,7 +135,13 @@ export function ColorsPanel({ style, scope, onOp }: TabProps): React.JSX.Element
         scope={scope}
         onOp={onOp}
       />
-      <ToggleField label="Stroke" path="stroke.enabled" value={style.stroke.enabled} scope={scope} onOp={onOp} />
+      <ToggleField
+        label="Stroke"
+        path="stroke.enabled"
+        value={style.stroke.enabled}
+        scope={scope}
+        onOp={onOp}
+      />
       <ColourField
         label="Stroke colour"
         path="stroke.color"
@@ -136,7 +149,13 @@ export function ColorsPanel({ style, scope, onOp }: TabProps): React.JSX.Element
         scope={scope}
         onOp={onOp}
       />
-      <ToggleField label="Box" path="box.enabled" value={style.box.enabled} scope={scope} onOp={onOp} />
+      <ToggleField
+        label="Box"
+        path="box.enabled"
+        value={style.box.enabled}
+        scope={scope}
+        onOp={onOp}
+      />
       <ColourField
         label="Box fill"
         path="box.fill"

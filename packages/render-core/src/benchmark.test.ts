@@ -44,19 +44,43 @@ function percentile(samples: readonly number[], fraction: number): number {
   return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))] ?? 0;
 }
 
-function timeFrames(styleId: string, words: readonly RenderWord[], iterations = ITERATIONS): number[] {
+function timeFrames(
+  styleId: string,
+  words: readonly RenderWord[],
+  iterations = ITERATIONS,
+): number[] {
   const style = loadSystemStyleMap().get(styleId);
   if (style === undefined) throw new Error(`no style ${styleId}`);
   const segment = { id: "bench", startMs: 0, endMs: 3000 };
   const samples: number[] = [];
   // Warm the shaping cache first: a cold cache measures HarfBuzz, not layout.
   for (let i = 0; i < 30; i += 1) {
-    animate({ layout: layoutSegment({ style, segment, words, canvas: GOLDEN_CANVAS, registry, shaper, tMs: i }), style, tMs: i });
+    animate({
+      layout: layoutSegment({
+        style,
+        segment,
+        words,
+        canvas: GOLDEN_CANVAS,
+        registry,
+        shaper,
+        tMs: i,
+      }),
+      style,
+      tMs: i,
+    });
   }
   for (let i = 0; i < iterations; i += 1) {
     const tMs = 100 + (i % 2800);
     const started = performance.now();
-    const layout = layoutSegment({ style, segment, words, canvas: GOLDEN_CANVAS, registry, shaper, tMs });
+    const layout = layoutSegment({
+      style,
+      segment,
+      words,
+      canvas: GOLDEN_CANVAS,
+      registry,
+      shaper,
+      tMs,
+    });
     animate({ layout, style, tMs });
     samples.push(performance.now() - started);
   }

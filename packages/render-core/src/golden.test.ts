@@ -87,7 +87,9 @@ describe("golden hashes", () => {
       const commands = render(entry.style, entry.fixture, entry.tMs);
       const hash = hashCommands(commands);
       if (hash !== entry.hash) {
-        mismatches.push(`${entry.style}/${entry.fixture}@${String(entry.tMs)}: ${hash} ≠ ${entry.hash}`);
+        mismatches.push(
+          `${entry.style}/${entry.fixture}@${String(entry.tMs)}: ${hash} ≠ ${entry.hash}`,
+        );
       }
     }
     expect(mismatches).toEqual([]);
@@ -95,9 +97,10 @@ describe("golden hashes", () => {
 
   it("reproduces every committed command count", () => {
     for (const entry of golden.entries.filter((candidate) => candidate.tMs === SNAPSHOT_MS)) {
-      expect(countCommands(render(entry.style, entry.fixture, entry.tMs)), `${entry.style}/${entry.fixture}`).toBe(
-        entry.commands,
-      );
+      expect(
+        countCommands(render(entry.style, entry.fixture, entry.tMs)),
+        `${entry.style}/${entry.fixture}`,
+      ).toBe(entry.commands);
     }
   });
 
@@ -115,38 +118,43 @@ describe("golden hashes", () => {
   });
 });
 
-describe.each(CAPTION_FIXTURES.map((fixture) => fixture.name))("golden snapshot: %s", (fixtureName) => {
-  const snapshot = readJson<{ styles: Record<string, DrawCommand[]> }>(`${fixtureName}.json`);
+describe.each(CAPTION_FIXTURES.map((fixture) => fixture.name))(
+  "golden snapshot: %s",
+  (fixtureName) => {
+    const snapshot = readJson<{ styles: Record<string, DrawCommand[]> }>(`${fixtureName}.json`);
 
-  it("matches the committed DrawCommand[] for every style", () => {
-    for (const style of styles) {
-      const expected = snapshot.styles[style.id];
-      expect(expected, `${style.id} is missing from the ${fixtureName} snapshot`).toBeDefined();
-      expect(render(style.id, fixtureName, SNAPSHOT_MS), `${style.id}/${fixtureName}`).toEqual(expected);
-    }
-  });
-
-  it("draws text with glyph ids and paired positions", () => {
-    for (const commands of Object.values(snapshot.styles)) {
-      for (const command of walkCommands(commands)) {
-        if (command.kind !== "text") continue;
-        expect(command.run.positions).toHaveLength(command.run.glyphs.length * 2);
-        expect(command.run.clusters).toHaveLength(command.run.glyphs.length);
-        expect(command.run.fontSizePx).toBeGreaterThan(0);
+    it("matches the committed DrawCommand[] for every style", () => {
+      for (const style of styles) {
+        const expected = snapshot.styles[style.id];
+        expect(expected, `${style.id} is missing from the ${fixtureName} snapshot`).toBeDefined();
+        expect(render(style.id, fixtureName, SNAPSHOT_MS), `${style.id}/${fixtureName}`).toEqual(
+          expected,
+        );
       }
-    }
-  });
+    });
 
-  it("shapes the Indic fixtures with real glyphs, never notdef", () => {
-    if (fixtureName !== "hindi" && fixtureName !== "tamil") return;
-    for (const commands of Object.values(snapshot.styles)) {
-      for (const command of walkCommands(commands)) {
-        if (command.kind !== "text") continue;
-        expect(command.run.glyphs, "a .notdef glyph means the fallback failed").not.toContain(0);
+    it("draws text with glyph ids and paired positions", () => {
+      for (const commands of Object.values(snapshot.styles)) {
+        for (const command of walkCommands(commands)) {
+          if (command.kind !== "text") continue;
+          expect(command.run.positions).toHaveLength(command.run.glyphs.length * 2);
+          expect(command.run.clusters).toHaveLength(command.run.glyphs.length);
+          expect(command.run.fontSizePx).toBeGreaterThan(0);
+        }
       }
-    }
-  });
-});
+    });
+
+    it("shapes the Indic fixtures with real glyphs, never notdef", () => {
+      if (fixtureName !== "hindi" && fixtureName !== "tamil") return;
+      for (const commands of Object.values(snapshot.styles)) {
+        for (const command of walkCommands(commands)) {
+          if (command.kind !== "text") continue;
+          expect(command.run.glyphs, "a .notdef glyph means the fallback failed").not.toContain(0);
+        }
+      }
+    });
+  },
+);
 
 describe("determinism", () => {
   it("returns identical commands for the same inputs, ten times over", () => {
@@ -154,7 +162,10 @@ describe("determinism", () => {
       for (const fixture of CAPTION_FIXTURES) {
         const first = hashCommands(render(style.id, fixture.name, 1234));
         for (let attempt = 0; attempt < 9; attempt += 1) {
-          expect(hashCommands(render(style.id, fixture.name, 1234)), `${style.id}/${fixture.name}`).toBe(first);
+          expect(
+            hashCommands(render(style.id, fixture.name, 1234)),
+            `${style.id}/${fixture.name}`,
+          ).toBe(first);
         }
       }
     }

@@ -11,7 +11,10 @@ import { coverageThresholds, vitestBaseConfig } from "@montaj/config/vitest";
  * end to end anyway.
  */
 export default mergeConfig(
-  mergeConfig(defineConfig(vitestBaseConfig), defineConfig({ test: { name: "@montaj/render-core" } })),
+  mergeConfig(
+    defineConfig(vitestBaseConfig),
+    defineConfig({ test: { name: "@montaj/render-core" } }),
+  ),
   mergeConfig(
     defineConfig({
       test: {

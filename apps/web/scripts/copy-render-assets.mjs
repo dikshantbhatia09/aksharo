@@ -26,13 +26,22 @@ const backendRoot = dirname(require.resolve("@montaj/render-canvaskit/package.js
 const canvasKitBin = dirname(
   require.resolve("canvaskit-wasm/bin/canvaskit.js", { paths: [backendRoot] }),
 );
-const fontDir = resolve(dirname(require.resolve("@montaj/render-core/package.json")), "fixtures", "fonts");
+const fontDir = resolve(
+  dirname(require.resolve("@montaj/render-core/package.json")),
+  "fixtures",
+  "fonts",
+);
 
 const targets = [
-  { from: join(canvasKitBin, "canvaskit.wasm"), to: join(root, "public", "canvaskit", "canvaskit.wasm") },
-  ...["NotoSans-Regular-subset.ttf", "NotoSansDevanagari-Regular-subset.ttf", "NotoSansTamil-Regular-subset.ttf"].map(
-    (file) => ({ from: join(fontDir, file), to: join(root, "public", "fonts", file) }),
-  ),
+  {
+    from: join(canvasKitBin, "canvaskit.wasm"),
+    to: join(root, "public", "canvaskit", "canvaskit.wasm"),
+  },
+  ...[
+    "NotoSans-Regular-subset.ttf",
+    "NotoSansDevanagari-Regular-subset.ttf",
+    "NotoSansTamil-Regular-subset.ttf",
+  ].map((file) => ({ from: join(fontDir, file), to: join(root, "public", "fonts", file) })),
 ];
 
 for (const target of targets) {

@@ -13,7 +13,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 - **A16 — `@montaj/render-core`, `@montaj/render-canvaskit`, the 30 system styles and
   the editor's caption canvas.**
   - `@montaj/render-core` is implemented: `(StyleDoc, segment, words, time, canvas) →
-    DrawCommand[]`, pure TypeScript, HarfBuzz-wasm shaping (`harfbuzzjs` 1.6.1, pinned),
+DrawCommand[]`, pure TypeScript, HarfBuzz-wasm shaping (`harfbuzzjs` 1.6.1, pinned),
     a `FontRegistry` abstraction and no system fonts (D33). `layoutSegment` produces
     absolute geometry; `animate` turns it into commands as a pure function of time;
     `renderFrame` maps output time to source time through `@montaj/timemap` (D30),
@@ -85,7 +85,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     CI and the property tests run on.
   - `worker_ai/providers/`: the `Provider` interface with a capability record, a
     cost estimate and a `ProviderSubmission` trail, plus a registry that reports
-    *why* an adapter is disabled. `MockProvider` (deterministic, Hinglish sample),
+    _why_ an adapter is disabled. `MockProvider` (deterministic, Hinglish sample),
     `LocalWhisperProvider` (faster-whisper, optional `local-asr` extra) and
     `ServerlessWhisperProvider` (the D15 per-second GPU endpoint) ship; ElevenLabs
     Scribe v2, Sarvam Saaras v4 and AssemblyAI are shells carrying their

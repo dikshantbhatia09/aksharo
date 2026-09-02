@@ -5,11 +5,11 @@ not the product's font catalogue: the shipped, subset fonts are supplied at runt
 A18b through the `FontRegistry`, fetched from R2/CDN. Nothing outside tests, benchmarks
 and the preview build script may import from here.
 
-| File                                    | Family               | Covers                                | Licence                        |
-| --------------------------------------- | -------------------- | ------------------------------------- | ------------------------------ |
-| `NotoSans-Regular-subset.ttf`            | Noto Sans            | Basic Latin, Latin-1, common punctuation | [OFL 1.1](./OFL-NotoSans.txt)            |
-| `NotoSansDevanagari-Regular-subset.ttf`  | Noto Sans Devanagari | Devanagari + Devanagari Extended + ASCII | [OFL 1.1](./OFL-NotoSansDevanagari.txt)  |
-| `NotoSansTamil-Regular-subset.ttf`       | Noto Sans Tamil      | Tamil + ASCII                          | [OFL 1.1](./OFL-NotoSansTamil.txt)       |
+| File                                    | Family               | Covers                                   | Licence                                 |
+| --------------------------------------- | -------------------- | ---------------------------------------- | --------------------------------------- |
+| `NotoSans-Regular-subset.ttf`           | Noto Sans            | Basic Latin, Latin-1, common punctuation | [OFL 1.1](./OFL-NotoSans.txt)           |
+| `NotoSansDevanagari-Regular-subset.ttf` | Noto Sans Devanagari | Devanagari + Devanagari Extended + ASCII | [OFL 1.1](./OFL-NotoSansDevanagari.txt) |
+| `NotoSansTamil-Regular-subset.ttf`      | Noto Sans Tamil      | Tamil + ASCII                            | [OFL 1.1](./OFL-NotoSansTamil.txt)      |
 
 ## Provenance
 

@@ -25,8 +25,6 @@ import type { StyleDoc } from "@montaj/caption-styles";
 import { layoutFrame, renderFrame } from "@montaj/render-core";
 import type { EdgProjection } from "@montaj/render-core";
 
-
-
 import {
   type Anchor,
   type Box,
@@ -162,7 +160,8 @@ export function CaptionStage({
     if (element === null || backend === undefined || engine === undefined) return;
     element.width = surfaceCanvas.width;
     element.height = surfaceCanvas.height;
-    const surface = backend.ck.MakeWebGLCanvasSurface(element) ?? backend.ck.MakeSWCanvasSurface(element);
+    const surface =
+      backend.ck.MakeWebGLCanvasSurface(element) ?? backend.ck.MakeSWCanvasSurface(element);
     if (surface === null) return;
 
     const options = {
@@ -189,7 +188,16 @@ export function CaptionStage({
     return (): void => {
       surface.delete();
     };
-  }, [backend, engine, projection, catalogue, surfaceCanvas, outputMs, selectedSegmentId, dragPreview]);
+  }, [
+    backend,
+    engine,
+    projection,
+    catalogue,
+    surfaceCanvas,
+    outputMs,
+    selectedSegmentId,
+    dragPreview,
+  ]);
 
   const styleOf = useCallback(
     (segmentId: string): StyleDoc | undefined => {
@@ -204,7 +212,11 @@ export function CaptionStage({
       const container = containerRef.current;
       if (container === null || captionBox === undefined || selectedSegmentId === undefined) return;
       const rect = container.getBoundingClientRect();
-      const point = toProjectPoint({ x: event.clientX, y: event.clientY }, { x: rect.left, y: rect.top }, fit);
+      const point = toProjectPoint(
+        { x: event.clientX, y: event.clientY },
+        { x: rect.left, y: rect.top },
+        fit,
+      );
       if (!boxContains(captionBox, point)) return;
 
       const style = styleOf(selectedSegmentId);
@@ -227,7 +239,11 @@ export function CaptionStage({
       const container = containerRef.current;
       if (drag === undefined || container === null || drag.pointerId !== event.pointerId) return;
       const rect = container.getBoundingClientRect();
-      const point = toProjectPoint({ x: event.clientX, y: event.clientY }, { x: rect.left, y: rect.top }, fit);
+      const point = toProjectPoint(
+        { x: event.clientX, y: event.clientY },
+        { x: rect.left, y: rect.top },
+        fit,
+      );
       setDragPreview(
         positionFromDrag(
           { x: point.x - drag.origin.x, y: point.y - drag.origin.y },

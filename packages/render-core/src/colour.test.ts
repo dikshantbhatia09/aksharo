@@ -36,7 +36,9 @@ describe("normaliseColour", () => {
 
 describe("alpha", () => {
   it("multiplies an existing alpha rather than replacing it", () => {
-    expect(withAlpha("#ffffff80", 0.5)).toBe(formatColour({ r: 255, g: 255, b: 255, a: (0x80 / 255) * 0.5 }));
+    expect(withAlpha("#ffffff80", 0.5)).toBe(
+      formatColour({ r: 255, g: 255, b: 255, a: (0x80 / 255) * 0.5 }),
+    );
   });
 
   it("replaces the alpha outright when asked", () => {

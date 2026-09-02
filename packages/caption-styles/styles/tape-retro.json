@@ -6,11 +6,7 @@
   "minPlan": "creator",
   "typography": {
     "fontFamily": "Roboto Mono",
-    "fallbacks": [
-      "Noto Sans Devanagari",
-      "Noto Sans Tamil",
-      "Noto Sans"
-    ],
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
     "weight": 700,
     "italic": false,
     "sizePct": 4.2,

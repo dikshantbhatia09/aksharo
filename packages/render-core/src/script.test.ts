@@ -10,7 +10,12 @@ import {
   SCRIPT_LIMITS,
 } from "./script.js";
 import { capabilitiesOf, gradientOf, stylesWithCapabilities } from "./styles/capabilities.js";
-import { PREVIEW_DURATION_MS, PREVIEW_SCRIPTS, previewFor, previewStillMs } from "./styles/preview.js";
+import {
+  PREVIEW_DURATION_MS,
+  PREVIEW_SCRIPTS,
+  previewFor,
+  previewStillMs,
+} from "./styles/preview.js";
 
 describe("script rules re-exported from the segmenter", () => {
   it("keeps the frozen per-script line budgets", () => {
@@ -56,7 +61,11 @@ describe("OpenType script tags", () => {
 
 describe("style capabilities", () => {
   it("says a plain style needs nothing extra", () => {
-    expect(capabilitiesOf("vertical-clean")).toEqual({ backdrop: false, gradient: false, raster: false });
+    expect(capabilitiesOf("vertical-clean")).toEqual({
+      backdrop: false,
+      gradient: false,
+      raster: false,
+    });
     expect(gradientOf("vertical-clean")).toBeUndefined();
   });
 
@@ -87,7 +96,9 @@ describe("style previews", () => {
     expect(preview.segment.endMs - preview.segment.startMs).toBe(PREVIEW_DURATION_MS);
     expect(preview.words[0]?.s).toBe(0);
     expect(preview.words[preview.words.length - 1]?.e).toBe(PREVIEW_DURATION_MS);
-    expect(preview.words.every((word, index) => index === 0 || word.s === preview.words[index - 1]?.e)).toBe(true);
+    expect(
+      preview.words.every((word, index) => index === 0 || word.s === preview.words[index - 1]?.e),
+    ).toBe(true);
   });
 
   it("previews an Indic style in its own script", () => {

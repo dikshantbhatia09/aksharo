@@ -57,7 +57,13 @@ describe("toProjectPoint", () => {
   });
 
   it("answers the origin when the stage has no size", () => {
-    expect(toProjectPoint({ x: 5, y: 5 }, { x: 0, y: 0 }, { width: 0, height: 0, left: 0, top: 0, scale: 0 })).toEqual({
+    expect(
+      toProjectPoint(
+        { x: 5, y: 5 },
+        { x: 0, y: 0 },
+        { width: 0, height: 0, left: 0, top: 0, scale: 0 },
+      ),
+    ).toEqual({
       x: 0,
       y: 0,
     });
@@ -117,7 +123,10 @@ describe("positionFromDrag", () => {
 
   it("never produces a position outside 0…1", () => {
     for (const delta of [-100_000, 100_000]) {
-      const position = positionFromDrag({ x: delta, y: delta }, { box, canvas: CANVAS, anchor: "center" });
+      const position = positionFromDrag(
+        { x: delta, y: delta },
+        { box, canvas: CANVAS, anchor: "center" },
+      );
       expect(position.x).toBeGreaterThanOrEqual(0);
       expect(position.x).toBeLessThanOrEqual(1);
       expect(position.y).toBeGreaterThanOrEqual(0);
@@ -127,19 +136,28 @@ describe("positionFromDrag", () => {
 
   it("copes with a caption wider than the safe area rather than inverting the clamp", () => {
     const huge: Box = [0, 0, 2000, 3000];
-    const position = positionFromDrag({ x: 50, y: 50 }, { box: huge, canvas: CANVAS, anchor: "top-left", safeAreaPct: 20 });
+    const position = positionFromDrag(
+      { x: 50, y: 50 },
+      { box: huge, canvas: CANVAS, anchor: "top-left", safeAreaPct: 20 },
+    );
     expect(Number.isFinite(position.x)).toBe(true);
     expect(position.x).toBeGreaterThanOrEqual(0);
   });
 
   it("rounds to four decimals so two drops of the same place produce one op", () => {
-    const a = positionFromDrag({ x: 0.000_001, y: 0 }, { box, canvas: CANVAS, anchor: "bottom-center" });
+    const a = positionFromDrag(
+      { x: 0.000_001, y: 0 },
+      { box, canvas: CANVAS, anchor: "bottom-center" },
+    );
     const b = positionFromDrag({ x: 0, y: 0 }, { box, canvas: CANVAS, anchor: "bottom-center" });
     expect(samePosition(a, b)).toBe(true);
   });
 
   it("treats a NaN delta as no movement rather than crashing", () => {
-    const position = positionFromDrag({ x: Number.NaN, y: 0 }, { box, canvas: CANVAS, anchor: "bottom-center" });
+    const position = positionFromDrag(
+      { x: Number.NaN, y: 0 },
+      { box, canvas: CANVAS, anchor: "bottom-center" },
+    );
     expect(Number.isFinite(position.x)).toBe(true);
   });
 });

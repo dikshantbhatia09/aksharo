@@ -87,7 +87,9 @@ describe("command constructors", () => {
       to: [10, 0],
       stops: [{ offset: 0, color: "#fff000ff" }],
     });
-    expect(radialGradient([5, 5], 4, [{ offset: 1, color: "#000000" }]).type).toBe("radial-gradient");
+    expect(radialGradient([5, 5], 4, [{ offset: 1, color: "#000000" }]).type).toBe(
+      "radial-gradient",
+    );
   });
 
   it("scales about a centre without moving it", () => {
@@ -173,7 +175,9 @@ describe("canonicalJson", () => {
 describe("sha256Hex", () => {
   it("matches the published vectors", () => {
     expect(sha256Hex("")).toBe("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
-    expect(sha256Hex("abc")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    expect(sha256Hex("abc")).toBe(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    );
     expect(sha256Hex("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")).toBe(
       "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
     );
@@ -189,7 +193,9 @@ describe("sha256Hex", () => {
 describe("hashCommands", () => {
   it("is stable across key order and unstable across content", () => {
     const a = hashCommands([rect([0, 0, 1, 1], { fill: fill("#ffffff") })]);
-    const b = hashCommands([{ rect: [0, 0, 1, 1], fill: { paint: solid("#ffffff") }, kind: "rect" }]);
+    const b = hashCommands([
+      { rect: [0, 0, 1, 1], fill: { paint: solid("#ffffff") }, kind: "rect" },
+    ]);
     expect(a).toBe(b);
     expect(a).not.toBe(hashCommands([rect([0, 0, 1, 2], { fill: fill("#ffffff") })]));
   });

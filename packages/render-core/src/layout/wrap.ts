@@ -30,10 +30,7 @@ export function toWrapItems(texts: readonly string[]): WrapItem[] {
  * one space and the word still fit the budget. Returns index ranges, one per
  * line, so callers keep their own word objects.
  */
-export function wrapByCharacters(
-  items: readonly WrapItem[],
-  maxCharsPerLine: number,
-): number[][] {
+export function wrapByCharacters(items: readonly WrapItem[], maxCharsPerLine: number): number[][] {
   if (items.length === 0) return [];
   const lines: number[][] = [];
   let current: number[] = [];

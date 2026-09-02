@@ -17,7 +17,17 @@
 
 export { type PackageInfo, PACKAGE_INFO } from "./package-info.js";
 
-export { animate, type AnimateOptions, cuePhase, cueTiming, toGlyphRun, watermarkCommand, wordColour, wordState, type WordState } from "./animate/animate.js";
+export {
+  animate,
+  type AnimateOptions,
+  cuePhase,
+  cueTiming,
+  toGlyphRun,
+  watermarkCommand,
+  wordColour,
+  wordState,
+  type WordState,
+} from "./animate/animate.js";
 export {
   type Easing,
   EASINGS,
@@ -57,7 +67,12 @@ export {
   transform,
 } from "./commands/build.js";
 export { canonicalJson, hashCommands, sha256Hex } from "./commands/hash.js";
-export { glyphRunToPath, outlineGlyphRun, outlineTextCommands, transformGlyphPath } from "./commands/outline.js";
+export {
+  glyphRunToPath,
+  outlineGlyphRun,
+  outlineTextCommands,
+  transformGlyphPath,
+} from "./commands/outline.js";
 export {
   type BlurCommand,
   type ClipCommand,

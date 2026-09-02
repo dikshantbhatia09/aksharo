@@ -12,7 +12,6 @@
  * browser test bundle it on its own and run it against a stored PNG.
  */
 
-
 import type {
   ClipShape,
   DrawCommand,
@@ -26,14 +25,7 @@ import type {
 
 import { type Arena } from "./arena.js";
 
-import type {
-  Canvas,
-  CanvasKit,
-  Font,
-  Image,
-  Paint as SkPaint,
-  Typeface,
-} from "canvaskit-wasm";
+import type { Canvas, CanvasKit, Font, Image, Paint as SkPaint, Typeface } from "canvaskit-wasm";
 
 /** What the executor needs besides the command list. */
 export interface ExecutionContext {
@@ -78,7 +70,12 @@ function gradientArrays(
 }
 
 /** Applies a `Paint` (solid or gradient) to a Skia paint object. */
-function applyPaint(context: ExecutionContext, paint: SkPaint, source: Paint, opacity: number): void {
+function applyPaint(
+  context: ExecutionContext,
+  paint: SkPaint,
+  source: Paint,
+  opacity: number,
+): void {
   const { ck, arena } = context;
   if (source.type === "solid") {
     const [r, g, b, a] = parseColour(source.color);
@@ -121,10 +118,18 @@ function strokePaint(context: ExecutionContext, stroke: Stroke): SkPaint {
   paint.setStyle(ck.PaintStyle.Stroke);
   paint.setStrokeWidth(stroke.widthPx);
   paint.setStrokeJoin(
-    stroke.join === "round" ? ck.StrokeJoin.Round : stroke.join === "bevel" ? ck.StrokeJoin.Bevel : ck.StrokeJoin.Miter,
+    stroke.join === "round"
+      ? ck.StrokeJoin.Round
+      : stroke.join === "bevel"
+        ? ck.StrokeJoin.Bevel
+        : ck.StrokeJoin.Miter,
   );
   paint.setStrokeCap(
-    stroke.cap === "round" ? ck.StrokeCap.Round : stroke.cap === "square" ? ck.StrokeCap.Square : ck.StrokeCap.Butt,
+    stroke.cap === "round"
+      ? ck.StrokeCap.Round
+      : stroke.cap === "square"
+        ? ck.StrokeCap.Square
+        : ck.StrokeCap.Butt,
   );
   applyPaint(context, paint, stroke.paint, stroke.opacity ?? 1);
   return paint;
@@ -149,14 +154,7 @@ function fontFor(context: ExecutionContext, run: GlyphRun): Font | undefined {
 function drawGlyphRun(context: ExecutionContext, run: GlyphRun, paint: SkPaint): void {
   const font = fontFor(context, run);
   if (font === undefined || run.glyphs.length === 0) return;
-  context.canvas.drawGlyphs(
-    run.glyphs as number[],
-    run.positions as number[],
-    0,
-    0,
-    font,
-    paint,
-  );
+  context.canvas.drawGlyphs(run.glyphs as number[], run.positions as number[], 0, 0, font, paint);
 }
 
 /** Our `[a, b, c, d, e, f]` in Skia's 3×3 row-major form. */
@@ -247,8 +245,10 @@ export function executeCommands(context: ExecutionContext, commands: readonly Dr
       case "text":
         // Stroke first so the fill sits on top of it, exactly as `animate`
         // ordered the two commands.
-        if (command.stroke !== undefined) drawGlyphRun(context, command.run, strokePaint(context, command.stroke));
-        if (command.fill !== undefined) drawGlyphRun(context, command.run, fillPaint(context, command.fill));
+        if (command.stroke !== undefined)
+          drawGlyphRun(context, command.run, strokePaint(context, command.stroke));
+        if (command.fill !== undefined)
+          drawGlyphRun(context, command.run, fillPaint(context, command.fill));
         break;
 
       case "image": {

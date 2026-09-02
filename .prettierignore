@@ -19,3 +19,10 @@ docs/THREAT-MODEL.md
 # Helm templates are Go templates, not YAML: prettier cannot parse `{{ ... }}`
 # where a key or a list item is expected. Added by X05.
 infra/k8s/montaj/templates
+
+# Generated render fixtures (A16): the golden command lists are written one style
+# per line on purpose — a diff then names exactly which styles moved — and the
+# PNG baselines are binary.
+packages/render-core/fixtures/goldens
+packages/render-canvaskit/fixtures/baselines
+packages/render-canvaskit/e2e/.artifacts

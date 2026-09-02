@@ -75,7 +75,8 @@ async function loadFonts(fontBase: string, files: readonly FontFile[]): Promise<
   fontsPromise ??= Promise.all(
     files.map(async (font): Promise<FontResource> => {
       const response = await fetch(`${fontBase}${font.file}`);
-      if (!response.ok) throw new Error(`could not fetch the font ${font.file}: ${String(response.status)}`);
+      if (!response.ok)
+        throw new Error(`could not fetch the font ${font.file}: ${String(response.status)}`);
       return {
         id: font.id,
         family: font.family,
@@ -168,7 +169,12 @@ export function useRenderer(assets: RendererAssets = {}): RendererState {
       })
       .catch((error: unknown) => {
         if (!cancelled) {
-          setState({ backend: undefined, engine: undefined, error: error as Error, loading: false });
+          setState({
+            backend: undefined,
+            engine: undefined,
+            error: error as Error,
+            loading: false,
+          });
         }
       });
     return (): void => {

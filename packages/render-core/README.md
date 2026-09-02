@@ -13,11 +13,23 @@ cloud disagree, the disagreement is in a rasteriser, never in a second layout en
 ## Using it
 
 ```ts
-import { animate, createFontRegistry, createHarfBuzzShaper, layoutSegment } from "@montaj/render-core";
+import {
+  animate,
+  createFontRegistry,
+  createHarfBuzzShaper,
+  layoutSegment,
+} from "@montaj/render-core";
 
 const registry = createFontRegistry([
   { id: "inter-700", family: "Inter", weight: 700, italic: false, data: interBytes },
-  { id: "noto-deva-700", family: "Noto Sans Devanagari", weight: 700, italic: false, data: devaBytes, scripts: ["devanagari"] },
+  {
+    id: "noto-deva-700",
+    family: "Noto Sans Devanagari",
+    weight: 700,
+    italic: false,
+    data: devaBytes,
+    scripts: ["devanagari"],
+  },
 ]);
 const shaper = await createHarfBuzzShaper(registry); // the only await in the render path
 
@@ -33,16 +45,16 @@ resolves each one's effective style and draws them in `seq` order.
 
 Ten kinds, all JSON-serialisable, all in absolute canvas pixels:
 
-| Kind                                | Carries                                                       |
-| ----------------------------------- | ------------------------------------------------------------- |
-| `text`                              | a `GlyphRun` — glyph ids, paired positions, clusters, the source text |
-| `rect`, `roundRect`, `path`         | geometry plus an optional fill and stroke                     |
-| `image`                             | an `assetId` the host resolves, and a destination rectangle   |
-| `group`                             | children composited at an opacity                             |
-| `transform`                         | a 3×2 affine matrix applied to children                       |
-| `clip`                              | a rect, round-rect or path clip applied to children           |
-| `shadow`                            | a Gaussian drop shadow layer around children                  |
-| `blur`                              | a Gaussian blur of children, or of the **backdrop** behind them |
+| Kind                        | Carries                                                               |
+| --------------------------- | --------------------------------------------------------------------- |
+| `text`                      | a `GlyphRun` — glyph ids, paired positions, clusters, the source text |
+| `rect`, `roundRect`, `path` | geometry plus an optional fill and stroke                             |
+| `image`                     | an `assetId` the host resolves, and a destination rectangle           |
+| `group`                     | children composited at an opacity                                     |
+| `transform`                 | a 3×2 affine matrix applied to children                               |
+| `clip`                      | a rect, round-rect or path clip applied to children                   |
+| `shadow`                    | a Gaussian drop shadow layer around children                          |
+| `blur`                      | a Gaussian blur of children, or of the **backdrop** behind them       |
 
 Fills and strokes take a `Paint`: `solid`, `linear-gradient` or `radial-gradient`.
 A backend that cannot draw glyph ids (any Canvas2D surface) calls
@@ -133,10 +145,10 @@ read the diff, and commit the reason with it.
 
 ## Scripts
 
-| Script                                         | What it does                                    |
-| ---------------------------------------------- | ----------------------------------------------- |
-| `pnpm --filter @montaj/render-core build`      | `tsc` to `dist/` (CJS) and `dist/esm/` (ESM)    |
-| `pnpm --filter @montaj/render-core typecheck`  | type-check including tests                      |
-| `pnpm --filter @montaj/render-core lint`       | ESLint flat config from `@montaj/config/eslint` |
-| `pnpm --filter @montaj/render-core test`       | Vitest, including the golden and benchmark suites |
-| `pnpm --filter @montaj/render-core golden:build` | regenerate `fixtures/goldens/`                |
+| Script                                           | What it does                                      |
+| ------------------------------------------------ | ------------------------------------------------- |
+| `pnpm --filter @montaj/render-core build`        | `tsc` to `dist/` (CJS) and `dist/esm/` (ESM)      |
+| `pnpm --filter @montaj/render-core typecheck`    | type-check including tests                        |
+| `pnpm --filter @montaj/render-core lint`         | ESLint flat config from `@montaj/config/eslint`   |
+| `pnpm --filter @montaj/render-core test`         | Vitest, including the golden and benchmark suites |
+| `pnpm --filter @montaj/render-core golden:build` | regenerate `fixtures/goldens/`                    |

@@ -239,11 +239,7 @@ export type DrawCommandKind = (typeof DRAW_COMMAND_KINDS)[number];
 
 /** Commands that nest, i.e. the ones a backend walks recursively. */
 export type ContainerCommand =
-  | GroupCommand
-  | TransformCommand
-  | ClipCommand
-  | ShadowCommand
-  | BlurCommand;
+  GroupCommand | TransformCommand | ClipCommand | ShadowCommand | BlurCommand;
 
 /** Narrows to the nesting commands without a `kind` switch at every call site. */
 export function isContainerCommand(command: DrawCommand): command is ContainerCommand {

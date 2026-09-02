@@ -37,7 +37,12 @@ export function stroke(
   join: Stroke["join"] = "round",
   cap: Stroke["cap"] = "round",
 ): Stroke {
-  return { paint: typeof paint === "string" ? solid(paint) : paint, widthPx: q(widthPx), join, cap };
+  return {
+    paint: typeof paint === "string" ? solid(paint) : paint,
+    widthPx: q(widthPx),
+    join,
+    cap,
+  };
 }
 
 export function linearGradient(
@@ -100,7 +105,11 @@ export function text(run: GlyphRun, paints: { fill?: Fill; stroke?: Stroke }): D
   };
 }
 
-export function group(children: readonly DrawCommand[], id?: string, opacity?: number): GroupCommand {
+export function group(
+  children: readonly DrawCommand[],
+  id?: string,
+  opacity?: number,
+): GroupCommand {
   return {
     kind: "group",
     ...(id === undefined ? {} : { id }),
@@ -126,7 +135,11 @@ export function transform(matrix: Matrix, children: readonly DrawCommand[]): Dra
   return { kind: "transform", matrix, children };
 }
 
-export function clip(shape: ClipShape, children: readonly DrawCommand[], antiAlias = true): DrawCommand {
+export function clip(
+  shape: ClipShape,
+  children: readonly DrawCommand[],
+  antiAlias = true,
+): DrawCommand {
   return { kind: "clip", shape, antiAlias, children };
 }
 
@@ -160,7 +173,14 @@ export function blur(
     ...(options.backdrop === true ? { backdrop: true } : {}),
     ...(options.bounds === undefined
       ? {}
-      : { bounds: qRect(options.bounds[0], options.bounds[1], options.bounds[2], options.bounds[3]) as Rect }),
+      : {
+          bounds: qRect(
+            options.bounds[0],
+            options.bounds[1],
+            options.bounds[2],
+            options.bounds[3],
+          ) as Rect,
+        }),
     children,
   };
 }

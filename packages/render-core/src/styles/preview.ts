@@ -52,7 +52,11 @@ export function previewFor(styleId: string, script: WordScript = "latin"): Style
     })),
     // Late enough for the entry to have finished, mid-caption, and just before
     // the exit begins — the three moments a still has to be honest about.
-    keyMs: [Math.round(PREVIEW_DURATION_MS * 0.25), Math.round(PREVIEW_DURATION_MS * 0.5), Math.round(PREVIEW_DURATION_MS * 0.8)],
+    keyMs: [
+      Math.round(PREVIEW_DURATION_MS * 0.25),
+      Math.round(PREVIEW_DURATION_MS * 0.5),
+      Math.round(PREVIEW_DURATION_MS * 0.8),
+    ],
   };
 }
 

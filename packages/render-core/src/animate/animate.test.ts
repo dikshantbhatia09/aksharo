@@ -9,8 +9,24 @@ import { type FontRegistry } from "../fonts/types.js";
 import { layoutSegment } from "../layout/layout.js";
 import { type Layout, type RenderWord } from "../layout/types.js";
 import { createFixtureRenderer, GOLDEN_CANVAS } from "../testing.js";
-import { animate, cuePhase, cueTiming, toGlyphRun, watermarkCommand, wordColour, wordState } from "./animate.js";
-import { easeOutBack, easeOutBounce, easeOutCubic, lerp, linear, progress, shakeOffset } from "./easing.js";
+import {
+  animate,
+  cuePhase,
+  cueTiming,
+  toGlyphRun,
+  watermarkCommand,
+  wordColour,
+  wordState,
+} from "./animate.js";
+import {
+  easeOutBack,
+  easeOutBounce,
+  easeOutCubic,
+  lerp,
+  linear,
+  progress,
+  shakeOffset,
+} from "./easing.js";
 
 const styles = loadSystemStyleMap();
 let registry: FontRegistry;
@@ -94,16 +110,22 @@ describe("easing", () => {
 });
 
 describe("cuePhase", () => {
-  it.each(["fade", "pop", "slide-up", "slide-down", "bounce", "blur", "typewriter", "none"] as const)(
-    "%s is fully present at 1",
-    (type) => {
-      const phase = cuePhase(type, 1, 100);
-      expect(phase.opacity).toBe(1);
-      expect(phase.scale).toBeCloseTo(1, 6);
-      expect(phase.dy).toBeCloseTo(0, 6);
-      expect(phase.reveal).toBe(1);
-    },
-  );
+  it.each([
+    "fade",
+    "pop",
+    "slide-up",
+    "slide-down",
+    "bounce",
+    "blur",
+    "typewriter",
+    "none",
+  ] as const)("%s is fully present at 1", (type) => {
+    const phase = cuePhase(type, 1, 100);
+    expect(phase.opacity).toBe(1);
+    expect(phase.scale).toBeCloseTo(1, 6);
+    expect(phase.dy).toBeCloseTo(0, 6);
+    expect(phase.reveal).toBe(1);
+  });
 
   it("is invisible or displaced at 0", () => {
     expect(cuePhase("fade", 0, 100).opacity).toBe(0);
@@ -220,7 +242,9 @@ describe("animate", () => {
   it("draws one box per word for a word-mode style", () => {
     const base = style("box-block");
     const doc = style("box-block", { box: { ...base.box, mode: "word" } });
-    const boxes = [...walkCommands(draw(doc, 1500))].filter((command) => command.kind === "roundRect");
+    const boxes = [...walkCommands(draw(doc, 1500))].filter(
+      (command) => command.kind === "roundRect",
+    );
     expect(boxes).toHaveLength(lay(doc, 1500).words.length);
   });
 
@@ -231,7 +255,8 @@ describe("animate", () => {
     expect(early?.kind).toBe("clip");
     expect(late?.kind).toBe("clip");
     if (early?.kind !== "clip" || late?.kind !== "clip") return;
-    if (early.shape.type !== "rect" || late.shape.type !== "rect") throw new Error("expected a rect clip");
+    if (early.shape.type !== "rect" || late.shape.type !== "rect")
+      throw new Error("expected a rect clip");
     expect(late.shape.rect[2]).toBeGreaterThan(early.shape.rect[2]);
   });
 
@@ -240,7 +265,9 @@ describe("animate", () => {
       (command) => command.kind === "transform",
     );
     expect(transforms.length).toBeGreaterThan(0);
-    expect(transforms.some((command) => command.kind === "transform" && command.matrix[0] > 1)).toBe(true);
+    expect(
+      transforms.some((command) => command.kind === "transform" && command.matrix[0] > 1),
+    ).toBe(true);
   });
 
   it("draws an underline that grows across the word", () => {
@@ -312,7 +339,9 @@ describe("animate", () => {
 
   it("applies an emphasis preset's colour, scale and ground", () => {
     const doc = style("punch-pop");
-    const marked = WORDS.map((word, index) => (index === 1 ? { ...word, emphasisPresetId: "mark" } : word));
+    const marked = WORDS.map((word, index) =>
+      index === 1 ? { ...word, emphasisPresetId: "mark" } : word,
+    );
     const commands = draw(doc, 100, marked);
     const grounds = [...walkCommands(commands)].filter((command) => command.kind === "roundRect");
     expect(grounds.length).toBeGreaterThan(0);
@@ -320,7 +349,9 @@ describe("animate", () => {
 
   it("shakes an emphasised word without shaking the caption", () => {
     const doc = style("punch-pop");
-    const shaken = WORDS.map((word, index) => (index === 0 ? { ...word, emphasisPresetId: "shout" } : word));
+    const shaken = WORDS.map((word, index) =>
+      index === 0 ? { ...word, emphasisPresetId: "shout" } : word,
+    );
     const a = hashCommands(draw(doc, 400, shaken));
     const b = hashCommands(draw(doc, 420, shaken));
     expect(a).not.toBe(b);
@@ -333,7 +364,9 @@ describe("animate", () => {
       emphasisPresets: [{ id: "heavy", weight: 900, effect: "none" }],
       stroke: { ...base.stroke, enabled: false },
     });
-    const marked = WORDS.map((word, index) => (index === 0 ? { ...word, emphasisPresetId: "heavy" } : word));
+    const marked = WORDS.map((word, index) =>
+      index === 0 ? { ...word, emphasisPresetId: "heavy" } : word,
+    );
     const strokes = [...walkCommands(draw(doc, 1500, marked))].filter(
       (command) => command.kind === "text" && command.stroke !== undefined,
     );
@@ -346,7 +379,9 @@ describe("animate", () => {
       emphasisPresets: [{ id: "edge", color: "#ff2e63", effect: "outline" }],
       stroke: { ...base.stroke, enabled: false },
     });
-    const marked = WORDS.map((word, index) => (index === 0 ? { ...word, emphasisPresetId: "edge" } : word));
+    const marked = WORDS.map((word, index) =>
+      index === 0 ? { ...word, emphasisPresetId: "edge" } : word,
+    );
     const strokes = [...walkCommands(draw(doc, 1500, marked))].filter(
       (command) => command.kind === "text" && command.stroke !== undefined,
     );
@@ -360,21 +395,32 @@ describe("animate", () => {
         { id: "halo", color: "#ffd400", effect: "glow" },
       ],
     });
-    const withUnder = WORDS.map((word, index) => (index === 0 ? { ...word, emphasisPresetId: "under" } : word));
-    const withGlow = WORDS.map((word, index) => (index === 0 ? { ...word, emphasisPresetId: "halo" } : word));
+    const withUnder = WORDS.map((word, index) =>
+      index === 0 ? { ...word, emphasisPresetId: "under" } : word,
+    );
+    const withGlow = WORDS.map((word, index) =>
+      index === 0 ? { ...word, emphasisPresetId: "halo" } : word,
+    );
     expect(kinds(draw(doc, 1500, withUnder))).toContain("rect");
     expect(kinds(draw(doc, 1500, withGlow))).toContain("shadow");
   });
 
   it("ignores an emphasis preset the style does not define", () => {
     const doc = style("vertical-clean");
-    const marked = WORDS.map((word, index) => (index === 0 ? { ...word, emphasisPresetId: "ghost" } : word));
+    const marked = WORDS.map((word, index) =>
+      index === 0 ? { ...word, emphasisPresetId: "ghost" } : word,
+    );
     expect(() => draw(doc, 1500, marked)).not.toThrow();
   });
 
   it("adds a watermark image when the caller asks for one", () => {
     const layout = lay(style("vertical-clean"), 1500);
-    const commands = animate({ layout, style: style("vertical-clean"), tMs: 1500, watermarkAssetId: "wm" });
+    const commands = animate({
+      layout,
+      style: style("vertical-clean"),
+      tMs: 1500,
+      watermarkAssetId: "wm",
+    });
     expect(commands[commands.length - 1]).toMatchObject({ kind: "image", assetId: "wm" });
     expect(watermarkCommand("wm", layout)).toMatchObject({ kind: "image", opacity: 0.85 });
   });
