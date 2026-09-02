@@ -59,7 +59,10 @@ jobs:
       - run: pnpm --filter @montaj/release... build
       - run: pnpm --filter @montaj/release test -- --maxWorkers=2
       - name: Build desktop artifact (dry-run, unsigned)
-        run: pnpm release build-desktop --platform ${{ matrix.platform }} --channel alpha --dry-run
+        # --placeholder: this job never installs Electron or builds apps/desktop (that's the
+        # separate `e2e` job below), so it always exercises the synthesized nested-binary tree
+        # rather than depending on one existing already (C00b scope §3).
+        run: pnpm release build-desktop --platform ${{ matrix.platform }} --channel alpha --dry-run --placeholder
       - name: SBOM + checksums (dry-run)
         run: |
           pnpm release sbom --artifact-name desktop-${{ matrix.platform }}
@@ -97,7 +100,7 @@ jobs:
       - run: pnpm --filter @montaj/desktop... build
       - name: electron-builder --dir (unsigned)
         working-directory: apps/desktop
-        run: npx electron-builder --dir --config electron-builder.yml -c.electronDist=node_modules/electron/dist
+        run: node scripts/pack.mjs --dir
       - name: Playwright-Electron smoke
         working-directory: apps/desktop
         run: npx playwright install --with-deps chromium && npx playwright test

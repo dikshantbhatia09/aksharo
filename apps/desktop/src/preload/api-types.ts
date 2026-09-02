@@ -13,6 +13,12 @@ export interface DesktopUpdateInfo {
   version?: string;
 }
 
+/** C12: the desktop shell's local mirror of the `telemetry` consent. */
+export interface TelemetryConsentState {
+  readonly granted: boolean;
+  readonly decidedAt?: string;
+}
+
 /** Shape the tray/approval-window UI needs to render "Approve pairing for <client>?"
  * (`apps/desktop/src/bridge/adapter.ts`'s `BridgePendingPairing`, mirrored here since the
  * preload boundary can't import that module's Node-only types directly). */
@@ -53,6 +59,23 @@ export interface AksharoDesktopApi {
   };
   deepLink: {
     onOpen(listener: (url: string) => void): () => void;
+  };
+  /**
+   * C12: consent-gated telemetry. The hosted web app (the renderer) holds
+   * the user's access token and is the one that actually calls the API
+   * (`POST /consents`, `POST /telemetry/events`) — this surface is only for
+   * what needs the main process: the local consent mirror that gates the
+   * crash handler before any network round trip, this run's queued events,
+   * and building the diagnostics bundle (filesystem access the renderer's
+   * sandbox does not have).
+   */
+  telemetry: {
+    getConsent(): Promise<TelemetryConsentState>;
+    setConsent(granted: boolean): Promise<TelemetryConsentState>;
+    /** Drains up to `limit` queued events for the renderer to POST itself. */
+    drainQueuedEvents(limit: number): Promise<Record<string, unknown>[]>;
+    /** Base64-encoded zip bytes (brief §2/§3). */
+    buildDiagnosticsBundle(): Promise<string>;
   };
 }
 

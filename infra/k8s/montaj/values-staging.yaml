@@ -40,7 +40,7 @@ networkPolicy:
   fqdn:
     # Staging runs the stock AWS VPC CNI, so hostname egress rules cannot be
     # enforced here. See templates/networkpolicy.yaml for what that means.
-    enabled: false
+    mode: off
 
 ingress:
   enabled: true

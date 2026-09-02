@@ -169,18 +169,14 @@ export class AcademyService {
     }
 
     try {
-      // CONTRACTS §4 `CreditLotSource` is a frozen closed union — "grant" |
-      // "topup" | "pass" | "referral" | "adjust" | "reversal" — and does not
-      // include "academy" the way the brief's `grantLot(source: "academy")`
-      // assumes. Flagged as a conflict in the final report rather than
-      // silently widening a frozen type; `"adjust"` is used here (a manual
-      // credit adjustment, which is what an Academy reward is until the
-      // union is amended by an ADR) so the ledger stays honest about what
-      // `CreditsFacade` actually accepts. `reason`/`refId` still identify it
-      // as an Academy grant for the credit history and for B13's admin view.
+      // CONTRACTS §4: `CreditLotSource` gained "academy" in M03 (Prisma
+      // migration 20260902222436_m03_academy_lot_source), so the
+      // exactly-once track reward is now granted with its own source
+      // instead of B12's stopgap "adjust". `reason`/`refId` still identify
+      // it as an Academy grant for the credit history and B13's admin view.
       const lot = await this.credits.grantLot({
         workspaceId,
-        source: "adjust",
+        source: "academy",
         tenths: rewardTenths,
         reason: `Academy track completed: ${track.title}`,
         refId: trackId,
