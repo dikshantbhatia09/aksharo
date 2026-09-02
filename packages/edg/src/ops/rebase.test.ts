@@ -231,11 +231,20 @@ describe("words changed since the base revision", () => {
         op("InsertWordAfter", { wordId: "0:3", newWordId: "0:90", text: "x", s: 1, e: 2 }),
         op("SetSegmentBounds", { segmentId: A, startMs: 0, endMs: 9, endWordId: "0:3" }),
         op("SplitSegment", { segmentId: A, atWordId: "0:3", newSegmentId: nextSegmentId() }),
+        op("SetWordTiming", { wordId: "0:3", s: 1, e: 2 }),
       ],
       since,
     );
     expect(rebased).toEqual([]);
-    expect(reasons(rejected)).toEqual(["stale", "stale", "stale", "stale", "stale", "stale"]);
+    expect(reasons(rejected)).toEqual([
+      "stale",
+      "stale",
+      "stale",
+      "stale",
+      "stale",
+      "stale",
+      "stale",
+    ]);
   });
 
   it("turns a concurrent edit of the same word into a conflict", () => {
@@ -280,8 +289,45 @@ describe("Resegment since the base revision", () => {
       op("InsertWordAfter", { wordId: "0:1", newWordId: "0:90", text: "x", s: 1, e: 2 }),
       op("SetStyle", { scope: "doc", styleRef: "punch-pop" }),
       op("SetAudio", { clean: { enabled: true } }),
+      op("SetWordTiming", { wordId: "0:4", s: 10, e: 20 }),
     ];
     const { rebased, rejected } = rebaseOps(incoming, since);
+    expect(rebased).toEqual(incoming);
+    expect(rejected).toEqual([]);
+  });
+});
+
+describe("SetWordTiming", () => {
+  it("last write wins on the same word's timing field", () => {
+    const incoming = [op("SetWordTiming", { wordId: "0:3", s: 10, e: 20 })];
+    const { rebased, rejected } = rebaseOps(incoming, [
+      op("SetWordTiming", { wordId: "0:3", s: 30, e: 40 }),
+    ]);
+    expect(rebased).toEqual([]);
+    expect(reasons(rejected)).toEqual(["rebased-away"]);
+  });
+
+  it("keeps a SetWordTiming on a different word", () => {
+    const incoming = [op("SetWordTiming", { wordId: "0:4", s: 10, e: 20 })];
+    const { rebased, rejected } = rebaseOps(incoming, [
+      op("SetWordTiming", { wordId: "0:3", s: 30, e: 40 }),
+    ]);
+    expect(rebased).toEqual(incoming);
+    expect(rejected).toEqual([]);
+  });
+
+  it("goes stale after DeleteWord of that word", () => {
+    const incoming = [op("SetWordTiming", { wordId: "0:3", s: 10, e: 20 })];
+    const { rebased, rejected } = rebaseOps(incoming, [op("DeleteWord", { wordId: "0:3" })]);
+    expect(rebased).toEqual([]);
+    expect(reasons(rejected)).toEqual(["stale"]);
+  });
+
+  it("survives a Resegment since the base — it is a word-level op", () => {
+    const incoming = [op("SetWordTiming", { wordId: "0:3", s: 10, e: 20 })];
+    const { rebased, rejected } = rebaseOps(incoming, [
+      op("Resegment", { maxChars: 24, maxLines: 2, minMs: 700, maxMs: 6000 }),
+    ]);
     expect(rebased).toEqual(incoming);
     expect(rejected).toEqual([]);
   });

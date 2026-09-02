@@ -586,6 +586,67 @@ describe.skipIf(!available)("EDG", () => {
       const words = chunk.words as { wid: string; deleted?: boolean }[];
       expect(words.find((word) => word.wid === "0:0")?.deleted).toBe(true);
     });
+
+    it("SetWordTiming persists the new timing and GET /transcript reflects it (A02d)", async () => {
+      const project = await ctx.seed();
+      const token = ctx.token();
+
+      // Word "0:5" starts life at s:2000, e:2340 (`buildTranscript`'s 400ms
+      // cadence with a 60ms gap); the new range sits strictly inside the old
+      // one, so it cannot cross a neighbour or a segment boundary either way.
+      const result = await call<{ revision: number; rejected: unknown[] }>(
+        "POST",
+        `/projects/${project.projectId}/edg/ops`,
+        {
+          token,
+          body: batch(1, [
+            { opId: newId(), type: "SetWordTiming", wordId: "0:5", s: 2010, e: 2330 },
+          ]),
+        },
+      );
+      expect(result.status).toBe(200);
+      expect(result.body.rejected).toEqual([]);
+      expect(result.body.revision).toBe(2);
+
+      const transcript = await call<{
+        chunks: { chunkIdx: number; words: { wid: string; s: number; e: number }[] }[];
+      }>("GET", `/projects/${project.projectId}/transcript`, { token });
+      expect(transcript.status).toBe(200);
+      const chunk = transcript.body.chunks.find((c) => c.chunkIdx === 0);
+      const word = chunk?.words.find((w) => w.wid === "0:5");
+      expect(word).toMatchObject({ s: 2010, e: 2330 });
+
+      const revision = await ctx.prisma.transcript.findUniqueOrThrow({
+        where: { id: project.transcriptId },
+      });
+      expect(revision.currentRevision).toBe(2);
+    });
+
+    it("rejects a SetWordTiming that would overlap the previous live word", async () => {
+      const project = await ctx.seed();
+      const token = ctx.token();
+
+      // Word "0:4" ends at 1940; a start before that overlaps it.
+      const result = await call<{ revision: number; rejected: { reason: string }[] }>(
+        "POST",
+        `/projects/${project.projectId}/edg/ops`,
+        {
+          token,
+          body: batch(1, [
+            { opId: newId(), type: "SetWordTiming", wordId: "0:5", s: 1900, e: 2330 },
+          ]),
+        },
+      );
+      expect(result.status).toBe(200);
+      expect(result.body.revision).toBe(1);
+      expect(result.body.rejected[0]?.reason).toBe("invalid-range");
+
+      const chunk = await ctx.prisma.transcriptChunk.findFirstOrThrow({
+        where: { transcriptId: project.transcriptId, chunkIdx: 0 },
+      });
+      const words = chunk.words as { wid: string; s: number; e: number }[];
+      expect(words.find((w) => w.wid === "0:5")).toMatchObject({ s: 2000, e: 2340 });
+    });
   });
 
   // -----------------------------------------------------------------------

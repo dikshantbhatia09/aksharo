@@ -41,6 +41,9 @@
           "$ref": "#/$defs/InsertWordAfter"
         },
         {
+          "$ref": "#/$defs/SetWordTiming"
+        },
+        {
           "$ref": "#/$defs/Resegment"
         },
         {
@@ -437,6 +440,40 @@
       "required": ["opId", "type", "wordId", "newWordId", "text", "s", "e"],
       "additionalProperties": false,
       "title": "InsertWordAfter"
+    },
+    "SetWordTiming": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "SetWordTiming"
+        },
+        "wordId": {
+          "type": "string",
+          "pattern": "^\\d+:\\d+$",
+          "title": "WordId",
+          "description": "Stable word id \"<chunkIdx>:<n>\", allocated once and never reused (D28)",
+          "examples": ["0:0", "3:1274"]
+        },
+        "s": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "e": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        }
+      },
+      "required": ["opId", "type", "wordId", "s", "e"],
+      "additionalProperties": false,
+      "title": "SetWordTiming"
     },
     "Resegment": {
       "type": "object",

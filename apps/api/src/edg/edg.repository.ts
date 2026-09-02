@@ -49,7 +49,12 @@ import {
   toPassItem,
   toSegment,
 } from "./edg.rows.js";
-import { analyseWorkingSet, chunkWindow, type WorkingSetRequest } from "./edg.working-set.js";
+import {
+  analyseWorkingSet,
+  chunkIndexOf,
+  chunkWindow,
+  type WorkingSetRequest,
+} from "./edg.working-set.js";
 import { PrismaService, type PrismaTransaction } from "../common/prisma/prisma.service.js";
 
 /**
@@ -689,6 +694,11 @@ export class EdgRepository implements EdgRepositoryContract {
       tombstones.push(...window.tombstoned);
     }
 
+    if (!request.wholeDocument && request.timingWordIds.length > 0) {
+      const rows = await this.resolveTimingSegments(tx, document, request.timingWordIds);
+      for (const row of rows) segments.set(row.id, row);
+    }
+
     const { passes, items } = await this.readPassWindow(tx, document.id, request);
     const chunks = await this.readChunkWindow(tx, document, request, segments);
 
@@ -763,6 +773,49 @@ export class EdgRepository implements EdgRepositoryContract {
     }
 
     return { live: rows, tombstoned };
+  }
+
+  /**
+   * The live segments that currently *contain* each of `wordIds` (not merely
+   * bound it — `SetWordTiming` carries no `segmentId`, unlike every other word
+   * op, so the engine's containment check needs the segment loaded whichever
+   * word inside it moved).
+   *
+   * A word's own row is not addressable by id in SQL (words live in a chunk's
+   * JSONB), so this reads each word's current `s`/`e` from its chunk first, then
+   * asks for every live segment whose `[startMs, endMs]` overlaps it. A segment
+   * that overlaps a word's time span without actually bounding it by word id is
+   * over-fetched rather than missed — `applyOps`'s `containingSegment` still
+   * ranks by word position, not by this query's ms overlap, and false positives
+   * cost an extra loaded row, never a wrong verdict.
+   */
+  private async resolveTimingSegments(
+    tx: PrismaTransaction,
+    document: DocumentRow,
+    wordIds: readonly string[],
+  ): Promise<SegmentRow[]> {
+    const chunkIdxs = [...new Set(wordIds.map(chunkIndexOf).filter((idx) => idx !== undefined))];
+    if (chunkIdxs.length === 0) return [];
+
+    const rows = await this.readChunkRows(tx, document.hot.transcript.transcriptId, chunkIdxs);
+    const byId = new Map<string, { s: number; e: number }>();
+    for (const row of rows) {
+      for (const word of toChunk(row).words) byId.set(word.wid, { s: word.s, e: word.e });
+    }
+
+    const ranges = wordIds
+      .map((wordId) => byId.get(wordId))
+      .filter((range): range is { s: number; e: number } => range !== undefined);
+    if (ranges.length === 0) return [];
+
+    return tx.edgSegment.findMany({
+      where: {
+        edgId: document.id,
+        deletedAtRev: null,
+        OR: ranges.map((range) => ({ startMs: { lte: range.e }, endMs: { gte: range.s } })),
+      },
+      select: SEGMENT_SELECT,
+    });
   }
 
   private async readPassWindow(

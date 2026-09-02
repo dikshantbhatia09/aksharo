@@ -19,6 +19,7 @@ import {
   type SetSegmentPositionOp,
   type SetSegmentTextOp,
   type SetStyleOp,
+  type SetWordTimingOp,
   type SplitSegmentOp,
 } from "../schemas/ops.js";
 import { type Emphasis, type Segment } from "../schemas/segment.js";
@@ -499,6 +500,50 @@ function applyInsertWordAfter(draft: EdgDraft, op: InsertWordAfterOp): void {
   });
 }
 
+/** The segment whose word range covers `position`, or `undefined` if none does. */
+function containingSegment(draft: EdgDraft, position: number): Segment | undefined {
+  for (const segment of draft.segments.values()) {
+    const from = positionOf(draft, segment.startWordId);
+    const to = positionOf(draft, segment.endWordId);
+    if (from === undefined || to === undefined) continue;
+    if (position >= from && position <= to) return segment;
+  }
+  return undefined;
+}
+
+/**
+ * Retimes one word. Segment bounds are a separate op and are never recomputed
+ * here, but the new range must still leave `validateProjection` happy, so a
+ * range that would push the word outside its containing segment is rejected
+ * the same as one that overlaps a neighbour.
+ */
+function applySetWordTiming(draft: EdgDraft, op: SetWordTimingOp): void {
+  if (op.s >= op.e) fail("invalid-range", `s ${op.s} must be before e ${op.e}`);
+  const word = liveWord(draft, op.wordId);
+
+  const chunkBounds = draft.chunks.get(word.chunkIdx);
+  if (chunkBounds !== undefined && (op.s < chunkBounds.startMs || op.e > chunkBounds.endMs)) {
+    fail("invalid-range", `${op.wordId} would cross chunk ${word.chunkIdx}'s bounds`);
+  }
+
+  const position = requirePosition(draft, op.wordId);
+  const prev = previousLiveWord(draft, position, -Infinity);
+  if (prev !== undefined && prev.chunkIdx === word.chunkIdx && op.s < prev.e) {
+    fail("invalid-range", `${op.wordId} would overlap the previous word ${prev.wid}`);
+  }
+  const next = nextLiveWord(draft, position, Infinity);
+  if (next !== undefined && next.chunkIdx === word.chunkIdx && op.e > next.s) {
+    fail("invalid-range", `${op.wordId} would overlap the next word ${next.wid}`);
+  }
+
+  const segment = containingSegment(draft, position);
+  if (segment !== undefined && (op.s < segment.startMs || op.e > segment.endMs)) {
+    fail("invalid-range", `${op.wordId} would move outside segment ${segment.id}`);
+  }
+
+  putWord(draft, { ...word, s: op.s, e: op.e });
+}
+
 function applyResegment(draft: EdgDraft, op: ResegmentOp, ctx: ApplyContext): void {
   if (draft.words.size === 0) fail("invariant", "Resegment needs the transcript to be loaded");
   const words = draftLiveWords(draft);
@@ -626,6 +671,8 @@ function dispatch(draft: EdgDraft, op: EdgOp, ctx: ApplyContext): void {
       return applyDeleteWord(draft, op);
     case "InsertWordAfter":
       return applyInsertWordAfter(draft, op);
+    case "SetWordTiming":
+      return applySetWordTiming(draft, op);
     case "Resegment":
       return applyResegment(draft, op, ctx);
     case "DecideItems":

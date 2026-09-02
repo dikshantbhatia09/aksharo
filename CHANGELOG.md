@@ -28,6 +28,35 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A02d — `SetWordTiming{wordId, s, e}` end to end.** CONTRACTS §2's new op lands in
+  `packages/edg`: `applyOps` writes `Word.s/e` (integer ms) after checking `s < e`, no
+  overlap with the previous/next **live** word in the same chunk, the range stays inside
+  that chunk's own bounds, and it stays inside the segment that currently contains the
+  word — segment bounds are never recomputed, that is `SetSegmentBounds`'s job, but
+  `validateProjection` still has to hold. Rebase field `timing:<wordId>` is last-write-
+  wins, `stale` after a `DeleteWord` of the same word, and — being word-level, not
+  segment-addressed — untouched by a `Resegment` in between. `edg-ops-v2.json`
+  regenerated; README's op list and rebase table updated; the property test now fires
+  random `SetWordTiming`s too. `apps/api/src/edg`: the op flows through the existing
+  batch endpoint and `persistWords`/`transcripts.currentRevision` unchanged; the working
+  set (`edg.working-set.ts`) gained `timingWordIds` and `edg.repository.ts`'s new
+  `resolveTimingSegments` reads a retimed word's own chunk first so the containing
+  segment (unlike every other word op, `SetWordTiming` carries no `segmentId`) is loaded
+  for the bounds check without loading the whole document; two new e2e cases prove
+  persistence through `GET /projects/{id}/transcript` and rejection on overlap.
+  `apps/web/lib/edg/ops.ts` gained the `setWordTiming` builder and its
+  `computeInverseOps` case (inverts to the word's prior `s/e`), picked up by A15's
+  existing generic op batching and undo stack with no further wiring. The timeline's
+  word lane (`apps/web/components/editor/timeline/Timeline.tsx`) is no longer read-only:
+  each word's edges are draggable with the same 40 ms neighbour-boundary snapping as a
+  segment edge (`lib/timeline/snapping.ts`'s new `resolveWordEdgeDrag`/`MIN_WORD_MS`,
+  proven by the same never-overlaps property test as segments), clamped so a drag can
+  never invert or overlap, emits one `SetWordTiming` on pointer-up, and Alt+Arrow nudges
+  the selected word's active edge (Alt+Tab toggles which edge) the same way plain Arrow
+  already nudges a selected segment. Drag/nudge deltas feed `lib/timeline/nudge.ts`'s
+  sink through two new kinds, `word-start`/`word-end`, alongside the existing
+  `segment-start`/`segment-end`.
+
 - **B03 — web Subscription pages, checkout sheet and `UpgradeGate` wiring.** `/billing`
   (Overview: plan card with status/renewal/mandate cap, credits meter with lots and
   expiries, pause/cancel/resume with confirmations, streak slot behind a flag),

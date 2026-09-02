@@ -123,7 +123,7 @@ pnpm --filter @montaj/edg schemas:build
 
 ## Ops
 
-`EdgOpSchema` is the discriminated union of the 16 ops in CONTRACTS §2 — id-addressed, so
+`EdgOpSchema` is the discriminated union of the 17 ops in CONTRACTS §2 — id-addressed, so
 no array index ever crosses the wire. Each op carries a client-minted `opId` (ULID) that
 makes retries idempotent. `OpBatchRequestSchema` / `OpBatchResponseSchema` /
 `OpConflictSchema` are the `POST /projects/{id}/edg/ops` envelopes, and `EdgOpsEventSchema`
@@ -188,6 +188,12 @@ Op semantics worth knowing, because CONTRACTS §2 fixes the shape but not the me
   deleted. Emphasis pushed outside the new range goes with it.
 - **InsertWordAfter** requires an id in the anchor's chunk, past every `n` the chunk has
   used (D28: ids are never reused), timed inside the gap between its neighbours.
+- **SetWordTiming** retimes one word; it never recomputes segment bounds — those are the
+  segment's own op (`SetSegmentBounds`) — but the new range must still leave
+  `validateProjection` happy, so it is `invalid-range` when `s ≥ e`, when it overlaps the
+  previous or next **live** word in the same chunk, when it crosses that chunk's own
+  bounds, or when it would push the word outside the segment that currently contains it.
+  A neighbour that has been deleted is ignored, exactly as `DeleteWord` intends.
 - **Resegment** re-runs the segmenter over the live words, tombstones every previous
   segment id, re-homes emphasis by word id, and inherits style, position and `hidden` from
   the old segment that overlaps a new one by at least half its words.
@@ -209,7 +215,7 @@ fire in this order:
 | --- | ------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | 1   | `Resegment`                    | any segment-addressed op                                                              | `stale-after-resegment`                                                               |
 | 1   | `Resegment`                    | word- or document-level op                                                            | kept                                                                                  |
-| 2   | `DeleteWord{w}`                | any op naming `w`                                                                     | `stale`                                                                               |
+| 2   | `DeleteWord{w}`                | any op naming `w`, including `SetWordTiming{w}`                                       | `stale`                                                                               |
 | 3   | `EditWord{w}`                  | `EditWord{w}`                                                                         | `conflict` (409 carries both texts)                                                   |
 | 3   | `EditWord{w}`                  | `EditWord{other}`                                                                     | kept                                                                                  |
 | 4   | `MergeSegments{[A,B] -> AB}`   | `SetEmphasis`, `SetSegmentPosition`, `HideSegment`, `SetStyle`, `SplitSegment` on `A` | remapped to `AB` (chained merges are followed to the end)                             |
@@ -235,6 +241,12 @@ Fields are `text:<script>`, `bounds`, `emphasis:<wordId>`, `position`, `hidden` 
 per segment; `doc:style`, `doc:segments` (`Resegment`), `doc:audio:<key>` and
 `doc:render:presets` per document; `item:<itemId>` and `pass:<passId>`. A `SplitSegment` in
 `opsSince` counts as a write to its parent's `bounds`.
+
+`SetWordTiming{wordId}` writes `timing:<wordId>` — a word-level field, so it is untouched
+by rule 1 (`Resegment` survives it) and is subject only to rules 2 and 5: `stale` after a
+`DeleteWord` of the same word, `rebased-away` when a later `SetWordTiming` on the same word
+already landed (last write wins, same as bounds and the other scalar fields), and kept
+otherwise.
 
 ### Segmentation
 

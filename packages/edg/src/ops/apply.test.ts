@@ -461,6 +461,90 @@ describe("InsertWordAfter", () => {
   });
 });
 
+describe("SetWordTiming", () => {
+  it("retimes a word inside the gap between its neighbours", () => {
+    const { state, wordIds } = setup();
+    const result = apply(state, [
+      op("SetWordTiming", { wordId: wordIds[1] ?? "0:1", s: 460, e: 940 }),
+    ]);
+    expect(result.state.words.get("0:1")).toMatchObject({ s: 460, e: 940 });
+  });
+
+  it("rejects s >= e", () => {
+    const { state, wordIds } = setup();
+    const result = applyOps(state, [
+      op("SetWordTiming", { wordId: wordIds[1] ?? "0:1", s: 900, e: 900 }),
+    ]);
+    expect(reasons(result)).toEqual(["invalid-range"]);
+  });
+
+  it("rejects a range overlapping the previous live word", () => {
+    const { state, wordIds } = setup();
+    const result = applyOps(state, [
+      op("SetWordTiming", { wordId: wordIds[1] ?? "0:1", s: 400, e: 600 }),
+    ]);
+    expect(reasons(result)).toEqual(["invalid-range"]);
+  });
+
+  it("rejects a range overlapping the next live word", () => {
+    const { state, wordIds } = setup();
+    const result = applyOps(state, [
+      op("SetWordTiming", { wordId: wordIds[1] ?? "0:1", s: 900, e: 1100 }),
+    ]);
+    expect(reasons(result)).toEqual(["invalid-range"]);
+  });
+
+  it("ignores a tombstoned neighbour when checking overlap", () => {
+    // Word 1 (500-950) is deleted; word 2 may now retime into its old range —
+    // 460-940 would overlap live word 1, but word 1 is a tombstone.
+    const { state, wordIds } = setup();
+    const deleted = applyOps(state, [op("DeleteWord", { wordId: wordIds[1] ?? "0:1" })]);
+    const result = apply(deleted.state, [
+      op("SetWordTiming", { wordId: wordIds[2] ?? "0:2", s: 460, e: 940 }),
+    ]);
+    expect(result.state.words.get("0:2")).toMatchObject({ s: 460, e: 940 });
+  });
+
+  it("rejects a range that would push the word outside its segment", () => {
+    const { state, wordIds } = setup();
+    const result = applyOps(state, [
+      op("SetWordTiming", { wordId: wordIds[3] ?? "0:3", s: 1500, e: 2000 }),
+    ]);
+    expect(reasons(result)).toEqual(["invalid-range"]);
+  });
+
+  it("rejects a range that crosses the chunk boundary", () => {
+    const { state, wordIds } = setup();
+    const result = applyOps(state, [
+      op("SetWordTiming", { wordId: wordIds[0] ?? "0:0", s: -100, e: 50 }),
+    ]);
+    expect(reasons(result)).toEqual(["invalid-range"]);
+  });
+
+  it("rejects an unknown word and a deleted word", () => {
+    const { state, wordIds } = setup();
+    const deleted = applyOps(state, [op("DeleteWord", { wordId: wordIds[1] ?? "0:1" })]);
+    const result = applyOps(deleted.state, [
+      op("SetWordTiming", { wordId: "7:7", s: 0, e: 100 }),
+      op("SetWordTiming", { wordId: wordIds[1] ?? "0:1", s: 0, e: 100 }),
+    ]);
+    expect(reasons(result)).toEqual(["unknown-id", "stale"]);
+  });
+
+  it("leaves segment bounds untouched — they are a separate op", () => {
+    const { state, segmentIds, wordIds } = setup();
+    const first = segmentIds[0] ?? "";
+    const before = segment(state, first);
+    const result = apply(state, [
+      op("SetWordTiming", { wordId: wordIds[1] ?? "0:1", s: 460, e: 940 }),
+    ]);
+    expect(segment(result.state, first)).toMatchObject({
+      startMs: before.startMs,
+      endMs: before.endMs,
+    });
+  });
+});
+
 describe("Resegment", () => {
   it("replaces every segment and re-homes style and emphasis", () => {
     const { state, segmentIds, wordIds } = setup();

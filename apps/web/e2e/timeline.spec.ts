@@ -21,6 +21,28 @@ interface DocumentSegment {
   readonly endMs: number;
 }
 
+interface TranscriptWord {
+  readonly wid: string;
+  readonly s: number;
+  readonly e: number;
+}
+
+/** Reads the first chunk's live words straight from the API (A02d). */
+async function fetchWords(page: Page, projectId: string): Promise<TranscriptWord[]> {
+  const { accessToken } = await page.evaluate(async () => {
+    const response = await fetch("/api/session/refresh", { method: "POST" });
+    return (await response.json()) as { accessToken: string };
+  });
+  const response = await page.request.get(`${API_ORIGIN}/projects/${projectId}/transcript`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const body = (await response.json()) as {
+    chunks: { chunkIdx: number; words: TranscriptWord[] }[];
+  };
+  const first = body.chunks.find((chunk) => chunk.chunkIdx === 0);
+  return first?.words ?? [];
+}
+
 /** Reads the live EDG document straight from the API, for assertions an op landed. */
 async function fetchSegments(page: Page, projectId: string): Promise<DocumentSegment[]> {
   const { accessToken } = await page.evaluate(async () => {
@@ -149,6 +171,82 @@ test.describe("timeline", () => {
         { timeout: 10_000 },
       )
       .not.toBe(segment.endMs);
+  });
+
+  test("dragging a word edge lands a SetWordTiming op (A02d)", async ({ page, sharedAccount }) => {
+    const projectId = await openSeededTimeline(page, sharedAccount, `A02d ${test.info().title}`);
+    const before = await fetchWords(page, projectId);
+    test.skip(before.length < 3, "seeded project produced too few words");
+    // Pick an inner word (not the first/last of the chunk) so a small drag of
+    // its end edge cannot be mistaken for a neighbour's own edge.
+    const word = before[1]!;
+
+    const canvas = page.getByTestId("timeline-canvas");
+    const box = await canvas.boundingBox();
+    if (box === null) throw new Error("timeline canvas has no box");
+
+    // Default zoom is 30 ms/px, scroll 0 — the word lane sits at
+    // y = 24 (ruler) + 64 (waveform) + 2 = 90, 28px tall, centre 104.
+    const msPerPx = 30;
+    const wordLaneTop = 90;
+    const endX = box.x + word.e / msPerPx;
+    const y = box.y + wordLaneTop + 14;
+
+    await page.mouse.move(endX, y);
+    await page.mouse.down();
+    await page.mouse.move(endX - 200 / msPerPx, y, { steps: 8 });
+    await page.mouse.up();
+
+    await expect
+      .poll(
+        async () => {
+          const after = await fetchWords(page, projectId);
+          return after.find((w) => w.wid === word.wid)?.e;
+        },
+        { timeout: 10_000 },
+      )
+      .not.toBe(word.e);
+  });
+
+  test("Alt+Arrow nudges a selected word's edge by 10ms (100ms with Shift) (A02d)", async ({
+    page,
+    sharedAccount,
+  }) => {
+    const projectId = await openSeededTimeline(page, sharedAccount, `A02d ${test.info().title}`);
+    const before = await fetchWords(page, projectId);
+    test.skip(before.length < 3, "seeded project produced too few words");
+    const word = before[1]!;
+
+    const canvas = page.getByTestId("timeline-canvas");
+    const box = await canvas.boundingBox();
+    if (box === null) throw new Error("timeline canvas has no box");
+    const msPerPx = 30;
+    const wordLaneTop = 90;
+    const x = box.x + (word.s + word.e) / 2 / msPerPx;
+    const y = box.y + wordLaneTop + 14;
+
+    // A plain click selects the word (and seeks); the aria description is the
+    // shared proof the timeline itself has `selectedWordId`, not just the
+    // transcript column.
+    await page.mouse.click(x, y);
+    await expect(page.getByTestId("timeline-aria-description")).toContainText("Word selected", {
+      timeout: 10_000,
+    });
+    await page.getByTestId("timeline-root").focus();
+    // Shift+Alt+ArrowLeft (100ms): the fixture's word edges sit on their own
+    // boundaries, so a bare 10ms nudge can snap straight back (40ms
+    // tolerance, `lib/timeline/snapping.ts`) — 100ms always clears it.
+    await page.keyboard.press("Shift+Alt+ArrowLeft");
+
+    await expect
+      .poll(
+        async () => {
+          const after = await fetchWords(page, projectId);
+          return after.find((w) => w.wid === word.wid)?.e;
+        },
+        { timeout: 10_000 },
+      )
+      .not.toBe(word.e);
   });
 
   test("has no serious axe violations", async ({ page, sharedAccount }) => {

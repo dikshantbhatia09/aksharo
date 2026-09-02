@@ -26,7 +26,11 @@ import { useRenderer } from "@/components/editor/canvas/use-canvaskit";
 import { type PanelOp, type PanelScope } from "@/components/editor/panels/ops";
 import { RightPanel } from "@/components/editor/panels/RightPanel";
 import { SYSTEM_STYLE_MAP, SYSTEM_STYLES } from "@/components/editor/panels/system-styles";
-import { Timeline, type SegmentBoundsOp } from "@/components/editor/timeline/Timeline";
+import {
+  Timeline,
+  type SegmentBoundsOp,
+  type WordTimingOp,
+} from "@/components/editor/timeline/Timeline";
 import {
   BulkActionsBar,
   type ResegmentParams,
@@ -48,6 +52,7 @@ import {
   nextWordIdInChunk,
   panelOpToEdgOp,
   setEmphasis,
+  setWordTiming,
   splitSegment,
 } from "@/lib/edg/ops";
 import { PlayheadStore } from "@/lib/edg/playhead";
@@ -298,6 +303,10 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
       },
       { label: "Move caption boundary" },
     );
+  }
+
+  function onTimelineSetWordTiming(op: WordTimingOp): void {
+    store.submitOp(setWordTiming(op.wordId, op.s, op.e, newId), { label: "Retime word" });
   }
 
   function onMergeWithNext(segmentId?: string): void {
@@ -593,6 +602,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
             setSelectedWordId(wordId);
           }}
           onSetSegmentBounds={onTimelineSetSegmentBounds}
+          onSetWordTiming={onTimelineSetWordTiming}
           onSplitSegment={onSplitAt}
           onMergeSegments={([a]) => onMergeWithNext(a)}
           {...(timeMap === undefined ? {} : { timeMap })}
