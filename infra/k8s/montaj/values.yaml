@@ -96,9 +96,15 @@ externalSecrets:
     - ANTHROPIC_API_KEY
     - OPENAI_API_KEY
     - GPU_PROVIDER
+    - GPU_PROVIDER_URL
+    - GPU_PROVIDER_TOKEN
     - SENTRY_DSN
     - POSTHOG_KEY
     - FEATURE_FLAGS_JSON
+    - MAIL_PROVIDER
+    - MAIL_FROM
+    - SMTP_URL
+    - MAIL_SNS_TOPIC_ARN
 
 # -----------------------------------------------------------------------------
 # Non-secret configuration, mounted as a ConfigMap alongside the secret.

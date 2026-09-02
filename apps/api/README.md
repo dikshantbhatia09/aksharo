@@ -4,10 +4,11 @@ NestJS modular monolith — one feature module per work package
 (`05-system-architecture.md` section 3). Postgres via Prisma, Redis/BullMQ for jobs,
 OpenAPI as the contract that generates `@montaj/api-client`.
 
-**Status:** A08b — schema and base modules (A03), auth (A04), jobs, the realtime
-gateway, the signed internal callback surface, the no-op `CreditsFacade`, and the
-dead-letter queue with admin replay. Projects and media are A06, the real credit
-ledger is B02, the admin console is B13.
+**Status:** A05 — schema and base modules (A03), auth (A04), jobs, the realtime
+gateway, the signed internal callback surface, the no-op `CreditsFacade` and the
+dead-letter queue with admin replay (A08/A08b), plus accounts, workspaces,
+memberships, consent and the privacy surface. Projects and media are A06, the
+real credit ledger is B02, the admin console is B13.
 
 ## Run
 
@@ -18,20 +19,22 @@ pnpm --filter @montaj/api db:seed          # plans, styles, flags, demo workspac
 pnpm --filter @montaj/api dev              # http://localhost:3001
 ```
 
-| Endpoint                 | Purpose                                                                    |
-| ------------------------ | -------------------------------------------------------------------------- |
-| `GET /health`            | liveness: `{ "status": "ok", "version": "0.1.0" }`                         |
-| `GET /health/ready`      | readiness: Postgres, Redis and object store; 503 when any is down          |
-| `GET /docs`              | Swagger UI                                                                 |
-| `GET /docs-json`         | OpenAPI JSON — the source `@montaj/api-client` is generated from           |
-| `/auth/*`                | sign-in, sessions, the device grant — see [`src/auth`](src/auth/README.md) |
-| `GET /jobs`              | the workspace's jobs, newest first, cursor-paginated                       |
-| `GET /jobs/{id}`         | one job                                                                    |
-| `GET /jobs/{id}/events`  | the job's event log (rows expire after 30 days)                            |
-| `POST /jobs/{id}/cancel` | cancel a queued or running job and release its hold                        |
-| `/admin/dlq`             | the dead-letter queue; admins only (A08b)                                  |
-| `GET /internal/metrics`  | Prometheus exposition of the `METRICS.md` counters                         |
-| `/realtime`              | WebSocket push (`src/realtime/README.md`)                                  |
+| Endpoint                                                      | Purpose                                                                                                   |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `GET /health`                                                 | liveness: `{ "status": "ok", "version": "0.1.0" }`                                                        |
+| `GET /health/ready`                                           | readiness: Postgres, Redis and object store; 503 when any is down                                         |
+| `GET /docs`                                                   | Swagger UI                                                                                                |
+| `GET /docs-json`                                              | OpenAPI JSON — the source `@montaj/api-client` is generated from                                          |
+| `/auth/*`                                                     | sign-in, sessions, the device grant — see [`src/auth`](src/auth/README.md)                                |
+| `/me`, `/consents`, `/privacy`, `/workspaces`, `/invitations` | accounts, tenancy, the tax profile, consent and rights — see [`src/workspaces`](src/workspaces/README.md) |
+| `GET /jobs`                                                   | the workspace's jobs, newest first, cursor-paginated                                                      |
+| `GET /jobs/{id}`                                              | one job                                                                                                   |
+| `GET /jobs/{id}/events`                                       | the job's event log (rows expire after 30 days)                                                           |
+| `POST /jobs/{id}/cancel`                                      | cancel a queued or running job and release its hold                                                       |
+| `/admin/dlq`                                                  | the dead-letter queue; admins only (A08b)                                                                 |
+| `GET /admin/parental-waitlist`                                | the parental-consent waiting list, as digests; admins only (A05)                                          |
+| `GET /internal/metrics`                                       | Prometheus exposition of the `METRICS.md` counters                                                        |
+| `/realtime`                                                   | WebSocket push (`src/realtime/README.md`)                                                                 |
 
 ## Configuration
 
@@ -74,6 +77,8 @@ because a frozen contract or a shipped package says otherwise:
 | What                                                    | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `edg_segments.seq` is `text COLLATE "C"`, not `numeric` | 06 says `numeric`, but CONTRACTS section 2 and `@montaj/edg` define `seq` as a base-62 fractional key over `0-9A-Za-z` (`seqBetween()` returns `1B`, `Zz`, `zzzV`). No NUMERIC column can hold those. The alphabet is in ASCII order so that string comparison IS key comparison, which holds only under byte collation — hence `COLLATE "C"`, pinned on the column because managed Postgres usually defaults to a linguistic one. Prisma cannot express a collation, so the integration suite asserts it. |
+| `parental_waitlist` is not in 06                        | D60 offers a waiting list to a sign-up the age gate refuses, and 06 has no table for it. A04 had to park the entries in a Redis hash; A05 adds the table and drains the hash at boot. Only `sha256(address)` is stored.                                                                                                                                                                                                                                                                                    |
+| `workspaces.billingCountryConfirmedAt` is not in 06     | Sign-up guesses the billing country from the declared jurisdiction, which is not a statement the customer made. The column separates the guess from the confirmation, and B01 refuses to open a checkout while it is null (D41).                                                                                                                                                                                                                                                                           |
 | `projects.folderId` has no FK                           | 06 lists the column but has no `folders` table; A06 adds one and converts it.                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `jobs.type` is `String`, not an enum                    | The closed set is the queue table in CONTRACTS section 3, owned by A08.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Credit columns carry `*Tenths`                          | CONTRACTS section 0 is frozen and says credits are integer tenths; 06's `creditsPerMonth` / `creditsCharged` would leave the unit ambiguous at call sites.                                                                                                                                                                                                                                                                                                                                                 |
@@ -269,11 +274,11 @@ overrides for the long ones:
 | `render` | 2        | 30 s                  | 0.3    | 5 min | 60 s        |
 | `notify` | 5        | 2 s                   | 0.5    | 30 s  | 15 s        |
 
-| Queue override                 | Lock   |
-| ------------------------------ | ------ |
-| `ai.transcribe`, `ai.diarise`  | 10 min |
-| `ai.align`                     | 5 min  |
-| `render.video`                 | 10 min |
+| Queue override                | Lock   |
+| ----------------------------- | ------ |
+| `ai.transcribe`, `ai.diarise` | 10 min |
+| `ai.align`                    | 5 min  |
+| `render.video`                | 10 min |
 
 Jitter is not decoration: a provider outage fails every in-flight job at almost
 the same instant, and an un-jittered exponential backoff retries them all at
@@ -346,6 +351,41 @@ await this.realtime.jobProgress({ workspaceId, projectId }, { jobId, progress })
 The wire protocol, the room authorisation rules, the close codes and the
 reconnection contract are in [`src/realtime/README.md`](src/realtime/README.md).
 
+## Notifications (`src/notify`)
+
+Transactional mail and the in-app bell. To send anything from any module:
+
+```ts
+await this.notify.enqueue({
+  kind: "export-ready",
+  to: user.email,
+  locale: user.locale,
+  userId: user.id,
+  workspaceId,
+  data: { project: project.name, link, days: 7 },
+  idempotencyKey: `export-ready-${exportId}`,
+});
+```
+
+`NotifyModule` is `@Global()`, so nothing needs importing. `enqueue` never throws
+for a delivery reason — a notification is a side effect of work the caller cares
+about — and the `idempotencyKey` is the BullMQ job id, which is what makes a
+repeat enqueue a no-op.
+
+`MAIL_PROVIDER` picks the transport: `ses` (the pod's IRSA role, region from
+`S3_REGION`, no key anywhere), `smtp` (from `SMTP_URL`), or `dev`, which writes to
+the Redis outbox A04 introduced instead of sending. For a real client locally:
+
+```bash
+docker compose --profile mail up -d     # Mailpit: SMTP 1025, UI http://localhost:8025
+node tools/runbooks/mail-outbox.js      # or just read the dev outbox
+```
+
+The consumer runs inside this process; `NOTIFY_WORKER_ENABLED=0` turns it off for
+one-shot processes and test runs, exactly as `MONTAJ_SCHEDULER_DISABLED` does for
+the scheduler. Templates, the kind table, the suppression rules and the SES/SNS
+webhook are in [`src/notify/README.md`](src/notify/README.md).
+
 ## Runbook scripts
 
 Operational helpers live in `tools/runbooks/` at the repo root and resolve their
@@ -355,6 +395,7 @@ dependencies from this package, so they run with plain `node` from anywhere.
 | ------------------------------- | ----------------------------------------------------------- |
 | `tools/runbooks/queue-drain.js` | Pause a queue and wait for its active jobs to finish (A08). |
 | `tools/runbooks/dlq-replay.js`  | Inspect, replay and discard dead-lettered jobs (A08b).      |
+| `tools/runbooks/mail-outbox.js` | Print the development mail outbox (A25).                    |
 
 ```bash
 node tools/runbooks/queue-drain.js ai.transcribe --timeout=300000
@@ -395,11 +436,25 @@ Vitest runs through `unplugin-swc` because NestJS DI needs `emitDecoratorMetadat
 which esbuild cannot produce. `test/setup-env.ts` seeds a complete valid
 environment so tests never depend on a developer's `.env`.
 
-`test/auth.e2e-spec.ts` needs a PostgreSQL **and** a Redis; it reuses
-`TEST_DATABASE_URL` / `TEST_REDIS_URL` when they are set and otherwise starts both
-through testcontainers. Auth is the one module that cannot be tested against
-substituted infrastructure: refresh families are a database invariant and the
-rotation grace is a Redis entry.
+`test/auth.e2e-spec.ts`, `test/users-workspaces.e2e-spec.ts` and
+`test/workspace-guard.e2e-spec.ts` need a PostgreSQL **and** a Redis; each starts
+its own pair through testcontainers, which is what keeps them isolated when Vitest
+runs the files in parallel. They reuse `TEST_DATABASE_URL` / `TEST_REDIS_URL` when
+those are set — useful for one suite at a time, but the three of them share and
+truncate whatever they are pointed at, so do not set those variables for a whole
+run. These modules cannot be tested against substituted infrastructure: a refresh
+family is a database invariant, the rotation grace is a Redis entry, an
+append-only consent log is an ordering property, and the entitlement cache is a
+TTL.
+
+`test/workspace-guard.e2e-spec.ts` is the THREAT-MODEL T4 contract test. It reads
+the shipped route table out of the Express router, filters it to the
+`/workspaces/:id` routes, and drives every one of them as a non-member, so a route
+added without `WorkspaceMemberGuard` fails without anybody editing the test.
+
+`test/notify.e2e-spec.ts` needs neither, but it does need `openssl` on `PATH` to
+build the throwaway X.509 certificate the SNS signature cases sign against; the
+cases that need it skip with a reason when it is absent.
 
 `test/database.e2e-spec.ts` needs a PostgreSQL **with pgvector**. It uses
 `TEST_DATABASE_URL` if set, otherwise starts `pgvector/pgvector:pg16` through
@@ -419,7 +474,8 @@ Two variables shape a test run:
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MONTAJ_QUEUE_PREFIX`       | Redis key prefix for BullMQ and realtime. `setup-env.ts` sets a per-process value so two runs never share keys; a deployment leaves it at `bull`, which is what the workers expect. |
 | `MONTAJ_SCHEDULER_DISABLED` | `1` stops this process running the scheduler worker. Set in tests, which call `ScheduledTasksService.runNow(name)` instead.                                                         |
-| `MONTAJ_METRICS_TOKEN`      | When set, `GET /internal/metrics` requires `Authorization: Bearer <token>`. Unset, the endpoint is open (A08b).                                                                    |
+| `MONTAJ_METRICS_TOKEN`      | When set, `GET /internal/metrics` requires `Authorization: Bearer <token>`. Unset, the endpoint is open (A08b).                                                                     |
+| `NOTIFY_WORKER_ENABLED`     | `0` stops this process draining the `notify` queue. `setup-env.ts` sets it; `test/auth-harness.ts` turns it back on, because that suite delivers to the outbox and reads it.        |
 
 ## Adding a module
 

@@ -11,12 +11,15 @@ const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? `http://127.0.0.1:${PORT}
  */
 export default defineConfig({
   testDir: "./e2e",
+  // The renderer's wasm and fonts are copies, written before the suite runs.
+  globalSetup: "./e2e/global-setup.ts",
   fullyParallel: true,
   forbidOnly: Boolean(process.env["CI"]),
   retries: process.env["CI"] !== undefined ? 2 : 0,
   workers: process.env["CI"] !== undefined ? 1 : undefined,
   reporter: process.env["CI"] !== undefined ? [["list"], ["html", { open: "never" }]] : [["list"]],
-  timeout: 30_000,
+  // CanvasKit instantiates a 7 MB wasm module on the first paint.
+  timeout: 60_000,
   expect: { timeout: 10_000 },
   use: {
     baseURL: BASE_URL,

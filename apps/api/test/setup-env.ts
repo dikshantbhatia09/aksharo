@@ -17,6 +17,14 @@ const TEST_ENV: Record<string, string> = {
   // pid keeps two suites — or two agents sharing one Redis — from colliding, and
   // the integration suite deletes its own keys when it is done.
   MONTAJ_QUEUE_PREFIX: `montaj-test-${String(process.pid)}`,
+  // A25: same reasoning as the scheduler. Most suites boot the app with a
+  // substituted Redis, and a BullMQ `Worker` on a stub would throw at bootstrap.
+  // `test/auth-harness.ts` — the one suite with a real Redis that needs mail
+  // actually delivered — turns it back on for itself.
+  NOTIFY_WORKER_ENABLED: "0",
+  MAIL_PROVIDER: "dev",
+  MAIL_FROM: "",
+  SMTP_URL: "",
   DATABASE_URL: "postgresql://montaj:montaj@localhost:5432/montaj_test?schema=public",
   REDIS_URL: "redis://localhost:6379",
   S3_ENDPOINT: "http://localhost:9000",

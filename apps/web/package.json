@@ -15,10 +15,14 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install --with-deps chromium webkit",
-    "clean": "node -e \"require('node:fs').rmSync('.next',{recursive:true,force:true})\""
+    "clean": "node -e \"require('node:fs').rmSync('.next',{recursive:true,force:true})\"",
+    "assets:render": "node scripts/copy-render-assets.mjs"
   },
   "dependencies": {
+    "@montaj/caption-styles": "workspace:*",
     "@montaj/config": "workspace:*",
+    "@montaj/render-canvaskit": "workspace:*",
+    "@montaj/render-core": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.39.0",

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.build.json",
+  "compilerOptions": {
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "outDir": "./dist/esm",
+    "tsBuildInfoFile": "./dist/esm/.tsbuildinfo.build"
+  },
+  "exclude": ["node_modules", "dist", ".turbo", "src/**/*.test.ts", "e2e", "scripts", "src/testing.ts"]
+}

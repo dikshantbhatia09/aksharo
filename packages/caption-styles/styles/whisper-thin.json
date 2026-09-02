@@ -1,0 +1,77 @@
+{
+  "id": "whisper-thin",
+  "name": "Whisper Thin",
+  "version": 2,
+  "category": "minimal",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Inter",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 300,
+    "italic": false,
+    "sizePct": 3.4,
+    "lineHeight": 1.44,
+    "letterSpacingEm": 0.08,
+    "textTransform": "uppercase"
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#ffffff",
+    "upcomingText": "#ffffff80"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 20,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 2,
+    "blurPct": 16,
+    "opacity": 0.4
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.86,
+    "align": "center",
+    "maxWidthPct": 70,
+    "maxLines": 2,
+    "safeAreaPct": 14
+  },
+  "animation": {
+    "in": {
+      "type": "fade",
+      "durationMs": 320
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 320
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 200
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "accent",
+      "label": "Accent",
+      "color": "#9be7ff",
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/whisper-thin.mp4"
+}

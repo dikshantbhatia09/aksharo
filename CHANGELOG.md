@@ -10,6 +10,139 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A16 — `@montaj/render-core`, `@montaj/render-canvaskit`, the 30 system styles and
+  the editor's caption canvas.**
+  - `@montaj/render-core` is implemented: `(StyleDoc, segment, words, time, canvas) →
+DrawCommand[]`, pure TypeScript, HarfBuzz-wasm shaping (`harfbuzzjs` 1.6.1, pinned),
+    a `FontRegistry` abstraction and no system fonts (D33). `layoutSegment` produces
+    absolute geometry; `animate` turns it into commands as a pure function of time;
+    `renderFrame` maps output time to source time through `@montaj/timemap` (D30),
+    resolves each visible segment's effective style and draws them in `seq` order.
+  - The `DrawCommand` union: `text` (shaped glyph ids with paired absolute positions
+    and clusters), `rect`, `roundRect`, `path`, `image`, `group`, `transform`, `clip`,
+    `shadow` and `blur` — the last with a `backdrop` flag for the styles that sample the
+    video behind them. Fills and strokes take a solid or gradient `Paint`. Everything is
+    JSON-serialisable and quantised, so a command list hashes stably and can be stored,
+    diffed and shipped to a worker. `outlineTextCommands()` converts every glyph run to
+    a path for a backend that cannot draw glyph ids, which is how A20's Canvas2D surface
+    executes the same list.
+  - Line breaking reproduces the segmenter's split rather than inventing one: the same
+    greedy character wrap with the same counting rule (base code points, combining marks
+    excluded). Only genuine metric overflow changes anything, and then the answer is
+    shrink-to-fit; re-wrapping by width happens only at the shrink floor, and a break
+    inside a word only when one word alone is too wide — always on a HarfBuzz cluster
+    boundary, so a Devanagari matra or a Tamil conjunct is never cut in half.
+  - Sizes stay relative: type, position and safe area off the canvas height, stroke,
+    shadow, padding and radius off the font size, so one document renders identically at
+    1080×1920 and at the 540p proxy. Document-level overrides are read from
+    `styles.inline.doc` and beaten by a segment's own `overrides`.
+  - `@montaj/render-canvaskit` executes the command list on Skia-WASM (`canvaskit-wasm`
+    0.42.0, pinned): WebGL where available, CPU raster otherwise, both reported to the
+    caller. Per-frame Skia objects live in an arena that is released however the frame
+    ends, and a missing font or image is reported rather than thrown.
+  - The 23 remaining styles in `styles/registry.json` are drawn, so all 30 validate,
+    render and have a committed preview. Four need a capability StyleDoc v2 has no field
+    for (two gradients, one backdrop blur, two raster passes); that ink lives in
+    `render-core`'s `styles/capabilities.ts` keyed by style id rather than in a widened
+    frozen schema.
+  - `apps/web`: `StylePreviewCanvas` (a style drawn live, still or looping its
+    three-second preview), `CaptionStage` (proxy video plus the CanvasKit overlay, safe
+    zones, and a draggable caption box that emits exactly one `SetSegmentPosition` per
+    drop, scrubbed with `requestVideoFrameCallback`), and the Style/Colors/Look/Anim
+    right panel whose every control emits one `SetStyle` at the current scope.
+    `/studio/styles` mounts the panel against the system catalogue.
+  - Tests: golden `DrawCommand[]` hashes for 30 styles × 4 caption fixtures (Hinglish,
+    Hindi, Tamil, English) × 3 instants plus full committed command lists; determinism
+    tests; a chromium Playwright lane that executes a stored command list with CanvasKit
+    and compares the encoded frame against the PNG Skia-in-Node drew from the same list,
+    within D33's parity SLO. `render-core` sits at 99% lines / 93% branches against the
+    90/85 gate, and a two-line 1080p frame lays out and draws in **0.11 ms** (p50)
+    against a 2 ms target.
+- **A25 — api: `notify` consumer, transactional email (SES/SMTP/dev outbox),
+  English and Hindi templates, suppression, in-app notifications.**
+  - `apps/api/src/notify`: a `MailProvider` port with three adapters chosen once
+    at boot by `MAIL_PROVIDER` — `SesProvider` (AWS SDK v3 SESv2, credentials from
+    the pod's IRSA role and region from `S3_REGION`, so there is still no mail key
+    in CONTRACTS section 1), `SmtpProvider` (pooled nodemailer from `SMTP_URL`;
+    Mailpit locally under the new compose profile `mail`), and `DevOutboxProvider`,
+    which writes A04's Redis list at A04's key in A04's entry shape plus the
+    rendered message and refuses to run in production. A misconfigured transport is
+    a startup failure rather than a queue quietly filling with undeliverable jobs.
+  - `NotifyService.enqueue({kind, to, locale, data, idempotencyKey})` — the brief's
+    payload, carried as the `payload` of the frozen CONTRACTS section 3 envelope so
+    a future out-of-process consumer parses the same shape. The idempotency key is
+    the BullMQ job id, which is what makes a repeated enqueue a no-op; a message
+    produced before a user belongs to anything uses the documented sentinel
+    `workspaceId: "none"`, because the envelope requires a non-empty one.
+    Enqueueing never throws for a delivery reason: a notification is a side effect
+    of work the caller cares about, so a Redis hiccup is logged, exactly as
+    `RealtimePublisher` already swallows one.
+  - `NotifyConsumer`: one BullMQ `Worker` inside the API process behind
+    `NOTIFY_WORKER_ENABLED` (default on; `0` for one-shot processes and test runs,
+    the same lever `MONTAJ_SCHEDULER_DISABLED` is for the scheduler). Sending is a
+    render and one HTTPS call, so a second deployable would be a rollout and an
+    on-call surface for work the API is already sized for. Per job: suppression,
+    then a ten-an-hour per-recipient bucket that the account-security kinds skip,
+    then a delivery receipt checked before the render and written after the send —
+    so the queue's five retries cannot deliver the same message twice. A malformed
+    payload or a template missing a variable is an `UnrecoverableError`, because no
+    amount of retrying fixes either.
+  - Ten templates (`verify-email`, `magic-link`, `password-changed`,
+    `device-approval`, `login-new-device`, `parental-waitlist`, `renewal-notice`,
+    `low-credits`, `export-ready`, `share-comment`) as hand-written responsive HTML
+    plus a real text part, from ICU MessageFormat strings in English and Hindi
+    (08 section 6). **No remote images and therefore no tracking pixel**; values are
+    escaped before ICU formats them, so a project called `<b>` is text and not
+    markup; brand words arrive as `{brand}`/`{support}` from
+    `packages/config/src/brand.ts` rather than being written into a string
+    (CONTRACTS section 0). `List-Unsubscribe` (RFC 8058 one-click) only on
+    `low-credits` and `share-comment` — everything else is transactional or, for
+    the pre-debit `renewal-notice`, legally required.
+  - `POST /internal/mail/events`: the SES bounce and complaint feed over SNS,
+    authenticated by the **SNS message signature** rather than by
+    `InternalSignatureGuard`, because SNS will not compute our HMAC. Canonical
+    string, RSA-SHA1/SHA-256 verify, and a signing certificate fetched only from
+    `https://sns.<region>.amazonaws.com/*.pem` (05 section 8's SSRF rule) — without
+    that check the route would let anyone suppress any address they can name. SNS
+    posts `text/plain`, so a middleware parses the body for that one route instead
+    of widening the global parser. A `SubscriptionConfirmation` is verified and
+    logged but never auto-confirmed: confirming is an outbound GET to a URL that
+    arrived in a request.
+  - Suppression: permanent for a hard bounce or any complaint, a fortnight for a
+    transient one, released early by a later `Delivery`. The live set is in Redis
+    keyed by SHA-256 of the address (a Redis dump should not be a mailing list) and
+    every change — including each message _not_ sent — is an `audit_log` row with
+    the address masked, because a cache is not an answer to "why did we stop
+    mailing this customer?".
+  - In-app notifications: a `notifications` table (`id`, `userId`, `workspaceId?`,
+    `kind`, `data`, `readAt`, `createdAt`, both keys cascading so erasure takes the
+    bell with it), `GET /me/notifications` and `POST /me/notifications/{id}/read`
+    scoped to the user from the access token, and a realtime `notification.created`
+    event on the workspace room. Rows carry no body text: wording is rendered per
+    locale at read time, so switching language switches the bell.
+  - A04's `AuthMailerService` is now a thin adapter onto `NotifyService.enqueue`
+    instead of a logger. Its e2e suite completes real sign-up, verification and
+    magic-link flows unchanged — delivery became asynchronous, so `auth-harness`
+    drains the queue before reading the outbox rather than sleeping and hoping.
+  - `MAIL_SNS_TOPIC_ARN` (optional): when set, `POST /internal/mail/events` refuses
+    a correctly signed SNS message published to any other topic, and refuses it
+    before fetching the certificate. The signature proves AWS published the
+    message, not that we own the topic it came from, so an account can sign a
+    perfectly valid bounce for any address from a topic of its own. Unset, any
+    topic is accepted — a deployment that has not configured it is better off
+    receiving bounces than silently discarding them.
+  - Auth mail is written in the recipient's language: `users.locale` (default
+    `en-IN`) reaches `AuthMailerService` from both call sites, and
+    `test/notify-locale.e2e-spec.ts` drives a real sign-up to prove a `hi-IN`
+    account receives the Hindi subject and greeting — a chain that runs from the
+    sign-up request through the stored row, the notify job and the renderer, and
+    that no single-layer test would catch breaking.
+  - `tools/runbooks/mail-outbox.js` prints the development outbox.
+  - 130 notify tests (template snapshots in both languages, provider selection and
+    each adapter, SNS signature verification against a per-run self-signed
+    certificate, suppression, retry and idempotency semantics, both bell endpoints)
+    plus an HTTP suite for the `text/plain` webhook body. `apps/api` sits at 93.9%
+    lines and 87.2% branches against the CONTRACTS section 9 gate of 75/70.
 - **A10 — worker-ai: vendor adapters, two-signal LID, routing chain, forced
   alignment, diarisation and the result cache.**
   - `worker_ai/providers/elevenlabs.py`, `sarvam.py`, `assemblyai.py`: the three
@@ -104,7 +237,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     CI and the property tests run on.
   - `worker_ai/providers/`: the `Provider` interface with a capability record, a
     cost estimate and a `ProviderSubmission` trail, plus a registry that reports
-    *why* an adapter is disabled. `MockProvider` (deterministic, Hinglish sample),
+    _why_ an adapter is disabled. `MockProvider` (deterministic, Hinglish sample),
     `LocalWhisperProvider` (faster-whisper, optional `local-asr` extra) and
     `ServerlessWhisperProvider` (the D15 per-second GPU endpoint) ship; ElevenLabs
     Scribe v2, Sarvam Saaras v4 and AssemblyAI are shells carrying their
@@ -144,6 +277,65 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     signature, and `tests/test_integration.py` — a real BullMQ job from the API's
     own producer modules, consumed by a real worker, completing against the real
     API (`RUN_INTEGRATION=1`).
+
+- **A05 — api: users, workspaces (tax profile), memberships, consent, privacy.**
+  - `apps/api/src/users/`: `GET`/`PATCH /me` (name, avatar, locale, onboarding
+    state, marketing opt-in, with a change to the opt-in also appending a
+    `consent_records` row); `GET /me/data`, the DPDP access and portability right
+    — a `dsr_requests` row of kind `export`, a JSON bundle of every row the
+    account holds, and a single-use download link carrying 256 bits of entropy
+    that expires in an hour; `DELETE /me`, the erasure right — a `dsr_requests`
+    row of kind `erasure`, the account marked deleted, the address anonymised to
+    an RFC 2606 `.invalid` mailbox and every session revoked in one transaction
+    (the cascade over media and transcripts is B16). Both stamp `dueAt` 30 days
+    out (DPDP Rule 14). The module also owns `AuditService`, the `audit_log` +
+    `access_logs` writer every other A05 module uses.
+  - `apps/api/src/workspaces/`: `GET`/`POST /workspaces`, `GET`/`PATCH`/`DELETE
+/workspaces/{id}` (settings merged rather than replaced; a personal workspace
+    that is the caller's only one cannot be deleted); `PUT
+/workspaces/{id}/tax-profile` with the D41 rules — India requires a State code
+    from the 36 live GST codes, an optional GSTIN is checked against its base-36
+    check digit and must name that same State, currency is derived
+    (`IN → INR`, else `USD`) and locked once a subscription exists, and confirming
+    a profile stamps the new `billingCountryConfirmedAt` that B01 requires before a
+    checkout; `GET /workspaces/{id}/entitlement`, the Free-plan stub cached in
+    Redis for 60 seconds (B02 computes it for real); members
+    (`GET`/`POST /workspaces/{id}/members`, `PATCH`/`DELETE .../{membershipId}`)
+    with exactly one immutable owner, no granting a role above your own, and every
+    session of a removed member revoked at once; and `/invitations` — accepted from
+    the invitee's own verified address, so the id in the mail is a lookup key
+    rather than a bearer secret.
+  - `WorkspaceMemberGuard` on **every** `/workspaces/:id` route (THREAT-MODEL T4):
+    the id in the path must be the token's `ws` claim, an active membership must
+    still exist, and the principal's role is replaced with the one in the database
+    so a demotion bites on the next request rather than at the end of the token's
+    fifteen minutes. `test/workspace-guard.e2e-spec.ts` enumerates the shipped
+    route table from the router and drives every `:id` route as a stranger, as a
+    removed member and with no token, so a route added without the guard fails
+    without anybody editing the test.
+  - `apps/api/src/consents/`: `GET`/`POST /consents` over an append-only
+    `consent_records` log (a refusal is a row, a withdrawal closes the grants it
+    supersedes, and `users.marketingOptIn` / `analyticsConsentAt` /
+    `memoryConsentAt` are mirrored in the same transaction); `reconsentRequired`
+    reports an answer given against an older notice (D61, D62).
+  - `apps/api/src/privacy/`: `GET /privacy/notice`, the itemised notice's version
+    and purpose list, public because a person has to read it before creating an
+    account; and `GET /admin/parental-waitlist`, which lives in A08b's
+    `AdminModule` behind `AdminGuard` (`users.is_admin`) because the waiting list
+    belongs to nobody's workspace and no membership could authorise reading it.
+  - **Schema:** `workspaces.billing_country_confirmed_at` (the sign-up default is a
+    guess, not a statement the customer made) and the `parental_waitlist` table
+    (`sha256(address)`, jurisdiction, age bracket, `notifiedAt`), which
+    `ParentalWaitlistService` drains A04's Redis hash into at boot. Migration
+    `20260902030000_a05_billing_country_confirmed_and_parental_waitlist`.
+  - No new environment variables and no new feature flags; `pnpm gen:client`
+    regenerated `packages/api-client` (53 operations).
+  - `apps/api/test/db-harness.ts`: the Docker probe waits 60 s rather than 20 s.
+    Vitest collects the suite files in parallel, so every Docker-backed suite
+    probes the daemon at once, and A05 took that from three suites to five; a
+    timeout there does not fail a run, it silently skips every integration suite.
+    A daemon that is genuinely absent still fails in milliseconds.
+
 - **A08b — api: dead-letter queue, admin replay, retry/stall policy, job-event
   retention.**
   - `apps/api/prisma`: the `dlq` table (migration
@@ -154,7 +346,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     migration **backfills** from the `job.dead_lettered` events A08 wrote when
     there was nowhere else to put them, so no dead letter is lost.
   - `apps/api/src/jobs/dlq.service.ts`: the dead-letter path. The copy is taken
-    from the job row *before* the completion update, so it remembers the hold, and
+    from the job row _before_ the completion update, so it remembers the hold, and
     it is idempotent on `(jobId, attemptId)` so an at-least-once callback writes
     one row. **Replay** claims the entry with a conditional update (two admins,
     one replay), reuses the same `jobs` row, mints a fresh `attemptId` and
@@ -547,7 +739,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 - **A08b — `jobKey` deduplication was scoped globally, not per workspace.** A08's
   `jobs_live_job_key_key` was `UNIQUE (job_key) WHERE status IN
-  ('queued','running')` with no workspace column, so two tenants with the same
+('queued','running')` with no workspace column, so two tenants with the same
   live job key collided and the second enqueue failed with an unexplainable unique
   violation. `prisma/sql/0005-a08b-dlq.sql` replaces it with
   `jobs_live_workspace_job_key_key` on `(workspace_id, job_key)`, and
@@ -556,6 +748,27 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   microsecond later, so the index is the actual guarantee.
 
 ### Changed
+
+- **A25** — `.env.example`, `packages/config/src/env.ts`, the Terraform secrets
+  contract and the Helm chart all gained `MAIL_PROVIDER`, `MAIL_FROM` and
+  `SMTP_URL`, the three variables CONTRACTS section 1 added after A04, and
+  `GPU_PROVIDER_URL` (non-secret) and `GPU_PROVIDER_TOKEN` (secret, human-filled),
+  the two it added after A09 — A25 was the next work package to touch all four
+  files, so it carried them across rather than leaving the parity check red.
+  `MAIL_SNS_TOPIC_ARN` followed after A25's first review.
+  `apps/worker-ai/worker_ai/settings.py` mirrors that list and its test enforces
+  the mirror, so the six names were added there too and the GPU pair moved out
+  of `WORKER_ENV_VARS`: they are product configuration now, not deployment
+  naming. `infra/scripts/check-contracts-parity.py` reports 38/38 on both sides.
+  `loadEnv()` also gained a cross-field check (`crossFieldProblems`): `ses` and
+  `smtp` require `MAIL_FROM`, and `smtp` requires `SMTP_URL`. It lives beside the
+  schema rather than inside it because a `.superRefine()` would remove
+  `envSchema.shape`, which the contract test walks.
+- **A25** — `REALTIME_EVENTS` gained `notification.created`, now also named in
+  CONTRACTS section 7.
+- **A25** — `UsersService.findByEmail` selects `locale`. It is the only lookup the
+  auth flows do before sending a message, and A25 renders that message in the
+  recipient's language; the alternative was a second query on the sign-in path.
 
 - **A02b** — `OpRejectionReasonSchema` gained `invalid-range`, `not-contiguous`,
   `invariant`, `rebased-away` and `stale-after-resegment`. The reason list is a

@@ -17,6 +17,7 @@
       "default": "./dist/index.js"
     },
     "./styles/registry.json": "./styles/registry.json",
+    "./styles/*.json": "./styles/*.json",
     "./package.json": "./package.json"
   },
   "scripts": {

@@ -25,6 +25,7 @@
     "clean": "node -e \"for (const dir of ['dist', '.openapi']) require('node:fs').rmSync(dir,{recursive:true,force:true})\""
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.1124.0",
     "@montaj/caption-styles": "workspace:*",
     "@montaj/config": "workspace:*",
     "@montaj/edg": "workspace:*",
@@ -42,8 +43,10 @@
     "@prisma/client": "^6.19.3",
     "bullmq": "^5.81.4",
     "dotenv": "^17.4.2",
+    "intl-messageformat": "^10.7.18",
     "ioredis": "^5.11.1",
     "nestjs-pino": "^5.1.0",
+    "nodemailer": "^9.1.1",
     "pg": "^8.23.0",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
@@ -61,6 +64,7 @@
     "@testcontainers/postgresql": "^12.1.0",
     "@types/express": "^5.0.6",
     "@types/node": "^22.19.2",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
     "@types/ws": "^8.18.1",

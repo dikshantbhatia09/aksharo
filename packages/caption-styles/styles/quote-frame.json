@@ -1,0 +1,78 @@
+{
+  "id": "quote-frame",
+  "name": "Quote Frame",
+  "version": 2,
+  "category": "cinematic",
+  "minPlan": "creator",
+  "typography": {
+    "fontFamily": "Playfair Display",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 500,
+    "italic": true,
+    "sizePct": 4.6,
+    "lineHeight": 1.4,
+    "letterSpacingEm": 0,
+    "textTransform": "none"
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#ffffff",
+    "accent": "#d9b26a"
+  },
+  "box": {
+    "enabled": true,
+    "mode": "block",
+    "fill": "#0b0b0f",
+    "paddingPct": 40,
+    "radiusPct": 10,
+    "opacity": 0.55
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 4,
+    "blurPct": 26,
+    "opacity": 0.45
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.5,
+    "align": "center",
+    "maxWidthPct": 70,
+    "maxLines": 4,
+    "safeAreaPct": 14
+  },
+  "animation": {
+    "in": {
+      "type": "blur",
+      "durationMs": 380
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 320
+    },
+    "wordHighlight": {
+      "type": "none",
+      "durationMs": 0
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "accent",
+      "label": "Accent",
+      "color": "#d9b26a",
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/quote-frame.mp4"
+}

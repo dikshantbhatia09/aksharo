@@ -297,17 +297,24 @@ describe.skipIf(!available)("auth (e2e)", () => {
       expect(user.ageBracket).toBe("adult");
     });
 
-    it("takes a parental waitlist entry", async () => {
+    it("takes a parental waitlist entry, into the table A05 added", async () => {
       const email = address("guardian");
       await request(server)
         .post("/auth/parental-waitlist")
         .set("X-Forwarded-For", "203.0.113.30")
-        .send({ email })
+        .send({ email, jurisdiction: "IN" })
         .expect(202);
 
-      const stored = await ctx.redis.hget(redisKeys.parentalWaitlist(), sha256Hex(email));
-      expect(stored).toBeTruthy();
-      expect(JSON.parse(stored ?? "{}")).toMatchObject({ email });
+      // A04 parked these in the Redis hash `montaj:auth:parental-waitlist`
+      // because the schema was frozen outside A03; A05 gave them the
+      // `parental_waitlist` table and drains whatever the hash still holds.
+      const row = await ctx.prisma.parentalWaitlist.findUniqueOrThrow({
+        where: { emailHash: sha256Hex(email) },
+      });
+      expect(row).toMatchObject({ jurisdiction: "IN", ageBracket: "minor", notifiedAt: null });
+      // Only the digest is kept: nothing stores a declared minor's address.
+      expect(JSON.stringify(row)).not.toContain(email);
+      expect(await ctx.redis.hget(redisKeys.parentalWaitlist(), sha256Hex(email))).toBeNull();
     });
 
     it("rejects an impossible date of birth", async () => {
