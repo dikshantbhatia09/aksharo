@@ -125,6 +125,54 @@ export interface FitContext {
   readonly shaper: Shaper;
 }
 
+/**
+ * The worst shrink over every probe and instant, restricted to the layouts that
+ * were actually drawn in `script`.
+ *
+ * Restricting by the **detected** script is what makes per-script tuning
+ * well-defined: `typography.scriptScale.deva` only moves layouts whose words are
+ * Devanagari, so only those may be measured against it. It also picks up the
+ * mixed fixtures for free — a Hinglish caption whose visible window is
+ * Devanagari is measured as Devanagari, which is how it will be drawn.
+ *
+ * `undefined` means the style never drew that script at all, which is not a
+ * failure: a probe set may simply contain no Tamil.
+ */
+export function worstFitForScript(
+  style: StyleDoc,
+  probes: readonly FitProbe[],
+  canvas: CanvasSize,
+  context: FitContext,
+  canvasName: string,
+  script: WordScript,
+): FitResult | undefined {
+  let worst: FitResult | undefined;
+  for (const probe of probes) {
+    for (const tMs of probe.timestamps) {
+      const layout = layoutSegment({
+        style,
+        segment: probe.segment,
+        words: probe.words,
+        canvas,
+        registry: context.registry,
+        shaper: context.shaper,
+        tMs,
+      });
+      if (layout.script !== script) continue;
+      if (worst === undefined || layout.shrink < worst.shrink) {
+        worst = {
+          shrink: layout.shrink,
+          probe: probe.name,
+          tMs,
+          canvas: canvasName,
+          lines: layout.lines.length,
+        };
+      }
+    }
+  }
+  return worst;
+}
+
 /** The worst shrink a style suffers over every probe and instant on one canvas. */
 export function worstFit(
   style: StyleDoc,

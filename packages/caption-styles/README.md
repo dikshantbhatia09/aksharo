@@ -142,17 +142,28 @@ widened schema; see `stylesWithCapabilities()`.
 | `pnpm --filter @montaj/caption-styles test`          | Vitest                                          |
 | `pnpm --filter @montaj/caption-styles test:coverage` | Vitest with the 90/85 gate (CONTRACTS §9)       |
 
-## Type sizes
+## Type sizes and `typography.scriptScale`
 
-`typography.sizePct` is not hand-picked: it is bisected by
-`pnpm --filter @montaj/render-core styles:tune` so that a budget-filling caption in
-Latin, Devanagari **and** Tamil fits without the renderer shrinking it (≥ 0.95 at
-1080×1920, ≥ 0.9 at 1920×1080). Change a style's size by hand and
-`render-core`'s `styles/fit.test.ts` will say so.
+`sizePct` is the size the style was drawn for and it stays. `scriptScale` is an
+optional per-script multiplier on it, keyed by the lowercase OpenType tag:
 
-The binding script is Tamil: the segmenter's budget counts base characters and excludes
-combining marks, so 22 Tamil characters is ~37 code points and roughly twice the width
-of the same character count in Latin. See the A16b entry in the root `CHANGELOG.md`.
+```json
+"scriptScale": { "latn": 0.72, "deva": 0.85, "taml": 0.52 }
+```
+
+It is additive — the schema stays at generation 2, and a document without the field
+renders exactly as before.
+
+It exists because the segmenter's line budgets are counted in **base characters**, with
+combining marks excluded, since that is what reading speed depends on. Width is a
+different question: 22 Tamil characters is around 37 code points and roughly twice the
+width of 32 Latin characters. A single size per style cannot satisfy both, and shrinking
+the style until Tamil fits would make the Latin caption a subtitle.
+
+The multipliers are not hand-picked. `pnpm --filter @montaj/render-core styles:tune`
+bisects each one until a budget-filling line in that script fits without the renderer
+shrinking it (≥ 0.95 at 1080×1920, ≥ 0.9 at 1920×1080); `render-core`'s
+`styles/fit.test.ts` fails if a hand edit breaks it.
 
 ## Previews
 

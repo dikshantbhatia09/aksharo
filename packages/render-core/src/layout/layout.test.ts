@@ -290,7 +290,9 @@ describe("layoutSegment", () => {
     const list = words(["Bhai", "aaj", "hum", "baat"]);
     const master = lay(doc, list, 100, GOLDEN_CANVAS);
     const proxy = lay(doc, list, 100, PROXY_CANVAS);
-    expect(master.fontSizePx / proxy.fontSizePx).toBeCloseTo(2, 6);
+    // Coordinates are quantised to three decimals, so at the proxy size the
+    // ratio carries a few parts per hundred thousand of rounding.
+    expect(master.fontSizePx / proxy.fontSizePx).toBeCloseTo(2, 3);
     expect(rectWidth(master.box) / rectWidth(proxy.box)).toBeCloseTo(2, 3);
     expect(master.box[0] / proxy.box[0]).toBeCloseTo(2, 3);
   });

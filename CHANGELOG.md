@@ -10,97 +10,46 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
-- **A16b — every system style retuned so the renderer never shrinks it.**
-  - The segmenter's per-script character budgets (32 Latin, 24 Devanagari, 22 Tamil a
-    line, `09 §3`) are readability decisions and stay. The 30 styles' `sizePct` values
-    did not agree with them: 28 of 30 hit the shrink floor on a budget-filling caption,
-    so a short caption was drawn big and the next one smaller — the type size jittered
-    shot to shot inside one video, and the picker's tile (short preview text, never
-    shrunk) showed a size no real caption would use.
-  - `src/styles/fit.ts` is the shared definition of the worst case: the four caption
-    fixtures **and** a budget-filling caption in each script, at every instant a
-    `wordsPerCue` style rotates through, on the 9:16 master and the 16:9 canvas.
-    `scripts/tune-style-sizes.ts` bisects `sizePct` against it — bisection rather than a
-    multiplicative step, because the shrink the layout reports is clamped at
-    `MIN_SHRINK` and a style already on the floor cannot say how far past it is.
-    `src/styles/fit.test.ts` asserts shrink ≥ 0.95 at 1080×1920 and ≥ 0.9 at 1920×1080
-    for all 30 styles, over both probe sets (124 assertions).
-  - Nothing but `typography.sizePct` moved: names, categories, colours, animation and
-    the parity flags are untouched. Line height and padding needed no change — width
-    binds everywhere, height never does. Goldens, PNG baselines and the 30 catalogue
-    previews were regenerated.
-  - **The trade-off, recorded because it is a product decision and not a bug.** The
-    binding case is Tamil, and it is arithmetic: `charCount` counts base code points and
-    excludes combining marks, so a 22-_character_ Tamil line is about 37 code points and
-    ~21 em wide, against 15.3 em for a full 32-character Latin line. A 21 em line inside
-    `maxWidthPct` 78% of a 1080-wide frame forces an em of ~40 px — **2.1% of the frame
-    height**. Tuned sizes therefore land at 1.84–3.52% for the 28 changed styles (they
-    were 3.2–7.8%), i.e. subtitle-sized rather than creator-caption-sized.
-    `word-pop` and `impact-shout` are unchanged at 8.2% and 8.5% because they show one
-    word at a time and never meet a full line.
-  - Three ways out, none of them this work package's to choose: lower the Indic budgets
-    (they were set for reading speed, not width); give `StyleDoc` a per-script size
-    multiplier so Latin keeps its 5–7% while Indic drops; or compute one shrink for the
-    whole caption track instead of per caption, which removes the jitter without
-    shrinking anything that already fits.
-- **A12 — api: the EDG module (hot document, `/edg/ops` with server-side rebase
-  and compare-and-swap, revisions, snapshots and restore, realtime `edg.ops`).**
-  - `apps/api/src/edg/edg.repository.ts`: A02b's `EdgRepository` over Prisma. One
-    batch is one transaction — `SELECT … FOR UPDATE` on the document row,
-    `rebaseOps` against the ops since the client's base, `applyOps` on a partial
-    state, row-level writes, then
-    `UPDATE edg_documents SET revision = revision + 1 … WHERE revision = $observed
-RETURNING revision`. The lock makes read-decide-write atomic; the CAS is the
-    same invariant written into the statement rather than into a convention, so
-    `edg_documents.revision` rises by exactly one per accepted batch (06
-    invariant 3) even if a later caller forgets the lock.
-  - **The working set** (`edg.working-set.ts`). A batch reads the rows its ops
-    name plus exactly the neighbours `@montaj/edg/ops` reaches for — the segment
-    after the last one addressed (a split mints a `seq` between them), everything
-    between the addressed ones (a merge checks contiguity), the segments a deleted
-    word bounds, and one transcript chunk either side of each one named. Most
-    edits read no words at all: setting text, style, position or `hidden` never
-    asks the engine about a word. Measured on the compose Postgres, a single-op
-    batch is **median 33 ms, p95 67 ms on a 9,000-segment document** — no slower
-    than on a twelve-segment one, which is the claim the design makes.
-    `Resegment` is the one op with no bounded form and says so rather than
-    guessing.
-  - **Rebase, or 409.** A client that is behind is rebased server-side and
-    applied (`OpBatchResponse.rebased`). Two things the server may not decide for
-    the user come back as `409`: a `conflict` verdict — two writers typing
-    different text into the same caption or correcting the same word — carrying
-    `{latestRevision, opsSince, conflicts}` with **both texts** and never the
-    document (D29); and `edg/too_stale` past 200 revisions or across a state
-    replacement.
-  - **Word edits touch one row.** `EditWord`, `DeleteWord` and `InsertWordAfter`
-    patch only the `transcript_chunks` row the word lives in, raise its
-    `next_word_seq` (ids are never reused, 06 invariant 4), and move
-    `transcripts.current_revision` only when a word actually changed.
-  - **Snapshots** every 100 revisions (`SNAPSHOT_EVERY`, D28) plus one at
-    creation, stored without the transcript chunks — they live in their own
-    table. `POST /edg/snapshots/{n}/restore` **appends** a revision that replaces
-    the state; history is never rewritten, so restoring a later snapshot undoes
-    it. A revision with no ops is the log's way of saying "the state was
-    replaced", and anybody rebasing across one is told to reload.
-  - **Idempotency** on `edg_revisions.client_op_ids` with a GIN index
-    (`prisma/sql/0006-a12-edg.sql`): a retry after a dropped response returns the
-    revision the first attempt produced instead of applying the edit twice.
-  - **Rate limiting** per workspace — 20 batches of burst refilling at 5/s —
-    because one seat with twenty tabs is one document being edited. Exhaustion is
-    `429 common/rate_limited` whose `details.rejected` marks every op
-    `rate-limited`, the one reason in `packages/edg`'s closed enum the API raises
-    and the engine never does. Fails open on a Redis outage.
-  - **`MergePass` is worker-only.** "worker" is never a claim in a user's token;
-    the only route that submits ops as one is
-    `POST /internal/projects/{id}/edg/ops`, behind the CONTRACTS §3 HMAC.
-  - `EdgService.initialise(projectId, transcript)` — the entry point A11 calls
-    once a transcript is segmented. Idempotent by project.
-  - Realtime `edg.ops {revision, ops, source}` to `project:{id}` after the commit
-    (CONTRACTS §7); the envelope's `at` is the server time.
-  - Schema: `edg_pass_items.keyframes_ref` (CONTRACTS §2 freezes
-    `PassItem.keyframesRef`; the table had only the bytes column) and
-    `edg_segments (edg_id, start_word_id)` / `(edg_id, end_word_id)`, which is how
-    a word delete finds the segments it bounds.
+- **A16c — per-script type sizes (`typography.scriptScale`) and track-level shrink.**
+  - **The problem.** Shrink-to-fit is decided per caption, so a short caption is drawn at
+    full size and the next one, one word longer, smaller: the type size jitters shot to
+    shot inside one video, and the picker's tile — short preview text, never shrunk —
+    shows a size no real caption uses. 28 of 30 styles hit the shrink floor on a
+    budget-filling caption.
+  - **`typography.scriptScale`**, an optional, additive field on StyleDoc v2 (the schema
+    generation stays 2; a document without it renders exactly as before): a per-script
+    multiplier on `sizePct`, keyed by the lowercase OpenType tag (`latn`, `deva`,
+    `taml`). `render-core` applies the entry for the script it is actually laying out —
+    the script of the words on screen, not the project's language — so a Hinglish
+    caption picks the right one line by line. `sizePct` keeps recording the size the
+    style was drawn for.
+  - It exists because the budgets are counted in **base characters** with combining marks
+    excluded (that is what reading speed depends on) while width is a different question:
+    a 22-character Tamil line is ~37 code points and about **21 em** wide, against 15.3 em
+    for a full 32-character Latin line. One size per style cannot satisfy both.
+  - `src/styles/fit.ts` measures the worst shrink over the four caption fixtures **and** a
+    budget-filling caption per script, at every instant a `wordsPerCue` style rotates
+    through, on both canvases; `worstFitForScript` restricts that to the layouts a given
+    multiplier can move, which is what makes per-script tuning well-defined.
+    `scripts/tune-style-sizes.ts` bisects each multiplier; `src/styles/fit.test.ts` asserts
+    shrink ≥ 0.95 at 1080×1920 and ≥ 0.9 at 1920×1080, per script, for all 30 styles.
+  - **`computeTrackShrink({projection, catalogue, registry, shaper, canvas, script})`**
+    lays every caption out once and returns the minimum shrink per (styleId, script);
+    `renderFrame` and `layoutFrame` take the map and apply it uniformly, so every caption
+    in a style is one size for the whole video. Per-caption shrink remains the fallback
+    when no map is given. It is a pure function and costs one layout per caption, so the
+    exporters (A19, A20) and the preview stage compute it once per session — on a change
+    of document, catalogue or canvas — and cache it; nothing calls it per frame.
+  - Goldens, PNG baselines and the 30 catalogue previews regenerated; browser parity holds
+    at 0 pixels differing.
+  - **Reported, because it is a product decision.** Latin needed a multiplier below 1 in
+    **28 of 30 styles** (0.45–0.94), so Latin does not in fact keep its authored size. The
+    cause is the same arithmetic: 32 characters is roughly 16 em, and 16 em inside 78–90%
+    of a 1080-wide portrait frame forces an em of ~2.8% of frame height whatever the
+    script. The 32/24/22 budgets fit a 16:9 subtitle comfortably (a 4.2% line has ~33 em
+    of room there) and are simply generous for 9:16. A 9:16-specific budget — nearer
+    20–26 Latin characters — would let every `latn` multiplier go back to 1.
+    `word-pop` and `impact-shout` need no multipliers at all: they show one word at a time.
 
 - **A16 — `@montaj/render-core`, `@montaj/render-canvaskit`, the 30 system styles and
   the editor's caption canvas.**

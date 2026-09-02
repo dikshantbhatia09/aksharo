@@ -87,27 +87,50 @@ their left.
 **Anchoring** addresses the ink box, not the taller line-height block, so `box`,
 `paddedBox` and the safe-area clamp all talk about the same rectangle.
 
-### Type sizes are tuned so shrink never fires
+### Type sizes: `scriptScale`, not a smaller style
 
 The segmenter's budgets — 32 Latin, 24 Devanagari, 22 Tamil characters a line
-(`09 §3`) — are readability decisions and do not move. A style's `sizePct` is a look
-decision and does. `src/styles/fit.ts` measures the worst shrink a style suffers over
-the four caption fixtures **and** a budget-filling caption in each script, at every
-instant a `wordsPerCue` style rotates through, on both canvases;
-`scripts/tune-style-sizes.ts` bisects `sizePct` until the worst case clears 0.95 at
-1080×1920 and 0.9 at 1920×1080, and `src/styles/fit.test.ts` holds it there.
+(`09 §3`) — are readability decisions and do not move. Neither does a style's
+`sizePct`: that is the size the style was drawn for.
 
-The point is not tidiness. With shrink-to-fit doing the work, a short caption is drawn
-big and the next one smaller, so the type size jitters shot to shot inside one video —
-and the picker's tile, which previews short text, never shrinks and so never shows what
-a real caption will look like.
+What moves is `typography.scriptScale`, an optional per-script multiplier keyed by the
+lowercase OpenType tag (`latn`, `deva`, `taml`). It exists because a budget is counted
+in **base characters**, with combining marks excluded — that is what reading speed
+depends on — while width is a different question entirely: a 22-character Tamil line is
+around 37 code points and about **21 em** wide, against 15.3 em for a full
+32-character Latin line. Without a per-script multiplier the only way to fit Tamil is to
+shrink every style for every script, which turns a creator caption into a subtitle.
 
-**The binding constraint is Tamil, and it is arithmetic.** `charCount` counts base code
-points and excludes combining marks, so a 22-_character_ Tamil line is around 37 code
-points and about **21 em** wide, against 15.3 em for a full 32-character Latin line. A
-21 em line inside `maxWidthPct` 78% of a 1080-wide frame forces an em of about 40 px —
-2.1% of the frame height. That is why the tuned sizes are what they are; the A16b entry
-in `CHANGELOG.md` records the trade-off and the alternatives.
+`scripts/tune-style-sizes.ts` bisects each script's multiplier against
+`src/styles/fit.ts`, which measures the worst shrink over the four caption fixtures
+**and** a budget-filling caption in each script, at every instant a `wordsPerCue` style
+rotates through, on both canvases. `src/styles/fit.test.ts` holds the result: shrink
+≥ 0.95 at 1080×1920 and ≥ 0.9 at 1920×1080, per script, for all 30 styles.
+
+`scriptScale` is additive — StyleDoc stays at generation 2, and a document without it
+renders exactly as before.
+
+### Track-level shrink
+
+Shrink-to-fit is decided per caption, which is right in isolation and wrong in
+aggregate: a short caption is drawn at full size and the next one, one word longer,
+smaller, so the type size jitters shot to shot through a video.
+
+```ts
+const trackShrink = computeTrackShrink({ projection, catalogue, registry, shaper, canvas });
+const commands = renderFrame({ ...options, trackShrink });
+```
+
+`computeTrackShrink` lays every caption out once and returns the minimum shrink each
+(style, script) pair needs; `renderFrame` and `layoutFrame` apply it uniformly, so every
+caption in a style is one size for the whole video. It is keyed by script as well as
+style because a Hinglish project draws Latin and Devanagari at different sizes on
+purpose. Without the map, each caption shrinks on its own — the fallback is unchanged.
+
+It is a pure function of its inputs and it costs **one layout per caption**, so the
+exporters (A19, A20) and the preview stage compute it **once per session** — when the
+document, the style catalogue or the canvas changes — and cache it. Nothing calls it
+per frame.
 
 ## The watermark
 
