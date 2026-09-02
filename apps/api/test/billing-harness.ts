@@ -20,6 +20,7 @@ import { Test } from "@nestjs/testing";
 import { type PrismaClient, type $Enums } from "@prisma/client";
 import Redis from "ioredis";
 
+import { createAdminContext } from "./auth-harness.js";
 import { createTestDatabase, type TestDatabase } from "./db-harness.js";
 import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness.js";
 import { PLAN_SEEDS, seedUlid } from "../prisma/seed-data.js";
@@ -46,6 +47,14 @@ export interface BillingTestContext {
   readonly usdWorkspaceId: string;
   readonly userId: string;
   token(role?: $Enums.MembershipRole, workspaceId?: string): string;
+  /**
+   * B13: a `kind: "admin"` token (CONTRACTS §5), for tests that exercise an
+   * `/admin/**` route without going through the HTTP step-up flow (that flow
+   * is covered on its own in `admin.guard.test.ts` /
+   * `admin-step-up.controller` tests). Seeds a non-revoked `admin_roles`
+   * row for `userId` the first time it is called with a given role.
+   */
+  adminToken(roles?: readonly $Enums.AdminRoleName[]): Promise<string>;
   /** A fresh workspace whose `billingCountryConfirmedAt` is still null. */
   createUnconfirmedWorkspace(): Promise<string>;
   planId(key: $Enums.PlanKey): Promise<string>;
@@ -205,6 +214,12 @@ export async function createBillingTestContext(): Promise<BillingTestContext | n
 
     token(role = "admin", ws = workspaceId) {
       return tokens.mintAccessToken({ userId, workspaceId: ws, role, kind: "web" }).accessToken;
+    },
+
+    async adminToken(roles: readonly $Enums.AdminRoleName[] = ["superadmin"]) {
+      // B13: a real step-up (test/auth-harness.ts's createAdminContext), not a
+      // hand-minted kind:"admin" token — same helper every other admin e2e uses.
+      return (await createAdminContext({ app, roles, userId, workspaceId })).accessToken;
     },
 
     async createUnconfirmedWorkspace() {

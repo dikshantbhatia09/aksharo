@@ -7,6 +7,9 @@ download and runs the same in CI as on a developer machine.
 
 from __future__ import annotations
 
+import gc
+import os
+
 import numpy as np
 import pytest
 
@@ -28,11 +31,20 @@ from worker_ai.clean.processor import run_clean_chain
 
 SAMPLE_RATE = 48_000
 
+slow = pytest.mark.skipif(
+    os.environ.get("RUN_SLOW") != "1",
+    reason="processes 60 minutes of synthetic audio; set RUN_SLOW=1",
+)
+
 
 def _tone(
     freq: float, seconds: float, *, amplitude: float = 0.3, sample_rate: int = SAMPLE_RATE
 ) -> np.ndarray:
-    t = np.arange(int(sample_rate * seconds)) / sample_rate
+    # float32 throughout (an int64 `arange` plus a float64 division and a
+    # float64 `sin`, all at once, is three ~1.3 GB temporaries at the RSS
+    # test's 60-minute scale) — harmless at every other call site's scale too.
+    n = int(sample_rate * seconds)
+    t = np.arange(n, dtype=np.float32) / np.float32(sample_rate)
     return (amplitude * np.sin(2 * np.pi * freq * t)).astype(np.float32)
 
 
@@ -40,7 +52,11 @@ def _white_noise(
     seconds: float, *, amplitude: float = 0.05, sample_rate: int = SAMPLE_RATE, seed: int = 0
 ) -> np.ndarray:
     rng = np.random.default_rng(seed)
-    return (amplitude * rng.standard_normal(int(sample_rate * seconds))).astype(np.float32)
+    n = int(sample_rate * seconds)
+    # `Generator.standard_normal` draws directly in float32 given a `dtype`,
+    # skipping the float64 intermediate `.astype(np.float32)` would otherwise
+    # need (same reasoning as `_tone` above).
+    return (amplitude * rng.standard_normal(n, dtype=np.float32)).astype(np.float32)
 
 
 def _pink_noise(
@@ -197,6 +213,74 @@ class TestRunCleanChain:
         )
         # Crossfading trims a little at internal joins; length stays close.
         assert abs(len(normalized.samples) - len(noisy.samples)) < SAMPLE_RATE
+
+    @slow
+    def test_rss_bound_on_a_60_minute_file(self) -> None:
+        """Acceptance criterion 5 / the orchestrator addendum: peak RSS while
+        cleaning a 60-minute 48 kHz file stays under 2 GB.
+
+        `run_clean_chain`'s own 10-minute denoise windows already bounded the
+        `spectral_gate_denoise`/`suppress_reverb`/`deess` STFT passes; what
+        this test actually exercises is the fix for the whole-signal passes
+        that used to run *after* reassembly regardless of how the denoise
+        stage was chunked — `true_peak_dbtp` (the named defect: one
+        `len(samples) * 4` `np.interp` allocation, ~5.5 GB at this length
+        before B10b) and `integrated_loudness`'s high-pass stage, both now
+        windowed (`dsp.py`'s `_MEASURE_WINDOW_SAMPLES`). Marked `slow`
+        (`RUN_SLOW=1`) because it processes a full hour of audio and measures
+        real process RSS rather than asserting on a mock — not something to
+        run on every `pytest -q`.
+        """
+        import threading
+        import time
+
+        import psutil
+
+        seconds = 60 * 60
+        # Built from `_tone`/`_white_noise` (no whole-signal FFT in fixture
+        # generation itself, unlike `_pink_noise`) so the measurement below is
+        # `run_clean_chain`'s own footprint, not the fixture's.
+        noisy = Pcm(
+            samples=(_tone(220.0, seconds) + _white_noise(seconds)).astype(np.float32),
+            sample_rate=SAMPLE_RATE,
+        )
+
+        process = psutil.Process(os.getpid())
+        gc.collect()
+        baseline_rss = process.memory_info().rss
+
+        # `run_clean_chain` is synchronous and CPU-bound, so a same-thread
+        # sample after it returns would only see whatever the allocator has
+        # not yet released — exactly the peak this test exists to catch. A
+        # background poller samples RSS while the chain actually runs.
+        peak_rss = baseline_rss
+        stop = threading.Event()
+
+        def poll() -> None:
+            nonlocal peak_rss
+            while not stop.is_set():
+                peak_rss = max(peak_rss, process.memory_info().rss)
+                time.sleep(0.05)
+
+        poller = threading.Thread(target=poll, daemon=True)
+        poller.start()
+        try:
+            normalized, metrics = run_clean_chain(
+                noisy, strength="medium", target="social", dereverb=False, deesser=False
+            )
+        finally:
+            stop.set()
+            poller.join(timeout=5)
+        peak_rss = max(peak_rss, process.memory_info().rss)
+        del normalized
+        gc.collect()
+
+        peak_over_baseline = peak_rss - baseline_rss
+        assert peak_over_baseline < 2 * 1024 * 1024 * 1024, (
+            f"peak RSS over baseline was {peak_over_baseline / (1024 * 1024):.0f} MiB, "
+            "expected < 2048 MiB for a 60-minute file"
+        )
+        assert metrics.true_peak_dbtp <= TRUE_PEAK_CEILING_DBTP + 0.2
 
 
 def test_clip_count_detects_full_scale_samples() -> None:

@@ -16,6 +16,7 @@ files:
   - package.json
 asarUnpack:
   - dist/main/offline.html
+  - dist/main/pairing-approval.html
 afterPack: ./scripts/after-pack.cjs
 protocols:
   - name: Aksharo deep link

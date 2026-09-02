@@ -152,6 +152,46 @@ describe("migrate", () => {
       ]),
     ).toThrow(/produced an invalid v2 snapshot/);
   });
+
+  it("rewrites B10's b10:<cleanId> preset encoding to SetAudio.clean.cleanId (B10b)", () => {
+    const snapshot = migrate(v1());
+    const withLegacyPreset = {
+      ...snapshot,
+      projection: {
+        ...snapshot.projection,
+        audio: { clean: { enabled: true, preset: "b10:01HXYZYYYYYYYYYYYYYYYYYYYY" } },
+      },
+    };
+    const migrated = migrate(withLegacyPreset);
+    expect(migrated.projection.audio).toEqual({
+      clean: { enabled: true, cleanId: "01HXYZYYYYYYYYYYYYYYYYYYYY" },
+    });
+  });
+
+  it("leaves a non-B10 preset and an already-first-class cleanId alone", () => {
+    const snapshot = migrate(v1());
+    const withOtherPreset = {
+      ...snapshot,
+      projection: {
+        ...snapshot.projection,
+        audio: { clean: { enabled: true, preset: "podcast", targetLufs: -14 } },
+      },
+    };
+    expect(migrate(withOtherPreset).projection.audio).toEqual({
+      clean: { enabled: true, preset: "podcast", targetLufs: -14 },
+    });
+
+    const withCleanId = {
+      ...snapshot,
+      projection: {
+        ...snapshot.projection,
+        audio: { clean: { enabled: true, cleanId: "01HXYZYYYYYYYYYYYYYYYYYYYY" } },
+      },
+    };
+    expect(migrate(withCleanId).projection.audio).toEqual({
+      clean: { enabled: true, cleanId: "01HXYZYYYYYYYYYYYYYYYYYYYY" },
+    });
+  });
 });
 
 describe("migrateV1ToV2 rejects a document it cannot carry forward", () => {
