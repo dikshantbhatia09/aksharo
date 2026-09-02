@@ -451,3 +451,194 @@ describe.skipIf(!CAN_RUN)("autocut pass: producer → worker completion → Merg
     expect(after).toBe(before);
   });
 });
+
+describe.skipIf(!CAN_RUN)(
+  "zoom/reframe pass: producer → worker completion → MergePass (B19)",
+  () => {
+    let zoomJobId: string;
+    let zoomAttemptId: string;
+    let zoomPassId: string;
+
+    let reframeJobId: string;
+    let reframeAttemptId: string;
+    let reframePassId: string;
+
+    it("quotes and enqueues a zoom pass", async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/projects/${PROJECT}/passes/zoom`)
+        .set("Authorization", `Bearer ${accessToken()}`)
+        .send({ preset: "standard" })
+        .expect(202);
+
+      expect(response.body).toMatchObject({
+        status: "queued",
+        deduplicated: false,
+        // 90s is 1.5 minutes: 15 tenths at the flash rate (1 credit/min).
+        quote: { tenths: 15, credits: "1.5", durationMs: DURATION_MS },
+      });
+      expect(response.body.passId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+
+      zoomJobId = response.body.jobId as string;
+      zoomPassId = response.body.passId as string;
+
+      const job = await prisma.job.findUniqueOrThrow({ where: { id: zoomJobId } });
+      expect(job.type).toBe("ai.pass");
+      const params = job.params as Record<string, unknown>;
+      expect(params["passType"]).toBe("zoom");
+      expect(params["preset"]).toBe("standard");
+      zoomAttemptId = job.attemptId ?? "";
+    });
+
+    it("accepts a fake worker completion and merges the proposed zoom item", async () => {
+      // A packed keyframe curve, hex-encoded: 4 rows matching worker_ai.processors
+      // .reframe_zoom_pass.pack_keyframes' byte layout (see packages/edg/README.md).
+      const header = Buffer.alloc(12);
+      header.write("MKF1", 0, "ascii");
+      header.writeUInt32LE(1, 4);
+      header.writeUInt32LE(1, 8);
+      const row = Buffer.alloc(16);
+      row.writeFloatLE(0, 0);
+      row.writeFloatLE(0.5, 4);
+      row.writeFloatLE(0.5, 8);
+      row.writeFloatLE(1.2, 12);
+      const keyframesHex = Buffer.concat([header, row]).toString("hex");
+
+      const body = {
+        status: "succeeded",
+        result: {
+          passId: zoomPassId,
+          passType: "zoom",
+          preset: "standard",
+          items: [
+            {
+              startMs: 2000,
+              endMs: 3040,
+              keyframes: keyframesHex,
+              scaleFrom: 1.0,
+              scaleTo: 1.2,
+              target: { x: 0.35, y: 0.35, w: 0.3, h: 0.3 },
+              reason: "emphasis",
+              confidence: 0.9,
+            },
+          ],
+        },
+        usage: { mediaSeconds: DURATION_MS / 1_000 },
+      };
+
+      const response = await callback(
+        `/internal/jobs/${zoomJobId}/complete`,
+        body,
+        zoomAttemptId,
+      ).expect(200);
+      expect(response.body).toMatchObject({ applied: true, status: "succeeded" });
+    });
+
+    it("lists the merged zoom pass and its item through GET /projects/{id}/passes", async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/projects/${PROJECT}/passes`)
+        .set("Authorization", `Bearer ${accessToken("viewer")}`)
+        .expect(200);
+
+      const passes = response.body.passes as Record<string, unknown>[];
+      const landed = passes.find((pass) => pass["passId"] === zoomPassId);
+      expect(landed).toBeDefined();
+      // PassTypeSchema has no "zoom" value; the pass lands as "reframe" -- see
+      // passes-completion.handler.ts's class docstring.
+      expect(landed).toMatchObject({ type: "reframe", status: "ready" });
+
+      const items = landed?.["items"] as Record<string, unknown>[];
+      expect(items).toHaveLength(1);
+      expect(items[0]).toMatchObject({ kind: "zoom", state: "proposed" });
+      expect(items[0]?.["keyframesRef"]).toBe(
+        `passes/${zoomPassId}/${(items[0] as { itemId: string }).itemId}.kf`,
+      );
+    });
+
+    it("quotes and enqueues a reframe pass", async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/projects/${PROJECT}/passes/reframe`)
+        .set("Authorization", `Bearer ${accessToken()}`)
+        .send({ aspect: "9:16" })
+        .expect(202);
+
+      expect(response.body).toMatchObject({
+        status: "queued",
+        deduplicated: false,
+        quote: { tenths: 15, credits: "1.5", durationMs: DURATION_MS },
+      });
+
+      reframeJobId = response.body.jobId as string;
+      reframePassId = response.body.passId as string;
+
+      const job = await prisma.job.findUniqueOrThrow({ where: { id: reframeJobId } });
+      const params = job.params as Record<string, unknown>;
+      expect(params["passType"]).toBe("reframe");
+      expect(params["targetAspect"]).toBeCloseTo(9 / 16, 5);
+      reframeAttemptId = job.attemptId ?? "";
+    });
+
+    it("accepts a fake worker completion and merges the proposed reframe item", async () => {
+      const header = Buffer.alloc(12);
+      header.write("MKF1", 0, "ascii");
+      header.writeUInt32LE(1, 4);
+      header.writeUInt32LE(2, 8);
+      const row0 = Buffer.alloc(16);
+      row0.writeFloatLE(0, 0);
+      row0.writeFloatLE(0.5, 4);
+      row0.writeFloatLE(0.5, 8);
+      row0.writeFloatLE(1.78, 12);
+      const row1 = Buffer.alloc(16);
+      row1.writeFloatLE(DURATION_MS, 0);
+      row1.writeFloatLE(0.6, 4);
+      row1.writeFloatLE(0.5, 8);
+      row1.writeFloatLE(1.78, 12);
+      const keyframesHex = Buffer.concat([header, row0, row1]).toString("hex");
+
+      const body = {
+        status: "succeeded",
+        result: {
+          passId: reframePassId,
+          passType: "reframe",
+          items: [
+            {
+              startMs: 0,
+              endMs: DURATION_MS,
+              aspect: "9:16",
+              keyframes: keyframesHex,
+              letterboxScenes: [],
+              reason: "reframe",
+              confidence: 0.7,
+            },
+          ],
+        },
+        usage: { mediaSeconds: DURATION_MS / 1_000 },
+      };
+
+      const response = await callback(
+        `/internal/jobs/${reframeJobId}/complete`,
+        body,
+        reframeAttemptId,
+      ).expect(200);
+      expect(response.body).toMatchObject({ applied: true, status: "succeeded" });
+    });
+
+    it("lists the merged reframe pass and its item through GET /projects/{id}/passes", async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/projects/${PROJECT}/passes`)
+        .set("Authorization", `Bearer ${accessToken("viewer")}`)
+        .expect(200);
+
+      const passes = response.body.passes as Record<string, unknown>[];
+      const landed = passes.find((pass) => pass["passId"] === reframePassId);
+      expect(landed).toBeDefined();
+      expect(landed).toMatchObject({ type: "reframe", status: "ready" });
+
+      const items = landed?.["items"] as Record<string, unknown>[];
+      expect(items).toHaveLength(1);
+      expect(items[0]).toMatchObject({ kind: "reframe", state: "proposed" });
+      const payload = items[0]?.["payload"] as Record<string, unknown>;
+      expect(payload["aspect"]).toBe("9:16");
+      expect(typeof payload["keyframesRef"]).toBe("string");
+    });
+  },
+);
