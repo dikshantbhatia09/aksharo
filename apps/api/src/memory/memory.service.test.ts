@@ -34,12 +34,46 @@ function harness(options: { consented?: boolean } = {}): {
       findFirst: vi.fn(async () => (consented ? { id: CONSENT } : null)),
     },
     memoryEntry: {
-      findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) =>
-        rows.filter(
-          (row) =>
-            row.workspaceId === where["workspaceId"] &&
-            (where["kind"] === undefined || row.kind === where["kind"]),
-        ),
+      findMany: vi.fn(
+        async ({
+          where,
+          orderBy,
+        }: {
+          where: Record<string, unknown>;
+          orderBy?: { createdAt?: "asc" | "desc" };
+        }) => {
+          const filtered = rows.filter((row) => {
+            if (row.workspaceId !== where["workspaceId"]) return false;
+            const kindFilter = where["kind"];
+            if (kindFilter !== undefined) {
+              if (
+                typeof kindFilter === "object" &&
+                kindFilter !== null &&
+                "in" in (kindFilter as Record<string, unknown>)
+              ) {
+                const allowed = (kindFilter as { in: string[] }).in;
+                if (!allowed.includes(row.kind)) return false;
+              } else if (row.kind !== kindFilter) {
+                return false;
+              }
+            }
+            const expiresFilter = where["expiresAt"] as { gt?: Date } | undefined;
+            if (
+              expiresFilter?.gt !== undefined &&
+              row.expiresAt.getTime() <= expiresFilter.gt.getTime()
+            ) {
+              return false;
+            }
+            return true;
+          });
+          if (orderBy?.createdAt === "desc") {
+            return [...filtered].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+          }
+          if (orderBy?.createdAt === "asc") {
+            return [...filtered].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+          }
+          return filtered;
+        },
       ),
       findFirst: vi.fn(
         async ({ where }: { where: Record<string, unknown> }) =>
@@ -255,6 +289,42 @@ describe("MemoryService learning hooks", () => {
     const updated = await service.recordStylePreference(WS, USER, "9:16", "style-neon");
     expect(updated.value).toBe("style-neon");
     expect(await service.list(WS, "stylePref")).toHaveLength(1);
+  });
+});
+
+describe("MemoryService.glossaryTermsFor (B09b: transcribe hints)", () => {
+  it("returns deduplicated glossary + spelling terms, most recent first, when consented", async () => {
+    const { service } = harness();
+    // Fake timers give each row a distinct, strictly increasing `createdAt` —
+    // real `Date.now()` calls this close together can tie at millisecond
+    // resolution, which would make "most recent first" flaky to assert.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+      await service.upsert(WS, USER, { kind: "glossary", key: "aksharo", value: "Aksharo" });
+      vi.setSystemTime(new Date("2026-01-01T00:00:01.000Z"));
+      await service.upsert(WS, USER, {
+        kind: "spelling",
+        key: "achsharo",
+        value: "Aksharo",
+        aliases: ["achsharo"],
+      });
+      vi.setSystemTime(new Date("2026-01-01T00:00:02.000Z"));
+      await service.upsert(WS, USER, { kind: "glossary", key: "sarvam", value: "Sarvam" });
+      // A stylePref/timingNudge entry must never leak into transcribe hints.
+      vi.setSystemTime(new Date("2026-01-01T00:00:03.000Z"));
+      await service.recordStylePreference(WS, USER, "9:16", "style-bold");
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const terms = await service.glossaryTermsFor(WS, USER);
+    expect(terms).toEqual(["Sarvam", "Aksharo"]);
+  });
+
+  it("returns an empty list, not a thrown error, when consent is absent", async () => {
+    const { service } = harness({ consented: false });
+    await expect(service.glossaryTermsFor(WS, USER)).resolves.toEqual([]);
   });
 });
 

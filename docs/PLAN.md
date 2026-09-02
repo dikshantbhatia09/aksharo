@@ -31,7 +31,7 @@ Fable 5.1 orchestrates, designs and decides; coding agents implement briefs. Cod
 | WP | Title | Deps | Agent | Status |
 |---|---|---|---|---|
 | A01 | Monorepo scaffold, tooling, CI, docker-compose, env | — | Opus | done |
-| A02 | `@montaj/edg` v2 + `@montaj/caption-styles` v2 schemas + fixtures | A01 | Opus | done |
+| A02 | `@montaj/edg` v2 + `@montaj/caption-styles` v2 schemas + fixtures | A01 | Opus | done (A02b/c/d merged: SetWordTiming op + timeline word-edge drag) |
 | A02b | EDG ops engine (rebase table, CAS, snapshots, migrations, property tests) | A02 | Opus | done |
 | A02c | `@montaj/timemap` | A02 | Opus | done |
 | A02d | `SetWordTiming` op end to end: EDG engine + rebase rule, API passthrough, client inverse op, timeline word-edge drag (A17 finding; CONTRACTS §2 amended) | A02b, A12, A17 | Sonnet | in-progress |
@@ -59,16 +59,16 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A12 | api EDG module (ops, rebase, CAS, revisions, realtime) | A02b, A08 | done |
 | A13 | web shell + `@montaj/ui` + auth pages + onboarding + settings | A04, A05 | done |
 | A14 | web Home + Projects + upload engine | A06, A08, A13 | done |
-| A15 | web Editor transcript column + EDG client store | A12, A13 | done (A15b + A15c merged; A15c fps to be measured on main) |
+| A15 | web Editor transcript column + EDG client store | A12, A13 | done (A15c merged: 27.9 fps on main vs ≥55 target — A15d profiling with a real trace after Gate A) |
 | A16 | render-core + render-canvaskit + 30 styles + panels | A02, A02c | done |
 | A17 | web Timeline | A15, A16 | done (word retiming → A02d; perf → A15c) |
 | A18a | ass-exporter + parity gate | A16, A20 | done (A18a-c seed parity test aligned with D33) |
 | A18b | fonts pipeline | A06, A07 | done |
-| A19 | web browser export + export dialog | A16, A21, A02c | done (A21b merged; A19b running: raw readback ≥1× realtime, coverScaleCrop parity, audio, HDR→cloud, upsell mount) |
+| A19 | web browser export + export dialog | A16, A21, A02c | done (A19b merged: sources, readPixels, coverScaleCrop parity, audio cuts, HDR→cloud, upsell; 0.12× realtime headless → A19c running, H-19 real-machine measure; cloud default above 1080p until then) |
 | A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | done |
 | A21 | api exports module (manifests, cloud jobs) | A08, A20 | done (A21b merged: manifest sources + refresh, codec/audio eligibility, HDR cloud-only) |
 | A22 | scripts + translation | A10, A11, A12 | done |
-| A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | briefed |
+| A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | running |
 | A23a | api test isolation: one Postgres + one Redis container per vitest run (or `TEST_*` URLs), database per suite from a migrated template, Redis prefix per suite; CI service containers | A05, A12, A25 | done |
 | A24 | marketing site v1 | A16 | done |
 | A25 | notify consumer: transactional email (SES via IRSA / SMTP / dev outbox), templates en+hi, suppression, in-app notifications | A04, A08 | done |
@@ -81,27 +81,27 @@ Sub-wave order: {A10, A11, A12, A13, A16, A18b, A20, A25, A26} → {A14, A15, A2
 | B01 | api billing core: `BillingProvider`, Razorpay subscriptions/orders, mandate cap + ₹15,000 UPI rule, half-yearly Studio, idempotent webhooks, dunning primitives | A03, A08 | done |
 | B02 | api credits: lots, atomic conditional reserve, holds/settle/release/reversal, grants/expiry, entitlements engine, real `CreditsFacade`, concurrency property test | A03, A08 | done |
 | B03 | web Subscription pages (overview, plans, methods/mandates, invoices, usage), checkout sheet with tax-profile step, `UpgradeGate` | B01, B02, B05, A13 | done |
-| B04 | Offers: signup-gift export, ₹9 clean export, ₹59 week pass, pay-once, ₹149 Free top-up; export-dialog upsell | B01, B02, A21 | done |
+| B04 | Offers: signup-gift export, ₹9 clean export, ₹59 week pass, pay-once, ₹149 Free top-up; export-dialog upsell | B01, B02, A21 | done (B04b/c merged: upsell demo session bootstrap; webhook PassPurchase lookup scoped to unconsumed rows) |
 | B05 | api invoices (Rule 46, series, credit notes, export under LUT, PDF + signature, IRN hook) + tax engine + FIRC records | B01 | done |
-| B06 | Streak experiment engine (holdout flag, freezes, pause-not-reset, rewards) + widget | B01, B02, A21 | done (merged; Playwright streak spec run on main pending; B06b: Free downgrade flips creditsOnly immediately) |
+| B06 | Streak experiment engine (holdout flag, freezes, pause-not-reset, rewards) + widget | B01, B02, A21 | done (B06/B06b merged: plan-derived creditsOnly, GET /streak null fix; streak chip e2e failing on main → M02) |
 | B07 | Affiliate v2: apply with PAN, 60-day cookie + code attribution, rate tiers, TDS accumulator, RazorpayX payouts, dashboard | B01, B02, B05 | done (merged; TDS section pending H-18; RazorpayX unverified pending H-15) |
 | B07b | Give-get referral loop (30/30 credits on first export, caps, abuse rules, prompt) | B02, A21 | done |
 | B08 | Team/Agency workspaces, seat billing, pooled credits, client tags, devices/leases, licence keys | B01, B02, A05 | done (merged; licence signing reuses JWT RSA pair + LICENSE_SIGNING_KID; Playwright team spec run on main pending) |
-| B09 | Memory & glossary (opt-in): spelling/timing/style entries, provider hints, matcher, settings page | A11, A15, A17 | running |
-| B16 | Scheduler tasks (retention, renewals/dunning, grants/expiry, commissions, provider deletions), audit completion, privacy module (erasure cascade, DSR, export, breach, access logs) | B01, B02, B07 | running |
-| B17 | Onboarding completion (defaults, language hints, source + code), sample project, coach marks, attribution events, Hindi strings | A13, B07, B07b | running |
+| B09 | Memory & glossary (opt-in): spelling/timing/style entries, provider hints, matcher, settings page | A11, A15, A17 | done (B09 + B09b merged: hooks wired at timeline sink, editor spelling fix, transcribe hints) |
+| B16 | Scheduler tasks (retention, renewals/dunning, grants/expiry, commissions, provider deletions), audit completion, privacy module (erasure cascade, DSR, export, breach, access logs) | B01, B02, B07 | done (merged: 12 scheduler tasks, erasure cascade with DMMF residue check, audit-completeness contract test found 4 gaps, access logs; D81 recorded) |
+| B17 | Onboarding completion (defaults, language hints, source + code), sample project, coach marks, attribution events, Hindi strings | A13, B07, B07b | done (merged: step 4, MAKE_DEFAULTS, coach marks, product_events + /admin/metrics/acquisition, code classifier; defaultExportPreset consumed by A19c) |
 Sub-wave order: {B01, B02, B05, B09} → {B03, B04, B06, B07, B07b, B08} → {B16, B17} → Gate B preparation (Wave 4 finishes Gate B).
 
 ## Wave 4 — Growth, passes, plugin foundations (all briefs ready in `05-build/_orchestration/`)
 | WP | Title | Deps | Status |
 |---|---|---|---|
 | B10 | Audio clean: 48 kHz deep-filter path, loudness targets, A/B preview, applied in browser + cloud exports | A09, A20, A19 | briefed |
-| B11 | LLM features (chapters, summary, hooks) + `packages/prompts` registry, region pinning, evals, Insights tab | A11, B02 | briefed |
+| B11 | LLM features (chapters, summary, hooks) + `packages/prompts` registry, region pinning, evals, Insights tab | A11, B02 | running |
 | B12 | Academy tracks + rewards, Changelog + What's new, Help centre, support tickets with diagnostics | A13, B02 | briefed |
 | B13 | Admin console: roles + step-up, users/credits/refunds, flags, styles/parity, routing weights, jobs/DLQ, mandates, TDS, affiliate review, DSR/breach, share reports, metrics | B01–B12, B16 | briefed |
-| B14 | Public API v1 + scoped API keys + signed webhooks + SSRF-guarded URL import + developer docs | B02, A21, A06 | briefed |
+| B14 | Public API v1 + scoped API keys + signed webhooks + SSRF-guarded URL import + developer docs | B02, A21, A06 | running |
 | B15 | Share/review links (view/comment/approve, hygiene), comments, batch, replace media (re-align), import transcript & align | A12, A21, A10, B08 | briefed |
-| B18 | Autocut pass (silences, filler lexicons, retakes, protection, pacing) → pass items | A10, A11, A02c | briefed |
+| B18 | Autocut pass (silences, filler lexicons, retakes, protection, pacing) → pass items | A10, A11, A02c | running |
 | B19 | Reframe & zoom pass (scene detection, subject tracking, cues, packed keyframes) | A07, A11, B18 | briefed |
 | B20 | Proposal review UI + exports apply cuts/zooms via `timemap` (browser + cloud) + parity fixtures | A17, A19, A20, B18, B19 | briefed |
 | C00 | Signing & release pipeline (notarytool + 24 h buffer, cloud-HSM Windows signing, `.ccx`, ZXP, Resolve bundle, channels, SBOM); dry-run until A00-03 | A01 | briefed |
@@ -116,7 +116,7 @@ C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machines).
 
 ## Wave 7 — Remaining
-D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for prod — chart variant exists from X05; prod-hardening item before Gate C), X07 hardening also includes: split `packages/api-client`'s hand-written `endpoints/hooks/index/query-keys/types` into per-module files with a generated barrel (three WPs in a row — A22, A14, B04 — conflicted on those five files), and under D08: extend A22's rule-table transliteration (Hindi + Tamil today) to the remaining AI4Bharat languages as table data once A00-05 eval sets exist. **Gate D**.
+D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for prod — chart variant exists from X05; prod-hardening item before Gate C), X07 hardening also includes: split `packages/api-client`'s hand-written `endpoints/hooks/index/query-keys/types` into per-module files with a generated barrel (three WPs in a row — A22, A14, B04 — conflicted on those five files; B07 found a second latent defect there: Nest controllers returning bare `null` send an empty body which `readJson` turns into `undefined` — `GET /billing/subscription` still does this; wrap nullable responses in an object), D81 schema migration (invoice/ledger/commission foreign keys to workspaces → Restrict; workspaces soft-delete only), the web e2e fixture's hard-coded `montaj:auth:dev-outbox` key (A23 addendum), and under D08: extend A22's rule-table transliteration (Hindi + Tamil today) to the remaining AI4Bharat languages as table data once A00-05 eval sets exist. **Gate D**.
 
 ## Gate log
 - **2026-09-02 — Wave 1 interim gate (A01, A02, A02b, A02c, A03, A03b, A03c, A04, A05, A08, A08b, A09, X05) PASSED** from a fresh clone at `cf18498`: frozen install, build 15/15, migrations + 5 SQL guard files on a new database, seed (5 plans, 7 system styles from the package, 4 flags), tests — api 673, edg 253, timemap 149, caption-styles 34, worker-ai 321 (+5 skipped), web Playwright smoke 10. A06 and A07 remain; the final Wave 1 gate re-runs after they merge.

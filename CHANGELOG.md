@@ -134,6 +134,64 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `youtube-4k` (the only 16:9 option) rather than inventing a preset value;
   reported as an open gap.
 
+- **B09b — wired B09's three memory learning hooks to their real producers/consumers
+  (A17/A02d timing nudge, the editor's spelling fix, and transcribe hints).**
+  Web: `apps/web/lib/timeline/memory-nudge-sink.ts`'s `createMemoryNudgeSink` is
+  the real `TimingNudgeSink` (`nudge.ts`) — consent-gated, debounced per drag,
+  `POST /memory/hooks/timing-nudge` — wired via `use-memory-nudge-sink.ts` as
+  `Timeline.tsx`'s effective default sink; `editor-client.tsx`'s
+  `onFixSpellingEverywhere` now posts `POST /memory/hooks/spelling-fix`
+  (`{wrong, right, script}`) once the correction's own op batch has landed
+  (`EditorStore.flush()`), consent-gated the same way (predicate exported as
+  `shouldRecordSpellingFix` for unit testing). `@montaj/api-client` gained
+  `useRecordTimingNudgeMemory`/`useRecordSpellingFixMemory`/`useRecordStylePrefMemory`
+  hooks over B09's existing hook routes. API: `MemoryService.glossaryTermsFor()`
+  is a new, non-throwing consent-gated read (glossary + spelling terms,
+  deduplicated, most-recent-first); `TranscriptsService.buildHints()` merges it
+  into `params.hints` at enqueue, request-time hints first, capped at
+  `MAX_TRANSCRIBE_HINTS` (200). Worker: `processors/transcribe.py::_hints()` now
+  runs `prepare_hints()` (`worker_ai/hints/glossary.py`, already built) over the
+  incoming list before any provider shapes its own vocabulary parameter. Consent
+  off produces zero memory requests and zero memory hints at all three sites
+  (unit-tested); see `apps/api/src/memory/README.md`.
+- **B17 — onboarding completion: defaults, code classification, sample
+  project, coach marks, attribution events, Hindi UI.** Extends A13's
+  three-step wizard (`apps/web/app/(app)/onboarding/onboarding-flow.tsx`) with
+  a fourth "you're set" step (drop-zone equivalent via the existing
+  `SampleProjectButton`) and turns the answers already collected into real
+  defaults: "what you make" now derives a default aspect, caption style and
+  export-preset label (`MAKE_DEFAULTS`), persisted onto `onboarding` and
+  adopted by the Home quick-pick row (`home-view.tsx`) the same way it already
+  adopted the language; "languages you speak on camera" now rides along as
+  routing hints on the _next_ transcribe request (`upload-job.ts`'s
+  `tryStartTranscription`, `languages: [primary, ...secondary]` plus
+  `captions.styleRef`), not just the first pick. The code field classifies by
+  prefix (`apps/api/src/users/onboarding/code-classifier.ts`, mirrored
+  client-side): `AK-` routes to B07b's existing `/referrals/claim`; anything
+  else affiliate-shaped calls B07's `/affiliate/attribution/attach` (newly
+  wired into `@montaj/api-client` as `useAttachAffiliateAttribution`, not
+  previously called from anywhere in `apps/web`); anything else shows an
+  inline "that doesn't look right" error without blocking the wizard.
+  `product_events` (new table, migration `20260902150000_b17_product_events`)
+  records `onboarding_completed` with `source`/`codeType`/`props` the first
+  time `onboarding.completedAt` appears (`ProfileService.update`, guarded so a
+  later unrelated `PATCH /me` never re-fires it); `GET /admin/metrics/acquisition`
+  aggregates it by source and code type over a trailing window (default 30
+  days), following `AdminStreakController`'s shape. Three first-run coach
+  marks (transcript editing, style picker, export) render once in the editor
+  (`FirstRunCoachMarks.tsx`, positioned off `data-coach-mark` containers
+  `editor-client.tsx` already carries elsewhere), gated on a new
+  `onboarding.coachMarksShownAt` flag. A minimal ICU MessageFormat i18n layer
+  (`apps/web/lib/i18n/locale-provider.tsx`, `intl-messageformat`, already
+  pinned in the lockfile for the API's notification templates) ships English
+  and Hindi catalogues for the onboarding flow and the coach marks, with a
+  language switch in the profile menu (persisted through the existing
+  `locale` field on `/me`). No `PATCH /me/onboarding` route was added: A13/A05
+  already built onboarding persistence as a free-form field on the existing,
+  frozen `PATCH /me`, and every new field here (`codeType`, `defaultAspect`,
+  `defaultStyleId`, `defaultExportPreset`, `coachMarksShownAt`) fits its
+  existing bounded schema — a parallel route would only duplicate that seam.
+
 - **B09 — learned memory (spellings, glossary, timing nudge, style prefs), opt-in
   and erasable (F-204, D62).** `apps/api/src/memory/`: `MemoryService` — a
   consent-gated CRUD/import/clear surface over `memory_entries` (the table and

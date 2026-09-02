@@ -20,7 +20,7 @@ from worker_ai.diarisation.base import Diariser
 from worker_ai.lid import IndicLidClassifier, LanguageIdentifier, LanguageSignal
 from worker_ai.metrics import METRICS
 from worker_ai.processors import JobContext, JobFailureError, Services, process_transcribe
-from worker_ai.processors.transcribe import split_segments
+from worker_ai.processors.transcribe import _hints, split_segments
 from worker_ai.providers.base import (
     DiarisationRequest,
     DiarisedSpeaker,
@@ -650,3 +650,24 @@ async def test_an_aligner_does_not_carry_its_submissions_into_the_next_job(
     assert len(aligner_rows) == len(
         [row for row in first.result["providerSubmissions"] if row["provider"] == "x"]
     )
+
+
+# ---------------------------------------------------------------------------
+# B09b: `_hints()` runs `prepare_hints()` over the incoming glossary before
+# any provider adapter shapes its own vocabulary parameter.
+# ---------------------------------------------------------------------------
+
+
+def test_hints_dedupes_and_caps_via_prepare_hints() -> None:
+    services = services_with({})
+    payload_hints = ["Aksharo", "aksharo", "  Sarvam  ", "", "x" * 200]
+    job_context = context(services, hints=payload_hints)
+
+    assert _hints(job_context) == ("Aksharo", "Sarvam")
+
+
+def test_hints_is_empty_when_payload_has_none() -> None:
+    services = services_with({})
+    job_context = context(services)
+
+    assert _hints(job_context) == ()

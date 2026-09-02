@@ -201,6 +201,13 @@ export const API_OPERATIONS = [
     summary: "Claim a code posted at onboarding",
   },
   {
+    operationId: "clearMemory",
+    method: "DELETE",
+    path: "/memory",
+    tags: ["memory"],
+    summary: "Clear every memory entry for the workspace",
+  },
+  {
     operationId: "completeExportManifest",
     method: "POST",
     path: "/exports/manifests/{manifestId}/complete",
@@ -243,6 +250,13 @@ export const API_OPERATIONS = [
     summary: "Start uploading a brand asset (watermark or logo PNG)",
   },
   {
+    operationId: "createBreachIncident",
+    method: "POST",
+    path: "/admin/privacy/breach-incidents",
+    tags: ["admin"],
+    summary: "Open a breach incident",
+  },
+  {
     operationId: "createCheckout",
     method: "POST",
     path: "/billing/checkout",
@@ -262,6 +276,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/license-keys",
     tags: ["licensing"],
     summary: "Create a licence key",
+  },
+  {
+    operationId: "createMemory",
+    method: "POST",
+    path: "/memory",
+    tags: ["memory"],
+    summary: "Create or merge a memory entry",
   },
   {
     operationId: "createPassCheckout",
@@ -332,6 +353,13 @@ export const API_OPERATIONS = [
     path: "/me",
     tags: ["me"],
     summary: "Erase the account",
+  },
+  {
+    operationId: "deleteMemoryEntry",
+    method: "DELETE",
+    path: "/memory/{id}",
+    tags: ["memory"],
+    summary: "Delete one memory entry",
   },
   {
     operationId: "deleteProject",
@@ -430,6 +458,20 @@ export const API_OPERATIONS = [
     path: "/admin/firc-records",
     tags: ["admin"],
     summary: "List FIRC records, most recent settlement first.",
+  },
+  {
+    operationId: "getAcquisitionMetrics",
+    method: "GET",
+    path: "/admin/metrics/acquisition",
+    tags: ["admin"],
+    summary: "Onboarding completions by source and code type",
+  },
+  {
+    operationId: "getBreachIncidentTemplates",
+    method: "GET",
+    path: "/admin/privacy/breach-incidents/{id}/templates",
+    tags: ["admin"],
+    summary: "Draft Board report and user notice for one incident",
   },
   {
     operationId: "getBundledFontManifest",
@@ -607,6 +649,13 @@ export const API_OPERATIONS = [
     summary: "Streak experiment vs holdout cohort metrics",
   },
   {
+    operationId: "getSubProcessors",
+    method: "GET",
+    path: "/privacy/sub-processors",
+    tags: ["privacy"],
+    summary: "The third parties personal data is shared with",
+  },
+  {
     operationId: "getSubscription",
     method: "GET",
     path: "/billing/subscription",
@@ -670,6 +719,13 @@ export const API_OPERATIONS = [
     summary: "Razorpay webhook (THREAT-MODEL T16)",
   },
   {
+    operationId: "importMemoryGlossary",
+    method: "POST",
+    path: "/memory/import",
+    tags: ["memory"],
+    summary: "Bulk-import glossary terms from CSV",
+  },
+  {
     operationId: "importSubtitles",
     method: "POST",
     path: "/projects/{projectId}/import",
@@ -726,6 +782,13 @@ export const API_OPERATIONS = [
     summary: "List a workspace's brand assets",
   },
   {
+    operationId: "listBreachIncidents",
+    method: "GET",
+    path: "/admin/privacy/breach-incidents",
+    tags: ["admin"],
+    summary: "List breach incidents, newest first",
+  },
+  {
     operationId: "listClientTags",
     method: "GET",
     path: "/workspaces/{id}/client-tags",
@@ -745,6 +808,13 @@ export const API_OPERATIONS = [
     path: "/devices",
     tags: ["devices"],
     summary: "This workspace's registered devices",
+  },
+  {
+    operationId: "listDsrRequests",
+    method: "GET",
+    path: "/admin/privacy/dsr-requests",
+    tags: ["admin"],
+    summary: "List DSR requests, newest first",
   },
   {
     operationId: "listEdgPasses",
@@ -824,6 +894,13 @@ export const API_OPERATIONS = [
     summary: "Every mandate this workspace has registered",
   },
   {
+    operationId: "listMemory",
+    method: "GET",
+    path: "/memory",
+    tags: ["memory"],
+    summary: "List the caller's workspace's memory entries",
+  },
+  {
     operationId: "listMyNotifications",
     method: "GET",
     path: "/me/notifications",
@@ -892,6 +969,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/client-tags/{tag}/projects",
     tags: ["workspaces"],
     summary: "Projects carrying a client tag",
+  },
+  {
+    operationId: "listScheduledTasks",
+    method: "GET",
+    path: "/admin/scheduler/tasks",
+    tags: ["admin"],
+    summary: "Every scheduled task's name",
   },
   {
     operationId: "listStyles",
@@ -1006,6 +1090,27 @@ export const API_OPERATIONS = [
     summary: "Record a /r/<code> click (called by the web route)",
   },
   {
+    operationId: "recordSpellingFixMemory",
+    method: "POST",
+    path: "/memory/hooks/spelling-fix",
+    tags: ["memory"],
+    summary: "A15's 'Fix spelling everywhere' hook",
+  },
+  {
+    operationId: "recordStylePrefMemory",
+    method: "POST",
+    path: "/memory/hooks/style-pref",
+    tags: ["memory"],
+    summary: "Last style/template used per aspect",
+  },
+  {
+    operationId: "recordTimingNudgeMemory",
+    method: "POST",
+    path: "/memory/hooks/timing-nudge",
+    tags: ["memory"],
+    summary: "A17/A02d timing-nudge sink feed",
+  },
+  {
     operationId: "refreshExportManifestSources",
     method: "GET",
     path: "/exports/manifests/{manifestId}/sources",
@@ -1060,6 +1165,13 @@ export const API_OPERATIONS = [
     path: "/admin/dlq/replay",
     tags: ["admin"],
     summary: "Replay many dead letters",
+  },
+  {
+    operationId: "replayTombstones",
+    method: "POST",
+    path: "/admin/privacy/erasure/replay-tombstones",
+    tags: ["admin"],
+    summary: "Re-verify (and re-run) erasure for every completed request",
   },
   {
     operationId: "requestExport",
@@ -1130,6 +1242,20 @@ export const API_OPERATIONS = [
     path: "/billing/mandates/{mandateId}/revoke",
     tags: ["billing"],
     summary: "Revoke a mandate (cancels its subscription)",
+  },
+  {
+    operationId: "runErasureCascade",
+    method: "POST",
+    path: "/admin/privacy/erasure/{dsrRequestId}/run",
+    tags: ["admin"],
+    summary: "Run (or resume) the erasure cascade for one DSR request now",
+  },
+  {
+    operationId: "runScheduledTaskNow",
+    method: "POST",
+    path: "/admin/scheduler/tasks/{name}/run",
+    tags: ["admin"],
+    summary: "Run one scheduled task now, out of band",
   },
   {
     operationId: "setConsent",
@@ -1223,6 +1349,13 @@ export const API_OPERATIONS = [
     summary: "Transliterate the transcript into a script",
   },
   {
+    operationId: "updateBreachIncident",
+    method: "PATCH",
+    path: "/admin/privacy/breach-incidents/{id}",
+    tags: ["admin"],
+    summary: "Update a breach incident's status or notification timestamps",
+  },
+  {
     operationId: "updateFolder",
     method: "PATCH",
     path: "/folders/{folderId}",
@@ -1235,6 +1368,13 @@ export const API_OPERATIONS = [
     path: "/me",
     tags: ["me"],
     summary: "Update name, avatar, locale, onboarding state or marketing opt-in",
+  },
+  {
+    operationId: "updateMemory",
+    method: "PATCH",
+    path: "/memory/{id}",
+    tags: ["memory"],
+    summary: "Edit one memory entry",
   },
   {
     operationId: "updateProject",

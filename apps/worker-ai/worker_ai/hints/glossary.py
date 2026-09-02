@@ -19,9 +19,11 @@ terms, and a duplicate or empty entry is pure waste in either.
 ``prepare_hints()`` is that one shared shaping step: case-insensitive dedupe,
 trims, drops anything empty or implausibly long (a glossary term, not a
 sentence), and caps the count. It is a pure function so it can sit ahead of
-`_hints()` without depending on the job/provider wiring at all — wiring it in
-is a one-line change in `_hints()` this work package does not own the call
-site for (see the B09 final report).
+`_hints()` without depending on the job/provider wiring at all — B09b wires
+it in at `_hints()`'s one call to `prepare_hints()`, over the flat
+`payload["hints"]` list `transcripts.service.ts::buildHints()` already
+assembled (request-time hints, then the workspace's consented
+`memory_entries` glossary/spelling terms, capped at 200 there).
 """
 
 from __future__ import annotations

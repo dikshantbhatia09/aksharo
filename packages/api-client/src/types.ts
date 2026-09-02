@@ -123,7 +123,16 @@ export interface OnboardingProfile {
   languages?: string[];
   source?: string;
   referralCode?: string;
+  /** Classification the server derived from `referralCode`'s shape (B17). */
+  codeType?: "affiliate" | "referral" | "invalid";
+  /** Derived from `makes[0]` at the "what you make?" step (B17) and used as
+   * the Home quick-pick row's starting aspect/style/export preset. */
+  defaultAspect?: "9:16" | "16:9" | "1:1" | "4:5";
+  defaultStyleId?: string;
+  defaultExportPreset?: string;
   completedAt?: string;
+  /** Set once the editor's three first-run coach marks have all been dismissed. */
+  coachMarksShownAt?: string;
 }
 
 export interface CurrentUser {
@@ -268,6 +277,27 @@ export interface ImportGlossaryResult {
   imported: number;
   updated: number;
   skipped: number;
+}
+
+// --- Memory learning hooks (B09/B09b) ---------------------------------------
+
+/** A15's "Fix spelling everywhere" → `POST /memory/hooks/spelling-fix`. */
+export interface RecordSpellingFixRequest {
+  wrong: string;
+  right: string;
+  script?: string;
+}
+
+/** A17/A02d's timing-nudge sink → `POST /memory/hooks/timing-nudge`. */
+export interface RecordTimingNudgeRequest {
+  /** Signed drag delta, ms. */
+  deltaMs: number;
+}
+
+/** Last style/template used per aspect ratio → `POST /memory/hooks/style-pref`. */
+export interface RecordStylePrefRequest {
+  aspect: string;
+  styleId: string;
 }
 
 // --- Projects, folders and media (A06, A14) ---------------------------------
@@ -900,6 +930,19 @@ export interface AffiliateProfile {
   createdAt: string;
   /** `BRAND.domain/r/<code>` (brief §1). */
   referralLink: string;
+}
+
+/** `POST /affiliate/attribution/attach` (B07, wired at onboarding by B17). */
+export interface AttachAffiliateAttributionRequest {
+  referredWorkspaceId: string;
+  referredUserId: string;
+  code: string;
+}
+
+export interface AttachAffiliateAttributionResult {
+  status: "attributed" | "rejected" | "none";
+  reason?: string;
+  affiliateId?: string;
 }
 
 export interface AffiliateStats {

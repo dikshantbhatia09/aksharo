@@ -17,6 +17,8 @@ import type {
   AffiliateProfile,
   AffiliateStats,
   ApplyAffiliateRequest,
+  AttachAffiliateAttributionRequest,
+  AttachAffiliateAttributionResult,
   AvailableScripts,
   BatchCreateProjectsRequest,
   ChangeRoleRequest,
@@ -60,6 +62,9 @@ import type {
   PlanCatalogueEntry,
   Project,
   ProjectPage,
+  RecordSpellingFixRequest,
+  RecordStylePrefRequest,
+  RecordTimingNudgeRequest,
   ReferralStats,
   RenameDeviceRequest,
   RightsRequest,
@@ -699,6 +704,25 @@ export const memoryEndpoints = {
     auth: "bearer",
     operationId: "importMemoryGlossary",
   }),
+  // --- Learning hooks (B09b) ------------------------------------------------
+  recordSpellingFix: defineEndpoint<RecordSpellingFixRequest, MemoryEntry | undefined>({
+    method: "POST",
+    path: "/memory/hooks/spelling-fix",
+    auth: "bearer",
+    operationId: "recordSpellingFixMemory",
+  }),
+  recordTimingNudge: defineEndpoint<RecordTimingNudgeRequest, MemoryEntry>({
+    method: "POST",
+    path: "/memory/hooks/timing-nudge",
+    auth: "bearer",
+    operationId: "recordTimingNudgeMemory",
+  }),
+  recordStylePref: defineEndpoint<RecordStylePrefRequest, MemoryEntry>({
+    method: "POST",
+    path: "/memory/hooks/style-pref",
+    auth: "bearer",
+    operationId: "recordStylePrefMemory",
+  }),
 } as const;
 
 /**
@@ -736,6 +760,13 @@ export const affiliateEndpoints = {
     path: "/affiliate/me/stats",
     auth: "bearer",
     operationId: "getMyAffiliateStats",
+  }),
+  /** Called from onboarding (B17) when the code field is affiliate-shaped, not `AK-`. */
+  attach: defineEndpoint<AttachAffiliateAttributionRequest, AttachAffiliateAttributionResult>({
+    method: "POST",
+    path: "/affiliate/attribution/attach",
+    auth: "public",
+    operationId: "attachAffiliateAttribution",
   }),
 } as const;
 

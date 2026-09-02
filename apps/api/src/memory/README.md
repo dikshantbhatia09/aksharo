@@ -47,20 +47,25 @@ write; `hits`/`lastUsedAt` are usage counters a future caller can bump through
 
 - `POST /memory/hooks/spelling-fix` — A15's "Fix spelling everywhere" records a
   `spelling` entry (wrong -> right, with the wrong spelling as an alias, script-aware).
+  Called from the editor (`editor-client.tsx`'s `onFixSpellingEverywhere`) after
+  the correction's own op batch has landed (`EditorStore.flush()`), consent-gated
+  client-side the same way the timing nudge is (B09b).
 - `POST /memory/hooks/timing-nudge` — one signed drag delta (ms); rolled into a
   per-workspace median caption offset (`medianOf`, up to the last 20 samples).
-  A17's timing-nudge sink and A02d's `SetWordTiming` had not landed on this
-  worktree at the time this was written — see the B09 final report for the open
-  wiring this leaves for A17/A02d.
+  A17's timing-nudge sink (`lib/timeline/nudge.ts`'s `TimingNudgeSink`) is
+  implemented by `lib/timeline/memory-nudge-sink.ts`, debounced per drag and
+  wired as `Timeline.tsx`'s effective default sink (B09b) — A02d's
+  `SetWordTiming` feeds it exactly like a segment-edge drag does.
 - `POST /memory/hooks/style-pref` — last style/template used per aspect ratio.
 
 ## Provider hints
 
-`apps/worker-ai/worker_ai/hints/glossary.py`'s `prepare_hints()` is a pure
-dedupe/trim/cap step for a workspace's glossary terms, meant to sit ahead of
-`processors/transcribe.py::_hints()` — which already forwards the flat hint
-tuple to every provider's own vocabulary shape (`word_boost`, `vocabulary`,
-`keyterms`, `initial_prompt`). Wiring `prepare_hints()` into `_hints()`, and
-populating the `ai.transcribe` job's `hints` from `memory_entries` at enqueue
-time, both touch `transcripts/` files outside this work package's boundary —
-see the final report.
+`MemoryService.glossaryTermsFor(workspaceId, userId)` is the consent-gated read
+(never throws on a missing grant — just returns nothing) that
+`transcripts.service.ts`'s `buildHints()` merges into `params.hints` at enqueue,
+request-time hints first, deduplicated, capped at `MAX_TRANSCRIBE_HINTS` (200,
+B09b). `apps/worker-ai/worker_ai/hints/glossary.py`'s `prepare_hints()` — a pure
+dedupe/trim/cap step, `MAX_HINTS_DEFAULT = 100` — runs inside
+`processors/transcribe.py::_hints()` ahead of every provider's own vocabulary
+shape (`word_boost`, `vocabulary`, `keyterms`, `initial_prompt`), so a
+200-term API payload is never handed to a provider unshaped.
