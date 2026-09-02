@@ -104,16 +104,54 @@ export function seqBetween(before?: string | null, after?: string | null): strin
 
 /**
  * `count` evenly spread keys, used to seed a fresh segment list.
+ *
+ * Computes each key directly from its rank rather than by repeatedly calling
+ * `seqBetween(previous)`: appending after the previous key in a loop looks
+ * like the obvious implementation, but `midpoint`'s "after everything" case
+ * only ever has one digit of headroom above the previous key's leading
+ * digit, so a long run of pure appends walks every digit position to `z`
+ * before it can deepen — length grows *linearly* in `count`, not
+ * logarithmically. A 54,000-word transcript's first segmentation (A15b
+ * perf run) produced keys several hundred characters long this way, well
+ * past the 128-character cursor `SegmentsQuery` accepts
+ * (`apps/api/src/edg/edg.dto.ts`), which made every later page of that
+ * transcript's segments 400 on `Request validation failed` and the editor
+ * never finish loading. Evenly spacing `count` keys across the base-62
+ * fraction space up front keeps every key's length to
+ * `ceil(log62(count + 2)) + 1` characters — 4 characters for 54,000 items —
+ * regardless of how the list was built.
  */
 export function seqSequence(count: number): string[] {
   if (!Number.isInteger(count) || count < 0) {
     throw new SeqError(`count must be a non-negative integer, got ${String(count)}`);
   }
+  if (count === 0) return [];
+
+  // One digit of headroom beyond what distinguishes `count` values, so a key
+  // is never adjacent to its neighbour — there is still room to insert
+  // between any two, same as a hand-built sequence.
+  let digits = 1;
+  while (Math.pow(SEQ_BASE, digits) < count + 2) digits += 1;
+  digits += 1;
+  const scale = Math.pow(SEQ_BASE, digits);
+
   const keys: string[] = [];
-  let previous: string | undefined;
-  for (let i = 0; i < count; i += 1) {
-    previous = seqBetween(previous);
-    keys.push(previous);
+  for (let i = 1; i <= count; i += 1) {
+    const value = Math.floor((i * scale) / (count + 1));
+    keys.push(encodeBase62(value, digits));
   }
   return keys;
+}
+
+/** `value` as a `digits`-wide base-62 string, trailing zeros trimmed to canonical form. */
+function encodeBase62(value: number, digits: number): string {
+  let remaining = value;
+  const chars: string[] = [];
+  for (let i = 0; i < digits; i += 1) {
+    chars.unshift(SEQ_ALPHABET.charAt(remaining % SEQ_BASE));
+    remaining = Math.floor(remaining / SEQ_BASE);
+  }
+  let key = chars.join("").replace(/0+$/, "");
+  if (key === "") key = "1";
+  return key;
 }

@@ -217,7 +217,7 @@
       "expected": [
         {
           "id": "SEG001",
-          "seq": "V",
+          "seq": "AK",
           "startWordId": "0:0",
           "endWordId": "0:9",
           "startMs": 240,
@@ -230,7 +230,7 @@
         },
         {
           "id": "SEG002",
-          "seq": "l",
+          "seq": "Kf",
           "startWordId": "0:10",
           "endWordId": "0:16",
           "startMs": 4340,
@@ -243,7 +243,7 @@
         },
         {
           "id": "SEG003",
-          "seq": "t",
+          "seq": "V",
           "startWordId": "0:17",
           "endWordId": "0:18",
           "startMs": 8060,
@@ -256,7 +256,7 @@
         },
         {
           "id": "SEG004",
-          "seq": "x",
+          "seq": "fK",
           "startWordId": "0:19",
           "endWordId": "0:23",
           "startMs": 10090,
@@ -269,7 +269,7 @@
         },
         {
           "id": "SEG005",
-          "seq": "z",
+          "seq": "pf",
           "startWordId": "0:24",
           "endWordId": "0:27",
           "startMs": 12460,
@@ -470,7 +470,7 @@
       "expected": [
         {
           "id": "SEG001",
-          "seq": "V",
+          "seq": "CO",
           "startWordId": "0:0",
           "endWordId": "0:9",
           "startMs": 240,
@@ -483,7 +483,7 @@
         },
         {
           "id": "SEG002",
-          "seq": "l",
+          "seq": "On",
           "startWordId": "0:10",
           "endWordId": "0:15",
           "startMs": 3480,
@@ -496,7 +496,7 @@
         },
         {
           "id": "SEG003",
-          "seq": "t",
+          "seq": "bC",
           "startWordId": "0:16",
           "endWordId": "0:20",
           "startMs": 6260,
@@ -509,7 +509,7 @@
         },
         {
           "id": "SEG004",
-          "seq": "x",
+          "seq": "nb",
           "startWordId": "0:21",
           "endWordId": "0:24",
           "startMs": 8110,
@@ -668,7 +668,7 @@
       "expected": [
         {
           "id": "SEG001",
-          "seq": "V",
+          "seq": "CO",
           "startWordId": "0:0",
           "endWordId": "0:6",
           "startMs": 240,
@@ -681,7 +681,7 @@
         },
         {
           "id": "SEG002",
-          "seq": "l",
+          "seq": "On",
           "startWordId": "0:7",
           "endWordId": "0:12",
           "startMs": 2980,
@@ -694,7 +694,7 @@
         },
         {
           "id": "SEG003",
-          "seq": "t",
+          "seq": "bC",
           "startWordId": "0:13",
           "endWordId": "0:16",
           "startMs": 6170,
@@ -707,7 +707,7 @@
         },
         {
           "id": "SEG004",
-          "seq": "x",
+          "seq": "nb",
           "startWordId": "0:17",
           "endWordId": "0:18",
           "startMs": 7940,
