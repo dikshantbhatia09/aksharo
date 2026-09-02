@@ -10,12 +10,12 @@ import {
   scriptScaleKey,
   type WordScript,
 } from "../script.js";
-import { CAPTION_FIXTURES, createFixtureRenderer, GOLDEN_TIMESTAMPS_MS } from "../testing.js";
+import { createFixtureRenderer } from "../testing.js";
 import {
   budgetFillingWords,
+  type FitProbe,
   budgetProbes,
   type FitContext,
-  type FitProbe,
   LANDSCAPE_CANVAS,
   LANDSCAPE_MIN_SHRINK,
   PORTRAIT_CANVAS,
@@ -33,11 +33,16 @@ import {
  * the other, and the picker's tile — short preview text, never shrunk — shows a
  * size no real caption will use.
  *
- * The budgets (32 Latin, 24 Devanagari, 22 Tamil characters a line, `09 §3`) are
- * readability decisions and do not move, and neither does `sizePct`. What moves
- * is `typography.scriptScale`, tuned by `scripts/tune-style-sizes.ts` per script,
- * so a Latin caption keeps its own size and an Indic one takes the size a
- * full-budget line of its own script needs.
+ * Every probe is a caption cut to the budget `fitBudget` measures for that
+ * (style, script, canvas) — the caption the segmenter would actually produce
+ * (decision D78). The 32/24/22 table is the readability maximum the budget is
+ * capped by, not the caption length: a full 32-character Latin line is about
+ * 16 em and does not fit a 9:16 frame at any creator type size, so the budget
+ * comes down instead of the type.
+ *
+ * `typography.scriptScale` still earns its place on readability rather than on
+ * fit: without it a Tamil budget collapses to five or six characters — one short
+ * word a line — where a modest reduction doubles it.
  */
 
 const styles = loadSystemStyles();
@@ -48,40 +53,11 @@ beforeAll(async () => {
   context = await createFixtureRenderer();
 });
 
-/** The four caption fixtures at exactly the instants the goldens capture. */
-function fixtureProbes(): FitProbe[] {
-  return CAPTION_FIXTURES.map((fixture) => ({
-    name: `fixture:${fixture.name}`,
-    script: fixture.script,
-    words: fixture.words,
-    segment: fixture.segment,
-    timestamps: GOLDEN_TIMESTAMPS_MS,
-  }));
-}
-
 const cases = styles.map((style) => [style.id, style] as const);
-
-describe("the four caption fixtures", () => {
-  it.each(cases)("%s draws them at 1080×1920 without shrinking", (id, style) => {
-    const worst = worstFit(style, fixtureProbes(), PORTRAIT_CANVAS, context, "9:16");
-    expect(
-      worst.shrink,
-      `${id} shrinks to ${worst.shrink.toFixed(3)} on ${worst.probe} at ${String(worst.tMs)} ms`,
-    ).toBeGreaterThanOrEqual(PORTRAIT_MIN_SHRINK);
-  });
-
-  it.each(cases)("%s draws them at 1920×1080 without shrinking", (id, style) => {
-    const worst = worstFit(style, fixtureProbes(), LANDSCAPE_CANVAS, context, "16:9");
-    expect(
-      worst.shrink,
-      `${id} shrinks to ${worst.shrink.toFixed(3)} on ${worst.probe} at ${String(worst.tMs)} ms`,
-    ).toBeGreaterThanOrEqual(LANDSCAPE_MIN_SHRINK);
-  });
-});
 
 describe.each(SCRIPTS)("a full-budget %s line", (script) => {
   it.each(cases)(`%s fits it at 1080×1920`, (id, style) => {
-    const probes = [...fixtureProbes(), ...budgetProbes(style)];
+    const probes = budgetProbes(style, context, PORTRAIT_CANVAS);
     const worst = worstFitForScript(style, probes, PORTRAIT_CANVAS, context, "9:16", script);
     if (worst === undefined) return; // the style never draws this script
     expect(
@@ -91,7 +67,7 @@ describe.each(SCRIPTS)("a full-budget %s line", (script) => {
   });
 
   it.each(cases)(`%s fits it at 1920×1080`, (id, style) => {
-    const probes = [...fixtureProbes(), ...budgetProbes(style)];
+    const probes = budgetProbes(style, context, LANDSCAPE_CANVAS);
     const worst = worstFitForScript(style, probes, LANDSCAPE_CANVAS, context, "16:9", script);
     if (worst === undefined) return;
     expect(
@@ -205,10 +181,19 @@ describe("the budget-filling probe", () => {
     const style = styles.find((entry) => entry.id === "vertical-clean");
     expect(style).toBeDefined();
     if (style === undefined) return;
-    const huge = { ...style, typography: { ...style.typography, sizePct: 30 } };
-    const worst = worstFit(huge, budgetProbes(huge), PORTRAIT_CANVAS, context, "9:16");
+    // A caption cut at the old budget, drawn by a style that has since grown —
+    // the "style changed, captions not reflowed yet" state A15 offers to fix.
+    const stale: FitProbe = {
+      name: "budget:latin",
+      script: "latin",
+      words: budgetFillingWords("latin", 2, 3000, 32),
+      segment: { id: "stale", startMs: 0, endMs: 3000 },
+      timestamps: [1500],
+    };
+    const huge = { ...style, typography: { ...style.typography, sizePct: 24 } };
+    const worst = worstFit(huge, [stale], PORTRAIT_CANVAS, context, "9:16");
     expect(worst.shrink).toBeLessThan(PORTRAIT_MIN_SHRINK);
-    expect(worst.probe).toMatch(/^budget:/);
+    expect(worst.probe).toBe("budget:latin");
     expect(worst.canvas).toBe("9:16");
     expect(worst.lines).toBeGreaterThan(0);
   });
@@ -217,7 +202,7 @@ describe("the budget-filling probe", () => {
     const style = styles.find((entry) => entry.id === "vertical-clean");
     expect(style).toBeDefined();
     if (style === undefined) return;
-    const probes = budgetProbes(style);
+    const probes = budgetProbes(style, context, PORTRAIT_CANVAS);
     expect(worstFitForScript(style, probes, PORTRAIT_CANVAS, context, "9:16", "tamil")?.probe).toBe(
       "budget:tamil",
     );

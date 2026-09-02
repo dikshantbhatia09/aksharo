@@ -60,7 +60,7 @@ jobs:
       # containers; running it here as well would start testcontainers a second
       # time for the same suites (A23a).
       - name: Unit tests
-        run: pnpm test --filter='!@montaj/worker-ai' --filter='!@montaj/api'
+        run: pnpm test --filter='!@montaj/worker-ai' --filter='!@montaj/model-server' --filter='!@montaj/api'
 
       - name: Build
         run: pnpm build
@@ -116,9 +116,10 @@ jobs:
   # template database is built once on the Postgres service and each suite clones
   # it, taking a logical Redis database and a queue prefix of its own.
   #
-  # `TEST_REDIS_URL` pins database 0 deliberately. The suites take logical
-  # databases from there upwards, and the service container is ours alone, so all
-  # sixteen are available to hand out.
+  # The Redis service is this job's alone, so the run may hand out all sixteen of
+  # its logical databases — one per e2e suite. `global-setup.ts` leaves database 0
+  # alone when it can and takes it, loudly, when there are more suites than
+  # databases above it.
   # ---------------------------------------------------------------------------
   api:
     name: API (Postgres + Redis services)
@@ -151,7 +152,7 @@ jobs:
           --health-retries 20
     env:
       TEST_DATABASE_URL: postgresql://montaj:montaj@localhost:5432/postgres
-      TEST_REDIS_URL: redis://localhost:6379/0
+      TEST_REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
 
@@ -178,6 +179,143 @@ jobs:
           count=$(docker ps --all --quiet --filter 'label=org.testcontainers=true' | wc -l)
           echo "testcontainers-managed containers: $count"
           test "$count" -eq 0
+
+  # ---------------------------------------------------------------------------
+  # GPU model server (A26): ruff, mypy --strict, pytest, and both halves of the
+  # CONTRACTS section 9 coverage gate. No GPU: MODEL_SERVER_DEVICE=cpu throughout,
+  # and the tests that need a real model download are behind RUN_SLOW=1.
+  # ---------------------------------------------------------------------------
+  model-server:
+    name: Model server (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/model-server
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12"]
+    env:
+      MODEL_SERVER_DEVICE: cpu
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: apps/model-server/requirements-dev.lock
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.lock
+          python -m pip install --no-deps -e .
+
+      - name: Ruff
+        run: python -m ruff check .
+
+      - name: Ruff format check
+        run: python -m ruff format --check .
+
+      - name: mypy --strict
+        run: python -m mypy --strict .
+
+      - name: pytest
+        run: python -m pytest -q
+
+      # --cov-fail-under blends lines and branches into one number, so a run with
+      # 95% of lines and 40% of branches passes it while failing CONTRACTS
+      # section 9. This checks the two thresholds separately.
+      - name: Coverage gate (75 lines / 70 branches)
+        run: python scripts/coverage_gate.py
+
+  # ---------------------------------------------------------------------------
+  # The model-server image must keep building. CI builds the `cpu` target: the
+  # CUDA target needs a 4 GB base image and a Hugging Face token for the gated
+  # pyannote weights, which is a [H] step (infra/gpu/README.md), while the cpu
+  # target proves the thing CI can actually prove - the lock resolves, the app
+  # installs, and the container boots and serves.
+  # ---------------------------------------------------------------------------
+  model-server-image:
+    name: Model server image (CPU target)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the CPU target
+        run: |
+          docker build \
+            -f apps/model-server/Dockerfile \
+            --target cpu \
+            -t aksharo/model-server:ci \
+            apps/model-server
+
+      # MODEL_SERVER_PRELOAD is empty on purpose: nothing is loaded, so the smoke
+      # needs no network and no weights, and it still proves the entry point, the
+      # settings, auth, the error envelope and the metric names.
+      - name: Boot the container and smoke the routes
+        run: |
+          docker run -d --name model-server-ci \
+            -e GPU_PROVIDER_TOKEN=ci-smoke-token \
+            -e MODEL_SERVER_PRELOAD= \
+            aksharo/model-server:ci
+          docker exec -i model-server-ci python - <<'SMOKE'
+          import json, sys, time, urllib.error, urllib.request
+
+          BASE = "http://127.0.0.1:8000"
+
+          def call(path, *, token=None, body=None, tries=1):
+              request = urllib.request.Request(BASE + path, method="POST" if body else "GET")
+              if body is not None:
+                  request.data = json.dumps(body).encode()
+                  request.add_header("content-type", "application/json")
+              if token:
+                  request.add_header("authorization", "Bearer " + token)
+              for attempt in range(tries):
+                  try:
+                      with urllib.request.urlopen(request, timeout=5) as response:
+                          return response.status, response.read().decode()
+                  except urllib.error.HTTPError as error:
+                      return error.code, error.read().decode()
+                  except OSError:
+                      if attempt == tries - 1:
+                          raise
+                      time.sleep(1)
+              raise SystemExit("unreachable")
+
+          status, body = call("/healthz", tries=30)
+          assert status == 200 and json.loads(body)["status"] == "ok", (status, body)
+
+          status, body = call("/readyz")
+          assert status == 200, (status, body)
+
+          status, body = call("/transcribe", body={"audio": "x"})
+          assert status == 401, (status, body)
+          assert json.loads(body)["error"]["code"] == "model-server/unauthorized", body
+
+          status, body = call("/transcribe", token="ci-smoke-token", body={"audio": "x"})
+          assert status == 503, (status, body)
+          assert json.loads(body)["error"]["code"] == "model-server/model-unavailable", body
+
+          status, text = call("/metrics")
+          series = {line.split("{")[0].split(" ")[0]
+                    for line in text.splitlines() if line.startswith("model_server_")}
+          assert len(series) >= 8, sorted(series)
+
+          print("model-server image smoke passed;", len(series), "model_server_* series")
+          sys.exit(0)
+          SMOKE
+
+      - name: Container logs
+        if: always()
+        run: docker logs model-server-ci || true
+
+      - name: Stop the container
+        if: always()
+        run: docker rm -f model-server-ci || true
 
   # ---------------------------------------------------------------------------
   # Playwright smoke: chromium + webkit, the two lanes that gate every release

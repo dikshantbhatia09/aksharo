@@ -8,8 +8,218 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A16e — the CanvasKit backdrop blur is clipped to its bounds.** Reported by A20.
+  `render-core` documents a `backdrop` blur as blurring what is already on the surface
+  **inside `bounds`**, and `@montaj/render-skia-node` clips to honour that. The browser
+  executor passed the bounds to `saveLayer` and stopped there — but Skia treats
+  `SaveLayerRec`'s bounds as a hint about how much surface the layer needs, not as a
+  boundary on what the filter may touch, so it softened a sigma-wide band right across
+  the frame. Over real footage that is the difference between a frosted caption panel
+  and a fogged video. `executeCommands` now issues a `clipRect` before the layer.
+  - Every committed baseline used a **flat** ground, on which blurring outside the panel
+    changes nothing, which is why A16's own suite never saw it. The new
+    `liquid-glass-hard-edge` baseline lays a hard edge through the panel: inside it must
+    be blurred, outside it must stay razor hard, so a filter that does nothing and a
+    filter that fogs the frame both fail. `BaselineFrame` gained an optional `ground`
+    for this. Removing the clip moves 5,280 pixels and fails three assertions.
+  - `render-skia-node`'s parity suite asserted the divergence on purpose
+    (`outsideDiffering > 0`, "if `render-canvaskit` is fixed, this drops to zero"); it now
+    asserts `0`, and the two backends agree inside **and** outside the panel. Affected
+    baselines and the `liquid-glass` catalogue preview regenerated; the browser lane holds
+    at 0 pixels differing on all eight frames.
+
 ### Added
 
+- **A26 — model-server: the GPU model server (`apps/model-server`), serving
+  `/transcribe`, `/align`, `/diarise` and `/detect-language` for the serverless
+  GPU lane (D15), with dynamic batching, warm-model lifecycle, a memory guard,
+  cost accounting, and RunPod/Modal packaging.**
+  - **The wire contract is the worker's, not this app's.** `apps/worker-ai`
+    already had three clients written against a server that did not exist
+    (`providers/serverless_whisper.py`, `diarisation/pyannote.py`, `lid.py`), and
+    A10 recorded their exchanges in
+    `worker_ai/fixtures/vendor/gpu-whisper/session.json`.
+    `tests/test_contract_fixtures.py` asserts every live response is a **superset
+    with matching types** of that recording, and `tests/test_worker_adapter.py`
+    drives the worker's own three clients over a real socket against a real
+    uvicorn — the only test that fails when the two apps disagree. Times on the
+    wire stay **seconds** everywhere except `/detect-language`'s `windows`, which
+    is milliseconds because `lid.py` already sends it that way.
+  - **Dynamic batching for `/transcribe`** (`model_server/batching.py`): up to
+    `MODEL_SERVER_BATCH_MAX_SIZE` chunks inside a 50 ms window, handed to the ASR
+    backend as one call. Decision **D74** makes this load-bearing rather than an
+    optimisation — X05's re-derivation gives ₹0.19 per media minute without
+    batching against the ₹0.09–0.13 band in `05 §12` — so
+    `model_server_batch_size` measures what actually happened and
+    `usage.gpuSeconds` is the group's wall clock **divided by `batchSize`**, with
+    `batchSize` on the wire so the division can be audited. Charging each request
+    the whole group would inflate COGS per credit by exactly the batching factor.
+  - **Models load once, at startup, from the baked image.** No request ever
+    triggers a load. `MODEL_SERVER_PRELOAD` selects which backends are
+    instantiated at all, so a CPU worker that only transcribes never pages
+    pyannote into memory. A backend that fails to load does **not** take the
+    process down: it is recorded, `model_server_model_ready` stays at 0, its
+    routes answer 503 with the reason, and the others keep serving — on a
+    serverless worker a hard exit is a crash loop that still bills. SIGTERM flips
+    readiness **before** uvicorn winds down, so a load balancer stops sending work
+    to a worker that is about to stop.
+  - **A memory guard, not a CUDA OOM.** A request reserves an estimate before the
+    model call and is refused with `503` + `Retry-After` when it does not fit; the
+    worker's HTTP client already retries 5xx and already obeys the header, so a
+    refusal costs a wait rather than a job.
+  - **Decision D77 is enforced, not merely documented.** IndicWav2Vec (MIT) for
+    Indic languages and XLSR-53 CTC fine-tunes (Apache-2.0) for global ones;
+    **MMS never** — `scripts/bake_models.py` fails the image build if any
+    argument names an MMS checkpoint, so the CC-BY-NC-4.0 problem cannot be
+    reintroduced by a `--build-arg`. pyannote community-1's CC-BY-4.0 attribution
+    is surfaced in `engineVersions` on every diarised response, byte-identical to
+    the worker's constant, with a test that asserts they match.
+  - **Script projection stays in the caller.** `/align` tokenises the words it is
+    given against the checkpoint's vocabulary and reports what it could not
+    represent in `skipped`; the Devanagari projection for Roman-script Hinglish
+    (`09 §2`) lives in `worker_ai/alignment/romanisation.py` with IndicXlit
+    behind it as A22's work, and a second, disagreeing table here would be worse
+    than none.
+  - **Auth is a boot condition.** `GPU_PROVIDER_TOKEN` is compared in constant
+    time on all four routes, ahead of body validation so a 401 never reveals which
+    fields were wrong; with the token empty the process **refuses to start**
+    unless `MODEL_SERVER_ALLOW_ANONYMOUS=1` says a human meant it. `/healthz`,
+    `/readyz` and `/metrics` are unauthenticated and carry no user data. Logs are
+    JSON with a redaction chokepoint: no audio, no transcript text, no credential,
+    and presigned URLs reduced to scheme, host and path (THREAT-MODEL T21).
+  - **Packaging** replaces X05's placeholders, which pointed at
+    `apps/worker-ai/requirements-gpu.lock` and a `montaj_worker_ai.gpu` package
+    that never existed. `apps/model-server/Dockerfile` is multi-stage: a `cpu`
+    target CI builds and boots with no GPU, no weights and no Hugging Face token,
+    and a CUDA `runtime` target that bakes every weight and runs offline.
+    `scripts/bake_models.py` is the single bake step both providers run and also
+    exports the CTC heads to ONNX in the layout `worker_ai/alignment/ctc.py`
+    reads. `model_server/runpod_handler.py` serves RunPod's queue API from the
+    **same** app, batcher and warm models. `infra/gpu/runpod/endpoint.json` and
+    `infra/gpu/COST.md` are X05's and stay; `infra/gpu/runpod/Dockerfile` and
+    `infra/gpu/runpod/bake_models.py` are deleted rather than left as a second,
+    wrong source of truth.
+  - **Cost accounting** (`apps/model-server/cost.md`): `usage {gpuSeconds,
+audioSeconds, model, batchSize}` on every response, the arithmetic behind it,
+    the measured CPU-`tiny` numbers, and the empty table the first real GPU run
+    fills in. The honest CPU finding, carried up into `infra/gpu/COST.md`: **on
+    CPU, batching costs rather than saves** (batched RTF 1.4–1.8 against
+    serial 0.95–1.6), because CTranslate2 already uses every core. That says
+    nothing about a GPU, where a single stream leaves the card idle — but it
+    does mean the CPU lane should run `MODEL_SERVER_BATCH_MAX_SIZE=1`.
+  - **Metrics** `model_server_*` registered in `infra/observability/METRICS.md`
+    §11 **before** the code, per D75. They are the only names in that file
+    without the `montaj.` prefix, because a RunPod or Modal sandbox has no OTel
+    collector beside it and this process is scraped directly in native Prometheus
+    form.
+  - 199 tests, `ruff`, `ruff format --check` and `mypy --strict` clean;
+    coverage **95.3 % lines / 88.4 % branches** against the CONTRACTS §9 gate
+    of 75/70, checked by `scripts/coverage_gate.py` because `--cov-fail-under`
+    blends the two into one number that can pass while the contract fails.
+- **A06 — api: projects, folders, media ingest, derived URLs, subtitle import and
+  retention.**
+  - `apps/api/src/common/storage/`: an `ObjectStore` port with two instances —
+    `RAW_STORE` (`S3_BUCKET_RAW`, AWS S3 `ap-south-1` in production) and
+    `DERIVED_STORE` (`R2_BUCKET_DERIVED`, Cloudflare R2), both MinIO locally.
+    Presigned multipart PUT, presigned GET with a five-minute TTL, HEAD, delete
+    and object tagging over the AWS SDK v3. `storage.keys.ts` is the TypeScript
+    twin of `apps/worker-ai/worker_ai/storage.py` and refuses to build a
+    CONTRACTS section 6 key from anything that is not a ULID (THREAT-MODEL T5).
+  - **The bytes never pass through the API.** `POST /projects/{id}/media/init`
+    checks the plan cap and returns one presigned URL per 16 MiB part;
+    `POST /media/{mediaId}/complete` closes the multipart upload, records the
+    store's own byte count, sets `raw_purge_at` (upload + 7 days) and
+    `derived_purge_at` (the plan's retention), and enqueues `media.probe` then
+    `media.proxy`. Both are deduplicated on `jobKey`, so a retried completion
+    returns the same two job ids rather than four jobs.
+  - `POST /projects/{id}/media/{mediaId}/replace` puts new bytes on the **same**
+    media row — transcripts, the EDG document and exports all reference that id —
+    clears everything that described the old bytes and sets `needs_realign`.
+  - `GET /projects/{id}/media/{mediaId}/urls` signs only the derived artefacts
+    that exist, so the response doubles as "what is ready".
+  - `POST /projects/{id}/import` and `/import-url` parse SRT, WebVTT, ASS and
+    plain text into one normalised cue list (BOM and CRLF handled, ASS override
+    tags stripped, Devanagari untouched), store it as a JSON sidecar under the
+    media prefix as a `media_assets` row with role `subtitle`, and enqueue
+    `ai.align`. Plain text is marked untimed, which is the signal alignment needs.
+  - `apps/api/src/common/net/safe-fetch.ts`: the egress-restricted client of
+    THREAT-MODEL **T6** — http(s) on ports 80/443 only, every resolved address
+    judged against a deny list (RFC1918, loopback, link-local including
+    `169.254.169.254`, CGNAT, IPv6 ULA, multicast, IPv4-mapped and NAT64), the
+    vetted address **pinned** for the connection, three redirects, 2 MB and ten
+    seconds. A refusal reaches the caller as `import/blocked_url` with no detail.
+  - `RetentionService.purgeDueMedia()` (D47): two independent clocks, raw at seven
+    days and derived at the plan's retention. The object is deleted before the row
+    is marked, so a crash leaves a retryable sweep rather than stranded storage.
+    It registers no schedule — B16 owns that wiring.
+  - `POST /projects/batch` creates up to 50 projects in one transaction; folders
+    are a real table with cycle and depth checks and an "empty before delete" rule.
+  - Every `/projects`, `/folders` and `/media` route wears `JwtAuthGuard`,
+    `WorkspaceMemberGuard` and `RolesGuard`. Another tenant's id is a **404**, never
+    a 403 (T5).
+  - Media types are an allow-list (T7): `application/octet-stream` is accepted only
+    when the filename's extension is one we know, and the extension that reaches a
+    key is chosen from the same lists, never from the filename directly.
+
+- **A20 — the cloud render service: `apps/render`, `@montaj/render-skia-node`,
+  `@montaj/render-manifest`.**
+  - `@montaj/render-skia-node` is implemented: the same `DrawCommand[]` the browser
+    executes, run against Skia's native build (`@napi-rs/canvas` 1.0.8, pinned), with
+    `outlineTextCommands` converting every glyph run to a path because Canvas2D has no
+    glyph-id entry point. No system font is ever consulted (D33). Frames come out as
+    straight RGBA through a reusable batch buffer — a 1080×1920 frame is 8.3 MB and a
+    ninety-second Reel is 2,700 of them.
+  - **Parity against CanvasKit is measured, not asserted.** Nineteen frames — A16's
+    seven baselines plus the four caption fixtures at three instants — of which sixteen
+    are inside decision D33's SLO (≤ 1% of pixels off by more than 2/255) and the mean
+    is 0.83%. Everything except text is bit-exact; the residual is Skia's glyph cache
+    against an analytic path fill, and it grows as the type gets smaller.
+    `neon-glow-english` (3.31%) and the two entry-instant frames (1.10% and 1.20%) are
+    over, pinned with their measured values and their reason. Four conversions with a
+    unit in them — blur sigma, shadow sigma, the miter limit and layer opacity — are
+    asserted on their own so a regression names the conversion rather than a whole
+    frame.
+  - `@montaj/render-manifest` defines the server-signed `RenderManifest` of `05 §5.2`:
+    project and EDG revision, style-catalogue snapshot ids, timemap edits, aspect,
+    resolution and fps, the watermark decision, the plan's caps, the audio strategy and
+    the subtitle request. Signed with `INTERNAL_CALLBACK_SECRET` over canonical JSON
+    under a domain-separation prefix, verified against `INTERNAL_CALLBACK_SECRET_NEXT`
+    too, so one rotation procedure covers manifests and callbacks and no new secret was
+    added. Five refusals with stable codes: malformed, bad signature, expired, not yet
+    valid, caps exceeded.
+  - `apps/render` consumes `render.video` and `render.subtitle`. A render verifies the
+    manifest, builds the timemap (D30), and checks the caps against the _rendered_
+    length — all **before a byte of media moves** — then downloads the source, probes
+    it, draws frames on Skia and pipes them into ffmpeg as a second `rawvideo` input.
+    Cuts become `trim`/`concat` per retained span so video and audio are cut at the same
+    instants; the base is forced to the output frame rate immediately before `overlay`
+    so the two streams stay frame-aligned; presets get a centre cover `scale`/`crop`.
+    x264 `veryfast` at CRF 20 (1080p) / 18 (4K) with `+faststart`, or ProRes 4444 /
+    VP9-alpha for an alpha export and a solid chroma ground for green-screen. Output to
+    R2 under CONTRACTS §6, with `usage.outputSeconds` and `egressBytes: 0` (D35).
+  - **The watermark decision is the server's** (THREAT-MODEL T10): it travels inside the
+    signature, is drawn from the manifest rather than the projection, and stripping it
+    from a signed document is a `manifest/bad-signature` refusal — tested with that
+    exact attack.
+  - A frame cache keyed on `hashCommands` reuses the previous frame's pixels whenever
+    the command list is unchanged: two thirds of the frames of the sample project at
+    1080p, four fifths at 4K. It is exact rather than heuristic, because outlining is a
+    pure function of the hashed list.
+  - `render.subtitle` writes SRT, VTT, TXT and Markdown, one file per (format × script),
+    with every cue remapped onto the output clock and a segment straddling a splice
+    split into two cues. ASS is refused with a message naming A18a.
+  - The signed callback client is a TypeScript mirror of
+    `apps/worker-ai/worker_ai/callbacks.py`, down to the header names and the rule that
+    the bytes signed are the bytes sent; the A08b retry, stall and heartbeat table is
+    mirrored with a test that parses the API's own source to prove it has not drifted.
+  - `BENCHMARK.md` reports measured throughput: **1.05× realtime at 1080p**, 3.85× at
+    540p, 0.30× at 4K, on a 12-thread desktop. The ≥ 2× target is not met; the file
+    contains the stage split showing that Skia and x264 do not overlap because
+    rasterising blocks Node's only thread, the two optimisations tried (bounded layer
+    surfaces, landed, 0.69× → ~1.1×; a pipe run-ahead buffer, reverted, slower), and the
+    worker-thread change that would close the gap.
 - **A10b — Meta MMS excluded on licence grounds (D77); tests no longer read a
   developer's `.env`.**
   - `worker_ai/alignment/mms.py` is **deleted**. The common
@@ -143,6 +353,48 @@ RETURNING revision`. The lock makes read-decide-write atomic; the CAS is the
     tombstoned word is as good as a missing one here), and any issue refuses the
     whole restore with `409 edg/restore_invalid` — `details.danglingWordIds`
     names the words, `details.issues` carries the validator's findings.
+- **A16c/A16d — line budgets come from the type (decision D78), per-script sizes, and
+  track-level shrink.**
+  - **The problem.** `09 §3`'s 32/24/22 characters a line are readability caps, and were
+    being treated as caption lengths. A full 32-character Latin line is about 16 em; 16 em
+    inside 78–90% of a 1080-wide portrait frame needs an em of ~2.8% of frame height. Every
+    style was therefore overflowing and shrinking, so two captions in one video were two
+    different sizes and the picker's tile showed a size no real caption used.
+  - **`fitBudget({style, script, canvas, registry, shaper}) → {maxChars, maxLines}`** in
+    `@montaj/render-core`. It measures the average advance per **base character** by running
+    a fixed, committed per-script sample through the real shaper with the resolved font, then
+    divides the caption box — less box padding, inside the safe area — by it. The answer is
+    `min(readabilityCap, whatFits)`, with caps 32/24/22 and two lines. `limitedByFit` says
+    which of the two decided; `belowComfortableMinimum` flags a style so large that captions
+    are one short word a line, rather than inflating the number and putting the overflow back.
+  - `layoutSegment` now wraps at that budget instead of at the table. Wrapping at the cap
+    re-joined words the segmenter had deliberately separated, which is what made the caption
+    overflow in the first place. The segmenter and the layout now share one number.
+  - **`@montaj/edg/segmenter` takes `maxCharsByScript`**, the shape `fitBudget` produces —
+    per script, because the segmenter resolves its limit from the script of the run it is
+    closing and a Hinglish transcript needs Roman and Devanagari runs to differ. It falls
+    back to the flat `maxChars`, then to the table. `packages/edg/README.md` gains
+    "Budgets come from `fitBudget`; readability caps are maxima".
+  - **`typography.scriptScale`**, optional and additive (StyleDoc stays at generation 2): a
+    per-script multiplier on `sizePct`, keyed by lowercase OpenType tag. Every style keeps
+    the `sizePct` it was drawn for and **no style carries a `latn` entry**. The Indic entries
+    stay on readability grounds, not fit: at the same em a Tamil budget collapses to five or
+    six characters, and a modest reduction roughly doubles it.
+  - **`computeTrackShrink({projection, catalogue, registry, shaper, canvas, script})`** lays
+    every caption out once and returns the minimum shrink per (styleId, script);
+    `renderFrame` and `layoutFrame` apply it uniformly so a style is one size for the whole
+    video. Per-caption shrink stays the fallback. The value is floored to two decimals
+    rather than rounded, because a value a hair above one caption's true need would leave
+    that caption at its own size and show two sizes instead of one. It is pure and costs one
+    layout per caption, so exporters (A19, A20) and the preview stage compute it once per
+    session and cache it; nothing calls it per frame.
+  - Tests: `fitBudget` (17), the per-script fit suite driven by the measured budget for all
+    30 styles × 3 scripts × 2 canvases at shrink ≥ 0.95 (9:16) and ≥ 0.9 (16:9), track
+    shrink (12), and the segmenter's per-script budgets. Goldens, PNG baselines and the 30
+    catalogue previews regenerated; browser parity holds at 0 pixels differing.
+  - A11 calls `fitBudget` at EDG initialisation from the project aspect and default style;
+    A15 offers "Reflow captions" (a `Resegment` op) when a style change moves the budget.
+    Neither is implemented here.
 
 - **A16 — `@montaj/render-core`, `@montaj/render-canvaskit`, the 30 system styles and
   the editor's caption canvas.**
@@ -932,9 +1184,10 @@ sarvam` replays the recorded session, `--live` calls the configured vendor.
     the keys the product hard-codes (`montaj:auth:*`, `montaj:rl:*`) with no
     product change, and its own **`MONTAJ_QUEUE_PREFIX`**, which is what isolates
     BullMQ structures and realtime channels — Redis pub/sub ignores the logical
-    database, so the prefix is the only isolation there. A run never claims logical
-    database 0 unless it is told to; that is where a developer's own compose stack
-    lives.
+    database, so the prefix is the only isolation there. A run leaves logical
+    database 0 alone — a developer's own compose stack lives there — until there
+    are more suites than databases above it, and then claims it too rather than
+    make two suites share one, saying so on the way past.
   - `apps/api/test/test-run.ts` and `apps/api/test/suite-context.ts` are the new
     contract and the worker-side accessors. Slots are assigned from the sorted list
     of every `*.e2e-spec.ts` in the package rather than the subset being run, so a
@@ -952,6 +1205,14 @@ sarvam` replays the recorded session, `--live` calls the configured vendor.
     do overlap, then insert the same primary key into the same table from both
     sides, truncate that table from one side, and write the same hard-coded Redis
     key from both — each of which fails loudly if the isolation regresses.
+  - One PostgreSQL for the run is also one connection budget for the run, so the
+    suite database URL pins `connection_limit=3` and both context harnesses reuse
+    the client `createTestDatabase()` already opened instead of a second one of
+    their own. Prisma sizes a pool at `cpus * 2 + 1` by default — twenty-five on a
+    twelve-core laptop — which cost nothing while every suite had a container to
+    itself, and sank a dozen concurrent suites against one server's
+    `max_connections` of 100 with "Can't reach database server" the moment they
+    shared.
   - `DROP DATABASE` forces an immediate checkpoint and waits for it: measured at
     eleven seconds with two suites dropping at once on a laptop already running
     thirty containers. `afterAll` therefore bounds the drop with a
@@ -967,6 +1228,25 @@ sarvam` replays the recorded session, `--live` calls the configured vendor.
   - `apps/api/README.md` §Tests rewritten: how the isolation works, how to point a
     run at the compose stack, how to debug one suite. The `TEST_DATABASE_URL`
     hazard note is gone, because the hazard is.
+- **A06 — `WorkspaceMemberGuard` now guards routes with no workspace id in the
+  path.** On a `/workspaces/:id` route both of its rules are unchanged; on a route
+  without an `:id` — every `/projects/*` route — there is nothing to compare, so it
+  performs only its second check (an active membership still exists, and the
+  principal's role is re-read from the database). It previously returned `true`
+  there, which was correct while only `/workspaces/:id` wore it and would have been
+  a silent hole the moment another controller did.
+- **A06 — `/jobs` moved onto A04's `JwtAuthGuard` and the interim access-token
+  guard is deleted.** `JobsController` now uses `JwtAuthGuard`,
+  `@CurrentWorkspace()` and `RolesGuard` (reads are `viewer`, cancel is `editor`),
+  and `src/realtime/auth/access-token.guard.ts` is gone. `AccessTokenService`
+  stays: a WebSocket handshake is not a Nest route, and the gateway has to verify
+  the token itself. A04's verifier pins the `iss` claim to `API_ORIGIN`, which the
+  interim guard did not check, so A08's e2e suite mints tokens with it.
+- **A06 — schema.** New `folders` table, `projects.folder_id` converted to a real
+  foreign key, `media_assets` gains `filename`, `upload_id`, `part_size_bytes`,
+  `needs_realign`, `thumb_keys`, `raw_purged_at` and `derived_purged_at`, and
+  `MediaRole` gains `subtitle`
+  (`prisma/migrations/20260902050000_a06_folders_media_upload`).
 - **A25** — `.env.example`, `packages/config/src/env.ts`, the Terraform secrets
   contract and the Helm chart all gained `MAIL_PROVIDER`, `MAIL_FROM` and
   `SMTP_URL`, the three variables CONTRACTS section 1 added after A04, and

@@ -7,9 +7,12 @@ import { createPublicKey, createVerify, timingSafeEqual } from "node:crypto";
  * family and the global guard. A08 lands before it and still has to reject an
  * unauthenticated WebSocket, so this file implements *verification only* — no
  * issuing, no refresh, no session lookup — against the frozen claim set, using
- * `node:crypto` so it adds no dependency A04 might have to reconcile. When A04
- * lands, its guard replaces `AccessTokenGuard` and this file is deleted; nothing
- * else changes, because callers only ever see {@link AccessTokenClaims}.
+ * `node:crypto` so it adds no dependency A04 might have to reconcile.
+ *
+ * A06 retired the interim HTTP guard that sat on top of this: every route wears
+ * A04's `JwtAuthGuard` now. What survives is verification for the two callers
+ * that are not Nest routes — the WebSocket handshake in `realtime.gateway.ts` and
+ * the constant-time compare `GET /internal/metrics` uses on its bearer token.
  */
 
 /** `kind` claim: which client the token was minted for (CONTRACTS §5). */

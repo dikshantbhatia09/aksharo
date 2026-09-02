@@ -1,8 +1,38 @@
 import { defineConfig, mergeConfig } from "vitest/config";
 
-import { vitestBaseConfig } from "@montaj/config/vitest";
+import { coverageThresholds, vitestBaseConfig } from "@montaj/config/vitest";
 
+/**
+ * `docs/CONTRACTS.md` §9 puts `apps/render` at 75/70.
+ *
+ * The pipeline suite generates a clip with ffmpeg and renders it end to end, so
+ * the default timeout is nowhere near enough. `src/testing.ts` is fixtures and
+ * `src/index.ts` is the boot wiring — both are exercised by running the service,
+ * not by a unit test, so neither is counted.
+ */
 export default mergeConfig(
-  defineConfig(vitestBaseConfig),
-  defineConfig({ test: { name: "@montaj/render" } }),
+  mergeConfig(
+    defineConfig(vitestBaseConfig),
+    defineConfig({
+      test: { name: "@montaj/render", testTimeout: 600_000, hookTimeout: 600_000 },
+    }),
+  ),
+  mergeConfig(
+    defineConfig({
+      test: {
+        coverage: {
+          exclude: [
+            "**/dist/**",
+            "**/*.test.ts",
+            "**/*.config.*",
+            "**/index.ts",
+            "scripts/**",
+            "src/testing.ts",
+            "src/logger.ts",
+          ],
+        },
+      },
+    }),
+    defineConfig(coverageThresholds({ lines: 75, branches: 70 })),
+  ),
 );

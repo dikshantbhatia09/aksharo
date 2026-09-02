@@ -27,13 +27,8 @@ import { RenderError } from "../errors.js";
 import { resolveFontOrThrow } from "../fonts/registry.js";
 import { clusterBoundaries, codePointsOf, type ShapedRun, type Shaper } from "../fonts/shaper.js";
 import { type FontRegistry } from "../fonts/types.js";
-import {
-  charCount,
-  dominantScript,
-  limitsFor,
-  scriptScaleFor,
-  type WordScript,
-} from "../script.js";
+import { charCount, dominantScript, scriptScaleFor, type WordScript } from "../script.js";
+import { fitBudget } from "../styles/budget.js";
 import {
   assertCanvas,
   type CanvasSize,
@@ -44,6 +39,7 @@ import {
   q,
 } from "../units.js";
 import { itemise, type ItemisedRun } from "./itemise.js";
+import { applyTextTransform } from "./text-transform.js";
 import {
   type Layout,
   type LayoutLine,
@@ -99,26 +95,6 @@ interface Measured {
   /** Advance in em: multiply by the type size to get pixels. */
   readonly widthEm: number;
   readonly clusters: number;
-}
-
-/** `textTransform` from the style, applied before anything is counted or shaped. */
-export function applyTextTransform(
-  text: string,
-  transform: StyleDoc["typography"]["textTransform"],
-): string {
-  switch (transform) {
-    case "uppercase":
-      return text.toLocaleUpperCase();
-    case "lowercase":
-      return text.toLocaleLowerCase();
-    case "capitalize":
-      return text.replace(
-        /(^|\s)(\S)/gu,
-        (_match, lead: string, first: string) => lead + first.toLocaleUpperCase(),
-      );
-    default:
-      return text;
-  }
 }
 
 /**
@@ -372,7 +348,11 @@ export function layoutSegment(options: LayoutOptions): Layout {
     .filter((word) => word.t.trim().length > 0);
 
   const script = options.script ?? dominantScript(transformed.map((word) => word.t));
-  const maxChars = options.maxChars ?? limitsFor(script).maxCharsPerLine;
+  // The same budget the segmenter cut to (D78). Wrapping at the readability
+  // cap instead would re-join words the segmenter deliberately separated, and
+  // the caption would overflow and shrink — the exact failure D78 removes.
+  const maxChars =
+    options.maxChars ?? fitBudget({ style, script, canvas, registry, shaper }).maxChars;
   // The style's size, scaled for the script actually on screen. A Hinglish
   // caption whose visible window is Devanagari takes the Devanagari size.
   const baseFontSizePx =
@@ -601,3 +581,5 @@ export function assertLayoutable(words: readonly RenderWord[], segmentId: string
     });
   }
 }
+
+export { applyTextTransform } from "./text-transform.js";

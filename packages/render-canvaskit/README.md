@@ -60,11 +60,19 @@ most 1% of pixels off by more than 2/255.
 pnpm --filter @montaj/render-canvaskit test:e2e
 ```
 
-Seven frames cover the command surface deliberately rather than prettily: stroked and
+Eight frames cover the command surface deliberately rather than prettily: stroked and
 shadowed type with a per-word scale, a block box with a karaoke sweep, Tamil with
 shrink-to-fit, a gradient shader on glyphs, a backdrop blur, the offset raster copies,
-and a shadow-only glow. If a command kind has no frame there, nothing catches a backend
-that draws it wrong.
+a shadow-only glow, and a backdrop blur over a **hard-edged ground**. If a command kind
+has no frame there, nothing catches a backend that draws it wrong.
+
+That last frame exists because of a defect A20 found. Skia treats `SaveLayerRec`'s
+bounds as a hint about how much surface a layer needs, not as a boundary on what a
+backdrop filter may touch, so the blur used to soften a sigma-wide band right across the
+frame. Every baseline had a **flat** ground, on which blurring outside the panel changes
+nothing, so the suite never saw it. `liquid-glass-hard-edge` runs a hard edge through
+the panel: inside it must be blurred, which proves the filter ran, and outside it must
+stay razor hard, which proves it was clipped. Removing the clip moves 5,280 pixels.
 
 Regenerate the baselines with `pnpm --filter @montaj/render-canvaskit baseline:build`
 after a deliberate change, look at the images, and commit them with the change.
