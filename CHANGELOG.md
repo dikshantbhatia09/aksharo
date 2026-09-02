@@ -10,6 +10,24 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Fixed
 
+- **A18a-c — fixed the stale seed parity-flag assertion in
+  `apps/api/test/database.e2e-spec.ts`.** The "leaves the parity flags at their
+  pessimistic defaults" test predated A18a's change to `apps/api/prisma/seed.ts`,
+  which reads each system style's `parity` block (from
+  `packages/caption-styles/styles/*.json`, written by the parity gate's
+  `apply-flags`) into `style_presets.assRenderable`/`assExportable`/
+  `requiresLayoutMetrics`/`parityScore` — so the old test failed on main whenever a
+  style's gate result was `assRenderable: true` (13/30 styles). Replaced it with
+  "seeds each system style's parity flags from its own style document (D33)": for
+  every seeded system style, the four columns equal the style document's own
+  `parity` block when present, and the schema defaults (`false`/`false`/`true`/
+  `null`) when absent, plus a style-doc/flag consistency check
+  (`assRenderable: true` implies a numeric `parityScore`) — already covered more
+  strongly for every shipped style by
+  `packages/caption-styles/src/registry.test.ts`'s "has parity flags written by
+  the A18a gate for every shipped style (D33)", referenced in the new test rather
+  than duplicated.
+
 - **B03b — unified the two `apps/web/lib/billing/razorpay.ts` modules B03 and B04 each
   wrote (add/add conflict merging main).** One module now backs both: the checkout
   sheet's subscription/mandate flow and B04's one-time purchases (`ExportUpsellPanel`'s

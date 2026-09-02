@@ -14,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { compareSeqKeys, ItemStateSchema, PassStatusSchema, seqBetween } from "@montaj/edg";
 
 import { createTestDatabase, isDatabaseAvailable, skipReason } from "./db-harness.js";
+import { loadSystemStyles } from "../prisma/seed-data.js";
 import { seed } from "../prisma/seed.js";
 
 import type { TestDatabase } from "./db-harness.js";
@@ -534,16 +535,48 @@ describe.skipIf(!available)("database schema and seed", () => {
       });
     });
 
-    it("leaves the parity flags at their pessimistic defaults", async () => {
+    it("seeds each system style's parity flags from its own style document (D33)", async () => {
+      // A18a made the seed *read* assRenderable/assExportable/requiresLayoutMetrics/
+      // parityScore off each style document's own `parity` block (written only by
+      // the parity gate's `apply-flags.ts`, never by hand) instead of hand-picking
+      // them. So the correct invariant here is not "always the pre-gate defaults" —
+      // this checkout's `packages/caption-styles/styles/*.json` already carry the
+      // gate's measured answers for most styles (13/30 have assRenderable: true) —
+      // but "each column equals that style's own document", falling back to the
+      // schema's pessimistic pre-gate defaults only for a style whose document has
+      // no `parity` block at all.
       await seed(prisma);
       const styles = await prisma.stylePreset.findMany({ where: { workspaceId: null } });
       expect(styles.length).toBeGreaterThanOrEqual(5);
+
+      const { styles: sourceStyles } = loadSystemStyles();
+      const parityByKey = new Map(sourceStyles.map((style) => [style.key, style.parity]));
+
       for (const style of styles) {
-        // Only the A18a parity gate may write these (D33).
-        expect(style.assRenderable).toBe(false);
-        expect(style.assExportable).toBe(false);
-        expect(style.requiresLayoutMetrics).toBe(true);
-        expect(style.parityScore).toBeNull();
+        const parity = parityByKey.get(style.key);
+        if (parity === undefined) {
+          // No measured row for this style: the schema's own pre-gate defaults.
+          expect(style.assRenderable, style.key).toBe(false);
+          expect(style.assExportable, style.key).toBe(false);
+          expect(style.requiresLayoutMetrics, style.key).toBe(true);
+          expect(style.parityScore, style.key).toBeNull();
+        } else {
+          expect(style.assRenderable, style.key).toBe(parity.assRenderable);
+          expect(style.assExportable, style.key).toBe(parity.assExportable);
+          expect(style.requiresLayoutMetrics, style.key).toBe(parity.requiresLayoutMetrics);
+          expect(style.parityScore, style.key).toBe(parity.parityScore ?? null);
+        }
+
+        // Style-doc/flag consistency (assRenderable: true implies a numeric
+        // parityScore) is already asserted for every shipped style by
+        // packages/caption-styles/src/registry.test.ts's "has parity flags written
+        // by the A18a gate for every shipped style (D33)" — which requires
+        // parityScore to be a real number in [0, 1] for every style in this
+        // checkout's catalogue, a strictly stronger claim than the conditional one.
+        if (style.assRenderable) {
+          expect(style.parityScore, style.key).not.toBeNull();
+          expect(typeof style.parityScore, style.key).toBe("number");
+        }
       }
     });
 
