@@ -159,7 +159,10 @@ export class ModelManager {
         headers: resumeFrom > 0 ? { range: `bytes=${String(resumeFrom)}-` } : {},
       });
       if (!response.ok || response.body === null) {
-        throw new ModelManagerError(`download of "${entryId}" failed: HTTP ${String(response.status)}`, "download_failed");
+        throw new ModelManagerError(
+          `download of "${entryId}" failed: HTTP ${String(response.status)}`,
+          "download_failed",
+        );
       }
 
       const handle = await open(partPath, resumeFrom > 0 && response.status === 206 ? "r+" : "w");

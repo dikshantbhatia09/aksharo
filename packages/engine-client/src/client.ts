@@ -157,11 +157,7 @@ export class EngineClient {
     return this.baseUrl.replace(/^http/, "ws");
   }
 
-  private async request(
-    method: "GET" | "POST",
-    path: string,
-    body?: unknown,
-  ): Promise<unknown> {
+  private async request(method: "GET" | "POST", path: string, body?: unknown): Promise<unknown> {
     const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
       method,
       headers: {
@@ -180,7 +176,11 @@ export class EngineClient {
           response.status,
         );
       }
-      throw new EngineClientError(`engine request failed: ${String(response.status)}`, "engine/http_error", response.status);
+      throw new EngineClientError(
+        `engine request failed: ${String(response.status)}`,
+        "engine/http_error",
+        response.status,
+      );
     }
     return json;
   }

@@ -48,7 +48,11 @@ describe("build-desktop bundles the engine supervisor (C03a)", () => {
   };
 
   it("reports engineBundled: false when apps/engine has not been built", async () => {
-    const result = await runBuildDesktop(ctx(), config, { platform: "win", channel: "alpha", dryRun: true });
+    const result = await runBuildDesktop(ctx(), config, {
+      platform: "win",
+      channel: "alpha",
+      dryRun: true,
+    });
     expect(result.engineBundled).toBe(false);
   });
 
@@ -57,7 +61,11 @@ describe("build-desktop bundles the engine supervisor (C03a)", () => {
     await mkdir(engineDist, { recursive: true });
     await writeFile(path.join(engineDist, "main.js"), "// built engine supervisor\n");
 
-    const result = await runBuildDesktop(ctx(), config, { platform: "win", channel: "alpha", dryRun: true });
+    const result = await runBuildDesktop(ctx(), config, {
+      platform: "win",
+      channel: "alpha",
+      dryRun: true,
+    });
     expect(result.engineBundled).toBe(true);
 
     const copied = await readFile(
@@ -72,7 +80,11 @@ describe("build-desktop bundles the engine supervisor (C03a)", () => {
     await mkdir(engineDist, { recursive: true });
     await writeFile(path.join(engineDist, "main.js"), "// built engine supervisor\n");
 
-    const result = await runBuildDesktop(ctx(), config, { platform: "mac", channel: "alpha", dryRun: true });
+    const result = await runBuildDesktop(ctx(), config, {
+      platform: "mac",
+      channel: "alpha",
+      dryRun: true,
+    });
     expect(result.engineBundled).toBe(true);
 
     const copied = await readFile(
@@ -87,7 +99,11 @@ describe("build-desktop bundles the engine supervisor (C03a)", () => {
     await mkdir(engineDist, { recursive: true });
     await writeFile(path.join(engineDist, "main.js"), "// built engine supervisor\n");
 
-    const result = await runBuildDesktop(ctx(), config, { platform: "win", channel: "alpha", dryRun: true });
+    const result = await runBuildDesktop(ctx(), config, {
+      platform: "win",
+      channel: "alpha",
+      dryRun: true,
+    });
     expect(result.signed.some((s) => s.path.includes("main.js"))).toBe(false);
   });
 });

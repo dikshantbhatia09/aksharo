@@ -25,7 +25,13 @@ describe("engine discovery file", () => {
   it("writes with mode 0600 on POSIX", () => {
     const path = engineDiscoveryFilePath(dir);
     writeEngineDiscoveryFile(
-      { port: 47900, bearer: generateBearerToken(), pid: 123, version: "0.1.0", startedAt: new Date().toISOString() },
+      {
+        port: 47900,
+        bearer: generateBearerToken(),
+        pid: 123,
+        version: "0.1.0",
+        startedAt: new Date().toISOString(),
+      },
       path,
     );
     // Windows has no POSIX permission bits (bridge-core's own discovery.test.ts
@@ -39,7 +45,13 @@ describe("engine discovery file", () => {
 
   it("round-trips through read/write", () => {
     const path = engineDiscoveryFilePath(dir);
-    const file = { port: 47901, bearer: generateBearerToken(), pid: 456, version: "0.1.0", startedAt: new Date().toISOString() };
+    const file = {
+      port: 47901,
+      bearer: generateBearerToken(),
+      pid: 456,
+      version: "0.1.0",
+      startedAt: new Date().toISOString(),
+    };
     writeEngineDiscoveryFile(file, path);
     expect(readEngineDiscoveryFile(path)).toEqual(file);
   });
@@ -50,7 +62,10 @@ describe("engine discovery file", () => {
 
   it("returns undefined for a corrupt file", () => {
     const path = engineDiscoveryFilePath(dir);
-    writeEngineDiscoveryFile({ port: 1, bearer: generateBearerToken(), pid: 1, version: "x", startedAt: "x" }, path);
+    writeEngineDiscoveryFile(
+      { port: 1, bearer: generateBearerToken(), pid: 1, version: "x", startedAt: "x" },
+      path,
+    );
     // Corrupt it directly.
     writeFileSync(path, "not json");
     expect(readEngineDiscoveryFile(path)).toBeUndefined();
@@ -58,7 +73,10 @@ describe("engine discovery file", () => {
 
   it("removeEngineDiscoveryFile deletes the file and is idempotent", () => {
     const path = engineDiscoveryFilePath(dir);
-    writeEngineDiscoveryFile({ port: 1, bearer: generateBearerToken(), pid: 1, version: "x", startedAt: "x" }, path);
+    writeEngineDiscoveryFile(
+      { port: 1, bearer: generateBearerToken(), pid: 1, version: "x", startedAt: "x" },
+      path,
+    );
     removeEngineDiscoveryFile(path);
     expect(readEngineDiscoveryFile(path)).toBeUndefined();
     expect(() => removeEngineDiscoveryFile(path)).not.toThrow();
@@ -77,7 +95,10 @@ describe("engine discovery file", () => {
 
   it("readFileSync sanity: written JSON is pretty-printed and newline-terminated", () => {
     const path = engineDiscoveryFilePath(dir);
-    writeEngineDiscoveryFile({ port: 1, bearer: generateBearerToken(), pid: 1, version: "x", startedAt: "x" }, path);
+    writeEngineDiscoveryFile(
+      { port: 1, bearer: generateBearerToken(), pid: 1, version: "x", startedAt: "x" },
+      path,
+    );
     const raw = readFileSync(path, "utf8");
     expect(raw.endsWith("\n")).toBe(true);
   });

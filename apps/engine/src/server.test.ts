@@ -49,7 +49,11 @@ describe("engine server (contract tests against FakeBackend)", () => {
   it("/health is unauthenticated and reports modelsMissing true with no models on disk", async () => {
     const response = await fetch(`${base}/health`);
     expect(response.status).toBe(200);
-    const body = (await response.json()) as { modelsMissing: boolean; backend: string; tier: string };
+    const body = (await response.json()) as {
+      modelsMissing: boolean;
+      backend: string;
+      tier: string;
+    };
     expect(body.modelsMissing).toBe(true);
     expect(body.backend).toBe("fake");
     expect(["A", "B", "C", "D"]).toContain(body.tier);
@@ -63,12 +67,16 @@ describe("engine server (contract tests against FakeBackend)", () => {
   });
 
   it("rejects a wrong bearer", async () => {
-    const response = await fetch(`${base}/models`, { headers: { authorization: "Bearer wrong-token-000000000000000" } });
+    const response = await fetch(`${base}/models`, {
+      headers: { authorization: "Bearer wrong-token-000000000000000" },
+    });
     expect(response.status).toBe(401);
   });
 
   it("GET /models lists the manifest entries, all 'available' with nothing downloaded", async () => {
-    const response = await fetch(`${base}/models`, { headers: { authorization: `Bearer ${BEARER}` } });
+    const response = await fetch(`${base}/models`, {
+      headers: { authorization: `Bearer ${BEARER}` },
+    });
     expect(response.status).toBe(200);
     const body = (await response.json()) as { models: { state: string }[]; defaultModel: string };
     expect(body.models.length).toBeGreaterThan(0);
@@ -103,7 +111,12 @@ describe("engine server (contract tests against FakeBackend)", () => {
     const response = await fetch(`${base}/align`, {
       method: "POST",
       headers: { authorization: `Bearer ${BEARER}`, "content-type": "application/json" },
-      body: JSON.stringify({ audio: "hinglish-sample", words: ["ek", "do"], language: "hi", startS: 0 }),
+      body: JSON.stringify({
+        audio: "hinglish-sample",
+        words: ["ek", "do"],
+        language: "hi",
+        startS: 0,
+      }),
     });
     expect(response.status).toBe(200);
     const body = (await response.json()) as { words: { start: number; end: number }[] };
@@ -128,7 +141,13 @@ describe("engine server (contract tests against FakeBackend)", () => {
     const response = await fetch(`${base}/render`, {
       method: "POST",
       headers: { authorization: `Bearer ${BEARER}`, "content-type": "application/json" },
-      body: JSON.stringify({ drawCommandsPath: framesPath, width: 100, height: 100, fps: 30, outputPath: join(dir, "out.raw") }),
+      body: JSON.stringify({
+        drawCommandsPath: framesPath,
+        width: 100,
+        height: 100,
+        fps: 30,
+        outputPath: join(dir, "out.raw"),
+      }),
     });
     expect(response.status).toBe(200);
     const body = (await response.json()) as { frameCount: number };
@@ -147,7 +166,9 @@ describe("engine server (contract tests against FakeBackend)", () => {
   });
 
   it("404s an unknown route", async () => {
-    const response = await fetch(`${base}/no-such-route`, { headers: { authorization: `Bearer ${BEARER}` } });
+    const response = await fetch(`${base}/no-such-route`, {
+      headers: { authorization: `Bearer ${BEARER}` },
+    });
     expect(response.status).toBe(404);
   });
 

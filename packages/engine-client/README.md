@@ -14,8 +14,12 @@ const models = await client.models();
 const transcript = await client.transcribe({ audio: "file:///path/to/16k.wav", language: "hi" });
 
 for await (const message of client.transcribeStream({ audio: "file:///path/to/16k.wav" })) {
-  if (message.kind === "partial") { /* update the editor incrementally */ }
-  if (message.kind === "done") { /* final TranscribeResponse */ }
+  if (message.kind === "partial") {
+    /* update the editor incrementally */
+  }
+  if (message.kind === "done") {
+    /* final TranscribeResponse */
+  }
 }
 ```
 

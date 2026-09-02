@@ -50,7 +50,9 @@ export function writeEngineDiscoveryFile(
   }
 }
 
-export function readEngineDiscoveryFile(path = engineDiscoveryFilePath()): EngineDiscoveryFile | undefined {
+export function readEngineDiscoveryFile(
+  path = engineDiscoveryFilePath(),
+): EngineDiscoveryFile | undefined {
   if (!existsSync(path)) return undefined;
   try {
     const raw = readFileSync(path, "utf8");

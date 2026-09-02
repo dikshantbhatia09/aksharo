@@ -109,7 +109,7 @@ async function handleHttp(
     return respondJson(res, 200, await buildHealth(options));
   }
 
-  if (!isAllowedHost(req.headers.host, (req.socket.localPort ?? 0))) {
+  if (!isAllowedHost(req.headers.host, req.socket.localPort ?? 0)) {
     return respondError(res, 400, "engine/bad_host", "Bad Request");
   }
   if (!bearerMatches(extractBearer(req.headers.authorization), options.bearer)) {
@@ -134,7 +134,11 @@ async function handleHttp(
       // download failure) — never a 500, so the desktop shell can show it.
       respondError(res, 400, `engine/${error.code}`, error.message);
     } else {
-      log({ evt: "engine.http.error", path, error: error instanceof Error ? error.message : String(error) });
+      log({
+        evt: "engine.http.error",
+        path,
+        error: error instanceof Error ? error.message : String(error),
+      });
       respondError(res, 500, "engine/internal_error", "Internal Server Error");
     }
   }
@@ -191,7 +195,10 @@ async function dispatchRoute(
   throw new RouteError(404, "engine/not_found", `No route for ${method} ${path}`);
 }
 
-function parseOrThrow<T>(schema: { safeParse: (input: unknown) => { success: boolean; data?: T; error?: unknown } }, body: unknown): T {
+function parseOrThrow<T>(
+  schema: { safeParse: (input: unknown) => { success: boolean; data?: T; error?: unknown } },
+  body: unknown,
+): T {
   const result = schema.safeParse(body);
   if (!result.success || result.data === undefined) {
     throw new RouteError(400, "engine/invalid_request", "Request body failed validation.");
@@ -232,7 +239,13 @@ function registerTranscribeSocket(ws: WebSocket, options: EngineServerOptions): 
     void (async () => {
       const parsed = TranscribeRequestSchema.safeParse(JSON.parse(raw.toString("utf8")));
       if (!parsed.success) {
-        ws.send(JSON.stringify({ kind: "error", requestId: "unknown", error: { code: "engine/invalid_request", message: "Invalid transcribe request." } }));
+        ws.send(
+          JSON.stringify({
+            kind: "error",
+            requestId: "unknown",
+            error: { code: "engine/invalid_request", message: "Invalid transcribe request." },
+          }),
+        );
         return;
       }
       for await (const message of options.backend.transcribeStream(parsed.data)) {
@@ -258,7 +271,8 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   let size = 0;
   for await (const chunk of req as AsyncIterable<Buffer>) {
     size += chunk.length;
-    if (size > MAX_BODY_BYTES) throw new RouteError(413, "engine/too_large", "Request body too large.");
+    if (size > MAX_BODY_BYTES)
+      throw new RouteError(413, "engine/too_large", "Request body too large.");
     chunks.push(chunk);
   }
   const text = Buffer.concat(chunks).toString("utf8");

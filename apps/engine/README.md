@@ -20,17 +20,17 @@ Every route except `/health` requires `Authorization: Bearer <token>` (the
 token from the discovery file, see below) and a `Host` header of
 `127.0.0.1:<port>` or `localhost:<port>`.
 
-| Route                | Method | Auth | Notes |
-| --------------------- | ------ | ---- | ----- |
-| `/health`             | GET    | no   | backend, tier, engine versions, `modelsMissing` |
-| `/models`             | GET    | yes  | installed/available/downloading, disk usage |
-| `/models/download`    | POST   | yes  | `{ modelId }` |
-| `/models/delete`      | POST   | yes  | `{ modelId }` |
-| `/transcribe`         | POST   | yes  | mirrors `apps/model-server`'s `/transcribe` word shape |
-| `/transcribe` (WS)    | —      | yes (bearer as a `?bearer=` query param) | streams `partial`/`done`/`error` frames |
-| `/align`               | POST   | yes  | mirrors `apps/model-server`'s `/align` word shape |
-| `/clean`               | POST   | yes  | `deep-filter`, 48 kHz |
-| `/render`              | POST   | yes  | delegates to `@montaj/render-skia-node` |
+| Route              | Method | Auth                                     | Notes                                                  |
+| ------------------ | ------ | ---------------------------------------- | ------------------------------------------------------ |
+| `/health`          | GET    | no                                       | backend, tier, engine versions, `modelsMissing`        |
+| `/models`          | GET    | yes                                      | installed/available/downloading, disk usage            |
+| `/models/download` | POST   | yes                                      | `{ modelId }`                                          |
+| `/models/delete`   | POST   | yes                                      | `{ modelId }`                                          |
+| `/transcribe`      | POST   | yes                                      | mirrors `apps/model-server`'s `/transcribe` word shape |
+| `/transcribe` (WS) | —      | yes (bearer as a `?bearer=` query param) | streams `partial`/`done`/`error` frames                |
+| `/align`           | POST   | yes                                      | mirrors `apps/model-server`'s `/align` word shape      |
+| `/clean`           | POST   | yes                                      | `deep-filter`, 48 kHz                                  |
+| `/render`          | POST   | yes                                      | delegates to `@montaj/render-skia-node`                |
 
 Every response and request is validated against the Zod schemas in
 `@montaj/engine-client` (`packages/engine-client`), which both `apps/desktop`
@@ -42,12 +42,12 @@ and `apps/web` import — one parser, not two that can drift.
 `cpu`) and a latency tier (A–D) from an injected `SystemInfo`, per
 `03-architecture/05-system-architecture.md` §7:
 
-| Tier | Condition | Note |
-| ---- | --------- | ---- |
-| A | Apple Silicon, ≥16 GB RAM | Metal + CoreML encoder when the CoreML model is installed |
-| B | Windows, ≥8 cores, ≥16 GB RAM, GPU present | Vulkan default, CUDA pack when both a device and the pack exist |
-| C | 4-8 cores, ≥8 GB RAM | small model |
-| D | <8 GB RAM, or below the C floor | local engine disabled — cloud with a banner |
+| Tier | Condition                                  | Note                                                            |
+| ---- | ------------------------------------------ | --------------------------------------------------------------- |
+| A    | Apple Silicon, ≥16 GB RAM                  | Metal + CoreML encoder when the CoreML model is installed       |
+| B    | Windows, ≥8 cores, ≥16 GB RAM, GPU present | Vulkan default, CUDA pack when both a device and the pack exist |
+| C    | 4-8 cores, ≥8 GB RAM                       | small model                                                     |
+| D    | <8 GB RAM, or below the C floor            | local engine disabled — cloud with a banner                     |
 
 ## Model manifest
 

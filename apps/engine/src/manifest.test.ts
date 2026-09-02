@@ -40,7 +40,9 @@ describe("manifest", () => {
         generatedAt: "x",
         defaultAsrModel: "missing",
         fallbackAsrModel: "a",
-        entries: [{ id: "a", kind: "asr", version: "1", path: "p", sizeBytes: 1, sha256: "0".repeat(64) }],
+        entries: [
+          { id: "a", kind: "asr", version: "1", path: "p", sizeBytes: 1, sha256: "0".repeat(64) },
+        ],
       }),
     ).toThrow(/defaultAsrModel/);
   });
@@ -52,7 +54,9 @@ describe("manifest", () => {
         generatedAt: "x",
         defaultAsrModel: "a",
         fallbackAsrModel: "a",
-        entries: [{ id: "a", kind: "asr", version: "1", path: "p", sizeBytes: 1, sha256: "not-a-hash" }],
+        entries: [
+          { id: "a", kind: "asr", version: "1", path: "p", sizeBytes: 1, sha256: "not-a-hash" },
+        ],
       }),
     ).toThrow();
   });

@@ -36,7 +36,9 @@ describe("detectBackend", () => {
   });
 
   it("tier C on modest hardware (4-8 cores, 8GB) with no GPU", () => {
-    const result = detectBackend(info({ platform: "win32", cores: 4, ramGb: 8, hasVulkan: false, hasCuda: false }));
+    const result = detectBackend(
+      info({ platform: "win32", cores: 4, ramGb: 8, hasVulkan: false, hasCuda: false }),
+    );
     expect(result.tier).toBe("C");
     expect(result.backend).toBe("cpu");
   });

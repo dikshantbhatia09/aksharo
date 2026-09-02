@@ -20,7 +20,9 @@ function manifestFor(bytes: Buffer, path = "models/a.bin"): EngineManifest {
     generatedAt: "x",
     defaultAsrModel: "a",
     fallbackAsrModel: "a",
-    entries: [{ id: "a", kind: "asr", version: "1", path, sizeBytes: bytes.length, sha256: sha256(bytes) }],
+    entries: [
+      { id: "a", kind: "asr", version: "1", path, sizeBytes: bytes.length, sha256: sha256(bytes) },
+    ],
   });
 }
 

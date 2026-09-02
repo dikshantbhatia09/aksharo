@@ -12,13 +12,7 @@ import { z } from "zod";
 export const LatencyTierSchema = z.enum(["A", "B", "C", "D"]);
 export type LatencyTier = z.infer<typeof LatencyTierSchema>;
 
-export const EngineBackendKindSchema = z.enum([
-  "metal-coreml",
-  "vulkan",
-  "cuda",
-  "cpu",
-  "fake",
-]);
+export const EngineBackendKindSchema = z.enum(["metal-coreml", "vulkan", "cuda", "cpu", "fake"]);
 export type EngineBackendKind = z.infer<typeof EngineBackendKindSchema>;
 
 export const WordTimingSchema = z.object({

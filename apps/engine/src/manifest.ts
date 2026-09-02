@@ -10,13 +10,7 @@ import { z } from "zod";
  * by C03b's real-hardware benchmarks.
  */
 
-export const ManifestEntryKindSchema = z.enum([
-  "asr",
-  "asr-coreml",
-  "vad",
-  "denoise",
-  "ffmpeg",
-]);
+export const ManifestEntryKindSchema = z.enum(["asr", "asr-coreml", "vad", "denoise", "ffmpeg"]);
 export type ManifestEntryKind = z.infer<typeof ManifestEntryKindSchema>;
 
 const sha256Schema = z.string().regex(/^[0-9a-f]{64}$/, "sha256 must be 64 lowercase hex digits");
@@ -63,10 +57,14 @@ export function parseManifest(raw: unknown): EngineManifest {
     ids.add(entry.id);
   }
   if (!ids.has(manifest.defaultAsrModel)) {
-    throw new ManifestError(`defaultAsrModel "${manifest.defaultAsrModel}" is not a manifest entry`);
+    throw new ManifestError(
+      `defaultAsrModel "${manifest.defaultAsrModel}" is not a manifest entry`,
+    );
   }
   if (!ids.has(manifest.fallbackAsrModel)) {
-    throw new ManifestError(`fallbackAsrModel "${manifest.fallbackAsrModel}" is not a manifest entry`);
+    throw new ManifestError(
+      `fallbackAsrModel "${manifest.fallbackAsrModel}" is not a manifest entry`,
+    );
   }
   return manifest;
 }
@@ -147,6 +145,8 @@ export function entriesForPlatform(
   platform: NodeJS.Platform,
 ): ManifestEntry[] {
   return manifest.entries.filter(
-    (entry) => entry.platforms === undefined || entry.platforms.includes(platform as "darwin" | "win32" | "linux"),
+    (entry) =>
+      entry.platforms === undefined ||
+      entry.platforms.includes(platform as "darwin" | "win32" | "linux"),
   );
 }

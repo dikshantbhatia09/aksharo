@@ -69,7 +69,9 @@ async function main(): Promise<void> {
   );
 
   const shutdown = async (): Promise<void> => {
-    removeEngineDiscoveryFile(discoveryDir === undefined ? undefined : engineDiscoveryFilePath(discoveryDir));
+    removeEngineDiscoveryFile(
+      discoveryDir === undefined ? undefined : engineDiscoveryFilePath(discoveryDir),
+    );
     await server.close();
     process.exit(0);
   };
@@ -89,7 +91,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-   
   console.error(error);
   process.exit(1);
 });
