@@ -52,6 +52,64 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B04 — api: the `offers` module (real signup-gift/₹9-pass/week-pass/top-up backing, ₹9 eligibility, instrumentation); web: export-dialog upsell panel, credits-meter top-up card, Subscription overview pass chips.**
+  - **`OffersModule` backs the interfaces A21 left as no-ops.** `PassesNinePassLedger`
+    (`nine-pass-ledger.impl.ts`) replaces `NoopNinePassLedger` as `ExportsModule`'s
+    `NINE_PASS_LEDGER` binding: a `first_export` pass is "available" once
+    `billing/webhooks.service.ts`'s `grantPass` stamps it paid (`consumedAt`) and stays
+    available until `consume()` stamps a new `redeemedAt`/`redeemedManifestId` pair at
+    manifest completion — a migration
+    (`20260902080000_b04_offers_nine_pass_redeem`) adds both columns to
+    `passes_purchased` specifically so "paid" and "spent" cannot collide (B01's own
+    `consumedAt` already meant "the webhook landed," not "the workspace used it").
+    **Manifest re-issue needs no new endpoint**: the client just re-calls `POST
+/projects/{id}/exports` with the same parameters after the pass is paid — the
+    decision engine (A21, unmodified) re-evaluates `ninePass.isAvailable` fresh and
+    returns a clean manifest, satisfying "no re-render needed if the render has not
+    started; if already rendered, re-run" without inventing a parallel mechanism.
+  - **Eligibility, enforced server-side.** `nine-pass-eligibility.ts` is a pure,
+    table-tested function (INR-only, never on a paid plan, once per workspace per 30
+    days); `NinePassEligibilityService` resolves the DB state and is called from
+    `billing/passes.service.ts#passCheckout` _after_ its existing INR check (so the
+    pre-existing `billing/pass_kind_unavailable` 400 for a USD workspace is
+    unchanged) and refuses with `409 offers/nine_pass_ineligible` otherwise.
+  - **`GET /offers/eligibility`** (signup gift / ₹9 pass / week pass / ₹149 top-up,
+    every amount read from `billing/billing.constants.ts`) and **`GET
+/offers/passes`** (every pass, newest first, with a computed
+    `pending_payment|available|active|redeemed|expired` status) back the web upsell
+    panel and the Subscription overview's pass chips.
+  - **`GET /admin/metrics/offers`** (`AdminOffersController`, registered in
+    `admin.module.ts` per the `AdminCreditsController` convention): the ₹9 hypothesis
+    (D55) — purchases, upgrades within 60 days, conversion rate, and a
+    keep/replace/monitor recommendation from D55's own thresholds — derived from
+    `passes_purchased`/`subscriptions` rather than a separate event log.
+  - **Two dev/test-only routes**, `POST /offers/dev/simulate-nine-pass-payment` and
+    `POST /offers/dev/consume-signup-gift` (`offers-dev.controller.ts`, registered
+    under `BillingModule`): both refuse outright unless `BILLING_PROVIDER` resolves
+    to `FakeProvider`, and carry no bearer auth (the Playwright e2e that calls them
+    runs against the web app's own httpOnly-cookie session, which a cross-origin test
+    client cannot attach as a header) — self-limited instead by needing an
+    unguessable `passPurchaseId`/`workspaceId` already returned by a real
+    authenticated call.
+  - **Web**: `components/editor/export/upsell/ExportUpsellPanel.tsx` (signup gift →
+    ₹9 clean export via Razorpay Checkout → week pass → "See plans", self-contained
+    since the editor's own export dialog had not landed — A15/A19 own it; mount point
+    documented in the component's header, exercised standalone at
+    `/ui-kit/export-upsell`), `components/billing/passes/{PassStatusChips,
+TopupCard}.tsx`, a new `/settings/subscription` page (Subscription overview did
+    not exist before this work package), and `lib/billing/razorpay.ts` (the Checkout
+    widget loader). `packages/api-client` gains `offersEndpoints`,
+    `billingEndpoints` (subscription, pass/top-up checkout) and `creditsEndpoints`
+    (balance), plus matching hooks and types.
+  - Tests: the ₹9 eligibility table (currency/plan/30-day-window boundaries), a
+    decision-engine test proving a ₹9 pass never clears a cloud render's watermark
+    (acceptance criterion 1), and `test/offers.e2e-spec.ts` (pass lifecycle, checkout
+    eligibility gating, week-pass entitlement raise and expiry via a fake `endsAt`,
+    the Free top-up lot, manifest re-issue after a ₹9 purchase end to end, and
+    `/admin/metrics/offers`) against a real PostgreSQL and Redis. Playwright:
+    `e2e/offers-nine-pass.spec.ts` drives the real panel through a faked Razorpay
+    widget and the dev-only webhook simulator.
+
 - **A21 — api: the exports module (decision engine, signed render manifests, cloud render/subtitle jobs, downloads, brand assets).**
   - **`POST /projects/{id}/exports`** runs the decision engine (`src/exports/decision.ts`,
     ≥25 table tests): browser vs. cloud per D34's technical caps (1080p ≤ 20 min on

@@ -15,6 +15,7 @@ import { defineEndpoint } from "./http.js";
 
 import type {
   ConsentState,
+  CreditsSummary,
   CurrentUser,
   DeviceApproveRequest,
   Entitlement,
@@ -22,13 +23,19 @@ import type {
   MagicLinkResponse,
   MemoryEntry,
   OAuthCompleteRequest,
+  OffersEligibilityView,
+  PassCheckoutRequest,
+  PassCheckoutResponse,
+  PassView,
   PendingApproval,
   RightsRequest,
   SessionSummary,
   SetConsentRequest,
   SignUpRequest,
   SignUpResponse,
+  SubscriptionView,
   TokenResponse,
+  TopupCheckoutRequest,
   UpdateMeRequest,
   UsageSummary,
   WorkspaceSummary,
@@ -195,6 +202,58 @@ export const jobEndpoints = {
   }),
 } as const;
 
+/** Billing (B01) — plan checkout is out of scope here; only what B04 needs. */
+export const billingEndpoints = {
+  getSubscription: defineEndpoint<void, SubscriptionView | null>({
+    method: "GET",
+    path: "/billing/subscription",
+    auth: "bearer",
+    operationId: "getSubscription",
+  }),
+  createPassCheckout: defineEndpoint<PassCheckoutRequest, PassCheckoutResponse>({
+    method: "POST",
+    path: "/billing/passes/checkout",
+    auth: "bearer",
+    operationId: "createPassCheckout",
+  }),
+  createTopupCheckout: defineEndpoint<TopupCheckoutRequest, PassCheckoutResponse>({
+    method: "POST",
+    path: "/billing/topups/checkout",
+    auth: "bearer",
+    operationId: "createTopupCheckout",
+  }),
+} as const;
+
+/** Credits (B02) — only the balance summary; usage history is out of scope here. */
+export const creditsEndpoints = {
+  getBalance: defineEndpoint<void, CreditsSummary>({
+    method: "GET",
+    path: "/workspaces/{id}/credits",
+    auth: "bearer",
+    operationId: "getWorkspaceCredits",
+  }),
+} as const;
+
+/**
+ * Offers (B04): the signup gift / ₹9 clean export / week pass / ₹149 Free
+ * top-up read model the export-dialog upsell panel and the Subscription
+ * overview's pass chips render from.
+ */
+export const offersEndpoints = {
+  eligibility: defineEndpoint<void, OffersEligibilityView>({
+    method: "GET",
+    path: "/offers/eligibility",
+    auth: "bearer",
+    operationId: "getOffersEligibility",
+  }),
+  listPasses: defineEndpoint<void, PassView[]>({
+    method: "GET",
+    path: "/offers/passes",
+    auth: "bearer",
+    operationId: "listOffersPasses",
+  }),
+} as const;
+
 /**
  * Routes `07-api-and-contracts.md` specifies whose work package has not landed.
  *
@@ -228,6 +287,9 @@ export const endpoints = {
   device: deviceEndpoints,
   account: accountEndpoints,
   jobs: jobEndpoints,
+  billing: billingEndpoints,
+  credits: creditsEndpoints,
+  offers: offersEndpoints,
   pending: pendingEndpoints,
 } as const;
 
@@ -237,5 +299,8 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(deviceEndpoints),
   ...Object.entries(accountEndpoints),
   ...Object.entries(jobEndpoints),
+  ...Object.entries(billingEndpoints),
+  ...Object.entries(creditsEndpoints),
+  ...Object.entries(offersEndpoints),
   ...Object.entries(pendingEndpoints),
 ] as const;
