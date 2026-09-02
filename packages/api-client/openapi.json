@@ -11671,6 +11671,124 @@
         ]
       }
     },
+    "/projects/{projectId}/passes/zoom": {
+      "post": {
+        "description": "Quotes the job from the primary media's probed duration (`reframeZoomPass` burn rate, source minutes), holds the credits and enqueues `ai.pass`. Proposed punch-in events land as `edg_pass_items` (kind `zoom`, state `proposed`) once the worker's completion arrives and `MergePass` merges them; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`.",
+        "operationId": "startZoomPass",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartZoomRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          },
+          "409": {
+            "description": "`pass/media_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start a zoom pass",
+        "tags": [
+          "passes"
+        ]
+      }
+    },
+    "/projects/{projectId}/passes/reframe": {
+      "post": {
+        "description": "Quotes the job from the primary media's probed duration (`reframeZoomPass` burn rate, source minutes), holds the credits and enqueues `ai.pass`. A crop-window keyframe curve lands as one `edg_pass_items` row (kind `reframe`, state `proposed`) once the worker's completion arrives and `MergePass` merges it; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`.",
+        "operationId": "startReframePass",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartReframeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          },
+          "409": {
+            "description": "`pass/media_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start a reframe pass",
+        "tags": [
+          "passes"
+        ]
+      }
+    },
     "/projects/{projectId}/passes": {
       "get": {
         "operationId": "listProjectPasses",
@@ -20023,6 +20141,14 @@
           "deduplicated",
           "quote"
         ]
+      },
+      "StartZoomRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "StartReframeRequestDto": {
+        "type": "object",
+        "properties": {}
       },
       "PassSummaryListDto": {
         "type": "object",
