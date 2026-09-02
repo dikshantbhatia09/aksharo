@@ -38,18 +38,25 @@ export function HomeView(): React.JSX.Element {
     aspect: "9:16",
   }));
 
-  // Once the user's own languages load, adopt the first one — but only before
-  // anyone has touched the picker, so this never clobbers a deliberate choice.
+  // Once the user's own onboarding answers load, adopt them as the starting
+  // point — but only before anyone has touched the picker, so this never
+  // clobbers a deliberate choice (B17: "what you make" → aspect/style,
+  // "languages you speak on camera" → language + routing hints).
   const [languageTouched, setLanguageTouched] = React.useState(false);
   React.useEffect(() => {
     if (languageTouched) return;
-    const onboardingLanguages = user.data?.onboarding.languages;
-    if (onboardingLanguages === undefined) return;
+    const onboarding = user.data?.onboarding;
+    if (onboarding === undefined) return;
     setQuickPick((current) => ({
       ...current,
-      language: defaultQuickPickLanguage(onboardingLanguages),
+      language: defaultQuickPickLanguage(onboarding.languages),
+      ...(onboarding.languages === undefined ? {} : { languages: onboarding.languages }),
+      ...(onboarding.defaultAspect === undefined ? {} : { aspect: onboarding.defaultAspect }),
+      ...(current.styleId === undefined && onboarding.defaultStyleId !== undefined
+        ? { styleId: onboarding.defaultStyleId }
+        : {}),
     }));
-  }, [languageTouched, user.data?.onboarding.languages]);
+  }, [languageTouched, user.data?.onboarding]);
 
   // The command palette's "New project" action lands here with `?new=1`
   // (`command-palette.tsx`); focusing the drop zone is the closest a page can

@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { AuditService } from "./audit.service.js";
 import { DataExportService } from "./data-export.service.js";
+import { ProductEventsService } from "./onboarding/product-events.service.js";
 import { ProfileService } from "./profile.service.js";
 import { UsersController } from "./users.controller.js";
 import { UsersService } from "./users.service.js";
@@ -21,7 +22,7 @@ import { UsersService } from "./users.service.js";
  */
 @Module({
   controllers: [UsersController],
-  providers: [AuditService, DataExportService, ProfileService, UsersService],
-  exports: [AuditService, DataExportService, ProfileService, UsersService],
+  providers: [AuditService, DataExportService, ProductEventsService, ProfileService, UsersService],
+  exports: [AuditService, DataExportService, ProductEventsService, ProfileService, UsersService],
 })
 export class UsersModule {}

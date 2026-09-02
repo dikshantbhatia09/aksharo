@@ -23,6 +23,7 @@ import type { EditorSnapshot, EditorStore } from "@/lib/edg/store";
 
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
 import { useRenderer } from "@/components/editor/canvas/use-canvaskit";
+import { FirstRunCoachMarks } from "@/components/editor/coach-marks/FirstRunCoachMarks";
 import { ExportButton } from "@/components/editor/export/ExportButton";
 import { type PanelOp, type PanelScope } from "@/components/editor/panels/ops";
 import { RightPanel } from "@/components/editor/panels/RightPanel";
@@ -469,14 +470,16 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           Follow playhead
         </label>
         <div className="ml-auto flex items-center gap-2">
-          <ExportButton
-            projectId={projectId}
-            primaryMediaId={state.hot.media.find((media) => media.role === "primary")?.mediaId}
-            projection={toRenderProjection(state)}
-            catalogue={SYSTEM_STYLE_MAP}
-            registry={registry}
-            shaper={shaper}
-          />
+          <span data-coach-mark="export" className="inline-flex">
+            <ExportButton
+              projectId={projectId}
+              primaryMediaId={state.hot.media.find((media) => media.role === "primary")?.mediaId}
+              projection={toRenderProjection(state)}
+              catalogue={SYSTEM_STYLE_MAP}
+              registry={registry}
+              shaper={shaper}
+            />
+          </span>
           <button
             type="button"
             data-testid="editor-undo"
@@ -548,7 +551,10 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
       ) : null}
 
       <div className="flex min-h-0 flex-1">
-        <div className="flex w-[420px] shrink-0 flex-col gap-2 border-r border-white/10 p-3">
+        <div
+          className="flex w-[420px] shrink-0 flex-col gap-2 border-r border-white/10 p-3"
+          data-coach-mark="transcript"
+        >
           <BulkActionsBar
             onMergeShort={onMergeShort}
             onSplitLong={onSplitLong}
@@ -596,7 +602,10 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           />
         </div>
 
-        <div className="flex w-80 shrink-0 flex-col gap-2 border-l border-white/10 p-3">
+        <div
+          className="flex w-80 shrink-0 flex-col gap-2 border-l border-white/10 p-3"
+          data-coach-mark="style"
+        >
           {reflow?.current.belowComfortableMinimum === true ? (
             <p
               data-testid="below-comfortable-minimum-hint"
@@ -660,6 +669,8 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         onResolve={(opId, choice) => store.resolveConflict(opId, choice)}
         onDismiss={(opId) => store.dismissConflict(opId)}
       />
+
+      <FirstRunCoachMarks />
     </div>
   );
 }

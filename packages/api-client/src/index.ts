@@ -89,6 +89,8 @@ export type {
   AffiliateProfile,
   AffiliateStats,
   ApplyAffiliateRequest,
+  AttachAffiliateAttributionRequest,
+  AttachAffiliateAttributionResult,
   AvailableScripts,
   BillingInterval,
   BatchCreateProjectsRequest,

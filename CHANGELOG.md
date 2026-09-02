@@ -46,6 +46,44 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B17 — onboarding completion: defaults, code classification, sample
+  project, coach marks, attribution events, Hindi UI.** Extends A13's
+  three-step wizard (`apps/web/app/(app)/onboarding/onboarding-flow.tsx`) with
+  a fourth "you're set" step (drop-zone equivalent via the existing
+  `SampleProjectButton`) and turns the answers already collected into real
+  defaults: "what you make" now derives a default aspect, caption style and
+  export-preset label (`MAKE_DEFAULTS`), persisted onto `onboarding` and
+  adopted by the Home quick-pick row (`home-view.tsx`) the same way it already
+  adopted the language; "languages you speak on camera" now rides along as
+  routing hints on the *next* transcribe request (`upload-job.ts`'s
+  `tryStartTranscription`, `languages: [primary, ...secondary]` plus
+  `captions.styleRef`), not just the first pick. The code field classifies by
+  prefix (`apps/api/src/users/onboarding/code-classifier.ts`, mirrored
+  client-side): `AK-` routes to B07b's existing `/referrals/claim`; anything
+  else affiliate-shaped calls B07's `/affiliate/attribution/attach` (newly
+  wired into `@montaj/api-client` as `useAttachAffiliateAttribution`, not
+  previously called from anywhere in `apps/web`); anything else shows an
+  inline "that doesn't look right" error without blocking the wizard.
+  `product_events` (new table, migration `20260902150000_b17_product_events`)
+  records `onboarding_completed` with `source`/`codeType`/`props` the first
+  time `onboarding.completedAt` appears (`ProfileService.update`, guarded so a
+  later unrelated `PATCH /me` never re-fires it); `GET /admin/metrics/acquisition`
+  aggregates it by source and code type over a trailing window (default 30
+  days), following `AdminStreakController`'s shape. Three first-run coach
+  marks (transcript editing, style picker, export) render once in the editor
+  (`FirstRunCoachMarks.tsx`, positioned off `data-coach-mark` containers
+  `editor-client.tsx` already carries elsewhere), gated on a new
+  `onboarding.coachMarksShownAt` flag. A minimal ICU MessageFormat i18n layer
+  (`apps/web/lib/i18n/locale-provider.tsx`, `intl-messageformat`, already
+  pinned in the lockfile for the API's notification templates) ships English
+  and Hindi catalogues for the onboarding flow and the coach marks, with a
+  language switch in the profile menu (persisted through the existing
+  `locale` field on `/me`). No `PATCH /me/onboarding` route was added: A13/A05
+  already built onboarding persistence as a free-form field on the existing,
+  frozen `PATCH /me`, and every new field here (`codeType`, `defaultAspect`,
+  `defaultStyleId`, `defaultExportPreset`, `coachMarksShownAt`) fits its
+  existing bounded schema — a parallel route would only duplicate that seam.
+
 - **B06 — streak experiment: 3-day weekly bar, auto-freezes, pause-not-reset,
   level-ups, discounts/credit grants, holdout, and the widget.** `apps/api/src/streak/`:
   a pure state machine (`streak.engine.ts`, table-tested with fake clocks) —

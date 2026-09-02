@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
 
+import { AdminAcquisitionController } from "./acquisition/admin-acquisition.controller.js";
+import { AdminAcquisitionService } from "./acquisition/admin-acquisition.service.js";
 import { AdminGuard } from "./admin.guard.js";
 import { AdminCreditsController } from "./credits/admin-credits.controller.js";
 import { AdminDlqController } from "./dlq/dlq.controller.js";
@@ -40,8 +42,9 @@ import { PrivacyModule } from "../privacy/privacy.module.js";
     AdminCreditsController,
     AdminOffersController,
     AdminStreakController,
+    AdminAcquisitionController,
   ],
-  providers: [AdminGuard, AdminStreakService],
+  providers: [AdminGuard, AdminStreakService, AdminAcquisitionService],
   exports: [AdminGuard],
 })
 export class AdminModule {}
