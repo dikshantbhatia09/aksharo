@@ -127,7 +127,7 @@ Three things are load-bearing, and each is asserted in `src/render/pool.test.ts`
 
 - **Pixels never cross the thread boundary.** A slot is a `SharedArrayBuffer` allocated
   once and drawn into in place; only the finished command list is sent. A20 measured the
-  alternative — an 8.3 MB copy per frame made the render *slower*.
+  alternative — an 8.3 MB copy per frame made the render _slower_.
 - **The cache decision stays on the main thread.** Layout and the hash cost about
   0.9 ms a frame and decide whether a frame is new, so two thirds of a render never
   reach a worker at all.

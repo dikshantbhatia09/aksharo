@@ -61,12 +61,12 @@ ceiling more than it needs an average.
 The brief asks for **≥ 2× realtime at 1080p**. Measured: **2.31×** (median of three;
 2.31–2.34×), against **1.13×** for the same binary with `--workers 0`.
 
-| 1080p, 30 s of output                     | Wall clock |     Throughput | vCPU-s / output min |
-| ----------------------------------------- | ---------: | -------------: | ------------------: |
-| A20 — rasterise inline (`--workers 0`)    |    26.48 s |         1.13×  |                 635 |
-| A20b — 1 worker                           |    25.83 s |         1.16×  |                 620 |
-| A20b — 2 workers                          |    18.23 s |         1.65×  |                 437 |
-| **A20b — 4 workers (default)**            | **12.97 s** |    **2.31×**  |             **311** |
+| 1080p, 30 s of output                  |  Wall clock | Throughput | vCPU-s / output min |
+| -------------------------------------- | ----------: | ---------: | ------------------: |
+| A20 — rasterise inline (`--workers 0`) |     26.48 s |      1.13× |                 635 |
+| A20b — 1 worker                        |     25.83 s |      1.16× |                 620 |
+| A20b — 2 workers                       |     18.23 s |      1.65× |                 437 |
+| **A20b — 4 workers (default)**         | **12.97 s** |  **2.31×** |             **311** |
 
 One worker is worth almost nothing (1.13× → 1.16×) and that is the tell: the win is not
 "Skia got faster", it is "Skia stopped taking turns with ffmpeg". A single worker moves
@@ -77,12 +77,12 @@ frames; the second and third are what actually fill the gaps.
 
 Measured separately on the same machine, 30 seconds of 1080p output:
 
-| Stage                                                                | A20 (inline) | A20b (4 workers) |
-| -------------------------------------------------------------------- | -----------: | ---------------: |
-| Skia — layout, hash, outline, rasterise, read back 900 frames        |      18.83 s |       **6.93 s** |
-| ffmpeg — decode, overlay a constant RGBA stream, x264, mux           |      13.22 s |          13.22 s |
-| ffmpeg with no overlay at all — decode and re-encode                 |       8.53 s |           8.53 s |
-| **Whole render**                                                     |  **26.48 s** |     **12.97 s** |
+| Stage                                                         | A20 (inline) | A20b (4 workers) |
+| ------------------------------------------------------------- | -----------: | ---------------: |
+| Skia — layout, hash, outline, rasterise, read back 900 frames |      18.83 s |       **6.93 s** |
+| ffmpeg — decode, overlay a constant RGBA stream, x264, mux    |      13.22 s |          13.22 s |
+| ffmpeg with no overlay at all — decode and re-encode          |       8.53 s |           8.53 s |
+| **Whole render**                                              |  **26.48 s** |      **12.97 s** |
 
 Before, the two halves added up: 18.8 + 13.2 ≈ 32 s of work in a 26.5 s render, so they
 barely overlapped at all. After, the whole render is 12.97 s against an ffmpeg half of
@@ -101,7 +101,7 @@ Three decisions are load-bearing:
 
 1. **Pixels never cross the thread boundary.** Each slot is a `SharedArrayBuffer` the
    main thread allocates once and every worker draws into. A20 already measured the
-   alternative: an 8.3 MB copy per 1080p frame made the render *slower* (0.82× against
+   alternative: an 8.3 MB copy per 1080p frame made the render _slower_ (0.82× against
    0.95×) when it was tried as a pipe run-ahead buffer. What does cross is the finished
    `DrawCommand[]`, about 12 KB.
 2. **The cache decision stays on the main thread.** Layout and `hashCommands` are ~0.9 ms

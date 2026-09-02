@@ -36,7 +36,6 @@ import { toEdgProjection } from "./projection.js";
 import { watermarkCommandFor } from "./watermark.js";
 import { makeWatermarkPng, sampleProjection } from "../testing.js";
 
-
 const SECRET = "pool-test-secret";
 /** Small on purpose: this suite is about bytes and bookkeeping, not throughput. */
 const WIDTH = 180;
@@ -111,9 +110,7 @@ describe("pool sizing", () => {
 
   it("resolves the worker entry from a path that survives the build", () => {
     // `src/render/` and `dist/render/` are both two below the package root.
-    expect(resolveWorkerPath().replace(/\\/g, "/")).toMatch(
-      /workers\/raster-worker\.mjs$/,
-    );
+    expect(resolveWorkerPath().replace(/\\/g, "/")).toMatch(/workers\/raster-worker\.mjs$/);
   });
 });
 
@@ -130,88 +127,72 @@ describe("the pool", () => {
     ).rejects.toThrow(RasterPoolError);
   });
 
-  it(
-    "bounds its memory by the slot count, not the frame count",
-    async () => {
-      const { fonts } = await commandOptions();
-      const pool = await track(
-        createRasterPool({ width: WIDTH, height: HEIGHT, fonts, size: 1, slots: 3 }),
-      );
-      expect(pool.size).toBe(1);
-      expect(pool.slots).toBe(3);
-      expect(pool.free).toBe(3);
-    },
-    120_000,
-  );
+  it("bounds its memory by the slot count, not the frame count", async () => {
+    const { fonts } = await commandOptions();
+    const pool = await track(
+      createRasterPool({ width: WIDTH, height: HEIGHT, fonts, size: 1, slots: 3 }),
+    );
+    expect(pool.size).toBe(1);
+    expect(pool.slots).toBe(3);
+    expect(pool.free).toBe(3);
+  }, 120_000);
 
-  it(
-    "hands a slot back only when it is released, and reuses it afterwards",
-    async () => {
-      const { fonts, options } = await commandOptions();
-      const pool = await track(
-        createRasterPool({ width: WIDTH, height: HEIGHT, fonts, size: 1, slots: 2 }),
-      );
-      const inline = createFrameSource({
-        ...options,
-        backend: await SkiaNodeBackend.create({ shaper: options.shaper }),
-        batch: (await SkiaNodeBackend.create({ shaper: options.shaper })).createBatch({
-          width: WIDTH,
-          height: HEIGHT,
-        }),
-      });
-      const commands = inline.commandsAt(frameTimeMs(0, FPS));
-
-      const first = await pool.render(commands);
-      expect(pool.free).toBe(1);
-      const second = await pool.render(commands);
-      expect(pool.free).toBe(0);
-      expect(second.slot).not.toBe(first.slot);
-
-      // A third render has nowhere to go until a slot comes back.
-      let third: { slot: number } | null = null;
-      void pool.render(commands).then((frame) => (third = frame));
-      await new Promise((resolve) => setTimeout(resolve, 20));
-      expect(third).toBeNull();
-
-      pool.release(first);
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      expect(third).not.toBeNull();
-    },
-    120_000,
-  );
-
-  it(
-    "reports a frame it could not draw rather than answering with stale pixels",
-    async () => {
-      const { fonts } = await commandOptions();
-      const pool = await track(
-        createRasterPool({ width: WIDTH, height: HEIGHT, fonts, size: 1, slots: 2 }),
-      );
-      await expect(
-        pool.render([{ kind: "nonsense" } as unknown as DrawCommand]),
-      ).rejects.toThrow(/could not be rasterised/);
-      // The slot came back, so the render can carry on failing cleanly.
-      expect(pool.free).toBe(2);
-    },
-    120_000,
-  );
-
-  it(
-    "refuses work once it is closed",
-    async () => {
-      const { fonts } = await commandOptions();
-      const pool = await createRasterPool({
+  it("hands a slot back only when it is released, and reuses it afterwards", async () => {
+    const { fonts, options } = await commandOptions();
+    const pool = await track(
+      createRasterPool({ width: WIDTH, height: HEIGHT, fonts, size: 1, slots: 2 }),
+    );
+    const inline = createFrameSource({
+      ...options,
+      backend: await SkiaNodeBackend.create({ shaper: options.shaper }),
+      batch: (await SkiaNodeBackend.create({ shaper: options.shaper })).createBatch({
         width: WIDTH,
         height: HEIGHT,
-        fonts,
-        size: 1,
-        slots: 1,
-      });
-      await pool.terminate();
-      await expect(pool.render([])).rejects.toThrow(/closed/);
-    },
-    120_000,
-  );
+      }),
+    });
+    const commands = inline.commandsAt(frameTimeMs(0, FPS));
+
+    const first = await pool.render(commands);
+    expect(pool.free).toBe(1);
+    const second = await pool.render(commands);
+    expect(pool.free).toBe(0);
+    expect(second.slot).not.toBe(first.slot);
+
+    // A third render has nowhere to go until a slot comes back.
+    let third: { slot: number } | null = null;
+    void pool.render(commands).then((frame) => (third = frame));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(third).toBeNull();
+
+    pool.release(first);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(third).not.toBeNull();
+  }, 120_000);
+
+  it("reports a frame it could not draw rather than answering with stale pixels", async () => {
+    const { fonts } = await commandOptions();
+    const pool = await track(
+      createRasterPool({ width: WIDTH, height: HEIGHT, fonts, size: 1, slots: 2 }),
+    );
+    await expect(pool.render([{ kind: "nonsense" } as unknown as DrawCommand])).rejects.toThrow(
+      /could not be rasterised/,
+    );
+    // The slot came back, so the render can carry on failing cleanly.
+    expect(pool.free).toBe(2);
+  }, 120_000);
+
+  it("refuses work once it is closed", async () => {
+    const { fonts } = await commandOptions();
+    const pool = await createRasterPool({
+      width: WIDTH,
+      height: HEIGHT,
+      fonts,
+      size: 1,
+      slots: 1,
+    });
+    await pool.terminate();
+    await expect(pool.render([])).rejects.toThrow(/closed/);
+  }, 120_000);
 });
 
 describe("the pooled frame source against the inline one", () => {
@@ -273,35 +254,27 @@ describe("the pooled frame source against the inline one", () => {
     };
   }
 
-  it(
-    "draws byte-identical frames",
-    async () => {
-      const result = await compare(null);
-      expect(result.differing).toEqual([]);
-      expect(result.identical).toBe(FRAMES);
-      // And it makes the same cache decisions, or the comparison above would be
-      // comparing two different amounts of work.
-      expect(result.pooledStats.rasterised).toBe(result.inlineStats.rasterised);
-      expect(result.pooledStats.reused).toBe(result.inlineStats.reused);
-      expect(result.pooledStats.rasterised).toBeLessThan(FRAMES);
-    },
-    300_000,
-  );
+  it("draws byte-identical frames", async () => {
+    const result = await compare(null);
+    expect(result.differing).toEqual([]);
+    expect(result.identical).toBe(FRAMES);
+    // And it makes the same cache decisions, or the comparison above would be
+    // comparing two different amounts of work.
+    expect(result.pooledStats.rasterised).toBe(result.inlineStats.rasterised);
+    expect(result.pooledStats.reused).toBe(result.inlineStats.reused);
+    expect(result.pooledStats.rasterised).toBeLessThan(FRAMES);
+  }, 300_000);
 
-  it(
-    "draws the watermark too, which needs the image bytes on every thread",
-    async () => {
-      // The bug this catches: workers with no image table drew every frame
-      // correctly except the one thing the plan charges for, and reported
-      // nothing.
-      const watermark = watermarkCommandFor(
-        { assetId: "pool-mark", position: "bottom-right", opacity: 0.9 },
-        { width: WIDTH, height: HEIGHT },
-      );
-      expect(watermark).not.toBeNull();
-      const result = await compare(watermark);
-      expect(result.differing).toEqual([]);
-    },
-    300_000,
-  );
+  it("draws the watermark too, which needs the image bytes on every thread", async () => {
+    // The bug this catches: workers with no image table drew every frame
+    // correctly except the one thing the plan charges for, and reported
+    // nothing.
+    const watermark = watermarkCommandFor(
+      { assetId: "pool-mark", position: "bottom-right", opacity: 0.9 },
+      { width: WIDTH, height: HEIGHT },
+    );
+    expect(watermark).not.toBeNull();
+    const result = await compare(watermark);
+    expect(result.differing).toEqual([]);
+  }, 300_000);
 });

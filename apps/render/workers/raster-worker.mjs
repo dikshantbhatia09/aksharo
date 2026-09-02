@@ -56,10 +56,7 @@ async function boot() {
   }
 
   for (const [index, shared] of slots.entries()) {
-    batches.set(
-      index,
-      backend.createBatch({ width, height, into: new Uint8Array(shared) }),
-    );
+    batches.set(index, backend.createBatch({ width, height, into: new Uint8Array(shared) }));
   }
   port.postMessage({ type: "ready" });
 }

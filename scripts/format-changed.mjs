@@ -66,7 +66,9 @@ const committed = git(["diff", "--name-only", "--diff-filter=d", `${base}...HEAD
 const uncommitted = git(["diff", "--name-only", "--diff-filter=d", "HEAD"]);
 const untracked = git(["ls-files", "--others", "--exclude-standard"]);
 
-const files = [...new Set([...committed.split("\n"), ...uncommitted.split("\n"), ...untracked.split("\n")])]
+const files = [
+  ...new Set([...committed.split("\n"), ...uncommitted.split("\n"), ...untracked.split("\n")]),
+]
   .map((line) => line.trim())
   .filter((line) => line !== "")
   .filter((line) => FORMATTABLE.has(line.split(".").pop()?.toLowerCase() ?? ""))

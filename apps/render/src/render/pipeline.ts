@@ -26,7 +26,12 @@ import type { RenderManifest } from "@montaj/render-manifest";
 import { SkiaNodeBackend } from "@montaj/render-skia-node";
 
 import { loadFonts } from "./fonts.js";
-import { createFrameSource, createPooledFrameSource, type FrameSource, type FrameStats } from "./frames.js";
+import {
+  createFrameSource,
+  createPooledFrameSource,
+  type FrameSource,
+  type FrameStats,
+} from "./frames.js";
 import { createRasterPool, defaultPoolSize, type RasterPool } from "./pool.js";
 import { buildRenderTimeMap, parseStyleCatalogue, toEdgProjection } from "./projection.js";
 import { watermarkCommandFor } from "./watermark.js";
@@ -206,9 +211,7 @@ export async function renderVideo(
           onMissing: (resource) => {
             dependencies.onWarning?.(`a rasteriser worker could not find ${resource}`);
           },
-          ...(dependencies.workerPath === undefined
-            ? {}
-            : { workerPath: dependencies.workerPath }),
+          ...(dependencies.workerPath === undefined ? {} : { workerPath: dependencies.workerPath }),
         });
       } catch (error) {
         dependencies.onWarning?.(
