@@ -20,7 +20,10 @@ export function projectCardStatus(project: Project, jobs: readonly JobSummary[])
 }
 
 /** The one live job worth showing progress for, if any (newest first). */
-export function activeJobFor(project: Project, jobs: readonly JobSummary[]): JobSummary | undefined {
+export function activeJobFor(
+  project: Project,
+  jobs: readonly JobSummary[],
+): JobSummary | undefined {
   return jobs
     .filter((job) => job.projectId === project.id)
     .filter((job) => job.status === "queued" || job.status === "running")

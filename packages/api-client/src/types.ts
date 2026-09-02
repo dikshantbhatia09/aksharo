@@ -321,13 +321,7 @@ export interface UpdateFolderRequest {
 }
 
 export type MediaStatus =
-  | "pending"
-  | "uploading"
-  | "uploaded"
-  | "probing"
-  | "ready"
-  | "failed"
-  | "purged";
+  "pending" | "uploading" | "uploaded" | "probing" | "ready" | "failed" | "purged";
 
 export interface MediaDerivedKeys {
   proxy: string | null;

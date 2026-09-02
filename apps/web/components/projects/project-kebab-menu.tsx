@@ -10,15 +10,20 @@
  * drops items as work packages land is worse than one that is honest about
  * what is not wired up yet, matching how `nav.ts` handles an unbuilt route.
  */
-import { Archive, ArchiveRestore, Copy, ExternalLink, Info, MoreHorizontal, Share2, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  Copy,
+  ExternalLink,
+  Info,
+  MoreHorizontal,
+  Share2,
+  Trash2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-import {
-  useCreateProject,
-  useDeleteProject,
-  useUpdateProject,
-} from "@montaj/api-client";
+import { useCreateProject, useDeleteProject, useUpdateProject } from "@montaj/api-client";
 import type { Project } from "@montaj/api-client";
 import {
   Dialog,
@@ -38,7 +43,6 @@ import {
 } from "@montaj/ui";
 
 import { messageForError } from "@/lib/errors";
-
 
 export function ProjectKebabMenu({
   project,

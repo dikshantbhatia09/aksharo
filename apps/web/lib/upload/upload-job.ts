@@ -276,19 +276,22 @@ export class UploadJob {
   }
 
   /**
-   * Best-effort: A11 owns `/projects/{id}/transcribe` and it is not merged
-   * into `main` yet (`pendingEndpoints.transcribe` in `@montaj/api-client`),
-   * so this call answers `client/not_implemented` in every environment this
-   * branch has seen. The upload is still a complete success either way — the
-   * project exists, the media is ready to open — so this never turns an
-   * upload into a failure.
+   * Best-effort: the freshly-uploaded media has not been probed yet (that is
+   * `media.probe`, enqueued by `complete` above), so the real
+   * `POST /projects/{id}/transcribe` (A11) usually answers
+   * `transcript/media_not_ready` — a 409 — right here. That is not a
+   * failure: the upload already succeeded, the project exists and the media
+   * is ready to open. This call is just the eager attempt for the common
+   * case where probing has already finished by the time the last part
+   * lands; when it has not, the project simply opens without a transcript
+   * yet and nothing here needs to retry it.
    */
   private async tryStartTranscription(projectId: string): Promise<void> {
     this.setStatus("transcribing");
     try {
-      const result = await this.deps.client.call(endpoints.pending.transcribe, {
+      const result = await this.deps.client.call(endpoints.transcripts.transcribe, {
         params: { projectId },
-        body: { language: this.deps.quickPick.language },
+        body: { languages: [this.deps.quickPick.language], hints: [] },
       });
       this.jobId = result.jobId;
       this.setStatus("transcribing");

@@ -52,6 +52,40 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A14 — web: Home and Projects, the presigned-multipart upload engine, and the style catalogue API.**
+  - **Home (`/`, rewritten from `(app)/home/page.tsx` — see Deviations below).** A drop
+    zone that goes straight to presigned S3/MinIO multipart URLs, never through the API
+    process: parts hash client-side with a pure-JS streaming SHA-256 (a Web Worker when
+    available, inline otherwise), upload in parallel (3 at a time), resume from an
+    IndexedDB-persisted record after a reload, and report progress per file. The
+    quick-pick row defaults to Hinglish (Roman) and `punch-pop` first (08 §Home), and
+    opens A16's real `StylePicker` against the new `GET /styles` catalogue. "Try with a
+    sample" creates the seeded sample project and opens it.
+  - **Projects (`/projects`).** Search, status/language filters, an Agency-only client
+    tag filter, sort, folders (create/rename/filter), bulk select (archive/delete),
+    infinite scroll, and a detail sheet with retention date and job history. Cards read
+    live job state from the realtime client (queued/processing/ready/failed), piggy-
+    backing on `AppShell`'s existing `["ws", id, "jobs"]` realtime invalidation via a
+    nested query key.
+  - **`GET /styles`** (`apps/api/src/styles`) merges the seeded `style_presets` system
+    catalogue with a workspace's own custom presets; the new
+    `/workspaces/{id}/style-presets` `POST`/`PATCH`/`DELETE` routes validate a full
+    StyleDoc v2 document server-side (D64's naming rule; a preset may not shadow or
+    duplicate a key) and carry the same guard stack as the rest of `/workspaces/:id/*`.
+  - **`POST /projects/sample`** creates a project from a small bundled WAV fixture,
+    PUTting it directly to storage (not through the multipart path a real upload uses)
+    and enqueuing `media.probe`, for Home's "Try with a sample".
+  - Wired the real `POST /projects/{id}/transcribe` (A11, merged after this branch was
+    cut) into the upload engine's best-effort "start transcribing" step and into
+    `useTranscribe`; both treat `transcript/media_not_ready` as a normal outcome, not
+    a failure.
+  - **Deviations from the brief.** The brief's file boundary was
+    `apps/web/app/(app)/(home)/**`; Next.js refuses two page files that resolve to the
+    same path, and `(app)/(home)/page.tsx` and the marketing site's own homepage both
+    resolve to `/`. Home lives at the real segment `apps/web/app/(app)/home/page.tsx`
+    instead, with `middleware.ts` rewriting an authenticated `GET /` to it — the
+    address bar, and the sidebar's Home link, never show `/home`.
+
 - **A21 — api: the exports module (decision engine, signed render manifests, cloud render/subtitle jobs, downloads, brand assets).**
   - **`POST /projects/{id}/exports`** runs the decision engine (`src/exports/decision.ts`,
     ≥25 table tests): browser vs. cloud per D34's technical caps (1080p ≤ 20 min on

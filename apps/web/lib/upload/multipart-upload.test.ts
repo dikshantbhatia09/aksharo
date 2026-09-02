@@ -92,7 +92,10 @@ function harness(overrides: { concurrency?: number } = {}) {
       return 0;
     },
     onProgress: (state) => {
-      progressUpdates.push({ uploadedBytes: state.uploadedBytes, completedParts: state.completedParts });
+      progressUpdates.push({
+        uploadedBytes: state.uploadedBytes,
+        completedParts: state.completedParts,
+      });
     },
     onPartCompleted: (part) => {
       completedCalls.push(part.partNumber);

@@ -18,7 +18,6 @@ import { ProjectDetailSheet } from "@/components/projects/project-detail-sheet";
 import { ProjectGrid } from "@/components/projects/project-grid";
 import { EMPTY_FILTERS, ProjectToolbar, sortProjects } from "@/components/projects/project-toolbar";
 
-
 export function ProjectsView(): React.JSX.Element {
   const [filters, setFilters] = React.useState<ProjectFilters>(EMPTY_FILTERS);
   const [folderId, setFolderId] = React.useState<string | undefined>(undefined);
@@ -53,7 +52,11 @@ export function ProjectsView(): React.JSX.Element {
     const node = loadMoreRef.current;
     if (node === null) return;
     const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting) && query.hasNextPage === true && !query.isFetchingNextPage) {
+      if (
+        entries.some((entry) => entry.isIntersecting) &&
+        query.hasNextPage === true &&
+        !query.isFetchingNextPage
+      ) {
         void query.fetchNextPage();
       }
     });

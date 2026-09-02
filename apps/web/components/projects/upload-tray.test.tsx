@@ -32,7 +32,9 @@ describe("<UploadTray />", () => {
   it("shows a Pause control while uploading and calls back with the item id", async () => {
     const user = userEvent.setup();
     const pause = vi.fn();
-    render(<UploadTray items={[item()]} pause={pause} resume={noop} cancel={noop} dismiss={noop} />);
+    render(
+      <UploadTray items={[item()]} pause={pause} resume={noop} cancel={noop} dismiss={noop} />,
+    );
     await user.click(screen.getByTestId("upload-pause"));
     expect(pause).toHaveBeenCalledWith("local-1");
   });
@@ -88,10 +90,7 @@ describe("<UploadTray />", () => {
       />,
     );
     expect(screen.getByText("Already in your workspace.")).toBeInTheDocument();
-    expect(screen.getByTestId("duplicate-open-original")).toHaveAttribute(
-      "href",
-      "/p/01JORIGINAL",
-    );
+    expect(screen.getByTestId("duplicate-open-original")).toHaveAttribute("href", "/p/01JORIGINAL");
   });
 
   it("shows the error and offers a retry", () => {

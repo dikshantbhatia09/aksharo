@@ -46,9 +46,12 @@ export function BulkActionBar({
       (result): result is PromiseRejectedResult => result.status === "rejected",
     );
     if (rejected !== undefined) {
-      toast.error(`${String(results.filter((r) => r.status === "rejected").length)} of ${String(ids.length)} could not be deleted.`, {
-        description: messageForError(rejected.reason),
-      });
+      toast.error(
+        `${String(results.filter((r) => r.status === "rejected").length)} of ${String(ids.length)} could not be deleted.`,
+        {
+          description: messageForError(rejected.reason),
+        },
+      );
     } else {
       toast.success(`Deleted ${String(ids.length)} project${ids.length === 1 ? "" : "s"}.`);
     }

@@ -10,7 +10,13 @@ import {
 
 import { MediaService } from "./media.service.js";
 import { zodResponse } from "../auth/dto/openapi.js";
-import { CurrentUser, CurrentWorkspace, JwtAuthGuard, Roles, RolesGuard } from "../common/guards/index.js";
+import {
+  CurrentUser,
+  CurrentWorkspace,
+  JwtAuthGuard,
+  Roles,
+  RolesGuard,
+} from "../common/guards/index.js";
 import { projectSchema } from "../projects/projects.dto.js";
 import { ProjectsService } from "../projects/projects.service.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";

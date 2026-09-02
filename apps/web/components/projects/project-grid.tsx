@@ -18,7 +18,6 @@ import { ProjectCard } from "./project-card";
 
 import { messageForError } from "@/lib/errors";
 
-
 export function SampleProjectButton({
   variant = "primary",
 }: {

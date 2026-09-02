@@ -93,7 +93,11 @@ test("opens the detail sheet with retention and job history", async ({ page }) =
   await createSampleProject(page);
   await gotoHydrated(page, "/projects");
 
-  await page.getByTestId("project-card").first().getByTestId(/project-kebab-/).click();
+  await page
+    .getByTestId("project-card")
+    .first()
+    .getByTestId(/project-kebab-/)
+    .click();
   await page.getByTestId("kebab-details").click();
   await expect(page.getByTestId("project-detail-sheet")).toBeVisible();
   await expect(page.getByTestId("project-detail-retention")).toBeVisible();

@@ -13,11 +13,18 @@ import * as React from "react";
 
 import { useStyles } from "@montaj/api-client";
 import type { StyleDoc } from "@montaj/caption-styles";
-import { Button, Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle, Skeleton } from "@montaj/ui";
+import {
+  Button,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  Skeleton,
+} from "@montaj/ui";
 
 import { StylePicker } from "@/components/editor/panels/StylePicker";
 import { stylePreviewUrl } from "@/lib/style-previews";
-
 
 export function StyleQuickPick({
   styleId,

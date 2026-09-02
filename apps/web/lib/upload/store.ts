@@ -21,14 +21,7 @@ const DB_VERSION = 1;
 const STORE_NAME = "uploads";
 
 export type UploadRecordStatus =
-  | "pending"
-  | "hashing"
-  | "uploading"
-  | "paused"
-  | "completing"
-  | "done"
-  | "error"
-  | "cancelled";
+  "pending" | "hashing" | "uploading" | "paused" | "completing" | "done" | "error" | "cancelled";
 
 export interface CompletedPartRecord {
   readonly partNumber: number;
@@ -114,9 +107,7 @@ export async function getUploadRecord(id: string): Promise<PersistedUploadRecord
 
 /** Every record, newest first — the upload tray reads this after a reload. */
 export async function listUploadRecords(): Promise<PersistedUploadRecord[]> {
-  const all = await runTransaction<PersistedUploadRecord[]>("readonly", (store) =>
-    store.getAll(),
-  );
+  const all = await runTransaction<PersistedUploadRecord[]>("readonly", (store) => store.getAll());
   return [...all].sort((a, b) => b.createdAt - a.createdAt);
 }
 

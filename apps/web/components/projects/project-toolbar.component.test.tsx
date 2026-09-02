@@ -9,7 +9,6 @@ import type { ProjectFilters } from "./project-toolbar";
 
 import { renderWithProviders } from "@/test/harness";
 
-
 /**
  * `ProjectToolbar`'s search box is a controlled input: a caller that never
  * feeds the new value back in (as a bare `renderWithProviders(<ProjectToolbar

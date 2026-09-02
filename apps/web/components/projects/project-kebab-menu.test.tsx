@@ -8,7 +8,6 @@ import { ProjectKebabMenu } from "./project-kebab-menu";
 
 import { renderWithProviders } from "@/test/harness";
 
-
 function project(overrides: Partial<Project> = {}): Project {
   return {
     id: "01JPROJECT0000000000000AA",
@@ -78,7 +77,9 @@ describe("<ProjectKebabMenu />", () => {
 
     expect(await screen.findByTestId("delete-confirm-dialog")).toBeInTheDocument();
     const wasDeleteCalled = (): boolean =>
-      fetchMock.mock.calls.some((entry) => (entry[1] as RequestInit | undefined)?.method === "DELETE");
+      fetchMock.mock.calls.some(
+        (entry) => (entry[1] as RequestInit | undefined)?.method === "DELETE",
+      );
     expect(wasDeleteCalled()).toBe(false);
 
     await user.click(screen.getByTestId("confirm-delete"));

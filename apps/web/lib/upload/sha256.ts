@@ -84,9 +84,7 @@ export class IncrementalSha256 {
       const bitLenHigh = ((this.lengthHighBits << 3) | carry) >>> 0;
 
       const padLength =
-        this.pending.byteLength < 56
-          ? 56 - this.pending.byteLength
-          : 120 - this.pending.byteLength;
+        this.pending.byteLength < 56 ? 56 - this.pending.byteLength : 120 - this.pending.byteLength;
       const tail = new Uint8Array(this.pending.byteLength + padLength + 8);
       tail.set(this.pending, 0);
       tail[this.pending.byteLength] = 0x80;

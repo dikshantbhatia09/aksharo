@@ -10,7 +10,12 @@
  */
 import * as React from "react";
 
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@montaj/ui";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@montaj/ui";
 
 import { StyleQuickPick } from "./style-quick-pick";
 
@@ -39,7 +44,9 @@ export const QUICK_PICK_ASPECTS = [
 ] as const;
 
 /** The recommended default: the caller's first onboarding language, or Hinglish. */
-export function defaultQuickPickLanguage(onboardingLanguages: readonly string[] | undefined): string {
+export function defaultQuickPickLanguage(
+  onboardingLanguages: readonly string[] | undefined,
+): string {
   const first = onboardingLanguages?.[0];
   return first !== undefined && QUICK_PICK_LANGUAGES.some((entry) => entry.key === first)
     ? first

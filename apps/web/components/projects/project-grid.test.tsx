@@ -8,7 +8,6 @@ import { ProjectGrid, SampleProjectButton } from "./project-grid";
 
 import { renderWithProviders } from "@/test/harness";
 
-
 function project(overrides: Partial<Project> = {}): Project {
   return {
     id: "01JPROJECT0000000000000AA",

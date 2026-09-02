@@ -70,7 +70,10 @@ export class MultipartUpload {
 
   /** Runs until every part has an ETag, or `cancel()` rejects it. */
   async run(): Promise<CompletedPartRecord[]> {
-    const concurrency = Math.max(1, Math.min(this.options.concurrency ?? 3, this.options.parts.length || 1));
+    const concurrency = Math.max(
+      1,
+      Math.min(this.options.concurrency ?? 3, this.options.parts.length || 1),
+    );
     this.emitProgress();
 
     const workers = Array.from({ length: concurrency }, () => this.worker());

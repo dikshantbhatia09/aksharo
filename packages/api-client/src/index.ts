@@ -148,6 +148,7 @@ export interface PackageInfo {
 
 export const PACKAGE_INFO: PackageInfo = {
   name: "@montaj/api-client",
-  implementedBy: "A03 (spec), A04 (generator), A13 (fetch layer + hooks), A14 (projects/media/styles)",
+  implementedBy:
+    "A03 (spec), A04 (generator), A13 (fetch layer + hooks), A14 (projects/media/styles)",
   implemented: true,
 };

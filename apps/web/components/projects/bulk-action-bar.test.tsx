@@ -46,7 +46,9 @@ describe("<BulkActionBar />", () => {
       expect(onClear).toHaveBeenCalled();
     });
     expect(
-      fetchMock.mock.calls.some((call) => (call[1] as RequestInit | undefined)?.method === "DELETE"),
+      fetchMock.mock.calls.some(
+        (call) => (call[1] as RequestInit | undefined)?.method === "DELETE",
+      ),
     ).toBe(true);
   });
 

@@ -51,6 +51,8 @@ import type {
   StyleCatalogueEntry,
   StylePresetRequest,
   TokenResponse,
+  TranscribeAccepted,
+  TranscribeRequest,
   UpdateFolderRequest,
   UpdateMeRequest,
   UpdateProjectRequest,
@@ -431,8 +433,7 @@ export function useProject(projectId: string | null): UseQueryResult<Project> {
     queryKey: queryKeys.project(workspaceId ?? "none", projectId ?? "none"),
     enabled: workspaceId !== null && projectId !== null,
     retry: retryPolicy,
-    queryFn: () =>
-      client.call(endpoints.projects.get, { params: { projectId: projectId ?? "" } }),
+    queryFn: () => client.call(endpoints.projects.get, { params: { projectId: projectId ?? "" } }),
   });
 }
 
@@ -499,8 +500,7 @@ export function useDeleteProject(): UseMutationResult<{ id: string }, Error, str
   const queryClient = useQueryClient();
   const workspaceId = useWorkspaceId();
   return useMutation({
-    mutationFn: (projectId) =>
-      client.call(endpoints.projects.remove, { params: { projectId } }),
+    mutationFn: (projectId) => client.call(endpoints.projects.remove, { params: { projectId } }),
     onSuccess: () => invalidateProjects(queryClient, workspaceId),
   });
 }
@@ -565,8 +565,7 @@ export function useProjectMedia(projectId: string | null): UseQueryResult<Media[
     queryKey: queryKeys.projectMedia(workspaceId ?? "none", projectId ?? "none"),
     enabled: workspaceId !== null && projectId !== null,
     retry: retryPolicy,
-    queryFn: () =>
-      client.call(endpoints.media.list, { params: { projectId: projectId ?? "" } }),
+    queryFn: () => client.call(endpoints.media.list, { params: { projectId: projectId ?? "" } }),
   });
 }
 
@@ -719,27 +718,28 @@ export function useDeleteStylePreset(): UseMutationResult<{ id: string }, Error,
 }
 
 /**
- * Start transcription with the quick-pick options (A11 — see `pendingEndpoints`
- * in `endpoints.ts`). Returns `null` rather than throwing when the route is not
- * live yet, so the upload engine can call this unconditionally and treat "not
- * yet" as a normal outcome: the project still exists and is still ready to
- * open, it just is not transcribing itself yet.
+ * Start transcription with the quick-pick options (A11). Returns `null`
+ * rather than throwing when the media has not been probed yet
+ * (`transcript/media_not_ready`, a 409 — the common case right after an
+ * upload, before `media.probe` has finished), so a caller can invoke this
+ * unconditionally and treat "not yet" as a normal outcome: the project still
+ * exists and is still ready to open, it just is not transcribing itself yet.
  */
 export function useTranscribe(): UseMutationResult<
-  { jobId: string } | null,
+  TranscribeAccepted | null,
   Error,
-  { projectId: string; language?: string; diarise?: boolean; glossary?: string[] }
+  { projectId: string } & TranscribeRequest
 > {
   const client = useApiClient();
   return useMutation({
     mutationFn: async ({ projectId, ...body }) => {
       try {
-        return await client.call(endpoints.pending.transcribe, {
+        return await client.call(endpoints.transcripts.transcribe, {
           params: { projectId },
           body,
         });
       } catch (error) {
-        if (error instanceof ApiError && error.code === CLIENT_ERROR_CODES.notImplemented) {
+        if (error instanceof ApiError && error.code === "transcript/media_not_ready") {
           return null;
         }
         throw error;

@@ -20,9 +20,9 @@ describe("IncrementalSha256 against the FIPS 180-4 / RFC 6234 test vectors", () 
   });
 
   it("hashes the two-block 448-bit message", () => {
-    expect(
-      sha256Hex(utf8("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")),
-    ).toBe("248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1");
+    expect(sha256Hex(utf8("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"))).toBe(
+      "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
+    );
   });
 
   it("hashes a known long message", () => {

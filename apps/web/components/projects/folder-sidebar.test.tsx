@@ -65,9 +65,9 @@ describe("<FolderSidebar />", () => {
     const input = await screen.findByTestId("folder-create-input");
     await user.type(input, "Gamma{Enter}");
     await waitFor(() => {
-      expect(
-        fetchMock.mock.calls.some((call) => (call[0] as string).endsWith("/folders")),
-      ).toBe(true);
+      expect(fetchMock.mock.calls.some((call) => (call[0] as string).endsWith("/folders"))).toBe(
+        true,
+      );
     });
   });
 

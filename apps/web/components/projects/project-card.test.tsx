@@ -8,7 +8,6 @@ import { ProjectCard } from "./project-card";
 
 import { renderWithProviders } from "@/test/harness";
 
-
 function project(overrides: Partial<Project> = {}): Project {
   return {
     id: "01JPROJECT0000000000000AA",

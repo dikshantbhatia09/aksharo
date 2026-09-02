@@ -20,7 +20,16 @@ import type { Page } from "@playwright/test";
  */
 export async function signUpAndSkipOnboarding(page: Page, label: string): Promise<void> {
   await signUpAndVerify(page, label);
+  // Registered *before* the click that triggers the redirect, not after
+  // `waitForURL` settles: on a fast enough page (WebKit reliably, in this
+  // suite) the entitlement fetch can complete before a listener attached
+  // afterwards ever sees it, hanging this call for the full test timeout.
+  // A promise created here observes the response whether it lands before or
+  // after this line returns.
+  const entitlementRead = page.waitForResponse(
+    (response) => response.url().includes("/entitlement") && response.ok(),
+  );
   await page.getByTestId("onboarding-skip").click();
   await page.waitForURL((url) => url.pathname === "/");
-  await page.waitForResponse((response) => response.url().includes("/entitlement") && response.ok());
+  await entitlementRead;
 }

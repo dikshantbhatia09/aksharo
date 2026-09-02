@@ -20,7 +20,6 @@ import {
 
 import { QUICK_PICK_LANGUAGES } from "./quick-pick-row";
 
-
 export type SortOrder = "newest" | "oldest" | "title";
 
 export interface ProjectFilters {
@@ -151,7 +150,10 @@ export function ProjectToolbar({
           placeholder="Client tag"
           value={filters.clientTag ?? ""}
           onChange={(event) => {
-            onChange({ ...filters, clientTag: event.target.value === "" ? undefined : event.target.value });
+            onChange({
+              ...filters,
+              clientTag: event.target.value === "" ? undefined : event.target.value,
+            });
           }}
           className="w-40"
           aria-label="Filter by client tag"

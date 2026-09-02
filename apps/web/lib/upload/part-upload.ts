@@ -117,20 +117,36 @@ function putOnce(input: UploadPartInput, options: UploadPartOptions): Promise<Up
         // it five times would just wait longer to report the same failure.
         const retryable = xhr.status >= 500 || xhr.status === 0 || xhr.status === 429;
         reject(
-          new PartUploadError(`part ${String(input.partNumber)}: HTTP ${String(xhr.status)}`, input.partNumber, retryable),
+          new PartUploadError(
+            `part ${String(input.partNumber)}: HTTP ${String(xhr.status)}`,
+            input.partNumber,
+            retryable,
+          ),
         );
         return;
       }
       const etag = xhr.getResponseHeader("ETag");
       if (etag === null || etag === "") {
-        reject(new PartUploadError(`part ${String(input.partNumber)}: no ETag in the response`, input.partNumber, true));
+        reject(
+          new PartUploadError(
+            `part ${String(input.partNumber)}: no ETag in the response`,
+            input.partNumber,
+            true,
+          ),
+        );
         return;
       }
       resolve({ partNumber: input.partNumber, etag });
     };
     xhr.onerror = () => {
       cleanup();
-      reject(new PartUploadError(`part ${String(input.partNumber)}: network error`, input.partNumber, true));
+      reject(
+        new PartUploadError(
+          `part ${String(input.partNumber)}: network error`,
+          input.partNumber,
+          true,
+        ),
+      );
     };
     xhr.onabort = () => {
       cleanup();

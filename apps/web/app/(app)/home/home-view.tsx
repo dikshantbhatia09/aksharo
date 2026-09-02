@@ -21,7 +21,6 @@ import { defaultQuickPickLanguage, QuickPickRow } from "@/components/projects/qu
 import { UploadTray } from "@/components/projects/upload-tray";
 import { useUploadQueue } from "@/lib/upload/use-upload-queue";
 
-
 function firstName(fullName: string | null): string | undefined {
   if (fullName === null || fullName.trim() === "") return undefined;
   return fullName.trim().split(/\s+/)[0];

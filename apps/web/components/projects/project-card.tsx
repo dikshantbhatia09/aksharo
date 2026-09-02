@@ -23,7 +23,6 @@ import { Checkbox, LangChip, StatusChip } from "@montaj/ui";
 import { ProjectKebabMenu } from "./project-kebab-menu";
 import { activeJobFor, projectCardStatus } from "./project-status";
 
-
 function formatDuration(ms: number | null): string | undefined {
   if (ms === null || !Number.isFinite(ms) || ms <= 0) return undefined;
   const totalSeconds = Math.round(ms / 1000);

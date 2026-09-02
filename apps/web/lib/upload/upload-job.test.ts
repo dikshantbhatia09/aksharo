@@ -160,6 +160,14 @@ describe("UploadJob.run — happy path", () => {
           201,
         );
       }
+      if (method === "POST" && url.pathname === "/projects/01JPROJECT0000000000000AA/transcribe") {
+        // The freshly-uploaded media has not been probed yet in this test, so
+        // the real endpoint answers exactly what it answers in production.
+        return jsonResponse(
+          { error: { code: "transcript/media_not_ready", message: "Media not probed yet." } },
+          409,
+        );
+      }
       throw new Error(`unexpected fetch: ${method} ${url.pathname}`);
     };
 
@@ -185,13 +193,14 @@ describe("UploadJob.run — happy path", () => {
     await job.run();
 
     const finalState = updates.at(-1);
-    expect(finalState?.status).toBe("ready"); // transcribe is `pending` -> not-implemented -> ready
+    expect(finalState?.status).toBe("ready"); // transcribe answers media_not_ready -> ready
     expect(finalState?.projectId).toBe("01JPROJECT0000000000000AA");
     expect(finalState?.mediaId).toBe("01JMEDIA00000000000000000");
     expect(calls).toEqual([
       "POST /projects",
       "POST /projects/01JPROJECT0000000000000AA/media/init",
       "POST /projects/01JPROJECT0000000000000AA/media/01JMEDIA00000000000000000/complete",
+      "POST /projects/01JPROJECT0000000000000AA/transcribe",
     ]);
 
     // The record is cleared once the upload settles — nothing left to resume.
@@ -264,9 +273,16 @@ describe("UploadJob.resumeFromRecord", () => {
       calls.push(`${method} ${url.pathname}`);
       if (
         method === "POST" &&
-        url.pathname === "/projects/01JPROJECT0000000000000AA/media/01JMEDIA00000000000000000/complete"
+        url.pathname ===
+          "/projects/01JPROJECT0000000000000AA/media/01JMEDIA00000000000000000/complete"
       ) {
         return jsonResponse({ media: mediaJson(), probeJobId: "job-1", proxyJobId: null }, 201);
+      }
+      if (method === "POST" && url.pathname === "/projects/01JPROJECT0000000000000AA/transcribe") {
+        return jsonResponse(
+          { error: { code: "transcript/media_not_ready", message: "Media not probed yet." } },
+          409,
+        );
       }
       throw new Error(`unexpected fetch: ${method} ${url.pathname}`);
     };
@@ -325,6 +341,7 @@ describe("UploadJob.resumeFromRecord", () => {
     expect(xhrsCreated).toHaveLength(1);
     expect(calls).toEqual([
       "POST /projects/01JPROJECT0000000000000AA/media/01JMEDIA00000000000000000/complete",
+      "POST /projects/01JPROJECT0000000000000AA/transcribe",
     ]);
     expect(updates.at(-1)?.status).toBe("ready");
   });

@@ -69,17 +69,18 @@ function makeService(rows: StylePreset[] = [presetRow()]) {
   const prisma = {
     stylePreset: {
       findMany: vi.fn(async () => rows),
-      findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) =>
-        rows.find(
-          (row) =>
-            row.workspaceId === (where["workspaceId"] as string | null | undefined) &&
-            row.key === where["key"],
-        ) ??
-        (typeof where["id"] === "string"
-          ? (rows.find(
-              (row) => row.id === where["id"] && row.workspaceId === where["workspaceId"],
-            ) ?? null)
-          : null),
+      findFirst: vi.fn(
+        async ({ where }: { where: Record<string, unknown> }) =>
+          rows.find(
+            (row) =>
+              row.workspaceId === (where["workspaceId"] as string | null | undefined) &&
+              row.key === where["key"],
+          ) ??
+          (typeof where["id"] === "string"
+            ? (rows.find(
+                (row) => row.id === where["id"] && row.workspaceId === where["workspaceId"],
+              ) ?? null)
+            : null),
       ),
       create: vi.fn(async ({ data }: { data: Partial<StylePreset> }) =>
         presetRow({ ...data, id: CUSTOM_PRESET_ID }),

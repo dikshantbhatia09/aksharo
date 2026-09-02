@@ -4,7 +4,6 @@ import type { JobSummary, Project } from "@montaj/api-client";
 
 import { activeJobFor, projectCardStatus } from "./project-status";
 
-
 function project(overrides: Partial<Project> = {}): Project {
   return {
     id: "01JPROJECT0000000000000AA",

@@ -8,7 +8,6 @@ import type { UploadQuickPick } from "@/lib/upload/types";
 
 import { renderWithProviders } from "@/test/harness";
 
-
 describe("<QuickPickRow />", () => {
   it("shows the current language and aspect", () => {
     const value: UploadQuickPick = { language: "hi-Latn", aspect: "9:16" };

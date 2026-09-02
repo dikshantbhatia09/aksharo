@@ -48,10 +48,10 @@ export function middleware(request: NextRequest): NextResponse {
 
   /**
    * "/" is two different screens depending on who is looking (08 §3 lists
-   * `/` as Home's own route, and the marketing placeholder at
-   * `(site)/page.tsx` also answers "/" for a signed-out visitor — Next.js
-   * refuses to build two page files that resolve the same path, so this
-   * rewrite is what makes both true at once). An authenticated request for
+   * `/` as Home's own route, and the marketing site's own homepage at
+   * `(site)/(marketing)/page.tsx` also answers "/" for a signed-out visitor —
+   * Next.js refuses to build two page files that resolve the same path, so
+   * this rewrite is what makes both true at once). An authenticated request for
    * "/" is invisibly served from `(app)/home/page.tsx`; the browser's address
    * bar never changes, which is what lets the sidebar's Home link keep
    * pointing at plain "/".
