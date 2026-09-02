@@ -24,6 +24,7 @@ import { OffersModule } from "./offers/offers.module.js";
 import { PassesModule } from "./passes/passes.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
+import { PublicApiModule } from "./public-api/public-api.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { ReferralsModule } from "./referrals/referrals.module.js";
 import { SchedulerTasksModule } from "./scheduler/scheduler-tasks.module.js";
@@ -33,6 +34,7 @@ import { TaxModule } from "./tax/tax.module.js";
 import { ScriptsModule } from "./transcripts/scripts/scripts.module.js";
 import { TranscriptsModule } from "./transcripts/transcripts.module.js";
 import { UsersModule } from "./users/users.module.js";
+import { WebhooksModule } from "./webhooks/webhooks.module.js";
 import { TeamsModule } from "./workspaces/teams/teams.module.js";
 import { WorkspacesModule } from "./workspaces/workspaces.module.js";
 
@@ -129,6 +131,11 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // service.ts` and the rest documented as "B16's to schedule" — plus the
     // sweeps and reports this work package owns outright.
     SchedulerTasksModule,
+    // B14: API keys + the `/v1` public API surface (`PublicApiModule`), and
+    // outgoing webhook endpoints/delivery (`WebhooksModule`). Both come last —
+    // neither is depended on by anything above.
+    PublicApiModule,
+    WebhooksModule,
   ],
 })
 export class AppModule {}
