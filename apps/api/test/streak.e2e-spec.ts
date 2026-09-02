@@ -117,6 +117,22 @@ describe.skipIf(!available)("streak experiment (e2e)", () => {
     await enableFlag();
     const streak = ctx.app.get(StreakService);
     await streak.ensureAssigned(ctx.workspaceId);
+    // A paid subscription — B06b re-derives `creditsOnly` from the current
+    // plan at every rollover, so a Free (no-subscription) workspace here
+    // would never reach L4 on the level track.
+    const holdoutPlanId = await ctx.planId("creator");
+    await ctx.prisma.subscription.create({
+      data: {
+        id: "01STREAKHOLDSUB00000000000",
+        workspaceId: ctx.workspaceId,
+        planId: holdoutPlanId,
+        status: "active",
+        interval: "month",
+        currency: "INR",
+        listPriceMinor: 29_900,
+        currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000),
+      },
+    });
     await ctx.prisma.streakExperiment.update({
       where: { workspaceId: ctx.workspaceId },
       data: { holdout: true, consecutiveWeeks: 3, level: 3, creditsOnly: false },
@@ -163,6 +179,19 @@ describe.skipIf(!available)("streak experiment (e2e)", () => {
     await enableFlag();
     const streak = ctx.app.get(StreakService);
     await streak.ensureAssigned(ctx.workspaceId);
+    const levelUpPlanId = await ctx.planId("creator");
+    await ctx.prisma.subscription.create({
+      data: {
+        id: "01STREAKLVLUPSUB0000000000",
+        workspaceId: ctx.workspaceId,
+        planId: levelUpPlanId,
+        status: "active",
+        interval: "month",
+        currency: "INR",
+        listPriceMinor: 29_900,
+        currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000),
+      },
+    });
     await ctx.prisma.streakExperiment.update({
       where: { workspaceId: ctx.workspaceId },
       data: { holdout: false, consecutiveWeeks: 3, level: 3, creditsOnly: false },
@@ -246,5 +275,124 @@ describe.skipIf(!available)("streak experiment (e2e)", () => {
       where: { workspaceId: ctx.workspaceId },
     });
     expect(row.consecutiveWeeks).toBeGreaterThanOrEqual(1);
+  });
+
+  // ---------------------------------------------------------------------
+  // B06b: entitlement follows the current plan at every rollover/read.
+  // ---------------------------------------------------------------------
+
+  it("a Starter workspace at L3 that downgrades to Free loses the discount and any L4 lot at the next rollover", async () => {
+    await enableFlag();
+    const streak = ctx.app.get(StreakService);
+    await streak.ensureAssigned(ctx.workspaceId);
+
+    const planId = await ctx.planId("creator");
+    const subscription = await ctx.prisma.subscription.create({
+      data: {
+        id: "01STREAKDOWNGRDSUB00000000",
+        workspaceId: ctx.workspaceId,
+        planId,
+        status: "active",
+        interval: "month",
+        currency: "INR",
+        listPriceMinor: 29_900,
+        currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000),
+      },
+    });
+    // L3, one kept week away from leveling into L4 on the paid track.
+    await ctx.prisma.streakExperiment.update({
+      where: { workspaceId: ctx.workspaceId },
+      data: { holdout: false, creditsOnly: false, level: 3, consecutiveWeeks: 3 },
+    });
+    expect(await streak.getDiscountPercent(ctx.workspaceId)).toBe(10); // L3 = 10% off, still paid
+
+    // Downgrade: cancel the subscription (no active subscription => Free).
+    await ctx.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: { status: "cancelled" },
+    });
+
+    const noop = ctx.app.get(NoopCreditsFacade);
+    const spy = vi.spyOn(noop, "grantLot");
+
+    const row = await ctx.prisma.streakExperiment.findUniqueOrThrow({
+      where: { workspaceId: ctx.workspaceId },
+    });
+    await ctx.prisma.streakExperiment.update({
+      where: { workspaceId: ctx.workspaceId },
+      data: { weekWindowStart: new Date(row.weekWindowStart.getTime() - 7 * 86_400_000) },
+    });
+    for (let i = 0; i < 3; i += 1) {
+      await ctx.prisma.publishEvent.create({
+        data: {
+          id: `01STREAKDOWNGRDEVT${String(i).padStart(7, "0")}`,
+          workspaceId: ctx.workspaceId,
+          surface: "web",
+          at: new Date(row.weekWindowStart.getTime() - 7 * 86_400_000 + i * 86_400_000 + 3_600_000),
+        },
+      });
+    }
+
+    await streak.rolloverOne(ctx.workspaceId);
+
+    const afterDowngrade = await ctx.prisma.streakExperiment.findUniqueOrThrow({
+      where: { workspaceId: ctx.workspaceId },
+    });
+    expect(afterDowngrade.creditsOnly).toBe(true);
+    expect(afterDowngrade.level).toBe(3); // never decreases
+    expect(spy).not.toHaveBeenCalled(); // no L4 credit lot fired
+
+    expect(await streak.getDiscountPercent(ctx.workspaceId)).toBe(0); // next renewal: no discount
+    const viewAfterDowngrade = await streak.getView(ctx.workspaceId);
+    expect(viewAfterDowngrade.discountPercent).toBe(0);
+    expect(viewAfterDowngrade.creditGrantTenths).toBe(0);
+
+    // Upgrade: a new active subscription restores plan-paid status.
+    await ctx.prisma.subscription.create({
+      data: {
+        id: "01STREAKUPGRADESUB00000000",
+        workspaceId: ctx.workspaceId,
+        planId,
+        status: "active",
+        interval: "month",
+        currency: "INR",
+        listPriceMinor: 29_900,
+        currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000),
+      },
+    });
+
+    const rowAfterDowngrade = await ctx.prisma.streakExperiment.findUniqueOrThrow({
+      where: { workspaceId: ctx.workspaceId },
+    });
+    await ctx.prisma.streakExperiment.update({
+      where: { workspaceId: ctx.workspaceId },
+      data: {
+        weekWindowStart: new Date(rowAfterDowngrade.weekWindowStart.getTime() - 7 * 86_400_000),
+      },
+    });
+    for (let i = 0; i < 3; i += 1) {
+      await ctx.prisma.publishEvent.create({
+        data: {
+          id: `01STREAKUPGRADEEVT${String(i).padStart(7, "0")}`,
+          workspaceId: ctx.workspaceId,
+          surface: "web",
+          at: new Date(
+            rowAfterDowngrade.weekWindowStart.getTime() -
+              7 * 86_400_000 +
+              i * 86_400_000 +
+              3_600_000,
+          ),
+        },
+      });
+    }
+
+    await streak.rolloverOne(ctx.workspaceId);
+
+    const afterUpgrade = await ctx.prisma.streakExperiment.findUniqueOrThrow({
+      where: { workspaceId: ctx.workspaceId },
+    });
+    expect(afterUpgrade.creditsOnly).toBe(false);
+    expect(afterUpgrade.level).toBe(3); // unchanged across both flips
+    expect(await streak.getDiscountPercent(ctx.workspaceId)).toBe(10); // restored at L3
   });
 });

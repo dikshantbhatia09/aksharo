@@ -24,27 +24,27 @@ const paid = (overrides: Partial<StreakState> = {}): StreakState => ({
 
 describe("rolloverWeek — table tests", () => {
   it("kept week (>= 3 publish days) advances the counter, stays L1", () => {
-    const result = rolloverWeek(paid(), 3);
+    const result = rolloverWeek(paid(), 3, false);
     expect(result.outcome).toBe("kept");
     expect(result.next).toEqual(paid({ consecutiveWeeks: 1 }));
     expect(result.leveledUpTo).toBeUndefined();
   });
 
   it("missed week with a freeze available consumes one freeze, streak unaffected", () => {
-    const result = rolloverWeek(paid({ consecutiveWeeks: 2 }), 1);
+    const result = rolloverWeek(paid({ consecutiveWeeks: 2 }), 1, false);
     expect(result.outcome).toBe("froze");
     expect(result.next).toEqual(paid({ consecutiveWeeks: 2, freezesRemaining: 1 }));
   });
 
   it("missed week with no freeze left pauses — no level change, counter resets", () => {
-    const result = rolloverWeek(paid({ consecutiveWeeks: 2, freezesRemaining: 0 }), 0);
+    const result = rolloverWeek(paid({ consecutiveWeeks: 2, freezesRemaining: 0 }), 0, false);
     expect(result.outcome).toBe("paused");
     expect(result.next).toEqual(paid({ consecutiveWeeks: 0, freezesRemaining: 0, paused: true }));
     expect(result.next.level).toBe(1);
   });
 
   it("a kept week while paused resumes, restarting the counter at 1, level unchanged", () => {
-    const result = rolloverWeek(paid({ level: 3, paused: true, freezesRemaining: 0 }), 3);
+    const result = rolloverWeek(paid({ level: 3, paused: true, freezesRemaining: 0 }), 3, false);
     expect(result.outcome).toBe("resumed");
     expect(result.next).toEqual(paid({ level: 3, consecutiveWeeks: 1, freezesRemaining: 0 }));
   });
@@ -52,14 +52,14 @@ describe("rolloverWeek — table tests", () => {
   it("four consecutive kept weeks levels up, then resets the counter", () => {
     let state = paid();
     for (let week = 1; week <= 3; week += 1) {
-      const result = rolloverWeek(state, 3);
+      const result = rolloverWeek(state, 3, false);
       expect(result.outcome).toBe("kept");
       expect(result.leveledUpTo).toBeUndefined();
       state = result.next;
     }
     expect(state.consecutiveWeeks).toBe(3);
 
-    const fourth = rolloverWeek(state, 3);
+    const fourth = rolloverWeek(state, 3, false);
     expect(fourth.outcome).toBe("kept");
     expect(fourth.leveledUpTo).toBe(2);
     expect(fourth.next).toEqual(paid({ level: 2, consecutiveWeeks: 0 }));
@@ -67,15 +67,15 @@ describe("rolloverWeek — table tests", () => {
 
   it("a level never decreases across any transition, including a pause", () => {
     const atLevel3 = paid({ level: 3, freezesRemaining: 0 });
-    const missed = rolloverWeek(atLevel3, 0);
+    const missed = rolloverWeek(atLevel3, 0, false);
     expect(missed.next.level).toBeGreaterThanOrEqual(3);
-    const resumedThenMissed = rolloverWeek(missed.next, 0);
+    const resumedThenMissed = rolloverWeek(missed.next, 0, false);
     expect(resumedThenMissed.next.level).toBeGreaterThanOrEqual(3);
   });
 
   it("caps at L5 — a fifth level-up tick does not overflow", () => {
     const atMax = paid({ level: 5, consecutiveWeeks: 3 });
-    const result = rolloverWeek(atMax, 3);
+    const result = rolloverWeek(atMax, 3, false);
     expect(result.next.level).toBe(5);
     expect(result.leveledUpTo).toBeUndefined(); // already at the max, nothing to report
   });
@@ -94,11 +94,11 @@ describe("Free credits-only streak", () => {
   });
 
   it("two consecutive kept weeks fires the reward and resets the counter", () => {
-    const week1 = rolloverWeek(free(), 3);
+    const week1 = rolloverWeek(free(), 3, true);
     expect(week1.freeCreditReward).toBe(false);
     expect(week1.next.consecutiveWeeks).toBe(1);
 
-    const week2 = rolloverWeek(week1.next, 3);
+    const week2 = rolloverWeek(week1.next, 3, true);
     expect(week2.freeCreditReward).toBe(true);
     expect(week2.next.consecutiveWeeks).toBe(0);
     expect(week2.next.level).toBe(1); // Free never levels up
@@ -106,10 +106,59 @@ describe("Free credits-only streak", () => {
 
   it("never carries a discount or credit-grant level regardless of streak length", () => {
     let state = free();
-    for (let i = 0; i < 10; i += 1) state = rolloverWeek(state, 3).next;
+    for (let i = 0; i < 10; i += 1) state = rolloverWeek(state, 3, true).next;
     expect(state.level).toBe(1);
     expect(discountPercentForLevel(state.level)).toBeUndefined();
     expect(creditGrantTenthsForLevel(state.level)).toBeUndefined();
+  });
+});
+
+describe("rolloverWeek — plan change mid-streak (B06b)", () => {
+  it("downgrade to Free mid-streak: no L4 lot even on a week that would have leveled up", () => {
+    // L3, 3 consecutive kept weeks (one more kept week would level to L4 on
+    // the paid track) — but the plan read this tick says Free.
+    const atL3 = paid({ level: 3, consecutiveWeeks: 3, freezesRemaining: 2 });
+    const result = rolloverWeek(atL3, 3, true);
+    expect(result.next.creditsOnly).toBe(true);
+    expect(result.next.level).toBe(3); // unchanged, never decreases
+    expect(result.leveledUpTo).toBeUndefined(); // no L4 lot
+    expect(result.next.consecutiveWeeks).toBe(1); // counter reset (0) then this kept week counted
+    expect(discountPercentForLevel(result.next.level)).toBe(10); // level still "carries" 10%...
+    // ...but the service never reads it: getDiscountPercent short-circuits on creditsOnly.
+  });
+
+  it("downgrade mid-streak: the +5 credits Free rule applies going forward", () => {
+    const atL3 = paid({ level: 3, consecutiveWeeks: 3, freezesRemaining: 2 });
+    const downgraded = rolloverWeek(atL3, 3, true); // this tick: flip + reset to 1
+    const nextKept = rolloverWeek(downgraded.next, 3, true); // second Free-tracked kept week
+    expect(nextKept.freeCreditReward).toBe(true);
+    expect(nextKept.next.level).toBe(3); // level still never decreases
+  });
+
+  it("downgrade mid-streak on a missed week: still flips creditsOnly, applies the missed-week rule", () => {
+    const atL2 = paid({ level: 2, consecutiveWeeks: 2, freezesRemaining: 0 });
+    const result = rolloverWeek(atL2, 0, true);
+    expect(result.next.creditsOnly).toBe(true);
+    expect(result.outcome).toBe("paused");
+    expect(result.next.consecutiveWeeks).toBe(0);
+  });
+
+  it("upgrade after downgrade: the counter resets again and paid progression resumes", () => {
+    const atL3 = paid({ level: 3, consecutiveWeeks: 3, freezesRemaining: 2 });
+    const downgraded = rolloverWeek(atL3, 3, true);
+    expect(downgraded.next.creditsOnly).toBe(true);
+
+    const upgraded = rolloverWeek(downgraded.next, 3, false);
+    expect(upgraded.next.creditsOnly).toBe(false);
+    expect(upgraded.next.level).toBe(3); // unchanged across both flips
+    expect(upgraded.next.consecutiveWeeks).toBe(1); // reset, then this kept week counted
+    expect(discountPercentForLevel(upgraded.next.level)).toBe(10); // discount restored at L3
+  });
+
+  it("no flip: planIsFree matching the stored creditsOnly is a no-op on the counter", () => {
+    const atL2 = paid({ level: 2, consecutiveWeeks: 1 });
+    const result = rolloverWeek(atL2, 3, false);
+    expect(result.next.consecutiveWeeks).toBe(2); // simple increment, no reset
   });
 });
 

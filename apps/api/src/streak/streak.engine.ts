@@ -175,10 +175,34 @@ export interface RolloverResult {
  * pause only once freezes are exhausted — matching D52's "2 auto-applied
  * freezes per month; a missed week pauses progression" reading (a freeze is
  * spent before a pause is ever reached).
+ *
+ * `planIsFree` is the workspace's *current* plan, read fresh at every
+ * rollover (B06b): entitlement follows the current plan, not the plan at
+ * assignment time. When it disagrees with `state.creditsOnly` this tick is a
+ * plan change mid-streak — the progression counter resets to 0 because the
+ * two reward tracks (level-ups vs. the Free 2-week credit reward) count
+ * different things, and carrying a level-progression count into the Free
+ * track (or vice versa) would award credit for weeks kept under the other
+ * plan's rules. The level itself never changes on a flip (a level never
+ * decreases, and a downgrade does not erase one already earned) — only
+ * whether it currently carries a discount/credit reward, which the service
+ * derives from `creditsOnly` on every read, not from the level alone.
  */
-export function rolloverWeek(state: StreakState, publishDayCount: number): RolloverResult {
+export function rolloverWeek(
+  state: StreakState,
+  publishDayCount: number,
+  planIsFree: boolean,
+): RolloverResult {
   const kept = publishDayCount >= PUBLISH_DAY_BAR;
+  const flipped = planIsFree !== state.creditsOnly;
+  const effective: StreakState = flipped
+    ? { ...state, creditsOnly: planIsFree, consecutiveWeeks: 0 }
+    : state;
 
+  return rolloverKeptOrMissed(effective, kept);
+}
+
+function rolloverKeptOrMissed(state: StreakState, kept: boolean): RolloverResult {
   if (kept) {
     if (state.creditsOnly) {
       const consecutiveWeeks = state.consecutiveWeeks + 1;

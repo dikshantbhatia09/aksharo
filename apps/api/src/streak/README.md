@@ -105,7 +105,32 @@ expiresAt: <end of that calendar month>})`.
 - Whether the two auto-freezes should reset on the calendar month or on a
   rolling 30 days from assignment — this work package reads D52 literally
   ("2 auto-applied freezes per month") as the calendar month.
-- Whether a plan downgrade to Free mid-streak should force `creditsOnly=true`
-  immediately or only at the next assignment read — not specified; current
-  behaviour is "only re-evaluated if the row does not exist yet"
-  (`ensureAssigned` never mutates an existing row's `creditsOnly`).
+
+## Plan-derived `creditsOnly` (B06b)
+
+`ensureAssigned` still only *sets* `creditsOnly` at row creation. Every
+subsequent read re-derives it from the workspace's current plan and persists
+the flip, so entitlement follows the plan, not the plan at assignment time:
+
+- `StreakService.currentPlanIsFree` reads the workspace's current active
+  subscription (`active`/`trialing`/`past_due`); no subscription, or a `free`
+  plan, both mean Free.
+- `getView` and `getDiscountPercent` call `syncCreditsOnly` before computing
+  their answer — a downgrade drops the L2/L3 discount and any L4/L5 credit
+  lot on the very next read, not just the next weekly rollover.
+- `rolloverOne` reads the current plan and passes it into
+  `streak.engine.ts#rolloverWeek` as `planIsFree`. When it disagrees with the
+  row's stored `creditsOnly` this tick is a plan change mid-streak: the
+  engine flips `creditsOnly` and resets `consecutiveWeeks` to 0 (the level
+  track and the Free 2-week credit track count different things — carrying a
+  count from one into the other would misprice the next reward). The level
+  itself never changes on a flip; it also never decreases in any transition.
+- The recurring L4/L5 monthly credit grant additionally checks
+  `!result.next.creditsOnly` in `rolloverOne` — a level earned pre-downgrade
+  persists (levels never decrease), so without this guard a still-L4/L5
+  workspace that downgraded before the next month-rollover tick could get one
+  more lot it is no longer entitled to.
+- Table tests: `streak.engine.test.ts` "rolloverWeek — plan change
+  mid-streak (B06b)". Integration: `streak.e2e-spec.ts` "a Starter workspace
+  at L3 that downgrades to Free loses the discount and any L4 lot at the
+  next rollover" (downgrade, then upgrade, in one flow).

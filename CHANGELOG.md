@@ -10,6 +10,24 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Fixed
 
+- **B06b — a Free downgrade now switches the streak row to credits-only
+  immediately, not just at assignment.** B06's `ensureAssigned` only set
+  `creditsOnly` on first insert, so a workspace that downgraded to Free
+  mid-streak kept its L2/L3 renewal discount and L4/L5 credit-lot
+  entitlement (04 §Streak: Free earns credits only). `StreakService` now
+  re-derives `creditsOnly` from the workspace's *current* plan on every
+  `getView`/`getDiscountPercent` read and every `rolloverOne`, persisting
+  the flip; `streak.engine.ts#rolloverWeek` takes a `planIsFree` input and
+  resets the progression counter on a flip (the level-up track and the Free
+  2-week credit track count different things); a later upgrade flips
+  `creditsOnly` back and restores the discount at the next rollover. A
+  level never decreases either way. Also fixed two pre-existing gaps this
+  surfaced: `StreakService.getView`'s `discountPercent`/`creditGrantTenths`
+  did not check `creditsOnly`/`paused` (only `getDiscountPercent` did), and
+  the monthly L4/L5 credit grant in `rolloverOne` did not guard against a
+  workspace that leveled up pre-downgrade and is now credits-only. See
+  `apps/api/src/streak/README.md` §"Plan-derived `creditsOnly`".
+
 - **A18a-c — fixed the stale seed parity-flag assertion in
   `apps/api/test/database.e2e-spec.ts`.** The "leaves the parity flags at their
   pessimistic defaults" test predated A18a's change to `apps/api/prisma/seed.ts`,
