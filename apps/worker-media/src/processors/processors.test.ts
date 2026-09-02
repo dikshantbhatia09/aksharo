@@ -38,7 +38,9 @@ const MEDIA = "01JCMED1A00000000000000000";
 const PREFIX = mediaPrefix(WS, PROJECT, MEDIA);
 
 function ffmpegAvailable(): boolean {
-  return spawnSync("ffmpeg", ["-version"], { stdio: "pipe", shell: true, timeout: 20_000 }).status === 0;
+  return (
+    spawnSync("ffmpeg", ["-version"], { stdio: "pipe", shell: true, timeout: 20_000 }).status === 0
+  );
 }
 
 const CAN_RUN = ffmpegAvailable();
@@ -78,7 +80,10 @@ function fakeStore(source: string): FakeStore {
   };
 }
 
-function context(source: string, payload: Record<string, unknown> = {}): {
+function context(
+  source: string,
+  payload: Record<string, unknown> = {},
+): {
   context: JobContext;
   derived: FakeStore;
   progress: number[];
@@ -286,6 +291,7 @@ describe.skipIf(!CAN_RUN)("processProbe", () => {
     const { context: ctx } = context(corrupt);
     const error = await processProbe(ctx).catch((caught: unknown) => caught as MediaJobError);
     expect(error).toBeInstanceOf(MediaJobError);
+    if (!(error instanceof MediaJobError)) throw error;
     expect(error.retryable).toBe(false);
     expect(error.reason).toBe("media/unsupported");
   }, 120_000);
@@ -315,9 +321,10 @@ describe.skipIf(!CAN_RUN)("processProxy", () => {
     // poster key, so there is no `poster.jpg` here.
     for (const key of derived.written.keys()) {
       expect(key.startsWith(`${PREFIX}/`), key).toBe(true);
-      expect(/\/(proxy540\.mp4|audio16k\.wav|audio48k\.wav|waveform\.json|thumb-\d+\.jpg)$/.test(key), key).toBe(
-        true,
-      );
+      expect(
+        /\/(proxy540\.mp4|audio16k\.wav|audio48k\.wav|waveform\.json|thumb-\d+\.jpg)$/.test(key),
+        key,
+      ).toBe(true);
     }
     expect([...derived.written.keys()].some((key) => key.includes("poster"))).toBe(false);
 

@@ -43,20 +43,20 @@ timeout and a clean run all leave the same nothing behind.
 through `PATCH /internal/media/{id}`, whose allow-list is the API's
 (`apps/api/src/internal/internal-media.controller.ts`): technical measurements and
 derived keys, never `projectId`, `storageKey`, `bucket` or a retention column, and
-every key must sit under the asset's own prefix. What a probe *means* — the plan's
+every key must sit under the asset's own prefix. What a probe _means_ — the plan's
 duration cap, whether a proxy should be built at all — is the API's completion
 handler, `apps/api/src/media/probe.handler.ts`.
 
 ## FFmpeg command lines
 
-| Output           | Command                                                                                                                                                                                       |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| probe            | `ffprobe -print_format json -show_format -show_streams -show_entries …stream_side_data=rotation… -i <src>`                                                                                      |
-| loudness         | `ffmpeg -loglevel info -i <src> -map 0:a:0 -vn -af ebur128=peak=true,silencedetect=noise=-40dB:d=0.5 -f null -`                                                                                 |
-| `audio16k.wav`   | `ffmpeg -i <src> -map 0:a:0 -vn -ac 1 -ar 16000 -c:a pcm_s16le -f wav out.wav`                                                                                                                  |
-| `audio48k.wav`   | the same with `-ar 48000`                                                                                                                                                                      |
-| `proxy540.mp4`   | `ffmpeg -progress pipe:2 -i <src> -map 0:v:0 -map 0:a:0 -vf <filter> -c:v libx264 -profile:v main -preset veryfast -crf 28 -pix_fmt yuv420p -c:a aac -b:a 96k -ac 2 -movflags +faststart out.mp4` |
-| `thumb-{n}.jpg`  | `ffmpeg -ss <t> -i <src> -map 0:v:0 -frames:v 1 -vf scale=320:-2 -q:v 4 out.jpg`                                                                                                                |
+| Output          | Command                                                                                                                                                                                           |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| probe           | `ffprobe -print_format json -show_format -show_streams -show_entries …stream_side_data=rotation… -i <src>`                                                                                        |
+| loudness        | `ffmpeg -loglevel info -i <src> -map 0:a:0 -vn -af ebur128=peak=true,silencedetect=noise=-40dB:d=0.5 -f null -`                                                                                   |
+| `audio16k.wav`  | `ffmpeg -i <src> -map 0:a:0 -vn -ac 1 -ar 16000 -c:a pcm_s16le -f wav out.wav`                                                                                                                    |
+| `audio48k.wav`  | the same with `-ar 48000`                                                                                                                                                                         |
+| `proxy540.mp4`  | `ffmpeg -progress pipe:2 -i <src> -map 0:v:0 -map 0:a:0 -vf <filter> -c:v libx264 -profile:v main -preset veryfast -crf 28 -pix_fmt yuv420p -c:a aac -b:a 96k -ac 2 -movflags +faststart out.mp4` |
+| `thumb-{n}.jpg` | `ffmpeg -ss <t> -i <src> -map 0:v:0 -frames:v 1 -vf scale=320:-2 -q:v 4 out.jpg`                                                                                                                  |
 
 The proxy's video filter is `scale=W:H:flags=bicubic,format=yuv420p`, with the
 tone-map chain in front of it when the source is PQ or HLG:
@@ -70,7 +70,7 @@ Four details in there are load-bearing rather than stylistic:
 
 - **`W` and `H` are computed in TypeScript**, not with a `scale` expression. The
   rule is "shortest side to 540, both even, never upscaled" — this is a
-  vertical-video product, and scaling a 1080×1920 phone clip to 540 *height*
+  vertical-video product, and scaling a 1080×1920 phone clip to 540 _height_
   would make it 304 px wide. Nested `if(gt(iw,ih),…)` in a filtergraph needs its
   commas escaped through two parsers, and getting that wrong fails at runtime on
   exactly the aspect ratio nobody tested.
@@ -121,12 +121,12 @@ podcast would get a proxy of its album art.
 
 ## Failure, retries and what the user is told
 
-| Failure                     | Completion posted?           | Media row      |
-| --------------------------- | ---------------------------- | -------------- |
-| retryable, attempts remain  | no — BullMQ retries          | untouched      |
-| retryable, final attempt    | yes, `finalAttempt: true`    | `failed`       |
-| non-retryable (any attempt) | yes, `error.retryable:false` | `failed`       |
-| envelope does not parse     | no (there is no jobId)       | untouched      |
+| Failure                     | Completion posted?           | Media row |
+| --------------------------- | ---------------------------- | --------- |
+| retryable, attempts remain  | no — BullMQ retries          | untouched |
+| retryable, final attempt    | yes, `finalAttempt: true`    | `failed`  |
+| non-retryable (any attempt) | yes, `error.retryable:false` | `failed`  |
+| envelope does not parse     | no (there is no jobId)       | untouched |
 
 A08 gives every `media.*` job three BullMQ attempts but the `jobs` row has a
 single `attemptId`, so a failed completion posted on attempt one moves the row to
@@ -191,16 +191,16 @@ pnpm --filter @montaj/worker-media dev        # tsx watch
 pnpm --filter @montaj/worker-media start      # built output
 ```
 
-| Variable                          | Default          | What                                        |
-| --------------------------------- | ---------------- | ------------------------------------------- |
-| `WORKER_MEDIA_CONCURRENCY`        | `2`              | Parallel jobs per queue.                    |
-| `WORKER_MEDIA_QUEUES`             | both             | Pin a pod to `media.probe` or `media.proxy`. |
-| `MONTAJ_QUEUE_PREFIX`             | `bull`           | Must match the API's, or they talk past each other. |
-| `FFMPEG_PATH` / `FFPROBE_PATH`    | `ffmpeg`/`ffprobe` | A build that is not on `PATH`.             |
-| `WORKER_MEDIA_TEMP_DIR`           | OS temp          | Where scratch files go.                     |
-| `WORKER_MEDIA_SOURCE_URL_TTL`     | `21600`          | Signed source URL lifetime, seconds.        |
-| `WORKER_MEDIA_FFMPEG_TIMEOUT_MS`  | `2700000`        | Ceiling on one ffmpeg run.                  |
-| `WORKER_MEDIA_LOUDNESS`           | on               | `0` skips the EBU R128 pass.                |
+| Variable                         | Default            | What                                                |
+| -------------------------------- | ------------------ | --------------------------------------------------- |
+| `WORKER_MEDIA_CONCURRENCY`       | `2`                | Parallel jobs per queue.                            |
+| `WORKER_MEDIA_QUEUES`            | both               | Pin a pod to `media.probe` or `media.proxy`.        |
+| `MONTAJ_QUEUE_PREFIX`            | `bull`             | Must match the API's, or they talk past each other. |
+| `FFMPEG_PATH` / `FFPROBE_PATH`   | `ffmpeg`/`ffprobe` | A build that is not on `PATH`.                      |
+| `WORKER_MEDIA_TEMP_DIR`          | OS temp            | Where scratch files go.                             |
+| `WORKER_MEDIA_SOURCE_URL_TTL`    | `21600`            | Signed source URL lifetime, seconds.                |
+| `WORKER_MEDIA_FFMPEG_TIMEOUT_MS` | `2700000`          | Ceiling on one ffmpeg run.                          |
+| `WORKER_MEDIA_LOUDNESS`          | on                 | `0` skips the EBU R128 pass.                        |
 
 Everything else comes from the validated `Env` of CONTRACTS §1. No value from
 either source is ever logged (THREAT-MODEL T21).

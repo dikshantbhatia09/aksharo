@@ -139,9 +139,13 @@ export async function run(
       if (code === null) {
         finish(() =>
           reject(
-            transientFailure("media/tool_signal", `${binary} was killed by ${signal ?? "a signal"}`, {
-              detail: tail,
-            }),
+            transientFailure(
+              "media/tool_signal",
+              `${binary} was killed by ${signal ?? "a signal"}`,
+              {
+                detail: tail,
+              },
+            ),
           ),
         );
         return;

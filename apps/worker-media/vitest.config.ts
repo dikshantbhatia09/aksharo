@@ -33,4 +33,7 @@ const withSettings = mergeConfig(
   }),
 );
 
-export default mergeConfig(withSettings, defineConfig(coverageThresholds({ lines: 75, branches: 70 })));
+export default mergeConfig(
+  withSettings,
+  defineConfig(coverageThresholds({ lines: 75, branches: 70 })),
+);

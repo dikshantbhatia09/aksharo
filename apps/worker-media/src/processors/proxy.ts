@@ -211,10 +211,7 @@ interface MediaFacts {
 }
 
 /** The payload's hints when they are complete, a fresh ffprobe when they are not. */
-async function resolveFacts(
-  context: JobContext,
-  payload: MediaProxyPayload,
-): Promise<MediaFacts> {
+async function resolveFacts(context: JobContext, payload: MediaProxyPayload): Promise<MediaFacts> {
   const complete =
     typeof payload.durationMs === "number" &&
     payload.durationMs > 0 &&
@@ -232,10 +229,7 @@ async function resolveFacts(
     };
   }
 
-  const source = await context.raw.presignGet(
-    payload.key,
-    context.settings.sourceUrlTtlSeconds,
-  );
+  const source = await context.raw.presignGet(payload.key, context.settings.sourceUrlTtlSeconds);
   const container = readProbe(
     await ffprobe({
       binary: context.settings.ffprobePath,

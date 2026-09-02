@@ -11,10 +11,7 @@ import { HDR_TRANSFERS, PROBE_RESULT_FIELDS, ProbeResultSchema } from "./probe-r
  * field renamed over there is not a compile error here, it is a measurement this
  * schema silently drops.
  */
-const WORKER_CONTRACT = resolve(
-  __dirname,
-  "../../../worker-media/src/probe-result.ts",
-);
+const WORKER_CONTRACT = resolve(__dirname, "../../../worker-media/src/probe-result.ts");
 
 function minimal(): Record<string, unknown> {
   return {
@@ -83,9 +80,9 @@ describe("ProbeResultSchema", () => {
       hdr: false,
     };
     for (const rotation of [0, 90, 180, 270]) {
-      expect(ProbeResultSchema.safeParse({ ...minimal(), video: { ...video, rotation } }).success).toBe(
-        true,
-      );
+      expect(
+        ProbeResultSchema.safeParse({ ...minimal(), video: { ...video, rotation } }).success,
+      ).toBe(true);
     }
     expect(
       ProbeResultSchema.safeParse({ ...minimal(), video: { ...video, rotation: 45 } }).success,

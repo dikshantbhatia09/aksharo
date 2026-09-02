@@ -191,7 +191,8 @@ async function upload(
     const start = (part.partNumber - 1) * ticket.partSizeBytes;
     const chunk = body.subarray(start, start + ticket.partSizeBytes);
     const response = await fetch(part.url, { method: "PUT", body: chunk });
-    if (!response.ok) throw new Error(`part ${String(part.partNumber)}: ${String(response.status)}`);
+    if (!response.ok)
+      throw new Error(`part ${String(part.partNumber)}: ${String(response.status)}`);
     etags.push(response.headers.get("etag") ?? "");
   }
 
@@ -418,7 +419,8 @@ afterAll(async () => {
   // The buckets are shared with every other agent, so this run removes only its
   // own prefixes rather than emptying anything.
   if (rawKeysWritten.length > 0) await rawStore.deleteMany(rawKeysWritten).catch(() => 0);
-  if (derivedKeysWritten.length > 0) await derivedStore.deleteMany(derivedKeysWritten).catch(() => 0);
+  if (derivedKeysWritten.length > 0)
+    await derivedStore.deleteMany(derivedKeysWritten).catch(() => 0);
 
   await app?.close();
   redis?.disconnect();
@@ -438,12 +440,7 @@ async function newProject(title: string): Promise<string> {
 describe.skipIf(!CAN_RUN)("media pipeline (A07)", () => {
   it("takes a 10 s clip from upload to every CONTRACTS §6 derived object", async () => {
     const projectId = await newProject("A07 pipeline");
-    const mediaId = await upload(
-      projectId,
-      fixtures?.video ?? "",
-      "clip.mp4",
-      "video/mp4",
-    );
+    const mediaId = await upload(projectId, fixtures?.video ?? "", "clip.mp4", "video/mp4");
 
     const media = await waitForStatus(mediaId, ["ready", "failed"]);
     expect(media["status"]).toBe("ready");

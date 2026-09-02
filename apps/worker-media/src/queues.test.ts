@@ -17,10 +17,7 @@ import {
  * import another app's source. So each copy is checked against the API's, which is
  * the one CONTRACTS §3 names.
  */
-const API_QUEUE_NAMES = resolve(
-  __dirname,
-  "../../api/src/jobs/contracts/queue-names.ts",
-);
+const API_QUEUE_NAMES = resolve(__dirname, "../../api/src/jobs/contracts/queue-names.ts");
 
 const validEnvelope = {
   jobId: "01JBQ8Z2W4N7Y0K3M5P8R1T6V9",

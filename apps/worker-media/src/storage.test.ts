@@ -7,7 +7,13 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Env } from "@montaj/config";
 
 import { MediaJobError } from "./errors.js";
-import { DERIVED_CONTENT_TYPES, DERIVED_OBJECT_TAGS, S3Store, encodeTags, storesFrom } from "./storage.js";
+import {
+  DERIVED_CONTENT_TYPES,
+  DERIVED_OBJECT_TAGS,
+  S3Store,
+  encodeTags,
+  storesFrom,
+} from "./storage.js";
 
 import type { S3Client } from "@aws-sdk/client-s3";
 
@@ -108,6 +114,7 @@ describe("S3Store.putFile", () => {
       .putFile({ key: "k", file, contentType: "video/mp4" })
       .catch((caught: unknown) => caught as MediaJobError);
     expect(error).toBeInstanceOf(MediaJobError);
+    if (!(error instanceof MediaJobError)) throw error;
     expect(error.retryable).toBe(true);
     expect(error.code).toBe("media/store_unavailable");
   });

@@ -61,4 +61,3 @@ export const MEDIA_FAILURE_REASONS = [
 ] as const;
 
 export type MediaFailureReason = (typeof MEDIA_FAILURE_REASONS)[number];
-

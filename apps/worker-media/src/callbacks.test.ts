@@ -83,7 +83,7 @@ describe("CallbackClient", () => {
   });
 
   it("clamps progress into the range the API's schema allows", async () => {
-    const fetchImpl = vi.fn(async () => ok());
+    const fetchImpl = vi.fn<typeof globalThis.fetch>(async () => ok());
     const client = new CallbackClient("http://api.test", SECRET, {
       fetch: fetchImpl as unknown as typeof globalThis.fetch,
     });
@@ -142,7 +142,7 @@ describe("CallbackClient", () => {
 
   it("re-signs each retry, so a long backoff cannot age out of the window", async () => {
     let calls = 0;
-    const fetchImpl = vi.fn(async () => {
+    const fetchImpl = vi.fn<typeof globalThis.fetch>(async () => {
       calls += 1;
       return calls === 1 ? new Response("busy", { status: 500 }) : ok();
     });

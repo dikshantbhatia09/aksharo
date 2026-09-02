@@ -63,8 +63,12 @@ function numbers(block: string): Record<string, number> {
   return found;
 }
 
-function asRecord(policy: Record<string, unknown>): Record<string, number> {
-  return Object.fromEntries(FIELDS.map((field) => [field, policy[field] as number]));
+function asRecord(policy: object): Record<string, number> {
+  const indexable = policy as Record<string, number>;
+  return Object.fromEntries(FIELDS.map((field) => [field, indexable[field]])) as Record<
+    string,
+    number
+  >;
 }
 
 describe("policy table (mirrors apps/api/src/jobs/jobs.config.ts)", () => {

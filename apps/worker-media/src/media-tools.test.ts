@@ -43,6 +43,8 @@ describe("assertMediaToolsAvailable", () => {
       ffmpeg: "montaj-no-such-ffmpeg",
       ffprobe: "montaj-no-such-ffprobe",
     }).catch((caught: unknown) => caught as MediaToolsMissingError);
+    expect(error).toBeInstanceOf(MediaToolsMissingError);
+    if (!(error instanceof MediaToolsMissingError)) throw error;
     expect(error.missing).toEqual(["ffmpeg", "ffprobe"]);
     expect(error.message).toContain("winget install Gyan.FFmpeg");
   });

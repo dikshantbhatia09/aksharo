@@ -79,14 +79,16 @@ export const QUEUE_POLICY_BY_FAMILY: Readonly<Record<string, QueuePolicy>> = Obj
 });
 
 /** Queues whose work outlives the family lock. Only the differing fields appear. */
-export const QUEUE_POLICY_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy>>> = Object.freeze({
-  "media.probe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
-  "media.proxy": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
-  "ai.transcribe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
-  "ai.diarise": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
-  "ai.align": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },
-  "render.video": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
-});
+export const QUEUE_POLICY_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy>>> = Object.freeze(
+  {
+    "media.probe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "media.proxy": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "ai.transcribe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "ai.diarise": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "ai.align": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },
+    "render.video": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+  },
+);
 
 /** The policy for a queue: its family defaults, with any per-queue override. */
 export function queuePolicyFor(queueName: string): QueuePolicy {

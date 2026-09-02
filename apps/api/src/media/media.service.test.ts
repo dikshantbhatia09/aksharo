@@ -329,9 +329,7 @@ describe("MediaService.complete", () => {
       worstCaseTenths: 0,
     });
     expect(
-      harness.jobs.enqueue.mock.calls.map(
-        (call) => (call[0] as { type?: string }).type ?? "",
-      ),
+      harness.jobs.enqueue.mock.calls.map((call) => (call[0] as { type?: string }).type ?? ""),
     ).not.toContain("media.proxy");
     expect(result.probeJobId).toContain("media.probe");
     expect(result.proxyJobId).toBeNull();

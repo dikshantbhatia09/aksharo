@@ -8,7 +8,6 @@ import type { Env } from "@montaj/config";
 
 import { transientFailure } from "./errors.js";
 
-
 /**
  * The two buckets of CONTRACTS §6, from the worker's side.
  *

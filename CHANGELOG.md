@@ -278,7 +278,7 @@ audioSeconds, model, batchSize}` on every response, the arithmetic behind it,
     first would make the first transient failure permanent, since a replay
     would find a terminal job and never reach the handler again.
   - `apps/api/src/internal/internal-media.controller.ts`: `PATCH
-    /internal/media/{id}`'s allow-list gained `codec`, `hasAudio`, `hdr`,
+/internal/media/{id}`'s allow-list gained `codec`, `hasAudio`, `hdr`,
     `failureReason` (a closed `media/*` set — `MEDIA_FAILURE_REASONS` in
     `apps/api/src/media/media.constants.ts` — since it is rendered to the
     user) and `thumbKeys`, plus `assertOwnKeys()`: every derived key in a

@@ -146,16 +146,11 @@ export async function ffprobe(input: {
  */
 export function readProbe(output: FfprobeOutput): ProbeContainer {
   const streams = output.streams ?? [];
-  const video = streams.find(
-    (stream) => stream.codec_type === "video" && !isCoverArt(stream),
-  );
+  const video = streams.find((stream) => stream.codec_type === "video" && !isCoverArt(stream));
   const audio = streams.find((stream) => stream.codec_type === "audio");
 
   if (video === undefined && audio === undefined) {
-    throw unreadableMedia(
-      "This file has no audio or video in it.",
-      "media/no_streams",
-    );
+    throw unreadableMedia("This file has no audio or video in it.", "media/no_streams");
   }
 
   const container = output.format?.format_name ?? "unknown";

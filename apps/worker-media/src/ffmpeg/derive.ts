@@ -211,9 +211,7 @@ export function proxyArgs(input: {
     String(PROXY_CRF),
     "-pix_fmt",
     "yuv420p",
-    ...(input.hasAudio
-      ? ["-c:a", "aac", "-b:a", PROXY_AUDIO_BITRATE, "-ac", "2"]
-      : []),
+    ...(input.hasAudio ? ["-c:a", "aac", "-b:a", PROXY_AUDIO_BITRATE, "-ac", "2"] : []),
     // The moov atom at the front: without it the browser has to fetch the end of
     // the file before it can show the first frame.
     "-movflags",
@@ -234,7 +232,12 @@ export function proxyArgs(input: {
  */
 export async function encodeProxy(
   context: DeriveContext,
-  input: { readonly out: string; readonly size: ProxySize; readonly hdr: boolean; readonly hasAudio: boolean },
+  input: {
+    readonly out: string;
+    readonly size: ProxySize;
+    readonly hdr: boolean;
+    readonly hasAudio: boolean;
+  },
   onProgress?: (chunk: string) => void,
 ): Promise<{ readonly toneMapped: boolean }> {
   const args = proxyArgs({ ...input, source: context.source });
@@ -315,14 +318,10 @@ export async function grabThumbnail(
   out: string,
   atMs: number,
 ): Promise<boolean> {
-  const result = await run(
-    context.binary,
-    thumbnailArgs({ source: context.source, out, atMs }),
-    {
-      timeoutMs: context.timeoutMs,
-      ...(context.signal === undefined ? {} : { signal: context.signal }),
-    },
-  );
+  const result = await run(context.binary, thumbnailArgs({ source: context.source, out, atMs }), {
+    timeoutMs: context.timeoutMs,
+    ...(context.signal === undefined ? {} : { signal: context.signal }),
+  });
   return result.code === 0;
 }
 

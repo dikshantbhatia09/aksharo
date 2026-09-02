@@ -74,8 +74,6 @@ export function thumbKey(prefix: string, index: number): string {
 export function allDerivedKeys(prefix: string, thumbCount: number): string[] {
   return [
     ...DERIVED_ARTEFACTS.map((artefact) => derivedKey(prefix, artefact)),
-    ...Array.from({ length: Math.max(0, thumbCount) }, (_unused, index) =>
-      thumbKey(prefix, index),
-    ),
+    ...Array.from({ length: Math.max(0, thumbCount) }, (_unused, index) => thumbKey(prefix, index)),
   ];
 }

@@ -210,11 +210,7 @@ export function makeHandler(
           { retryable: false, reason: "media/probe_failed" },
         );
       }
-      const derivedPrefix = mediaPrefix(
-        envelope.workspaceId,
-        envelope.projectId,
-        payload.mediaId,
-      );
+      const derivedPrefix = mediaPrefix(envelope.workspaceId, envelope.projectId, payload.mediaId);
 
       await heartbeat.postNow(0, `${queueName} started`);
       heartbeat.start();

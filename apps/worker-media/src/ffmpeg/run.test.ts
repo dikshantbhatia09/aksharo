@@ -10,7 +10,11 @@ describe("inputArgs", () => {
   it("adds HTTP reconnect options for a URL, and nothing for a path", () => {
     // ffmpeg re-opens a presigned URL for every seek; a dropped connection two
     // thirds through an encode would otherwise throw the whole job away.
-    expect(inputArgs("https://store.test/x.mp4")).toEqual([...HTTP_INPUT_ARGS, "-i", "https://store.test/x.mp4"]);
+    expect(inputArgs("https://store.test/x.mp4")).toEqual([
+      ...HTTP_INPUT_ARGS,
+      "-i",
+      "https://store.test/x.mp4",
+    ]);
     expect(inputArgs("http://store.test/x.mp4")).toContain("-reconnect_on_network_error");
     expect(inputArgs("/tmp/x.mp4")).toEqual(["-i", "/tmp/x.mp4"]);
     expect(inputArgs("C:\\tmp\\x.mp4")).toEqual(["-i", "C:\\tmp\\x.mp4"]);
@@ -55,6 +59,7 @@ describe("run", () => {
       (caught: unknown) => caught as MediaJobError,
     );
     expect(error).toBeInstanceOf(MediaJobError);
+    if (!(error instanceof MediaJobError)) throw error;
     expect(error.code).toBe("media/tool_timeout");
     // Retryable: a wedged encode is a host problem, not the file's.
     expect(error.retryable).toBe(true);

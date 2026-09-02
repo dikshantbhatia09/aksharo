@@ -1,7 +1,11 @@
 import { HttpStatus } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 
-import { InternalMediaController, MediaPatchDto, assertOwnKeys } from "./internal-media.controller.js";
+import {
+  InternalMediaController,
+  MediaPatchDto,
+  assertOwnKeys,
+} from "./internal-media.controller.js";
 import { AppException } from "../common/errors/error-codes.js";
 import { mediaPrefix } from "../common/storage/storage.keys.js";
 
@@ -101,7 +105,9 @@ describe("MediaPatchSchema — the worker's allow-list", () => {
   it("refuses an empty patch and an over-long key list", () => {
     expect(() => parse({})).toThrow();
     expect(() =>
-      parse({ thumbKeys: Array.from({ length: 33 }, (_u, i) => `${PREFIX}/thumb-${String(i)}.jpg`) }),
+      parse({
+        thumbKeys: Array.from({ length: 33 }, (_u, i) => `${PREFIX}/thumb-${String(i)}.jpg`),
+      }),
     ).toThrow();
   });
 });
@@ -157,7 +163,10 @@ describe("assertOwnKeys", () => {
   it("names the offending fields and nothing else", () => {
     const error = (() => {
       try {
-        assertOwnKeys({ proxyKey: "elsewhere/proxy540.mp4", audio16kKey: `${PREFIX}/a.wav` }, PREFIX);
+        assertOwnKeys(
+          { proxyKey: "elsewhere/proxy540.mp4", audio16kKey: `${PREFIX}/a.wav` },
+          PREFIX,
+        );
         return null;
       } catch (caught) {
         return caught as AppException;

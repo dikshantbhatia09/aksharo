@@ -26,12 +26,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
 @Module({
   imports: [ProjectsModule, WorkspacesModule, JobsModule],
   controllers: [MediaController, MediaUploadsController],
-  providers: [
-    MediaService,
-    SubtitleImportService,
-    RetentionService,
-    MediaProbeCompletionHandler,
-  ],
+  providers: [MediaService, SubtitleImportService, RetentionService, MediaProbeCompletionHandler],
   exports: [MediaService, SubtitleImportService, RetentionService],
 })
 export class MediaModule {}

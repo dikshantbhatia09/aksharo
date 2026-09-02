@@ -86,9 +86,7 @@ export function loadRepoDotenv(startDir: string = process.cwd()): void {
  */
 export function resolveSettings(source: NodeJS.ProcessEnv = process.env): Settings {
   const requested = split(source["WORKER_MEDIA_QUEUES"]);
-  const unknown = requested.filter(
-    (name) => !(MEDIA_QUEUES as readonly string[]).includes(name),
-  );
+  const unknown = requested.filter((name) => !(MEDIA_QUEUES as readonly string[]).includes(name));
   if (unknown.length > 0) {
     throw new Error(
       `WORKER_MEDIA_QUEUES names queues this worker does not own: ${unknown.join(", ")}`,
