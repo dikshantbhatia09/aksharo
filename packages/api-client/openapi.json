@@ -11432,6 +11432,171 @@
           "billing"
         ]
       }
+    },
+    "/invoices": {
+      "get": {
+        "operationId": "InvoicesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List the caller's workspace's invoices, most recent first.",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/invoices/{invoiceId}/download": {
+      "get": {
+        "operationId": "InvoicesController_download",
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "A short-lived signed URL for the invoice PDF.",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/admin/tax-registrations": {
+      "get": {
+        "operationId": "TaxRegistrationsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List every tax registration (GSTIN, LUT) on file.",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "TaxRegistrationsController_upsert",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create or update a tax registration (upsert on jurisdiction+taxIdType+taxId).",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/tax-registrations/{id}": {
+      "delete": {
+        "operationId": "TaxRegistrationsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove a tax registration row.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/firc-records": {
+      "get": {
+        "operationId": "FircController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List FIRC records, most recent settlement first.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/firc-records/csv": {
+      "get": {
+        "operationId": "FircController_csv",
+        "parameters": [
+          {
+            "name": "month",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Monthly export-filing CSV for a given `month` (YYYY-MM).",
+        "tags": [
+          "admin"
+        ]
+      }
     }
   },
   "info": {

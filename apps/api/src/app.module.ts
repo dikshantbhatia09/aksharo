@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { EventEmitterModule } from "@nestjs/event-emitter";
 
 import { AdminModule } from "./admin/admin.module.js";
 import { AuthModule } from "./auth/auth.module.js";
@@ -11,12 +12,14 @@ import { ExportsModule } from "./exports/exports.module.js";
 import { FontsModule } from "./fonts/fonts.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { InternalModule } from "./internal/internal.module.js";
+import { InvoicesModule } from "./invoices/invoices.module.js";
 import { JobsModule } from "./jobs/jobs.module.js";
 import { MediaModule } from "./media/media.module.js";
 import { NotifyModule } from "./notify/notify.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
+import { TaxModule } from "./tax/tax.module.js";
 import { ScriptsModule } from "./transcripts/scripts/scripts.module.js";
 import { TranscriptsModule } from "./transcripts/transcripts.module.js";
 import { UsersModule } from "./users/users.module.js";
@@ -55,10 +58,19 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
  * Order matters only in that `CommonModule` must come first: everything else
  * depends on the global providers it brings. `AuthModule` follows it because it
  * is `@Global()` too — it binds the token `JwtAuthGuard` resolves.
+ *
+ * B05 adds `EventEmitterModule.forRoot()` (global by default — no other module
+ * imports it) so `billing/webhooks.service.ts` can publish the payment/refund
+ * events `invoices/listeners/billing-events.listener.ts` subscribes to
+ * (`invoices/billing-events.ts` explains why this lives in `billing/` rather
+ * than being forked); `TaxModule` (place of supply, Rule 35, FX) and
+ * `InvoicesModule` (numbering, PDF, signature, credit notes, e-invoicing hook,
+ * FIRC, tax registrations) come after `BillingModule`, which they listen to.
  */
 @Module({
   imports: [
     CommonModule,
+    EventEmitterModule.forRoot(),
     UsersModule,
     AuthModule,
     WorkspacesModule,
@@ -79,6 +91,8 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     ExportsModule,
     HealthModule,
     BillingModule,
+    TaxModule,
+    InvoicesModule,
   ],
 })
 export class AppModule {}
