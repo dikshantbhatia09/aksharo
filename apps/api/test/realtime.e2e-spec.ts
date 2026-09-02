@@ -32,6 +32,8 @@ import {
 import { RealtimePublisher } from "../src/realtime/realtime.publisher.js";
 import { RoomAccessService } from "../src/realtime/room-access.service.js";
 
+import type { RealtimeBus } from "../src/realtime/realtime.bus.js";
+
 const WS_ID = "01JCWS0000000000000000000A";
 const OTHER_WS = "01JCWS0000000000000000000B";
 const USER = "01JCUSER00000000000000000A";
@@ -147,7 +149,7 @@ const db = new FakeDb();
 const clients: Client[] = [];
 const instances: Instance[] = [];
 
-async function startInstance(): Promise<Instance> {
+async function startInstance(overrideBus?: RealtimeBus): Promise<Instance> {
   const server = createServer((_request, response) => {
     response.statusCode = 426;
     response.end();
@@ -155,7 +157,7 @@ async function startInstance(): Promise<Instance> {
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const port = (server.address() as AddressInfo).port;
 
-  const bus = new InMemoryRealtimeBus(broker);
+  const bus = overrideBus ?? new InMemoryRealtimeBus(broker);
   const prisma = createFakePrisma(db) as unknown as PrismaService;
   const gateway = new RealtimeGateway(
     { httpAdapter: { getHttpServer: () => server } } as unknown as HttpAdapterHost,
@@ -437,5 +439,39 @@ describe("heartbeat", () => {
 
     await expect(client.closed()).resolves.toBe(CLOSE_CODES.heartbeatTimeout);
     expect(primary.gateway.connectionCount).toBe(0);
+  });
+});
+
+describe("a fan-out transport that is down (A08c)", () => {
+  /** A bus whose SUBSCRIBE always fails, the way a cold Redis connection did. */
+  const brokenBus: RealtimeBus = {
+    subscribe: async () => {
+      throw new Error("Stream isn't writeable and enableOfflineQueue options is false");
+    },
+    unsubscribe: async () => undefined,
+    publish: async () => undefined,
+    onMessage: () => undefined,
+    close: async () => undefined,
+  };
+
+  it("refuses the room instead of taking the process down with it", async () => {
+    const broken = await startInstance(brokenBus);
+    const client = await connect(broken.port);
+    await client.next(); // welcome
+
+    client.send({ t: "subscribe", rooms: [projectRoom(PROJECT)] });
+
+    // Refused, not silently joined: a client told it is in a room it will never
+    // receive an event for is worse off than one told to try again.
+    await expect(client.next()).resolves.toMatchObject({
+      t: "subscribed",
+      rooms: [],
+      refused: [{ room: projectRoom(PROJECT), reason: "unavailable" }],
+    });
+
+    // The connection survives, and no membership was left behind.
+    client.send({ t: "ping" });
+    await expect(client.next()).resolves.toEqual({ t: "pong" });
+    expect(broken.gateway.connectionCount).toBe(1);
   });
 });
