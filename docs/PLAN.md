@@ -51,7 +51,7 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 |---|---|---|---|
 | A10 | worker-ai vendor adapters, LID, routing, alignment registry, diarisation | A09 | in-progress |
 | A11 | api transcripts, post-processing, segmentation → EDG init | A02b, A08, A09 | briefed |
-| A12 | api EDG module (ops, rebase, CAS, revisions, realtime) | A02b, A08 | in-progress |
+| A12 | api EDG module (ops, rebase, CAS, revisions, realtime) | A02b, A08 | done |
 | A13 | web shell + `@montaj/ui` + auth pages + onboarding + settings | A04, A05 | in-progress |
 | A14 | web Home + Projects + upload engine | A06, A08, A13 | briefed |
 | A15 | web Editor transcript column + EDG client store | A12, A13 | briefed |
