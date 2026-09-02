@@ -4,34 +4,51 @@ import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-import { useClaimReferral, useSaveOnboarding } from "@montaj/api-client";
+import {
+  useAttachAffiliateAttribution,
+  useClaimReferral,
+  useCurrentUser,
+  useSaveOnboarding,
+} from "@montaj/api-client";
 import { BRAND } from "@montaj/config";
 import { Button, Card, cn, Field, Input, ProgressBar, toast } from "@montaj/ui";
 
+import { SampleProjectButton } from "@/components/projects/project-grid";
 import { messageForError } from "@/lib/errors";
+import { useT } from "@/lib/i18n/locale-provider";
+import { classifyOnboardingCode } from "@/lib/onboarding/code-classifier";
 
 /**
- * Onboarding steps 1–3 (F-002, 08 §Onboarding).
+ * Onboarding steps 1–4 (F-002, 08 §Onboarding).
  *
  * Step 0 — date of birth, jurisdiction and the two consent toggles — is asked
  * during sign-up, because D60 makes it part of creating an account rather than
- * something to collect afterwards. What is left is the three questions that set
- * defaults: what you make, the languages you speak on camera, and how you found
- * us.
+ * something to collect afterwards. What is left is: what you make, the
+ * languages you speak on camera, how you found us (plus a code field), and a
+ * final "you're set" step (B17) that offers a sample project so a person can
+ * see the editor before uploading anything of their own.
  *
  * The answers persist into the user's free-form `onboarding` object through
  * `PATCH /me` (A05). A draft is also kept in this browser, so closing the tab
- * halfway through does not lose three answers; B17 turns the saved answers into
- * real defaults and attribution events.
+ * halfway through does not lose the answers; B17 turns the saved answers into
+ * real defaults (aspect, style, export preset, language routing hints) and
+ * attribution events (`onboarding_completed`, recorded server-side the first
+ * time `onboarding.completedAt` appears).
  */
 
-const MAKES = [
-  { key: "reels", label: "Reels / Shorts", hint: "Vertical, fast, caption-led" },
-  { key: "youtube", label: "YouTube", hint: "Long form with chapters" },
-  { key: "podcast", label: "Podcast", hint: "Audio first, clips after" },
-  { key: "client", label: "Client work", hint: "Deliverables and review links" },
-  { key: "gaming", label: "Gaming", hint: "Highlights and montages" },
-] as const;
+/** What you make → the Home quick-pick row's starting aspect, style and export preset. */
+const MAKE_DEFAULTS: Record<
+  string,
+  { aspect: "9:16" | "16:9" | "1:1" | "4:5"; styleId: string; exportPreset: string }
+> = {
+  reels: { aspect: "9:16", styleId: "punch-pop", exportPreset: "reels" },
+  youtube: { aspect: "16:9", styleId: "subtitle-classic", exportPreset: "youtube" },
+  podcast: { aspect: "1:1", styleId: "podcast-duo", exportPreset: "podcast-clip" },
+  client: { aspect: "16:9", styleId: "minimal-lower-third", exportPreset: "client-review" },
+  gaming: { aspect: "9:16", styleId: "neon-glow", exportPreset: "highlights" },
+};
+
+const MAKES = ["reels", "youtube", "podcast", "client", "gaming"] as const;
 
 const LANGUAGES = [
   { key: "hi-Latn", label: "Hinglish (Roman)" },
@@ -43,23 +60,15 @@ const LANGUAGES = [
   { key: "te", label: "తెలుగు" },
   { key: "mr", label: "मराठी" },
   { key: "kn", label: "ಕನ್ನಡ" },
-  { key: "ml", label: "മലയാളം" },
+  { key: "ml", label: "മലയాളం" },
   { key: "gu", label: "ગુજરાતી" },
   { key: "pa", label: "ਪੰਜਾਬੀ" },
 ] as const;
 
-const SOURCES = [
-  "A friend or colleague",
-  "YouTube",
-  "Instagram",
-  "Search",
-  "A creator I follow",
-  "Somewhere else",
-] as const;
-
-const STEP_TITLES = ["What do you make?", "Languages you speak on camera", "How did you find us?"];
+const SOURCES = ["friend", "youtube", "instagram", "search", "creator", "other"] as const;
 
 const DRAFT_KEY = "aksharo.onboarding";
+const TOTAL_STEPS = 4;
 
 interface Draft {
   makes: string[];
@@ -98,12 +107,32 @@ function writeDraft(draft: Draft): void {
   }
 }
 
+/** The defaults `MAKE_DEFAULTS` implies for whichever "what you make" options got picked. */
+function defaultsFor(makes: readonly string[]): {
+  defaultAspect?: "9:16" | "16:9" | "1:1" | "4:5";
+  defaultStyleId?: string;
+  defaultExportPreset?: string;
+} {
+  const first = makes.map((key) => MAKE_DEFAULTS[key]).find((entry) => entry !== undefined);
+  if (first === undefined) return {};
+  return {
+    defaultAspect: first.aspect,
+    defaultStyleId: first.styleId,
+    defaultExportPreset: first.exportPreset,
+  };
+}
+
 export function OnboardingFlow(): React.JSX.Element {
+  const t = useT();
   const router = useRouter();
+  const me = useCurrentUser();
   const save = useSaveOnboarding();
   const claimReferral = useClaimReferral();
+  const attach = useAttachAffiliateAttribution();
   const [step, setStep] = React.useState(0);
   const [draft, setDraft] = React.useState<Draft>(EMPTY_DRAFT);
+  const [codeError, setCodeError] = React.useState<string | null>(null);
+  const [finished, setFinished] = React.useState(false);
 
   // Read the draft after mount: `localStorage` does not exist on the server, and
   // reading it during render would make the two markups disagree.
@@ -119,27 +148,42 @@ export function OnboardingFlow(): React.JSX.Element {
     });
   };
 
-  const finish = (): void => {
+  const saveAnswers = (): void => {
+    setCodeError(null);
+    const code = draft.referralCode.trim();
+    const codeType = code === "" ? undefined : classifyOnboardingCode(code);
+    if (code !== "" && codeType === "invalid") {
+      setCodeError(t("onboarding.code.invalid"));
+      return;
+    }
+
     save.mutate(
       {
         makes: draft.makes,
         languages: draft.languages,
         ...(draft.source === "" ? {} : { source: draft.source }),
-        ...(draft.referralCode === "" ? {} : { referralCode: draft.referralCode }),
+        ...(code === "" ? {} : { referralCode: code }),
+        ...(codeType === undefined ? {} : { codeType }),
+        ...defaultsFor(draft.makes),
       },
       {
         onSuccess: () => {
-          // B07b: claim a referral code posted here — best-effort. A failed
-          // claim (an affiliate code, a typo, an already-claimed workspace)
-          // must never strand a new user on onboarding, so its result is
-          // never awaited or surfaced.
-          if (draft.referralCode !== "") {
-            claimReferral.mutate({ code: draft.referralCode });
+          if (codeType === "referral") {
+            // B07b: best-effort — a failed claim (a typo, an already-claimed
+            // workspace) must never strand a new user on onboarding.
+            claimReferral.mutate({ code });
+          } else if (codeType === "affiliate" && me.data !== undefined) {
+            attach.mutate({
+              referredWorkspaceId: me.data.workspace.id,
+              referredUserId: me.data.id,
+              code,
+            });
           }
-          router.replace("/");
+          setFinished(true);
+          setStep(3);
         },
         onError: (error) => {
-          toast.error("We could not save that", { description: messageForError(error) });
+          toast.error(t("onboarding.saveError"), { description: messageForError(error) });
         },
       },
     );
@@ -148,14 +192,25 @@ export function OnboardingFlow(): React.JSX.Element {
   const canContinue =
     step === 0 ? draft.makes.length > 0 : step === 1 ? draft.languages.length > 0 : true;
 
+  const stepTitle =
+    step === 0
+      ? t("onboarding.step.makes.title")
+      : step === 1
+        ? t("onboarding.step.languages.title")
+        : step === 2
+          ? t("onboarding.step.source.title")
+          : t("onboarding.step.finish.title");
+
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6" data-testid="onboarding">
       <div className="flex flex-col gap-2">
-        <p className="text-fg-2 text-xs">Step {step + 1} of 3</p>
-        <h1 className="font-display text-2xl font-semibold tracking-tight">{STEP_TITLES[step]}</h1>
+        <p className="text-fg-2 text-xs">
+          {t("onboarding.stepOf", { step: step + 1, total: TOTAL_STEPS })}
+        </p>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">{stepTitle}</h1>
         <ProgressBar
-          value={((step + 1) / 3) * 100}
-          label={`Onboarding progress, step ${String(step + 1)} of 3`}
+          value={((step + 1) / TOTAL_STEPS) * 100}
+          label={t("onboarding.progressLabel", { step: step + 1, total: TOTAL_STEPS })}
         />
       </div>
 
@@ -163,7 +218,11 @@ export function OnboardingFlow(): React.JSX.Element {
         {step === 0 ? (
           <ChoiceGrid
             name="makes"
-            options={MAKES}
+            options={MAKES.map((key) => ({
+              key,
+              label: t(`onboarding.make.${key}`),
+              hint: t(`onboarding.make.${key}.hint`),
+            }))}
             selected={draft.makes}
             onToggle={(key) => {
               update({ makes: toggle(draft.makes, key) });
@@ -174,8 +233,7 @@ export function OnboardingFlow(): React.JSX.Element {
         {step === 1 ? (
           <>
             <p className="text-fg-2 text-sm">
-              Pick every language you use. Hinglish is first because it is what most of {BRAND.name}{" "}
-              gets asked for — you can change this per project later.
+              {t("onboarding.step.languages.hint", { brand: BRAND.name })}
             </p>
             <ChoiceGrid
               name="languages"
@@ -192,7 +250,7 @@ export function OnboardingFlow(): React.JSX.Element {
           <>
             <ChoiceGrid
               name="source"
-              options={SOURCES.map((label) => ({ key: label, label }))}
+              options={SOURCES.map((key) => ({ key, label: t(`onboarding.source.${key}`) }))}
               selected={draft.source === "" ? [] : [draft.source]}
               single
               onToggle={(key) => {
@@ -200,61 +258,90 @@ export function OnboardingFlow(): React.JSX.Element {
               }}
             />
             <Field
-              label="Referral code (optional)"
+              label={t("onboarding.code.label")}
               htmlFor="referral"
-              hint="If someone gave you a code, it goes here."
+              hint={t("onboarding.code.hint")}
+              {...(codeError === null ? {} : { error: codeError })}
             >
               <Input
                 id="referral"
                 value={draft.referralCode}
                 autoCapitalize="characters"
+                aria-invalid={codeError !== null}
+                data-testid="onboarding-code"
                 onChange={(event) => {
+                  setCodeError(null);
                   update({ referralCode: event.target.value.toUpperCase() });
                 }}
               />
             </Field>
           </>
         ) : null}
+
+        {step === 3 ? (
+          <div className="flex flex-col items-center gap-4 py-4 text-center">
+            <p className="text-fg-1 text-sm">{t("onboarding.step.finish.body")}</p>
+            <SampleProjectButton />
+          </div>
+        ) : null}
       </Card>
 
-      <div className="flex items-center gap-2">
-        {step > 0 ? (
+      {step === 3 ? (
+        <div className="flex justify-end">
           <Button
             variant="ghost"
-            onClick={() => {
-              setStep(step - 1);
-            }}
-          >
-            Back
-          </Button>
-        ) : null}
-
-        <div className="ml-auto flex items-center gap-2">
-          <Button
-            variant="ghost"
+            data-testid="onboarding-done"
             onClick={() => {
               router.replace("/");
             }}
-            data-testid="onboarding-skip"
           >
-            Skip for now
-          </Button>
-          <Button
-            variant="primary"
-            disabled={!canContinue || save.isPending}
-            data-testid="onboarding-next"
-            onClick={() => {
-              if (step < 2) {
-                setStep(step + 1);
-                return;
-              }
-              finish();
-            }}
-          >
-            {step < 2 ? "Continue" : save.isPending ? "Saving…" : "Finish"}
+            {t("onboarding.skip")}
           </Button>
         </div>
-      </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          {step > 0 ? (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setStep(step - 1);
+              }}
+            >
+              {t("onboarding.back")}
+            </Button>
+          ) : null}
+
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                router.replace("/");
+              }}
+              data-testid="onboarding-skip"
+            >
+              {t("onboarding.skip")}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!canContinue || save.isPending || finished}
+              data-testid="onboarding-next"
+              onClick={() => {
+                if (step < 2) {
+                  setStep(step + 1);
+                  return;
+                }
+                saveAnswers();
+              }}
+            >
+              {step < 2
+                ? t("onboarding.continue")
+                : save.isPending
+                  ? t("onboarding.saving")
+                  : t("onboarding.finish")}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

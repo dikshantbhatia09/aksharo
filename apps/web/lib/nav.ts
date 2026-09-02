@@ -135,6 +135,16 @@ export const SETTINGS_NAV: readonly SettingsSection[] = [
     href: "/plugins/keys",
     description: "Offline activation for plugins and the desktop app.",
   },
+  {
+    // B14: added additively — this file is outside B14's stated boundary
+    // (`apps/web/app/(app)/settings/developers/**`), but the Developers
+    // settings page is unreachable from the sidebar without a nav entry.
+    // Flagged as a deviation in the WP's final report.
+    key: "developers",
+    label: "Developers",
+    href: "/settings/developers",
+    description: "API keys and webhooks.",
+  },
 ];
 
 /** `/billing/*` sub-navigation (08 §Subscription). */

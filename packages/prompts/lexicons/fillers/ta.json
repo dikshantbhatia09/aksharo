@@ -1,0 +1,33 @@
+{
+  "language": "ta",
+  "version": 1,
+  "description": "Tamil filler lexicon (minimal seed set, B18) for the autocut pass.",
+  "entries": [
+    {
+      "token": "அம்மா",
+      "scripts": { "native": "அம்மா", "roman": "amma" },
+      "contextRule": "isolated_only",
+      "weight": 0.45
+    },
+    {
+      "token": "பாரு",
+      "scripts": { "native": "பாரு", "roman": "paaru" },
+      "contextRule": "isolated_only",
+      "weight": 0.45
+    },
+    {
+      "token": "இப்படி",
+      "scripts": { "native": "இப்படி", "roman": "ippadi" },
+      "contextRule": "isolated_only",
+      "weight": 0.45
+    },
+    {
+      "token": "அப்படி",
+      "scripts": { "native": "அப்படி", "roman": "appadi" },
+      "contextRule": "isolated_only",
+      "weight": 0.45
+    },
+    { "token": "um", "scripts": { "roman": "um" }, "contextRule": "always", "weight": 0.9 },
+    { "token": "hmm", "scripts": { "roman": "hmm" }, "contextRule": "always", "weight": 0.88 }
+  ]
+}

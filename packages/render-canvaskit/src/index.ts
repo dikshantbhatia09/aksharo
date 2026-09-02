@@ -22,6 +22,7 @@ export {
   type CanvasKitBackendOptions,
   CanvasKitError,
   createBrowserSurface,
+  createExportSurface,
   type DrawFrameOptions,
   type MissingResource,
   type RenderToPngOptions,

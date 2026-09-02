@@ -16,7 +16,17 @@ import { defineEndpoint } from "./http.js";
 import type {
   AffiliateProfile,
   AffiliateStats,
+  ApiKeyView,
   ApplyAffiliateRequest,
+  CreateApiKeyRequest,
+  CreatedWebhookEndpointView,
+  CreateWebhookRequest,
+  MintedApiKeyView,
+  UpdateWebhookRequest,
+  WebhookDeliveryView,
+  WebhookEndpointView,
+  AttachAffiliateAttributionRequest,
+  AttachAffiliateAttributionResult,
   AvailableScripts,
   BatchCreateProjectsRequest,
   ChangeRoleRequest,
@@ -40,6 +50,9 @@ import type {
   ImportGlossaryRequest,
   ImportGlossaryResult,
   InitUploadRequest,
+  InsightsAccepted,
+  InsightsRequest,
+  InsightsResponse,
   InviteMemberRequest,
   JobPage,
   JobSummary,
@@ -658,6 +671,22 @@ export const transcriptScriptsEndpoints = {
   }),
 } as const;
 
+/** Insights (B11): `apps/api/src/insights`. */
+export const insightsEndpoints = {
+  request: defineEndpoint<InsightsRequest, InsightsAccepted>({
+    method: "POST",
+    path: "/projects/{projectId}/insights",
+    auth: "bearer",
+    operationId: "requestProjectInsights",
+  }),
+  list: defineEndpoint<void, InsightsResponse>({
+    method: "GET",
+    path: "/projects/{projectId}/insights",
+    auth: "bearer",
+    operationId: "getProjectInsights",
+  }),
+} as const;
+
 /**
  * `/memory` — Settings → "What Aksharo learned" (F-204, D62, B09).
  *
@@ -759,6 +788,87 @@ export const affiliateEndpoints = {
     auth: "bearer",
     operationId: "getMyAffiliateStats",
   }),
+  /** Called from onboarding (B17) when the code field is affiliate-shaped, not `AK-`. */
+  attach: defineEndpoint<AttachAffiliateAttributionRequest, AttachAffiliateAttributionResult>({
+    method: "POST",
+    path: "/affiliate/attribution/attach",
+    auth: "public",
+    operationId: "attachAffiliateAttribution",
+  }),
+} as const;
+
+// --- B14: Settings → Developers (API keys, webhooks) ------------------------
+
+const apiKeyEndpoints = {
+  create: defineEndpoint<CreateApiKeyRequest, MintedApiKeyView>({
+    method: "POST",
+    path: "/workspaces/{id}/api-keys",
+    auth: "bearer",
+    operationId: "createApiKey",
+  }),
+  list: defineEndpoint<void, ApiKeyView[]>({
+    method: "GET",
+    path: "/workspaces/{id}/api-keys",
+    auth: "bearer",
+    operationId: "listApiKeys",
+  }),
+  rotate: defineEndpoint<void, MintedApiKeyView>({
+    method: "POST",
+    path: "/workspaces/{id}/api-keys/{keyId}/rotate",
+    auth: "bearer",
+    operationId: "rotateApiKey",
+  }),
+  revoke: defineEndpoint<void, ApiKeyView>({
+    method: "DELETE",
+    path: "/workspaces/{id}/api-keys/{keyId}",
+    auth: "bearer",
+    operationId: "revokeApiKey",
+  }),
+} as const;
+
+const webhookEndpoints2 = {
+  create: defineEndpoint<CreateWebhookRequest, CreatedWebhookEndpointView>({
+    method: "POST",
+    path: "/workspaces/{id}/webhooks",
+    auth: "bearer",
+    operationId: "createWebhookEndpoint",
+  }),
+  list: defineEndpoint<void, WebhookEndpointView[]>({
+    method: "GET",
+    path: "/workspaces/{id}/webhooks",
+    auth: "bearer",
+    operationId: "listWebhookEndpoints",
+  }),
+  update: defineEndpoint<UpdateWebhookRequest, WebhookEndpointView>({
+    method: "PATCH",
+    path: "/workspaces/{id}/webhooks/{endpointId}",
+    auth: "bearer",
+    operationId: "updateWebhookEndpoint",
+  }),
+  remove: defineEndpoint<void, { id: string }>({
+    method: "DELETE",
+    path: "/workspaces/{id}/webhooks/{endpointId}",
+    auth: "bearer",
+    operationId: "deleteWebhookEndpoint",
+  }),
+  test: defineEndpoint<void, { deliveryId: string }>({
+    method: "POST",
+    path: "/workspaces/{id}/webhooks/{endpointId}/test",
+    auth: "bearer",
+    operationId: "sendWebhookTestEvent",
+  }),
+  deliveries: defineEndpoint<void, WebhookDeliveryView[]>({
+    method: "GET",
+    path: "/workspaces/{id}/webhooks/{endpointId}/deliveries",
+    auth: "bearer",
+    operationId: "listWebhookDeliveries",
+  }),
+  redeliver: defineEndpoint<void, { id: string }>({
+    method: "POST",
+    path: "/workspaces/{id}/webhooks/deliveries/{deliveryId}/redeliver",
+    auth: "bearer",
+    operationId: "redeliverWebhookDelivery",
+  }),
 } as const;
 
 export const endpoints = {
@@ -772,6 +882,7 @@ export const endpoints = {
   styles: styleEndpoints,
   transcripts: transcriptEndpoints,
   transcriptScripts: transcriptScriptsEndpoints,
+  insights: insightsEndpoints,
   billing: billingEndpoints,
   affiliate: affiliateEndpoints,
   credits: creditsEndpoints,
@@ -782,6 +893,8 @@ export const endpoints = {
   referrals: referralsEndpoints,
   memory: memoryEndpoints,
   streak: streakEndpoints,
+  apiKeys: apiKeyEndpoints,
+  webhooks: webhookEndpoints2,
   pending: pendingEndpoints,
 } as const;
 
@@ -800,6 +913,7 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(styleEndpoints),
   ...Object.entries(transcriptEndpoints),
   ...Object.entries(transcriptScriptsEndpoints),
+  ...Object.entries(insightsEndpoints),
   ...Object.entries(billingEndpoints),
   ...Object.entries(affiliateEndpoints),
   ...Object.entries(creditsEndpoints),
@@ -807,5 +921,7 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(referralsEndpoints),
   ...Object.entries(memoryEndpoints),
   ...Object.entries(streakEndpoints),
+  ...Object.entries(apiKeyEndpoints),
+  ...Object.entries(webhookEndpoints2),
   ...Object.entries(pendingEndpoints),
 ] as const;

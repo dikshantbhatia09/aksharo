@@ -80,6 +80,65 @@ describe("probeExportCapabilities", () => {
     });
     expect(probe.throughput?.realtimeMultiplier).toBe(1.0);
   });
+
+  it("A19c: reports hardwareEncoder true when prefer-hardware is supported", async () => {
+    stubWebCodecs({ supportedH264: [H264_CODEC_LADDER[0]], aac: true });
+    const probe = await probeExportCapabilities();
+    expect(probe.hardwareEncoder).toBe(true);
+  });
+
+  it("A19c: reports hardwareEncoder false when prefer-hardware answers unsupported but prefer-software works (software-only encoder)", async () => {
+    vi.stubGlobal("VideoEncoder", {
+      isConfigSupported: async (config: { hardwareAcceleration?: string }) => ({
+        supported: config.hardwareAcceleration !== "prefer-hardware",
+      }),
+    });
+    vi.stubGlobal("VideoDecoder", { isConfigSupported: async () => ({ supported: true }) });
+    vi.stubGlobal("AudioEncoder", {
+      isConfigSupported: async () => ({ supported: true }),
+    });
+    const probe = await probeExportCapabilities();
+    expect(probe.bestH264).not.toBeNull();
+    expect(probe.hardwareEncoder).toBe(false);
+  });
+
+  it("A19c: reports hardwareEncoder false, not a throw, when isConfigSupported rejects for prefer-hardware (this sandbox's own behaviour, per README.md)", async () => {
+    // Unlike the ladder's own `probeVideoCodec` (which shares one try/catch
+    // across both the hardware and software calls, so a hardware-call throw
+    // also swallows the ladder's software fallback for that rung), the
+    // dedicated hardware probe only ever asks the hardware question — a
+    // throw there is reported as `false`, exactly like an explicit
+    // `supported: false` answer, with no effect on `bestH264` as long as
+    // *some* rung of the ladder answers `prefer-software` successfully.
+    vi.stubGlobal("VideoEncoder", {
+      isConfigSupported: async (config: { codec: string; hardwareAcceleration?: string }) => {
+        if (
+          config.hardwareAcceleration === "prefer-hardware" &&
+          config.codec === H264_CODEC_LADDER[0]
+        ) {
+          throw new Error(
+            "this specific encoder configuration is not supported in this environment",
+          );
+        }
+        return { supported: config.hardwareAcceleration !== "prefer-hardware" };
+      },
+    });
+    vi.stubGlobal("VideoDecoder", { isConfigSupported: async () => ({ supported: true }) });
+    vi.stubGlobal("AudioEncoder", {
+      isConfigSupported: async () => ({ supported: true }),
+    });
+    const probe = await probeExportCapabilities();
+    expect(probe.bestH264).not.toBeNull();
+    expect(probe.hardwareEncoder).toBe(false);
+  });
+
+  it("A19c: reports hardwareEncoder null when there is no WebCodecs at all", async () => {
+    vi.stubGlobal("VideoEncoder", undefined);
+    vi.stubGlobal("VideoDecoder", undefined);
+    vi.stubGlobal("AudioEncoder", undefined);
+    const probe = await probeExportCapabilities();
+    expect(probe.hardwareEncoder).toBeNull();
+  });
 });
 
 describe("toCapabilitiesRequest", () => {
@@ -89,6 +148,18 @@ describe("toCapabilitiesRequest", () => {
     const request = toCapabilitiesRequest(probe);
     expect(request.codecs).toEqual([H264_CODEC_LADDER[0]]);
     expect(request.audioEncoder).toBe(true);
+  });
+
+  it("A19c: carries hardwareEncoder through, omitting it when null", async () => {
+    stubWebCodecs({ supportedH264: [H264_CODEC_LADDER[0]], aac: true });
+    const probe = await probeExportCapabilities();
+    expect(toCapabilitiesRequest(probe).hardwareEncoder).toBe(true);
+
+    vi.stubGlobal("VideoEncoder", undefined);
+    vi.stubGlobal("VideoDecoder", undefined);
+    vi.stubGlobal("AudioEncoder", undefined);
+    const ineligibleProbe = await probeExportCapabilities();
+    expect(toCapabilitiesRequest(ineligibleProbe).hardwareEncoder).toBeUndefined();
   });
 });
 

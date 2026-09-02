@@ -15,6 +15,13 @@ export type UploadStatus =
 
 export interface UploadQuickPick {
   readonly language: string;
+  /**
+   * Every language the onboarding wizard recorded (F-002 "Languages you
+   * speak on camera"), primary first — carried into the transcribe request
+   * as routing hints (B17). Optional: the resumable-upload path has no
+   * profile to read this from.
+   */
+  readonly languages?: readonly string[];
   readonly styleId?: string;
   readonly aspect: "9:16" | "16:9" | "1:1" | "4:5";
 }

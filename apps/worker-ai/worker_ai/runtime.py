@@ -42,6 +42,7 @@ from typing import Any
 from worker_ai.alignment import AlignerRegistry
 from worker_ai.cache import MemoryResultCache, NullResultCache, RedisResultCache, ResultCache
 from worker_ai.callbacks import CallbackClient, JobCompletion, JobError
+from worker_ai.clean.processor import process_clean
 from worker_ai.diarisation import DiariserRegistry
 from worker_ai.lid import (
     GpuLanguageIdentifier,
@@ -49,6 +50,7 @@ from worker_ai.lid import (
     LanguageIdentifier,
     WhisperLanguageIdentifier,
 )
+from worker_ai.llm.registry import build_llm_providers
 from worker_ai.logging_setup import get_logger
 from worker_ai.processors import (
     JobContext,
@@ -57,7 +59,9 @@ from worker_ai.processors import (
     Services,
     process_align,
     process_diarise,
+    process_llm,
     process_not_implemented,
+    process_pass,
     process_transcribe,
     process_translate,
     process_transliterate,
@@ -107,6 +111,9 @@ PROCESSORS: dict[str, Processor] = {
     "ai.diarise": process_diarise,
     "ai.translate": process_translate,
     "ai.transliterate": process_transliterate,
+    "ai.llm": process_llm,
+    "ai.pass": process_pass,
+    "ai.clean": process_clean,
 }
 
 
@@ -151,6 +158,7 @@ def build_services(settings: Settings, *, callbacks: CallbackClient | None = Non
         text_lid=IndicLidClassifier(settings.indiclid_dir),
         transliteration=build_transliteration_provider(settings),
         translation_providers=build_translation_providers(settings),
+        llm_providers=build_llm_providers(settings),
     )
 
 
@@ -264,9 +272,7 @@ def build_cache(settings: Settings) -> ResultCache:
     """The `09 §1` result cache for this deployment."""
     kind = settings.cache_kind
     if kind == "redis":
-        return RedisResultCache(
-            settings.redis_url, max_entry_bytes=settings.cache_max_entry_bytes
-        )
+        return RedisResultCache(settings.redis_url, max_entry_bytes=settings.cache_max_entry_bytes)
     if kind == "memory":
         return MemoryResultCache(max_entry_bytes=settings.cache_max_entry_bytes)
     return NullResultCache()

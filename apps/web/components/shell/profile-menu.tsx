@@ -1,11 +1,17 @@
 "use client";
 
-import { LogOut, Settings, ShieldCheck, User } from "lucide-react";
+import { Globe, LogOut, Settings, ShieldCheck, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-import { endpoints, useApiClient, useCurrentUser, useSession } from "@montaj/api-client";
+import {
+  endpoints,
+  useApiClient,
+  useCurrentUser,
+  useSession,
+  useUpdateMe,
+} from "@montaj/api-client";
 import {
   Button,
   DropdownMenu,
@@ -17,6 +23,7 @@ import {
 } from "@montaj/ui";
 
 import { resetAnalytics } from "@/lib/analytics/posthog";
+import { useLocale, useT } from "@/lib/i18n/locale-provider";
 import { clearSession } from "@/lib/session/client";
 
 /** The profile block at the bottom of the sidebar (08 §3). */
@@ -26,6 +33,9 @@ export function ProfileMenu({ onNavigate }: { onNavigate?: () => void }): React.
   const client = useApiClient();
   const router = useRouter();
   const [signingOut, setSigningOut] = React.useState(false);
+  const [locale, setLocale] = useLocale();
+  const updateMe = useUpdateMe();
+  const t = useT();
 
   const name = me.data?.name ?? me.data?.email ?? "Your account";
 
@@ -73,6 +83,21 @@ export function ProfileMenu({ onNavigate }: { onNavigate?: () => void }): React.
             <Settings aria-hidden="true" />
             Devices & sessions
           </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault();
+            const next = locale === "hi" ? "en" : "hi";
+            setLocale(next);
+            const bcp47 = next === "hi" ? "hi-IN" : "en-IN";
+            updateMe.mutate({ locale: bcp47 });
+          }}
+          data-testid="locale-switch"
+        >
+          <Globe aria-hidden="true" />
+          {t("profile.language")}:{" "}
+          {locale === "hi" ? t("profile.language.hi") : t("profile.language.en")}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

@@ -3,6 +3,7 @@ import { EventEmitterModule } from "@nestjs/event-emitter";
 
 import { AdminModule } from "./admin/admin.module.js";
 import { AffiliatesModule } from "./affiliates/affiliates.module.js";
+import { AudioModule } from "./audio/audio.module.js";
 import { AuthModule } from "./auth/auth.module.js";
 import { BillingModule } from "./billing/billing.module.js";
 import { CommonModule } from "./common/common.module.js";
@@ -13,6 +14,7 @@ import { EdgModule } from "./edg/edg.module.js";
 import { ExportsModule } from "./exports/exports.module.js";
 import { FontsModule } from "./fonts/fonts.module.js";
 import { HealthModule } from "./health/health.module.js";
+import { InsightsModule } from "./insights/insights.module.js";
 import { InternalModule } from "./internal/internal.module.js";
 import { InvoicesModule } from "./invoices/invoices.module.js";
 import { JobsModule } from "./jobs/jobs.module.js";
@@ -21,8 +23,10 @@ import { MediaModule } from "./media/media.module.js";
 import { MemoryModule } from "./memory/memory.module.js";
 import { NotifyModule } from "./notify/notify.module.js";
 import { OffersModule } from "./offers/offers.module.js";
+import { PassesModule } from "./passes/passes.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
+import { PublicApiModule } from "./public-api/public-api.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { ReferralsModule } from "./referrals/referrals.module.js";
 import { SchedulerTasksModule } from "./scheduler/scheduler-tasks.module.js";
@@ -32,6 +36,7 @@ import { TaxModule } from "./tax/tax.module.js";
 import { ScriptsModule } from "./transcripts/scripts/scripts.module.js";
 import { TranscriptsModule } from "./transcripts/transcripts.module.js";
 import { UsersModule } from "./users/users.module.js";
+import { WebhooksModule } from "./webhooks/webhooks.module.js";
 import { TeamsModule } from "./workspaces/teams/teams.module.js";
 import { WorkspacesModule } from "./workspaces/workspaces.module.js";
 
@@ -98,12 +103,15 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     NotifyModule,
     ProjectsModule,
     MediaModule,
+    InsightsModule,
     MemoryModule,
     StylesModule,
     InternalModule,
     AdminModule,
     EdgModule,
     TranscriptsModule,
+    AudioModule,
+    PassesModule,
     ScriptsModule,
     FontsModule,
     ExportsModule,
@@ -127,6 +135,11 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // service.ts` and the rest documented as "B16's to schedule" — plus the
     // sweeps and reports this work package owns outright.
     SchedulerTasksModule,
+    // B14: API keys + the `/v1` public API surface (`PublicApiModule`), and
+    // outgoing webhook endpoints/delivery (`WebhooksModule`). Both come last —
+    // neither is depended on by anything above.
+    PublicApiModule,
+    WebhooksModule,
   ],
 })
 export class AppModule {}

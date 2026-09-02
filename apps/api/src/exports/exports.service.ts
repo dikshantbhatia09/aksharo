@@ -73,6 +73,13 @@ export interface ExportSources {
   readonly rawUrl: string;
   readonly proxyUrl?: string;
   readonly watermarkUrl?: string;
+  /**
+   * B10: a signed GET for the `ai.clean` output, present whenever the built
+   * manifest's `audio.strategy === "replace"`. `apps/web/lib/export/engine.ts`
+   * reads this as `RunExportOptions.cleanAudioSource` and muxes it instead of
+   * the source track.
+   */
+  readonly cleanedAudioUrl?: string;
 }
 
 export interface RequestExportResult {
@@ -217,10 +224,13 @@ export class ExportsService {
             input.options.watermarkOpacity,
           );
 
+    const audioClean = await this.resolveAudioClean(edg.audio, project.id);
+
     const { manifest: unsigned } = buildRenderManifest({
       workspaceId: input.workspaceId,
       projectId: input.projectId,
       exportId,
+      ...(audioClean === undefined ? {} : { audioClean }),
       edg: {
         edgId: edg.meta.edgId,
         revision: edg.meta.revision,
@@ -299,6 +309,7 @@ export class ExportsService {
         mediaId: media.id,
         workspaceId: input.workspaceId,
         watermark: manifest.watermark,
+        audio: manifest.audio,
       });
 
       return {
@@ -612,6 +623,7 @@ export class ExportsService {
     readonly mediaId: string;
     readonly workspaceId: string;
     readonly watermark: { readonly assetId: string } | null;
+    readonly audio?: { readonly strategy: string; readonly cleanKey?: string };
   }): Promise<ExportSources> {
     const media = await this.prisma.mediaAsset.findFirst({ where: { id: input.mediaId } });
     if (media === null) {
@@ -634,12 +646,51 @@ export class ExportsService {
             brandAssetKey(input.workspaceId, input.watermark.assetId),
             SOURCE_URL_TTL_SECONDS,
           );
+    const cleanedAudioUrl =
+      input.audio?.strategy === "replace" && input.audio.cleanKey !== undefined
+        ? await this.store.presignGet(input.audio.cleanKey, SOURCE_URL_TTL_SECONDS)
+        : undefined;
 
     return {
       rawUrl,
       ...(proxyUrl === undefined ? {} : { proxyUrl }),
       ...(watermarkUrl === undefined ? {} : { watermarkUrl }),
+      ...(cleanedAudioUrl === undefined ? {} : { cleanedAudioUrl }),
     };
+  }
+
+  /**
+   * B10: `EdgHot.audio.clean` (`SetAudio`'s frozen shape,
+   * `packages/edg/src/schemas/document.ts`'s `AudioCleanSchema` —
+   * `{enabled, preset?, targetLufs?}`) carries no `cleanId` field (CONTRACTS
+   * §2 froze it before this work package existed), so the id travels inside
+   * `preset` by convention: `"b10:<cleanId>"`. Anything else in `preset` is
+   * not this work package's and is left alone (`strategy` stays
+   * `"passthrough"`). Only a **succeeded** run is ever muxed — an export must
+   * never wait on, or silently skip, a clean that is still processing.
+   */
+  private async resolveAudioClean(
+    audio: unknown,
+    projectId: string,
+  ): Promise<{ cleanId: string; cleanKey: string } | undefined> {
+    if (audio === null || typeof audio !== "object") return undefined;
+    const clean = (audio as { clean?: unknown }).clean;
+    if (clean === null || typeof clean !== "object") return undefined;
+    const { enabled, preset } = clean as { enabled?: unknown; preset?: unknown };
+    if (enabled !== true || typeof preset !== "string" || !preset.startsWith("b10:")) {
+      return undefined;
+    }
+    const cleanId = preset.slice("b10:".length);
+    if (cleanId === "") return undefined;
+
+    const row = await this.prisma.audioClean.findFirst({
+      where: { id: cleanId, projectId, status: "succeeded" },
+    });
+    if (row === null) return undefined;
+    const keys = (row.storageKeys ?? {}) as Record<string, unknown>;
+    const cleanKey = keys["cleanedAudioUrl"];
+    if (typeof cleanKey !== "string" || cleanKey === "") return undefined;
+    return { cleanId: row.id, cleanKey };
   }
 
   private async resolveRenderContext(projectId: string, workspaceId: string) {
