@@ -10,6 +10,32 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A10b — Meta MMS excluded on licence grounds (D77); tests no longer read a
+  developer's `.env`.**
+  - `worker_ai/alignment/mms.py` is **deleted**. The common
+    `facebook/mms-300m-1130-forced-aligner` export is CC-BY-NC-4.0, which is
+    non-commercial. Rung 3 of the `09 §2` chain is now split by language family:
+    `IndicWav2VecAligner` (AI4Bharat, **MIT**) for the eleven Indic languages,
+    and the new `worker_ai/alignment/xlsr.py` — `jonatasgrosman/wav2vec2-large-xlsr-53-*`
+    per-language CTC fine-tunes, **Apache-2.0**, which is what the GPU model
+    server already bakes in — for the global ones.
+  - `mms` joins `bhashini` in `routing.NEVER_ROUTE`, and the check now covers all
+    three places it could come back: a lane in `routing.yaml`, an admin routing
+    override, and the aligner registry itself. Each raises at load time. A licence
+    exclusion an operator can switch back on is not an exclusion.
+  - Each XLSR-53 fine-tune carries its own vocabulary in its own script, so
+    nothing is romanised any more; `alignment/romanisation.py` keeps the
+    Roman-to-Devanagari projection the Indic heads need and drops the reverse
+    table that only MMS used.
+  - **Tests no longer depend on the machine's `.env`.** The eval CLI's `--live`
+    path calls `load_settings()` against the *process* environment, so
+    `test_live_asks_the_registry_rather_than_the_fixtures` failed on a fresh
+    clone with "REDIS_URL is missing" instead of the live-path error it asserts —
+    and would have passed for the wrong reason on a machine holding a Sarvam key.
+    A `contract_env` fixture now pins the required variables and blanks every
+    optional credential. The whole suite was run with `.env` renamed away to
+    prove it: 506 passed, 13 skipped, no other test had the same dependency.
+
 - **A12 — api: the EDG module (hot document, `/edg/ops` with server-side rebase
   and compare-and-swap, revisions, snapshots and restore, realtime `edg.ops`).**
   - `apps/api/src/edg/edg.repository.ts`: A02b's `EdgRepository` over Prisma. One

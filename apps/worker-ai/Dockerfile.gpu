@@ -12,7 +12,8 @@
 # transcript never crosses an instance boundary mid-file:
 #
 #   * faster-whisper `large-v3-turbo`  (float16, CTranslate2)
-#   * the forced aligners of `09 §2`   (IndicWav2Vec CTC, Meta MMS)
+#   * the forced aligners of `09 §2`   (IndicWav2Vec CTC MIT, XLSR-53 Apache-2.0;
+#                                       Meta MMS is excluded, CC-BY-NC-4.0, D77)
 #   * pyannote community-1 diarisation (CC-BY-4.0 — attribution required)
 #
 # Weights are baked into the image, never downloaded at boot: a per-second

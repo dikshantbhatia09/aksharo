@@ -295,7 +295,27 @@ def test_a_replayed_vendor_parses_its_own_fixture_exactly(provider: str) -> None
     assert report.corpus_wer == 0.0
 
 
-def test_live_asks_the_registry_rather_than_the_fixtures() -> None:
-    """`--live` is the A00-06 path and must fail loudly without a key."""
+def test_live_asks_the_registry_rather_than_the_fixtures(
+    contract_env: dict[str, str],
+) -> None:
+    """`--live` is the A00-06 path and must fail loudly without a key.
+
+    ``contract_env`` is what makes this a test rather than a report on the
+    machine: without it the environment is whatever the developer's `.env` says,
+    and the failure would be "REDIS_URL is missing" on a fresh clone or no failure
+    at all on a machine that has a Sarvam key.
+    """
+    del contract_env
     with pytest.raises(SystemExit, match="cannot run live here"):
+        main(["run", "--set", "vendor-replay", "--provider", "sarvam", "--live"])
+
+
+def test_live_reports_a_broken_environment_rather_than_a_stack_trace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The other half: no environment at all is a message, not a traceback."""
+    for name in ("REDIS_URL", "API_ORIGIN", "INTERNAL_CALLBACK_SECRET"):
+        monkeypatch.setenv(name, "")
+    monkeypatch.setattr("worker_ai.evals.__main__.load_repo_dotenv", lambda: None)
+    with pytest.raises(SystemExit, match="Invalid environment"):
         main(["run", "--set", "vendor-replay", "--provider", "sarvam", "--live"])

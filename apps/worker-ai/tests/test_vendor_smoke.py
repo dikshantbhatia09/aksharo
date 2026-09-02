@@ -42,6 +42,8 @@ pytestmark = pytest.mark.skipif(
 
 
 async def _provider(name: str) -> AsyncIterator[Provider]:
+    # Deliberately reads the real environment: this file only runs when a human
+    # exported real keys and set RUN_VENDOR_SMOKE=1, which is the whole point.
     load_repo_dotenv()
     registry = build_registry(load_settings())
     reason = registry.reason_disabled(name)
