@@ -30,6 +30,8 @@ therefore non-commercial (D77).
 from __future__ import annotations
 
 import json
+import os
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
@@ -41,17 +43,24 @@ from worker_ai.providers.registry import ProviderRegistry
 
 __all__ = [
     "DEFAULT_ROUTING_FILE",
+    "DEFAULT_SNAPSHOT_FILE",
     "NEVER_ROUTE",
+    "ROUTING_FROZEN_ENV",
     "AlignmentPolicy",
     "RoutingCandidate",
     "RoutingDecision",
     "RoutingError",
     "RoutingLane",
     "RoutingTable",
+    "is_routing_frozen",
     "load_overrides",
+    "load_routing_snapshot",
     "load_routing_table",
+    "load_routing_table_guarded",
     "resolve",
     "resolve_chain",
+    "shadow_candidates",
+    "write_routing_snapshot",
 ]
 
 #: Shipped alongside this module so the package is self-contained in a container.
@@ -99,6 +108,17 @@ class RoutingCandidate:
     #: An operator can switch one candidate off without deleting the row, which
     #: is what the admin console's per-provider toggle writes.
     enabled: bool = True
+    #: D08: a shadow candidate runs in parallel with the lane's live chain and
+    #: its result is recorded for the nightly comparison, but it is never a
+    #: candidate :func:`resolve_chain` can return — see :func:`shadow_candidates`.
+    #: This is how a challenger provider earns real production-traffic
+    #: comparisons before it is trusted with a real job. It is a separate,
+    #: weaker mechanism than :data:`NEVER_ROUTE`: a shadow candidate is one the
+    #: product *could* route to once the nightly comparison earns it a
+    #: promotion; a `NEVER_ROUTE` name is barred by licence or contract and
+    #: ``shadow: true`` does not lift that — the loader rejects a `NEVER_ROUTE`
+    #: provider whether or not it is marked shadow.
+    shadow: bool = False
 
     @property
     def batch(self) -> bool:
@@ -113,6 +133,7 @@ class RoutingCandidate:
             "weight": self.weight,
             "costPerMinuteInr": self.cost_per_minute_inr,
             "enabled": self.enabled,
+            "shadow": self.shadow,
         }
         if self.mode is not None:
             wire["mode"] = self.mode
@@ -381,6 +402,7 @@ def _candidate(entry: object, source: Path, lane_id: str) -> RoutingCandidate:
         cost_per_minute_inr=float(entry.get("costPerMinuteInr", 0.0)),
         max_parallel_chunks=int(entry.get("maxParallelChunks", 0) or 0),
         enabled=bool(entry.get("enabled", True)),
+        shadow=bool(entry.get("shadow", False)),
     )
 
 
@@ -399,6 +421,8 @@ def _override_candidate(candidate: RoutingCandidate, override: object) -> Routin
     parallel = override.get("maxParallelChunks")
     if isinstance(parallel, int) and not isinstance(parallel, bool) and parallel > 0:
         changes["max_parallel_chunks"] = int(parallel)
+    if isinstance(override.get("shadow"), bool):
+        changes["shadow"] = bool(override["shadow"])
     return replace(candidate, **changes) if changes else candidate
 
 
@@ -452,6 +476,13 @@ def resolve_chain(
         for candidate in candidate_lane.candidates:
             if candidate.provider in seen:
                 continue
+            if candidate.shadow:
+                # A shadow candidate never serves a real job (D08): it is
+                # excluded from the returned chain entirely, not merely ranked
+                # last. See :func:`shadow_candidates` for the parallel path
+                # that actually calls it.
+                seen.add(candidate.provider)
+                continue
             reason = _rejection(registry, candidate, language, code_mix, capability, borrowed)
             if reason is not None:
                 skipped.append((candidate.provider, reason))
@@ -503,6 +534,41 @@ def resolve(
     )[0]
 
 
+def shadow_candidates(
+    table: RoutingTable,
+    registry: ProviderRegistry,
+    *,
+    language: str | None,
+    code_mix: bool = False,
+    capability: str = "transcribe",
+) -> tuple[RoutingCandidate, ...]:
+    """Every ``shadow: true`` candidate in the matching lane this deployment can
+    actually run (D08 §4: "the routing chain can mark a candidate rung as
+    shadow").
+
+    A caller (``ai.transcribe``, or the nightly eval job) runs the primary chain
+    as normal and, separately, runs each of these and records the result — never
+    returning it to the user, never counting it in the fallback chain. This
+    function only says *which* candidates qualify; running them and recording
+    the comparison is the caller's job, because only the caller knows how to
+    call a shadow candidate without double-billing or double-returning a result.
+
+    A disabled or unsupported shadow candidate is silently excluded rather than
+    raising: a shadow rung existing at all is optional infrastructure, and a
+    misconfigured challenger should never be able to break the primary path by
+    virtue of sharing this function.
+    """
+    lane = table.lane_for(language, code_mix=code_mix)
+    out: list[RoutingCandidate] = []
+    for candidate in lane.candidates:
+        if not candidate.shadow:
+            continue
+        reason = _rejection(registry, candidate, language, code_mix, capability, False)
+        if reason is None:
+            out.append(candidate)
+    return tuple(out)
+
+
 def _rejection(
     registry: ProviderRegistry,
     candidate: RoutingCandidate,
@@ -533,3 +599,142 @@ def _rejection(
         if wanted and not registry.covers(candidate.provider, wanted):
             return "the adapter does not cover " + wanted
     return None
+
+
+# --------------------------------------------------------------------------
+# Routing freeze (D08 §4): "a routing freeze flag (ROUTING_FROZEN=1 or an
+# admin toggle) that pins the chain to the last approved snapshot and refuses
+# routing.yaml reloads."
+# --------------------------------------------------------------------------
+
+#: Set to pin the worker to its last-approved routing snapshot instead of
+#: reloading `routing.yaml`. An admin console toggle (B13b's overrides loader,
+#: `apps/api/src/admin/evals` in this WP) is the operator-facing path; this
+#: environment variable is the mechanism it (or a human on the box) sets. Per
+#: the brief, this flag — however it is set — wins over any admin routing-weight
+#: override: a frozen chain does not move even if an override says to.
+ROUTING_FROZEN_ENV = "ROUTING_FROZEN"
+
+#: Shipped alongside the routing file so a container has a place to write and
+#: read the pinned snapshot without a separate volume.
+DEFAULT_SNAPSHOT_FILE = Path(__file__).with_name("routing.snapshot.json")
+
+_TRUE_VALUES = {"1", "true", "yes", "on"}
+
+
+def is_routing_frozen(env: Mapping[str, str] | None = None) -> bool:
+    """Whether ``ROUTING_FROZEN`` (however it reached the environment) is set."""
+    source = env if env is not None else os.environ
+    return str(source.get(ROUTING_FROZEN_ENV, "")).strip().lower() in _TRUE_VALUES
+
+
+def write_routing_snapshot(table: RoutingTable, path: str | Path | None = None) -> None:
+    """Record ``table`` as the last-approved snapshot.
+
+    Called after every *unfrozen* successful load, so the snapshot always holds
+    the most recent routing table a boot actually approved. Freezing does not
+    take a new snapshot at freeze time — it stops here, at whatever the last
+    unfrozen load wrote — which is what "pins the chain to the last approved
+    snapshot" means: approval happened continuously, before the freeze, not at
+    the moment of freezing.
+    """
+    target = Path(path) if path else DEFAULT_SNAPSHOT_FILE
+    target.write_text(json.dumps(table.to_wire(), indent=2, sort_keys=True), encoding="utf-8")
+
+
+def load_routing_snapshot(path: str | Path | None = None) -> RoutingTable:
+    """Load a previously written snapshot.
+
+    :raises RoutingError: when no snapshot exists yet — a deployment frozen
+        before its first successful unfrozen load has nothing approved to pin
+        to, and that is a configuration error worth failing loudly on rather
+        than silently falling back to the raw file (which is exactly the reload
+        a freeze exists to refuse).
+    """
+    target = Path(path) if path else DEFAULT_SNAPSHOT_FILE
+    if not target.is_file():
+        raise RoutingError(
+            f"routing is frozen but no approved snapshot exists at {target}; "
+            "unfreeze once, let a normal load succeed, then freeze again"
+        )
+    try:
+        raw = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RoutingError(f"could not read frozen snapshot {target}: {error}") from error
+    return _table_from_wire(raw, str(target))
+
+
+def load_routing_table_guarded(
+    path: str | Path | None = None,
+    *,
+    frozen: bool | None = None,
+    snapshot_path: str | Path | None = None,
+) -> RoutingTable:
+    """The freeze-aware entry point a worker boots from.
+
+    Unfrozen: behaves exactly like :func:`load_routing_table`, and additionally
+    refreshes the approved snapshot (:func:`write_routing_snapshot`) so a later
+    freeze pins to *this* table. Frozen: `routing.yaml` is never even read —
+    the snapshot is the only source of truth, which is what "refuses
+    routing.yaml reloads" means in practice: the file can change all it wants
+    on disk while the worker is frozen and nothing here will notice.
+
+    :param frozen: overrides :func:`is_routing_frozen` (the ``ROUTING_FROZEN``
+        env var) for callers — chiefly tests, and an admin toggle that has its
+        own source of truth once B13b's overrides loader lands.
+    """
+    if frozen if frozen is not None else is_routing_frozen():
+        return load_routing_snapshot(snapshot_path)
+    table = load_routing_table(path)
+    write_routing_snapshot(table, snapshot_path)
+    return table
+
+
+def _table_from_wire(raw: object, source: str) -> RoutingTable:
+    """The inverse of :meth:`RoutingTable.to_wire`, for the frozen snapshot."""
+    if not isinstance(raw, dict):
+        raise RoutingError(f"{source}: snapshot must hold a mapping")
+    lanes_raw = raw.get("lanes")
+    if not isinstance(lanes_raw, list) or not lanes_raw:
+        raise RoutingError(f"{source}: snapshot defines no lanes")
+    lanes = tuple(_lane_from_wire(entry, source) for entry in lanes_raw)
+    default_lane_id = str(raw.get("default") or lanes[-1].id)
+    return RoutingTable(
+        version=int(raw.get("version", 2)),
+        lanes=lanes,
+        default_lane_id=default_lane_id,
+        source=source,
+        overrides_applied=bool(raw.get("overrides", False)),
+    )
+
+
+def _lane_from_wire(entry: object, source: str) -> RoutingLane:
+    if not isinstance(entry, dict) or not entry.get("id"):
+        raise RoutingError(f"{source}: snapshot has a lane with no id")
+    candidates_raw = entry.get("candidates")
+    if not isinstance(candidates_raw, list):
+        raise RoutingError(f"{source}: snapshot lane {entry['id']!r} has no candidates")
+    return RoutingLane(
+        id=str(entry["id"]),
+        label=str(entry.get("label") or entry["id"]),
+        languages=tuple(str(tag) for tag in entry.get("languages") or []),
+        code_mix=bool(entry.get("codeMix", False)),
+        candidates=tuple(_candidate_from_wire(item, source) for item in candidates_raw),
+    )
+
+
+def _candidate_from_wire(entry: object, source: str) -> RoutingCandidate:
+    if not isinstance(entry, dict) or not entry.get("provider"):
+        raise RoutingError(f"{source}: snapshot has a candidate with no provider")
+    return RoutingCandidate(
+        provider=str(entry["provider"]),
+        model=str(entry.get("model") or ""),
+        alignment=str(entry.get("alignment", "optional")),  # type: ignore[arg-type]
+        mode=str(entry["mode"]) if entry.get("mode") else None,
+        api=str(entry["api"]) if entry.get("api") else None,
+        weight=int(entry.get("weight", 0)),
+        cost_per_minute_inr=float(entry.get("costPerMinuteInr", 0.0)),
+        max_parallel_chunks=int(entry.get("maxParallelChunks", 0) or 0),
+        enabled=bool(entry.get("enabled", True)),
+        shadow=bool(entry.get("shadow", False)),
+    )
