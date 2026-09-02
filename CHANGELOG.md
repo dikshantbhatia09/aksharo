@@ -108,6 +108,28 @@ admin-step-up.{controller,service,dto,constants}.ts`: TOTP enrol/verify
   `users-workspaces.e2e-spec.ts`) that used to hand-mint a plain `kind:
 "web"` admin token now goes through it.
 
+- **B13c — Admin flags CRUD, styles catalogue publish/unpublish, routing
+  weight overrides.** `apps/api/src/admin/flags/**`: full CRUD over
+  `feature_flags` — reads open to any admin role, every mutation
+  `superadmin`-only with a mandatory reason and a before/after audit diff.
+  `FlagTargetsSchema` (the shape `schema.prisma`'s own comment had promised
+  since A05) adds `excludeWorkspaceIds` — B13's "holdouts" — as an additive
+  extension to `workspaces/entitlement.service.ts`'s existing
+  `flagTargets()`, checked first so a held-out workspace stays excluded even
+  if it also matches the allow-list. `apps/api/src/admin/styles/**`: the
+  system style catalogue with the A18a parity gate's own results
+  (`assRenderable`/`assExportable`/`requiresLayoutMetrics`/`parityScore`,
+  read-only here) and a new `published` column (migration `20260903030000`)
+  so `content`/`superadmin` can unpublish a style without deleting it.
+  `apps/api/src/admin/routing/**`: a `routing_weight_overrides` table (same
+  migration), CRUD, validation (weight 0-100, id shapes matching
+  `routing.yaml`/the provider registry), history via `audit_log` —
+  deliberately does NOT read or merge against
+  `apps/worker-ai/worker_ai/routing.yaml` at runtime (separately deployed
+  process/repo; see the controller's own doc comment and this WP's final
+  report "open questions" for the seam this leaves: the worker reading its
+  table from this store instead of the bundled YAML).
+
 - **A23 — Gate A e2e journey, sample-project seed, wave verification script,
   X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)
   through onboarding, a real MinIO upload, transcription completion via the
