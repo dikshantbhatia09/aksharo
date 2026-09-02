@@ -15,6 +15,7 @@ import {
   panelOpToEdgOp,
   setEmphasis,
   setSegmentText,
+  setWordTiming,
   splitSegment,
   type InverseState,
   type PanelOp,
@@ -67,6 +68,12 @@ describe("op builders", () => {
     expect(setSegmentText("s1", "roman", "hi", id)).toMatchObject({
       type: "SetSegmentText",
       script: "roman",
+    });
+    expect(setWordTiming("0:0", 100, 400, id)).toMatchObject({
+      type: "SetWordTiming",
+      wordId: "0:0",
+      s: 100,
+      e: 400,
     });
     expect(setEmphasis("s1", "0:0", "pop", id)).toMatchObject({
       type: "SetEmphasis",
@@ -233,6 +240,18 @@ describe("computeInverseOps", () => {
     const s = state({ words: new Map([["0:0", word({ wid: "0:0" })]]) });
     const op: EdgOp = deleteWord("0:0", id);
     expect(computeInverseOps(op, s, id, id)).toEqual([]);
+  });
+
+  it("SetWordTiming inverts to the word's prior timing", () => {
+    const s = state({ words: new Map([["0:0", word({ wid: "0:0", s: 500, e: 950 })]]) });
+    const op: EdgOp = setWordTiming("0:0", 460, 940, id);
+    const [inverse] = computeInverseOps(op, s, id, id);
+    expect(inverse).toMatchObject({ type: "SetWordTiming", wordId: "0:0", s: 500, e: 950 });
+  });
+
+  it("SetWordTiming on an unknown word has no inverse", () => {
+    const op: EdgOp = setWordTiming("0:9", 0, 100, id);
+    expect(computeInverseOps(op, state(), id, id)).toEqual([]);
   });
 
   it("InsertWordAfter inverts to DeleteWord of the new id", () => {

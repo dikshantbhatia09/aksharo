@@ -87,6 +87,7 @@ const DOC_SEGMENTS_FIELD = "doc:segments";
 const audioField = (key: string) => `doc:audio:${key}`;
 const RENDER_FIELD = "doc:render:presets";
 const itemField = (itemId: string) => `item:${itemId}`;
+const timingField = (wordId: string) => `timing:${wordId}`;
 const passField = (passId: string) => `pass:${passId}`;
 
 /** Reads `opsSince` once and collects everything the transforms ask about. */
@@ -171,6 +172,9 @@ export function analyseOpsSince(opsSince: readonly EdgOp[]): Since {
         break;
       case "InsertWordAfter":
         break;
+      case "SetWordTiming":
+        since.fields.add(timingField(op.wordId));
+        break;
       default: {
         const exhaustive: never = op;
         throw new Error(`unhandled op ${JSON.stringify(exhaustive)}`);
@@ -223,6 +227,8 @@ function referencedWords(op: EdgOp): WordId[] {
     case "DeleteWord":
       return [op.wordId];
     case "InsertWordAfter":
+      return [op.wordId];
+    case "SetWordTiming":
       return [op.wordId];
     default:
       return [];
@@ -316,6 +322,8 @@ function writtenFields(op: EdgOp): string[] {
       return [passField(op.pass.passId)];
     case "SetRender":
       return op.presets === undefined ? [] : [RENDER_FIELD];
+    case "SetWordTiming":
+      return [timingField(op.wordId)];
     default:
       return [];
   }

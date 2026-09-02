@@ -99,6 +99,47 @@ export function resolveSegmentDrag(
     : { startMs: current.startMs, endMs: clamped };
 }
 
+/** Minimum word duration — mirrors `MIN_SEGMENT_MS`; a word can never invert or vanish. */
+export const MIN_WORD_MS = 1;
+
+/**
+ * The full pipeline a **word**-edge drag runs through on pointer-up
+ * (A02d): snap to the nearest neighbouring word boundary within tolerance,
+ * then clamp so the word never inverts, never shrinks below `MIN_WORD_MS`,
+ * and never overlaps the previous or next live word — the same invariants
+ * `SetWordTiming` itself enforces (`packages/edg/README.md`), applied here
+ * so a drag never emits an op the engine would reject. Mirrors
+ * {@link resolveSegmentDrag} exactly, parameterised on `MIN_WORD_MS` rather
+ * than `MIN_SEGMENT_MS` — a word's neighbours are its adjacent live words,
+ * not a segment's.
+ */
+export function resolveWordEdgeDrag(
+  edge: "start" | "end",
+  candidateMs: number,
+  current: { readonly startMs: number; readonly endMs: number },
+  options: {
+    readonly wordBoundaries?: readonly number[];
+    readonly toleranceMs?: number;
+    readonly neighbours?: { readonly prev?: Neighbour; readonly next?: Neighbour };
+  } = {},
+): SnappedBounds {
+  const snapped =
+    options.wordBoundaries === undefined
+      ? candidateMs
+      : snapToBoundary(candidateMs, options.wordBoundaries, options.toleranceMs);
+  const neighbours = options.neighbours ?? {};
+  if (edge === "start") {
+    const lowerBound = neighbours.prev !== undefined ? neighbours.prev.endMs : 0;
+    const upperBound = current.endMs - MIN_WORD_MS;
+    const clamped = Math.min(upperBound, Math.max(lowerBound, snapped));
+    return { startMs: clamped, endMs: current.endMs };
+  }
+  const upperBound = neighbours.next !== undefined ? neighbours.next.startMs : Infinity;
+  const lowerBound = current.startMs + MIN_WORD_MS;
+  const clamped = Math.max(lowerBound, Math.min(upperBound, snapped));
+  return { startMs: current.startMs, endMs: clamped };
+}
+
 /** `true` when two closed-open segment ranges overlap (touching at an edge is not overlap). */
 export function segmentsOverlap(a: Neighbour, b: Neighbour): boolean {
   return a.startMs < b.endMs && b.startMs < a.endMs;

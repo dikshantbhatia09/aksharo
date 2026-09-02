@@ -157,6 +157,12 @@ function anyOp({ segmentIds, wordIds, itemIds }: World): fc.Arbitrary<OpSpec> {
         e: ms,
       }),
       fc.record({
+        type: fc.constant("SetWordTiming" as const),
+        wordId,
+        s: ms,
+        e: ms,
+      }),
+      fc.record({
         type: fc.constant("Resegment" as const),
         maxChars: fc.integer({ min: 8, max: 48 }),
         maxLines: fc.integer({ min: 1, max: 3 }),

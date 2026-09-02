@@ -5,7 +5,9 @@ import {
   boundsAreValid,
   clampSegmentEdge,
   MIN_SEGMENT_MS,
+  MIN_WORD_MS,
   resolveSegmentDrag,
+  resolveWordEdgeDrag,
   segmentsOverlap,
   SNAP_TOLERANCE_MS,
   snapToBoundary,
@@ -66,6 +68,31 @@ describe("resolveSegmentDrag", () => {
   });
 });
 
+describe("resolveWordEdgeDrag", () => {
+  const current = { startMs: 500, endMs: 950 };
+  it("snaps then clamps, like resolveSegmentDrag", () => {
+    const result = resolveWordEdgeDrag("start", 510, current, { wordBoundaries: [505] });
+    expect(result).toEqual({ startMs: 505, endMs: 950 });
+  });
+  it("never overlaps the previous live word", () => {
+    const prev = { startMs: 0, endMs: 460 };
+    const result = resolveWordEdgeDrag("start", 400, current, {
+      wordBoundaries: [380],
+      neighbours: { prev },
+    });
+    expect(result.startMs).toBe(460);
+  });
+  it("never overlaps the next live word", () => {
+    const next = { startMs: 1000, endMs: 1400 };
+    const result = resolveWordEdgeDrag("end", 1200, current, { neighbours: { next } });
+    expect(result.endMs).toBe(1000);
+  });
+  it("never inverts below MIN_WORD_MS", () => {
+    const result = resolveWordEdgeDrag("end", 100, current);
+    expect(result.endMs).toBe(current.startMs + MIN_WORD_MS);
+  });
+});
+
 describe("segmentsOverlap / boundsAreValid", () => {
   it("touching edges are not an overlap", () => {
     expect(segmentsOverlap({ startMs: 0, endMs: 100 }, { startMs: 100, endMs: 200 })).toBe(false);
@@ -114,6 +141,43 @@ describe("property: dragging never produces overlapping or inverted bounds", () 
           });
 
           expect(result.endMs - result.startMs).toBeGreaterThanOrEqual(MIN_SEGMENT_MS);
+          if (prev !== undefined) expect(segmentsOverlap(result, prev)).toBe(false);
+          if (next !== undefined) expect(segmentsOverlap(result, next)).toBe(false);
+        },
+      ),
+      { numRuns: 500 },
+    );
+  });
+});
+
+describe("property: dragging a word edge never produces overlapping or inverted timing", () => {
+  it("holds across random word chains and drag targets", () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.integer({ min: 50, max: 2000 }), { minLength: 3, maxLength: 8 }),
+        fc.integer({ min: 0, max: 7 }),
+        fc.constantFrom<"start" | "end">("start", "end"),
+        fc.integer({ min: -2000, max: 10_000 }),
+        fc.array(fc.integer({ min: 0, max: 20_000 }), { maxLength: 5 }),
+        (durations, pickIndexSeed, edge, candidateOffset, wordBoundaries) => {
+          const words: { startMs: number; endMs: number }[] = [];
+          let cursor = 0;
+          for (const duration of durations) {
+            words.push({ startMs: cursor, endMs: cursor + duration });
+            cursor += duration;
+          }
+          const index = pickIndexSeed % words.length;
+          const current = words[index]!;
+          const prev = words[index - 1];
+          const next = words[index + 1];
+          const candidateMs = current.startMs + candidateOffset;
+
+          const result = resolveWordEdgeDrag(edge, candidateMs, current, {
+            wordBoundaries,
+            neighbours: { ...(prev && { prev }), ...(next && { next }) },
+          });
+
+          expect(result.endMs - result.startMs).toBeGreaterThanOrEqual(MIN_WORD_MS);
           if (prev !== undefined) expect(segmentsOverlap(result, prev)).toBe(false);
           if (next !== undefined) expect(segmentsOverlap(result, next)).toBe(false);
         },

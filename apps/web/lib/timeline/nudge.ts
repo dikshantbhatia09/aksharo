@@ -9,7 +9,8 @@
  * argument, not a call-site change.
  */
 
-export type TimingNudgeKind = "segment-start" | "segment-end" | "word-select" | "playhead-scrub";
+export type TimingNudgeKind =
+  "segment-start" | "segment-end" | "word-start" | "word-end" | "word-select" | "playhead-scrub";
 
 export interface TimingNudge {
   readonly kind: TimingNudgeKind;
@@ -43,6 +44,28 @@ export function segmentEdgeNudge(
   return {
     kind: edge === "start" ? "segment-start" : "segment-end",
     targetId: segmentId,
+    deltaMs: toMs - fromMs,
+    fromMs,
+    toMs,
+    atEpochMs: now(),
+  };
+}
+
+/**
+ * Builds the nudge for a resolved word-edge drag (A02d), ready for a sink —
+ * mirrors {@link segmentEdgeNudge} exactly, at the word grain `SetWordTiming`
+ * writes rather than the segment grain `SetSegmentBounds` writes.
+ */
+export function wordEdgeNudge(
+  edge: "start" | "end",
+  wordId: string,
+  fromMs: number,
+  toMs: number,
+  now: () => number = Date.now,
+): TimingNudge {
+  return {
+    kind: edge === "start" ? "word-start" : "word-end",
+    targetId: wordId,
     deltaMs: toMs - fromMs,
     fromMs,
     toMs,

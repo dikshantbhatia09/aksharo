@@ -73,6 +73,18 @@ describe("analyseWorkingSet", () => {
     expect(request.wordIds).toEqual(["1:9", "1:400"]);
   });
 
+  it("marks a word retime as a transcript write and asks for the word's own segment", () => {
+    const request = analyseWorkingSet([
+      { opId: OP, type: "SetWordTiming", wordId: "0:5", s: 2_000, e: 2_400 },
+    ]);
+
+    expect(request.wordIds).toEqual(["0:5"]);
+    expect(request.timingWordIds).toEqual(["0:5"]);
+    expect(request.boundaryWordIds).toEqual([]);
+    expect(request.touchesWords).toBe(true);
+    expect(request.needsWords).toBe(true);
+  });
+
   it("carries item and pass ids for the review ops", () => {
     const itemId = "01JCITEM0000000000000000AA";
     const passId = "01JCPASS0000000000000000AA";

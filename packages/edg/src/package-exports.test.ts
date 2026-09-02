@@ -49,7 +49,7 @@ describe("build output", () => {
       "  process.stdout.write(String(m.EDG_OP_TYPES.length));",
       "});",
     ].join("\n");
-    expect(run(process.execPath, ["-e", script])).toBe("16");
+    expect(run(process.execPath, ["-e", script])).toBe("17");
     expect(JSON.parse(readFileSync(join(DIST, "esm", "package.json"), "utf8"))).toEqual({
       type: "module",
     });
