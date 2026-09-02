@@ -330,8 +330,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
 
   const audioClean = (state.hot.audio as { clean?: { cleanId?: string | null } } | undefined)
     ?.clean;
-  const appliedCleanId =
-    typeof audioClean?.cleanId === "string" ? audioClean.cleanId : undefined;
+  const appliedCleanId = typeof audioClean?.cleanId === "string" ? audioClean.cleanId : undefined;
 
   function onEditWord(wordId: string, text: string): void {
     store.submitOp(editWord(wordId, text, wordScript, newId), {

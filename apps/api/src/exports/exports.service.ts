@@ -676,7 +676,11 @@ export class ExportsService {
     if (audio === null || typeof audio !== "object") return undefined;
     const clean = (audio as { clean?: unknown }).clean;
     if (clean === null || typeof clean !== "object") return undefined;
-    const { enabled, cleanId: rawCleanId, preset } = clean as {
+    const {
+      enabled,
+      cleanId: rawCleanId,
+      preset,
+    } = clean as {
       enabled?: unknown;
       cleanId?: unknown;
       preset?: unknown;

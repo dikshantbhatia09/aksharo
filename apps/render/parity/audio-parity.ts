@@ -66,7 +66,7 @@ export async function computeAudioParity(input: AudioParityInput): Promise<Audio
   }
   if (cleanKey === undefined) {
     throw new Error(
-      "audio.strategy is \"replace\" but the manifest carries no cleanKey — nothing to compare",
+      'audio.strategy is "replace" but the manifest carries no cleanKey — nothing to compare',
     );
   }
 

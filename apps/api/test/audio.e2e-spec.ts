@@ -168,7 +168,9 @@ describe.skipIf(!available)("audio — clean, apply, export", () => {
     // suite has no use for it), so this suite sets it directly.
     await ctx.prisma.mediaAsset.update({
       where: { id: project.mediaId },
-      data: { audio48kKey: `ws/${ctx.workspaceId}/p/${project.projectId}/media/${project.mediaId}/audio48k.wav` },
+      data: {
+        audio48kKey: `ws/${ctx.workspaceId}/p/${project.projectId}/media/${project.mediaId}/audio48k.wav`,
+      },
     });
 
     // --- 1. start the clean --------------------------------------------------
@@ -204,11 +206,9 @@ describe.skipIf(!available)("audio — clean, apply, export", () => {
     expect(completion.status).toBe(200);
 
     // --- 3. read it back: succeeded, metrics, signed URLs ---------------------
-    const listed = await call<CleanListBody>(
-      "GET",
-      `/projects/${project.projectId}/audio/cleans`,
-      { token },
-    );
+    const listed = await call<CleanListBody>("GET", `/projects/${project.projectId}/audio/cleans`, {
+      token,
+    });
     expect(listed.status).toBe(200);
     const row = listed.body.cleans.find((c) => c.id === cleanId);
     expect(row).toBeDefined();
@@ -281,11 +281,10 @@ describe.skipIf(!available)("audio — clean, apply, export", () => {
         aspect: "r9x16",
       },
     });
-    const response = await call(
-      "POST",
-      `/projects/${project.id}/audio/clean`,
-      { token: ctx.token("editor"), body: { strength: "medium", target: "social" } },
-    );
+    const response = await call("POST", `/projects/${project.id}/audio/clean`, {
+      token: ctx.token("editor"),
+      body: { strength: "medium", target: "social" },
+    });
     expect(response.status).toBe(409);
   });
 });

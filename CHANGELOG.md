@@ -29,14 +29,14 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `apps/render/parity/audio-parity.ts` hashes the audio bytes the browser
   export path (`sources.cleanedAudioUrl`) and the cloud render path
   (`manifest.audio.cleanKey`) would each mux in for `audio.strategy:
-  "replace"`, reporting a match; `parity:audio` writes this package's
+"replace"`, reporting a match; `parity:audio` writes this package's
   `parity/results.json` `audio` block (render README documents both parity
   sections). `apps/api/test/audio.e2e-spec.ts`: clean → simulated worker
   completion → signed URLs and metrics → `SetAudio.clean.cleanId` applied →
   a browser export's manifest and sources carry the cleaned track, end to
   end against real Postgres/Redis. `apps/worker-ai`: fixed a real defect the
   orchestrator's addendum flagged after a host-memory-pressure failure —
-  `true_peak_dbtp` oversampled the *whole* reassembled signal 4x in one
+  `true_peak_dbtp` oversampled the _whole_ reassembled signal 4x in one
   `np.interp` allocation (~5.5 GB at 60 minutes), defeating
   `run_clean_chain`'s 10-minute denoise chunking entirely; `true_peak_dbtp`
   and `integrated_loudness`'s high-pass stage (`clean/dsp.py`) now measure in

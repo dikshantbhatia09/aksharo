@@ -32,7 +32,9 @@ vi.mock("./use-audio-clean", async () => {
   };
 });
 
-function baseResult(overrides: Partial<UseAudioCleanModule.UseAudioCleanResult> = {}): UseAudioCleanModule.UseAudioCleanResult {
+function baseResult(
+  overrides: Partial<UseAudioCleanModule.UseAudioCleanResult> = {},
+): UseAudioCleanModule.UseAudioCleanResult {
   return {
     cleans: [],
     loading: false,
@@ -51,9 +53,7 @@ describe("<AudioPanel />", () => {
 
     const deep = screen.getByTestId("audio-tier-deep");
     expect(deep).toBeDisabled();
-    expect(screen.getByTestId("audio-tier-deep-copy")).toHaveTextContent(
-      "coming to cloud renders",
-    );
+    expect(screen.getByTestId("audio-tier-deep-copy")).toHaveTextContent("coming to cloud renders");
   });
 
   it("enables Deep clean once deepCleanEnabled is true", () => {

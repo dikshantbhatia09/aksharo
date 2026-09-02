@@ -45,7 +45,7 @@ async function main(): Promise<void> {
     generatedAt: new Date().toISOString(),
     audio: {
       description:
-        "Browser-export vs cloud-render audio-track hash comparison for audio.strategy: \"replace\" (B10b).",
+        'Browser-export vs cloud-render audio-track hash comparison for audio.strategy: "replace" (B10b).',
       strategy: result.strategy,
       match: result.match,
       browserHash: result.browserHash,
