@@ -26,8 +26,186 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   console-error ring buffer — never media), emailed to `BRAND.supportEmail`
   via a new `notify` kind (`support-ticket-created`) and listed back in
   Settings → Support.
+- **C00 — Signing & release pipeline (dry-run only; credentials do not exist yet).**
+  New `tools/release` package (`@montaj/release`) exposing `pnpm release <cmd>`:
+  `version` (conventional-commit semver bump + `CHANGELOG.md` section assembly),
+  `build-desktop --platform mac|win --channel alpha|beta|stable --dry-run`
+  (electron-builder config generated from one root `release.config.ts`; builds
+  against a placeholder app tree when `apps/desktop` has no code yet),
+  `sign-nested` (walks a built app and signs/verifies every Mach-O/PE binary —
+  main, helpers, engine sidecar, ffmpeg, bridge SEA, updater — outer bundle
+  last), `notarize` (notarytool submit/wait/staple; records a ledger entry and
+  enforces the **24h buffer** before the `stable` channel, `--force --reason`
+  to override), `package-ccx` (UXP plugin -> `.ccx` zip, `manifest.json`
+  validated against `ai.aksharo.panel` / Premiere minVersion 25.6),
+  `sign-zxp` (AE CEP panel -> `.zxp`, ZXPSignCmd in signed mode / self-signed
+  dev-cert marker in dry-run), `package-resolve` (`aksharo_core` script +
+  per-OS installer scripts), `sbom` (CycloneDX document), `checksums`
+  (`CHECKSUMS.sha256` + HMAC-signed `SIGNATURES.txt`), `publish --channel`
+  (artifacts + `latest.yml`/`latest-mac.yml` electron-updater feeds; `.release/publish/<channel>`
+  locally in dry-run, R2 in signed mode), `promote --from --to` (channel
+  promotion; re-checks the 24h gate for `stable`), `verify-release`
+  (re-hashes a published channel against its checksum manifest).
+  `SignProvider` interface with `AzureTrustedSigningProvider` (brief default),
+  `DigiCertKeyLockerProvider` (practical default — see "Known gap" below) and
+  `MacDeveloperIdProvider`, all behind `RELEASE_MODE` (`dry-run` default,
+  never touches a real signer/notarytool/R2; `signed` fails closed —
+  `ReleaseFailClosedError` — listing every missing secret). New GitHub
+  Actions workflows `release-desktop.yml` (mac/win matrix, unsigned dry-run
+  on PRs, signed only on `release/*` tags behind `release-mac`/`release-win`
+  environments), `release-plugins.yml` (ccx/zxp/resolve), `promote.yml`
+  (manual channel promotion with the 24h check) plus SLSA provenance
+  attestation (`actions/attest-build-provenance`). `docs/RELEASE.md` runbook.
+  Adds `tools/*` to the pnpm workspace and a root `pnpm release` script.
+  **Known gap (reported, not fixed here):** RR-07 §P0 — Azure Trusted
+  Signing public-trust certs are not issued to an Indian entity (D69), so
+  `WIN_SIGN_PROVIDER=digicert-key-locker` is the practical default until
+  that changes or the entity structure does; `AzureTrustedSigningProvider`
+  still ships per the brief with the same fail-closed secret gate.
+  **CONTRACTS §1 ruling (2026-09-03):** the ~20 release-pipeline secret names
+  (Apple notarisation, Azure/DigiCert signing, ZXP, R2 publish,
+  checksum-manifest signing) are CI/GitHub-environment secrets, not
+  application runtime config, so they do **not** go into CONTRACTS §1 or the
+  root `.env.example` (that would fail `packages/config`'s one-key-per-contract-
+  variable parity test). They live in `tools/release/.env.example` instead;
+  the CLI loads `tools/release/.env` itself (`src/env.ts::loadReleaseDotEnv`).
+  `docs/RELEASE.md` lists them as the GitHub-environment secrets to set.
+
+- **B14b — Webhook events: real event emits replace the poller.**
+  `transcript.completed` (`transcripts/transcribe.handler.ts`), `job.failed`
+  (`jobs/jobs.service.ts::complete()`, after DLQ handling) and `credits.low`
+  (`credits/credits-low-balance.notifier.ts`) are now real `EventEmitter2`
+  emits at their producers, each with its own `<module>/*.event.ts` name +
+  payload contract (the `referrals/export-completed.event.ts` precedent) and
+  a `webhooks/listeners/*.listener.ts` subscriber. `WebhookEventPollerService`
+  and its Redis cursors are deleted; `webhooks.e2e-spec.ts` proves the whole
+  chain (API key → `/v1` project → simulated worker completion → a signed
+  delivery a receiver can verify, plus retries on a receiver that fails
+  twice) end to end. `WebhookDeliveryService.sendOverride` is a new,
+  production-inert test seam (parallel to `sendWebhook`'s own resolver/
+  transport seams) that lets that suite's in-process receiver stand in for a
+  real internet endpoint without touching the SSRF guard.
+- **B15 — share links, threaded review comments, intermediary-hygiene report
+  flow and batch orchestration.** `ShareLinksService`/`PublicViewerController`
+  add a `scope` (`view|comment|approve`), password (argon2), expiry, view-cap
+  and `clientTag` to `share_links` (previously A12/B16 groundwork only), and
+  the public `/s/:token` surface: resolve, password unlock (`X-Share-Session`
+  header, HMAC-signed, no cookie middleware added), report-abuse
+  (`share_reports`, category-driven SLA — 3h NCII / 36h other, matching
+  `ShareReportSlaTask`) with automatic disable after 3 pending reports, and the
+  approve/request-changes decision (new `projects.review_status`).
+  `CommentsService`/`CommentsController` add threaded, time-anchored comments
+  reachable from a workspace member or a public `comment`/`approve`-scope
+  reviewer (a guest's email is hashed, never stored), notifying the project
+  owner via the existing `share-comment` notify kind.
+  `BatchService`/`BatchController` add `/batch/quote`, `/batch` (tags the
+  projects `POST /projects/batch` already creates with a new `batches` row and
+  `projects.batch_id`) and `/batch/:id/apply` (enqueues `TranscriptsService.
+transcribe()` per project), plus `/batch/:id` for per-project progress.
+  Migrations: `20260903000000_b15_share_review_batch` (share-link scope/
+  password/expiry/views/client-tag, `comments.author_email_hash`,
+  `projects.review_status`), `20260903001000_b15_batch` (`batches`,
+  `projects.batch_id`). Replace-media re-alignment and import-transcript-align
+  (brief §5, §6) are not implemented in this work package — see its final
+  report.
+- **B11b — LLM follow-up reconciliation: per-kind burn rates, one filler
+  lexicon, EDG-segment transcript payload.** `packages/config/src/credits.ts`:
+  the flat `chaptersSummaryHook` burn rate (2 credits/job for every kind) is
+  retired in favour of three per-kind operations — `insightsChapters` (2),
+  `insightsSummary` (1), `insightsHooks` (2) — now the single source for
+  insight pricing; `apps/api/src/insights/insights.quote.ts` reads them
+  through `creditCostTenths` instead of carrying its own local table, and
+  `03-architecture/04-pricing-and-monetization.md`'s credits table row is
+  updated to match. `packages/prompts`: B11's flat, in-code
+  `src/lexicon/fillers.ts` word arrays are deleted; `src/lexicon/index.ts`
+  (`loadFillers(language)`, `loadLexiconFile`, `lexiconLanguages`) reads B18's
+  richer per-language JSON lexicon (`packages/prompts/lexicons/fillers/*.json`)
+  directly, so the package has one filler lexicon instead of two that could
+  drift apart (the worker's `autocut.py::load_lexicon` already read the JSON;
+  no import-path change was needed there). `apps/api/src/insights/insights.service.ts`:
+  the `ai.llm` job's transcript payload is now built from the project's EDG
+  caption segments when it has one — each live segment's
+  `startWordId`/`endWordId` resolved to text via `EdgRepository.projectionOf`
+  and `loadChunks` (the same read path `ExportsModule` uses) — so the
+  templates see the creator's edited captions (cuts, re-segmentation, text
+  fixes already applied) rather than the raw ASR chunks; a project with no EDG
+  document yet (or one with no live segments) falls back to the original
+  `TranscriptsService.chunks()` path unchanged.
+- **C02 — Desktop shell.** `@montaj/desktop`: Electron main/preload loading
+  the hosted web app (`?desktop=1`, `AksharoDesktop/<version>` User-Agent
+  suffix, decision D71 — one web codebase, no packaged bundle until C04),
+  `contextIsolation`/`sandbox`/`nodeIntegration:false`/`webSecurity:true`,
+  navigation/`window.open`/`shell.openExternal` allowlists
+  (`src/security/allowlist.ts`), strict-CSP packaged offline page with retry,
+  `aksharo://` deep links (`auth/callback`, `project/<ulid>`, `pair`) with
+  single-instance-lock hand-off, `electron-updater` wired to C00's
+  `releases/<channel>/` feed layout with alpha/beta/stable channels and a
+  deterministic staged-rollout gate, native menu + tray (bridge/pairing status,
+  approve pairing, check for updates, copy diagnostics), Electron fuses
+  flipped in the `electron-builder` `afterPack` hook. `src/bridge/adapter.ts`
+  defines the `BridgeAdapter` interface and a stub implementation, since C01
+  (`bridge-core`) is not yet merged. `apps/web/lib/desktop.ts`: the
+  desktop-detection hook agreed with A13. Unit tests (vitest) for the
+  allowlists, deep-link parsing, updater feed/rollout math and the bridge
+  stub; a Playwright-Electron smoke suite (`e2e/smoke.spec.ts`, run via
+  `pnpm test:e2e`, needs a built app and a display).
+- **B13a — Admin roles, TOTP step-up, `AdminGuard(role)`.** CONTRACTS §5
+  (amended 2026-09-03): `kind: "admin"` access tokens, minted only by
+  `POST /admin/auth/step-up` after a TOTP check, 30-minute lifetime, never
+  refreshable, carrying `adminRoles: ("support"|"finance"|"ops"|"content"|
+"superadmin")[]`. New tables `admin_roles` (grant/revoke, re-checked by
+  `AdminGuard` on every request so revocation is immediate rather than
+  waiting out the token) and `admin_totp` (hand-rolled RFC 6238 TOTP,
+  `apps/api/src/admin/auth/totp.ts` — no new dependency, same reasoning as
+  `TokenService`'s hand-rolled RS256). `apps/api/src/admin/auth/
+admin-step-up.{controller,service,dto,constants}.ts`: TOTP enrol/verify
+  and step-up, rate-limited per user and per IP. `AdminGuard` rewritten to
+  require `kind: "admin"` (not merely `users.is_admin`) plus, when a route
+  carries the new `@AdminRoles(...)` decorator, a matching non-revoked
+  `admin_roles` grant (`superadmin` always satisfies any role list). Role
+  matrix contract test: `apps/api/src/admin/admin.guard.test.ts`.
+
+- **A23 — Gate A e2e journey, sample-project seed, wave verification script,
+  X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)
+  through onboarding, a real MinIO upload, transcription completion via the
+  signed internal callback (standing in for a running `worker-ai` mock
+  provider, per this suite's established convention), word edit, segment
+  split, script switch, `punch-pop` style, SRT export (content verified),
+  browser MP4 export on chromium (webkit asserts the cloud fallback), a
+  cloud render job, and reload persistence — both browsers.
+  `apps/api/prisma/seed-sample.ts`: a 90-second, deterministic Hinglish
+  sample project (hand-generated WAV, no ffmpeg dependency; scripted
+  transcript fixture so ASR is not in the loop), already transcribed,
+  segmented, and carrying one `autocut` pass with three items in `proposed`
+  state for Wave 4's review UI. `docker-compose.test.yml` +
+  `scripts/e2e-stack.mjs` (`pnpm e2e:stack up|down`): api/web (from the
+  mounted repo — see the compose file's header for why, and for the
+  `AI_PROVIDER=mock` vs. actual `WORKER_AI_ALLOW_MOCK` naming note) plus
+  worker-media/worker-ai/render (their existing Dockerfiles), postgres,
+  redis, minio. `scripts/verify-wave.mjs`: fresh clone → install → compose
+  up → migrate/seed → unit tests → e2e → parity gate → screenshots →
+  `docs/verification/<date>-wave<n>.md`. `load/run.mjs` (+
+  `load/k6-transcribe.js` for a machine with k6 installed): 100 concurrent
+  `POST /projects/{id}/transcribe` calls, asserting p95 < 300 ms, all
+  accepted, and a WS `job.*` event delivered; writes
+  `docs/verification/load-<date>.md`. `.github/workflows/e2e.yml`: the Gate
+  A journey plus the load harness against the compose stack, on PRs into a
+  wave branch.
 
 ### Fixed
+
+- **A23 — the e2e fixtures' dev-outbox Redis key ignored
+  `MONTAJ_REDIS_PREFIX`.** `apps/web/e2e/fixtures.ts` hard-coded
+  `montaj:auth:dev-outbox`, but the API writes it under
+  `${MONTAJ_REDIS_PREFIX}:auth:dev-outbox` (`apps/api/src/common/redis/
+redis-keys.ts`); any worktree with a non-default prefix (A05/A23a's
+  per-suite isolation) timed out every sign-up fixture after 45s waiting for
+  a message that had actually arrived under a different key. `env.ts` now
+  exports `redisKeyPrefix()`, read the same way the API's own reads it, and
+  `fixtures.ts` builds the outbox key from it; covered by `env.test.ts` (a
+  `node:test` file — see its header for why it is not a Vitest or Playwright
+  file). Also added `apps/web/e2e/README.md`'s `--project`/worktree-`.env`
+  note per the same addendum.
 
 - **B06b — a Free downgrade now switches the streak row to credits-only
   immediately, not just at assignment.** B06's `ensureAssigned` only set
@@ -97,6 +275,56 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   to include B04's "subscription" settings section.
 
 ### Added
+
+- **B19 — Reframe & zoom pass: scene detection, subject tracking, cue
+  detection, velocity-eased keyframes packed as bytea.** Reuses B18's
+  generic `ai.pass` runner end to end (no second pass runner) for two new
+  pass kinds. Worker (`apps/worker-ai/worker_ai/passes/{scenes,tracking,
+zoom,reframe}.py`, `apps/worker-ai/worker_ai/processors/
+reframe_zoom_pass.py`): a `ContentDetector`-style scene-cut metric
+  (re-implemented directly rather than depending on `pyscenedetect`); an
+  IoU-linked subject track with a one-euro filter, speaking-speaker/largest-
+  face multi-face resolution and a saliency-centre fallback (the YuNet ONNX
+  face detector the brief names could not be fetched or committed in this
+  CPU-only, no-download environment — a `FrameDetector` seam and a
+  brightness-blob stand-in are documented in `passes/README.md`'s "Gap"
+  section, matching A10/B18's own pattern for an unavailable model weight);
+  a zoom pass turning emphasis-word/audio-energy/sentence-start cues into
+  rate-limited (>=2.5s apart, never across a scene cut or an accepted `cut`
+  item) punch-in events (180ms ease-out-cubic in, >=600ms hold, 260ms out,
+  subtle/standard/punchy presets); a reframe pass building an 8%-deadzone,
+  velocity-capped, scene-hard-cut 16:9→9:16/1:1 crop track at 10Hz,
+  simplified with Ramer–Douglas–Peucker. Packed-keyframe byte format
+  (`[tMs, cx, cy, scale]` little-endian float32 rows, `MKF1` v1 header):
+  `packKeyframes`/`unpackKeyframes`/`loadKeyframes` in `@montaj/edg`
+  (`packages/edg/src/keyframes.ts`, documented in its README) with a
+  byte-for-byte-matching Python encoder in the worker, round-trip and
+  property tests both sides. API (`apps/api/src/passes/**`, extended):
+  `POST /projects/{id}/passes/{zoom,reframe}` quoted against `@montaj/
+config`'s existing `reframeZoomPass` burn rate (flash tier — the brief's
+  literal "3 credits/minute" is that rate's _pro_ tier; flagged for
+  reconciliation, the same kind of gap B18 flagged for `autocutPass`),
+  `PassCompletionHandler` extended to merge zoom/reframe items. Two frozen-
+  interface gaps found and flagged rather than silently worked around
+  (`passes-completion.handler.ts`'s class docstring): `PassTypeSchema` has
+  no `"zoom"` value, so both land as `type: "reframe"` distinguished by
+  `kind`/`engine`; and neither the inline-bytea nor the derived-storage
+  write path for `keyframesRef` exists yet (`PassItem` carries only a
+  string ref, `ObjectStore` has no `putObject` by design), so this work
+  package computes the addendum's key shape and sets it, but does not yet
+  write the bytes anywhere — flagged as an open question for a follow-up
+  (B20 already touches keyframe consumption). Also flagged: real detections/
+  scene frames need decoded video (out of scope here — no video-decode
+  dependency was added), so the producer sends them empty for now; the
+  worker still runs correctly on emphasis-only zoom cues with a saliency
+  fallback, while reframe fails non-retryably (`worker/invalid_payload`)
+  until that producer-side gap closes. See `apps/worker-ai/worker_ai/
+passes/README.md` for models used, presets and the full gap list. Also
+  added `packages/edg/src/passes/keyframes.ts` — `encodeKeyframes`/
+  `decodeKeyframes` over B20's own `Keyframe = {tMs, zoom, cx, cy, ease}`
+  shape (a second, `MKF2` on-disk format, distinct from the `MKF1` one
+  above; reconciling the two is flagged as an open question) — so B20 can
+  code against this exact name/shape ahead of B19 landing.
 
 - **B10 — Audio clean: denoise, loudness normalise, A/B preview, applied to
   browser and cloud exports.** Worker (`apps/worker-ai/worker_ai/clean/**`):
@@ -187,7 +415,8 @@ t=<unix>,v1=hmac_sha256(secret, t + "." + body)`
   `packages/prompts`: versioned template registry (`chapters@1`, `summary@1`,
   `hooks@1`, `keyphrases@1`) with Zod input/output schemas, a shared
   prompt-injection guardrail (transcript fenced as `<transcript>` DATA), a filler
-  lexicon (`en`/`hi`/`hi-Latn`/`ta`, shared with B18), a fake-provider generator
+  lexicon (`en`/`hi`/`hi-Latn`/`ta`; B11b later replaced this in-code lexicon
+  with a typed loader over B18's JSON lexicon, the single source), a fake-provider generator
   and an eval runner (`pnpm --filter @montaj/prompts eval`) over four fixture
   transcripts (English, Hindi, Hinglish, Tamil) with five automatic checks
   (schema validity, timestamp validity/ordering, hallucination guard, length
@@ -201,11 +430,12 @@ t=<unix>,v1=hmac_sha256(secret, t + "." + body)`
   call with retry → validate → one repair attempt); `processors/llm.py` wires
   it to the now-implemented `ai.llm` queue. `apps/api/src/insights/`:
   `POST /projects/{id}/insights {kinds, tone?, regenerate?}` quotes and holds
-  credits per kind (chapters 2, summary 1, hooks 2 — see the README note on the
-  conflict with `packages/config`'s flat `chaptersSummaryHook` rate), builds the
-  job's transcript payload from `TranscriptsService.chunks()` (language,
-  optional media title, segments only — no user identity, brief's PII
-  minimisation), and enqueues one `ai.llm` job per kind; `GET
+  credits per kind (chapters 2, summary 1, hooks 2 — reconciled into
+  `packages/config`'s `BURN_RATES` by B11b, see that entry and the README),
+  builds the job's transcript payload from `TranscriptsService.chunks()`
+  (language, optional media title, segments only — no user identity, brief's
+  PII minimisation; B11b later added the EDG-segment path), and enqueues one
+  `ai.llm` job per kind; `GET
 /projects/{id}/insights` reads the latest `llm_outputs` row per kind plus the
   ASCI-friendly disclosure line. Migration adds `llm_outputs` (id, projectId,
   workspaceId, jobId, kind, templateVersion, provider, region, output jsonb,

@@ -22,6 +22,7 @@ import { LedgerCreditsFacade } from "../src/credits/ledger-credits.facade.js";
 import type { TestDatabase } from "./db-harness.js";
 import type { PrismaService } from "../src/common/prisma/prisma.service.js";
 import type { NotifyService } from "../src/notify/notify.service.js";
+import type { EventEmitter2 } from "@nestjs/event-emitter";
 import type { PrismaClient } from "@prisma/client";
 
 const available = isDatabaseAvailable();
@@ -50,7 +51,9 @@ describe.skipIf(!available)("LedgerCreditsFacade (e2e)", () => {
       enqueue: async () => ({ idempotencyKey: "stub", enqueued: false }),
     } as unknown as NotifyService;
 
-    const notifier = new CreditsLowBalanceNotifier(prismaService, stubNotify);
+    const notifier = new CreditsLowBalanceNotifier(prismaService, stubNotify, {
+      emit: () => undefined,
+    } as unknown as EventEmitter2);
     credits = new LedgerCreditsFacade(prismaService, notifier);
     reconcile = new CreditReconcileService(prismaService);
     orphanedHolds = new CreditOrphanedHoldsService(prismaService, credits);

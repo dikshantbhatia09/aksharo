@@ -33,6 +33,20 @@ export const API_OPERATIONS = [
     summary: "Activate a device with a licence key or a device code",
   },
   {
+    operationId: "addComment",
+    method: "POST",
+    path: "/projects/{projectId}/comments",
+    tags: ["comments"],
+    summary: "Add a comment as a workspace member",
+  },
+  {
+    operationId: "addShareComment",
+    method: "POST",
+    path: "/s/{token}/comments",
+    tags: ["comments"],
+    summary: "Comment through a share link",
+  },
+  {
     operationId: "adminApproveAffiliate",
     method: "POST",
     path: "/affiliate/admin/{affiliateId}/approve",
@@ -54,6 +68,13 @@ export const API_OPERATIONS = [
     summary: "Revoke and regenerate an affiliate's code (admin)",
   },
   {
+    operationId: "adminStepUp",
+    method: "POST",
+    path: "/admin/auth/step-up",
+    tags: ["admin"],
+    summary: "Exchange a normal session plus a TOTP code for a 30-minute admin token",
+  },
+  {
     operationId: "adminSuspendAffiliate",
     method: "POST",
     path: "/affiliate/admin/{affiliateId}/suspend",
@@ -61,11 +82,32 @@ export const API_OPERATIONS = [
     summary: "Suspend an affiliate (admin)",
   },
   {
+    operationId: "adminTotpEnroll",
+    method: "POST",
+    path: "/admin/auth/totp/enroll",
+    tags: ["admin"],
+    summary: "Start TOTP enrolment for an admin account",
+  },
+  {
+    operationId: "adminTotpVerify",
+    method: "POST",
+    path: "/admin/auth/totp/verify",
+    tags: ["admin"],
+    summary: "Confirm TOTP enrolment with the first valid code",
+  },
+  {
     operationId: "applyAffiliate",
     method: "POST",
     path: "/affiliate/apply",
     tags: ["affiliate"],
     summary: "Apply to the affiliate programme (India only)",
+  },
+  {
+    operationId: "applyBatch",
+    method: "POST",
+    path: "/batch/{batchId}/apply",
+    tags: ["batch"],
+    summary: "Enqueue transcription for every project in the batch",
   },
   {
     operationId: "applyEdgOps",
@@ -257,6 +299,13 @@ export const API_OPERATIONS = [
     summary: "Mint a new API key",
   },
   {
+    operationId: "createBatch",
+    method: "POST",
+    path: "/batch",
+    tags: ["batch"],
+    summary: "Create a batch of projects",
+  },
+  {
     operationId: "createBrandAsset",
     method: "POST",
     path: "/workspaces/{id}/brand-assets",
@@ -320,6 +369,13 @@ export const API_OPERATIONS = [
     summary: "Create the seeded sample project (\"Welcome to Aksharo\")",
   },
   {
+    operationId: "createShareLink",
+    method: "POST",
+    path: "/projects/{projectId}/share-links",
+    tags: ["share-links"],
+    summary: "Create a share link for review",
+  },
+  {
     operationId: "createStylePreset",
     method: "POST",
     path: "/workspaces/{id}/style-presets",
@@ -353,6 +409,13 @@ export const API_OPERATIONS = [
     path: "/workspaces",
     tags: ["workspaces"],
     summary: "Create a team or agency workspace",
+  },
+  {
+    operationId: "decideShareLink",
+    method: "POST",
+    path: "/s/{token}/decision",
+    tags: ["share-public"],
+    summary: "Approve or request changes (scope `approve` only)",
   },
   {
     operationId: "declineInvitation",
@@ -514,6 +577,13 @@ export const API_OPERATIONS = [
     path: "/admin/metrics/acquisition",
     tags: ["admin"],
     summary: "Onboarding completions by source and code type",
+  },
+  {
+    operationId: "getBatch",
+    method: "GET",
+    path: "/batch/{batchId}",
+    tags: ["batch"],
+    summary: "Batch progress: per-project status",
   },
   {
     operationId: "getBreachIncidentTemplates",
@@ -866,6 +936,13 @@ export const API_OPERATIONS = [
     summary: "Client tags in use, with counts",
   },
   {
+    operationId: "listComments",
+    method: "GET",
+    path: "/projects/{projectId}/comments",
+    tags: ["comments"],
+    summary: "List a project's comments",
+  },
+  {
     operationId: "listDeadLetters",
     method: "GET",
     path: "/admin/dlq",
@@ -1062,6 +1139,20 @@ export const API_OPERATIONS = [
     summary: "Every scheduled task's name",
   },
   {
+    operationId: "listShareComments",
+    method: "GET",
+    path: "/s/{token}/comments",
+    tags: ["comments"],
+    summary: "List comments through a share link",
+  },
+  {
+    operationId: "listShareLinks",
+    method: "GET",
+    path: "/projects/{projectId}/share-links",
+    tags: ["share-links"],
+    summary: "List a project's share links",
+  },
+  {
     operationId: "listStyles",
     method: "GET",
     path: "/styles",
@@ -1181,6 +1272,13 @@ export const API_OPERATIONS = [
     summary: "Proration preview for a plan/interval/seat change",
   },
   {
+    operationId: "quoteBatch",
+    method: "POST",
+    path: "/batch/quote",
+    tags: ["batch"],
+    summary: "Quote a batch's transcription credits",
+  },
+  {
     operationId: "reconcileAllCreditAccounts",
     method: "GET",
     path: "/admin/credits/reconcile",
@@ -1293,6 +1391,13 @@ export const API_OPERATIONS = [
     summary: "Re-verify (and re-run) erasure for every completed request",
   },
   {
+    operationId: "reportShareLink",
+    method: "POST",
+    path: "/s/{token}/report",
+    tags: ["share-public"],
+    summary: "Report abuse on a shared preview (F-504)",
+  },
+  {
     operationId: "requestExport",
     method: "POST",
     path: "/projects/{projectId}/exports",
@@ -1321,11 +1426,25 @@ export const API_OPERATIONS = [
     summary: "Re-run segmentation over the whole document",
   },
   {
+    operationId: "resolveComment",
+    method: "PATCH",
+    path: "/projects/{projectId}/comments/{commentId}",
+    tags: ["comments"],
+    summary: "Resolve or reopen a comment",
+  },
+  {
     operationId: "resolveOrphanedCreditHolds",
     method: "POST",
     path: "/admin/credits/orphaned-holds/resolve",
     tags: ["admin"],
     summary: "Settle or release orphaned holds per their job's outcome",
+  },
+  {
+    operationId: "resolveShareLink",
+    method: "GET",
+    path: "/s/{token}",
+    tags: ["share-public"],
+    summary: "Resolve a share link",
   },
   {
     operationId: "restoreEdgSnapshot",
@@ -1375,6 +1494,13 @@ export const API_OPERATIONS = [
     path: "/billing/mandates/{mandateId}/revoke",
     tags: ["billing"],
     summary: "Revoke a mandate (cancels its subscription)",
+  },
+  {
+    operationId: "revokeShareLink",
+    method: "DELETE",
+    path: "/projects/{projectId}/share-links/{shareLinkId}",
+    tags: ["share-links"],
+    summary: "Revoke a share link",
   },
   {
     operationId: "rotateApiKey",
@@ -1447,6 +1573,20 @@ export const API_OPERATIONS = [
     summary: "Start an autocut pass",
   },
   {
+    operationId: "startReframePass",
+    method: "POST",
+    path: "/projects/{projectId}/passes/reframe",
+    tags: ["passes"],
+    summary: "Start a reframe pass",
+  },
+  {
+    operationId: "startZoomPass",
+    method: "POST",
+    path: "/projects/{projectId}/passes/zoom",
+    tags: ["passes"],
+    summary: "Start a zoom pass",
+  },
+  {
     operationId: "streakTestHooks",
     method: "POST",
     path: "/streak/test-hooks",
@@ -1501,6 +1641,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/transcript/transliterate",
     tags: ["transcripts"],
     summary: "Transliterate the transcript into a script",
+  },
+  {
+    operationId: "unlockShareLink",
+    method: "POST",
+    path: "/s/{token}/unlock",
+    tags: ["share-public"],
+    summary: "Unlock a password-gated share link",
   },
   {
     operationId: "updateBreachIncident",

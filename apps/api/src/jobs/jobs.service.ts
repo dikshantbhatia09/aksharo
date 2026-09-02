@@ -1,4 +1,5 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 
 import { TENTHS_PER_CREDIT } from "@montaj/config";
 
@@ -10,6 +11,7 @@ import { isQueueName, queueForJobType } from "./contracts/queue-names.js";
 import { DlqService } from "./dlq.service.js";
 import { jobUlid } from "./ids.js";
 import { JobEventsService } from "./job-events.service.js";
+import { JOB_FAILED_EVENT } from "./job-failed.event.js";
 import { JOBS_MAX_PAGE_SIZE, JOBS_PAGE_SIZE } from "./jobs.config.js";
 import { JOB_ERROR_CODES } from "./jobs.errors.js";
 import { QueueRegistry, bullJobId } from "./queue.registry.js";
@@ -114,6 +116,7 @@ export class JobsService {
     private readonly completionHandlers: JobCompletionRegistry,
     @Inject(CREDITS_FACADE) private readonly credits: CreditsFacade,
     private readonly notify: NotifyService,
+    private readonly emitter: EventEmitter2,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -534,7 +537,16 @@ export class JobsService {
       status,
       attempt: job.attemptNo,
     });
-    if (!succeeded) await this.markDeadLetterIfFinal(job, body);
+    if (!succeeded) {
+      await this.markDeadLetterIfFinal(job, body);
+      this.emitter.emit(JOB_FAILED_EVENT, {
+        workspaceId: job.workspaceId,
+        jobId: job.id,
+        jobType: job.type,
+        projectId: job.projectId,
+        error: body.error ?? null,
+      });
+    }
 
     await this.realtime.jobCompleted(job, {
       jobId,

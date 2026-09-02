@@ -1,0 +1,35 @@
+{
+  "name": "@montaj/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron shell that loads the hosted Aksharo web app (D71), with deep links, electron-updater channels, tray and the embedded local bridge.",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-static.mjs",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "pack:dry": "pnpm build && electron-builder --dir --config electron-builder.yml -c.electronDist=node_modules/electron/dist",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('release',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "@montaj/config": "workspace:*",
+    "electron-updater": "^6.6.2"
+  },
+  "devDependencies": {
+    "@electron/fuses": "^1.8.0",
+    "@montaj/config": "workspace:*",
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^22.19.2",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "playwright": "^1.62.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

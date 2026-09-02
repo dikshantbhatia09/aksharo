@@ -19,6 +19,7 @@
     "db:migrate": "tsx scripts/db-migrate.ts",
     "db:reset": "tsx scripts/db-reset.ts",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:sample": "tsx prisma/seed-sample.ts",
     "db:sql": "tsx scripts/apply-sql.ts",
     "gen:client": "tsc -p tsconfig.openapi.json && node .openapi/scripts/export-openapi.js",
     "prisma:generate": "node scripts/prisma-generate.mjs",

@@ -18,6 +18,7 @@ import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { CreditsFacade } from "../credits/credits.facade.js";
 import type { NotifyService } from "../notify/notify.service.js";
 import type { RealtimePublisher } from "../realtime/realtime.publisher.js";
+import type { EventEmitter2 } from "@nestjs/event-emitter";
 
 const WS = "01JCWS0000000000000000000A";
 const PROJECT = "01JCPROJECT000000000000000";
@@ -41,6 +42,9 @@ interface Harness {
   };
   notify: {
     enqueue: ReturnType<typeof vi.fn>;
+  };
+  emitter: {
+    emit: ReturnType<typeof vi.fn>;
   };
 }
 
@@ -66,6 +70,7 @@ function harness(): Harness {
   const notify = {
     enqueue: vi.fn(async () => ({ idempotencyKey: "x", enqueued: true })),
   };
+  const emitter = { emit: vi.fn() };
 
   const metrics = new MetricsService();
   const events = new JobEventsService(prisma);
@@ -89,9 +94,10 @@ function harness(): Harness {
     completionHandlers,
     credits as unknown as CreditsFacade,
     notify as unknown as NotifyService,
+    emitter as unknown as EventEmitter2,
   );
 
-  return { jobs, completionHandlers, dlq, metrics, db, queues, credits, realtime, notify };
+  return { jobs, completionHandlers, dlq, metrics, db, queues, credits, realtime, notify, emitter };
 }
 
 const ENQUEUE = {
@@ -575,6 +581,11 @@ describe("complete (THREAT-MODEL T8/T9)", () => {
     expect(h.credits.settle).not.toHaveBeenCalled();
     expect(h.db.jobs.get(job.id)?.creditsChargedTenths).toBe(0);
     expect(h.db.eventNames(job.id)).toContain("job.failed");
+    // B14b: the webhook event fires once the row is failed, DLQ handling included.
+    expect(h.emitter.emit).toHaveBeenCalledWith(
+      "job.failed",
+      expect.objectContaining({ jobId: job.id, workspaceId: WS }),
+    );
   });
 
   it("marks a dead letter when the attempt was the last one", async () => {
