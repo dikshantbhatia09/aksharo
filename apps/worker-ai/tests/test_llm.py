@@ -180,10 +180,13 @@ async def test_generate_insight_with_mock_provider_succeeds() -> None:
 
 
 class _ScriptedProvider(LlmProvider):
-    """Returns each entry of `replies` in turn; a str is text, an exception is raised."""
+    """Returns each entry of `replies` in turn; an `LlmError` is raised instead of returned."""
 
     def __init__(
-        self, name: str, replies: list[object], regions: frozenset[str] = frozenset({"in"})
+        self,
+        name: str,
+        replies: list[str | LlmError],
+        regions: frozenset[str] = frozenset({"in"}),
     ) -> None:
         self.name = name
         self.supported_regions = regions
@@ -193,7 +196,7 @@ class _ScriptedProvider(LlmProvider):
     async def generate(self, request: LlmRequest) -> LlmResponse:
         self.calls += 1
         reply = self._replies.pop(0)
-        if isinstance(reply, Exception):
+        if isinstance(reply, LlmError):
             raise reply
         return LlmResponse(text=reply, usage=LlmUsage(), endpoint="stub://x")
 
@@ -236,7 +239,7 @@ async def test_generate_insight_blocked_for_non_compliant_region() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _services(**kwargs: object) -> Services:
+def _services(llm_providers: tuple[LlmProvider, ...]) -> Services:
     from tests.conftest import CALLBACK_SECRET
     from worker_ai.alignment import AlignerRegistry
     from worker_ai.callbacks import CallbackClient
@@ -254,7 +257,7 @@ def _services(**kwargs: object) -> Services:
         aligners=AlignerRegistry.default(),
         diarisers=DiariserRegistry.default(),
         vad=EnergyVad(),
-        **kwargs,
+        llm_providers=llm_providers,
     )
 
 
