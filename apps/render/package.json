@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "bench": "tsx scripts/benchmark.ts"
+    "bench": "tsx scripts/benchmark.ts",
+    "parity:audio": "tsx parity/run-audio-parity.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1124.0",

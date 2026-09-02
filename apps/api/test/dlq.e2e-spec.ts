@@ -19,6 +19,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 import type { Env } from "@montaj/config";
 
+import { createAdminContext } from "./auth-harness.js";
 import { createTestDatabase, isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness.js";
 import { PrismaService } from "../src/common/prisma/prisma.service.js";
@@ -80,14 +81,14 @@ let jobs: JobsService;
 let dlq: DlqService;
 let redis: IORedis;
 
-function accessToken(sub: string, kind: "web" | "admin" = "web"): string {
+function accessToken(sub: string): string {
   const header = { alg: "RS256", typ: "JWT" };
   const now = Math.floor(Date.now() / 1000);
   const payload = {
     sub,
     ws: WORKSPACE,
     role: "owner",
-    kind,
+    kind: "web",
     jti: id("JT1"),
     iat: now,
     exp: now + 900,
@@ -103,14 +104,11 @@ function accessToken(sub: string, kind: "web" | "admin" = "web"): string {
   return `${signed}.${signer.sign(privateKey).toString("base64url")}`;
 }
 
-// B13 (CONTRACTS §5, amended 2026-09-03): `/admin/**` requires a `kind: "admin"`
-// token (minted only by `POST /admin/auth/step-up` for real clients) and an
-// active `admin_roles` row — a `web` token, however privileged, is 403'd by
-// `AdminGuard` before this fixture existed. `asAdmin()` used to reuse the same
-// `web` token as `asUser()`, which is what made every route below 403 once
-// `AdminGuard` started re-reading roles from the database instead of trusting
-// `users.is_admin`.
-const asAdmin = () => `Bearer ${accessToken(ADMIN, "admin")}`;
+// B13: AdminGuard requires a real kind:"admin" step-up token — minted once in
+// beforeAll via the shared `createAdminContext` helper (test/auth-harness.ts),
+// not hand-rolled here.
+let adminToken: string;
+const asAdmin = () => `Bearer ${adminToken}`;
 const asUser = () => `Bearer ${accessToken(USER)}`;
 
 /** POST a signed internal callback exactly as a worker would. */
@@ -192,12 +190,6 @@ beforeAll(async () => {
   });
   await prisma.user.create({
     data: { id: USER, email: `a08b-user+${RUN}@example.test`, isAdmin: false },
-  });
-  // AdminGuard (B13) re-reads active roles from `admin_roles`, not the JWT or
-  // `users.is_admin` — `superadmin` satisfies every `@AdminRoles(...)` gate,
-  // and the DLQ console declares none, so this single grant is enough.
-  await prisma.adminRole.create({
-    data: { id: id("ARL1"), userId: ADMIN, role: "superadmin" },
   });
   await prisma.workspace.create({
     data: {
@@ -286,6 +278,12 @@ beforeAll(async () => {
 
   jobs = app.get(JobsService);
   dlq = app.get(DlqService);
+
+  // B13: AdminGuard requires a real kind:"admin" step-up token, not the
+  // hand-rolled kind:"web" one this fixture used to mint for ADMIN.
+  adminToken = (
+    await createAdminContext({ app, roles: ["superadmin"], userId: ADMIN, workspaceId: WORKSPACE })
+  ).accessToken;
 }, 180_000);
 
 afterEach(async () => {

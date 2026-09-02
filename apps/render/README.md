@@ -202,6 +202,28 @@ refused too, for now, with a different message — the actual libass burn-in (en
 selection, watermark honesty under THREAT-MODEL T10, audio-replace, alpha output) is
 A20/A21 follow-up work, outside `@montaj/ass-exporter`'s own file boundary.
 
+## Parity
+
+D33's browser/cloud parity gate has two tolerance sections:
+
+- **Visual** — `@montaj/ass-exporter`'s parity gate (A18a), covering
+  `render-canvaskit` (browser) vs `render-skia-node` (cloud) frames, and
+  `render-skia-node` vs libass burn-in. Writes `packages/caption-styles/parity/results.json`.
+- **Audio** — `parity/audio-parity.ts` (B10b): for a manifest with
+  `audio.strategy: "replace"` (the export carries an `ai.clean` output rather
+  than the source's own track), hashes the bytes the browser export path
+  would fetch from `sources.cleanedAudioUrl` (`apps/web/lib/export/engine.ts`)
+  against the bytes the cloud pipeline would download via
+  `manifest.audio.cleanKey` (`src/render/pipeline.ts`), and reports whether
+  they match. Both ultimately read the same `audio_cleans` row
+  (`apps/api/src/exports/exports.service.ts#resolveAudioClean`), so a mismatch
+  means a signed-URL builder or a download helper drifted off that row's
+  stored key — the DSP chain itself (`worker_ai.clean`) is out of scope here
+  and has its own suite (`apps/worker-ai/tests/test_clean_dsp.py`). Run with
+  `pnpm --filter @montaj/render exec vitest run parity` (unit tests) or
+  `pnpm --filter @montaj/render run parity:audio` to (re)write this package's
+  `parity/results.json` `audio` block.
+
 ## Fonts
 
 D33 forbids system fonts, so every face arrives as bytes this process registered.
