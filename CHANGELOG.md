@@ -68,6 +68,15 @@ RETURNING revision`. The lock makes read-decide-write atomic; the CAS is the
     `PassItem.keyframesRef`; the table had only the bytes column) and
     `edg_segments (edg_id, start_word_id)` / `(edg_id, end_word_id)`, which is how
     a word delete finds the segments it bounds.
+  - **A12b:** a snapshot restore is now validated against the transcript as it
+    stands before anything is written. The transcript is deliberately not rolled
+    back with the captions, so a snapshot old enough to predate a `DeleteWord`
+    still names that word; writing it would leave a caption bounded by something
+    nothing can render. `validateProjection` runs over the projection the restore
+    would produce, with a word index built from the **live** words only (a
+    tombstoned word is as good as a missing one here), and any issue refuses the
+    whole restore with `409 edg/restore_invalid` — `details.danglingWordIds`
+    names the words, `details.issues` carries the validator's findings.
 
 - **A16 — `@montaj/render-core`, `@montaj/render-canvaskit`, the 30 system styles and
   the editor's caption canvas.**
