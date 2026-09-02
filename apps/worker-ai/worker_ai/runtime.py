@@ -58,6 +58,7 @@ from worker_ai.processors import (
     process_align,
     process_diarise,
     process_not_implemented,
+    process_pass,
     process_transcribe,
     process_translate,
     process_transliterate,
@@ -107,6 +108,7 @@ PROCESSORS: dict[str, Processor] = {
     "ai.diarise": process_diarise,
     "ai.translate": process_translate,
     "ai.transliterate": process_transliterate,
+    "ai.pass": process_pass,
 }
 
 

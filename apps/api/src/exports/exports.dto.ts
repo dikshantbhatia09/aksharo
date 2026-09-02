@@ -31,6 +31,8 @@ const CapabilitiesRequest = z.object({
   isDesktopChromium: z.boolean().optional(),
   isMobile: z.boolean().optional(),
   throughputMbps: z.number().positive().optional(),
+  /** A19c ruling (2): `VideoEncoder.isConfigSupported({hardwareAcceleration: "prefer-hardware"})`. */
+  hardwareEncoder: z.boolean().optional(),
 });
 
 const SubtitleOptionsRequest = z.object({

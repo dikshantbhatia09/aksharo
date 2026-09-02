@@ -64,13 +64,14 @@ providers and the VAD backend it loaded. The FastAPI control app answers on
 `apps/api/src/jobs/contracts/queue-names.test.ts` parses this file, so the two
 copies cannot drift.
 
-| Queue                                                           | A09                                                                          |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `ai.vad`                                                        | Silero/energy VAD + the D14 chunk plan                                       |
-| `ai.transcribe`                                                 | route → per-chunk ASR → stable word ids                                      |
-| `ai.align`                                                      | the D13 aligner registry                                                     |
-| `ai.diarise`                                                    | whole-file speaker turns                                                     |
-| `ai.translate` `ai.transliterate` `ai.clean` `ai.pass` `ai.llm` | consumed, and answered `worker/not_implemented` naming the WP that owns them |
+| Queue                                                 | A09                                                                                                                                               |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ai.vad`                                              | Silero/energy VAD + the D14 chunk plan                                                                                                            |
+| `ai.transcribe`                                       | route → per-chunk ASR → stable word ids                                                                                                           |
+| `ai.align`                                            | the D13 aligner registry                                                                                                                          |
+| `ai.diarise`                                          | whole-file speaker turns                                                                                                                          |
+| `ai.pass`                                             | `passType: "autocut"` (B18, `worker_ai/passes/autocut.py`); any other `passType` (e.g. B19's reframe/zoom) still answers `worker/not_implemented` |
+| `ai.translate` `ai.transliterate` `ai.clean` `ai.llm` | consumed, and answered `worker/not_implemented` naming the WP that owns them                                                                      |
 
 The last row matters: a queue nobody consumes leaves jobs in Redis until the
 API's queue-wait sweeper fails them half an hour later with no explanation.

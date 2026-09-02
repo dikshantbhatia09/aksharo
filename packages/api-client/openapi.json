@@ -11414,6 +11414,107 @@
         ]
       }
     },
+    "/projects/{projectId}/passes/autocut": {
+      "post": {
+        "description": "Quotes the job from the primary media's probed duration (`autocutPass` burn rate, source minutes), holds the credits and enqueues `ai.pass`. The proposed cuts land as `edg_pass_items` (state `proposed`) once the worker's completion arrives and `MergePass` merges them; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`.",
+        "operationId": "startAutocutPass",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartAutocutRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          },
+          "409": {
+            "description": "`pass/media_not_ready` or `pass/transcript_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start an autocut pass",
+        "tags": [
+          "passes"
+        ]
+      }
+    },
+    "/projects/{projectId}/passes": {
+      "get": {
+        "operationId": "listProjectPasses",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassSummaryListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every pass this project has landed, with items",
+        "tags": [
+          "passes"
+        ]
+      }
+    },
     "/projects/{projectId}/transcript/transliterate": {
       "post": {
         "description": "Free (`04 §Credits`). Enqueues `ai.transliterate`, which writes per-word `scripts` variants — Hinglish stays Roman-first, English words are preserved — and never touches `t`, timings or a script the user has already edited via `textOverrides`.",
@@ -19386,6 +19487,56 @@
           "transcript",
           "chunks",
           "nextCursor"
+        ]
+      },
+      "StartAutocutRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "PassAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "The `ai.pass` job id; poll `GET /jobs/{id}` or watch `job.completed`."
+          },
+          "passId": {
+            "type": "string",
+            "description": "The pass id `MergePass` will land under once the job completes."
+          },
+          "status": {
+            "type": "string",
+            "description": "The enqueued job's status, e.g. `queued`."
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when an autocut for this project was already queued or running."
+          },
+          "quote": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "jobId",
+          "passId",
+          "status",
+          "deduplicated",
+          "quote"
+        ]
+      },
+      "PassSummaryListDto": {
+        "type": "object",
+        "properties": {
+          "passes": {
+            "description": "`Pass[]` from `@montaj/edg`, each with its `items`.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "passes"
         ]
       },
       "TransliterateRequestDto": {

@@ -221,7 +221,7 @@ async def test_the_scratch_directory_is_removed_even_when_a_job_fails() -> None:
 
 async def test_the_handler_reads_the_attempt_budget_from_the_job_options() -> None:
     services = build_test_services()
-    handler = make_handler("ai.pass", services)
+    handler = make_handler("ai.clean", services)
 
     job = FakeJob(envelope())
     job.opts = {}

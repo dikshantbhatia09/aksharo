@@ -21,6 +21,7 @@ import { MediaModule } from "./media/media.module.js";
 import { MemoryModule } from "./memory/memory.module.js";
 import { NotifyModule } from "./notify/notify.module.js";
 import { OffersModule } from "./offers/offers.module.js";
+import { PassesModule } from "./passes/passes.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
 import { PublicApiModule } from "./public-api/public-api.module.js";
@@ -106,6 +107,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     AdminModule,
     EdgModule,
     TranscriptsModule,
+    PassesModule,
     ScriptsModule,
     FontsModule,
     ExportsModule,

@@ -131,6 +131,87 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   (outside this WP's stated file boundary; flagged as a deviation — the
   settings page would otherwise be unreachable from the sidebar).
 
+- **B18 — autocut pass: VAD silences, filler lexicons, repeated takes, protection
+  rules, pacing presets → `edg_pass_items`.** Worker (`apps/worker-ai`):
+  `worker_ai/passes/autocut.py` — a pure, deterministic pipeline (silence gaps
+  between VAD speech regions, mid-sentence long pauses, per-language filler
+  lexicon with `always`/`isolated_only` context rules, adjacent-sentence retake
+  detection by n-gram similarity, protection/merge/removal-cap post-processing)
+  behind `run_autocut()`; `processors/autocut_pass.py` wires it to `ai.pass`
+  (`passType: "autocut"`; real VAD when `mediaId` is given, else a word-derived
+  approximation) — `ai.pass` moves from `not_implemented` to
+  `IMPLEMENTED_AI_QUEUES` (any other `passType`, e.g. B19's reframe/zoom, still
+  answers `worker/not_implemented` from inside the processor). Lexicons:
+  `packages/prompts/lexicons/fillers/{en,hi,hinglish,ta,te,bn,mr,gu,kn,ml,pa,ur}.json`
+  (en/hi/hinglish curated in depth; the other nine seeded and unit-tested, flagged
+  for follow-up linguistic review). API: `apps/api/src/passes/` —
+  `POST /projects/{id}/passes/autocut` (quotes `BURN_RATES.autocutPass`, holds
+  credits, enqueues `ai.pass` with the transcript's words, real VAD hint, and
+  guarded ranges from segments carrying `emphasis`/`textOverrides`),
+  `GET /projects/{id}/passes`, and `PassCompletionHandler`, which turns the
+  worker's proposed cuts into a `MergePass` op (A12) — idempotent per `passId`.
+  Pacing presets: gentle (1.0s/15%), standard (0.6s/30%), tight (0.4s/45%);
+  80ms padding; 350ms minimum kept segment; retake window 20s at similarity
+  ≥0.8. **CONTRACTS gap**: `EdgHot.protected[]` (user-marked protected ranges)
+  does not exist yet — `protectedRanges` is always sent empty; only the
+  `emphasis`/`textOverrides` guard is enforced today. See the B18 final report
+  for the full metrics/coverage summary.
+
+- **A19c — browser export throughput: offscreen WebGL CanvasKit surface,
+  hardware-encoder capability probe, cloud-default policy above 1080p, 5ms
+  splice fades.** `packages/render-canvaskit`: `createExportSurface(ck,
+width, height)` — the export worker's off-screen counterpart to A16's
+  `createBrowserSurface`, trying an `OffscreenCanvas`-backed
+  `MakeWebGLCanvasSurface` first and falling back to the plain CPU raster
+  `MakeSurface` A19b used exclusively; both are Skia, proven equal by
+  `engine-parity.test.ts`'s new fallback-path check (Node has no
+  `OffscreenCanvas`, so the CPU fallback is what vitest exercises; the GPU
+  path is exercised for real by `apps/web/e2e/export.spec.ts`'s
+  `caption-surface-backend` annotation and by `render-canvaskit`'s own
+  browser e2e suite, which shares the same GPU-first/CPU-fallback logic).
+  `apps/web/lib/export/engine.ts` now allocates the caption layer through
+  `createExportSurface` and reports which backend ran
+  (`EngineResult.captionSurfaceBackend`). `apps/web/lib/export/probe.ts`:
+  `probeHardwareEncoder` — a dedicated `VideoEncoder.isConfigSupported`
+  check with `hardwareAcceleration: "prefer-hardware"` against the probe's
+  best H.264 rung, reported as `ExportCapabilityProbe.hardwareEncoder` /
+  `capabilities.hardwareEncoder`, `false` (not thrown) when the browser
+  answers `supported: false` or throws outright (observed in this sandbox).
+  `apps/api/src/exports/decision.ts`: an `auto` request at 1080p or larger
+  now defaults to the cloud when `capabilities.hardwareEncoder` is not
+  `true` (`SOFTWARE_ENCODER_CLOUD_DEFAULT_REASON`); an explicit `mode:
+"browser"` request still bypasses it, with a warned reason
+  (`SOFTWARE_ENCODER_BROWSER_WARNING`) carried in `reasons` for the dialog.
+  `apps/web/components/editor/export/ExportDialog.tsx` offers an "Export in
+  this browser anyway" button (BRAND-worded warned copy) on the cloud-offer
+  panel when this specific policy, not some other cloud reason, is why the
+  request landed there. `apps/web/e2e/export.spec.ts`'s throughput check is
+  now a _reported_ `realtime-multiplier`/`caption-surface-backend`
+  annotation on every run, with a hard ≥0.5x floor gated on
+  `capabilities.hardwareEncoder === true` only (this sandbox's headless
+  chromium has neither a hardware encoder nor a GPU context proven, so it
+  still only asserts forward progress — see `apps/web/lib/export/README.md`).
+  Audio: `applySpliceFades` applies a 5ms linear gain ramp at each join
+  `retainedSourceRangesMs` creates between two cut-separated retained
+  ranges (A19b left this unimplemented); the outer edges of the whole
+  track are never faded, only a join adjacent to a removed range.
+
+- **A19c (orchestrator addendum) — export dialog pre-selects B17's onboarding
+  export preset.** `apps/web/components/editor/export/onboarding-preset.ts`:
+  a small named-preset table (resolution + aspect + `RenderPreset`, e.g.
+  `reels-1080-vertical`, `youtube-1080`, `podcast-clip`) and
+  `resolveOnboardingExportPreset`, mapping B17's free-form
+  `me.onboarding.defaultExportPreset` label (`onboarding-flow.tsx`'s
+  `MAKE_DEFAULTS`: `reels`/`youtube`/`podcast-clip`/`client-review`/
+  `highlights`) onto one of the dialog's own `RenderPreset` values —
+  falling back to `reels-1080-vertical` when the field is absent or
+  unrecognised. `ExportDialog.tsx` applies it once, the first time
+  `useCurrentUser()` resolves, and never overwrites a manual preset choice.
+  `youtube` and `client-review` both want 16:9, but `@montaj/render-manifest`'s
+  frozen `RENDER_PRESETS` has no 1080p 16:9 entry — both fall back to
+  `youtube-4k` (the only 16:9 option) rather than inventing a preset value;
+  reported as an open gap.
+
 - **B09b — wired B09's three memory learning hooks to their real producers/consumers
   (A17/A02d timing nudge, the editor's spelling fix, and transcribe hints).**
   Web: `apps/web/lib/timeline/memory-nudge-sink.ts`'s `createMemoryNudgeSink` is
