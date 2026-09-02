@@ -190,6 +190,64 @@ reframe_zoom_pass.py` calls it (`_sample_from_proxy`) whenever the producer
   UI. 12 new tests across the three packages (bridge-core: `keystore.test.ts`
   - cert migration tests; apps/bridge: `native-tray.test.ts`; apps/desktop:
     two new `createBridgeAdapter` cases), all suites green.
+- **C02b — Desktop shell follow-ups: real bridge adapter wiring, pairing
+  approval UX, `approvePairing` contract, Electron e2e in CI, packaging via
+  C00.** Resolves the C01b/C02 interface gap: `packages/bridge-core`'s
+  `BridgeCore` now emits a `clientConnected` event (`{pairingId, clientId,
+clientKind}`) once `pair.confirm` mints the real wire `clientId` (in-process
+  only — no wire `events.subscribe` broadcast transport exists yet;
+  `BridgeEventKind`/`events.subscribe` stay schema-only in `protocol.ts`).
+  `apps/desktop/src/bridge/adapter.ts`: `approvePairing(pairingId)` now
+  returns `{pairingId, approved: true}` (no `clientId`) per the ruling; added
+  `denyPairing(pairingId)`, `onPairingRequested` (fires with the pending
+  pairing's code/clientKind/clientName/expiresAt) and `onClientConnected`
+  (fires once the real `clientId` is known) to `BridgeAdapter`. New pairing
+  approval window (`src/main/pairing-window.ts` + `pairing-approval.{html,ts}`
+  - `pairing-preload.ts`): a small, focused window showing the code and
+    client name/kind, Approve/Deny buttons, 60s auto-deny — its own minimal
+    `contextIsolation`/`sandbox` preload, no new privileges on the main hosted
+    renderer (THREAT-MODEL T25). Tray (`src/tray/index.ts`) gained a
+    `hasPendingPairing()`-driven "Approve pairing…" item that re-focuses the
+    approval window; `main/index.ts` wires tray/approval-window/preload to
+    whichever `BridgeAdapter` is active and can swap the stub adapter for a real
+    one at runtime (`attachRealBridge`) once a device/bridge-token exists.
+    New device bootstrap (`src/bridge/device-bootstrap.ts`): registers this
+    install (`POST /devices/register`, B08) and mints a `kind:"bridge"` token
+    (`POST /devices/{id}/bridge-token`, B08b) given a user access token, caching
+    both (plus a generated per-install fingerprint) in `bridge-core`'s OS
+    keystore so a restart skips re-registration until the lease needs
+    refreshing; never logs the token in plaintext. The access-token hand-off
+    itself (`desktop:bridge-provide-access-token` IPC/preload
+    `bridge.provideAccessToken`) is wired on the desktop side only — the hosted
+    web app calling it is out of this WP's `apps/desktop/**` boundary (open
+    question for whoever owns that `apps/web` integration). CI:
+    `.github/workflows/release-desktop.yml` gained an `e2e` job (mac/win
+    matrix, real runners) running `pnpm --filter @montaj/desktop build`,
+    `electron-builder --dir`, then the Playwright-Electron smoke — the smoke
+    stays a documented manual step locally
+    (`pnpm --filter @montaj/desktop test:e2e`), since it needs a real Electron
+    runtime/display this sandbox doesn't have (ran it here: fails with "Process
+    failed to launch!", consistent with the brief's "Chromium network-service
+    crash under container restrictions" note, reproduced twice as instructed
+    then stopped). Packaging: `tools/release/src/commands/buildDesktop.ts`'s
+    `ensureAppTree` now prefers a real `electron-builder --dir` output under
+    `<desktopAppDir>/release` (`findRealElectronBuilderOutput`) over the
+    synthesized placeholder tree, falling back to the placeholder when no real
+    output is present yet — verified with new tests
+    (`tests/buildDesktopRealOutput.test.ts`) constructing a fake real tree.
+    **Known blocker, not introduced by this WP:** running the real
+    `electron-builder --dir` in this pnpm workspace fails before producing
+    output — `node_modules/@montaj/{bridge-core,config}` are pnpm symlinks
+    whose real path resolves outside `apps/desktop/`, and app-builder-lib's
+    asar packager throws `"<file> must be under <appDir>"` for their contents.
+    Reproduces with only pre-existing C01/C02 dependencies; flagged for C00
+    (release pipeline owner) rather than worked around — the standard fix
+    (`pnpm deploy`, an app-local hoisted linker, or bundling the main process)
+    is bigger than this WP's boundary. The new CI `e2e` job's
+    `electron-builder --dir` step will likely hit the same failure until that's
+    fixed. 25 new/changed tests across bridge-core, apps/desktop and
+    tools/release, all suites green (`pnpm lint`/`typecheck`/`format:check`
+    scoped to touched packages).
 - **B08b — Per-device bridge credential: `kind:"bridge"` tokens carry
   `deviceId`; relay pairing keyed per device (resolves C01's deviation).**
   `TokenService.mintAccessToken` now requires (and `verifyAccessToken`/the
