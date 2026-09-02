@@ -136,7 +136,7 @@ C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machine
 | D05 | Music pass: sections/mood/BPM, beat-aligned cuts, loops/fades, ducking; owned pack only | D04a | briefed |
 | C05b | After Effects CEP panel over a mocked AeHost; ZXP dry run | C05a, C06b, C00 | running |
 | C03a | `apps/engine` local sidecar supervisor: whisper.cpp/Silero/deep-filter/ffmpeg via a signed manifest, model manager, backend detection, FakeBackend | C02, A00-10 | done (merged + verified — engine 51, engine-client 15, release 53; c12df56: /health /models /transcribe(+WS) /align /clean /render, manifest + resumable SHA-256 model manager, tier table, FakeBackend; the A01 scaffold engine/montaj-engine is deleted by C03b) |
-| C03b | Local quality gate + tiered latency harness (real-hardware run at Gate C) | C03a, D08 | briefed |
+| C03b | Local quality gate + tiered latency harness (real-hardware run at Gate C) | C03a, D08 | running |
 | C04 | Local mode: SQLite + files, local export, upload-to-cloud as a new project, Starter+ gate | C03a | running |
 | D09 | Apply passes inside Premiere/Resolve: audio tracks from owned assets, titles, ripple/keyframes via a shared apply-plan | C06, C08b, D04a, D06 | briefed |
 | X01 | Security review: threat-model audit with evidence, dependency/secret/header checks, negative tests, pen-test scope (H-26) | — | done pending merge (b154c3a: audit doc T1–T25, device-code rate limit + helmet + Next headers fixed, CI security-audit job; Electron bump → C02c) |
@@ -150,7 +150,7 @@ C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machine
 | X04 | Launch checklist: status page, backup/restore drill, on-call runbooks, legal pages (H-27), DPDP records generator, sub-processor list | B13, B16 | running |
 | X08 | Cilium FQDN egress policies + inventory check + runbook (charts only, nothing applied) | X05 | done (merged + verified: 17-host inventory with drift check, off/audit/enforce modes, runbook; 22 infra tests) |
 | D04b | Partner catalogue over a mock adapter behind PARTNER_CATALOGUE (contract gate A00-11 / H-28) | D05 | briefed |
-| C02c | Electron major bump + Playwright-Electron smoke, eslint-plugin-security, C09 WebSocket ticket exchange | X01, C09 | briefed |
+| C02c | Electron major bump + Playwright-Electron smoke, eslint-plugin-security, C09 WebSocket ticket exchange | X01, C09 | running |
 
 D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for prod — chart variant exists from X05; prod-hardening item before Gate C), X07 hardening also includes: split `packages/api-client`'s hand-written `endpoints/hooks/index/query-keys/types` into per-module files with a generated barrel (three WPs in a row — A22, A14, B04 — conflicted on those five files; B07 found a second latent defect there: Nest controllers returning bare `null` send an empty body which `readJson` turns into `undefined` — `GET /billing/subscription` still does this; wrap nullable responses in an object), D81 schema migration (invoice/ledger/commission foreign keys to workspaces → Restrict; workspaces soft-delete only), the web e2e fixture's hard-coded `montaj:auth:dev-outbox` key (A23 addendum), a browser-safe subpath export for `packages/bridge-core` (C05a vendored the protocol schemas because the barrel pulls Node-only modules), and under D08: extend A22's rule-table transliteration (Hindi + Tamil today) to the remaining AI4Bharat languages as table data once A00-05 eval sets exist. **Gate D**.
 
