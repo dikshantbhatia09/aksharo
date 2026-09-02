@@ -22,6 +22,11 @@ import { cn } from "@/lib/utils";
 
 export type DisplayScript = "roman" | "native" | "en";
 
+/** Narrows a script tab value (A22's `ScriptTabs` also offers `"translated"`) to a per-word display script. */
+export function isWordDisplayScript(script: string): script is DisplayScript {
+  return script === "roman" || script === "native" || script === "en";
+}
+
 export interface WordChipProps {
   readonly word: Word;
   readonly script: DisplayScript;

@@ -12,13 +12,20 @@ test.describe("editor — scroll performance", () => {
   test.skip(({ browserName }) => browserName !== "chromium", "measured on chromium, per the brief");
 
   test("scrolls a 54,000-word transcript at >= 55 fps", async ({ page, sharedAccount }) => {
-    test.setTimeout(120_000);
+    // Seeding this fixture alone (a real transcribe-completion callback that
+    // creates 32k+ segment rows in one transaction, `edg.repository.ts`'s
+    // `createDocument`) measured ~55s on a dev machine — 120s left almost
+    // nothing for the page itself to load and hydrate 54,000 words' worth of
+    // transcript, so `editor-root` was failing on the overall test timeout
+    // racing its own assertion timeout, not a real product hang. 300s gives
+    // both real room; the ≥ 55 fps budget below is what's actually asserted.
+    test.setTimeout(300_000);
     const { projectId } = await seedEditorProject(page, sharedAccount, {
       title: "A15 performance",
       chunks: largeFixtureChunks(54_000),
     });
     await gotoHydrated(page, `/p/${projectId}`);
-    await expect(page.getByTestId("editor-root")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("editor-root")).toBeVisible({ timeout: 120_000 });
     await expect(page.getByTestId("transcript-list")).toBeVisible();
     // Let the first virtualised page settle before measuring.
     await page.waitForTimeout(500);

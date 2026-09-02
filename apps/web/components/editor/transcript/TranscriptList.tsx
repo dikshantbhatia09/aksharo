@@ -15,7 +15,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Segment, Word } from "@montaj/edg";
 
 import { SegmentCard } from "./SegmentCard";
-import { type DisplayScript } from "./WordChip";
 
 import { VirtualList } from "@/lib/edg/virtual-list";
 import { cn } from "@/lib/utils";
@@ -28,7 +27,8 @@ export interface SpeakerInfo {
 export interface TranscriptListProps {
   readonly segments: readonly Segment[];
   readonly wordsOf: (segment: Segment) => readonly Word[];
-  readonly script: DisplayScript;
+  /** A22's ScriptTabs also offers "translated" — SegmentCard branches on it. */
+  readonly script: string;
   readonly speakers?: ReadonlyMap<string, SpeakerInfo>;
   readonly selectedSegmentId?: string;
   readonly selectedWordId?: string;
@@ -196,6 +196,34 @@ export function TranscriptList({
   );
 }
 
+/**
+ * One `ResizeObserver` for every `MeasuredRow` on the page, rather than one
+ * per row.
+ *
+ * The stress case for this list (a 3-hour, 54,000-word transcript scrolled
+ * fast — acceptance criterion 1) moves the viewport many multiples of its
+ * own height every frame (`editor-performance.spec.ts`'s own comment: "the
+ * worst case for a virtualiser, since every frame's visible range is new"),
+ * so the whole visible+overscan window of rows — everything `MeasuredRow`
+ * renders — mounts fresh every single frame. Constructing and disconnecting
+ * a real `ResizeObserver` per row, ~25 times a frame for two seconds
+ * straight, measured as a real contributor to a 13–18 fps result against
+ * the ≥ 55 fps target (A15b perf run): one long-lived observer that
+ * `observe`/`unobserve`s elements is far cheaper than repeatedly
+ * constructing the observer itself.
+ */
+let sharedRowObserver: ResizeObserver | undefined;
+const rowObserverCallbacks = new Map<Element, (height: number) => void>();
+
+function sharedObserver(): ResizeObserver {
+  sharedRowObserver ??= new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      rowObserverCallbacks.get(entry.target)?.(entry.contentRect.height);
+    }
+  });
+  return sharedRowObserver;
+}
+
 /** Reports its own rendered height, so the virtualiser can use a real number instead of an estimate. */
 function MeasuredRow({
   children,
@@ -205,6 +233,12 @@ function MeasuredRow({
   onHeight: (height: number) => void;
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement | null>(null);
+  // `onHeight` is a fresh closure every render (it captures the row's
+  // current `index`); routing calls through a ref keeps the observer effect
+  // itself mount-once (`[]`) instead of tearing down and rebuilding on every
+  // re-render of an already-visible row.
+  const onHeightRef = useRef(onHeight);
+  onHeightRef.current = onHeight;
 
   useLayoutEffect(() => {
     const element = ref.current;
@@ -213,14 +247,15 @@ function MeasuredRow({
     // not a flex `gap`), so the height fed to `VirtualList` already accounts
     // for it — a `gap` on the scrolling container would drift the prefix sums
     // by one gap per row over a long list.
-    onHeight(element.getBoundingClientRect().height);
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry !== undefined) onHeight(entry.contentRect.height);
+    onHeightRef.current(element.getBoundingClientRect().height);
+    const observer = sharedObserver();
+    rowObserverCallbacks.set(element, (height) => {
+      onHeightRef.current(height);
     });
     observer.observe(element);
     return () => {
-      observer.disconnect();
+      observer.unobserve(element);
+      rowObserverCallbacks.delete(element);
     };
   }, []);
 

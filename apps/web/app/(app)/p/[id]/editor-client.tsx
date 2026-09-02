@@ -31,8 +31,9 @@ import {
 import { ConflictDialog } from "@/components/editor/transcript/ConflictDialog";
 import { FindReplaceDialog } from "@/components/editor/transcript/FindReplaceDialog";
 import { ReflowBanner } from "@/components/editor/transcript/ReflowBanner";
-import { ScriptTabs, type DisplayScript } from "@/components/editor/transcript/ScriptTabs";
+import { ScriptTabs } from "@/components/editor/transcript/scripts/ScriptTabs";
 import { TranscriptList } from "@/components/editor/transcript/TranscriptList";
+import { isWordDisplayScript } from "@/components/editor/transcript/WordChip";
 import { planMergeShort, planSplitLong } from "@/lib/edg/bulk-actions";
 import { checkReflow, parseStoredCaptionBudgets, reflowParams } from "@/lib/edg/caption-budgets";
 import { findSameSpelling } from "@/lib/edg/find-replace";
@@ -74,7 +75,7 @@ export function EditorClient({ projectId }: EditorClientProps): React.JSX.Elemen
     playhead.getSnapshot,
   );
 
-  const [script, setScript] = useState<DisplayScript>("roman");
+  const [script, setScript] = useState<string>("roman");
   const [hideFillers, setHideFillers] = useState(false);
   const [follow, setFollow] = useState(true);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | undefined>(undefined);
@@ -104,6 +105,7 @@ export function EditorClient({ projectId }: EditorClientProps): React.JSX.Elemen
 
   return (
     <EditorReady
+      projectId={projectId}
       store={load.store}
       snapshot={load.snapshot ?? load.store.getSnapshot()}
       playhead={playhead}
@@ -131,12 +133,14 @@ export function EditorClient({ projectId }: EditorClientProps): React.JSX.Elemen
 }
 
 interface EditorReadyProps {
+  readonly projectId: string;
   readonly store: EditorStore;
   readonly snapshot: EditorSnapshot;
   readonly playhead: PlayheadStore;
   readonly playheadSnapshot: ReturnType<PlayheadStore["getSnapshot"]>;
-  readonly script: DisplayScript;
-  readonly setScript: (script: DisplayScript) => void;
+  /** A22's ScriptTabs also offers "translated" (a segment-level caption); SegmentCard branches on it. */
+  readonly script: string;
+  readonly setScript: (script: string) => void;
   readonly hideFillers: boolean;
   readonly setHideFillers: (value: boolean) => void;
   readonly follow: boolean;
@@ -157,6 +161,7 @@ interface EditorReadyProps {
 
 function EditorReady(props: EditorReadyProps): React.JSX.Element {
   const {
+    projectId,
     store,
     snapshot,
     playhead,
@@ -180,6 +185,12 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     registry,
     shaper,
   } = props;
+
+  // Word-level ops (`EditWord`) only ever fire while a word-level script tab
+  // is active — "translated" swaps the transcript view to a segment-level
+  // block (`SegmentCard.tsx`) with no `WordChip`s to edit — so this fallback
+  // is defensive, never actually exercised by the UI.
+  const wordScript = isWordDisplayScript(script) ? script : "roman";
 
   const { state } = snapshot;
   const segments = useMemo(() => orderedSegments(state), [state]);
@@ -230,22 +241,30 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   }, [state.hot.meta.engineVersions, state.hot.styles, state.hot.canvas, registry, shaper]);
 
   function submitPanelOp(op: PanelOp): void {
-    store.submitOp(panelOpToEdgOp(op, state));
+    // `components/editor/panels/ops.ts`'s `OpId` doc comment: "Client-generated
+    // op id; the editor swaps in a real ULID." Every panel control (`ops.ts`'s
+    // `setStyleRef`/segment-position/emphasis builders, called with no
+    // `newOpId` factory) mints its op with the module's own `panel-${n}`
+    // placeholder, which the server's `edg/ops` validator rejects outright
+    // (`opId` must be a ULID) — this is the one place that does the swap, so
+    // every panel gets a real id without each control needing to thread a
+    // factory through.
+    store.submitOp(panelOpToEdgOp({ ...op, opId: newId() }, state));
   }
 
   function onEditWord(wordId: string, text: string): void {
-    store.submitOp(editWord(wordId, text, script, newId), {
+    store.submitOp(editWord(wordId, text, wordScript, newId), {
       label: "Edit word",
     });
   }
 
   function onFixSpellingEverywhere(wordId: string, text: string): void {
-    const matches = findSameSpelling(allLiveWords, text, script).filter(
+    const matches = findSameSpelling(allLiveWords, text, wordScript).filter(
       (match) => match.wordId !== wordId,
     );
     if (matches.length === 0) return;
     store.submitOps(
-      matches.map((match) => editWord(match.wordId, text, script, newId)),
+      matches.map((match) => editWord(match.wordId, text, wordScript, newId)),
       { label: "Fix spelling everywhere" },
     );
     // Memory consent hook (D62/B09): recording the correction is deferred —
@@ -266,7 +285,11 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     const index = segments.findIndex((segment) => segment.id === id);
     const next = index >= 0 ? segments[index + 1] : undefined;
     if (next === undefined) return;
-    store.submitOp(mergeSegments([id, next.id], id, newId), { label: "Merge segments" });
+    // `MergeSegments.newSegmentId` must be a *free* id (`requireFreeSegmentId`,
+    // packages/edg/src/ops/apply.ts) — both `id` and `next.id` are still live
+    // segments at the moment the op is checked, so reusing either here always
+    // gets the op rejected as not-free and the merge silently never applies.
+    store.submitOp(mergeSegments([id, next.id], newId(), newId), { label: "Merge segments" });
   }
 
   function onEmphasize(): void {
@@ -388,7 +411,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         >
           ← Projects
         </Link>
-        <ScriptTabs value={script} onChange={setScript} available={state.hot.transcript.scripts} />
+        <ScriptTabs projectId={projectId} activeScript={script} onScriptChange={setScript} />
         <label className="text-fg-3 ml-4 flex items-center gap-1.5 text-xs">
           <input
             type="checkbox"
@@ -436,6 +459,17 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
               Offline — retrying…
             </span>
           ) : null}
+          {/* Not decorative: the queue.ts debounce (250 ms) makes "has the edit
+              reached the server yet" a real race for anything that follows an
+              edit immediately (a reload, most sharply) — this is what the e2e
+              suite polls instead of a fixed sleep. */}
+          <span
+            data-testid="editor-pending-count"
+            data-pending={String(snapshot.pendingCount)}
+            className="sr-only"
+          >
+            {snapshot.pendingCount}
+          </span>
         </div>
       </header>
 
@@ -537,11 +571,11 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
       <FindReplaceDialog
         open={findOpen}
         words={allLiveWords}
-        script={script}
+        script={wordScript}
         onClose={() => setFindOpen(false)}
         onReplaceAll={(matches) => {
           store.submitOps(
-            matches.map((match) => editWord(match.wordId, match.replacement, script, newId)),
+            matches.map((match) => editWord(match.wordId, match.replacement, wordScript, newId)),
             { label: "Replace all" },
           );
         }}
