@@ -800,6 +800,7 @@ model Workspace {
   apiKeys             ApiKey[]
   sessions            Session[]
   bridgePairings      BridgePairing[]
+  bridgeSessions      BridgeSession[]
   consentRecords      ConsentRecord[]
   creditAccount       CreditAccount?
   subscriptions       Subscription[]
@@ -873,6 +874,7 @@ model Device {
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   sessions       Session[]
   bridgePairings BridgePairing[]
+  bridgeSessions BridgeSession[]
 
   @@unique([workspaceId, fingerprint])
   @@index([workspaceId])
@@ -984,6 +986,28 @@ model BridgePairing {
   @@index([workspaceId])
   @@index([expiresAt])
   @@map("bridge_pairings")
+}
+
+/// Audit row for one relay connection through `/bridge/relay` (C01 brief §3, §6:
+/// "the relay never stores payloads; `bridge_sessions` rows for audit"). One row
+/// per WebSocket connection, bridge or client side; `clientKind` mirrors the
+/// token's `kind` claim so an admin view (B13 hook) can tell a bridge's own
+/// relay leg from the browser/plugin session it carried.
+model BridgeSession {
+  id             String    @id @db.Char(26)
+  workspaceId    String    @map("workspace_id") @db.Char(26)
+  deviceId       String?   @map("device_id") @db.Char(26)
+  clientKind     String    @map("client_kind")
+  connectedAt    DateTime  @default(now()) @map("connected_at") @db.Timestamptz(6)
+  disconnectedAt DateTime? @map("disconnected_at") @db.Timestamptz(6)
+  framesRelayed  Int       @default(0) @map("frames_relayed")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  device    Device?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([connectedAt])
+  @@map("bridge_sessions")
 }
 
 // ===========================================================================
