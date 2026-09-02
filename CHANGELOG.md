@@ -115,6 +115,61 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `apps/api/src/insights/README.md` for the credits/region/PII notes and the
   eval report format.
 
+- **A19c — browser export throughput: offscreen WebGL CanvasKit surface,
+  hardware-encoder capability probe, cloud-default policy above 1080p, 5ms
+  splice fades.** `packages/render-canvaskit`: `createExportSurface(ck,
+width, height)` — the export worker's off-screen counterpart to A16's
+  `createBrowserSurface`, trying an `OffscreenCanvas`-backed
+  `MakeWebGLCanvasSurface` first and falling back to the plain CPU raster
+  `MakeSurface` A19b used exclusively; both are Skia, proven equal by
+  `engine-parity.test.ts`'s new fallback-path check (Node has no
+  `OffscreenCanvas`, so the CPU fallback is what vitest exercises; the GPU
+  path is exercised for real by `apps/web/e2e/export.spec.ts`'s
+  `caption-surface-backend` annotation and by `render-canvaskit`'s own
+  browser e2e suite, which shares the same GPU-first/CPU-fallback logic).
+  `apps/web/lib/export/engine.ts` now allocates the caption layer through
+  `createExportSurface` and reports which backend ran
+  (`EngineResult.captionSurfaceBackend`). `apps/web/lib/export/probe.ts`:
+  `probeHardwareEncoder` — a dedicated `VideoEncoder.isConfigSupported`
+  check with `hardwareAcceleration: "prefer-hardware"` against the probe's
+  best H.264 rung, reported as `ExportCapabilityProbe.hardwareEncoder` /
+  `capabilities.hardwareEncoder`, `false` (not thrown) when the browser
+  answers `supported: false` or throws outright (observed in this sandbox).
+  `apps/api/src/exports/decision.ts`: an `auto` request at 1080p or larger
+  now defaults to the cloud when `capabilities.hardwareEncoder` is not
+  `true` (`SOFTWARE_ENCODER_CLOUD_DEFAULT_REASON`); an explicit `mode:
+"browser"` request still bypasses it, with a warned reason
+  (`SOFTWARE_ENCODER_BROWSER_WARNING`) carried in `reasons` for the dialog.
+  `apps/web/components/editor/export/ExportDialog.tsx` offers an "Export in
+  this browser anyway" button (BRAND-worded warned copy) on the cloud-offer
+  panel when this specific policy, not some other cloud reason, is why the
+  request landed there. `apps/web/e2e/export.spec.ts`'s throughput check is
+  now a _reported_ `realtime-multiplier`/`caption-surface-backend`
+  annotation on every run, with a hard ≥0.5x floor gated on
+  `capabilities.hardwareEncoder === true` only (this sandbox's headless
+  chromium has neither a hardware encoder nor a GPU context proven, so it
+  still only asserts forward progress — see `apps/web/lib/export/README.md`).
+  Audio: `applySpliceFades` applies a 5ms linear gain ramp at each join
+  `retainedSourceRangesMs` creates between two cut-separated retained
+  ranges (A19b left this unimplemented); the outer edges of the whole
+  track are never faded, only a join adjacent to a removed range.
+
+- **A19c (orchestrator addendum) — export dialog pre-selects B17's onboarding
+  export preset.** `apps/web/components/editor/export/onboarding-preset.ts`:
+  a small named-preset table (resolution + aspect + `RenderPreset`, e.g.
+  `reels-1080-vertical`, `youtube-1080`, `podcast-clip`) and
+  `resolveOnboardingExportPreset`, mapping B17's free-form
+  `me.onboarding.defaultExportPreset` label (`onboarding-flow.tsx`'s
+  `MAKE_DEFAULTS`: `reels`/`youtube`/`podcast-clip`/`client-review`/
+  `highlights`) onto one of the dialog's own `RenderPreset` values —
+  falling back to `reels-1080-vertical` when the field is absent or
+  unrecognised. `ExportDialog.tsx` applies it once, the first time
+  `useCurrentUser()` resolves, and never overwrites a manual preset choice.
+  `youtube` and `client-review` both want 16:9, but `@montaj/render-manifest`'s
+  frozen `RENDER_PRESETS` has no 1080p 16:9 entry — both fall back to
+  `youtube-4k` (the only 16:9 option) rather than inventing a preset value;
+  reported as an open gap.
+
 - **B09b — wired B09's three memory learning hooks to their real producers/consumers
   (A17/A02d timing nudge, the editor's spelling fix, and transcribe hints).**
   Web: `apps/web/lib/timeline/memory-nudge-sink.ts`'s `createMemoryNudgeSink` is
@@ -135,6 +190,43 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   incoming list before any provider shapes its own vocabulary parameter. Consent
   off produces zero memory requests and zero memory hints at all three sites
   (unit-tested); see `apps/api/src/memory/README.md`.
+- **B17 — onboarding completion: defaults, code classification, sample
+  project, coach marks, attribution events, Hindi UI.** Extends A13's
+  three-step wizard (`apps/web/app/(app)/onboarding/onboarding-flow.tsx`) with
+  a fourth "you're set" step (drop-zone equivalent via the existing
+  `SampleProjectButton`) and turns the answers already collected into real
+  defaults: "what you make" now derives a default aspect, caption style and
+  export-preset label (`MAKE_DEFAULTS`), persisted onto `onboarding` and
+  adopted by the Home quick-pick row (`home-view.tsx`) the same way it already
+  adopted the language; "languages you speak on camera" now rides along as
+  routing hints on the _next_ transcribe request (`upload-job.ts`'s
+  `tryStartTranscription`, `languages: [primary, ...secondary]` plus
+  `captions.styleRef`), not just the first pick. The code field classifies by
+  prefix (`apps/api/src/users/onboarding/code-classifier.ts`, mirrored
+  client-side): `AK-` routes to B07b's existing `/referrals/claim`; anything
+  else affiliate-shaped calls B07's `/affiliate/attribution/attach` (newly
+  wired into `@montaj/api-client` as `useAttachAffiliateAttribution`, not
+  previously called from anywhere in `apps/web`); anything else shows an
+  inline "that doesn't look right" error without blocking the wizard.
+  `product_events` (new table, migration `20260902150000_b17_product_events`)
+  records `onboarding_completed` with `source`/`codeType`/`props` the first
+  time `onboarding.completedAt` appears (`ProfileService.update`, guarded so a
+  later unrelated `PATCH /me` never re-fires it); `GET /admin/metrics/acquisition`
+  aggregates it by source and code type over a trailing window (default 30
+  days), following `AdminStreakController`'s shape. Three first-run coach
+  marks (transcript editing, style picker, export) render once in the editor
+  (`FirstRunCoachMarks.tsx`, positioned off `data-coach-mark` containers
+  `editor-client.tsx` already carries elsewhere), gated on a new
+  `onboarding.coachMarksShownAt` flag. A minimal ICU MessageFormat i18n layer
+  (`apps/web/lib/i18n/locale-provider.tsx`, `intl-messageformat`, already
+  pinned in the lockfile for the API's notification templates) ships English
+  and Hindi catalogues for the onboarding flow and the coach marks, with a
+  language switch in the profile menu (persisted through the existing
+  `locale` field on `/me`). No `PATCH /me/onboarding` route was added: A13/A05
+  already built onboarding persistence as a free-form field on the existing,
+  frozen `PATCH /me`, and every new field here (`codeType`, `defaultAspect`,
+  `defaultStyleId`, `defaultExportPreset`, `coachMarksShownAt`) fits its
+  existing bounded schema — a parallel route would only duplicate that seam.
 
 - **B09 — learned memory (spellings, glossary, timing nudge, style prefs), opt-in
   and erasable (F-204, D62).** `apps/api/src/memory/`: `MemoryService` — a

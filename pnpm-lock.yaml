@@ -345,6 +345,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      intl-messageformat:
+        specifier: 10.7.18
+        version: 10.7.18
       lucide-react:
         specifier: ^1.39.0
         version: 1.39.0(react@19.2.8)

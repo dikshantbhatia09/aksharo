@@ -2752,3 +2752,29 @@ model AssetClearanceGrant {
   @@index([expiresAt])
   @@map("asset_clearance_grants")
 }
+
+// ===========================================================================
+// Product analytics — B17 (onboarding completion, acquisition attribution)
+// ===========================================================================
+
+/// Append-only product/growth events (launch-metrics instrumentation, `13-launch-plan.md`).
+/// Deliberately standalone — no FK relations to `User`/`Workspace` — so recording
+/// an event can never fail on, or block, an unrelated cascade; `workspaceId`/
+/// `userId` are plain ids, resolved best-effort by whatever reads this table.
+model ProductEvent {
+  id          String   @id @db.Char(26)
+  /// e.g. `onboarding_completed`.
+  kind        String
+  workspaceId String?  @map("workspace_id") @db.Char(26)
+  userId      String?  @map("user_id") @db.Char(26)
+  /// "How did you find us?" answer, when the event carries one.
+  source      String?
+  /// `affiliate` | `referral` | `invalid` | null — the code field's classification.
+  codeType    String?  @map("code_type")
+  props       Json     @default("{}") @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([kind, createdAt])
+  @@index([workspaceId])
+  @@map("product_events")
+}

@@ -289,9 +289,22 @@ export class UploadJob {
   private async tryStartTranscription(projectId: string): Promise<void> {
     this.setStatus("transcribing");
     try {
+      // The primary pick leads; any other languages the onboarding wizard
+      // recorded (F-002 "Languages you speak on camera") ride along as
+      // routing hints — naming more than one is what tells the router this
+      // is code-mixed speech (`transcripts.dto.ts`'s `languages` doc-comment).
+      const secondary = (this.deps.quickPick.languages ?? []).filter(
+        (tag) => tag !== this.deps.quickPick.language,
+      );
       const result = await this.deps.client.call(endpoints.transcripts.transcribe, {
         params: { projectId },
-        body: { languages: [this.deps.quickPick.language], hints: [] },
+        body: {
+          languages: [this.deps.quickPick.language, ...secondary],
+          hints: [],
+          ...(this.deps.quickPick.styleId === undefined
+            ? {}
+            : { captions: { styleRef: this.deps.quickPick.styleId } }),
+        },
       });
       this.jobId = result.jobId;
       this.setStatus("transcribing");

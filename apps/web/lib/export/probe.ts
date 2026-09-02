@@ -81,6 +81,34 @@ async function probeH264Ladder(width: number, height: number): Promise<CodecSupp
   return results;
 }
 
+/**
+ * A19c ruling (2): a dedicated `hardwareAcceleration: "prefer-hardware"` probe
+ * against the best supported H.264 rung, separate from `probeVideoCodec`'s own
+ * hardware/software distinction (which only needs to know "supported at all" for
+ * the ladder). `isConfigSupported` throwing outright for `"prefer-hardware"` (this
+ * sandbox does, per `README.md`) is itself proof there is no hardware encoder here
+ * — reported as `false`, not re-thrown, exactly like a `supported: false` answer.
+ */
+async function probeHardwareEncoder(
+  codec: string,
+  width: number,
+  height: number,
+): Promise<boolean> {
+  const g = getGlobals();
+  if (g.VideoEncoder?.isConfigSupported === undefined) return false;
+  try {
+    const result = await g.VideoEncoder.isConfigSupported({
+      codec,
+      width,
+      height,
+      hardwareAcceleration: "prefer-hardware",
+    });
+    return result.supported;
+  } catch {
+    return false;
+  }
+}
+
 async function probeAudio(): Promise<AudioCodecSupport> {
   const g = getGlobals();
   if (g.AudioEncoder?.isConfigSupported === undefined) return { aac: false, opus: false };
@@ -159,6 +187,8 @@ export async function probeExportCapabilities(
   const vp9 = webCodecs ? await probeVideoCodec(VP9_FALLBACK_CODEC, width, height) : null;
   const audio = webCodecs ? await probeAudio() : { aac: false, opus: false };
   const throughput = options.sampleThroughput ? await options.sampleThroughput(2_000) : null;
+  const hardwareEncoder =
+    webCodecs && bestH264 !== null ? await probeHardwareEncoder(bestH264, width, height) : null;
 
   return {
     videoCodecs,
@@ -175,6 +205,7 @@ export async function probeExportCapabilities(
     isDesktopChromium: isDesktopChromiumUserAgent(userAgent),
     throughput,
     discardedTracks: options.discardedTracks ?? [],
+    hardwareEncoder,
   };
 }
 
@@ -190,6 +221,7 @@ export function toCapabilitiesRequest(probe: ExportCapabilityProbe): ExportCapab
     ...(probe.throughput === null
       ? {}
       : { throughputMbps: Math.round(probe.throughput.realtimeMultiplier * 100) / 100 }),
+    ...(probe.hardwareEncoder === null ? {} : { hardwareEncoder: probe.hardwareEncoder }),
   };
 }
 
