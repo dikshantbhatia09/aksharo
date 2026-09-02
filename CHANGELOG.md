@@ -117,7 +117,12 @@ site-content.test.ts` — colocated under `app/` because `vitest.config.ts`'s co
     document's own "out of scope: localisation" line disagree, and the instructions were
     followed at the smallest defensible scope; no bundled sample video existed for the
     live demo, so it draws over a placeholder frame; Lighthouse was run manually rather
-    than wired into CI (no `@lhci/cli` dependency added without discussion).
+    than wired into CI (no `@lhci/cli` dependency added without discussion); a manual
+    Lighthouse pass found the live demo's CanvasKit bootstrap driving home's performance
+    score to 51 (throttled to 15 fps and deferred behind `requestIdleCallback` in
+    response — both real fixes, kept — but the score did not recover on this shared
+    sandboxed host, where the same page loads and the demo becomes interactive in
+    ~1.2 s under a plain automated run; see the final report for the full reasoning).
 - **A11c — api: unify A11's and A07's completion-handler registries; bind
   `CAPTION_RENDER_CONTEXT` (D78) to the bundled font pack.**
   - A07 (`media.probe`) independently converged on the same `JobCompletionRegistry`
