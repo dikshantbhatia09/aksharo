@@ -265,4 +265,6 @@ Measured on the compose Postgres, single-op batches, 40 samples:
 The 9,000-segment document is not slower than the small one, which is the whole
 claim the working set makes: a batch costs what its ops cost, not what the
 document weighs. The test therefore asserts the ratio as well as the 150 ms
-budget — the absolute number moves with the machine, the ratio does not.
+budget — the absolute number moves with the machine, the ratio does not. (On a
+laptop shared with a dozen other build agents the same run measured a 34.4 ms
+median and a 137.9 ms p95: slower, still inside the budget, and still flat.)
