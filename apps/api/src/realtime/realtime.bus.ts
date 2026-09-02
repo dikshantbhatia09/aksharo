@@ -34,12 +34,75 @@ export type BusMessageHandler = (channel: string, payload: string) => void;
 /** DI token, so a test module can bind {@link InMemoryRealtimeBus} instead. */
 export const REALTIME_BUS = Symbol("REALTIME_BUS");
 
+/** How long a subscribe or publish waits for the connection to come up. */
+export const CONNECT_TIMEOUT_MS = 5_000;
+
+/**
+ * Bring a lazily-connected ioredis client up before issuing a command on it.
+ *
+ * `RedisService` builds its client with `lazyConnect: true` (so constructing the
+ * module graph does not dial Redis) and `enableOfflineQueue: false` (which is what
+ * BullMQ wants of a connection it blocks on). `duplicate()` inherits **both**, so a
+ * freshly duplicated subscriber sits in `wait` and its very first `SUBSCRIBE` is
+ * not queued until the socket opens — it is rejected outright with
+ * `Stream isn't writeable and enableOfflineQueue options is false`. Nothing retries
+ * it, so the room is simply never delivered to. That is A08c, reported by A12.
+ *
+ * Connecting explicitly is the fix. The status dance is because `connect()` rejects
+ * when another caller already started one, and two sockets joining the same new
+ * room is the normal case, not the exotic one.
+ */
+async function ensureConnected(client: Redis): Promise<void> {
+  // Read through a function: `client.status === "ready"` narrows the union for the
+  // rest of the body, and TypeScript has no way to know that an `await` in between
+  // is exactly what changes it.
+  const ready = (): boolean => client.status === "ready";
+  const idle = (): boolean => client.status === "wait" || client.status === "end";
+
+  if (ready()) return;
+
+  if (idle()) {
+    // Rejects if someone else got there first; either way we wait for `ready`.
+    await client.connect().catch(() => undefined);
+  }
+  if (ready()) return;
+
+  await new Promise<void>((resolve, reject) => {
+    const settle = (error?: Error): void => {
+      clearTimeout(timer);
+      client.off("ready", onReady);
+      client.off("error", onError);
+      if (error === undefined) resolve();
+      else reject(error);
+    };
+    const onReady = (): void => {
+      settle();
+    };
+    const onError = (error: Error): void => {
+      settle(error);
+    };
+    const timer = setTimeout(() => {
+      settle(new Error(`Redis did not become ready within ${String(CONNECT_TIMEOUT_MS)} ms`));
+    }, CONNECT_TIMEOUT_MS);
+    timer.unref?.();
+
+    client.on("ready", onReady);
+    client.on("error", onError);
+    // It may have become ready between the check above and these listeners.
+    if (ready()) settle();
+  });
+}
+
 /**
  * Redis-backed fan-out.
  *
  * The subscriber is a **duplicate** connection: a Redis client in subscriber mode
  * refuses every other command, so it cannot be the shared `RedisService` client
  * that the health probe and BullMQ also use.
+ *
+ * Both connections are brought up explicitly before a command is issued (see
+ * {@link ensureConnected}); ioredis restores the subscriptions itself across a
+ * reconnect, so nothing here has to replay them.
  */
 @Injectable()
 export class RedisRealtimeBus implements RealtimeBus, OnModuleDestroy {
@@ -65,15 +128,23 @@ export class RedisRealtimeBus implements RealtimeBus, OnModuleDestroy {
   }
 
   async subscribe(channel: string): Promise<void> {
-    await this.connection().subscribe(channel);
+    const subscriber = this.connection();
+    await ensureConnected(subscriber);
+    await subscriber.subscribe(channel);
   }
 
   async unsubscribe(channel: string): Promise<void> {
-    if (this.subscriber === undefined) return;
+    // A connection that never came up holds no subscriptions to drop, and asking
+    // it to would fail for the same reason a cold SUBSCRIBE does.
+    if (this.subscriber === undefined || this.subscriber.status !== "ready") return;
     await this.subscriber.unsubscribe(channel);
   }
 
   async publish(channel: string, payload: string): Promise<void> {
+    // The shared client is lazy too. It is usually already up — BullMQ and the
+    // readiness probe both use it — but an instance whose first Redis traffic is a
+    // realtime publish must not silently drop the event.
+    await ensureConnected(this.redis.client);
     await this.redis.client.publish(channel, payload);
   }
 

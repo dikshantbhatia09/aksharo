@@ -822,6 +822,30 @@ DrawCommand[]`, pure TypeScript, HarfBuzz-wasm shaping (`harfbuzzjs` 1.6.1, pinn
 
 ### Fixed
 
+- **A08c — `RedisRealtimeBus` could not subscribe against a real Redis.** Reported
+  by A12. `RedisService` builds its client with `lazyConnect: true` and
+  `enableOfflineQueue: false`; `duplicate()` inherits both, so the realtime
+  subscriber sat in `wait` and its very first `SUBSCRIBE` was rejected outright
+  with `Stream isn't writeable and enableOfflineQueue options is false` rather than
+  being queued until the socket opened. Nothing retried it, so every room was
+  silently never delivered to — in production only, because the realtime e2e ran
+  over `InMemoryRealtimeBus` and the Redis fake reported `ready` from its first
+  moment. `RedisRealtimeBus` now connects each client explicitly before issuing a
+  command (subscriber _and_ the shared publishing client, which has the same
+  problem on an instance whose first Redis traffic is a realtime publish), waits
+  for `ready` when another caller is already connecting, and skips an
+  `UNSUBSCRIBE` on a connection that never came up.
+  - `RealtimeGateway` no longer lets a fan-out failure escape: a room whose
+    subscription cannot be established is refused with
+    `refused: [{room, reason: "unavailable"}]` and its local membership rolled
+    back, and the fire-and-forget frame handler catches instead of turning a
+    rejection into a process exit.
+  - `apps/api/test/realtime-redis.e2e-spec.ts` runs the real bus, the real
+    `RedisService` options and two gateway instances against the compose Redis,
+    publishing on one and receiving on the other; the unit suite gained a Redis
+    fake with the lazy lifecycle, because the old one was `ready` from the start
+    and could never have caught this.
+
 - **A08b — `jobKey` deduplication was scoped globally, not per workspace.** A08's
   `jobs_live_job_key_key` was `UNIQUE (job_key) WHERE status IN
 ('queued','running')` with no workspace column, so two tenants with the same
