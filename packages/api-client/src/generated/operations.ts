@@ -124,6 +124,20 @@ export const API_OPERATIONS = [
     summary: "Cancel a queued or running job",
   },
   {
+    operationId: "cancelSubscription",
+    method: "POST",
+    path: "/billing/subscription/cancel",
+    tags: ["billing"],
+    summary: "Cancel at period end",
+  },
+  {
+    operationId: "changePlan",
+    method: "POST",
+    path: "/billing/subscription/change-plan",
+    tags: ["billing"],
+    summary: "Apply a plan/interval/seat change",
+  },
+  {
     operationId: "changeWorkspaceMemberRole",
     method: "PATCH",
     path: "/workspaces/{id}/members/{membershipId}",
@@ -159,6 +173,13 @@ export const API_OPERATIONS = [
     summary: "Finish an upload (project-scoped form)",
   },
   {
+    operationId: "createCheckout",
+    method: "POST",
+    path: "/billing/checkout",
+    tags: ["billing"],
+    summary: "Start a plan checkout",
+  },
+  {
     operationId: "createFolder",
     method: "POST",
     path: "/folders",
@@ -166,11 +187,25 @@ export const API_OPERATIONS = [
     summary: "Create a folder",
   },
   {
+    operationId: "createPassCheckout",
+    method: "POST",
+    path: "/billing/passes/checkout",
+    tags: ["billing"],
+    summary: "Buy a pass (clean export, week pass, pay-once credits)",
+  },
+  {
     operationId: "createProject",
     method: "POST",
     path: "/projects",
     tags: ["projects"],
     summary: "Create a project",
+  },
+  {
+    operationId: "createTopupCheckout",
+    method: "POST",
+    path: "/billing/topups/checkout",
+    tags: ["billing"],
+    summary: "Buy a credit top-up pack",
   },
   {
     operationId: "createWorkspace",
@@ -369,6 +404,13 @@ export const API_OPERATIONS = [
     summary: "Readiness probe (db, redis, storage)",
   },
   {
+    operationId: "getSubscription",
+    method: "GET",
+    path: "/billing/subscription",
+    tags: ["billing"],
+    summary: "The workspace's current subscription",
+  },
+  {
     operationId: "getWorkspace",
     method: "GET",
     path: "/workspaces/{id}",
@@ -402,6 +444,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/fonts/{fontId}/url",
     tags: ["fonts"],
     summary: "Signed URLs for one font's bytes",
+  },
+  {
+    operationId: "handleRazorpayWebhook",
+    method: "POST",
+    path: "/billing/webhooks/razorpay",
+    tags: ["billing"],
+    summary: "Razorpay webhook (THREAT-MODEL T16)",
   },
   {
     operationId: "importSubtitles",
@@ -509,6 +558,13 @@ export const API_OPERATIONS = [
     summary: "List the workspace's jobs, newest first",
   },
   {
+    operationId: "listMandates",
+    method: "GET",
+    path: "/billing/mandates",
+    tags: ["billing"],
+    summary: "Every mandate this workspace has registered",
+  },
+  {
     operationId: "listMyNotifications",
     method: "GET",
     path: "/me/notifications",
@@ -521,6 +577,20 @@ export const API_OPERATIONS = [
     path: "/admin/parental-waitlist",
     tags: ["admin"],
     summary: "The parental-consent waiting list, oldest first",
+  },
+  {
+    operationId: "listPaymentMethods",
+    method: "GET",
+    path: "/billing/payment-methods",
+    tags: ["billing"],
+    summary: "Payment methods on file with the provider",
+  },
+  {
+    operationId: "listPlans",
+    method: "GET",
+    path: "/billing/plans",
+    tags: ["billing"],
+    summary: "The public plan catalogue (INR and USD)",
   },
   {
     operationId: "listProjectMedia",
@@ -586,6 +656,20 @@ export const API_OPERATIONS = [
     summary: "Begin Google sign-in",
   },
   {
+    operationId: "pauseSubscription",
+    method: "POST",
+    path: "/billing/subscription/pause",
+    tags: ["billing"],
+    summary: "Skip one billing cycle (once per 12 months)",
+  },
+  {
+    operationId: "previewChangePlan",
+    method: "GET",
+    path: "/billing/subscription/change-preview",
+    tags: ["billing"],
+    summary: "Proration preview for a plan/interval/seat change",
+  },
+  {
     operationId: "removeWorkspaceMember",
     method: "DELETE",
     path: "/workspaces/{id}/members/{membershipId}",
@@ -633,6 +717,20 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/edg/snapshots/{revision}/restore",
     tags: ["edg"],
     summary: "Restore a snapshot as a new revision",
+  },
+  {
+    operationId: "resumeSubscription",
+    method: "POST",
+    path: "/billing/subscription/resume",
+    tags: ["billing"],
+    summary: "Undo a pending cancellation, or unpause",
+  },
+  {
+    operationId: "revokeMandate",
+    method: "POST",
+    path: "/billing/mandates/{mandateId}/revoke",
+    tags: ["billing"],
+    summary: "Revoke a mandate (cancels its subscription)",
   },
   {
     operationId: "setConsent",

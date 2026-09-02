@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { AdminModule } from "./admin/admin.module.js";
 import { AuthModule } from "./auth/auth.module.js";
+import { BillingModule } from "./billing/billing.module.js";
 import { CommonModule } from "./common/common.module.js";
 import { ConsentsModule } from "./consents/consents.module.js";
 import { CreditsModule } from "./credits/credits.module.js";
@@ -31,8 +32,9 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
  * (mail delivery and the in-app bell); A12 adds `edg`, the editing document and
  * its op batches; A06 adds `projects` (with folders) and `media` (upload,
  * derived URLs, import, retention); A18b adds `fonts`, the bundled open-licence
- * catalogue and a workspace's own uploads with their licence warranty. Later
- * work packages append to `imports`.
+ * catalogue and a workspace's own uploads with their licence warranty. B01
+ * adds `billing`: the `BillingProvider` port, checkout, webhooks and
+ * subscription management. Later work packages append to `imports`.
  *
  * `NotifyModule` sits after `JobsModule` because it takes the `notify` queue from
  * that module's registry, and it is `@Global()` because `AuthModule` — declared
@@ -65,6 +67,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     EdgModule,
     FontsModule,
     HealthModule,
+    BillingModule,
   ],
 })
 export class AppModule {}
