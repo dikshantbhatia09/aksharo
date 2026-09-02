@@ -21,6 +21,11 @@ export const NOTIFY_KINDS = [
   "streak-nudge",
   // B16: the -14d warning before a project's plan-retention purge deletes it.
   "retention-warning",
+  // B12: a new support ticket, sent to `BRAND.supportEmail` (a staff mailbox,
+  // not a user) — never critical, never in-app (there is no user to show a
+  // bell to), never carries an unsubscribe link (it is not addressed to a
+  // subscriber at all).
+  "support-ticket-created",
 ] as const;
 
 export type NotifyKind = (typeof NOTIFY_KINDS)[number];

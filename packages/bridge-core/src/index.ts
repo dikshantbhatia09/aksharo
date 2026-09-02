@@ -33,7 +33,11 @@ export type BridgeStatus = "stopped" | "starting" | "running" | "error";
 export interface BridgeCoreOptions {
   /** api gateway relay URL, e.g. `wss://api.aksharo.ai/bridge/relay`. Omit to disable relay (tests). */
   readonly relayUrl?: string;
-  /** The device token from B08/A04 device registration. Required when `relayUrl` is set. */
+  /**
+   * The `kind:"bridge"` access token `POST /devices/{id}/bridge-token` mints
+   * (B08b, CONTRACTS §5) for a device this install already registered
+   * (`POST /devices/register`, B08). Required when `relayUrl` is set.
+   */
   readonly deviceToken?: string;
   readonly tray?: TrayController;
   readonly log?: (line: Record<string, unknown>) => void;
@@ -87,7 +91,7 @@ export class BridgeCore extends EventEmitter {
   /** Starts the loopback server, writes the discovery file, and opens the relay tunnel. */
   async start(): Promise<void> {
     this.setStatus("starting");
-    this.cert = loadOrCreateCertificate();
+    this.cert = await loadOrCreateCertificate();
 
     this.server = await startLoopbackServer({
       bearer: this.bearer,
@@ -194,6 +198,7 @@ export class BridgeCore extends EventEmitter {
 export * from "./protocol.js";
 export * from "./security.js";
 export * from "./discovery.js";
+export * from "./keystore.js";
 export * from "./cert.js";
 export * from "./pairing.js";
 export * from "./server.js";

@@ -1202,13 +1202,18 @@ describe.skipIf(!available)("EDG", () => {
 
       expect(large.revision).toBe(attempts + 1);
 
-      // The claim the working set makes is that a batch costs what its OPS cost,
+      // The claim the working set makes is that a batch costs what its ops cost,
       // not what the document weighs. Asserting that as a ratio rather than a bare
       // millisecond ceiling is what makes it a real regression test: the absolute
       // number moves with the machine (this suite shares a laptop with a dozen
-      // other agents), the ratio does not. The 150 ms budget of the brief is the
-      // first branch, and is what a quiet compose stack meets.
-      expect(large.p95).toBeLessThan(Math.max(150, baseline.p95 * 2.5));
+      // other agents, and can be under heavy load), the ratio does not. A real
+      // O(n) regression would show as the large sample scaling with the 750x
+      // segment-count ratio (9,000 vs 12), not a small multiple of the small
+      // sample, so a 3x allowance (with a 30 ms floor for when the host is
+      // fast enough that both samples round to near-zero) still catches a
+      // real regression while surviving ordinary shared-host jitter between
+      // the two measurement windows.
+      expect(large.p95).toBeLessThan(Math.max(30, baseline.p95 * 3));
     }, 180_000);
   });
 });

@@ -34,32 +34,19 @@ import type { QueueName } from "../jobs/contracts/queue-names.js";
  * here (for the job event, an audit trail a reviewer can read) and dropped
  * before the item is persisted — it never reaches the wire a second time.
  *
- * ### `PassType` gap (B19, flagged in the final report rather than silently worked around)
+ * ### `PassType` and `keyframesRef` gaps (B19) — closed by B19b
  *
- * `PassTypeSchema` (CONTRACTS §2, `packages/edg/src/schemas/pass.ts`) has no
- * `"zoom"` value — only `ItemKindSchema` does. Both `startZoom` and
- * `startReframe` therefore mint a `Pass` with `type: "reframe"` (the WP's own
- * title, "reframe & zoom pass", treats them as one family), distinguished by
- * each item's own `kind` (`"zoom"` vs `"reframe"`) and the pass's `engine`
- * string (`zoom@<preset>` vs `reframe@<aspect>`).
+ * `PassTypeSchema` gained `"zoom"` (CONTRACTS §2, amended 2026-09-03), so
+ * `handleZoom` now mints a `Pass` with `type: "zoom"` rather than borrowing
+ * `"reframe"`.
  *
- * ### `keyframesRef` gap (B19, flagged in the final report)
- *
- * The 2026-09-02 orchestrator addendum asks for packed keyframes <= 64 KiB to
- * stay inline on `edg_pass_items.keyframes` (bytea) and larger ones to go to
- * derived storage at `keyframesRef`. Neither write path exists yet:
- * `PassItem` (CONTRACTS §2) carries only `keyframesRef: string`, never inline
- * bytes, and `ObjectStore` (`apps/api/src/common/storage/object-store.ts`)
- * has no `putObject` — uploads are deliberately client-presigned only
- * ("bytes never pass through the API"). This handler computes the
- * addendum's own key shape (`passes/{passId}/{itemId}.kf`) and sets
- * `keyframesRef` to it, but nothing yet writes the bytes there; the packed
- * payload the worker produced is logged (byte length only) so a reviewer can
- * see the gap rather than a silently-empty ref. Closing this needs either an
- * internal `putObject` on `ObjectStore` (owned by `common/storage/**`,
- * outside B19's file boundary) or the worker writing the `.kf` directly via
- * its own storage client, mirroring how A07's derived media never passes
- * through the API either.
+ * The keyframe payload rule (CONTRACTS §2, same amendment) is implemented
+ * here: the worker (`worker_ai.processors.reframe_zoom_pass.
+ * _keyframe_storage_fields`) already decided inline vs. derived storage and
+ * minted the item id the derived key needed, so this handler only decodes
+ * `keyframes` (hex on the wire) to base64 for `payload.keyframes`, or passes
+ * `keyframesRef` through unchanged — it never uploads bytes itself, matching
+ * `ObjectStore`'s "bytes never pass through the API" rule.
  *
  * ### Idempotency
  *
@@ -95,16 +82,43 @@ const RectResultSchema = z.object({
   h: z.number().gt(0).max(1),
 });
 
-const ZoomItemResultSchema = z.object({
-  startMs: z.number().int().min(0),
-  endMs: z.number().int().min(0),
-  keyframes: z.string().min(1), // packed float32 rows, hex-encoded
-  scaleFrom: z.number().gt(0),
-  scaleTo: z.number().gt(0),
-  target: RectResultSchema,
-  reason: z.string().min(1),
-  confidence: z.number().min(0).max(1),
-});
+/**
+ * Keyframe payload rule (CONTRACTS §2, added 2026-09-03 after B19b): the
+ * worker packs MKF2 (`packages/edg/src/passes/keyframes.ts`) and sends it
+ * either as `keyframes` (packed bytes, hex-encoded for JSON transit) when
+ * <= 64 KiB, or as `keyframesRef` when it already uploaded the curve to
+ * derived storage (`worker_ai.processors.reframe_zoom_pass.
+ * _keyframe_storage_fields`) — exactly one, never both. `itemId` is minted by
+ * the worker (not this handler) because the derived key needs it before the
+ * object can be uploaded.
+ */
+const keyframeResultFields = {
+  itemId: z.string().min(1),
+  keyframes: z.string().min(1).optional(),
+  keyframesRef: z.string().min(1).optional(),
+};
+
+function hasExactlyOneKeyframeResultField(value: {
+  keyframes?: string | undefined;
+  keyframesRef?: string | undefined;
+}): boolean {
+  return (value.keyframes !== undefined) !== (value.keyframesRef !== undefined);
+}
+
+const ZoomItemResultSchema = z
+  .object({
+    ...keyframeResultFields,
+    startMs: z.number().int().min(0),
+    endMs: z.number().int().min(0),
+    scaleFrom: z.number().gt(0),
+    scaleTo: z.number().gt(0),
+    target: RectResultSchema,
+    reason: z.string().min(1),
+    confidence: z.number().min(0).max(1),
+  })
+  .refine(hasExactlyOneKeyframeResultField, {
+    message: "exactly one of `keyframes` or `keyframesRef` is required",
+  });
 
 const ZoomResultSchema = z.object({
   passId: z.string().min(1),
@@ -113,15 +127,19 @@ const ZoomResultSchema = z.object({
   items: z.array(ZoomItemResultSchema).default([]),
 });
 
-const ReframeItemResultSchema = z.object({
-  startMs: z.number().int().min(0),
-  endMs: z.number().int().min(0),
-  aspect: z.enum(["9:16", "1:1"]),
-  keyframes: z.string().min(1),
-  letterboxScenes: z.array(z.number().int().min(0)).default([]),
-  reason: z.string().min(1),
-  confidence: z.number().min(0).max(1),
-});
+const ReframeItemResultSchema = z
+  .object({
+    ...keyframeResultFields,
+    startMs: z.number().int().min(0),
+    endMs: z.number().int().min(0),
+    aspect: z.enum(["9:16", "1:1"]),
+    letterboxScenes: z.array(z.number().int().min(0)).default([]),
+    reason: z.string().min(1),
+    confidence: z.number().min(0).max(1),
+  })
+  .refine(hasExactlyOneKeyframeResultField, {
+    message: "exactly one of `keyframes` or `keyframesRef` is required",
+  });
 
 const ReframeResultSchema = z.object({
   passId: z.string().min(1),
@@ -221,14 +239,9 @@ export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit
     const result = ZoomResultSchema.parse(context.result);
 
     const items: ZoomPassItem[] = result.items.map((item) => {
-      const itemId = newId();
-      const keyframesRef = keyframesRefFor(result.passId, itemId);
-      this.logger.log(
-        { itemId, keyframesRef, bytes: Buffer.from(item.keyframes, "hex").byteLength },
-        "zoom item keyframes computed (not yet written to derived storage - see class docstring)",
-      );
+      const keyframeFields = keyframePayloadFieldsOf(item);
       return {
-        itemId,
+        itemId: item.itemId,
         passId: result.passId,
         kind: "zoom",
         startMs: item.startMs,
@@ -238,9 +251,9 @@ export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit
           scaleFrom: item.scaleFrom,
           scaleTo: item.scaleTo,
           easing: "easeInOut",
-          keyframesRef,
+          ...keyframeFields,
         },
-        keyframesRef,
+        ...(item.keyframesRef === undefined ? {} : { keyframesRef: item.keyframesRef }),
         confidence: item.confidence,
         reason: item.reason,
         state: "proposed",
@@ -249,7 +262,7 @@ export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit
 
     const pass: Pass = {
       passId: result.passId,
-      type: "reframe", // PassTypeSchema has no "zoom" value -- see class docstring
+      type: "zoom",
       engine: `zoom@${result.preset}`,
       params: { preset: result.preset },
       status: "ready",
@@ -288,25 +301,15 @@ export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit
     const result = ReframeResultSchema.parse(context.result);
 
     const items: ReframePassItem[] = result.items.map((item) => {
-      const itemId = newId();
-      const keyframesRef = keyframesRefFor(result.passId, itemId);
-      this.logger.log(
-        {
-          itemId,
-          keyframesRef,
-          bytes: Buffer.from(item.keyframes, "hex").byteLength,
-          letterboxScenes: item.letterboxScenes,
-        },
-        "reframe item keyframes computed (not yet written to derived storage - see class docstring)",
-      );
+      const keyframeFields = keyframePayloadFieldsOf(item);
       return {
-        itemId,
+        itemId: item.itemId,
         passId: result.passId,
         kind: "reframe",
         startMs: item.startMs,
         endMs: item.endMs,
-        payload: { aspect: item.aspect, keyframesRef },
-        keyframesRef,
+        payload: { aspect: item.aspect, ...keyframeFields },
+        ...(item.keyframesRef === undefined ? {} : { keyframesRef: item.keyframesRef }),
         confidence: item.confidence,
         reason: item.reason,
         state: "proposed",
@@ -360,9 +363,20 @@ export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit
   }
 }
 
-/** The addendum's derived-storage key shape (class docstring's "keyframesRef gap"). */
-function keyframesRefFor(passId: string, itemId: string): string {
-  return `passes/${passId}/${itemId}.kf`;
+/**
+ * The keyframe payload rule (CONTRACTS §2, B19b): `keyframes` inline (base64,
+ * re-encoded from the worker's hex) when the worker sent it, else
+ * `keyframesRef` passed through unchanged. Exactly one is ever set — the
+ * result schema's `refine` already guarantees that.
+ */
+function keyframePayloadFieldsOf(item: {
+  readonly keyframes?: string | undefined;
+  readonly keyframesRef?: string | undefined;
+}): { keyframes: string } | { keyframesRef: string } {
+  if (item.keyframes !== undefined) {
+    return { keyframes: Buffer.from(item.keyframes, "hex").toString("base64") };
+  }
+  return { keyframesRef: item.keyframesRef as string };
 }
 
 function passTypeOf(result: unknown): string | undefined {

@@ -14,9 +14,15 @@
 import { defineEndpoint } from "./http.js";
 
 import type {
+  AcademyProgressResponse,
   AdminStepUpResponse,
   AdminTotpCodeRequest,
   AdminTotpEnrollResponse,
+  ChangelogDismissedResponse,
+  CreateSupportTicketRequest,
+  ListSupportTicketsResponse,
+  MarkStepDoneResult,
+  SupportTicketView,
   AffiliateProfile,
   AffiliateStats,
   ApiKeyView,
@@ -678,6 +684,50 @@ export const referralsEndpoints = {
   }),
 } as const;
 
+/** Academy tracks, progress, rewards and the What's-new marker (B12). */
+export const academyEndpoints = {
+  progress: defineEndpoint<void, AcademyProgressResponse>({
+    method: "GET",
+    path: "/academy/progress",
+    auth: "bearer",
+    operationId: "getAcademyProgress",
+  }),
+  markStepDone: defineEndpoint<void, MarkStepDoneResult>({
+    method: "POST",
+    path: "/academy/tracks/{trackId}/steps/{stepId}/done",
+    auth: "bearer",
+    operationId: "markAcademyStepDone",
+  }),
+  getDismissedChangelog: defineEndpoint<void, ChangelogDismissedResponse>({
+    method: "GET",
+    path: "/academy/changelog/dismissed",
+    auth: "bearer",
+    operationId: "getDismissedChangelogVersion",
+  }),
+  dismissChangelog: defineEndpoint<{ version: string }, ChangelogDismissedResponse>({
+    method: "POST",
+    path: "/academy/changelog/dismissed",
+    auth: "bearer",
+    operationId: "dismissChangelogVersion",
+  }),
+} as const;
+
+/** Support tickets, optionally with a consent-gated diagnostics bundle (B12). */
+export const supportEndpoints = {
+  create: defineEndpoint<CreateSupportTicketRequest, SupportTicketView>({
+    method: "POST",
+    path: "/support/tickets",
+    auth: "bearer",
+    operationId: "createSupportTicket",
+  }),
+  list: defineEndpoint<void, ListSupportTicketsResponse>({
+    method: "GET",
+    path: "/support/tickets",
+    auth: "bearer",
+    operationId: "listSupportTickets",
+  }),
+} as const;
+
 /** Scripts and translation (A22): `apps/api/src/transcripts/scripts`. */
 export const transcriptScriptsEndpoints = {
   transliterate: defineEndpoint<TransliterateRequest, TransliterateAccepted>({
@@ -921,6 +971,8 @@ export const endpoints = {
   licensing: licensingEndpoints,
   clientTags: clientTagEndpoints,
   referrals: referralsEndpoints,
+  academy: academyEndpoints,
+  support: supportEndpoints,
   memory: memoryEndpoints,
   streak: streakEndpoints,
   apiKeys: apiKeyEndpoints,
@@ -950,6 +1002,8 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(creditsEndpoints),
   ...Object.entries(offersEndpoints),
   ...Object.entries(referralsEndpoints),
+  ...Object.entries(academyEndpoints),
+  ...Object.entries(supportEndpoints),
   ...Object.entries(memoryEndpoints),
   ...Object.entries(streakEndpoints),
   ...Object.entries(apiKeyEndpoints),

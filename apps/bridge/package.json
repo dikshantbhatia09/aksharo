@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "@montaj/bridge-core": "workspace:*",
-    "@montaj/config": "workspace:*"
+    "@montaj/config": "workspace:*",
+    "systray2": "^2.1.4"
   },
   "devDependencies": {
     "@types/node": "^22.19.2",

@@ -11,6 +11,7 @@ import { CommandPalette, useCommandPalette } from "./command-palette";
 import { Sidebar } from "./sidebar";
 import { TopBar } from "./top-bar";
 
+import { WhatsNewModal } from "@/components/academy/whats-new-modal";
 import { useRuntimeConfig } from "@/components/providers";
 import { ReferralPromptSheet } from "@/components/referrals/referral-prompt-sheet";
 import { refreshSession } from "@/lib/session/client";
@@ -154,6 +155,11 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
           for `bootstrapped` the same way the realtime connection above does,
           so it never queries `/referrals/me` before there is an access token. */}
       {bootstrapped && session !== null ? <ReferralPromptSheet /> : null}
+
+      {/* B12: the What's-new modal, same "global, not scoped to one screen"
+          shape as the give-get sheet above — see `components/academy/
+          whats-new-modal.tsx`'s "Mount point". */}
+      {bootstrapped && session !== null ? <WhatsNewModal /> : null}
     </div>
   );
 }

@@ -10,6 +10,35 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B19b — Reframe/zoom wiring: one keyframe codec, keyframe storage, `zoom`
+  pass type, word-timed emphasis cues, frame/RMS sampling from the proxy.**
+  `packages/edg`: `src/keyframes.ts` (`MKF1`) is deleted — `src/passes/
+keyframes.ts`'s `encodeKeyframes`/`decodeKeyframes` (`MKF2`) is the only
+  packed-keyframe codec now; `schemas/pass.ts`'s `PassTypeSchema` gains
+  `"zoom"`, and `ZoomPayloadSchema`/`ReframePayloadSchema` accept exactly one
+  of `keyframes` (base64 inline, <= 64 KiB) or `keyframesRef` (derived
+  storage) per the amended CONTRACTS §2 keyframe payload rule.
+  `apps/worker-ai`: `worker_ai/passes/frame_sampling.py` (new) samples video
+  frames and RMS audio energy from the 540p proxy at 10 Hz, downscaled to
+  <= 320 px wide (piped as raw `rgb24`, no JPEG round trip); `processors/
+reframe_zoom_pass.py` calls it (`_sample_from_proxy`) whenever the producer
+  sent no `detections`/`sceneFrames`/`rmsSamples`, feeds frames through
+  `BrightBlobDetector` (gated behind `PASS_FACE_DETECTOR=yunet` +
+  `PASS_FACE_DETECTOR_WEIGHTS` for a real detector, unprovisioned this WP,
+  H-22), and packs `MKF2` (`pack_keyframes`, now `{tMs, zoom, cx, cy, ease}`
+  rows); `_keyframe_storage_fields` mints each item's id and decides inline
+  vs. an `ObjectStore.upload` to `ws/{workspaceId}/passes/{passId}/{itemId}.mkf`
+  (CONTRACTS §6). `apps/worker-media`: `src/frames/sample.ts` (new) — a
+  10 Hz, <= 320 px JPEG filmstrip helper via ffmpeg's `fps` filter, for a TS
+  consumer (worker-ai samples the proxy itself instead, in-process). `apps/api`:
+  `passes.service.ts`'s `startZoom`/`startReframe` reject a project with no
+  proxy (`passes/proxy_required`, 409) and resolve emphasis cues to the
+  emphasised word's own `s` (`emphasisCuesOf`, was the segment's `startMs`);
+  `passes-completion.handler.ts` lands a zoom pass as `type: "zoom"` (was
+  `"reframe"`) and implements the inline/derived keyframe payload rule instead
+  of computing an unwritten `keyframesRef`. `prisma/schema.prisma`'s
+  `PassType` enum gains `zoom` (migration `20260903120000_b19b_zoom_pass_type`).
+
 - **C01 — Local bridge v2: `packages/bridge-core` + `apps/bridge` (Node SEA);
   relay-first WSS; loopback HTTPS + per-install cert; pairing; api
   `bridge-relay` module.** `packages/bridge-core`: a JSON-RPC 2.0 protocol
@@ -51,6 +80,85 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   workspace+user (one paired bridge per signed-in user per workspace) until a
   follow-up work package adds a real per-device bridge credential — see the
   WP report's open questions.
+- **C01b — Bridge follow-ups: native tray for standalone installs, OS
+  keychain/DPAPI for the per-install key, CI matrix dry run.** `apps/bridge`:
+  a real system tray (`native-tray.ts`) via `systray2` (MIT) — a prebuilt
+  per-OS helper binary spawned over stdio, the only tray option compatible
+  with the Node SEA bundling model (a native addon has no stable path once
+  `esbuild` folds everything into one `dist/bundle.cjs`); `build-sea.mjs`
+  copies `systray2`'s helper binaries into `dist/traybin` next to the
+  packaged executable. Falls back to `bridge-core`'s console tray on Linux
+  with no `DISPLAY`, in any `CI` environment, if the helper binary is
+  missing, or if the helper fails/times out (3 s) — the CI-env skip exists
+  because the tray helper was observed to hang indefinitely on this runner
+  outside that guard, which would otherwise make the `bridge-sea` matrix job
+  flaky. `packages/bridge-core`: a `KeyStore` interface (`keystore.ts`) with
+  `KeychainKeyStore` (macOS, shells out to `security`), `DpapiKeyStore`
+  (Windows, shells out to `powershell.exe`'s
+  `System.Security.Cryptography.ProtectedData`), `FileKeyStore` (the
+  original `0600` file, kept as the documented fallback) and
+  `InMemoryKeyStore` for tests; `createDefaultKeyStore()` probes the
+  platform-appropriate backend once and falls back to the file store if the
+  probe fails. No new native/npm dependency: a real keychain client library
+  is a native addon on every OS, incompatible with the SEA bundle for the
+  same reason a native tray is. `cert.ts`'s `loadOrCreateCertificate` now
+  stores the private key through a `KeyStore` (defaulting to
+  `createDefaultKeyStore()`) instead of a plaintext file, migrating an
+  existing plaintext `leaf.key.pem` into the key store (and deleting it) on
+  first run so existing pairings survive the upgrade; it is now `async`.
+  CI: `.github/workflows/ci.yml` gained `workflow_dispatch: {}` so the
+  `bridge-sea` job (and the rest of the matrix) can be re-run manually
+  without an empty commit; the local dry-run steps are documented in
+  `apps/bridge/README.md`. `apps/desktop/src/bridge/adapter.ts`: replaced the
+  pre-C01 stub with `createBridgeAdapter`, a real `BridgeAdapter` wrapping
+  `BridgeCore` (`createStubBridgeAdapter` is kept for a "bridge disabled"
+  caller). Documented interface gap: `approvePairing`'s `BridgePairResult`
+  predates `bridge-core`'s actual protocol — a local/tray approval only
+  flips a pairing to `"approved"`; the pairing _client_ mints its own
+  `clientId` by calling `pair.confirm` afterwards, so the approver never
+  observes that id synchronously. `createBridgeAdapter` returns the
+  `pairingId` in its place (documented, not the wire `clientId`) rather than
+  inventing an unverified shape — flagged for whoever wires this into C02's
+  UI. 12 new tests across the three packages (bridge-core: `keystore.test.ts`
+  - cert migration tests; apps/bridge: `native-tray.test.ts`; apps/desktop:
+    two new `createBridgeAdapter` cases), all suites green.
+- **B08b — Per-device bridge credential: `kind:"bridge"` tokens carry
+  `deviceId`; relay pairing keyed per device (resolves C01's deviation).**
+  `TokenService.mintAccessToken` now requires (and `verifyAccessToken`/the
+  interim realtime verifier both parse) a `deviceId` claim whenever
+  `kind === "bridge"` (CONTRACTS §5, amended 2026-09-03); minting one without
+  it is refused. New `POST /devices/{id}/bridge-token`: for a registered,
+  leased device the caller owns, mints that bridge token; refuses with
+  `licensing/device_revoked` (the device was revoked) or
+  `licensing/device_lease_expired` (its lease needs renewing first, via
+  `POST /devices/register`) — the same `licensing/device_revoked` code
+  `plugins.service.ts`'s heartbeat already used. `bridge-relay.gateway.ts`:
+  pairing is now keyed by `workspaceId:deviceId` instead of
+  `workspaceId:sub`, and `handleUpgrade` refuses a bridge token without
+  `deviceId` before it ever reaches the connection map — several devices for
+  the same user now pair and relay concurrently (e2e: two devices, one user,
+  both attached and relaying independently). Guard rail: `JwtAuthGuard`
+  refuses a `kind:"bridge"` token on any route unless it opts in with the new
+  `@AllowBridgeToken()` decorator; nothing does yet, so this is a flat
+  refusal today (contract test in `common/guards/guards.test.ts`).
+  `apps/bridge`: a new `device-auth.ts` gets this install its own credential
+  on first run — the RFC 8628 device-code grant as `kind:"desktop"` (a
+  bridge-kind device code is never redeemed directly: no device row exists
+  yet at that point, and `mintAccessToken` would refuse it), then
+  `POST /devices/register`, then `POST /devices/{id}/bridge-token` — and
+  re-mints the bridge token on later runs via `POST /auth/refresh` without
+  the pairing screen again, falling back to a fresh sign-in once the stored
+  refresh token is no longer good for anything; `config.ts` gained
+  `apiOrigin`/`deviceId`/`sessionRefreshToken`/`deviceTokenExpiresAt`
+  alongside the existing `deviceToken`/`relayUrl`/`autostart`. Deviation
+  (documented, out of this WP's file boundary but required for the
+  acceptance criteria): `AccessTokenClaims`/`AuthPrincipal`
+  (`common/guards/principal.ts`), `JwtAuthGuard`
+  (`common/guards/jwt-auth.guard.ts`, `public.decorator.ts`) and the interim
+  realtime verifier (`realtime/auth/access-token.ts`) all needed the
+  `deviceId` claim and the bridge-token guard rail threaded through; each
+  change is additive (a new optional field, a new decorator) and does not
+  alter behaviour for any other `kind`.
 - **B20 — Passes tab, ProposalCard, bulk accept, timeline lanes; export application
   of accepted cuts/zoom/reframe through `@montaj/timemap` (browser + cloud).**
   - **Review UI** (`apps/web/components/editor/passes/**`): `PassesTab` (run-autocut
@@ -118,7 +226,24 @@ output-length.test.ts` proves only `accepted` cut items shorten
   `--color-info` band for every protected range and wires the "P" key (and a
   "Protect (P)" button) to toggle protection on the selected segment or word;
   one chromium Playwright case in `timeline.spec.ts`.
-
+- **B12 — Academy tracks, Help centre, in-app Changelog and What's-new, and
+  support tickets with diagnostics.** Four outcome-based Academy tracks (MDX,
+  `apps/web/content/academy/**`) with step-by-step progress
+  (`academy_progress`), a one-time per-track credit reward
+  (`academy_rewards`, capped 25/track and 100/workspace lifetime, granted via
+  `CreditsFacade.grantLot({ source: "adjust", ... })` — CONTRACTS §4 has no
+  `"academy"` source, flagged as a conflict) and automatic completion on
+  `export.completed`; ten real Help articles (`apps/web/content/help/**`)
+  with a build-time MiniSearch index and a "Contact support" entry; an
+  in-app `/updates` changelog (renamed from `/changelog`, which the
+  marketing site already owns) sourced from MDX plus an RSS feed and a
+  per-user "What's new" modal (`changelog_dismissals`);
+  `POST/GET /support/tickets`
+  (`support_tickets`) with an optional consent-gated diagnostics bundle
+  (app version, browser/OS, workspace id, last 10 job statuses, a
+  console-error ring buffer — never media), emailed to `BRAND.supportEmail`
+  via a new `notify` kind (`support-ticket-created`) and listed back in
+  Settings → Support.
 - **C00 — Signing & release pipeline (dry-run only; credentials do not exist yet).**
   New `tools/release` package (`@montaj/release`) exposing `pnpm release <cmd>`:
   `version` (conventional-commit semver bump + `CHANGELOG.md` section assembly),
