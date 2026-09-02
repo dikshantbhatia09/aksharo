@@ -45,10 +45,14 @@ export const ChaptersOutputSchema = z
   .object({
     chapters: z.array(ChapterSchema).min(1),
   })
-  .refine((value) => value.chapters.every((c, i) => i === 0 || c.startMs > (value.chapters[i - 1]?.startMs ?? -1)), {
-    message: "chapters must be strictly ordered by startMs",
-    path: ["chapters"],
-  });
+  .refine(
+    (value) =>
+      value.chapters.every((c, i) => i === 0 || c.startMs > (value.chapters[i - 1]?.startMs ?? -1)),
+    {
+      message: "chapters must be strictly ordered by startMs",
+      path: ["chapters"],
+    },
+  );
 export type ChaptersOutput = z.infer<typeof ChaptersOutputSchema>;
 
 /** Max chapter count: 12 up to 30 minutes, +1 per additional 10 minutes, capped at 24. */
@@ -70,7 +74,7 @@ function buildChaptersMessages(input: ChaptersInput): TemplateMessages {
     `Produce at most ${String(cap)} chapters, ordered by startMs ascending, the first ` +
     "starting at or near 0. Each title is at most 60 characters, written in the " +
     "SAME language and script as the transcript (if the transcript mixes Hindi " +
-    "words in Latin script with English — \"Hinglish\" — write titles the same " +
+    'words in Latin script with English — "Hinglish" — write titles the same ' +
     "way; never translate to pure Hindi or pure English). Pick startMs values " +
     "that land on a topic change; they will be snapped to the nearest transcript " +
     "segment automatically, so approximate values are fine.";

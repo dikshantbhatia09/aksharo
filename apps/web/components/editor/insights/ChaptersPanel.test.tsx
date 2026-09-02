@@ -6,7 +6,6 @@ import type { InsightRow } from "@montaj/api-client";
 
 import { ChaptersPanel } from "./ChaptersPanel";
 
-
 function row(chapters: { startMs: number; title: string }[]): InsightRow {
   return {
     id: "row1",

@@ -10,7 +10,6 @@ import { ChaptersPanel } from "./ChaptersPanel";
 import { HooksPanel } from "./HooksPanel";
 import { SummaryPanel } from "./SummaryPanel";
 
-
 export interface InsightsTabProps {
   readonly projectId: string;
   /** Seek the preview player to `ms` (source time) — chapters' "jump to". */
@@ -41,7 +40,11 @@ export function InsightsTab({ projectId, onSeek, className }: InsightsTabProps):
       <Tabs value={kind} onValueChange={(value) => setKind(value as InsightKind)}>
         <TabsList aria-label="Insight kind">
           {KINDS.map((option) => (
-            <TabsTrigger key={option.id} value={option.id} data-testid={`insights-tab-${option.id}`}>
+            <TabsTrigger
+              key={option.id}
+              value={option.id}
+              data-testid={`insights-tab-${option.id}`}
+            >
               {option.label}
             </TabsTrigger>
           ))}

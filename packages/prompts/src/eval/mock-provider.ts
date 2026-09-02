@@ -33,7 +33,10 @@ export function mockChapters(input: ChaptersInput): ChaptersOutput {
   for (const [i, segment] of input.segments.entries()) {
     if (chapters.length >= cap) break;
     if (i % stride !== 0) continue;
-    chapters.push({ startMs: segment.startMs, title: clip(segment.text || `Chapter ${String(chapters.length + 1)}`, 60) });
+    chapters.push({
+      startMs: segment.startMs,
+      title: clip(segment.text || `Chapter ${String(chapters.length + 1)}`, 60),
+    });
   }
   const first = input.segments[0];
   if (chapters.length === 0 && first !== undefined) {
@@ -52,16 +55,21 @@ export function mockSummary(input: SummaryInput): SummaryOutput {
 }
 
 export function mockHooks(input: HooksInput): HooksOutput {
-  const vocab = [...transcriptVocabulary(input as PromptTranscriptInput)].filter((w) => w.length > 1);
+  const vocab = [...transcriptVocabulary(input as PromptTranscriptInput)].filter(
+    (w) => w.length > 1,
+  );
   const words = vocab.length > 0 ? vocab : ["clip"];
   const pick = (n: number): string => words[n % words.length] ?? "clip";
   const result = {} as Record<(typeof HOOK_PLATFORMS)[number], HooksOutput["youtube"]>;
   for (const platform of HOOK_PLATFORMS) {
-    const hooks = Array.from({ length: 5 }, (_, i) => clip(`${pick(i)} ${pick(i + 1)} ${pick(i + 2)}`, 120));
-    const titles = Array.from({ length: 5 }, (_, i) => clip(`${pick(i + 3)} ${pick(i + 4)}`, 100));
-    const hashtags = Array.from({ length: 10 }, (_, i) => `#${pick(i + 5).replace(/[^\p{L}\p{N}_]/gu, "")}`).map(
-      (tag, i) => (tag === "#" ? `#tag${String(i)}` : tag),
+    const hooks = Array.from({ length: 5 }, (_, i) =>
+      clip(`${pick(i)} ${pick(i + 1)} ${pick(i + 2)}`, 120),
     );
+    const titles = Array.from({ length: 5 }, (_, i) => clip(`${pick(i + 3)} ${pick(i + 4)}`, 100));
+    const hashtags = Array.from(
+      { length: 10 },
+      (_, i) => `#${pick(i + 5).replace(/[^\p{L}\p{N}_]/gu, "")}`,
+    ).map((tag, i) => (tag === "#" ? `#tag${String(i)}` : tag));
     result[platform] = { hooks, titles, hashtags };
   }
   return result as HooksOutput;

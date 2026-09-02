@@ -10,7 +10,13 @@ describe("eval runner", () => {
     if (!report.ok) {
       const failures = report.cases
         .filter((c) => !c.ok)
-        .map((c) => `${c.fixtureId}/${c.kind}: ${c.checks.filter((k) => !k.ok).map((k) => `${k.name}=${k.detail}`).join("; ")}`);
+        .map(
+          (c) =>
+            `${c.fixtureId}/${c.kind}: ${c.checks
+              .filter((k) => !k.ok)
+              .map((k) => `${k.name}=${k.detail}`)
+              .join("; ")}`,
+        );
       throw new Error(`eval failures:\n${failures.join("\n")}`);
     }
     expect(report.ok).toBe(true);
@@ -34,7 +40,11 @@ describe("eval runner", () => {
 
 describe("individual checks", () => {
   it("timestamp check catches an out-of-range chapter start", () => {
-    const result = checkTimestamps("chapters", { chapters: [{ startMs: 999_999, title: "x" }] }, 10_000);
+    const result = checkTimestamps(
+      "chapters",
+      { chapters: [{ startMs: 999_999, title: "x" }] },
+      10_000,
+    );
     expect(result.ok).toBe(false);
   });
 
@@ -60,7 +70,11 @@ describe("individual checks", () => {
   });
 
   it("language consistency rejects Devanagari output for an English transcript", () => {
-    const result = checkLanguageConsistency("chapters", { chapters: [{ startMs: 0, title: "नमस्ते" }] }, "en");
+    const result = checkLanguageConsistency(
+      "chapters",
+      { chapters: [{ startMs: 0, title: "नमस्ते" }] },
+      "en",
+    );
     expect(result.ok).toBe(false);
   });
 

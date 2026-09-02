@@ -10,7 +10,6 @@ import { PrismaService } from "../common/prisma/prisma.service.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 import { retentionClassOf } from "../transcripts/transcribe.handler.js";
 
-
 import type {
   JobCompletionContext,
   JobCompletionHandler,

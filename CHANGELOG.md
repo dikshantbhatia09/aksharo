@@ -103,7 +103,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   job's transcript payload from `TranscriptsService.chunks()` (language,
   optional media title, segments only — no user identity, brief's PII
   minimisation), and enqueues one `ai.llm` job per kind; `GET
-  /projects/{id}/insights` reads the latest `llm_outputs` row per kind plus the
+/projects/{id}/insights` reads the latest `llm_outputs` row per kind plus the
   ASCI-friendly disclosure line. Migration adds `llm_outputs` (id, projectId,
   workspaceId, jobId, kind, templateVersion, provider, region, output jsonb,
   usage jsonb, createdAt). `apps/web/components/editor/insights/`: the Insights

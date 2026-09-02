@@ -7,7 +7,6 @@ import type { InsightRow } from "@montaj/api-client";
 import { CopyButton } from "./CopyButton";
 import { chaptersAsYouTubeDescription, formatChapterTimestamp } from "./formatChapters";
 
-
 export interface ChaptersPanelProps {
   readonly row: InsightRow;
   /** Seek the preview player to `ms` (source time). */

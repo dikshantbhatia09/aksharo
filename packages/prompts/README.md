@@ -15,12 +15,12 @@ instructions" preamble) and outputs are Zod-validated, never executed
 
 ## Templates
 
-| id           | version         | purpose                                                        |
-| ------------ | ---------------- | --------------------------------------------------------------- |
-| `chapters`   | `chapters@1`    | YouTube-style chapters, `startMs` snapped to a segment boundary |
-| `summary`    | `summary@1`     | Three lengths (short/medium/long) at once                       |
-| `hooks`      | `hooks@1`       | 5 hooks + 5 titles + 10 hashtags, per platform (YouTube/Instagram/TikTok) |
-| `keyphrases` | `keyphrases@1`  | Key phrases anchored to transcript timestamps (for D06, later)  |
+| id           | version        | purpose                                                                   |
+| ------------ | -------------- | ------------------------------------------------------------------------- |
+| `chapters`   | `chapters@1`   | YouTube-style chapters, `startMs` snapped to a segment boundary           |
+| `summary`    | `summary@1`    | Three lengths (short/medium/long) at once                                 |
+| `hooks`      | `hooks@1`      | 5 hooks + 5 titles + 10 hashtags, per platform (YouTube/Instagram/TikTok) |
+| `keyphrases` | `keyphrases@1` | Key phrases anchored to transcript timestamps (for D06, later)            |
 
 ## Layout
 

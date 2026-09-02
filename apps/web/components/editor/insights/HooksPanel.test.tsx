@@ -6,7 +6,6 @@ import type { InsightRow } from "@montaj/api-client";
 
 import { HooksPanel } from "./HooksPanel";
 
-
 function variant(prefix: string): {
   hooks: string[];
   titles: string[];
@@ -49,7 +48,9 @@ describe("<HooksPanel />", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     render(<HooksPanel row={ROW} />);
-    const hashtagSection = screen.getByTestId("hooks-hashtags-youtube").closest("div")?.parentElement;
+    const hashtagSection = screen
+      .getByTestId("hooks-hashtags-youtube")
+      .closest("div")?.parentElement;
     const copyButton = hashtagSection?.querySelector("button[aria-label='Copy hashtags']");
     expect(copyButton).not.toBeNull();
     await user.click(copyButton as HTMLElement);

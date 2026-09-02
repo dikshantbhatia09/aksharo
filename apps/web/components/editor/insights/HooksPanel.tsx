@@ -7,7 +7,6 @@ import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from "@montaj/ui";
 
 import { CopyButton } from "./CopyButton";
 
-
 export interface HooksPanelProps {
   readonly row: InsightRow;
 }
@@ -58,10 +57,7 @@ export function HooksPanel({ row }: HooksPanelProps): React.JSX.Element {
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <span className="text-fg-2 text-xs font-medium">Hashtags</span>
-              <CopyButton
-                value={(output[option.id]?.hashtags ?? []).join(" ")}
-                label="Hashtags"
-              />
+              <CopyButton value={(output[option.id]?.hashtags ?? []).join(" ")} label="Hashtags" />
             </div>
             <div className="flex flex-wrap gap-1" data-testid={`hooks-hashtags-${option.id}`}>
               {(output[option.id]?.hashtags ?? []).map((tag) => (

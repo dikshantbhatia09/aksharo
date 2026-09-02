@@ -11,7 +11,10 @@ export interface Fixture {
   readonly transcript: PromptTranscriptInput;
 }
 
-function segmentsFrom(sentences: readonly string[], msPerSentence = 4_000): PromptTranscriptInput["segments"] {
+function segmentsFrom(
+  sentences: readonly string[],
+  msPerSentence = 4_000,
+): PromptTranscriptInput["segments"] {
   return sentences.map((text, i) => ({
     startMs: i * msPerSentence,
     endMs: (i + 1) * msPerSentence,

@@ -47,30 +47,54 @@ export function checkSchema<T>(schema: z.ZodType<T>, output: unknown): CheckResu
   };
 }
 
-export function checkTimestamps(kind: InsightKind, output: unknown, durationMs: number): CheckResult {
+export function checkTimestamps(
+  kind: InsightKind,
+  output: unknown,
+  durationMs: number,
+): CheckResult {
   if (kind === "chapters") {
     const chapters = (output as ChaptersOutput).chapters;
     const cap = maxChaptersFor(durationMs);
     if (chapters.length > cap) {
-      return { name: "timestamp_validity", ok: false, detail: `${String(chapters.length)} chapters exceeds cap ${String(cap)}` };
+      return {
+        name: "timestamp_validity",
+        ok: false,
+        detail: `${String(chapters.length)} chapters exceeds cap ${String(cap)}`,
+      };
     }
     let previousStartMs: number | undefined;
     for (const [i, c] of chapters.entries()) {
       if (c.startMs < 0 || c.startMs > durationMs) {
-        return { name: "timestamp_validity", ok: false, detail: `chapter ${String(i)} startMs ${String(c.startMs)} out of range [0, ${String(durationMs)}]` };
+        return {
+          name: "timestamp_validity",
+          ok: false,
+          detail: `chapter ${String(i)} startMs ${String(c.startMs)} out of range [0, ${String(durationMs)}]`,
+        };
       }
       if (previousStartMs !== undefined && c.startMs <= previousStartMs) {
-        return { name: "timestamp_validity", ok: false, detail: `chapter ${String(i)} not strictly after chapter ${String(i - 1)}` };
+        return {
+          name: "timestamp_validity",
+          ok: false,
+          detail: `chapter ${String(i)} not strictly after chapter ${String(i - 1)}`,
+        };
       }
       previousStartMs = c.startMs;
     }
-    return { name: "timestamp_validity", ok: true, detail: `${String(chapters.length)} chapters, ordered, within duration` };
+    return {
+      name: "timestamp_validity",
+      ok: true,
+      detail: `${String(chapters.length)} chapters, ordered, within duration`,
+    };
   }
   return { name: "timestamp_validity", ok: true, detail: "not applicable to this kind" };
 }
 
 /** No proper noun (capitalised token) absent from the transcript's own vocabulary. */
-export function checkHallucination(kind: InsightKind, output: unknown, transcript: PromptTranscriptInput): CheckResult {
+export function checkHallucination(
+  kind: InsightKind,
+  output: unknown,
+  transcript: PromptTranscriptInput,
+): CheckResult {
   const vocab = transcriptVocabulary(transcript);
   const strings: string[] = [];
   if (kind === "chapters") {
@@ -81,7 +105,11 @@ export function checkHallucination(kind: InsightKind, output: unknown, transcrip
   } else if (kind === "hooks") {
     const h = output as HooksOutput;
     for (const variant of Object.values(h)) {
-      strings.push(...variant.hooks, ...variant.titles, ...variant.hashtags.map((t) => t.replace(/^#/, "")));
+      strings.push(
+        ...variant.hooks,
+        ...variant.titles,
+        ...variant.hashtags.map((t) => t.replace(/^#/, "")),
+      );
     }
   }
   const offenders: string[] = [];
@@ -98,19 +126,31 @@ export function checkHallucination(kind: InsightKind, output: unknown, transcrip
   return {
     name: "hallucination_guard",
     ok: offenders.length === 0,
-    detail: offenders.length === 0 ? "no invented proper nouns" : `possible invented terms: ${offenders.join(", ")}`,
+    detail:
+      offenders.length === 0
+        ? "no invented proper nouns"
+        : `possible invented terms: ${offenders.join(", ")}`,
   };
 }
 
 export function checkLengths(kind: InsightKind, output: unknown): CheckResult {
   if (kind === "chapters") {
     const bad = (output as ChaptersOutput).chapters.filter((c) => c.title.length > 60);
-    return { name: "length_limits", ok: bad.length === 0, detail: bad.length === 0 ? "all titles <= 60 chars" : `${String(bad.length)} titles over 60 chars` };
+    return {
+      name: "length_limits",
+      ok: bad.length === 0,
+      detail:
+        bad.length === 0 ? "all titles <= 60 chars" : `${String(bad.length)} titles over 60 chars`,
+    };
   }
   return { name: "length_limits", ok: true, detail: "enforced by schema (max())" };
 }
 
-export function checkLanguageConsistency(kind: InsightKind, output: unknown, language: string): CheckResult {
+export function checkLanguageConsistency(
+  kind: InsightKind,
+  output: unknown,
+  language: string,
+): CheckResult {
   const expected = expectedScript(language);
   const strings: string[] = [];
   if (kind === "chapters") strings.push(...(output as ChaptersOutput).chapters.map((c) => c.title));
@@ -127,7 +167,9 @@ export function checkLanguageConsistency(kind: InsightKind, output: unknown, lan
   return {
     name: "language_consistency",
     ok,
-    detail: ok ? `script matches expected (${expected})` : `expected ${expected} script for "${language}", got ${actual}`,
+    detail: ok
+      ? `script matches expected (${expected})`
+      : `expected ${expected} script for "${language}", got ${actual}`,
   };
 }
 

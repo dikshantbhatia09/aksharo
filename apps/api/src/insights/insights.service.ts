@@ -1,16 +1,18 @@
 import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 
 import type { TranscriptChunk } from "@montaj/edg/schemas";
-import type { PromptTranscriptInput , InsightKind } from "@montaj/prompts";
+import type { PromptTranscriptInput, InsightKind } from "@montaj/prompts";
 
-import { INSIGHTS_MAX_CHUNK_PAGES, INSIGHTS_TRANSCRIPT_CHUNK_PAGE_LIMIT } from "./insights.errors.js";
+import {
+  INSIGHTS_MAX_CHUNK_PAGES,
+  INSIGHTS_TRANSCRIPT_CHUNK_PAGE_LIMIT,
+} from "./insights.errors.js";
 import { quoteInsight } from "./insights.quote.js";
 import { InsightsRepository } from "./insights.repository.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { JobsService } from "../jobs/jobs.service.js";
 import { TranscriptsService } from "../transcripts/transcripts.service.js";
-
 
 import type { LlmOutput, Project } from "@prisma/client";
 

@@ -996,8 +996,7 @@ export function useRequestInsights(
   const queryClient = useQueryClient();
   const workspaceId = useWorkspaceId();
   return useMutation({
-    mutationFn: (body) =>
-      client.call(endpoints.insights.request, { params: { projectId }, body }),
+    mutationFn: (body) => client.call(endpoints.insights.request, { params: { projectId }, body }),
     onSuccess: () => {
       if (workspaceId !== null) {
         void queryClient.invalidateQueries({

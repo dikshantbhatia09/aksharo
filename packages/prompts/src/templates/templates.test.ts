@@ -18,7 +18,12 @@ const SAMPLE_INPUT = {
 
 describe("template registry", () => {
   it("has one entry per kind, each snapshot-stable on version", () => {
-    expect(Object.keys(TEMPLATE_REGISTRY).sort()).toEqual(["chapters", "hooks", "keyphrases", "summary"]);
+    expect(Object.keys(TEMPLATE_REGISTRY).sort()).toEqual([
+      "chapters",
+      "hooks",
+      "keyphrases",
+      "summary",
+    ]);
     expect(chaptersTemplate.version).toBe("chapters@1");
     expect(summaryTemplate.version).toBe("summary@1");
     expect(hooksTemplate.version).toBe("hooks@1");
@@ -100,7 +105,11 @@ describe("hooks output schema", () => {
 
   it("rejects a hashtag with a space", () => {
     const bad = { ...validVariant, hashtags: [...validVariant.hashtags.slice(0, 9), "#bad tag"] };
-    const result = hooksTemplate.outputSchema.safeParse({ youtube: bad, instagram: validVariant, tiktok: validVariant });
+    const result = hooksTemplate.outputSchema.safeParse({
+      youtube: bad,
+      instagram: validVariant,
+      tiktok: validVariant,
+    });
     expect(result.success).toBe(false);
   });
 });

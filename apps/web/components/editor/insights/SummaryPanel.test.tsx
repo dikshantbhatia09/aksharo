@@ -6,7 +6,6 @@ import type { InsightRow } from "@montaj/api-client";
 
 import { SummaryPanel } from "./SummaryPanel";
 
-
 const ROW: InsightRow = {
   id: "row1",
   kind: "summary",

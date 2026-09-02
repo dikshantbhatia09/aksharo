@@ -63,7 +63,9 @@ export function renderMarkdown(report: EvalReport): string {
   lines.push("");
   lines.push(`Generated: ${report.generatedAt}  `);
   lines.push(`Provider: ${report.provider}  `);
-  lines.push(`Result: **${report.ok ? "PASS" : "FAIL"}** (${String(report.totalCases - report.failedCases)}/${String(report.totalCases)})`);
+  lines.push(
+    `Result: **${report.ok ? "PASS" : "FAIL"}** (${String(report.totalCases - report.failedCases)}/${String(report.totalCases)})`,
+  );
   lines.push("");
   lines.push("| Fixture | Kind | Template | Result | Failing checks |");
   lines.push("| --- | --- | --- | --- | --- |");

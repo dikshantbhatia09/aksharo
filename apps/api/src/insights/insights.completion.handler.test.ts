@@ -59,7 +59,12 @@ describe("InsightsCompletionHandler", () => {
     });
 
     expect(repository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ projectId: "proj1", kind: "chapters", provider: "mock", region: "in" }),
+      expect.objectContaining({
+        projectId: "proj1",
+        kind: "chapters",
+        provider: "mock",
+        region: "in",
+      }),
     );
     expect(outcome.actualTenths).toBe(20); // chapters = 2 credits = 20 tenths
     expect(outcome.data).toMatchObject({ id: "output1", kind: "chapters" });

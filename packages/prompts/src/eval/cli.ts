@@ -23,7 +23,6 @@ function main(): void {
   if (!report.ok) {
     for (const c of report.cases.filter((x) => !x.ok)) {
       for (const check of c.checks.filter((k) => !k.ok)) {
-         
         console.error(`  ✗ ${c.fixtureId}/${c.kind} [${check.name}] ${check.detail}`);
       }
     }

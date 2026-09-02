@@ -7,7 +7,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@montaj/ui";
 
 import { CopyButton } from "./CopyButton";
 
-
 export interface SummaryPanelProps {
   readonly row: InsightRow;
 }

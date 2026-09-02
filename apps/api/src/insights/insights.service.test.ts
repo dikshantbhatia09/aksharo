@@ -12,10 +12,7 @@ import type { TranscriptsService } from "../transcripts/transcripts.service.js";
 const PROJECT_ID = "01JBQ8Z2W4N7Y0K3M5P8R1T6VC";
 const WORKSPACE_ID = "01JBQ8Z2W4N7Y0K3M5P8R1T6VB";
 
-function buildService(overrides?: {
-  region?: string;
-  chunksResult?: unknown;
-}): {
+function buildService(overrides?: { region?: string; chunksResult?: unknown }): {
   service: InsightsService;
   jobs: { enqueue: ReturnType<typeof vi.fn> };
   transcripts: { chunks: ReturnType<typeof vi.fn> };
@@ -99,7 +96,11 @@ describe("InsightsService", () => {
 
   it("pins the job to the workspace's region", async () => {
     const { service, jobs } = buildService({ region: "eu" });
-    await service.request({ projectId: PROJECT_ID, workspaceId: WORKSPACE_ID, kinds: ["chapters"] });
+    await service.request({
+      projectId: PROJECT_ID,
+      workspaceId: WORKSPACE_ID,
+      kinds: ["chapters"],
+    });
     const call = jobs.enqueue.mock.calls[0]?.[0] as { params: Record<string, unknown> };
     expect(call.params.region).toBe("eu");
   });

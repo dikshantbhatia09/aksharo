@@ -9,7 +9,18 @@
  * `en`, `hi`, `hi-Latn` (Hinglish, romanised Hindi mixed with English), `ta`.
  */
 export const FILLER_LEXICON: Readonly<Record<string, readonly string[]>> = {
-  en: ["um", "uh", "erm", "like", "you know", "i mean", "so yeah", "kind of", "sort of", "basically"],
+  en: [
+    "um",
+    "uh",
+    "erm",
+    "like",
+    "you know",
+    "i mean",
+    "so yeah",
+    "kind of",
+    "sort of",
+    "basically",
+  ],
   hi: ["मतलब", "यानी", "वो", "अरे", "हाँ तो", "क्या है ना"],
   "hi-Latn": ["matlab", "yaar", "toh", "vo", "haan toh", "kya hai na", "basically", "like"],
   ta: ["அப்படி", "என்னன்னா", "பாருங்க"],

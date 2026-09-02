@@ -62,8 +62,8 @@ therefore never reaches a non-EU endpoint — see
 `pnpm --filter @montaj/prompts eval` writes `packages/prompts/eval-results/`:
 
 - `report.json` — `{generatedAt, provider, cases: [{fixtureId, kind,
-  templateVersion, checks: [{name, ok, detail}], ok}], totalCases,
-  failedCases, ok}`.
+templateVersion, checks: [{name, ok, detail}], ok}], totalCases,
+failedCases, ok}`.
 - `report.md` — the same, as a table (fixture × kind × template × pass/fail ×
   failing checks).
 
