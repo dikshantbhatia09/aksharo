@@ -68,7 +68,7 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | done |
 | A21 | api exports module (manifests, cloud jobs) | A08, A20 | done (A21b merged: manifest sources + refresh, codec/audio eligibility, HDR cloud-only) |
 | A22 | scripts + translation | A10, A11, A12 | done |
-| A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | done (A23 merged; A23b delivered b943086 pending merge: harness drains in-flight writers + 40P01 retry; verify-wave deferred for host memory — run at the Gate A/B gate from a fresh clone) |
+| A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | done (A23 + A23b merged: Gate A journey e2e, sample seed, verify-wave script, harness drains + 40P01 retry; verify-wave run at the gate) |
 | A23a | api test isolation: one Postgres + one Redis container per vitest run (or `TEST_*` URLs), database per suite from a migrated template, Redis prefix per suite; CI service containers | A05, A12, A25 | done |
 | A24 | marketing site v1 | A16 | done |
 | A25 | notify consumer: transactional email (SES via IRSA / SMTP / dev outbox), templates en+hi, suppression, in-app notifications | A04, A08 | done |
@@ -106,7 +106,7 @@ Sub-wave order: {B01, B02, B05, B09} → {B03, B04, B06, B07, B07b, B08} → {B1
 | B20 | Proposal review UI + exports apply cuts/zooms via `timemap` (browser + cloud) + parity fixtures | A17, A19, A20, B18, B19 | done (merged: shared crop-window curve for browser + ffmpeg, Passes tab/ProposalCard/bulk accept, split lanes, output-length test, crop parity; B20b after B19b) |
 | C00 | Signing & release pipeline (notarytool + 24 h buffer, cloud-HSM Windows signing, `.ccx`, ZXP, Resolve bundle, channels, SBOM); dry-run until A00-03 | A01 | done (merged: dry-run release CLI + workflows, fail-closed signed mode, 24 h notarisation gate, SBOM/checksums/feeds; release secrets in tools/release/.env.example; H-23) |
 | C01 | Local bridge v2: `bridge-core` + Node SEA app, relay-first WSS, loopback HTTPS + per-install cert, pairing, 12 h pair tokens, api relay module | A04, A08, B08 | done (C01 + C01b + B08b merged: bridge-core protocol, loopback TLS + relay, per-install cert in keychain/DPAPI with file fallback, flagged native tray (off), per-device bridge tokens) |
-| C02 | Desktop shell: Electron loading the hosted web app (decision D71), deep links, updater with channels, tray, embedded bridge, hardened defaults | A13, C00, C01 | done (C02 merged; C02b delivered 4d24f12 pending merge: adapter contract, pairing approval window, device bootstrap, CI e2e job; electron-builder vs pnpm symlinks → C00b) |
+| C02 | Desktop shell: Electron loading the hosted web app (decision D71), deep links, updater with channels, tray, embedded bridge, hardened defaults | A13, C00, C01 | done (C02 + C02b merged: hardened shell, deep links, updater, real bridge adapter, pairing approval window, device bootstrap, CI e2e job; C00b fixes electron-builder packaging) |
 Sub-wave order: {B10, B11, B18, C00} → {B12, B14, B15, B19, C01} → {B13, B20, C02} → **Gate B**.
 
 ## Wave 5 — Plugins
@@ -116,8 +116,8 @@ C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 |---|---|---|---|
 | C11 | Plugin licensing & devices UI (activation limits, revoke, offline lease, activation card) | B08, B08b, C01 | running |
 | C12 | Desktop/plugin telemetry (consent), crash reporting, diagnostics bundle | C02, A05, B12, B16 | running |
-| C05a | Premiere UXP plugin foundation over a mocked host adapter (Gate C runs it on a real machine) | C01, C00, A00-03 | done pending merge (813c26c: manifest v5 ai.aksharo.panel, PremiereHost + mock, in-memory session per T13, .ccx packaged; A00-03 questions in its Gate C checklist) |
-| C08 | Resolve `aksharo_core` over a FakeResolve adapter | C01, A00-04 | done pending merge (a109dfc; DynamicZoom property keys flagged for Gate C) |
+| C05a | Premiere UXP plugin foundation over a mocked host adapter (Gate C runs it on a real machine) | C01, C00, A00-03 | done (merged: manifest v5 ai.aksharo.panel, PremiereHost + mock, in-memory session per T13, .ccx packaged; C06/C06b running) |
+| C08 | Resolve `aksharo_core` over a FakeResolve adapter | C01, A00-04 | done (merged + verified 58 tests; DynamicZoom property keys flagged for Gate C; C08b running) |
 | C08b | Fusion Text+ macro generator + style coverage report | C08 | briefed |
 | C00b | Real desktop packaging: esbuild-bundled main/preload, electron-builder over dist, CI e2e runnable | C02b | briefed |
 | C10 | Installers (NSIS/pkg/Resolve/.ccx), `/plugins/manifest`, plugins + download pages | C00, C02, C05a, C08 | briefed |
