@@ -52,6 +52,73 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B05 — api: invoices (Rule 46), tax engine, credit notes, export invoices
+  under LUT, signed PDFs, e-invoicing hook, FIRC records, tax registrations.**
+  - **`tax/`** — place of supply (GSTIN → recorded State → billing address,
+    D41), intra-state (CGST 9% + SGST 9%) / inter-state (IGST 18%) / export
+    (0%, LUT) / `import_rcm` (self-invoice, reverse charge) rate selection,
+    Rule 35 GST-inclusive back-computation with explicit, reconciled rounding
+    (`roundOffMinor`), and a pluggable USD→INR exchange-rate provider
+    (`ManualFallbackExchangeRateProvider` today — no live RBI feed key exists
+    in this environment, same posture `billing/providers/provider.factory.ts`
+    takes for Razorpay).
+  - **`invoices/`** — numbering per `(series, fiscalYear)` off a real Postgres
+    `SEQUENCE`, lazily created under an advisory lock so 200 concurrent
+    invoices in one series/year get unique, gap-free numbers with no lock on
+    the hot path; document types `tax_invoice`, `export_invoice`,
+    `credit_note` (every refund, linked to the original, reason code),
+    `debit_note`, `self_invoice`, `bill_of_supply`; **India B2C invoices hard-fail
+    without a recorded State** (`invoices/state_required`, D41); `gstr1Period`
+    stamped on every row.
+  - **PDF** (`invoices/pdf/`) — `pdfkit`, no headless browser; every Rule 46
+    particular, the GST break-up, "incl. GST" display, HSN/SAC, the LUT
+    export endorsement verbatim, and a visible "Digitally signed" block.
+    Detached signature (`signature.service.ts`): SHA-256 of the exact stored
+    PDF bytes, HMAC-SHA256 by default (over `INTERNAL_CALLBACK_SECRET`) or
+    RSA-SHA256 when an optional, non-contract `INVOICE_SIGNING_KEY` is set;
+    stored as its own small JSON record next to the PDF in derived storage.
+  - **`einvoice/`** — `EInvoiceProvider` interface, `NoopEInvoiceProvider`, and
+    a government e-invoice (IRP) schema payload builder, gated on
+    `FEATURE_FLAGS_JSON.einvoice_enabled` (off by default) — not wired to a
+    GSP.
+  - **`firc/`** — `firc_records` from a settled USD payment, and a monthly
+    export-filing CSV (`GET /admin/firc-records/csv?month=YYYY-MM`, EDF-regime
+    placeholder).
+  - **`tax-registrations/`** — admin-editable GSTIN/LUT rows
+    (`/admin/tax-registrations`, `AdminGuard`) and a startup check that warns
+    when USD activity exists with no valid LUT on file.
+  - **Triggered from `billing/webhooks.service.ts`'s existing state
+    transitions via `EventEmitter2`** (`EventEmitterModule.forRoot()`,
+    registered once in `app.module.ts`), not a fork of the state machine —
+    five `this.events.emit(...)` calls added after the transitions that were
+    already there; `invoices/listeners/billing-events.listener.ts` turns each
+    into an invoice or credit note. See `invoices/billing-events.ts`'s
+    doc-comment and the work package report for the file-boundary deviation
+    this required.
+  - Billing documents are exempt from every purge by construction: `media/
+retention.service.ts`'s `purgeDueMedia` only ever queries `media_assets`,
+    never `invoices` — asserted by a new test rather than by a special case.
+  - Golden PDFs (India B2C intra-state, India B2B inter-state, USD export
+    under LUT, credit note), text-extracted and asserted against every Rule 46
+    particular. Text extraction is a small dependency-free extractor
+    (`pdf-text-extract.ts`), not a library — see its doc-comment: the obvious
+    choice, `pdf-parse`, throws `bad XRef entry` on a valid PDF the moment
+    `zlib` has been used anywhere earlier in the same process, reproduced in
+    isolation with no `pdfkit` involved.
+  - **Deviations, all reported in full in the work package's final message:**
+    a placeholder default SAC code (`998316`) pending CA confirmation; the
+    brief's own `AKS/26-27/IN/000123` example is 19 characters against its own
+    "(≤ 16 chars)" annotation — implemented against the shipped
+    `invoices_number_length_check` CHECK (the `number` column, 6 digits) with
+    the full string composed only for display; supplier legal
+    name/address/PAN read from optional, non-contract environment variables
+    (`SUPPLIER_LEGAL_NAME` etc.) pending real registered-office details;
+    invoice/credit-note email reuses `MailProvider` directly rather than
+    `NotifyService`'s closed `NotifyKind` catalogue (adding a kind would edit
+    `notify.kinds.test.ts`'s hard-pinned ten-value list; the closest existing
+    kind's copy — "kept for N days, then deleted" — is false for a document
+    retained 72 months).
+
 - **B01 — api: billing core — `BillingProvider` (Razorpay + fake), plan
   catalogue, checkout with the ₹15,000 UPI mandate rule, passes/top-ups,
   idempotent signed webhooks with a subscription state machine, subscription
