@@ -73,7 +73,9 @@ export function useTimelineMedia(projectId: string, mediaId: string | undefined)
         }
       } catch (cause) {
         if (!cancelled) {
-          setError(cause instanceof Error ? cause.message : "Could not load media for the timeline.");
+          setError(
+            cause instanceof Error ? cause.message : "Could not load media for the timeline.",
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);

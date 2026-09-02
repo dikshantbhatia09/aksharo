@@ -63,7 +63,11 @@ export function visibleRange(
 }
 
 /** Clamps `scrollMs` so the viewport never scrolls past `[0, durationMs]`. */
-export function clampScroll(scrollMs: number, viewport: Pick<Viewport, "msPerPx" | "widthPx">, durationMs: number): number {
+export function clampScroll(
+  scrollMs: number,
+  viewport: Pick<Viewport, "msPerPx" | "widthPx">,
+  durationMs: number,
+): number {
   const maxScroll = Math.max(0, durationMs - viewport.widthPx * viewport.msPerPx);
   if (!Number.isFinite(scrollMs)) return 0;
   return Math.min(maxScroll, Math.max(0, scrollMs));
@@ -75,8 +79,8 @@ export function clampScroll(scrollMs: number, viewport: Pick<Viewport, "msPerPx"
  * tick lands at least `minPx` apart on screen.
  */
 const NICE_STEPS_MS = [
-  1, 2, 5, 10, 20, 50, 100, 200, 500, 1_000, 2_000, 5_000, 10_000, 30_000, 60_000, 120_000,
-  300_000, 600_000, 1_800_000, 3_600_000,
+  1, 2, 5, 10, 20, 50, 100, 200, 500, 1_000, 2_000, 5_000, 10_000, 30_000, 60_000, 120_000, 300_000,
+  600_000, 1_800_000, 3_600_000,
 ];
 
 export function tickStepMs(msPerPx: number, minPx = 80): number {

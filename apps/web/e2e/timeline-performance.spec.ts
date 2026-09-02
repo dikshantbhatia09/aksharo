@@ -77,7 +77,9 @@ test.describe("timeline — scroll/zoom performance", () => {
       });
     });
 
-    console.log(`[A17 performance] 3-hour, 54,000-word timeline scroll/zoom: ${fps.toFixed(1)} fps`);
+    console.log(
+      `[A17 performance] 3-hour, 54,000-word timeline scroll/zoom: ${fps.toFixed(1)} fps`,
+    );
     expect(fps).toBeGreaterThanOrEqual(55);
   });
 });

@@ -45,7 +45,12 @@ export function reduceWaveform(
   return buckets;
 }
 
-function reduceMax(values: readonly number[], rateHz: number, startMs: number, endMs: number): number {
+function reduceMax(
+  values: readonly number[],
+  rateHz: number,
+  startMs: number,
+  endMs: number,
+): number {
   const startIdx = Math.max(0, Math.floor((startMs / 1000) * rateHz));
   const endIdx = Math.min(values.length, Math.ceil((endMs / 1000) * rateHz));
   if (endIdx <= startIdx) {
@@ -60,7 +65,12 @@ function reduceMax(values: readonly number[], rateHz: number, startMs: number, e
   return max;
 }
 
-function reduceMean(values: readonly number[], rateHz: number, startMs: number, endMs: number): number {
+function reduceMean(
+  values: readonly number[],
+  rateHz: number,
+  startMs: number,
+  endMs: number,
+): number {
   const startIdx = Math.max(0, Math.floor((startMs / 1000) * rateHz));
   const endIdx = Math.min(values.length, Math.ceil((endMs / 1000) * rateHz));
   if (endIdx <= startIdx) {

@@ -22,7 +22,11 @@ export type TimeDisplayMode = "source" | "output";
  * collapses to a single point on the output ruler, which is exactly what the
  * viewer sees.
  */
-export function toDisplayMs(sourceMs: number, mode: TimeDisplayMode, timeMap: TimeMap | undefined): number {
+export function toDisplayMs(
+  sourceMs: number,
+  mode: TimeDisplayMode,
+  timeMap: TimeMap | undefined,
+): number {
   if (mode === "source" || timeMap === undefined) return sourceMs;
   const output = timeMap.toOutput(sourceMs);
   if (output !== null) return output;
@@ -33,7 +37,11 @@ export function toDisplayMs(sourceMs: number, mode: TimeDisplayMode, timeMap: Ti
  * The source ms a scrub/click at `displayMs` (in `mode`) corresponds to —
  * always what the proxy `<video>` should seek to, per the brief.
  */
-export function toSourceMs(displayMs: number, mode: TimeDisplayMode, timeMap: TimeMap | undefined): number {
+export function toSourceMs(
+  displayMs: number,
+  mode: TimeDisplayMode,
+  timeMap: TimeMap | undefined,
+): number {
   if (mode === "source" || timeMap === undefined) return displayMs;
   return timeMap.toSource(displayMs);
 }

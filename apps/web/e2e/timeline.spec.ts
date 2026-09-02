@@ -129,10 +129,9 @@ test.describe("timeline", () => {
     // shared `selectedSegmentId` reached `Timeline.tsx`, not just the
     // transcript column), then focus the timeline for the arrow-key nudge.
     await page.getByTestId(`segment-card-${segment.id}`).click();
-    await expect(page.getByTestId("timeline-aria-description")).toContainText(
-      "Segment selected",
-      { timeout: 10_000 },
-    );
+    await expect(page.getByTestId("timeline-aria-description")).toContainText("Segment selected", {
+      timeout: 10_000,
+    });
     await page.getByTestId("timeline-root").focus();
     // Shift+ArrowLeft (100ms) rather than the bare 10ms step: the fixture's
     // segment boundary already sits on a word edge, and a plain 10ms nudge

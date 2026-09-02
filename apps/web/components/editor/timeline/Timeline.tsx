@@ -207,7 +207,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null || widthPx <= 0) return;
-    const dpr = typeof window === "undefined" ? 1 : (window.devicePixelRatio || 1);
+    const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
     canvas.width = Math.max(1, Math.round(widthPx * dpr));
     canvas.height = Math.max(1, Math.round(laneTops.totalHeight * dpr));
     canvas.style.width = `${String(widthPx)}px`;
@@ -237,7 +237,12 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
 
     // Waveform
     if (waveform !== undefined) {
-      const buckets = reduceWaveform(waveform, Math.max(0, startMs), Math.min(durationMs, endMs), widthPx);
+      const buckets = reduceWaveform(
+        waveform,
+        Math.max(0, startMs),
+        Math.min(durationMs, endMs),
+        widthPx,
+      );
       const midY = laneTops.waveformTop + WAVEFORM_HEIGHT / 2;
       ctx.fillStyle = "rgba(124,143,240,0.25)";
       ctx.strokeStyle = "#7c8ff0";
@@ -264,7 +269,11 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       const w = Math.max(1, x1 - x0);
       const selected = word.wid === selectedWordId;
       const lowConfidence = word.c !== undefined && word.c < 0.6;
-      ctx.fillStyle = selected ? "#ffffff" : word.filler === true ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.3)";
+      ctx.fillStyle = selected
+        ? "#ffffff"
+        : word.filler === true
+          ? "rgba(255,255,255,0.15)"
+          : "rgba(255,255,255,0.3)";
       ctx.fillRect(x0, laneTops.wordTop, w, WORD_LANE_HEIGHT);
       if (lowConfidence) {
         ctx.fillStyle = "#f59e0b";
@@ -290,7 +299,12 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       const x1 = msToPx(endMsS, viewport);
       const w = Math.max(1, x1 - x0);
       const selected = segment.id === selectedSegmentId;
-      ctx.fillStyle = segment.hidden === true ? "rgba(255,255,255,0.06)" : selected ? "rgba(124,143,240,0.5)" : "rgba(124,143,240,0.25)";
+      ctx.fillStyle =
+        segment.hidden === true
+          ? "rgba(255,255,255,0.06)"
+          : selected
+            ? "rgba(124,143,240,0.5)"
+            : "rgba(124,143,240,0.25)";
       ctx.fillRect(x0, laneTops.segmentTop, w, SEGMENT_LANE_HEIGHT);
       if (segment.hidden === true) {
         ctx.strokeStyle = "rgba(255,255,255,0.3)";
@@ -302,7 +316,12 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         }
       }
       ctx.strokeStyle = selected ? "#ffffff" : "rgba(124,143,240,0.6)";
-      ctx.strokeRect(x0 + 0.5, laneTops.segmentTop + 0.5, Math.max(0, w - 1), SEGMENT_LANE_HEIGHT - 1);
+      ctx.strokeRect(
+        x0 + 0.5,
+        laneTops.segmentTop + 0.5,
+        Math.max(0, w - 1),
+        SEGMENT_LANE_HEIGHT - 1,
+      );
       if (selected) {
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(x0 - 1, laneTops.segmentTop, 2, SEGMENT_LANE_HEIGHT);
@@ -361,7 +380,8 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
 
   const hitTestSegmentEdge = useCallback(
     (px: number, py: number): { segment: Segment; edge: "start" | "end" } | undefined => {
-      if (py < laneTops.segmentTop || py > laneTops.segmentTop + SEGMENT_LANE_HEIGHT) return undefined;
+      if (py < laneTops.segmentTop || py > laneTops.segmentTop + SEGMENT_LANE_HEIGHT)
+        return undefined;
       for (const segment of segments) {
         const x0 = msToPx(segment.startMs, viewport);
         const x1 = msToPx(segment.endMs, viewport);
@@ -375,7 +395,8 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
 
   const hitTestSegmentBody = useCallback(
     (px: number, py: number): Segment | undefined => {
-      if (py < laneTops.segmentTop || py > laneTops.segmentTop + SEGMENT_LANE_HEIGHT) return undefined;
+      if (py < laneTops.segmentTop || py > laneTops.segmentTop + SEGMENT_LANE_HEIGHT)
+        return undefined;
       const ms = pxToMs(px, viewport);
       return segments.find((s) => ms >= s.startMs && ms <= s.endMs);
     },
@@ -565,7 +586,9 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         return;
       }
       const delta = event.deltaX !== 0 ? event.deltaX : event.deltaY;
-      setScrollMs((current) => clampScroll(current + delta * msPerPx, { msPerPx, widthPx }, durationMs));
+      setScrollMs((current) =>
+        clampScroll(current + delta * msPerPx, { msPerPx, widthPx }, durationMs),
+      );
     },
     [msPerPx, scrollMs, widthPx, durationMs],
   );
@@ -597,7 +620,11 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         });
         const toMs = edge === "start" ? resolved.startMs : resolved.endMs;
         if (toMs !== current) {
-          onSetSegmentBounds({ segmentId: segment.id, startMs: resolved.startMs, endMs: resolved.endMs });
+          onSetSegmentBounds({
+            segmentId: segment.id,
+            startMs: resolved.startMs,
+            endMs: resolved.endMs,
+          });
           nudgeSink.record(segmentEdgeNudge(edge, segment.id, current, toMs));
         }
         return;
@@ -680,7 +707,9 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
               type="checkbox"
               data-testid="timeline-output-mode-toggle"
               checked={displayMode === "output"}
-              onChange={(event) => onDisplayModeChange?.(event.target.checked ? "output" : "source")}
+              onChange={(event) =>
+                onDisplayModeChange?.(event.target.checked ? "output" : "source")
+              }
             />
             Output time
           </label>
