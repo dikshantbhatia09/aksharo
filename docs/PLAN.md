@@ -59,9 +59,9 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A12 | api EDG module (ops, rebase, CAS, revisions, realtime) | A02b, A08 | done |
 | A13 | web shell + `@montaj/ui` + auth pages + onboarding + settings | A04, A05 | done |
 | A14 | web Home + Projects + upload engine | A06, A08, A13 | done |
-| A15 | web Editor transcript column + EDG client store | A12, A13 | done (A15b verification pending) |
+| A15 | web Editor transcript column + EDG client store | A12, A13 | done (A15b merged: e2e 24/24 both browsers; scroll perf 18 fps vs ≥55 target → A15c profiling follow-up) |
 | A16 | render-core + render-canvaskit + 30 styles + panels | A02, A02c | done |
-| A17 | web Timeline | A15, A16 | done (word retiming → A02d/A17b; perf spec → A15b) |
+| A17 | web Timeline | A15, A16 | done (word retiming → A02d; perf → A15c) |
 | A18a | ass-exporter + parity gate | A16, A20 | done |
 | A18b | fonts pipeline | A06, A07 | done |
 | A19 | web browser export + export dialog | A16, A21, A02c | done (A21b sources + A19b throughput/parity pending) |
@@ -87,7 +87,7 @@ Sub-wave order: {A10, A11, A12, A13, A16, A18b, A20, A25, A26} → {A14, A15, A2
 | B07 | Affiliate v2: apply with PAN, 60-day cookie + code attribution, rate tiers, TDS accumulator, RazorpayX payouts, dashboard | B01, B02, B05 | in-progress |
 | B07b | Give-get referral loop (30/30 credits on first export, caps, abuse rules, prompt) | B02, A21 | done |
 | B08 | Team/Agency workspaces, seat billing, pooled credits, client tags, devices/leases, licence keys | B01, B02, A05 | in-progress |
-| B09 | Memory & glossary (opt-in): spelling/timing/style entries, provider hints, matcher, settings page | A11, A15, A17 | briefed |
+| B09 | Memory & glossary (opt-in): spelling/timing/style entries, provider hints, matcher, settings page | A11, A15, A17 | running |
 | B16 | Scheduler tasks (retention, renewals/dunning, grants/expiry, commissions, provider deletions), audit completion, privacy module (erasure cascade, DSR, export, breach, access logs) | B01, B02, B07 | briefed |
 | B17 | Onboarding completion (defaults, language hints, source + code), sample project, coach marks, attribution events, Hindi strings | A13, B07, B07b | briefed |
 Sub-wave order: {B01, B02, B05, B09} → {B03, B04, B06, B07, B07b, B08} → {B16, B17} → Gate B preparation (Wave 4 finishes Gate B).
