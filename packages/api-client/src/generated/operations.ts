@@ -1006,6 +1006,13 @@ export const API_OPERATIONS = [
     summary: "Record a /r/<code> click (called by the web route)",
   },
   {
+    operationId: "refreshExportManifestSources",
+    method: "GET",
+    path: "/exports/manifests/{manifestId}/sources",
+    tags: ["exports"],
+    summary: "Reissue a browser manifest's source URLs once the originals expire",
+  },
+  {
     operationId: "refundPassPurchase",
     method: "POST",
     path: "/billing/passes/{passPurchaseId}/refund",
