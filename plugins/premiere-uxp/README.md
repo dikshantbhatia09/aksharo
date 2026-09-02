@@ -9,15 +9,17 @@ ships the frozen param table, generator, verifier, placeholder `.mogrt`, and the
 mapping — see `docs/MOGRT-PARAMS.md`, `docs/MOGRT-STYLE-COVERAGE.md` and
 `docs/README-AUTHORING.md`. Installers/Marketplace listing (C10) is still separate.
 
-**Integration note (C06 landed before C06b in this wave):** C06's brief told it to code
-against its own appendix param table (the same 12 names/order) until C06b landed, since the two
-packages ran concurrently and C06 finished first. `src/apply/mogrtCaptions.ts` therefore has its
-own copy of that 12-param table rather than importing `mogrt/params.ts`, and does not know about
-the two params (`BoxFill`, `BoxOpacity`) this package added after C08b's Resolve rule set landed
-(see "MOGRT authoring (C06b)" below). Reconciling the two — switching C06 to import
-`mogrt/params.ts`/`mogrt/verify.ts` directly and wiring the self-test to `verifyMogrtBuffer` — is
-an open follow-up for whoever picks it up next; not done here since `src/apply/**` is C06's file
-boundary, not C06b's.
+**Integration note (resolved):** C06 originally hardcoded its own copy of the appendix
+param table in `src/apply/types.ts` because C06b (MOGRT authoring) had not landed when C06
+was built. The coordinator authorized a follow-up commit on `wp/C06b` to fix this:
+`src/apply/types.ts`'s `MOGRT_PARAM_ORDER`/`MogrtParamName` now import from `mogrt/params.ts`
+(14 params, append-only) instead of re-declaring them, so there is exactly one source of truth;
+`MogrtCaptionParams` gained the optional `BoxFill`/`BoxOpacity` fields to match.
+`src/apply/mogrtCaptions.ts`'s `resolveMogrtParams`/`paramsByIndex` needed no changes (they
+already iterate `MOGRT_PARAM_ORDER` generically) and its existing tests pass unmodified. Still
+open: wiring C06's start-up self-test to `mogrt/verify.ts`'s `verifyMogrtBuffer` (see "Wiring
+into C06" in `docs/MOGRT-PARAMS.md`) — a larger behavioural change, not authorized as part of
+this fix, and left as a follow-up.
 
 **No Premiere Pro, Adobe UXP Developer Tool, or signed `.ccx` toolchain exist on the build
 host**, and the human spike A00-03 (UXP API feasibility on Premiere 25.6+) has not reported.
@@ -64,32 +66,32 @@ an Apply button gated on at least one selection.
 
 ## Layout
 
-| Path                                 | What                                                                                                                                                                                              |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `manifest.json`                      | UXP manifest v5 (`ai.aksharo.panel`, host `PPRO` min `25.6`)                                                                                                                                      |
-| `index.html`                         | Panel entry point (UXP `main`)                                                                                                                                                                    |
-| `src/host/premiere.ts`               | `PremiereHost` interface, `MockPremiereHost`, `createRealPremiereHost`                                                                                                                            |
-| `src/bridge/`                        | Typed JSON-RPC caller over `@montaj/bridge-core`'s protocol, plus the `fetch`-based production transport                                                                                          |
-| `src/auth/session.ts`                | Sign-in state machine (device-code/tray-gesture pairing, in-memory session only)                                                                                                                  |
-| `src/upload/mixdown.ts`              | Mixdown → `media.uploadTicket` → presigned PUT → `POST /transcribe`                                                                                                                               |
-| `src/apply/`                         | C06 apply modes: transcript, MOGRT captions, alpha overlay, SRT to bin, cuts/zooms/audio, transaction + progress, re-sync (own `MOGRT_PARAM_ORDER` in `types.ts`, see the integration note above) |
-| `src/version/manifestCheck.ts`       | `/plugins/manifest` min/max-version → update banner logic                                                                                                                                         |
-| `src/i18n/strings.ts`                | English/Hindi string table (see "i18n" below)                                                                                                                                                     |
-| `src/ui/`                            | React panel UI (sign-in, source/transcribe, footer, update banner)                                                                                                                                |
-| `scripts/build.mjs`                  | esbuild → single IIFE bundle (`dist/panel.js`) — no `eval`, no dynamic import of remote code, per UXP's JS restrictions                                                                           |
-| `docs/GATE-C-CHECKLIST.md`           | Manual verification steps for the first real Premiere run                                                                                                                                         |
-| `mogrt/params.ts`                    | The 14 frozen MOGRT params, in order (C06b)                                                                                                                                                       |
-| `mogrt/generate.ts`                  | Builds `definition.json`'s contents deterministically from `params.ts`                                                                                                                            |
-| `mogrt/zip.ts`                       | Dependency-free STORE-only zip reader/writer                                                                                                                                                      |
-| `mogrt/verify.ts`                    | Verifies a `.mogrt`'s `definition.json` against the frozen table; used by CI and (once wired) C06's self-test                                                                                     |
-| `mogrt/build-placeholder.ts`         | Builds `mogrt/placeholder.mogrt` (committed; no `.aep`)                                                                                                                                           |
-| `mogrt/verify-cli.ts`                | CI entry point: `pnpm --filter @montaj/premiere-uxp verify:mogrt`                                                                                                                                 |
-| `src/styles/classification-rules.ts` | Mirror of C08b's Resolve `classification_rules.json` rule set (checked against the real file once it exists)                                                                                      |
-| `src/styles/mogrt-map.ts`            | Classifies each of the 30 system styles supported/approximate/unsupported using those rules                                                                                                       |
-| `src/styles/generate-coverage.ts`    | Writes `docs/MOGRT-STYLE-COVERAGE.md` deterministically                                                                                                                                           |
-| `docs/MOGRT-PARAMS.md`               | The frozen param table, documented, plus the `definition.json`/Adobe-EGP distinction                                                                                                              |
-| `docs/MOGRT-STYLE-COVERAGE.md`       | Generated: which of the 30 styles map onto the MOGRT (or approximate it) and why the rest don't                                                                                                   |
-| `docs/README-AUTHORING.md`           | Step-by-step guide for the human who authors the real `.aep` in After Effects (H-25)                                                                                                              |
+| Path                                 | What                                                                                                                                                                                          |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `manifest.json`                      | UXP manifest v5 (`ai.aksharo.panel`, host `PPRO` min `25.6`)                                                                                                                                  |
+| `index.html`                         | Panel entry point (UXP `main`)                                                                                                                                                                |
+| `src/host/premiere.ts`               | `PremiereHost` interface, `MockPremiereHost`, `createRealPremiereHost`                                                                                                                        |
+| `src/bridge/`                        | Typed JSON-RPC caller over `@montaj/bridge-core`'s protocol, plus the `fetch`-based production transport                                                                                      |
+| `src/auth/session.ts`                | Sign-in state machine (device-code/tray-gesture pairing, in-memory session only)                                                                                                              |
+| `src/upload/mixdown.ts`              | Mixdown → `media.uploadTicket` → presigned PUT → `POST /transcribe`                                                                                                                           |
+| `src/apply/`                         | C06 apply modes: transcript, MOGRT captions, alpha overlay, SRT to bin, cuts/zooms/audio, transaction + progress, re-sync (`types.ts` now imports `MOGRT_PARAM_ORDER` from `mogrt/params.ts`) |
+| `src/version/manifestCheck.ts`       | `/plugins/manifest` min/max-version → update banner logic                                                                                                                                     |
+| `src/i18n/strings.ts`                | English/Hindi string table (see "i18n" below)                                                                                                                                                 |
+| `src/ui/`                            | React panel UI (sign-in, source/transcribe, footer, update banner)                                                                                                                            |
+| `scripts/build.mjs`                  | esbuild → single IIFE bundle (`dist/panel.js`) — no `eval`, no dynamic import of remote code, per UXP's JS restrictions                                                                       |
+| `docs/GATE-C-CHECKLIST.md`           | Manual verification steps for the first real Premiere run                                                                                                                                     |
+| `mogrt/params.ts`                    | The 14 frozen MOGRT params, in order (C06b)                                                                                                                                                   |
+| `mogrt/generate.ts`                  | Builds `definition.json`'s contents deterministically from `params.ts`                                                                                                                        |
+| `mogrt/zip.ts`                       | Dependency-free STORE-only zip reader/writer                                                                                                                                                  |
+| `mogrt/verify.ts`                    | Verifies a `.mogrt`'s `definition.json` against the frozen table; used by CI and (once wired) C06's self-test                                                                                 |
+| `mogrt/build-placeholder.ts`         | Builds `mogrt/placeholder.mogrt` (committed; no `.aep`)                                                                                                                                       |
+| `mogrt/verify-cli.ts`                | CI entry point: `pnpm --filter @montaj/premiere-uxp verify:mogrt`                                                                                                                             |
+| `src/styles/classification-rules.ts` | Mirror of C08b's Resolve `classification_rules.json` rule set (checked against the real file once it exists)                                                                                  |
+| `src/styles/mogrt-map.ts`            | Classifies each of the 30 system styles supported/approximate/unsupported using those rules                                                                                                   |
+| `src/styles/generate-coverage.ts`    | Writes `docs/MOGRT-STYLE-COVERAGE.md` deterministically                                                                                                                                       |
+| `docs/MOGRT-PARAMS.md`               | The frozen param table, documented, plus the `definition.json`/Adobe-EGP distinction                                                                                                          |
+| `docs/MOGRT-STYLE-COVERAGE.md`       | Generated: which of the 30 styles map onto the MOGRT (or approximate it) and why the rest don't                                                                                               |
+| `docs/README-AUTHORING.md`           | Step-by-step guide for the human who authors the real `.aep` in After Effects (H-25)                                                                                                          |
 
 ## MOGRT authoring (C06b)
 

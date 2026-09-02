@@ -10,6 +10,8 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 - C12: consent-gated desktop/bridge telemetry (`POST /telemetry/events|crash`), `crash_reports` with 30-day retention, shared redaction in `bridge-core`, diagnostics bundle attached to support tickets, server-side Sentry/PostHog forwarding behind env keys.
 
+- C06b (follow-up): `plugins/premiere-uxp/src/apply/types.ts`'s `MOGRT_PARAM_ORDER`/`MogrtParamName` now import from `mogrt/params.ts` (14 params, append-only) instead of re-declaring their own copy of the appendix table, so there is exactly one source of truth across C06 and C06b; `MogrtCaptionParams` gained the optional `BoxFill`/`BoxOpacity` fields to match. `mogrtCaptions.ts` and its tests needed no other changes.
+
 ### Fixed
 
 - **A23b — a real Postgres 40P01 ("deadlock detected") in `auth-harness.ts`'s
