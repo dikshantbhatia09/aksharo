@@ -243,6 +243,13 @@ export const API_OPERATIONS = [
     summary: "Start uploading a brand asset (watermark or logo PNG)",
   },
   {
+    operationId: "createBreachIncident",
+    method: "POST",
+    path: "/admin/privacy/breach-incidents",
+    tags: ["admin"],
+    summary: "Open a breach incident",
+  },
+  {
     operationId: "createCheckout",
     method: "POST",
     path: "/billing/checkout",
@@ -432,6 +439,13 @@ export const API_OPERATIONS = [
     summary: "List FIRC records, most recent settlement first.",
   },
   {
+    operationId: "getBreachIncidentTemplates",
+    method: "GET",
+    path: "/admin/privacy/breach-incidents/{id}/templates",
+    tags: ["admin"],
+    summary: "Draft Board report and user notice for one incident",
+  },
+  {
     operationId: "getBundledFontManifest",
     method: "GET",
     path: "/fonts/manifest",
@@ -607,6 +621,13 @@ export const API_OPERATIONS = [
     summary: "Streak experiment vs holdout cohort metrics",
   },
   {
+    operationId: "getSubProcessors",
+    method: "GET",
+    path: "/privacy/sub-processors",
+    tags: ["privacy"],
+    summary: "The third parties personal data is shared with",
+  },
+  {
     operationId: "getSubscription",
     method: "GET",
     path: "/billing/subscription",
@@ -726,6 +747,13 @@ export const API_OPERATIONS = [
     summary: "List a workspace's brand assets",
   },
   {
+    operationId: "listBreachIncidents",
+    method: "GET",
+    path: "/admin/privacy/breach-incidents",
+    tags: ["admin"],
+    summary: "List breach incidents, newest first",
+  },
+  {
     operationId: "listClientTags",
     method: "GET",
     path: "/workspaces/{id}/client-tags",
@@ -745,6 +773,13 @@ export const API_OPERATIONS = [
     path: "/devices",
     tags: ["devices"],
     summary: "This workspace's registered devices",
+  },
+  {
+    operationId: "listDsrRequests",
+    method: "GET",
+    path: "/admin/privacy/dsr-requests",
+    tags: ["admin"],
+    summary: "List DSR requests, newest first",
   },
   {
     operationId: "listEdgPasses",
@@ -892,6 +927,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/client-tags/{tag}/projects",
     tags: ["workspaces"],
     summary: "Projects carrying a client tag",
+  },
+  {
+    operationId: "listScheduledTasks",
+    method: "GET",
+    path: "/admin/scheduler/tasks",
+    tags: ["admin"],
+    summary: "Every scheduled task's name",
   },
   {
     operationId: "listStyles",
@@ -1062,6 +1104,13 @@ export const API_OPERATIONS = [
     summary: "Replay many dead letters",
   },
   {
+    operationId: "replayTombstones",
+    method: "POST",
+    path: "/admin/privacy/erasure/replay-tombstones",
+    tags: ["admin"],
+    summary: "Re-verify (and re-run) erasure for every completed request",
+  },
+  {
     operationId: "requestExport",
     method: "POST",
     path: "/projects/{projectId}/exports",
@@ -1130,6 +1179,20 @@ export const API_OPERATIONS = [
     path: "/billing/mandates/{mandateId}/revoke",
     tags: ["billing"],
     summary: "Revoke a mandate (cancels its subscription)",
+  },
+  {
+    operationId: "runErasureCascade",
+    method: "POST",
+    path: "/admin/privacy/erasure/{dsrRequestId}/run",
+    tags: ["admin"],
+    summary: "Run (or resume) the erasure cascade for one DSR request now",
+  },
+  {
+    operationId: "runScheduledTaskNow",
+    method: "POST",
+    path: "/admin/scheduler/tasks/{name}/run",
+    tags: ["admin"],
+    summary: "Run one scheduled task now, out of band",
   },
   {
     operationId: "setConsent",
@@ -1221,6 +1284,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/transcript/transliterate",
     tags: ["transcripts"],
     summary: "Transliterate the transcript into a script",
+  },
+  {
+    operationId: "updateBreachIncident",
+    method: "PATCH",
+    path: "/admin/privacy/breach-incidents/{id}",
+    tags: ["admin"],
+    summary: "Update a breach incident's status or notification timestamps",
   },
   {
     operationId: "updateFolder",
