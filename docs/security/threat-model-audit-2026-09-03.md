@@ -22,7 +22,7 @@ usual CVSS-ish shorthand (auth bypass or data leak = High+; hardening = Low/Med)
 | T8  | Callback forgery / replay                      | implemented+tested                                                                                                                | `apps/api/src/webhooks/webhook-signature.test.ts` (HMAC + 5-min skew replay test); `apps/api/test/dlq.e2e-spec.ts`, `jobs.e2e-spec.ts` use the same signed-callback harness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | T9  | Credit double-spend / race                     | implemented+tested                                                                                                                | `apps/api/test/credits-ledger.e2e-spec.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | T10 | Watermark/entitlement bypass (signed manifest) | implemented+tested                                                                                                                | `packages/render-manifest/src/manifest.test.ts` (tampered watermark, raised cap, expired, clock skew all refused); nonce single-use / replay tested end-to-end at `apps/api/test/exports.e2e-spec.ts:118-208` ("issues... first browser export" → complete → "replay is refused" 409 `export/manifest_already_consumed`)                                                                                                                                                                                                                                                                                                                                                               |
-| T11 | Local bridge abused by hostile web page        | implemented+tested                                                                                                                | `packages/bridge-core/src/server.test.ts` "loopback HTTPS/WebSocket — negative security tests": no-bearer 401, wrong-bearer 401, disallowed Host 400, disallowed Origin 403, null Origin 403, oversized body/frame; `apps/api/test/bridge-relay.e2e-spec.ts` (server-side relay: no-bearer, no-deviceId, cross-workspace, oversized frame)                                                                                                                                                                                                                                                                                                                                             |
+| T11 | Local bridge abused by hostile web page        | implemented+tested; **one deviation reviewed, see below**                                                                         | `packages/bridge-core/src/server.test.ts` "loopback HTTPS/WebSocket — negative security tests": no-bearer 401, wrong-bearer 401, disallowed Host 400, disallowed Origin 403, null Origin 403, oversized body/frame; `apps/api/test/bridge-relay.e2e-spec.ts` (server-side relay: no-bearer, no-deviceId, cross-workspace, oversized frame); `plugins/resolve/aksharo_core_app/server.py` (C09, in `main` as of this audit) adds a `?token=` query-string bearer fallback for its embedded-Chromium panel — reviewed, not fixed, see "T11 deviation" below                                                                                                                              |
 | T12 | Pairing-code brute force / port squatting      | implemented+tested                                                                                                                | `packages/bridge-core/src/pairing.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | T13 | Panel secret exposure                          | implemented, untested by this WP (no runtime harness for CEP panels in this repo — reviewed by design/code inspection only)       | `packages/bridge-core/src/keystore.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | T14 | Loopback TLS trust                             | implemented+tested                                                                                                                | `packages/bridge-core/src/cert.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -37,6 +37,68 @@ usual CVSS-ish shorthand (auth bypass or data leak = High+; hardening = Low/Med)
 | T23 | Denial of wallet (mass jobs)                   | implemented+tested                                                                                                                | `apps/api/src/jobs/admission.service.ts` + `.test.ts`; `apps/api/test/jobs.e2e-spec.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | T24 | Data residency violation                       | implemented+tested                                                                                                                | `apps/api/src/common/storage/s3-object-store.ts` region pinning + `.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | T25 | Desktop shell abuse                            | implemented, **dependency gap found** (see Automated checks below)                                                                | Electron hardening flags in `apps/desktop` main process; Playwright-Electron smoke referenced by THREAT-MODEL, not re-run in this WP (brief: "no Playwright")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+
+## T11 deviation reviewed: C09's `?token=` query-parameter bearer fallback
+
+`plugins/resolve/aksharo_core_app/server.py` (C09, merged into `main` after
+this WP's worktree branched, then pulled in by this WP's `git merge main`)
+added a second way to authenticate its loopback WebSocket: alongside the
+`Authorization: Bearer <token>` header `bridge/client.py` sends, the server
+now also accepts the same bearer as a `?token=` query parameter
+(`_query_token`, `_handle_connection`), because the Studio panel is HTML/JS
+hosted inside Resolve's embedded Chromium and the browser `WebSocket`
+constructor cannot set request headers on the handshake — only a real
+`websockets`-library client can. This is flagged in the file's own docstring
+as a deviation, not silently introduced. This WP's file boundaries exclude
+`plugins/resolve/**`, so nothing there was changed; this is a review only.
+
+**Assessment, three questions:**
+
+1. **Does the token end up in a log?** No logging call in `server.py` or
+   `console.py` prints `connection.request.path` or anything derived from it
+   — `console.py` only prints a static startup banner, and there is no
+   access-log middleware here. The `websockets` library itself logs the
+   handshake at `DEBUG` (its own `logging.getLogger("websockets.server")`),
+   which is not enabled by anything in this repo's default configuration, so
+   under the shipped configuration the token is not written to a file or the
+   Resolve console. The risk is latent rather than realized: if anyone later
+   adds request/access logging to this server (a common thing to reach for
+   while debugging a stuck panel), the token would leak into whatever that
+   logging targets — including, after C12 (just merged), a support-diagnostics
+   bundle if such a log were ever picked up by it. **No evidence of a leak
+   today; a plausible one if the code changes again without this in mind.**
+2. **Does it need scrubbing from a log?** Not today (no log exists to scrub).
+   Recommend a code comment at the point any future logging is added,
+   flagging that `request.path` must be redacted past the `?` before it is
+   logged — this is a documentation/process fix, not a code fix, since there
+   is nothing to redact yet.
+3. **Is a one-time WS ticket exchange the better control?** Yes, in
+   principle: a short-lived, single-use ticket minted by an authenticated
+   call (still needs _some_ channel — an HTTP `POST` from the panel's own
+   `fetch`, which unlike `WebSocket` **can** set an `Authorization` header)
+   would mean the long-lived discovery-file bearer never appears in a URL at
+   all, only a value that is worthless after first use. This is a real
+   improvement over the current fallback, but it is a protocol change to
+   C09's own surface (a new endpoint, a ticket store, a TTL) — squarely
+   outside this WP's `plugins/resolve/**`-excluded file boundary and larger
+   than a "minimal fix."
+
+**Severity: Low.** The whole surface is loopback-only (127.0.0.1), the token
+is scoped to one Resolve session and stored in a 0600 discovery file, Origin
+is not attacker-controllable from outside the local machine, and no logging
+path exists today that would actually record the token. The realistic
+exposure is browser devtools / history on the same machine already running
+the paired Resolve session — a caller in a position to read that already
+has the same access a compromised panel page would grant directly.
+
+**Follow-up (not fixed here, file boundary excludes `plugins/resolve/**`):**
+add a one-time WS ticket exchange (`POST` with `Authorization` header →
+short-lived single-use ticket → `?ticket=` on the WebSocket URL) to replace
+the raw bearer in the query string, and add an explicit "never log
+`request.path` unredacted" comment at `_handle_connection` in the meantime.
+Owner: C09 or a small dedicated follow-up WP before the query-token fallback
+is relied upon in production, since it is currently the only place in the
+repo where a long-lived bearer can appear in a URL.
 
 ## New gap found and fixed: T3 — device-code lookup had no rate limit
 
