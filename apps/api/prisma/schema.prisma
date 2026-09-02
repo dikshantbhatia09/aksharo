@@ -221,6 +221,7 @@ enum Aspect {
 enum PassType {
   autocut
   reframe
+  zoom
   sfx
   music
   textfx
@@ -1461,6 +1462,11 @@ model StylePreset {
   assExportable         Boolean  @default(false) @map("ass_exportable")
   requiresLayoutMetrics Boolean  @default(true) @map("requires_layout_metrics")
   parityScore           Float?   @map("parity_score")
+  /// B13: system-catalogue visibility (`workspaceId = null` rows only — a
+  /// workspace's own templates are always visible to their owner regardless).
+  /// Unpublishing hides a style from `StylesService.list()` without deleting
+  /// it, so parity data and any workspace already using it are preserved.
+  published             Boolean  @default(true)
   minPlan               PlanKey  @default(free) @map("min_plan")
   version               Int      @default(1)
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -2653,6 +2659,14 @@ model ReferralReward {
   /// Abuse fingerprints captured from the claiming request (THREAT-MODEL T17).
   deviceHash          String?              @map("device_hash")
   ipHash               String?             @map("ip_hash")
+  /// B13 orchestrator addendum (after B07b): set (status stays `pending`) when
+  /// the referred workspace's owner previously claimed as referred for a
+  /// DIFFERENT referrer within 90 days, or its device/IP fingerprint matches
+  /// any prior referred claim — "chained self-referral". Held out of
+  /// `grantForExport`'s auto-grant until an admin clears it
+  /// (`POST /admin/referrals/:id/approve`) or rejects it. Distinct from
+  /// `reason`, which is only ever set once `status = rejected`.
+  holdReason           String?              @map("hold_reason")
   createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
 
   referrerWorkspace Workspace @relation("ReferralRewardReferrer", fields: [referrerWorkspaceId], references: [id], onDelete: Cascade)
@@ -2733,6 +2747,28 @@ model HelpArticle {
 
 /// Server-side flags. `FEATURE_FLAGS_JSON` (CONTRACTS §1) overrides a row at boot
 /// for local development; this table is the deployed source of truth.
+/// B13: an admin-set override of one `(lane, provider)` weight in
+/// `apps/worker-ai/worker_ai/routing.yaml` (A10/D12's routing table). The
+/// worker still reads that file as the base table — this is the admin
+/// console's own store of what a human has changed, surfaced as a diff on
+/// top of it; wiring the worker to read overrides back out of Postgres is
+/// out of this WP's scope (see B13's final report, "open questions").
+/// History is the ordinary `audit_log` trail (every write here is
+/// `@Audited`), not a separate table — one more parallel log to keep
+/// consistent would be exactly the mistake `CommonAuditService`'s own doc
+/// comment describes.
+model RoutingWeightOverride {
+  id         String   @id @db.Char(26)
+  laneId     String   @map("lane_id")
+  provider   String
+  weight     Int
+  updatedBy  String   @map("updated_by") @db.Char(26)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([laneId, provider])
+  @@map("routing_weight_overrides")
+}
+
 model FeatureFlag {
   id          String   @id @db.Char(26)
   key         String   @unique

@@ -29,6 +29,7 @@ import { AffiliatesService } from "./affiliates.service.js";
 import { AttributionService } from "./attribution.service.js";
 import { FraudService } from "./fraud.service.js";
 import { StatsService } from "./stats.service.js";
+import { AdminRoles } from "../admin/admin-roles.decorator.js";
 import { AdminGuard, adminOf } from "../admin/admin.guard.js";
 import { zodBody, zodResponse } from "../auth/dto/openapi.js";
 import { CurrentUser, JwtAuthGuard, Public } from "../common/guards/index.js";
@@ -156,6 +157,7 @@ export class AffiliatesController {
 
   @Post("admin/:affiliateId/approve")
   @UseGuards(AdminGuard)
+  @AdminRoles("ops", "finance", "superadmin")
   @ApiBearerAuth("access-token")
   @ApiOperation({
     summary: "Approve a pending affiliate application (admin)",
@@ -168,6 +170,7 @@ export class AffiliatesController {
 
   @Post("admin/:affiliateId/suspend")
   @UseGuards(AdminGuard)
+  @AdminRoles("ops", "finance", "superadmin")
   @ApiBearerAuth("access-token")
   @ApiOperation({ summary: "Suspend an affiliate (admin)", operationId: "adminSuspendAffiliate" })
   @ApiOkResponse(zodResponse(affiliateViewSchema, "The suspended affiliate."))
@@ -181,6 +184,7 @@ export class AffiliatesController {
 
   @Post("admin/:affiliateId/reject")
   @UseGuards(AdminGuard)
+  @AdminRoles("ops", "finance", "superadmin")
   @ApiBearerAuth("access-token")
   @ApiOperation({
     summary: "Reject a pending affiliate application (admin)",
@@ -197,6 +201,7 @@ export class AffiliatesController {
 
   @Post("admin/:affiliateId/revoke-code")
   @UseGuards(AdminGuard)
+  @AdminRoles("ops", "finance", "superadmin")
   @ApiBearerAuth("access-token")
   @ApiOperation({
     summary: "Revoke and regenerate an affiliate's code (admin)",

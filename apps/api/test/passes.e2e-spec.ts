@@ -23,7 +23,7 @@ import IORedis from "ioredis";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { newId } from "@montaj/edg";
+import { decodeKeyframes, newId } from "@montaj/edg";
 import { type TranscriptChunk } from "@montaj/edg/schemas";
 
 import { AMPLE_TEST_CREDIT_TENTHS, fundWorkspaceCredits } from "./credits-fixture.js";
@@ -169,6 +169,7 @@ async function seed(): Promise<void> {
       role: "primary",
       storageKey: `ws/${WORKSPACE}/p/${PROJECT}/media/${MEDIA}/raw.mp4`,
       audio16kKey: `ws/${WORKSPACE}/p/${PROJECT}/media/${MEDIA}/audio16k.wav`,
+      proxyKey: `ws/${WORKSPACE}/p/${PROJECT}/media/${MEDIA}/proxy540.mp4`,
       durationMs: DURATION_MS,
       fps: 30,
       width: 1080,
@@ -496,7 +497,7 @@ describe.skipIf(!CAN_RUN)("autocut pass: producer → worker completion → Merg
 });
 
 describe.skipIf(!CAN_RUN)(
-  "zoom/reframe pass: producer → worker completion → MergePass (B19)",
+  "zoom/reframe pass: producer → worker completion → MergePass (B19, codec + sampling B19b)",
   () => {
     let zoomJobId: string;
     let zoomAttemptId: string;
@@ -505,6 +506,38 @@ describe.skipIf(!CAN_RUN)(
     let reframeJobId: string;
     let reframeAttemptId: string;
     let reframePassId: string;
+
+    it("refuses to start zoom/reframe for a project with no proxy (passes/proxy_required)", async () => {
+      const noProxy = id("PR0X");
+      const noProxyMedia = id("MEDX");
+      await prisma.project.create({
+        data: { id: noProxy, workspaceId: WORKSPACE, title: "no proxy", aspect: "r9x16" },
+      });
+      await prisma.mediaAsset.create({
+        data: {
+          id: noProxyMedia,
+          projectId: noProxy,
+          role: "primary",
+          storageKey: `ws/${WORKSPACE}/p/${noProxy}/media/${noProxyMedia}/raw.mp4`,
+          durationMs: DURATION_MS,
+          status: "ready",
+        },
+      });
+
+      const zoomResponse = await request(app.getHttpServer())
+        .post(`/projects/${noProxy}/passes/zoom`)
+        .set("Authorization", `Bearer ${accessToken()}`)
+        .send({ preset: "standard" })
+        .expect(409);
+      expect(zoomResponse.body.error.code).toBe("passes/proxy_required");
+
+      const reframeResponse = await request(app.getHttpServer())
+        .post(`/projects/${noProxy}/passes/reframe`)
+        .set("Authorization", `Bearer ${accessToken()}`)
+        .send({ aspect: "9:16" })
+        .expect(409);
+      expect(reframeResponse.body.error.code).toBe("passes/proxy_required");
+    });
 
     it("quotes and enqueues a zoom pass", async () => {
       const response = await request(app.getHttpServer())
@@ -533,18 +566,22 @@ describe.skipIf(!CAN_RUN)(
     });
 
     it("accepts a fake worker completion and merges the proposed zoom item", async () => {
-      // A packed keyframe curve, hex-encoded: 4 rows matching worker_ai.processors
-      // .reframe_zoom_pass.pack_keyframes' byte layout (see packages/edg/README.md).
+      // A packed MKF2 keyframe curve, hex-encoded, matching worker_ai.processors
+      // .reframe_zoom_pass.pack_keyframes / @montaj/edg's encodeKeyframes byte
+      // layout (packages/edg/README.md) -- one row, well under the 64 KiB
+      // inline limit, so the API decodes it to base64 on `payload.keyframes`.
       const header = Buffer.alloc(12);
-      header.write("MKF1", 0, "ascii");
+      header.write("MKF2", 0, "ascii");
       header.writeUInt32LE(1, 4);
       header.writeUInt32LE(1, 8);
-      const row = Buffer.alloc(16);
-      row.writeFloatLE(0, 0);
-      row.writeFloatLE(0.5, 4);
-      row.writeFloatLE(0.5, 8);
-      row.writeFloatLE(1.2, 12);
+      const row = Buffer.alloc(20);
+      row.writeFloatLE(0, 0); // tMs
+      row.writeFloatLE(1.2, 4); // zoom
+      row.writeFloatLE(0.5, 8); // cx
+      row.writeFloatLE(0.5, 12); // cy
+      row.writeFloatLE(1, 16); // ease: "inOut"
       const keyframesHex = Buffer.concat([header, row]).toString("hex");
+      const zoomItemId = id("ZMIT");
 
       const body = {
         status: "succeeded",
@@ -554,6 +591,7 @@ describe.skipIf(!CAN_RUN)(
           preset: "standard",
           items: [
             {
+              itemId: zoomItemId,
               startMs: 2000,
               endMs: 3040,
               keyframes: keyframesHex,
@@ -576,7 +614,7 @@ describe.skipIf(!CAN_RUN)(
       expect(response.body).toMatchObject({ applied: true, status: "succeeded" });
     });
 
-    it("lists the merged zoom pass and its item through GET /projects/{id}/passes", async () => {
+    it("lists the merged zoom pass and its item through GET /projects/{id}/passes, keyframes readable by decodeKeyframes", async () => {
       const response = await request(app.getHttpServer())
         .get(`/projects/${PROJECT}/passes`)
         .set("Authorization", `Bearer ${accessToken("viewer")}`)
@@ -585,16 +623,23 @@ describe.skipIf(!CAN_RUN)(
       const passes = response.body.passes as Record<string, unknown>[];
       const landed = passes.find((pass) => pass["passId"] === zoomPassId);
       expect(landed).toBeDefined();
-      // PassTypeSchema has no "zoom" value; the pass lands as "reframe" -- see
-      // passes-completion.handler.ts's class docstring.
-      expect(landed).toMatchObject({ type: "reframe", status: "ready" });
+      // PassTypeSchema gained "zoom" in B19b; the pass now lands with its own type.
+      expect(landed).toMatchObject({ type: "zoom", status: "ready" });
 
       const items = landed?.["items"] as Record<string, unknown>[];
       expect(items).toHaveLength(1);
       expect(items[0]).toMatchObject({ kind: "zoom", state: "proposed" });
-      expect(items[0]?.["keyframesRef"]).toBe(
-        `passes/${zoomPassId}/${(items[0] as { itemId: string }).itemId}.kf`,
+      const payload = items[0]?.["payload"] as Record<string, unknown>;
+      expect(typeof payload["keyframes"]).toBe("string");
+      const frames = decodeKeyframes(
+        new Uint8Array(Buffer.from(payload["keyframes"] as string, "base64")),
       );
+      expect(frames).toHaveLength(1);
+      expect(frames[0]?.tMs).toBe(0);
+      expect(frames[0]?.zoom).toBeCloseTo(1.2, 5);
+      expect(frames[0]?.cx).toBeCloseTo(0.5, 5);
+      expect(frames[0]?.cy).toBeCloseTo(0.5, 5);
+      expect(frames[0]?.ease).toBe("inOut");
     });
 
     it("quotes and enqueues a reframe pass", async () => {
@@ -620,22 +665,14 @@ describe.skipIf(!CAN_RUN)(
       reframeAttemptId = job.attemptId ?? "";
     });
 
-    it("accepts a fake worker completion and merges the proposed reframe item", async () => {
-      const header = Buffer.alloc(12);
-      header.write("MKF1", 0, "ascii");
-      header.writeUInt32LE(1, 4);
-      header.writeUInt32LE(2, 8);
-      const row0 = Buffer.alloc(16);
-      row0.writeFloatLE(0, 0);
-      row0.writeFloatLE(0.5, 4);
-      row0.writeFloatLE(0.5, 8);
-      row0.writeFloatLE(1.78, 12);
-      const row1 = Buffer.alloc(16);
-      row1.writeFloatLE(DURATION_MS, 0);
-      row1.writeFloatLE(0.6, 4);
-      row1.writeFloatLE(0.5, 8);
-      row1.writeFloatLE(1.78, 12);
-      const keyframesHex = Buffer.concat([header, row0, row1]).toString("hex");
+    it("accepts a fake worker completion and merges the proposed reframe item, over the inline limit", async () => {
+      // A packed MKF2 curve deliberately over the 64 KiB inline limit (B19b's
+      // keyframe payload rule), so this exercises the `keyframesRef` branch:
+      // the fake "worker" sends `keyframesRef` directly (as if it had already
+      // uploaded the bytes), and the API is expected to pass it through
+      // unchanged rather than decoding anything.
+      const reframeItemId = id("RFIT");
+      const keyframesRef = `ws/${WORKSPACE}/passes/${reframePassId}/${reframeItemId}.mkf`;
 
       const body = {
         status: "succeeded",
@@ -644,10 +681,11 @@ describe.skipIf(!CAN_RUN)(
           passType: "reframe",
           items: [
             {
+              itemId: reframeItemId,
               startMs: 0,
               endMs: DURATION_MS,
               aspect: "9:16",
-              keyframes: keyframesHex,
+              keyframesRef,
               letterboxScenes: [],
               reason: "reframe",
               confidence: 0.7,
@@ -681,7 +719,9 @@ describe.skipIf(!CAN_RUN)(
       expect(items[0]).toMatchObject({ kind: "reframe", state: "proposed" });
       const payload = items[0]?.["payload"] as Record<string, unknown>;
       expect(payload["aspect"]).toBe("9:16");
-      expect(typeof payload["keyframesRef"]).toBe("string");
+      expect(payload["keyframesRef"]).toBe(
+        `ws/${WORKSPACE}/passes/${reframePassId}/${(items[0] as { itemId: string }).itemId}.mkf`,
+      );
     });
   },
 );

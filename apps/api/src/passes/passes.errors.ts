@@ -11,6 +11,12 @@ export const PASS_ERROR_CODES = {
   transcriptNotReady: "pass/transcript_not_ready",
   /** `preset` is not one of `gentle`, `standard`, `tight`. */
   unknownPreset: "pass/unknown_preset",
+  /**
+   * `zoom`/`reframe` need the 540p proxy (CONTRACTS §6, `proxy540.mp4`) to
+   * sample frames and audio from (B19b ruling 2); the project's primary
+   * media has no `proxyKey` yet.
+   */
+  proxyRequired: "passes/proxy_required",
 } as const;
 
 export type PassErrorCode = (typeof PASS_ERROR_CODES)[keyof typeof PASS_ERROR_CODES];

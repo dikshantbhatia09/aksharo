@@ -140,6 +140,15 @@ describe.skipIf(!available)("/referrals/* over HTTP", () => {
           outputKind: "video",
           mode: "browser",
           script: "roman",
+          // A21b: an explicit `mode: "browser"` request is now judged against
+          // the real capability probe (D34) — a browser that cannot decode
+          // and encode H.264, or cannot encode audio, throws
+          // `export/unsupported_in_browser` (409) rather than silently
+          // falling back to cloud, which only `mode: "auto"` does. A real
+          // browser client always sends this probe alongside the request; a
+          // fully-capable one is what exercises the browser-completion path
+          // this test is actually after.
+          capabilities: { codecs: ["avc1.42001f"], audioEncoder: true },
         },
       },
     );

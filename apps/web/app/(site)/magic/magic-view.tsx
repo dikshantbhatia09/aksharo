@@ -107,7 +107,13 @@ function ConsumeLink({ token }: { token: string }): React.JSX.Element {
     started.current = true;
     mutate(token, {
       onSuccess: () => {
+        // A hard-refresh pair with replace, matching login-form.tsx: the
+        // session cookie just changed via a plain fetch Next.js router
+        // caching never observes on its own, so a bare replace can still
+        // resolve the signed-out marketing "/" this same client session
+        // may have cached rather than the authenticated rewrite to /home.
         router.replace("/");
+        router.refresh();
       },
     });
   }, [mutate, router, token]);

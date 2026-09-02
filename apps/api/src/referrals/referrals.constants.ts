@@ -27,3 +27,12 @@ export const REFERRAL_REJECT_REASONS = {
 
 export type ReferralRejectReason =
   (typeof REFERRAL_REJECT_REASONS)[keyof typeof REFERRAL_REJECT_REASONS];
+
+/** B13 orchestrator addendum (after B07b): the review window for "chained self-referral". */
+export const CHAINED_SELF_REFERRAL_WINDOW_DAYS = 90;
+
+export const REFERRAL_HOLD_REASONS = {
+  chainedSelfReferral: "chained_self_referral",
+} as const;
+
+export type ReferralHoldReason = (typeof REFERRAL_HOLD_REASONS)[keyof typeof REFERRAL_HOLD_REASONS];

@@ -44,34 +44,37 @@ same producer shape as autocut — quote (`quoteReframeZoom`, `@montaj/config`'s
 of number-to-reconcile B18 flagged: the brief's "3 credits per media minute" matches
 `reframeZoomPass`'s _pro_ rate, not the flash rate this quotes against.
 
-### Payload gaps (flagged, not silently worked around)
+### Frame/RMS sampling and `passes/proxy_required` (B19b)
 
-Real scene detection and subject tracking need decoded video frames
-(`apps/worker-ai/worker_ai/passes/README.md`'s "Gap" section); no video-decode
-dependency was added in this work package, so `startZoom`/`startReframe` send
-`detections`/`sceneFrames`/`rmsSamples` empty. The worker still produces correct zoom
-events from emphasis-word cues alone (subject centre falls back to the frame's
-saliency centre, `(0.5, 0.5)`), but a reframe job fails non-retryably
-(`worker/invalid_payload`) with no subject track — this is a real, working failure
-mode, not a silent no-op, until a follow-up work package wires A07 frame extraction
-into this producer. `emphasisWords` are read from the live document's segments
-(`Segment.emphasis`, CONTRACTS §2), one cue per emphasised segment, timestamped at the
-segment's own `startMs` (an approximation of the emphasised word's own timing — see
-`startZoom`'s docstring).
+B19 sent `detections`/`sceneFrames`/`rmsSamples` empty because no frame decode was
+wired anywhere; B19b wires it, but on the **worker** side, not here —
+`startZoom`/`startReframe` still send those three empty on purpose, and an empty list
+is the signal `worker_ai.processors.reframe_zoom_pass._payload_needs_sampling` reads
+to sample the project's 540p proxy itself (`apps/worker-ai/worker_ai/passes/
+README.md`'s "Frame and RMS sampling" section). What this producer does add is
+`requireProxy`: `startZoom`/`startReframe` reject the request outright
+(`passes/proxy_required`, 409) when the project's primary media has no proxy yet,
+since the worker has nothing to sample without one. `emphasisWords` are read from the
+live document's segments (`Segment.emphasis`, CONTRACTS §2), one cue per emphasised
+_word_, timestamped by that word's own `s` (`emphasisCuesOf` resolves each `wordId`
+against the transcript's current revision) — B19 approximated this as the segment's
+`startMs`.
 
-### `PassType` and `keyframesRef` gaps
+### `PassType` and the keyframe payload rule — closed by B19b
 
-`passes-completion.handler.ts`'s class docstring covers both in full: `PassTypeSchema`
-has no `"zoom"` value, so both pass kinds land as `type: "reframe"`; and neither the
-inline-bytea nor the derived-storage write path for `keyframesRef` exists yet, so the
-handler computes and sets the addendum's key shape (`passes/{passId}/{itemId}.kf`)
-without yet writing any bytes there.
+`passes-completion.handler.ts`'s class docstring covers both: `PassTypeSchema` gained
+`"zoom"` (CONTRACTS §2, amended 2026-09-03), so a zoom pass now lands with its own
+type rather than borrowing `"reframe"`; and the keyframe payload rule (same amendment)
+is implemented — the worker decides inline (`payload.keyframes`, base64, <= 64 KiB) vs.
+derived storage (`payload.keyframesRef`, uploaded by the worker itself) and mints the
+item id the derived key needs, so this handler only decodes or passes the field
+through, never uploading bytes itself.
 
 ## Algorithm (zoom/reframe)
 
-`apps/worker-ai/worker_ai/passes/{scenes,tracking,zoom,reframe}.py` own scene
-detection, subject tracking, cue detection and keyframe generation; see
-`apps/worker-ai/worker_ai/passes/README.md` for the full algorithm writeup, presets,
-and models used. `apps/worker-ai/worker_ai/processors/reframe_zoom_pass.py` is the
-thin queue adapter, including the byte-for-byte packed-keyframe encoder mirroring
-`@montaj/edg`'s `packKeyframes`.
+`apps/worker-ai/worker_ai/passes/{scenes,tracking,zoom,reframe,frame_sampling}.py` own
+scene detection, subject tracking, cue detection, proxy sampling and keyframe
+generation; see `apps/worker-ai/worker_ai/passes/README.md` for the full algorithm
+writeup, presets, and models used. `apps/worker-ai/worker_ai/processors/
+reframe_zoom_pass.py` is the thin queue adapter, including the byte-for-byte
+packed-keyframe encoder mirroring `@montaj/edg`'s `encodeKeyframes` (MKF2).
