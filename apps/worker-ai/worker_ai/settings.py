@@ -101,6 +101,7 @@ CONTRACT_ENV_VARS: tuple[str, ...] = (
     "MAIL_PROVIDER",
     "MAIL_FROM",
     "SMTP_URL",
+    "MAIL_SNS_TOPIC_ARN",
 )
 
 #: Subset this worker cannot start without.

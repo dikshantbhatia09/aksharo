@@ -199,6 +199,21 @@ describe("transactional mail (CONTRACTS §1, added after A04)", () => {
     expect(crossFieldProblems(env)).toEqual([]);
   });
 
+  it("takes an optional SNS topic ARN and rejects anything that is not one", () => {
+    const arn = "arn:aws:sns:ap-south-1:123456789012:aksharo-mail-events";
+    expect(loadEnv({ source: validEnv() }).MAIL_SNS_TOPIC_ARN).toBeUndefined();
+    expect(loadEnv({ source: validEnv({ MAIL_SNS_TOPIC_ARN: arn }) }).MAIL_SNS_TOPIC_ARN).toBe(arn);
+    for (const bad of [
+      "aksharo-mail-events",
+      "arn:aws:sqs:ap-south-1:123456789012:q",
+      arn.replace("123456789012", "12"),
+    ]) {
+      expect(() => loadEnv({ source: validEnv({ MAIL_SNS_TOPIC_ARN: bad }) }), bad).toThrow(
+        EnvValidationError,
+      );
+    }
+  });
+
   it("rejects a sender that is not an address and a URL that is not SMTP", () => {
     expect(() =>
       loadEnv({ source: validEnv({ MAIL_PROVIDER: "ses", MAIL_FROM: "aksharo.ai" }) }),

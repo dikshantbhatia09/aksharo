@@ -50,6 +50,7 @@ export const CONTRACT_ENV_VARS = [
   "MAIL_PROVIDER",
   "MAIL_FROM",
   "SMTP_URL",
+  "MAIL_SNS_TOPIC_ARN",
 ] as const;
 
 export type ContractEnvVar = (typeof CONTRACT_ENV_VARS)[number];
@@ -201,6 +202,13 @@ export const envSchema = z.object({
   SMTP_URL: optionalSecret().refine(
     (value) => value === undefined || /^smtps?:\/\/[^\s]+$/.test(value),
     "SMTP_URL must be an smtp:// or smtps:// URL",
+  ),
+  // The topic the SES bounce/complaint feed is expected on. Optional, because a
+  // signature from AWS is already the authentication; setting it narrows that to
+  // one topic, so a signed message from any other one is refused.
+  MAIL_SNS_TOPIC_ARN: optionalSecret().refine(
+    (value) => value === undefined || /^arn:aws[a-z-]*:sns:[a-z0-9-]+:\d{12}:[\w-]+$/.test(value),
+    "MAIL_SNS_TOPIC_ARN must be an SNS topic ARN, e.g. arn:aws:sns:ap-south-1:123456789012:aksharo-mail-events",
   ),
 
   // --- Feature flags ---

@@ -60,6 +60,22 @@ export class FakeGoogleProvider implements GoogleOAuthProvider {
   }
 }
 
+/**
+ * One development-outbox entry. A04 wrote the first four fields and reads them to
+ * finish a flow; A25 added the rendered message, which is how a suite asserts the
+ * language a recipient was actually written to in.
+ */
+export interface OutboxEntry {
+  to: string;
+  template: string;
+  token?: string;
+  link: string;
+  kind?: string;
+  locale?: string;
+  subject?: string;
+  text?: string;
+}
+
 export interface AuthTestContext {
   readonly app: INestApplication;
   readonly prisma: PrismaClient;
@@ -75,7 +91,7 @@ export interface AuthTestContext {
    * it; draining is deterministic where a sleep would be a flake waiting to
    * happen, and it costs nothing when there is nothing in flight.
    */
-  outbox(): Promise<{ to: string; template: string; token?: string; link: string }[]>;
+  outbox(): Promise<OutboxEntry[]>;
   stop(): Promise<void>;
 }
 
@@ -216,10 +232,7 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
     async outbox() {
       await app.get(NotifyConsumer).drain();
       const raw = await redis.lrange(redisKeys.devOutbox(), 0, -1);
-      return raw.map(
-        (entry) =>
-          JSON.parse(entry) as { to: string; template: string; token?: string; link: string },
-      );
+      return raw.map((entry) => JSON.parse(entry) as OutboxEntry);
     },
     async stop() {
       await app.close();

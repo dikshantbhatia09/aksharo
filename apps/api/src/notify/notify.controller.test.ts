@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { Env } from "@montaj/config";
+
 import { NotifyController } from "./notify.controller.js";
 import { NotifyService } from "./notify.service.js";
 import { MailEventsController } from "./sns/mail-events.controller.js";
@@ -84,21 +86,27 @@ describe("POST /me/notifications/{id}/read", () => {
 });
 
 describe.skipIf(!snsFixture.available)("POST /internal/mail/events", () => {
-  function buildWebhook(options: { serveCertificate?: boolean } = {}) {
+  function buildWebhook(options: { serveCertificate?: boolean; topicArn?: string } = {}) {
     const redis = createMemoryRedis();
     const db = new FakeDb();
     const suppression = new SuppressionService(
       { client: redis } as unknown as RedisService,
       createFakePrisma(db) as unknown as PrismaService,
     );
+    let certificateFetches = 0;
     // The signature is real: the fixture signs each message with the key behind
     // the certificate the fetcher serves. `serveCertificate: false` is how a
     // message from something that is not SNS is simulated.
-    const controller = new MailEventsController(suppression, async () => {
-      if (options.serveCertificate === false) throw new Error("no certificate");
-      return snsFixture.certificate;
-    });
-    return { controller, suppression, db, redis };
+    const controller = new MailEventsController(
+      suppression,
+      async () => {
+        certificateFetches += 1;
+        if (options.serveCertificate === false) throw new Error("no certificate");
+        return snsFixture.certificate;
+      },
+      { MAIL_SNS_TOPIC_ARN: options.topicArn } as unknown as Env,
+    );
+    return { controller, suppression, db, redis, fetches: () => certificateFetches };
   }
 
   const message = (body: unknown, overrides: Record<string, unknown> = {}) =>
@@ -223,5 +231,50 @@ describe.skipIf(!snsFixture.available)("POST /internal/mail/events", () => {
     const { controller } = buildWebhook();
     const ack = await controller.events(message({ eventType: "Send" }));
     expect(ack).toMatchObject({ handled: "other", suppressed: 0, released: 0 });
+  });
+
+  describe("MAIL_SNS_TOPIC_ARN", () => {
+    const OUR_TOPIC = "arn:aws:sns:ap-south-1:123456789012:aksharo-mail-events";
+    const bounce = {
+      notificationType: "Bounce",
+      bounce: {
+        bounceType: "Permanent",
+        bounceSubType: "General",
+        bouncedRecipients: [{ emailAddress: "gone@b.test" }],
+      },
+    };
+
+    it("accepts a message from the configured topic", async () => {
+      const { controller, suppression } = buildWebhook({ topicArn: OUR_TOPIC });
+      const ack = await controller.events(message(bounce, { TopicArn: OUR_TOPIC }));
+      expect(ack).toMatchObject({ handled: "bounce", suppressed: 1 });
+      expect(await suppression.isSuppressed("gone@b.test")).toBe(true);
+    });
+
+    /**
+     * The gap this closes: the signature proves AWS published the message, not
+     * that *we* own the topic it came from. An account can sign a perfectly valid
+     * bounce for any address from a topic of its own.
+     */
+    it("rejects a correctly signed message from a different topic, and changes nothing", async () => {
+      const { controller, suppression, fetches } = buildWebhook({ topicArn: OUR_TOPIC });
+      await expect(
+        controller.events(
+          message(bounce, { TopicArn: "arn:aws:sns:ap-south-1:999999999999:someone-elses" }),
+        ),
+      ).rejects.toMatchObject({ code: "common/unauthorized" });
+      expect(await suppression.isSuppressed("gone@b.test")).toBe(false);
+      // Refused before the certificate is fetched: a wrong topic is not worth an
+      // outbound request.
+      expect(fetches()).toBe(0);
+    });
+
+    it("accepts any topic when the variable is unset, so an unconfigured deployment still gets its bounces", async () => {
+      const { controller, suppression } = buildWebhook();
+      await controller.events(
+        message(bounce, { TopicArn: "arn:aws:sns:ap-south-1:999999999999:whatever" }),
+      );
+      expect(await suppression.isSuppressed("gone@b.test")).toBe(true);
+    });
   });
 });

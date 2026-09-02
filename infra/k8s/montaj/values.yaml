@@ -104,6 +104,7 @@ externalSecrets:
     - MAIL_PROVIDER
     - MAIL_FROM
     - SMTP_URL
+    - MAIL_SNS_TOPIC_ARN
 
 # -----------------------------------------------------------------------------
 # Non-secret configuration, mounted as a ConfigMap alongside the secret.

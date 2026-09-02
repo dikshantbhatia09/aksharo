@@ -76,6 +76,19 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     instead of a logger. Its e2e suite completes real sign-up, verification and
     magic-link flows unchanged — delivery became asynchronous, so `auth-harness`
     drains the queue before reading the outbox rather than sleeping and hoping.
+  - `MAIL_SNS_TOPIC_ARN` (optional): when set, `POST /internal/mail/events` refuses
+    a correctly signed SNS message published to any other topic, and refuses it
+    before fetching the certificate. The signature proves AWS published the
+    message, not that we own the topic it came from, so an account can sign a
+    perfectly valid bounce for any address from a topic of its own. Unset, any
+    topic is accepted — a deployment that has not configured it is better off
+    receiving bounces than silently discarding them.
+  - Auth mail is written in the recipient's language: `users.locale` (default
+    `en-IN`) reaches `AuthMailerService` from both call sites, and
+    `test/notify-locale.e2e-spec.ts` drives a real sign-up to prove a `hi-IN`
+    account receives the Hindi subject and greeting — a chain that runs from the
+    sign-up request through the stored row, the notify job and the renderer, and
+    that no single-layer test would catch breaking.
   - `tools/runbooks/mail-outbox.js` prints the development outbox.
   - 130 notify tests (template snapshots in both languages, provider selection and
     each adapter, SNS signature verification against a per-run self-signed
@@ -628,18 +641,20 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `GPU_PROVIDER_URL` (non-secret) and `GPU_PROVIDER_TOKEN` (secret, human-filled),
   the two it added after A09 — A25 was the next work package to touch all four
   files, so it carried them across rather than leaving the parity check red.
+  `MAIL_SNS_TOPIC_ARN` followed after A25's first review.
   `apps/worker-ai/worker_ai/settings.py` mirrors that list and its test enforces
-  the mirror, so the five names were added there too and the GPU pair moved out
+  the mirror, so the six names were added there too and the GPU pair moved out
   of `WORKER_ENV_VARS`: they are product configuration now, not deployment
-  naming. `infra/scripts/check-contracts-parity.py` reports 37/37 on both sides.
+  naming. `infra/scripts/check-contracts-parity.py` reports 38/38 on both sides.
   `loadEnv()` also gained a cross-field check (`crossFieldProblems`): `ses` and
   `smtp` require `MAIL_FROM`, and `smtp` requires `SMTP_URL`. It lives beside the
   schema rather than inside it because a `.superRefine()` would remove
   `envSchema.shape`, which the contract test walks.
-- **A25** — `REALTIME_EVENTS` gained `notification.created`. CONTRACTS section 7
-  names four events; this fifth is additive (a client that does not know it ignores
-  the frame) and needs the contract amending before Gate A — raised in the A25
-  report rather than edited into the frozen document.
+- **A25** — `REALTIME_EVENTS` gained `notification.created`, now also named in
+  CONTRACTS section 7.
+- **A25** — `UsersService.findByEmail` selects `locale`. It is the only lookup the
+  auth flows do before sending a message, and A25 renders that message in the
+  recipient's language; the alternative was a second query on the sign-in path.
 
 - **A02b** — `OpRejectionReasonSchema` gained `invalid-range`, `not-contiguous`,
   `invariant`, `rebased-away` and `stale-after-resegment`. The reason list is a

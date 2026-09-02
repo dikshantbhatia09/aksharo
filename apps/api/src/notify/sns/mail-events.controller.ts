@@ -1,9 +1,12 @@
 import { Body, Controller, HttpCode, HttpStatus, Inject, Logger, Post } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
 
+import type { Env } from "@montaj/config";
+
 import { parseSesEvent } from "./ses-event.js";
 import { SnsMessageSchema, SnsVerificationError, verifySnsMessage } from "./sns-message.js";
 import { AppException, ERROR_CODES, maskEmail } from "../../common/index.js";
+import { ENV } from "../../config/config.module.js";
 import { SuppressionService } from "../suppression.service.js";
 
 import type { CertificateFetcher } from "./sns-message.js";
@@ -34,6 +37,13 @@ export interface MailEventAck {
  * A message that fails any part of that is a 401 and changes nothing — without
  * it, this route would let anyone stop mail to any address they can name.
  *
+ * `MAIL_SNS_TOPIC_ARN` narrows that further when it is set: the signature proves
+ * a message came from AWS, not that it came from *our* topic, and an account can
+ * publish a validly-signed notification from any topic it owns. With the variable
+ * unset the endpoint accepts any topic — which is the right default, because a
+ * deployment that has not configured it is better off receiving bounces than
+ * silently discarding them.
+ *
  * `SubscriptionConfirmation` is **verified and logged, not auto-confirmed**. The
  * confirmation is a one-time outbound GET to a URL that arrived in a request, and
  * an operator clicking "confirm subscription" in the console once per topic is a
@@ -48,6 +58,7 @@ export class MailEventsController {
   constructor(
     private readonly suppression: SuppressionService,
     @Inject(CERTIFICATE_FETCHER) private readonly fetchCertificate: CertificateFetcher,
+    @Inject(ENV) private readonly env: Env,
   ) {}
 
   @Post("events")
@@ -62,6 +73,21 @@ export class MailEventsController {
       );
     }
     const message = parsed.data;
+
+    // Before the signature, because it costs nothing and a message from the
+    // wrong topic is not ours to spend a certificate fetch on.
+    const expectedTopic = this.env.MAIL_SNS_TOPIC_ARN;
+    if (expectedTopic !== undefined && message.TopicArn !== expectedTopic) {
+      this.logger.warn(
+        { topic: message.TopicArn },
+        "rejected an SNS message from an unexpected topic",
+      );
+      throw new AppException(
+        ERROR_CODES.unauthorized,
+        "The SNS message is not from the configured topic.",
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
 
     try {
       await verifySnsMessage(message, this.fetchCertificate);

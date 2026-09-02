@@ -213,6 +213,11 @@ locals {
       human       = true
       description = "SMTP connection URL for self-hosted and local delivery (Mailpit). Carries credentials, so it is a SecureString. Left as the placeholder wherever MAIL_PROVIDER is ses."
     }
+    MAIL_SNS_TOPIC_ARN = {
+      secret      = false
+      human       = false
+      description = "SNS topic carrying the SES bounce and complaint feed. Public: an ARN is an address, not a credential. When set, POST /internal/mail/events refuses a correctly signed message published to any other topic."
+    }
   }
 
   # Parameters Terraform computes and keeps up to date.

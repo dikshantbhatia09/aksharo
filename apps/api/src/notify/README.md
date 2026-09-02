@@ -28,6 +28,11 @@ await this.notify.enqueue({
 });
 ```
 
+The `locale` is the recipient's own: A04's flows read `users.locale` (defaulting
+to `en-IN`) and pass it through `AuthMailerService`, so a Hindi user gets a Hindi
+subject line. `test/notify-locale.e2e-spec.ts` proves that end to end, through a
+real sign-up.
+
 `enqueue` does not throw for a delivery reason. A notification is a side effect of
 work the caller cares about, so a Redis hiccup is logged and swallowed, exactly as
 `RealtimePublisher` swallows one. It throws only for a caller bug: an unknown kind
@@ -143,6 +148,14 @@ the SNS message signature is the authentication instead — canonical string, RS
 verify, and a certificate fetched only from `https://sns.<region>.amazonaws.com/*.pem`
 (the SSRF guard of 05 §8). Without that check, anyone who finds the path could
 suppress any address they can name.
+
+`MAIL_SNS_TOPIC_ARN` narrows it further when set. A signature proves a message
+came from AWS, not that it came from _our_ topic — an account can publish a
+validly-signed bounce for any address from a topic of its own — so with the
+variable set, a message from any other `TopicArn` is refused before the
+certificate is even fetched. Unset, any topic is accepted, which is the right
+default: a deployment that has not configured it is better off receiving bounces
+than silently discarding them.
 
 SNS posts `Content-Type: text/plain`, which Nest's JSON parser skips, so
 `SnsBodyMiddleware` is applied to that one route rather than widening the parser
