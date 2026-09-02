@@ -10,6 +10,26 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Fixed
 
+- **A05b — `onboardingSchema` rejected the multi-select onboarding answers.** Reported
+  by A13. `apps/api/src/users/users.dto.ts`'s `onboardingSchema` accepted only
+  `boolean | number | string` per `onboarding` value, so `PATCH /me` answered
+  `400 common/validation_failed` (`path: "onboarding.makes"`, `code: "invalid_union"`)
+  the moment either of onboarding steps 1–2 ("what you make", "languages you speak on
+  camera" — both multi-select per `03-architecture/08-ux-design-system.md`
+  §Onboarding) carried an answer, even though `CurrentUser.onboarding` /
+  `OnboardingProfile` in `packages/api-client` and the onboarding screen had agreed on
+  a `string[]` shape since A13 shipped. The value union now also accepts
+  `z.array(z.string().max(64)).max(32)`; record keys are still capped at 48 characters
+  each, and the record itself at 64 keys (up from 32, headroom for future onboarding
+  questions) — every other bound unchanged. New unit tests in `profile.service.test.ts`
+  cover an accepted array, one over the 32-element cap, one over the 64-character
+  element cap, and a nested object still refused either as a top-level value or inside
+  an array; a new `users-workspaces.e2e-spec.ts` case round-trips `makes`/`languages`
+  arrays through `PATCH /me` and `GET /me` against a real database.
+  `apps/web/e2e/auth.spec.ts`'s sign-up → onboarding → shell journey test is restored
+  to its original assertions — the "documented failure" workaround A13 left in a
+  comment in that file is gone.
+
 - **A16e — the CanvasKit backdrop blur is clipped to its bounds.** Reported by A20.
   `render-core` documents a `backdrop` blur as blurring what is already on the surface
   **inside `bounds`**, and `@montaj/render-skia-node` clips to honour that. The browser
@@ -205,19 +225,14 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     A08c has since fixed it (A12 reported the same thing independently), so the
     shell connects by default; `FEATURE_FLAGS_JSON={"realtime.enabled":false}`
     remains as a kill switch.
-  - **Found and reported, not fixed here (A05's files): `onboardingSchema`
-    rejects the multi-select answers this screen collects.**
-    `apps/api/src/users/users.dto.ts` accepts only `boolean | number | string`
-    per `onboarding` value; "what you make" and "languages you speak" are
-    `string[]` (multi-select, per `OnboardingProfile` and 08 §Onboarding), so
-    `PATCH /me` answers `400 common/validation_failed` on
-    `onboarding.makes`/`.languages` every time, not intermittently — confirmed
-    directly against the API, isolated to the array branch alone. The client
-    side is real and covered: the rejection surfaces as an honest toast instead
-    of a silent hang, and nothing typed is lost. `e2e/auth.spec.ts`'s journey
-    test asserts today's honest failure and says exactly where to restore the
-    original "lands in the shell" assertions once `onboardingSchema` gains an
-    array branch.
+  - `onboardingSchema` rejected the multi-select answers this screen collects
+    (found during this verification: `apps/api/src/users/users.dto.ts` accepted
+    only `boolean | number | string` per `onboarding` value, so `PATCH /me`
+    answered `400 common/validation_failed` on `onboarding.makes`/`.languages`
+    every time — outside `apps/web/**`, so reported rather than fixed here). A05b
+    has since fixed it: the schema gained the missing array branch, and
+    `e2e/auth.spec.ts`'s journey test is back to its original "lands in the
+    shell" assertions.
 - **A10c — the model-server alignment rung, and the stale-reference sweep after A26.**
   - `worker_ai/alignment/gpu.py`: `GpuCtcAligner`, `POST /align` on
     `apps/model-server`. It sits at rank 35 — **below** the two local CTC rungs,
