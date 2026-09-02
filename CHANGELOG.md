@@ -134,6 +134,15 @@ RETURNING revision`. The lock makes read-decide-write atomic; the CAS is the
     of room there) and are simply generous for 9:16. A 9:16-specific budget — nearer
     20–26 Latin characters — would let every `latn` multiplier go back to 1.
     `word-pop` and `impact-shout` need no multipliers at all: they show one word at a time.
+  - **A12b:** a snapshot restore is now validated against the transcript as it
+    stands before anything is written. The transcript is deliberately not rolled
+    back with the captions, so a snapshot old enough to predate a `DeleteWord`
+    still names that word; writing it would leave a caption bounded by something
+    nothing can render. `validateProjection` runs over the projection the restore
+    would produce, with a word index built from the **live** words only (a
+    tombstoned word is as good as a missing one here), and any issue refuses the
+    whole restore with `409 edg/restore_invalid` — `details.danglingWordIds`
+    names the words, `details.issues` carries the validator's findings.
 
 - **A16 — `@montaj/render-core`, `@montaj/render-canvaskit`, the 30 system styles and
   the editor's caption canvas.**

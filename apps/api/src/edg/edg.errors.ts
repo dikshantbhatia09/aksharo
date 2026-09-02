@@ -24,6 +24,11 @@ export const EDG_ERROR_CODES = {
   notInitialised: "edg/not_initialised",
   /** No such snapshot revision for this document. */
   snapshotNotFound: "edg/snapshot_not_found",
+  /**
+   * The snapshot cannot be restored over the document as it now stands: it
+   * addresses words the transcript no longer has live. The body lists them.
+   */
+  restoreInvalid: "edg/restore_invalid",
   /** No such pass on this document. */
   passNotFound: "edg/pass_not_found",
   /** The workspace's op-batch budget is spent (the `rate-limited` rejection reason). */
