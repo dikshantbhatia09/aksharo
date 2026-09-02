@@ -56,8 +56,8 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A10 | worker-ai vendor adapters, LID, routing, alignment registry, diarisation | A09 | done |
 | A11 | api transcripts, post-processing, segmentation → EDG init | A02b, A08, A09 | in-progress |
 | A12 | api EDG module (ops, rebase, CAS, revisions, realtime) | A02b, A08 | done |
-| A13 | web shell + `@montaj/ui` + auth pages + onboarding + settings | A04, A05 | in-progress |
-| A14 | web Home + Projects + upload engine | A06, A08, A13 | briefed |
+| A13 | web shell + `@montaj/ui` + auth pages + onboarding + settings | A04, A05 | done |
+| A14 | web Home + Projects + upload engine | A06, A08, A13 | in-progress |
 | A15 | web Editor transcript column + EDG client store | A12, A13 | briefed |
 | A16 | render-core + render-canvaskit + 30 styles + panels | A02, A02c | done |
 | A17 | web Timeline | A15, A16 | briefed |
@@ -69,7 +69,7 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A22 | scripts + translation | A10, A11, A12 | briefed |
 | A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | briefed |
 | A23a | api test isolation: one Postgres + one Redis container per vitest run (or `TEST_*` URLs), database per suite from a migrated template, Redis prefix per suite; CI service containers | A05, A12, A25 | done |
-| A24 | marketing site v1 | A16 | briefed |
+| A24 | marketing site v1 | A16 | in-progress |
 | A25 | notify consumer: transactional email (SES via IRSA / SMTP / dev outbox), templates en+hi, suppression, in-app notifications | A04, A08 | done |
 | A26 | GPU model server `apps/model-server` (/transcribe, /align, /diarise, /detect-language; batching; RunPod + Modal packaging replacing X05 placeholders) | A10, X05 | done |
 Sub-wave order: {A10, A11, A12, A13, A16, A18b, A20, A25, A26} → {A14, A15, A21, A22, A24} → {A17, A18a, A19} → {A23 + Gate A}.
