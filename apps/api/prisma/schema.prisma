@@ -153,6 +153,8 @@ enum MediaRole {
   audio
   font
   image
+  /// An imported SRT/VTT/ASS/TXT cue list, stored as a JSON sidecar (A06).
+  subtitle
 }
 
 /// Which object store holds the bytes (CONTRACTS §6).
@@ -780,6 +782,7 @@ model Workspace {
   webhookEndpoints    WebhookEndpoint[]
   auditEntries        AuditLog[]
   dlqEntries          DlqEntry[]
+  folders             Folder[]
   notifications       Notification[]
 
   @@index([ownerId])
@@ -916,11 +919,36 @@ model BridgePairing {
 // Media & editing (EDG v2) — 06 §Media & editing
 // ===========================================================================
 
+/// Project folders (A06). 06 lists `projects.folder_id` but has no table for it,
+/// so A03 left the column FK-less and A06 introduces the table and converts it.
+/// Folders nest, belong to a workspace, and never cross one.
+model Folder {
+  id          String    @id @db.Char(26)
+  workspaceId String    @map("workspace_id") @db.Char(26)
+  name        String
+  /// Null for a top-level folder. A cycle is refused by the service, not the DB.
+  parentId    String?   @map("parent_id") @db.Char(26)
+  /// Manual ordering within a parent; ties break on `name`.
+  position    Int       @default(0)
+  createdBy   String?   @map("created_by") @db.Char(26)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parent    Folder?   @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Folder[]  @relation("FolderTree")
+  projects  Project[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, parentId])
+  @@map("folders")
+}
+
 model Project {
   id             String        @id @db.Char(26)
   workspaceId    String        @map("workspace_id") @db.Char(26)
   title          String
-  /// 06 has no `folders` table yet; A06 introduces one and turns this into an FK.
+  /// FK into `folders` since A06; 06 lists the column but has no table for it.
   folderId       String?       @map("folder_id") @db.Char(26)
   /// Agency client separation (04 §Plans).
   clientTag      String?       @map("client_tag")
@@ -939,6 +967,7 @@ model Project {
   deletedAt      DateTime?     @map("deleted_at") @db.Timestamptz(6)
 
   workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  folder              Folder?              @relation(fields: [folderId], references: [id], onDelete: SetNull)
   mediaAssets         MediaAsset[]
   transcripts         Transcript[]
   edgDocument         EdgDocument?
@@ -955,40 +984,58 @@ model Project {
   @@index([lastActivityAt])
   @@index([retentionUntil])
   @@index([workspaceId, status, lastActivityAt])
+  @@index([workspaceId, folderId])
+  @@index([workspaceId, clientTag])
   @@map("projects")
 }
 
 model MediaAsset {
-  id             String        @id @db.Char(26)
-  projectId      String        @map("project_id") @db.Char(26)
-  role           MediaRole     @default(primary)
-  bucket         StorageBucket @default(s3)
-  storageKey     String        @map("storage_key")
-  sizeBytes      BigInt?       @map("size_bytes")
-  contentHash    String?       @map("content_hash")
-  mime           String?
-  durationMs     Int?          @map("duration_ms")
-  fps            Float?
-  width          Int?
-  height         Int?
-  audioChannels  Int?          @map("audio_channels")
-  proxyKey       String?       @map("proxy_key")
-  audio16kKey    String?       @map("audio16k_key")
-  audio48kKey    String?       @map("audio48k_key")
-  waveformKey    String?       @map("waveform_key")
-  status         MediaStatus   @default(pending)
-  uploadedAt     DateTime?     @map("uploaded_at") @db.Timestamptz(6)
+  id              String        @id @db.Char(26)
+  projectId       String        @map("project_id") @db.Char(26)
+  role            MediaRole     @default(primary)
+  bucket          StorageBucket @default(s3)
+  storageKey      String        @map("storage_key")
+  /// The name the uploader gave the file; only its extension reaches a key (A06).
+  filename        String?
+  /// In-flight S3 multipart upload, cleared when `complete` lands (A06).
+  uploadId        String?       @map("upload_id")
+  /// Part size the upload was signed with, so `complete` can check the part count.
+  partSizeBytes   Int?          @map("part_size_bytes")
+  sizeBytes       BigInt?       @map("size_bytes")
+  contentHash     String?       @map("content_hash")
+  mime            String?
+  durationMs      Int?          @map("duration_ms")
+  fps             Float?
+  width           Int?
+  height          Int?
+  audioChannels   Int?          @map("audio_channels")
+  proxyKey        String?       @map("proxy_key")
+  audio16kKey     String?       @map("audio16k_key")
+  audio48kKey     String?       @map("audio48k_key")
+  waveformKey     String?       @map("waveform_key")
+  /// `thumb-{n}.jpg` keys in index order (CONTRACTS section 6); A07 writes them.
+  thumbKeys       String[]      @default([]) @map("thumb_keys")
+  status          MediaStatus   @default(pending)
+  /// Set when the bytes are replaced under a live transcript: A11 must re-align.
+  needsRealign    Boolean       @default(false) @map("needs_realign")
+  uploadedAt      DateTime?     @map("uploaded_at") @db.Timestamptz(6)
   /// Raw uploads purge 7 days after the last job (D47).
-  rawPurgeAt     DateTime?     @map("raw_purge_at") @db.Timestamptz(6)
+  rawPurgeAt      DateTime?     @map("raw_purge_at") @db.Timestamptz(6)
   /// Proxy, 16 kHz audio and waveform live for the plan retention period (D47).
-  derivedPurgeAt DateTime?     @map("derived_purge_at") @db.Timestamptz(6)
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  derivedPurgeAt  DateTime?     @map("derived_purge_at") @db.Timestamptz(6)
+  /// When `purgeDueMedia()` actually deleted the raw object; makes the sweep idempotent.
+  rawPurgedAt     DateTime?     @map("raw_purged_at") @db.Timestamptz(6)
+  /// When `purgeDueMedia()` actually deleted the derived objects.
+  derivedPurgedAt DateTime?     @map("derived_purged_at") @db.Timestamptz(6)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
 
   project             Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   providerSubmissions ProviderSubmission[]
 
   @@index([projectId])
   @@index([contentHash])
+  @@index([rawPurgeAt])
+  @@index([derivedPurgeAt])
   @@map("media_assets")
 }
 

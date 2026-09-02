@@ -1,6 +1,5 @@
 import { Global, Module } from "@nestjs/common";
 
-import { AccessTokenGuard } from "./auth/access-token.guard.js";
 import { AccessTokenService } from "./auth/access-token.service.js";
 import { REALTIME_BUS, RedisRealtimeBus } from "./realtime.bus.js";
 import { RealtimeGateway } from "./realtime.gateway.js";
@@ -15,18 +14,21 @@ import { RoomAccessService } from "./room-access.service.js";
  *
  * `REALTIME_BUS` is bound to Redis here and to an in-memory broker in tests, which
  * is what lets the fan-out be exercised with two gateway instances in one process.
+ *
+ * A08's interim HTTP guard is gone (A06): every HTTP route now wears A04's
+ * `JwtAuthGuard`. `AccessTokenService` stays, because a WebSocket handshake is not
+ * a Nest route and the gateway has to verify the token itself.
  */
 @Global()
 @Module({
   providers: [
     AccessTokenService,
-    AccessTokenGuard,
     RoomAccessService,
     RedisRealtimeBus,
     { provide: REALTIME_BUS, useExisting: RedisRealtimeBus },
     RealtimeGateway,
     RealtimePublisher,
   ],
-  exports: [AccessTokenService, AccessTokenGuard, RealtimePublisher, RealtimeGateway, REALTIME_BUS],
+  exports: [AccessTokenService, RealtimePublisher, RealtimeGateway, REALTIME_BUS],
 })
 export class RealtimeModule {}

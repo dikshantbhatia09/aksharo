@@ -110,6 +110,9 @@ function accessToken(workspaceId = WORKSPACE): string {
     jti: id("JT1"),
     iat: now,
     exp: now + 900,
+    // A06 moved `/jobs` onto A04's `JwtAuthGuard`, which pins the issuer to
+    // `API_ORIGIN`; the interim guard it replaced did not check `iss`.
+    iss: process.env["API_ORIGIN"] ?? "http://localhost:3001",
   };
   const b64 = (value: unknown): string =>
     Buffer.from(JSON.stringify(value), "utf8").toString("base64url");

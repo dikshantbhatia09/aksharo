@@ -31,6 +31,13 @@ import type { ExecutionContext } from "@nestjs/common";
  * workspace id is in the caller's own token, so there is nothing to enumerate,
  * and a 404 would make "this workspace does not exist" and "you were removed from
  * it" indistinguishable to a member who was just removed.
+ *
+ * A06 widened the guard's reach without changing either rule. `/projects/*` is
+ * workspace-scoped through the token and has no workspace id in its path, so on a
+ * route with no `:id` the guard skips check (1) — there is nothing to compare —
+ * and still performs check (2). Before A06 that case returned `true`, which was
+ * correct while the only routes wearing the guard were `/workspaces/:id/*`, and
+ * would have been a silent hole the moment another controller wore it.
  */
 @Injectable()
 export class WorkspaceMemberGuard implements CanActivate {
@@ -47,11 +54,12 @@ export class WorkspaceMemberGuard implements CanActivate {
       );
     }
 
-    const workspaceId = (request.params as Record<string, string | undefined>)["id"];
-    // A route on this controller with no `:id` (the collection routes) is not this
-    // guard's business; it never reaches here because those routes do not wear it,
-    // and returning true is the honest answer if one ever does.
-    if (workspaceId === undefined) return true;
+    // A route with no `:id` in its path is workspace-scoped through the token
+    // alone — every `/projects/*` route is (A06), and its `:projectId` is not a
+    // workspace id. Check (2) below still applies to those, and only check (1)
+    // is skipped, because there is no path segment to compare.
+    const pathWorkspaceId = (request.params as Record<string, string | undefined>)["id"];
+    const workspaceId = pathWorkspaceId ?? principal.workspaceId;
 
     if (workspaceId !== principal.workspaceId) throw notAMember();
 
