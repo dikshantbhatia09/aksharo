@@ -1,30 +1,30 @@
-import { TENTHS_PER_CREDIT, formatCredits } from "@montaj/config";
+import type { BurnRate, CreditOperation } from "@montaj/config";
+import { BURN_RATES, creditCostTenths, formatCredits } from "@montaj/config";
 import type { InsightKind } from "@montaj/prompts";
 
 /**
  * What one `ai.llm` run costs (brief §4: "credits (per config: chapters 2,
  * summary 1, hooks 2 per run)").
  *
- * ### A note on `packages/config`'s `BURN_RATES.chaptersSummaryHook`
- *
- * `packages/config/src/credits.ts` already has a `chaptersSummaryHook` burn
- * rate, but it is a single flat "2 credits per job" for all three kinds
- * (`basis: "job"`, `ratePerUnitTenths: 20`), which conflicts with this
- * brief's per-kind pricing (chapters 2, summary **1**, hooks 2). Per the WP
- * brief template ("if the brief and the architecture docs conflict, stop and
- * report the conflict rather than choosing"), that conflict is reported in
- * this work package's final message rather than silently resolved here.
- * `packages/config` is outside this brief's file boundary
- * (`packages/prompts/**`, `apps/worker-ai/worker_ai/llm/**`,
- * `apps/api/src/insights/**`, `apps/api/prisma/**`), so it is not edited by
- * this change; the per-kind prices the brief asks for are implemented locally
- * here, still denominated the same way (`CreditOperation`, tenths of a
- * credit) so a future reconciliation is a one-line change.
+ * Per the 2026-09-02 ruling, `packages/config`'s `BURN_RATES` is the single
+ * source for these rates — its old flat `chaptersSummaryHook` (2 credits/job
+ * for every kind) was replaced with per-kind operations
+ * (`insightsChapters`/`insightsSummary`/`insightsHooks`), so this module no
+ * longer carries its own local price table; it only maps an {@link InsightKind}
+ * onto the matching `CreditOperation` and reads the rate through
+ * `creditCostTenths`.
  */
+const INSIGHT_KIND_OPERATION: Readonly<Record<InsightKind, CreditOperation>> = {
+  chapters: "insightsChapters",
+  summary: "insightsSummary",
+  hooks: "insightsHooks",
+};
+
+/** Tenths of a credit per insight kind, read from `@montaj/config`'s `BURN_RATES`. */
 export const INSIGHT_KIND_TENTHS: Readonly<Record<InsightKind, number>> = {
-  chapters: 2 * TENTHS_PER_CREDIT,
-  summary: 1 * TENTHS_PER_CREDIT,
-  hooks: 2 * TENTHS_PER_CREDIT,
+  chapters: creditCostTenths({ operation: "insightsChapters" }),
+  summary: creditCostTenths({ operation: "insightsSummary" }),
+  hooks: creditCostTenths({ operation: "insightsHooks" }),
 };
 
 export interface InsightQuote {
@@ -34,8 +34,12 @@ export interface InsightQuote {
   readonly reason: string;
 }
 
+function tenthsFor(kind: InsightKind): number {
+  return INSIGHT_KIND_TENTHS[kind];
+}
+
 export function quoteInsight(kind: InsightKind): InsightQuote {
-  const tenths = INSIGHT_KIND_TENTHS[kind];
+  const tenths = tenthsFor(kind);
   return {
     kind,
     tenths,
@@ -46,5 +50,10 @@ export function quoteInsight(kind: InsightKind): InsightQuote {
 
 /** Total tenths for a batch of kinds requested in one call. */
 export function quoteInsightBatch(kinds: readonly InsightKind[]): number {
-  return kinds.reduce((total, kind) => total + INSIGHT_KIND_TENTHS[kind], 0);
+  return kinds.reduce((total, kind) => total + tenthsFor(kind), 0);
+}
+
+/** The `@montaj/config` burn rate backing an insight kind, for diagnostics/tests. */
+export function burnRateFor(kind: InsightKind): BurnRate {
+  return BURN_RATES[INSIGHT_KIND_OPERATION[kind]];
 }
