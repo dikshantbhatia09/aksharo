@@ -61,6 +61,14 @@ export async function runPackageCcx(
       "<!-- placeholder UXP entry point -->\n",
       "utf8",
     );
+  } else {
+    // A real plugin source tree (C05a+) has its `package.json`/`src`/`node_modules`/tests
+    // alongside the shippable files — zipping `absPluginDir` as-is would ship the whole dev
+    // tree (and pnpm's symlinked `node_modules` breaks the dependency-free ZIP fallback in
+    // `zip.ts`, which doesn't follow symlinks). Stage only the shippable subset instead.
+    sourceDir = path.join(ctx.outDir, "build-ccx", "staged-plugin");
+    await ensureDir(sourceDir);
+    await stageShippableFiles(absPluginDir, sourceDir);
   }
 
   const manifestRaw = await fs.readFile(path.join(sourceDir, "manifest.json"), "utf8");
@@ -86,4 +94,15 @@ export async function runPackageCcx(
     manifestErrors: validation.errors,
     placeholderPlugin,
   };
+}
+
+/** Files/directories a UXP plugin ships; everything else in the source tree is dev-only. */
+const SHIPPABLE_ENTRIES = ["manifest.json", "index.html", "dist", "icons"];
+
+async function stageShippableFiles(fromDir: string, toDir: string): Promise<void> {
+  for (const entry of SHIPPABLE_ENTRIES) {
+    const src = path.join(fromDir, entry);
+    if (!(await pathExists(src))) continue;
+    await fs.cp(src, path.join(toDir, entry), { recursive: true, dereference: true });
+  }
 }
