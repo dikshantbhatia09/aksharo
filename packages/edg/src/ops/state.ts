@@ -142,6 +142,7 @@ export function fromProjection(
       styles: projection.styles,
       ...(projection.audio === undefined ? {} : { audio: projection.audio }),
       ...(projection.render === undefined ? {} : { render: projection.render }),
+      ...(projection.protected === undefined ? {} : { protected: projection.protected }),
     },
     segments,
     segmentOrder: ordered.map((segment) => segment.id),

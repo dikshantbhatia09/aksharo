@@ -34,14 +34,13 @@ import type { MediaAsset, Project, Transcript } from "@prisma/client";
  * that fails, is cancelled or times out must not leave a row a reader has to
  * learn to ignore.
  *
- * ### Protection facts (CONTRACTS gap — see the final report)
+ * ### Protection (B18b)
  *
- * `EdgHot.protected[]`, the user-marked protected-range list the brief names,
- * does not exist in `packages/edg`'s frozen `EdgHot` (`docs/CONTRACTS.md §2`).
- * `protectedRanges` is therefore always sent empty; the guard the worker *can*
- * honour today is "never cut a segment carrying `emphasis` or
- * `textOverrides`" (CONTRACTS §2, `Segment`), which this service computes from
- * the live document and sends as `guardedRanges`.
+ * `protectedRanges` carries the user-marked `EdgHot.protected[]` set (written by
+ * `SetProtectedRanges`, CONTRACTS §2) *plus* the implicit ranges derived from
+ * segments carrying `emphasis` or `textOverrides` — the guard `Segment` itself
+ * can express. `guardedRanges` keeps sending the implicit half alone, for
+ * whoever still reads it. Every `ai.pass` is refused an item inside either.
  */
 
 export interface StartAutocutRequest {
@@ -87,6 +86,7 @@ export class PassesService {
     const quote = quoteAutocut(media.durationMs ?? 0);
     const passId = newId();
     const words = await this.wordsOf(transcript);
+    const storedProtected = await this.storedProtectedRangesOf(project.id, request.workspaceId);
     const guardedRanges = await this.guardedRangesOf(project.id, request.workspaceId);
 
     const jobKey = `ai.pass:autocut:${project.id}`;
@@ -106,7 +106,7 @@ export class PassesService {
         mediaId: media.id,
         words,
         ...(request.options === undefined ? {} : { options: request.options }),
-        protectedRanges: [],
+        protectedRanges: [...storedProtected, ...guardedRanges],
         guardedRanges,
       },
     });
@@ -209,6 +209,22 @@ export class PassesService {
       }
     }
     return words;
+  }
+
+  /**
+   * The user-marked ranges stored on `EdgHot.protected` (`SetProtectedRanges`,
+   * CONTRACTS §2). Empty when the document has no live EDG yet.
+   */
+  private async storedProtectedRangesOf(
+    projectId: string,
+    workspaceId: string,
+  ): Promise<[number, number][]> {
+    try {
+      const { hot } = await this.edg.document(projectId, workspaceId);
+      return (hot.protected ?? []).map((range) => [range.s, range.e]);
+    } catch {
+      return []; // `edg/not_initialised`: no live document yet, nothing stored.
+    }
   }
 
   /**

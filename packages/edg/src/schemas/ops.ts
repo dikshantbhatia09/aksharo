@@ -120,6 +120,16 @@ export const InsertWordAfterOpSchema = op("InsertWordAfter", {
   e: MsSchema,
 });
 
+/**
+ * Replaces the whole user-marked `protected[]` set wholesale (CONTRACTS §2,
+ * added after B18). The engine clamps each range to the media duration, merges
+ * overlapping ranges, and stamps `reason: "user"` — the wire shape carries no
+ * `reason` because only user-marked rows are ever stored this way.
+ */
+export const SetProtectedRangesOpSchema = op("SetProtectedRanges", {
+  ranges: z.array(z.object({ id: UlidSchema, s: MsSchema, e: MsSchema })),
+});
+
 /** Retimes one word; segment bounds are unaffected (they are their own op). */
 export const SetWordTimingOpSchema = op("SetWordTiming", {
   wordId: WordIdSchema,
@@ -191,6 +201,7 @@ export const EdgOpSchema = z
     EditWordOpSchema,
     DeleteWordOpSchema,
     InsertWordAfterOpSchema,
+    SetProtectedRangesOpSchema,
     SetWordTimingOpSchema,
     ResegmentOpSchema,
     DecideItemsOpSchema,
@@ -213,6 +224,7 @@ export const EDG_OP_TYPES = [
   "EditWord",
   "DeleteWord",
   "InsertWordAfter",
+  "SetProtectedRanges",
   "SetWordTiming",
   "Resegment",
   "DecideItems",
@@ -326,6 +338,7 @@ export type SetStyleOp = z.infer<typeof SetStyleOpSchema>;
 export type EditWordOp = z.infer<typeof EditWordOpSchema>;
 export type DeleteWordOp = z.infer<typeof DeleteWordOpSchema>;
 export type InsertWordAfterOp = z.infer<typeof InsertWordAfterOpSchema>;
+export type SetProtectedRangesOp = z.infer<typeof SetProtectedRangesOpSchema>;
 export type SetWordTimingOp = z.infer<typeof SetWordTimingOpSchema>;
 export type ResegmentOp = z.infer<typeof ResegmentOpSchema>;
 export type DecideItemsOp = z.infer<typeof DecideItemsOpSchema>;

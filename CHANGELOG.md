@@ -10,6 +10,26 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B18b — Protected ranges end to end: `SetProtectedRanges` op, editor
+  marking UI, passes honour the stored set.** `packages/edg`: `EdgHot.protected[]`
+  (CONTRACTS §2) and the `SetProtectedRanges{ranges:[{id,s,e}]}` op — apply
+  clamps every range to the primary media's duration, merges overlapping or
+  touching ranges, drops empty ones, and stamps `reason: "user"`; rebase adds
+  the `doc:protected` field (last write wins); a property test
+  (`ops/properties.test.ts`) holds the stored set sorted and non-overlapping
+  after any sequence of ops; `edg-v2.json`/`edg-ops-v2.json` regenerated.
+  `apps/api/src/passes/passes.service.ts`: `protectedRanges` sent to every
+  `ai.pass` is now the stored `EdgHot.protected` set concatenated with the
+  existing emphasis/textOverrides-derived `guardedRanges`; e2e in
+  `passes.e2e-spec.ts` proves a `SetProtectedRanges` op reaches the enqueued
+  autocut job's `protectedRanges`. `apps/web`: `lib/edg/ops.ts` gets
+  `setProtectedRanges`, `toggleProtectedRange` (adds, merges, subtracts or
+  removes a range against the current selection) and `isFullyProtected`, plus
+  a `SetProtectedRanges` inverse for undo; `Timeline.tsx` draws a
+  `--color-info` band for every protected range and wires the "P" key (and a
+  "Protect (P)" button) to toggle protection on the selected segment or word;
+  one chromium Playwright case in `timeline.spec.ts`.
+
 - **A23 — Gate A e2e journey, sample-project seed, wave verification script,
   X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)
   through onboarding, a real MinIO upload, transcription completion via the

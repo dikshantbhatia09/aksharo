@@ -70,6 +70,13 @@ const LANE_GAP = 2;
 const EDGE_HIT_PX = 6;
 const MIN_PX_PER_WORD_LABEL = 28;
 
+/** One user-marked protected range, as stored on `EdgHot.protected` (CONTRACTS §2). */
+export interface ProtectedRange {
+  readonly id: string;
+  readonly s: number;
+  readonly e: number;
+}
+
 export interface SegmentBoundsOp {
   readonly segmentId: string;
   readonly startMs: number;
@@ -90,6 +97,14 @@ export interface TimelineProps {
   readonly segments: readonly Segment[];
   readonly passItems?: readonly PassItem[];
   readonly waveform?: WaveformLike;
+  /** `EdgHot.protected` (CONTRACTS §2, B18b) — drawn as a band under the ruler. */
+  readonly protectedRanges?: readonly ProtectedRange[];
+  /**
+   * Toggles protection on the current selection's `[startMs, endMs]` (the "P"
+   * key, or a caller's own button): a selected segment when nothing narrower
+   * is picked. `undefined` disables the shortcut (no selection to protect).
+   */
+  readonly onToggleProtection?: (s: number, e: number) => void;
   readonly durationMs: number;
   readonly playheadMs: number;
   readonly playing?: boolean;
@@ -136,6 +151,8 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     segments,
     passItems = [],
     waveform,
+    protectedRanges = [],
+    onToggleProtection,
     durationMs,
     playheadMs,
     playing = false,
@@ -172,6 +189,11 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   const [widthPx, setWidthPx] = useState(0);
   const [msPerPx, setMsPerPx] = useState(30);
   const [scrollMs, setScrollMs] = useState(0);
+  // Read once per mount: `--color-info` (`packages/ui/src/styles/tokens.css`)
+  // resolved against the DOM, since a Canvas2D `fillStyle` cannot read a CSS
+  // custom property itself. Falls back to the token's own default so a test
+  // environment with no stylesheet still draws something legible.
+  const [protectedColor, setProtectedColor] = useState("#4ea1ff");
   const [selectedEdge, setSelectedEdge] = useState<"start" | "end" | undefined>(undefined);
   const [selectedWordEdge, setSelectedWordEdge] = useState<"start" | "end" | undefined>(undefined);
   const [, forceRedraw] = useState(0);
@@ -184,6 +206,13 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    const element = containerRef.current;
+    if (element === null || typeof window === "undefined") return;
+    const value = window.getComputedStyle(element).getPropertyValue("--color-info").trim();
+    if (value !== "") setProtectedColor(value);
   }, []);
 
   const viewport: Viewport = useMemo(
@@ -258,6 +287,28 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       ctx.lineTo(px, RULER_HEIGHT);
       ctx.stroke();
       ctx.fillText(formatMs(tickMs), px + 2, RULER_HEIGHT - 10);
+    }
+
+    // Protected ranges (B18b): a translucent band the full lane height, under
+    // everything else, so a range's word/segment/pass content still reads.
+    for (const range of protectedRanges) {
+      if (range.e < startMs || range.s > endMs) continue;
+      const x0 = msToPx(range.s, viewport);
+      const x1 = msToPx(range.e, viewport);
+      const w = Math.max(1, x1 - x0);
+      ctx.fillStyle = protectedColor;
+      ctx.globalAlpha = 0.18;
+      ctx.fillRect(x0, RULER_HEIGHT, w, laneTops.totalHeight - RULER_HEIGHT);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = protectedColor;
+      ctx.globalAlpha = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(x0 + 0.5, RULER_HEIGHT);
+      ctx.lineTo(x0 + 0.5, laneTops.totalHeight);
+      ctx.moveTo(x1 - 0.5, RULER_HEIGHT);
+      ctx.lineTo(x1 - 0.5, laneTops.totalHeight);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
     // Waveform
@@ -401,6 +452,8 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     liveWords,
     segments,
     lanes,
+    protectedRanges,
+    protectedColor,
     selectedSegmentId,
     selectedWordId,
     playheadMs,
@@ -763,6 +816,32 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         return;
       }
 
+      // "P" toggles protection (B18b) on the current selection: the selected
+      // segment's range, or the selected word's range when no segment is
+      // picked. Never fires while a modifier is held, so it never fights a
+      // browser or OS shortcut on the same key.
+      if (
+        (event.key === "p" || event.key === "P") &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        onToggleProtection !== undefined
+      ) {
+        const selectedSegment = segments.find((s) => s.id === selectedSegmentId);
+        const selectedWord = liveWords.find((w) => w.wid === selectedWordId);
+        const range =
+          selectedSegment !== undefined
+            ? { s: selectedSegment.startMs, e: selectedSegment.endMs }
+            : selectedWord !== undefined
+              ? { s: selectedWord.s, e: selectedWord.e }
+              : undefined;
+        if (range !== undefined) {
+          event.preventDefault();
+          onToggleProtection(range.s, range.e);
+        }
+        return;
+      }
+
       if (selectedSegmentId === undefined) return;
       const segment = segments.find((s) => s.id === selectedSegmentId);
       if (segment === undefined) return;
@@ -805,6 +884,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       wordNeighbours,
       onSetSegmentBounds,
       onSetWordTiming,
+      onToggleProtection,
       resolvedNudgeSink,
     ],
   );
@@ -891,6 +971,27 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
             />
             Output time
           </label>
+        ) : null}
+        {onToggleProtection !== undefined &&
+        (selectedSegmentId !== undefined || selectedWordId !== undefined) ? (
+          <button
+            type="button"
+            data-testid="timeline-toggle-protection"
+            className="rounded bg-white/10 px-2 py-0.5"
+            onClick={() => {
+              const selectedSegment = segments.find((s) => s.id === selectedSegmentId);
+              const selectedWord = liveWords.find((w) => w.wid === selectedWordId);
+              const range =
+                selectedSegment !== undefined
+                  ? { s: selectedSegment.startMs, e: selectedSegment.endMs }
+                  : selectedWord !== undefined
+                    ? { s: selectedWord.s, e: selectedWord.e }
+                    : undefined;
+              if (range !== undefined) onToggleProtection(range.s, range.e);
+            }}
+          >
+            Protect (P)
+          </button>
         ) : null}
         {selectedSegmentId !== undefined && onMergeSegments !== undefined ? (
           <button

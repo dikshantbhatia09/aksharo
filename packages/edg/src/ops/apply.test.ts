@@ -4,7 +4,7 @@ import { type EdgOp, type OpRejectionReason } from "../schemas/ops.js";
 import { type Pass } from "../schemas/pass.js";
 import { buildFixture, idFactory } from "../testing.js";
 import { validateProjection } from "../validate.js";
-import { applyOps, DOC_STYLE_OVERRIDE_KEY } from "./apply.js";
+import { applyOps, DOC_STYLE_OVERRIDE_KEY, normaliseProtectedRanges } from "./apply.js";
 import { fromProjection, toProjection, type EdgState } from "./state.js";
 
 const nextOpId = idFactory(900_000);
@@ -810,5 +810,135 @@ describe("MergeSegments spans word ranges that seq order does not", () => {
       startWordId: "0:0",
       endWordId: "0:7",
     });
+  });
+});
+
+describe("SetProtectedRanges", () => {
+  const rangeId = idFactory(970_000);
+  const [RANGE_A, RANGE_B, RANGE_C] = [rangeId(), rangeId(), rangeId()];
+
+  it("stores the ranges sorted, with reason user stamped on each", () => {
+    const { state } = setup();
+    const result = apply(state, [
+      op("SetProtectedRanges", {
+        ranges: [
+          { id: RANGE_B, s: 5_000, e: 6_000 },
+          { id: RANGE_A, s: 1_000, e: 2_000 },
+        ],
+      }),
+    ]);
+    expect(result.rejected).toEqual([]);
+    expect(result.state.hot.protected).toEqual([
+      { id: RANGE_A, s: 1_000, e: 2_000, reason: "user" },
+      { id: RANGE_B, s: 5_000, e: 6_000, reason: "user" },
+    ]);
+  });
+
+  it("merges overlapping and touching ranges into one", () => {
+    const { state } = setup();
+    const result = apply(state, [
+      op("SetProtectedRanges", {
+        ranges: [
+          { id: RANGE_A, s: 1_000, e: 3_000 },
+          { id: RANGE_B, s: 2_500, e: 4_000 },
+          { id: RANGE_C, s: 4_000, e: 5_000 },
+        ],
+      }),
+    ]);
+    expect(result.rejected).toEqual([]);
+    expect(result.state.hot.protected).toEqual([
+      { id: RANGE_A, s: 1_000, e: 5_000, reason: "user" },
+    ]);
+  });
+
+  it("clamps ranges to the primary media duration and drops what collapses to empty", () => {
+    const { state } = setup(); // fixture media durationMs is 90_000
+    const result = apply(state, [
+      op("SetProtectedRanges", {
+        ranges: [
+          { id: RANGE_A, s: -100, e: 1_000 },
+          { id: RANGE_B, s: 89_500, e: 120_000 },
+          { id: RANGE_C, s: 200_000, e: 210_000 },
+        ],
+      }),
+    ]);
+    expect(result.rejected).toEqual([]);
+    expect(result.state.hot.protected).toEqual([
+      { id: RANGE_A, s: 0, e: 1_000, reason: "user" },
+      { id: RANGE_B, s: 89_500, e: 90_000, reason: "user" },
+    ]);
+  });
+
+  it("replaces the whole set wholesale", () => {
+    const { state } = setup();
+    const first = apply(state, [
+      op("SetProtectedRanges", { ranges: [{ id: RANGE_A, s: 1_000, e: 2_000 }] }),
+    ]);
+    const second = apply(first.state, [
+      op("SetProtectedRanges", { ranges: [{ id: RANGE_B, s: 3_000, e: 4_000 }] }),
+    ]);
+    expect(second.state.hot.protected).toEqual([
+      { id: RANGE_B, s: 3_000, e: 4_000, reason: "user" },
+    ]);
+  });
+
+  it("clears the set with an empty ranges array", () => {
+    const { state } = setup();
+    const first = apply(state, [
+      op("SetProtectedRanges", { ranges: [{ id: RANGE_A, s: 1_000, e: 2_000 }] }),
+    ]);
+    const second = apply(first.state, [op("SetProtectedRanges", { ranges: [] })]);
+    expect(second.state.hot.protected).toEqual([]);
+  });
+
+  it("rejects a range with s >= e as invalid-range", () => {
+    const { state } = setup();
+    const result = applyOps(state, [
+      op("SetProtectedRanges", { ranges: [{ id: RANGE_A, s: 2_000, e: 2_000 }] }),
+    ]);
+    expect(reasons(result)).toEqual(["invalid-range"]);
+    expect(result.state.hot.protected ?? []).toEqual([]);
+  });
+});
+
+describe("normaliseProtectedRanges", () => {
+  it("is idempotent: normalising an already-normal set changes nothing", () => {
+    const once = normaliseProtectedRanges(
+      [
+        { id: "a", s: 1_000, e: 2_000 },
+        { id: "b", s: 5_000, e: 6_000 },
+      ],
+      90_000,
+    );
+    const twice = normaliseProtectedRanges(once, 90_000);
+    expect(twice).toEqual(once);
+  });
+
+  it("always returns a sorted, non-overlapping set for arbitrary inputs", () => {
+    for (const seed of [
+      [
+        { id: "1", s: 10, e: 5 },
+        { id: "2", s: 0, e: 100 },
+      ],
+      [
+        { id: "1", s: -50, e: 50 },
+        { id: "2", s: 40, e: 200 },
+        { id: "3", s: 300, e: 400 },
+      ],
+      [],
+    ]) {
+      const ranges = normaliseProtectedRanges(seed, 90_000);
+      for (const range of ranges) {
+        expect(range.s).toBeLessThan(range.e);
+        expect(range.s).toBeGreaterThanOrEqual(0);
+        expect(range.e).toBeLessThanOrEqual(90_000);
+      }
+      for (let i = 1; i < ranges.length; i += 1) {
+        const previous = ranges[i - 1];
+        const current = ranges[i];
+        if (previous === undefined || current === undefined) continue;
+        expect(previous.e).toBeLessThan(current.s);
+      }
+    }
   });
 });
