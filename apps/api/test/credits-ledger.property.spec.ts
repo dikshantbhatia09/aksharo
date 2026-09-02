@@ -4,7 +4,7 @@
  *
  * N = {@link CONCURRENT_WORKERS} concurrent workers perform
  * {@link TOTAL_OPERATIONS} random `reserve`/`settle`/`release`/`reverse`/
- * `grantLot`/`expireLots` calls against ONE credit account, run against a real
+ * `grantLot`/`expireLots`/`revokeLot` calls against ONE credit account, run against a real
  * Postgres (CONTRACTS §9: property tests use fast-check). After every batch of
  * concurrent operations, three things must hold for that account:
  *
@@ -53,7 +53,15 @@ const BATCHES = Math.ceil(TOTAL_OPERATIONS / CONCURRENT_WORKERS);
 /** How many random sequences fast-check tries; each is the full operation run. */
 const PROPERTY_RUNS = Number(process.env["CREDITS_PROPERTY_RUNS"] ?? 1);
 
-const OP_KINDS = ["reserve", "settle", "release", "reverse", "grant", "expire"] as const;
+const OP_KINDS = [
+  "reserve",
+  "settle",
+  "release",
+  "reverse",
+  "grant",
+  "expire",
+  "revoke",
+] as const;
 type OpKind = (typeof OP_KINDS)[number];
 const GRANT_SOURCES: $Enums.CreditLotSource[] = ["grant", "topup", "pass", "referral", "adjust"];
 
@@ -64,6 +72,9 @@ interface OpSpec {
   readonly settleFactor: number;
   readonly grantSource: $Enums.CreditLotSource;
   readonly grantExpiryDays: number | null;
+  /** B02b: `revokeLot`'s idempotency key — mostly unique, occasionally not, so
+   *  the property exercises both a real claw-back and an idempotent replay. */
+  readonly refundSeed: number;
 }
 
 const opArbitrary: fc.Arbitrary<OpSpec> = fc.record({
@@ -73,6 +84,7 @@ const opArbitrary: fc.Arbitrary<OpSpec> = fc.record({
   settleFactor: fc.double({ min: 0, max: 2, noNaN: true }),
   grantSource: fc.constantFrom(...GRANT_SOURCES),
   grantExpiryDays: fc.option(fc.integer({ min: -3, max: 45 }), { nil: null }),
+  refundSeed: fc.integer({ min: 0, max: 500 }),
 });
 
 let db: TestDatabase;
@@ -145,11 +157,30 @@ async function settledJobIds(): Promise<string[]> {
   return rows.map((r) => r.jobId);
 }
 
+/** Lots still worth targeting with `revokeLot` (B02b). A lot dropping to zero
+ *  between this snapshot and the op running is a normal race — `revokeLot`
+ *  just reports the whole request as shortfall, no error. */
+async function liveLotIds(): Promise<string[]> {
+  const rows = await prisma.creditLot.findMany({
+    where: { accountId, remainingTenths: { gt: 0 } },
+    select: { id: true },
+  });
+  return rows.map((r) => r.id);
+}
+
+/** A 26-char, `CHAR(26)`-safe idempotency key for `revokeLot`. Deliberately
+ *  low-cardinality (mod 500) so the property also exercises the idempotent
+ *  replay path, not just first-time claw-backs. */
+function refundId(seed: number): string {
+  return `01JPROPREFUND${String(seed % 500).padStart(13, "0")}`;
+}
+
 /** One operation, tolerant of the races its own concurrent siblings cause. */
 async function runOp(
   op: OpSpec,
   holds: readonly HoldRef[],
   settled: readonly string[],
+  lots: readonly string[],
 ): Promise<void> {
   try {
     switch (op.kind) {
@@ -205,18 +236,31 @@ async function runOp(
         await credits.expireLots(new Date());
         return;
       }
+      case "revoke": {
+        if (lots.length === 0) return;
+        const lotId = lots[op.selector % lots.length]!;
+        await credits.revokeLot({
+          lotId,
+          tenths: (op.amount % 200) + 1,
+          reason: "property test revoke",
+          refundId: refundId(op.refundSeed),
+        });
+        return;
+      }
     }
   } catch (error) {
     // Expected, non-fatal outcomes of genuine concurrency and randomness:
     // insufficient balance, a hold two workers both picked (one wins, the
     // other's target is gone by the time it runs), a reversal source that
-    // another worker already reversed away. Anything else is a real failure
-    // and is rethrown so the batch (and the property) fails loudly.
+    // another worker already reversed away, a lot another worker's revoke
+    // already drained. Anything else is a real failure and is rethrown so
+    // the batch (and the property) fails loudly.
     const code = (error as { code?: unknown } | undefined)?.code;
     const known = [
       "credits/insufficient",
       "credits/hold_not_found",
       "credits/reversal_source_not_found",
+      "credits/lot_not_found",
     ];
     if (typeof code === "string" && known.includes(code)) return;
     throw error;
@@ -226,8 +270,12 @@ async function runOp(
 async function runBatches(ops: readonly OpSpec[]): Promise<void> {
   for (let batch = 0; batch < BATCHES; batch += 1) {
     const slice = ops.slice(batch * CONCURRENT_WORKERS, (batch + 1) * CONCURRENT_WORKERS);
-    const [holds, settled] = await Promise.all([liveHolds(), settledJobIds()]);
-    await Promise.all(slice.map((op) => runOp(op, holds, settled)));
+    const [holds, settled, lots] = await Promise.all([
+      liveHolds(),
+      settledJobIds(),
+      liveLotIds(),
+    ]);
+    await Promise.all(slice.map((op) => runOp(op, holds, settled, lots)));
     assertInvariant(await snapshot(), `after batch ${String(batch + 1)}/${String(BATCHES)}`);
   }
 }

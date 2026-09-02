@@ -24,7 +24,7 @@ and they answer different questions:
   `LedgerCreditsFacade.settle`/`.release` claims it, in the same transaction
   that moves the account balance. **`AdmissionService.admit` sums this**
   (B02b) for the enqueued-credit cap (THREAT-MODEL T23): it is the number that
-  cannot drift from what the facade would itself report, because it *is* what
+  cannot drift from what the facade would itself report, because it _is_ what
   the facade reports.
 - **`jobs.credits_charged_tenths`.** A denormalised DISPLAY column on the
   `jobs` row: the worst-case hold at enqueue, overwritten with the settled

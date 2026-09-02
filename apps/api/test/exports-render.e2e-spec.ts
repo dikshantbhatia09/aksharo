@@ -30,6 +30,7 @@ import { loadSystemStyleMap } from "@montaj/caption-styles";
 import { creditCostTenths } from "@montaj/config";
 import { verifyRenderManifest } from "@montaj/render-manifest";
 
+import { AMPLE_TEST_CREDIT_TENTHS, fundWorkspaceCredits } from "./credits-fixture.js";
 import { isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { createEdgTestContext, edgSkipReason, type EdgTestContext } from "./edg-harness.js";
 import {
@@ -125,42 +126,11 @@ describe.skipIf(!CAN_RUN)("exports — cloud render path (real apps/render worke
 
     // B02's real ledger enforces an actual balance: a plan alone is not
     // credits (a subscription grants one on the billing anniversary; this
-    // suite has no subscription at all). Fund the account directly, as
-    // `prisma/seed.ts` funds the demo workspace — this suite is about the
-    // cloud render pipeline and its settlement, not the ledger itself, which
-    // has its own `test/credits-ledger.e2e-spec.ts`.
-    const creditAccountId = "01JEXPCREDITACCOUNT000001";
-    await ctx.prisma.creditAccount.create({
-      data: {
-        id: creditAccountId,
-        workspaceId: ctx.workspaceId,
-        balanceTenths: free.creditsPerMonthTenths,
-        monthlyGrantTenths: free.creditsPerMonthTenths,
-        grantResetAt: new Date(Date.now() + 30 * 86_400_000),
-      },
-    });
-    const creditLotId = "01JEXPCREDITLOT0000000001";
-    await ctx.prisma.creditLot.create({
-      data: {
-        id: creditLotId,
-        accountId: creditAccountId,
-        source: "grant",
-        grantedTenths: free.creditsPerMonthTenths,
-        remainingTenths: free.creditsPerMonthTenths,
-        expiresAt: new Date(Date.now() + 30 * 86_400_000),
-      },
-    });
-    await ctx.prisma.creditLedger.create({
-      data: {
-        id: "01JEXPCREDITLEDGER000001",
-        accountId: creditAccountId,
-        deltaTenths: free.creditsPerMonthTenths,
-        kind: "grant",
-        refType: "plan",
-        lotId: creditLotId,
-        balanceAfterTenths: free.creditsPerMonthTenths,
-      },
-    });
+    // suite has no subscription at all). Fund it through the app's own
+    // CreditsFacade, not a hand-rolled row — this suite is about the cloud
+    // render pipeline and its settlement, not the ledger itself, which has
+    // its own `test/credits-ledger.e2e-spec.ts`.
+    await fundWorkspaceCredits(ctx.app, ctx.workspaceId, AMPLE_TEST_CREDIT_TENTHS);
 
     // `EdgService.initialise` defaults an uncaptioned document's style to
     // "clean-bold" (its own internal default) rather than the segmenter's

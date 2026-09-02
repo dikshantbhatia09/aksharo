@@ -472,7 +472,10 @@ export class JobsService {
     const shortfallTenths = needsCredits ? requestedTenths - settledTenths : 0;
 
     const resultPayload = needsCredits
-      ? { ...((body.result as Record<string, unknown> | undefined) ?? {}), creditsShortfallTenths: shortfallTenths }
+      ? {
+          ...((body.result as Record<string, unknown> | undefined) ?? {}),
+          creditsShortfallTenths: shortfallTenths,
+        }
       : body.result;
 
     const { count } = await this.prisma.job.updateMany({

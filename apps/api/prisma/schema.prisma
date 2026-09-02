@@ -431,6 +431,11 @@ enum CreditLedgerKind {
   adjust
   expire
   referral_bonus
+  /// A lot clawed back before it was spent (B02b `revokeLot`) — B01's refunds
+  /// service uses this when a payment refund must take back an UNUSED grant/
+  /// pass/top-up lot, which `reverse()` cannot express (that method is keyed on
+  /// a settled job, not a lot).
+  revoke
 }
 
 /// Not enumerated in 06 (`affiliates.status`).
