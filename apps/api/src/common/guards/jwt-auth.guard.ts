@@ -63,6 +63,7 @@ export class JwtAuthGuard implements CanActivate {
       role: claims.role,
       kind: claims.kind,
       jti: claims.jti,
+      ...(claims.adminRoles !== undefined ? { adminRoles: claims.adminRoles } : {}),
     };
     RequestContext.setPrincipal({ userId: claims.sub, workspaceId: claims.ws });
     return true;

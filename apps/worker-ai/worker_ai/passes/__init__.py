@@ -1,4 +1,4 @@
-"""Edit passes: `autocut` (B18). B19 (reframe/zoom) lands alongside it here."""
+"""Edit passes: ``autocut`` (B18). ``zoom``/``reframe`` (B19) land alongside it here."""
 
 from __future__ import annotations
 
@@ -14,16 +14,80 @@ from worker_ai.passes.autocut import (
     load_lexicon,
     run_autocut,
 )
+from worker_ai.passes.reframe import (
+    ReframeKeyframeRow,
+    ReframeResult,
+    build_reframe_track,
+    clamp_crop_window,
+    rdp_simplify,
+)
+from worker_ai.passes.scenes import (
+    FrameStat,
+    SceneBoundary,
+    detect_scenes,
+    frame_stat_from_hsv,
+    scene_ranges,
+)
+from worker_ai.passes.tracking import (
+    BrightBlobDetector,
+    Detection,
+    FrameDetector,
+    IouTracker,
+    OneEuroFilter,
+    SubjectPoint,
+    iou,
+    track_subject,
+)
+from worker_ai.passes.zoom import (
+    ZOOM_PRESETS,
+    Cue,
+    CueKind,
+    ZoomEvent,
+    ZoomKeyframeRow,
+    ZoomPreset,
+    build_zoom_events,
+    detect_energy_cues,
+    detect_sentence_start_cues,
+    ease_out_cubic,
+)
 
 __all__ = [
+    "ZOOM_PRESETS",
     "AutocutInput",
     "AutocutResult",
+    "BrightBlobDetector",
+    "Cue",
+    "CueKind",
     "CutCandidate",
+    "Detection",
+    "FrameDetector",
+    "FrameStat",
+    "IouTracker",
     "Lexicon",
     "LexiconEntry",
+    "OneEuroFilter",
     "Preset",
+    "ReframeKeyframeRow",
+    "ReframeResult",
+    "SceneBoundary",
     "SpeechRegion",
+    "SubjectPoint",
     "Word",
+    "ZoomEvent",
+    "ZoomKeyframeRow",
+    "ZoomPreset",
+    "build_reframe_track",
+    "build_zoom_events",
+    "clamp_crop_window",
+    "detect_energy_cues",
+    "detect_scenes",
+    "detect_sentence_start_cues",
+    "ease_out_cubic",
+    "frame_stat_from_hsv",
+    "iou",
     "load_lexicon",
+    "rdp_simplify",
     "run_autocut",
+    "scene_ranges",
+    "track_subject",
 ]

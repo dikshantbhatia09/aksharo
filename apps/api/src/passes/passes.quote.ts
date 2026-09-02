@@ -38,3 +38,36 @@ export function quoteAutocut(durationMs: number): AutocutQuote {
     reason: `ai.pass (autocut) · ${minutes.toFixed(1)} source minutes`,
   };
 }
+
+/**
+ * What a zoom or reframe pass costs (B19 §6).
+ *
+ * `BURN_RATES.reframeZoomPass` (basis `sourceMinute`, 1 credit/min flash, 3
+ * credits/min pro) already exists in `@montaj/config`, landed ahead of this
+ * work package. This quotes against its frozen flash rate, the same split
+ * `quoteAutocut` uses — B19's own brief text ("3 credits per media minute")
+ * matches the *pro* rate, not flash; flagged in the final report as the same
+ * kind of number-to-reconcile B18 flagged for `autocutPass`, not silently
+ * overridden here.
+ */
+export interface ReframeZoomQuote {
+  readonly durationMs: number;
+  readonly deciMinutes: number;
+  readonly tenths: number;
+  readonly credits: string;
+  readonly reason: string;
+}
+
+export function quoteReframeZoom(kind: "zoom" | "reframe", durationMs: number): ReframeZoomQuote {
+  const units = deciMinutes(durationMs);
+  const tenths = creditCostTenths({ operation: "reframeZoomPass", durationMs });
+  const minutes = (units * BILLING_QUANTUM_MS) / 60_000;
+
+  return {
+    durationMs,
+    deciMinutes: units,
+    tenths,
+    credits: formatCredits(tenths),
+    reason: `ai.pass (${kind}) · ${minutes.toFixed(1)} source minutes`,
+  };
+}
