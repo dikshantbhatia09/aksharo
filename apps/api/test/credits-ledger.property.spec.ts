@@ -53,15 +53,7 @@ const BATCHES = Math.ceil(TOTAL_OPERATIONS / CONCURRENT_WORKERS);
 /** How many random sequences fast-check tries; each is the full operation run. */
 const PROPERTY_RUNS = Number(process.env["CREDITS_PROPERTY_RUNS"] ?? 1);
 
-const OP_KINDS = [
-  "reserve",
-  "settle",
-  "release",
-  "reverse",
-  "grant",
-  "expire",
-  "revoke",
-] as const;
+const OP_KINDS = ["reserve", "settle", "release", "reverse", "grant", "expire", "revoke"] as const;
 type OpKind = (typeof OP_KINDS)[number];
 const GRANT_SOURCES: $Enums.CreditLotSource[] = ["grant", "topup", "pass", "referral", "adjust"];
 
@@ -270,11 +262,7 @@ async function runOp(
 async function runBatches(ops: readonly OpSpec[]): Promise<void> {
   for (let batch = 0; batch < BATCHES; batch += 1) {
     const slice = ops.slice(batch * CONCURRENT_WORKERS, (batch + 1) * CONCURRENT_WORKERS);
-    const [holds, settled, lots] = await Promise.all([
-      liveHolds(),
-      settledJobIds(),
-      liveLotIds(),
-    ]);
+    const [holds, settled, lots] = await Promise.all([liveHolds(), settledJobIds(), liveLotIds()]);
     await Promise.all(slice.map((op) => runOp(op, holds, settled, lots)));
     assertInvariant(await snapshot(), `after batch ${String(batch + 1)}/${String(BATCHES)}`);
   }

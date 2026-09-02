@@ -589,7 +589,11 @@ describe.skipIf(!available)("LedgerCreditsFacade (e2e)", () => {
 
       const ledger = await ledgerFor(workspaceId);
       const revokeRow = ledger.find((row) => row.kind === "revoke");
-      expect(revokeRow).toMatchObject({ deltaTenths: -40, lotId, refId: "01JREFUNDA0000000000000000" });
+      expect(revokeRow).toMatchObject({
+        deltaTenths: -40,
+        lotId,
+        refId: "01JREFUNDA0000000000000000",
+      });
     });
 
     it("revokes everything remaining when tenths is omitted", async () => {
@@ -601,7 +605,11 @@ describe.skipIf(!available)("LedgerCreditsFacade (e2e)", () => {
         reason: "grant",
       });
 
-      const result = await credits.revokeLot({ lotId, reason: "refund", refundId: "01JREFUNDB0000000000000000" });
+      const result = await credits.revokeLot({
+        lotId,
+        reason: "refund",
+        refundId: "01JREFUNDB0000000000000000",
+      });
       expect(result).toEqual({ revokedTenths: 75, shortfallTenths: 0 });
       expect((await accountFor(workspaceId)).balanceTenths).toBe(0);
     });
@@ -616,7 +624,12 @@ describe.skipIf(!available)("LedgerCreditsFacade (e2e)", () => {
       });
       const jobId = await newJob(workspaceId);
       // Spend 60 of the 100, so only 40 remains on the lot.
-      const { holdId } = await credits.reserve({ workspaceId, jobId, worstCaseTenths: 60, reason: "t" });
+      const { holdId } = await credits.reserve({
+        workspaceId,
+        jobId,
+        worstCaseTenths: 60,
+        reason: "t",
+      });
       await credits.settle({ holdId, actualTenths: 60 });
 
       const result = await credits.revokeLot({
