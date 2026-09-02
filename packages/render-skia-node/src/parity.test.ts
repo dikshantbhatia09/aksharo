@@ -45,20 +45,25 @@ import {
 import type { CanvasKit } from "canvaskit-wasm";
 
 /**
- * Frames whose glyph-edge residual exceeds D33's 1%, with the measured value
- * and the reason. Every one is small type, and two of them multiply it:
+ * Frames whose glyph-edge residual exceeds D33's 1%, with the measured value and
+ * the reason. All three are **small type**, which is the whole pattern:
  *
- * - `neon-glow-english` — 32 px type, twenty-one separate runs, and a σ≈8 glow
- *   whose blur spreads every edge disagreement into a soft halo.
- * - `punch-pop-tamil-80` — Tamil at the entry instant, where the caption is
- *   still scaled below its final size, so every conjunct is drawn small.
+ * - the two `-80` frames are the entry instant, where the caption is still
+ *   scaled below its final size, so every glyph is drawn small;
+ * - `neon-glow-english` sets 32 px, wraps twenty-one separate runs in it, and
+ *   then puts a σ≈8 glow around them that spreads every edge disagreement into a
+ *   halo.
  *
  * The budget is the measured figure plus headroom, not a round number: it is
- * meant to fail on a regression, not to be comfortable.
+ * meant to fail on a regression, not to be comfortable. The set moves when
+ * layout moves — A16d's line budgets took `punch-pop-tamil-80` under the SLO and
+ * put `punch-pop-english-80` over it — which is exactly why the numbers are
+ * pinned per frame rather than waved through with one loose global bound.
  */
 const KNOWN_TEXT_RESIDUALS: Readonly<Record<string, number>> = Object.freeze({
   "neon-glow-english": 0.04,
-  "punch-pop-tamil-80": 0.02,
+  "punch-pop-hinglish-80": 0.015,
+  "punch-pop-english-80": 0.015,
 });
 
 let ck: CanvasKit;

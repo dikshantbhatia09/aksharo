@@ -19,14 +19,15 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     straight RGBA through a reusable batch buffer — a 1080×1920 frame is 8.3 MB and a
     ninety-second Reel is 2,700 of them.
   - **Parity against CanvasKit is measured, not asserted.** Nineteen frames — A16's
-    seven baselines plus the four caption fixtures at three instants — of which
-    seventeen are inside decision D33's SLO (≤ 1% of pixels off by more than 2/255) and
-    the mean is 0.79%. Everything except text is bit-exact; the residual is Skia's glyph
-    cache against an analytic path fill, and it grows as the type gets smaller.
-    `neon-glow-english` (3.31%) and `punch-pop-tamil-80` (1.41%) are over, pinned with
-    their measured values and their reason. Four conversions with a unit in them — blur
-    sigma, shadow sigma, the miter limit and layer opacity — are asserted on their own
-    so a regression names the conversion rather than a whole frame.
+    seven baselines plus the four caption fixtures at three instants — of which sixteen
+    are inside decision D33's SLO (≤ 1% of pixels off by more than 2/255) and the mean
+    is 0.83%. Everything except text is bit-exact; the residual is Skia's glyph cache
+    against an analytic path fill, and it grows as the type gets smaller.
+    `neon-glow-english` (3.31%) and the two entry-instant frames (1.10% and 1.20%) are
+    over, pinned with their measured values and their reason. Four conversions with a
+    unit in them — blur sigma, shadow sigma, the miter limit and layer opacity — are
+    asserted on their own so a regression names the conversion rather than a whole
+    frame.
   - `@montaj/render-manifest` defines the server-signed `RenderManifest` of `05 §5.2`:
     project and EDG revision, style-catalogue snapshot ids, timemap edits, aspect,
     resolution and fps, the watermark decision, the plan's caps, the audio strategy and
@@ -60,11 +61,11 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     `apps/worker-ai/worker_ai/callbacks.py`, down to the header names and the rule that
     the bytes signed are the bytes sent; the A08b retry, stall and heartbeat table is
     mirrored with a test that parses the API's own source to prove it has not drifted.
-  - `BENCHMARK.md` reports measured throughput: **1.15× realtime at 1080p**, 4.08× at
-    540p, 0.35× at 4K, on a 12-thread desktop. The ≥ 2× target is not met; the file
+  - `BENCHMARK.md` reports measured throughput: **1.05× realtime at 1080p**, 3.85× at
+    540p, 0.30× at 4K, on a 12-thread desktop. The ≥ 2× target is not met; the file
     contains the stage split showing that Skia and x264 do not overlap because
     rasterising blocks Node's only thread, the two optimisations tried (bounded layer
-    surfaces, landed, 0.69× → 1.15×; a pipe run-ahead buffer, reverted, slower), and the
+    surfaces, landed, 0.69× → ~1.1×; a pipe run-ahead buffer, reverted, slower), and the
     worker-thread change that would close the gap.
 - **A10b — Meta MMS excluded on licence grounds (D77); tests no longer read a
   developer's `.env`.**

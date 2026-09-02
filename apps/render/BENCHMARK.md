@@ -41,13 +41,17 @@ watermark. Three runs per row; the median is quoted.
 
 | Preset                 | Output | Wall clock |         Throughput | Frames rasterised | Cache | vCPU-s / output min |
 | ---------------------- | -----: | ---------: | -----------------: | ----------------: | ----: | ------------------: |
-| **540p** 540×960@30    |   30 s |     7.35 s | **4.08× realtime** |         294 / 900 | 67.3% |                 176 |
-| **1080p** 1080×1920@30 |   30 s |     26.1 s | **1.15× realtime** |         294 / 900 | 67.3% |                 626 |
-| **4K** 2160×3840@30    |   10 s |     28.8 s | **0.35× realtime** |          61 / 300 | 79.7% |               2,074 |
+| **540p** 540×960@30    |   30 s |     7.80 s | **3.85× realtime** |         294 / 900 | 67.3% |                 187 |
+| **1080p** 1080×1920@30 |   30 s |    28.57 s | **1.05× realtime** |         294 / 900 | 67.3% |                 688 |
+| **4K** 2160×3840@30    |   10 s |    33.06 s | **0.30× realtime** |          61 / 300 | 79.7% |               2,380 |
 
-Throughput scales linearly with pixel count — 540p is 4.0× the speed of 1080p for a
-quarter of the pixels, and 4K is 3.3× slower again — which says the pipeline is
+Throughput scales linearly with pixel count — 540p is 3.7× the speed of 1080p for a
+quarter of the pixels, and 4K is 3.5× slower again — which says the pipeline is
 pixel-bound end to end rather than bottlenecked on any one stage.
+
+The 1080p row spreads: three runs gave 1.23×, 1.05× and 0.94×. A desktop with a
+browser open is not an isolated measurement environment, which is another reason the
+row that decides the cost model has to be re-taken on the target instance.
 
 **The vCPU-second figure is an upper bound.** It counts _every_ core as busy for the
 whole wall clock (`wall × cores × 60 / output`), and the render does not saturate them:
@@ -57,8 +61,8 @@ because `05 §12`'s row needs a ceiling more than it needs an average.
 
 ### Against the target
 
-The A20 brief asks for **≥ 2× realtime at 1080p on 4 vCPU**. Measured: **1.15× on 12
-threads**. The target is not met, and the reason is structural rather than a missing
+The A20 brief asks for **≥ 2× realtime at 1080p on 4 vCPU**. Measured: **1.05× on 12
+threads** (median of three; 0.94–1.23×). The target is not met, and the reason is structural rather than a missing
 tuning flag.
 
 Splitting a 30-second 1080p render into its halves (measured separately, same machine):
@@ -82,7 +86,7 @@ Two things were tried and one worked:
   allocation, composite and Gaussian: **60 ms** for a shadow around a caption covering a
   sixth of the frame. `packages/render-skia-node/src/bounds.ts` computes the device box
   the children actually touch, and the same shadow now costs about 6 ms. Whole-frame
-  drawing went from ~55 ms to **7.5 ms**, the render from 0.69× to 1.15× realtime, and
+  drawing went from ~55 ms to **7.5 ms**, the render from 0.69× to ~1.1× realtime, and
   the parity table did not move by a single digit.
 - **Running ahead into the pipe buffer** (reverted). Queueing four finished frames so
   ffmpeg could drink while Skia drew made it _slower_ — 0.82× against 0.95× — because

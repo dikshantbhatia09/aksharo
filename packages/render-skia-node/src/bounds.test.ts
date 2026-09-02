@@ -8,6 +8,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { DrawCommand } from "@montaj/render-core";
+
 import {
   BLUR_SIGMA_MARGIN,
   deviceBounds,
@@ -21,8 +23,6 @@ import {
   union,
   type Box,
 } from "./bounds.js";
-
-import type { DrawCommand } from "@montaj/render-core";
 
 const SQUARE: DrawCommand = {
   kind: "rect",

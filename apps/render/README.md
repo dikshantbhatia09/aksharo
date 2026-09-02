@@ -196,7 +196,7 @@ out.
 
 ## Performance
 
-**1.15× realtime at 1080p** on a 12-thread desktop; 4.08× at 540p; 0.35× at 4K. The A20
+**1.05× realtime at 1080p** on a 12-thread desktop; 3.85× at 540p; 0.30× at 4K. The A20
 target of ≥ 2× at 1080p is **not met**, and [`BENCHMARK.md`](BENCHMARK.md) has the
 measurements, the reason (Skia and x264 do not overlap, because rasterising blocks
 Node's only thread) and the fix that would close it.

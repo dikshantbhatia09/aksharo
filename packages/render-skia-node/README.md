@@ -76,20 +76,20 @@ animation clock_.
 Measured on this build (differing = share of pixels whose worst channel is more than
 2/255 apart, D33's yardstick):
 
-| Frame                    | Differing | Frame                     | Differing |
-| ------------------------ | --------: | ------------------------- | --------: |
-| `punch-pop-hinglish`     |    0.486% | `punch-pop-hinglish-80`   |    0.597% |
-| `karaoke-fill-hindi`     |    0.991% | `punch-pop-hinglish-1500` |    0.486% |
-| `vertical-clean-tamil`   |    0.754% | `punch-pop-hinglish-2940` |    0.504% |
-| `prism-split-english`    |    0.881% | `punch-pop-hindi-80`      |    0.884% |
-| `liquid-glass-english`   |    0.747% | `punch-pop-hindi-1500`    |    0.943% |
-| `glitch-shift-hinglish`  |    0.619% | `punch-pop-hindi-2940`    |    0.781% |
-| **`neon-glow-english`**  | **3.31%** | `punch-pop-tamil-1500`    |    0.940% |
-| `punch-pop-english-80`   |    0.620% | **`punch-pop-tamil-80`**  | **1.41%** |
-| `punch-pop-english-1500` |    0.500% | `punch-pop-tamil-2940`    |    0.643% |
-| `punch-pop-english-2940` |    0.528% | **mean, all 19**          | **0.79%** |
+| Frame | Differing | Frame | Differing | Frame | Differing |
+| ------------------------- | --------: | ------------------------- | --------: |
+| `punch-pop-hinglish` | 0.565% | `punch-pop-hinglish-80` | **1.10%** |
+| `karaoke-fill-hindi` | 0.908% | `punch-pop-hinglish-1500` | 0.565% |
+| `vertical-clean-tamil` | 0.570% | `punch-pop-hinglish-2940` | 0.504% |
+| `prism-split-english` | 0.881% | `punch-pop-hindi-80` | 0.746% |
+| `liquid-glass-english` | 0.862% | `punch-pop-hindi-1500` | 0.581% |
+| `glitch-shift-hinglish` | 0.561% | `punch-pop-hindi-2940` | 0.520% |
+| **`neon-glow-english`** | **3.31%** | `punch-pop-tamil-80` | 0.809% |
+| `punch-pop-english-80` | **1.20%** | `punch-pop-tamil-1500` | 0.673% |
+| `punch-pop-english-1500` | 0.522% | `punch-pop-tamil-2940` | 0.340% |
+| `punch-pop-english-2940` | 0.538% | **mean, all 19** | **0.83%** |
 
-Seventeen of nineteen are inside D33's 1% SLO and the mean is 0.79%.
+Sixteen of nineteen are inside D33's 1% SLO and the mean is 0.83%.
 
 **Where the residual comes from, and why it is not a bug.** Everything except text is
 bit-exact. CanvasKit draws glyph _ids_ through Skia's glyph cache, which rasterises a
