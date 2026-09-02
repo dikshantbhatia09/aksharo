@@ -98,6 +98,9 @@ export class UsersService {
         id: true,
         email: true,
         name: true,
+        // A25: the transactional mail is rendered in the recipient's language,
+        // and this is the only lookup the auth flows do before sending one.
+        locale: true,
         passwordHash: true,
         emailVerifiedAt: true,
         jurisdiction: true,

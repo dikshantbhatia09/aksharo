@@ -103,6 +103,33 @@ services:
         mc ls local
     restart: "no"
 
+  # Local SMTP sink for MAIL_PROVIDER=smtp (A25). Opt-in, because most work does
+  # not need it and the default MAIL_PROVIDER=dev writes to Redis instead:
+  #
+  #   docker compose --profile mail up -d
+  #   SMTP_URL=smtp://localhost:1025   then open http://localhost:8025
+  #
+  # Mailpit accepts everything and delivers nothing onward, which is the point: a
+  # template can be read in a real mail client without a real mailbox anywhere.
+  mailpit:
+    image: axllent/mailpit:v1.28
+    container_name: montaj-mailpit
+    profiles: ["mail"]
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: "500"
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
 volumes:
   postgres-data:
   redis-data:

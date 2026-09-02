@@ -292,6 +292,13 @@ export const API_OPERATIONS = [
     summary: "List the workspace's jobs, newest first",
   },
   {
+    operationId: "listMyNotifications",
+    method: "GET",
+    path: "/me/notifications",
+    tags: ["notifications"],
+    summary: "List your notifications, newest first",
+  },
+  {
     operationId: "listParentalWaitlist",
     method: "GET",
     path: "/admin/parental-waitlist",
@@ -311,6 +318,13 @@ export const API_OPERATIONS = [
     path: "/workspaces",
     tags: ["workspaces"],
     summary: "The workspaces the caller belongs to",
+  },
+  {
+    operationId: "markNotificationRead",
+    method: "POST",
+    path: "/me/notifications/{id}/read",
+    tags: ["notifications"],
+    summary: "Mark one notification read",
   },
   {
     operationId: "OAuthController_callback",
