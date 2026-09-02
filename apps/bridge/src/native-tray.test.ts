@@ -119,17 +119,58 @@ describe("createNativeTray", () => {
   });
 });
 
-describe("createNativeTray — no injected factory (real wiring paths)", () => {
+describe("createNativeTray — opt-in gate (AKSHARO_BRIDGE_TRAY)", () => {
+  const originalFlag = process.env["AKSHARO_BRIDGE_TRAY"];
+
+  afterEach(() => {
+    vi.doUnmock("node:fs");
+    vi.resetModules();
+    if (originalFlag === undefined) delete process.env["AKSHARO_BRIDGE_TRAY"];
+    else process.env["AKSHARO_BRIDGE_TRAY"] = originalFlag;
+  });
+
+  it("resolves undefined by default, without ever touching the helper-binary check", async () => {
+    delete process.env["AKSHARO_BRIDGE_TRAY"];
+    vi.resetModules();
+    // If the opt-in gate did not short-circuit first, this mock would make
+    // the helper-binary check throw (existsSync is not a function).
+    vi.doMock("node:fs", () => ({}));
+    const { createNativeTray: freshCreateNativeTray } = await import("./native-tray.js");
+    const tray = await freshCreateNativeTray({});
+    expect(tray).toBeUndefined();
+  });
+
+  it('resolves undefined for any value other than the literal string "native"', async () => {
+    process.env["AKSHARO_BRIDGE_TRAY"] = "1";
+    vi.resetModules();
+    const { createNativeTray: freshCreateNativeTray } = await import("./native-tray.js");
+    const tray = await freshCreateNativeTray({});
+    expect(tray).toBeUndefined();
+  });
+
+  it("does not gate test injection via options.factory", async () => {
+    delete process.env["AKSHARO_BRIDGE_TRAY"];
+    const tray = await createNativeTray({ factory: () => fakeSysTray() });
+    expect(tray).toBeDefined();
+    await tray?.close();
+  });
+});
+
+describe("createNativeTray — no injected factory (real wiring paths, AKSHARO_BRIDGE_TRAY=native)", () => {
   const originalCi = process.env["CI"];
+  const originalFlag = process.env["AKSHARO_BRIDGE_TRAY"];
 
   afterEach(() => {
     vi.doUnmock("node:fs");
     vi.resetModules();
     if (originalCi === undefined) delete process.env["CI"];
     else process.env["CI"] = originalCi;
+    if (originalFlag === undefined) delete process.env["AKSHARO_BRIDGE_TRAY"];
+    else process.env["AKSHARO_BRIDGE_TRAY"] = originalFlag;
   });
 
-  it("skips entirely under CI, without ever touching the helper-binary check", async () => {
+  it("still skips under CI even with the opt-in flag set (defense-in-depth)", async () => {
+    process.env["AKSHARO_BRIDGE_TRAY"] = "native";
     process.env["CI"] = "true";
     const { createNativeTray: freshCreateNativeTray } = await import("./native-tray.js");
     const tray = await freshCreateNativeTray({});
@@ -137,6 +178,7 @@ describe("createNativeTray — no injected factory (real wiring paths)", () => {
   });
 
   it("resolves undefined when no traybin directory exists (packaged build missing dist/traybin)", async () => {
+    process.env["AKSHARO_BRIDGE_TRAY"] = "native";
     delete process.env["CI"];
     vi.resetModules();
     vi.doMock("node:fs", () => ({ existsSync: () => false }));
@@ -146,15 +188,20 @@ describe("createNativeTray — no injected factory (real wiring paths)", () => {
   });
 });
 
-describe("createNativeTray — real systray2 import path (mocked)", () => {
+describe("createNativeTray — real systray2 import path (mocked, AKSHARO_BRIDGE_TRAY=native)", () => {
+  const originalFlag = process.env["AKSHARO_BRIDGE_TRAY"];
+
   afterEach(() => {
     vi.doUnmock("node:fs");
     vi.doUnmock("systray2");
     vi.resetModules();
     delete process.env["CI"];
+    if (originalFlag === undefined) delete process.env["AKSHARO_BRIDGE_TRAY"];
+    else process.env["AKSHARO_BRIDGE_TRAY"] = originalFlag;
   });
 
   it("constructs the tray via the real (mocked) systray2 default export", async () => {
+    process.env["AKSHARO_BRIDGE_TRAY"] = "native";
     delete process.env["CI"];
     vi.resetModules();
     vi.doMock("node:fs", () => ({ existsSync: () => true }));
@@ -190,6 +237,7 @@ describe("createNativeTray — real systray2 import path (mocked)", () => {
   });
 
   it("resolves undefined when importing systray2 itself throws", async () => {
+    process.env["AKSHARO_BRIDGE_TRAY"] = "native";
     delete process.env["CI"];
     vi.resetModules();
     vi.doMock("node:fs", () => ({ existsSync: () => true }));

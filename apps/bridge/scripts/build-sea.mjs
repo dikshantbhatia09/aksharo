@@ -100,6 +100,17 @@ function main() {
  * falls back to the console tray if `dist/traybin` is absent.
  */
 function copyTraybin() {
+  // Off by default (coordinator ruling, 2026-09-03): the native tray itself
+  // is opt-in at runtime (AKSHARO_BRIDGE_TRAY=native, see native-tray.ts), and
+  // a default build should not even carry the unmaintained systray2 helper
+  // binaries into the signed artifact — set the same flag at build time to
+  // include them.
+  if (process.env.AKSHARO_BRIDGE_TRAY !== "native") {
+    console.log(
+      "AKSHARO_BRIDGE_TRAY!=native; skipping tray helper binary copy (console fallback only)",
+    );
+    return;
+  }
   const require = createRequire(import.meta.url);
   let traybinSrc;
   try {

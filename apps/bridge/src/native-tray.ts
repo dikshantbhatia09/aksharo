@@ -110,6 +110,21 @@ export async function createNativeTray(
 ): Promise<NativeTrayHandle | undefined> {
   const log = options.log ?? (() => {});
 
+  // Off by default (coordinator ruling, 2026-09-03): systray2 ships prebuilt
+  // per-OS helper binaries and has not been released in years — an
+  // unmaintained binary blob is a supply-chain exposure to carry into a
+  // code-signed product. The console tray (pairing still works via the
+  // 8-character code) is the shipped default; an operator who wants the
+  // native tray anyway opts in per-run with AKSHARO_BRIDGE_TRAY=native.
+  // Test injection (options.factory) bypasses this so the unit tests below
+  // do not all need the env var set.
+  if (options.factory === undefined && process.env["AKSHARO_BRIDGE_TRAY"] !== "native") {
+    log(
+      "native tray not enabled (set AKSHARO_BRIDGE_TRAY=native to opt in); using console fallback",
+    );
+    return undefined;
+  }
+
   if (process.platform === "linux" && process.env["DISPLAY"] === undefined) {
     log("no DISPLAY; skipping native tray");
     return undefined;

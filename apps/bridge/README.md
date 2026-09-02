@@ -22,36 +22,60 @@ in `src/config.ts` but nothing reads it yet — a future WP wires it to the OS
 service manager).
 **Implemented by:** C01 (bridge v2), C01b (native tray, keychain/DPAPI, CI fix), C02 (embedded in the desktop app). See `docs/PLAN.md` for scheduling and blockers.
 
-## Native tray
+## Native tray — off by default (coordinator ruling, 2026-09-03)
 
 `src/native-tray.ts` wraps [`systray2`](https://www.npmjs.com/package/systray2)
 (MIT) behind `bridge-core`'s `TrayController` interface. `systray2` spawns a
 small prebuilt per-OS helper binary over stdio rather than compiling a native
 Node addon — the only approach that survives `scripts/build-sea.mjs` bundling
 everything into one `dist/bundle.cjs` (a `.node` addon has no stable path once
-that happens). `build-sea.mjs` copies `systray2`'s `traybin/` directory to
-`dist/traybin` next to the packaged executable at build time (never committed
-to the repo).
+that happens).
 
-**License/maintenance note:** `systray2`'s last npm release predates this WP by
-several years. It was still the best fit found after surveying the ecosystem
-(see the WP report) — every actively-maintained alternative is a native addon
-requiring a compiler, which the SEA constraint above rules out. This is a
-documented risk, not a hidden one: revisit if a better-maintained,
-addon-free option appears.
+**This is disabled by default, on both ends, and must be opted into explicitly:**
+
+- **Runtime:** `createNativeTray()` returns `undefined` (console fallback)
+  unless the environment variable `AKSHARO_BRIDGE_TRAY=native` is set for the
+  running process.
+- **Build:** `build-sea.mjs` only copies `systray2`'s `traybin/` helper
+  binaries into `dist/traybin` (never committed to the repo) when
+  `AKSHARO_BRIDGE_TRAY=native` is set in the build environment; a default
+  build ships no tray helper binary at all.
+
+**Why:** `systray2`'s last npm release predates this WP by several years —
+maintained enough to be the best fit surveyed (every actively-maintained
+alternative is a native addon requiring a compiler, which the SEA constraint
+above rules out), but an unreleased-for-years dependency that ships prebuilt
+native helper binaries is a supply-chain exposure the coordinator ruled
+unacceptable to carry by default into a code-signed product. Pairing already
+works headlessly via the 8-character code shown in the console fallback, so
+there is no functional loss in shipping with the flag off; the desktop
+shell's Electron tray (C02, driven through `apps/desktop/src/bridge/
+adapter.ts`) remains the product's actual tray surface.
+
+**Replacement criteria** — swap in a different tray library (drop the flag,
+default it on) only once one exists that is simultaneously:
+
+1. **Maintained** — released within roughly the last year, not archived.
+2. **Permissively licensed** — MIT/Apache/BSD/ISC (H-14).
+3. **SEA-compatible** — no native Node addon (a `.node` file has no stable
+   path once esbuild folds everything into one `dist/bundle.cjs`); a
+   spawned-helper-binary or pure-JS design is fine.
 
 **Fallback to the console tray** (`bridge-core`'s `createConsoleTray`) happens
-whenever a native tray cannot be shown, all handled by `createNativeTray`
-resolving `undefined` rather than throwing:
+whenever the native tray is not enabled or cannot be shown, all handled by
+`createNativeTray` resolving `undefined` rather than throwing:
 
+- `AKSHARO_BRIDGE_TRAY` is not `"native"` (the default — see above).
 - Linux with no `DISPLAY` set.
 - Any `CI` environment (`process.env.CI` set) — a CI runner reports a session
   but has no real interactive desktop backing the notification area; spawning
   the helper there was observed to hang rather than fail fast, which would
   wedge the `bridge-sea` smoke test indefinitely. `createNativeTray` also
-  wraps `ready()` in a 3s timeout for the same reason outside CI.
-- The packaged build is missing `dist/traybin` (helper binary not shipped
-  alongside the executable).
+  wraps `ready()` in a 3s timeout for the same reason outside CI. (Both guards
+  stay in place as defense-in-depth even though the opt-in flag already keeps
+  CI from reaching this code path.)
+- The packaged build is missing `dist/traybin` (helper binary not copied in
+  because the build did not set `AKSHARO_BRIDGE_TRAY=native`).
 - `systray2` itself fails to import, or the helper process fails/times out.
 
 Pairing still works via the 8-character code in every fallback case.
