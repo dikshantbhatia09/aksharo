@@ -26,6 +26,7 @@ import {
   removeQuietly,
   samplePayload,
   sampleProjection,
+  sampleStyles,
   signedFixtureManifest,
   type DirectoryStore,
 } from "../testing.js";
@@ -234,9 +235,22 @@ describe("the render.video processor", () => {
     expect(completion?.body["finalAttempt"]).toBe(true);
   }, 300_000);
 
-  it("refuses the ass path, which A18a owns", async () => {
+  it("refuses the ass path for a style A18a's parity gate has not passed", async () => {
     const { calls, callbacks } = callbackRecorder();
-    const payload = { ...(await samplePayload(SECRET, overrides(), 3_000)), path: "ass" as const };
+    const base = await samplePayload(SECRET, overrides(), 3_000);
+    const firstSegment = base.projection.segments[0];
+    const payload = {
+      ...base,
+      path: "ass" as const,
+      styles: { "not-renderable": { ...sampleStyles()["punch-pop"], assRenderable: false } },
+      projection: {
+        ...base.projection,
+        segments:
+          firstSegment === undefined
+            ? []
+            : [{ ...firstSegment, styleRef: "not-renderable" }, ...base.projection.segments.slice(1)],
+      },
+    };
     await expect(
       processRenderVideo(fakeJob(payload), {
         dependencies: {
@@ -249,7 +263,35 @@ describe("the render.video processor", () => {
         callbacks,
         progressIntervalMs: 50,
       }),
-    ).rejects.toThrow(/ass-exporter/);
+    ).rejects.toThrow(/assRenderable/);
+    expect(calls.find((call) => call.url.endsWith("/complete"))?.body["error"]).toMatchObject({
+      code: "render/unsupported-output",
+      retryable: false,
+    });
+  }, 120_000);
+
+  it("refuses the ass path even once every referenced style is assRenderable, because the burn-in pipeline is A20/A21 follow-up work", async () => {
+    // The sample project's default style (`punch-pop`) is genuinely
+    // `assRenderable: true` in this checkout's gated catalogue — this asserts
+    // the capability check passes and the refusal reason changes accordingly,
+    // rather than papering over a burn-in pipeline this work package does not
+    // implement (out of A18a's file boundary; see render-video.ts).
+    const { calls, callbacks } = callbackRecorder();
+    const payload = { ...(await samplePayload(SECRET, overrides(), 3_000)), path: "ass" as const };
+    expect((payload.styles["punch-pop"] as { assRenderable?: unknown })?.assRenderable).toBe(true);
+    await expect(
+      processRenderVideo(fakeJob(payload), {
+        dependencies: {
+          rawStore,
+          derivedStore,
+          secret: SECRET,
+          encoder: "libx264",
+          workDir: scratch,
+        },
+        callbacks,
+        progressIntervalMs: 50,
+      }),
+    ).rejects.toThrow(/burn-in pipeline/);
     expect(calls.find((call) => call.url.endsWith("/complete"))?.body["error"]).toMatchObject({
       code: "render/unsupported-output",
       retryable: false,

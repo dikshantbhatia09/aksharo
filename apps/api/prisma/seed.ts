@@ -9,9 +9,12 @@
  * What it creates:
  *   * the five plans of 04 §Plans, with INR/USD prices, monthly credit grants and
  *     the entitlements JSON (operation gating derived from `@montaj/config`);
- *   * the system caption styles, with the parity flags left at their pessimistic
- *     defaults (assRenderable false, assExportable false, requiresLayoutMetrics
- *     true) because only the A18a parity gate may write them (D33);
+ *   * the system caption styles, with the parity flags read back from each
+ *     style document's own `assRenderable`/`assExportable`/
+ *     `requiresLayoutMetrics`/`parityScore` fields — the schema's pessimistic
+ *     pre-gate defaults until `pnpm --filter @montaj/ass-exporter parity` has
+ *     run, the gate's real measured answer afterwards; the seed only ever
+ *     reads them, never writes them by hand (D33);
  *   * four feature flags, all off;
  *   * one admin user and a demo personal workspace with an owner membership, a
  *     credit account holding the free monthly grant as a lot plus its ledger row,
@@ -101,7 +104,14 @@ export async function seed(prisma: PrismaClient): Promise<SeedResult> {
       doc: style.doc,
       minPlan: style.minPlan,
       // assRenderable / assExportable / requiresLayoutMetrics / parityScore are
-      // deliberately NOT written here: the A18a parity gate owns them (D33).
+      // never hand-written here: the A18a parity gate owns them (D33). What the
+      // seed does is *read* the gate's own answer back off the style document
+      // (`style.parity`, from `packages/caption-styles/styles/*.json`'s own
+      // flag fields) into the `style_presets` columns the admin console and the
+      // export decision engine query directly, so a checkout where the gate has
+      // run seeds the real numbers and a checkout where it has not seeds the
+      // schema's own pre-gate defaults — never anything hand-picked.
+      ...(style.parity === undefined ? {} : style.parity),
     };
 
     if (existing === null) {

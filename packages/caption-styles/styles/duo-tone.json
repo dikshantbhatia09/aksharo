@@ -6,14 +6,21 @@
   "minPlan": "starter",
   "typography": {
     "fontFamily": "Poppins",
-    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
     "weight": 700,
     "italic": false,
     "sizePct": 5.2,
     "lineHeight": 1.2,
     "letterSpacingEm": 0,
     "textTransform": "none",
-    "scriptScale": { "deva": 0.74, "taml": 0.45 }
+    "scriptScale": {
+      "deva": 0.74,
+      "taml": 0.45
+    }
   },
   "colors": {
     "text": "#3fa7d6",
@@ -74,8 +81,9 @@
       "effect": "none"
     }
   ],
-  "assRenderable": false,
-  "assExportable": false,
+  "assRenderable": true,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/duo-tone.mp4"
+  "previewKey": "system/style-previews/duo-tone.mp4",
+  "parityScore": 0.9521
 }

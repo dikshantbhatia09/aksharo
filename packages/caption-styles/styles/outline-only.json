@@ -6,14 +6,21 @@
   "minPlan": "free",
   "typography": {
     "fontFamily": "Montserrat",
-    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
     "weight": 800,
     "italic": false,
     "sizePct": 5.4,
     "lineHeight": 1.14,
     "letterSpacingEm": 0.01,
     "textTransform": "uppercase",
-    "scriptScale": { "deva": 0.7, "taml": 0.43 }
+    "scriptScale": {
+      "deva": 0.7,
+      "taml": 0.43
+    }
   },
   "colors": {
     "text": "#ffffff00",
@@ -72,8 +79,9 @@
       "effect": "none"
     }
   ],
-  "assRenderable": false,
-  "assExportable": false,
+  "assRenderable": true,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/outline-only.mp4"
+  "previewKey": "system/style-previews/outline-only.mp4",
+  "parityScore": 0.9565
 }

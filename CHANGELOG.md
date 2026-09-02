@@ -52,6 +52,35 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A18a — `@montaj/ass-exporter` and the render parity gate (D33).**
+  `toAss(projection, transcript, styleCatalogue, canvas, opts)` maps StyleDoc v2 to an
+  ASS v4+ document (`[Script Info]`/`[V4+ Styles]`/`[Events]`): font/size/colours,
+  `\bord`/`\shad`, `BorderStyle=3` boxes, `\pos` from the style's own layout anchor,
+  and `\kf` karaoke fill for `karaoke-fill` styles on **Latin script only** — Devanagari
+  and Tamil karaoke stay disabled and warn (`karaoke_non_latin_disabled`) until a parity
+  test proves otherwise (RR-04 F7). Other word highlights (`color`, `scale`,
+  `underline`, `glow`) degrade deterministically to one `Dialogue:` event per word,
+  reported through a `warnings[]` list rather than silently dropped.
+  `packages/ass-exporter/parity/run.ts` renders every shipped style three ways —
+  browser CanvasKit vs cloud Skia (widening A20's own harness from one style to all 30)
+  and `.ass` via `ffmpeg -vf ass=` (libass, `shaping=complex` verified for
+  Devanagari/Tamil against RR-04 F6/F14 — see `parity/golden-devanagari.test.ts`) —
+  and writes `packages/caption-styles/parity/results.json`;
+  `parity/apply-flags.ts` is the **only** writer of each style's `assRenderable` /
+  `assExportable` / `requiresLayoutMetrics` / `parityScore` fields (never by hand). A
+  libass-less `ffmpeg` marks `assVsSkia` "not measured" rather than fabricating a score.
+  `apps/api/src/exports/decision.ts` now gates an `ass` subtitle export on
+  `assStylesRenderable` (every StyleDoc a project's captions reference having passed
+  the gate) instead of refusing unconditionally; `apps/api/prisma/seed.ts` reads the
+  same flags off each style document into `style_presets`' parity columns.
+  `apps/render`'s `render.video` `path: "ass"` guard now checks the real flags rather
+  than refusing unconditionally, naming the unrenderable style when one is found;
+  burning the sidecar into pixels (the ffmpeg libass path replacing Skia rasterisation)
+  is A20/A21 follow-up work, outside this package's own file boundary. New CI job
+  `.github/workflows/parity.yml` runs the full 30 × 4 × 3 sweep on PRs touching the
+  render packages or the style catalogue and fails with a diff if the flags moved,
+  rather than committing them silently.
+
 - **A15 — web: editor transcript column, EDG op queue, undo/redo, conflict
   chooser, reflow.** The left column of `/p/{id}` (08 §4) and the store
   everything else in the editor reads from.

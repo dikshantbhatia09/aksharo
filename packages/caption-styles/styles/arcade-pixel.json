@@ -6,14 +6,21 @@
   "minPlan": "starter",
   "typography": {
     "fontFamily": "Roboto Mono",
-    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
     "weight": 700,
     "italic": false,
     "sizePct": 3.8,
     "lineHeight": 1.4,
     "letterSpacingEm": 0.06,
     "textTransform": "uppercase",
-    "scriptScale": { "deva": 0.95, "taml": 0.59 }
+    "scriptScale": {
+      "deva": 0.95,
+      "taml": 0.59
+    }
   },
   "colors": {
     "text": "#f2f2f2",
@@ -75,7 +82,8 @@
     }
   ],
   "assRenderable": false,
-  "assExportable": false,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/arcade-pixel.mp4"
+  "previewKey": "system/style-previews/arcade-pixel.mp4",
+  "parityScore": 0.9031
 }

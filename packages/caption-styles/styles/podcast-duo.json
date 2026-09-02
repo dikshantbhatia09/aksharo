@@ -6,14 +6,21 @@
   "minPlan": "creator",
   "typography": {
     "fontFamily": "Montserrat",
-    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
     "weight": 600,
     "italic": false,
     "sizePct": 3.6,
     "lineHeight": 1.3,
     "letterSpacingEm": 0.005,
     "textTransform": "none",
-    "scriptScale": { "deva": 0.91, "taml": 0.55 }
+    "scriptScale": {
+      "deva": 0.91,
+      "taml": 0.55
+    }
   },
   "colors": {
     "text": "#f5f7fb",
@@ -79,7 +86,8 @@
     }
   ],
   "assRenderable": false,
-  "assExportable": false,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/podcast-duo.mp4"
+  "previewKey": "system/style-previews/podcast-duo.mp4",
+  "parityScore": 0.9145
 }

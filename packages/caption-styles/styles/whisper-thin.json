@@ -6,14 +6,21 @@
   "minPlan": "free",
   "typography": {
     "fontFamily": "Inter",
-    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
     "weight": 300,
     "italic": false,
     "sizePct": 3.4,
     "lineHeight": 1.44,
     "letterSpacingEm": 0.08,
     "textTransform": "uppercase",
-    "scriptScale": { "deva": 0.86, "taml": 0.54 }
+    "scriptScale": {
+      "deva": 0.86,
+      "taml": 0.54
+    }
   },
   "colors": {
     "text": "#ffffff",
@@ -71,8 +78,9 @@
       "effect": "none"
     }
   ],
-  "assRenderable": false,
-  "assExportable": false,
+  "assRenderable": true,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/whisper-thin.mp4"
+  "previewKey": "system/style-previews/whisper-thin.mp4",
+  "parityScore": 0.9807
 }

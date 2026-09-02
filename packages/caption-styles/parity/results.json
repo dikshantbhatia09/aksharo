@@ -1,0 +1,355 @@
+{
+  "generatedAt": "2026-09-02T10:20:11.129Z",
+  "maxDiffRatio": 0.01,
+  "libassMeasured": true,
+  "styles": {
+    "arcade-pixel": {
+      "styleId": "arcade-pixel",
+      "canvasVsSkia": 0.015196759259259259,
+      "assVsSkia": 0.09691743827160494,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:12.897Z"
+    },
+    "bold-drop": {
+      "styleId": "bold-drop",
+      "canvasVsSkia": 0.008119212962962963,
+      "assVsSkia": 0.051487268518518516,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:14.705Z"
+    },
+    "box-block": {
+      "styleId": "box-block",
+      "canvasVsSkia": 0.009920910493827161,
+      "assVsSkia": 0.10138117283950618,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:15.598Z"
+    },
+    "bubble-soft": {
+      "styleId": "bubble-soft",
+      "canvasVsSkia": 0.00796682098765432,
+      "assVsSkia": 0.09962577160493827,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:17.470Z"
+    },
+    "caption-card": {
+      "styleId": "caption-card",
+      "canvasVsSkia": 0.008996913580246913,
+      "assVsSkia": 0.13711805555555556,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:18.785Z"
+    },
+    "duo-tone": {
+      "styleId": "duo-tone",
+      "canvasVsSkia": 0.009612268518518518,
+      "assVsSkia": 0.04786072530864197,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:20.968Z"
+    },
+    "glitch-shift": {
+      "styleId": "glitch-shift",
+      "canvasVsSkia": 0.008794367283950617,
+      "assVsSkia": 0.0450462962962963,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:23.404Z"
+    },
+    "gradient-sweep": {
+      "styleId": "gradient-sweep",
+      "canvasVsSkia": 0.00955054012345679,
+      "assVsSkia": 0.10937885802469136,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:25.075Z"
+    },
+    "highlight-marker": {
+      "styleId": "highlight-marker",
+      "canvasVsSkia": 0.010696373456790123,
+      "assVsSkia": 0.03478009259259259,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:27.310Z"
+    },
+    "hype-bold": {
+      "styleId": "hype-bold",
+      "canvasVsSkia": 0.012646604938271605,
+      "assVsSkia": 0.07076774691358025,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:30.341Z"
+    },
+    "impact-shout": {
+      "styleId": "impact-shout",
+      "canvasVsSkia": 0.0009857253086419753,
+      "assVsSkia": 0.17244984567901234,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [],
+      "measuredAt": "2026-09-02T10:19:32.699Z"
+    },
+    "karaoke-fill": {
+      "styleId": "karaoke-fill",
+      "canvasVsSkia": 0.011595293209876543,
+      "assVsSkia": 0.15183256172839507,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "karaoke_non_latin_disabled"
+      ],
+      "measuredAt": "2026-09-02T10:19:34.287Z"
+    },
+    "liquid-glass": {
+      "styleId": "liquid-glass",
+      "canvasVsSkia": 0.010385802469135803,
+      "assVsSkia": 0.1329320987654321,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:38.934Z"
+    },
+    "minimal-lower-third": {
+      "styleId": "minimal-lower-third",
+      "canvasVsSkia": 0.007116126543209877,
+      "assVsSkia": 0.07439621913580247,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-02T10:19:41.311Z"
+    },
+    "neon-glow": {
+      "styleId": "neon-glow",
+      "canvasVsSkia": 0.03380208333333334,
+      "assVsSkia": 0.09032021604938271,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "glow_reduced_to_outline"
+      ],
+      "measuredAt": "2026-09-02T10:19:43.848Z"
+    },
+    "news-ticker": {
+      "styleId": "news-ticker",
+      "canvasVsSkia": 0.009810956790123457,
+      "assVsSkia": 0.09621913580246913,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:45.727Z"
+    },
+    "outline-only": {
+      "styleId": "outline-only",
+      "canvasVsSkia": 0.017706404320987655,
+      "assVsSkia": 0.0434741512345679,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:49.144Z"
+    },
+    "podcast-duo": {
+      "styleId": "podcast-duo",
+      "canvasVsSkia": 0.008013117283950617,
+      "assVsSkia": 0.08549961419753087,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:53.178Z"
+    },
+    "prism-split": {
+      "styleId": "prism-split",
+      "canvasVsSkia": 0.010144675925925927,
+      "assVsSkia": 0.05108603395061728,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:55.896Z"
+    },
+    "punch-pop": {
+      "styleId": "punch-pop",
+      "canvasVsSkia": 0.006730324074074074,
+      "assVsSkia": 0.05699074074074074,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:19:57.867Z"
+    },
+    "quote-frame": {
+      "styleId": "quote-frame",
+      "canvasVsSkia": 0.010518904320987654,
+      "assVsSkia": 0.23071180555555557,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-02T10:19:59.648Z"
+    },
+    "soft-serif": {
+      "styleId": "soft-serif",
+      "canvasVsSkia": 0.00990162037037037,
+      "assVsSkia": 0.05624614197530864,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-02T10:20:01.038Z"
+    },
+    "spotlight-word": {
+      "styleId": "spotlight-word",
+      "canvasVsSkia": 0.012202932098765431,
+      "assVsSkia": 0.05865740740740741,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:20:02.644Z"
+    },
+    "stroke-heavy": {
+      "styleId": "stroke-heavy",
+      "canvasVsSkia": 0.015808256172839506,
+      "assVsSkia": 0.047818287037037034,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:20:03.509Z"
+    },
+    "subtitle-classic": {
+      "styleId": "subtitle-classic",
+      "canvasVsSkia": 0.011911651234567902,
+      "assVsSkia": 0.040102237654320985,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-02T10:20:05.048Z"
+    },
+    "tape-retro": {
+      "styleId": "tape-retro",
+      "canvasVsSkia": 0.010609567901234568,
+      "assVsSkia": 0.07891396604938272,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:20:06.601Z"
+    },
+    "typewriter-mono": {
+      "styleId": "typewriter-mono",
+      "canvasVsSkia": 0.008952546296296297,
+      "assVsSkia": 0.14690586419753088,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:20:07.330Z"
+    },
+    "vertical-clean": {
+      "styleId": "vertical-clean",
+      "canvasVsSkia": 0.00955054012345679,
+      "assVsSkia": 0.037384259259259256,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-02T10:20:08.534Z"
+    },
+    "whisper-thin": {
+      "styleId": "whisper-thin",
+      "canvasVsSkia": 0.007102623456790124,
+      "assVsSkia": 0.01931520061728395,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:20:09.746Z"
+    },
+    "word-pop": {
+      "styleId": "word-pop",
+      "canvasVsSkia": 0.001888503086419753,
+      "assVsSkia": 0.07699845679012346,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": [
+        "word_highlight_per_word_events"
+      ],
+      "measuredAt": "2026-09-02T10:20:11.129Z"
+    }
+  }
+}
