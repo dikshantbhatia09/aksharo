@@ -464,26 +464,44 @@ and the suites still run in parallel.
 
 Each suite then takes a slice of it, from `test/suite-context.ts`:
 
-| What              | How it is isolated                                                                            |
-| ----------------- | --------------------------------------------------------------------------------------------- |
-| PostgreSQL        | `CREATE DATABASE montaj_t_<run>_<suite> TEMPLATE montaj_test_template`, dropped in `afterAll` |
-| Redis keys        | one **logical database** per suite (`redis://…/7`)                                            |
-| BullMQ + realtime | one **`MONTAJ_QUEUE_PREFIX`** per suite (`montaj-test-<run>-<slot>`)                          |
+| What              | How it is isolated                                                                                    |
+| ----------------- | ----------------------------------------------------------------------------------------------------- |
+| PostgreSQL        | `CREATE DATABASE montaj_t_<run>_<suite> TEMPLATE montaj_test_template`, dropped in `afterAll`         |
+| Product keys      | one **`MONTAJ_REDIS_PREFIX`** per suite — the `montaj:` namespace becomes `montaj-test-<run>-<slot>:` |
+| BullMQ + realtime | one **`MONTAJ_QUEUE_PREFIX`** per suite (`montaj-test-<run>-<slot>`)                                  |
+| Redis, in passing | one **logical database** per suite while there are enough to go round (`redis://…/7`)                 |
 
 The database clone is a file copy, so it costs a fraction of a second rather than
 the twenty seconds a migration run costs — and it means a suite may `TRUNCATE` any
-table it likes while a dozen other suites do the same. The logical database is
-what isolates the keys the product hard-codes (`montaj:auth:*`, `montaj:rl:*`);
-the prefix is what isolates BullMQ and the realtime channels, because Redis
-pub/sub ignores the logical database entirely. A run never claims logical database
-0 unless it is told to: that is where a developer's own `docker compose` stack
-keeps its keys.
+table it likes while a dozen other suites do the same.
+
+Redis is isolated **by key prefix**, and that is the whole mechanism (A23b). Every
+key the product writes is built from `redisKeyPrefix()`
+(`src/common/redis/redis-keys.ts`) — the auth tokens and the development mail
+outbox, the rate-limit buckets, the notification suppression list, the export
+bundles, the entitlement cache. Unset, which is every deployment, it is `montaj`
+and the keys are exactly the names they have always been; in a test run it is the
+suite's own name. BullMQ structures and realtime pub/sub channels are named by
+`MONTAJ_QUEUE_PREFIX` instead, because `apps/worker-media`, `apps/render` and
+`apps/worker-ai` have to agree with the API on those — and pub/sub ignores the
+logical database entirely, so a prefix is the only thing that could work there.
+
+A23a gave each suite a **logical Redis database** as well, and that is still done
+when the run has more of them than suites — but only as a second separator.
+Logical databases could never have been the mechanism: Redis ships with sixteen
+and this package has twenty-two e2e suites, so from the seventeenth onwards two
+suites shared one, and a `KEYS montaj:* / DEL` sweep between tests took the
+sibling's keys with it. A21 watched `auth.e2e-spec.ts` lose its dev-outbox
+messages exactly that way.
 
 `test/isolation-alpha.e2e-spec.ts` and `test/isolation-beta.e2e-spec.ts` are the
 proof. They rendezvous through the filesystem so their writes genuinely overlap,
 then insert the same primary key into the same table, truncate that table from one
-side, and write the same hard-coded Redis key from both. Every one of those fails
-loudly if the isolation ever regresses.
+side, and write the same product Redis key (`redisKeys.devOutbox()`) from both.
+The last of them pins both halves to the **same** logical Redis database, has one
+run the sweep `auth-harness.reset()` runs between tests, and proves the other's
+key survived — the A23b claim with the second separator deliberately removed.
+Every one of those fails loudly if the isolation ever regresses.
 
 Dropping a database forces a checkpoint, which is slow on a busy machine, so
 `afterAll` gives it fifteen seconds and then hands it to the run teardown, which
@@ -515,13 +533,13 @@ Setting these variables used to be a hazard, because the suites shared and
 truncated whatever they were pointed at. It is now the recommended way to run the
 suite on a machine where Docker is busy.
 
-One thing to know about `TEST_REDIS_URL`: the run needs one logical database per
-e2e suite, and it takes them from the one in the URL upwards. `redis://localhost:6379`
-leaves database 0 alone — where a developer's own stack lives — until there are
-more suites than databases above it, at which point it claims 0 as well and says
-so, because two suites sharing one logical database sweep each other's `montaj:*`
-keys. Pinning a database (`redis://localhost:6379/1`) is an instruction the run
-will not override; it then warns instead, and two suites share.
+`TEST_REDIS_URL` may point anywhere, including at a single logical database:
+`redis://localhost:6379/0` puts all twenty-two suites in one, and they still pass,
+because the key prefix is what separates them. Suites take logical databases from
+the one in the URL upwards while there are enough to go round, and share when
+there are not; the run says which on its `[test-run]` line. It never claims
+database 0 unless the URL asks for it — that is where a developer's own stack
+lives — and nothing is lost by leaving it alone now.
 
 ### Debugging one suite
 
@@ -582,17 +600,18 @@ in-memory Prisma and queue stubs the unit suites share.
 
 ### Variables that shape a test run
 
-| Variable                    | Effect                                                                                                                                                                       |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TEST_DATABASE_URL`         | Use this PostgreSQL **server** instead of starting a container. Only the server matters: the template and every suite database are created on it.                            |
-| `TEST_REDIS_URL`            | Use this Redis instead of starting a container. A logical database in the path is the lowest one the run will claim.                                                         |
-| `MONTAJ_SKIP_DB_TESTS`      | `1` skips every suite that needs PostgreSQL, and starts no container for it.                                                                                                 |
-| `MONTAJ_SKIP_REDIS_TESTS`   | `1` skips every suite that needs Redis, and starts no container for it.                                                                                                      |
-| `MONTAJ_SKIP_STORAGE_TESTS` | `1` skips `test/projects-media.e2e-spec.ts` deliberately, the same way for the one suite that needs an S3-compatible store.                                                  |
-| `MONTAJ_QUEUE_PREFIX`       | Redis key prefix for BullMQ and realtime. `test/suite-context.ts` sets a per-suite value; a deployment leaves it at `bull`, which is what the workers expect.                |
-| `MONTAJ_SCHEDULER_DISABLED` | `1` stops this process running the scheduler worker. Set in tests, which call `ScheduledTasksService.runNow(name)` instead.                                                  |
-| `MONTAJ_METRICS_TOKEN`      | When set, `GET /internal/metrics` requires `Authorization: Bearer <token>`. Unset, the endpoint is open (A08b).                                                              |
-| `NOTIFY_WORKER_ENABLED`     | `0` stops this process draining the `notify` queue. `setup-env.ts` sets it; `test/auth-harness.ts` turns it back on, because that suite delivers to the outbox and reads it. |
+| Variable                    | Effect                                                                                                                                                                              |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TEST_DATABASE_URL`         | Use this PostgreSQL **server** instead of starting a container. Only the server matters: the template and every suite database are created on it.                                   |
+| `TEST_REDIS_URL`            | Use this Redis instead of starting a container. A logical database in the path is the lowest one the run will claim.                                                                |
+| `MONTAJ_SKIP_DB_TESTS`      | `1` skips every suite that needs PostgreSQL, and starts no container for it.                                                                                                        |
+| `MONTAJ_SKIP_REDIS_TESTS`   | `1` skips every suite that needs Redis, and starts no container for it.                                                                                                             |
+| `MONTAJ_SKIP_STORAGE_TESTS` | `1` skips `test/projects-media.e2e-spec.ts` deliberately, the same way for the one suite that needs an S3-compatible store.                                                         |
+| `MONTAJ_QUEUE_PREFIX`       | Redis key prefix for BullMQ and realtime. `test/suite-context.ts` sets a per-suite value; a deployment leaves it at `bull`, which is what the workers expect.                       |
+| `MONTAJ_REDIS_PREFIX`       | Namespace for every other Redis key the API writes (`redisKeyPrefix()`). `test/suite-context.ts` sets a per-suite value; unset it is `montaj`, which is what every deployment uses. |
+| `MONTAJ_SCHEDULER_DISABLED` | `1` stops this process running the scheduler worker. Set in tests, which call `ScheduledTasksService.runNow(name)` instead.                                                         |
+| `MONTAJ_METRICS_TOKEN`      | When set, `GET /internal/metrics` requires `Authorization: Bearer <token>`. Unset, the endpoint is open (A08b).                                                                     |
+| `NOTIFY_WORKER_ENABLED`     | `0` stops this process draining the `notify` queue. `setup-env.ts` sets it; `test/auth-harness.ts` turns it back on, because that suite delivers to the outbox and reads it.        |
 
 ## Adding a module
 
