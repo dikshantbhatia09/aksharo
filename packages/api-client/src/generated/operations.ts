@@ -173,11 +173,39 @@ export const API_OPERATIONS = [
     summary: "Start a device sign-in",
   },
   {
+    operationId: "discardDeadLetter",
+    method: "POST",
+    path: "/admin/dlq/{id}/discard",
+    tags: ["admin"],
+    summary: "Discard one dead letter",
+  },
+  {
+    operationId: "discardDeadLetters",
+    method: "POST",
+    path: "/admin/dlq/discard",
+    tags: ["admin"],
+    summary: "Discard many dead letters",
+  },
+  {
     operationId: "getConsents",
     method: "GET",
     path: "/consents",
     tags: ["consents"],
     summary: "The caller's current answer for every purpose",
+  },
+  {
+    operationId: "getDeadLetter",
+    method: "GET",
+    path: "/admin/dlq/{id}",
+    tags: ["admin"],
+    summary: "One dead letter, by entry id or by job id",
+  },
+  {
+    operationId: "getDeadLetterStats",
+    method: "GET",
+    path: "/admin/dlq/stats",
+    tags: ["admin"],
+    summary: "Per-queue dead-letter counts",
   },
   {
     operationId: "getHealth",
@@ -236,6 +264,13 @@ export const API_OPERATIONS = [
     summary: "Invite an address to the workspace",
   },
   {
+    operationId: "listDeadLetters",
+    method: "GET",
+    path: "/admin/dlq",
+    tags: ["admin"],
+    summary: "List dead-lettered jobs, newest first",
+  },
+  {
     operationId: "listInvitations",
     method: "GET",
     path: "/invitations",
@@ -259,9 +294,9 @@ export const API_OPERATIONS = [
   {
     operationId: "listParentalWaitlist",
     method: "GET",
-    path: "/privacy/parental-waitlist",
-    tags: ["privacy"],
-    summary: "The parental-consent waiting list (platform administrators)",
+    path: "/admin/parental-waitlist",
+    tags: ["admin"],
+    summary: "The parental-consent waiting list, oldest first",
   },
   {
     operationId: "listWorkspaceMembers",
@@ -304,6 +339,20 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/members/{membershipId}",
     tags: ["workspaces"],
     summary: "Remove a member or withdraw an invitation",
+  },
+  {
+    operationId: "replayDeadLetter",
+    method: "POST",
+    path: "/admin/dlq/{id}/replay",
+    tags: ["admin"],
+    summary: "Replay one dead letter",
+  },
+  {
+    operationId: "replayDeadLetters",
+    method: "POST",
+    path: "/admin/dlq/replay",
+    tags: ["admin"],
+    summary: "Replay many dead letters",
   },
   {
     operationId: "requestMyData",

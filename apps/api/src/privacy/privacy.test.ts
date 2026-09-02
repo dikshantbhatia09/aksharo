@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import { CODENAME } from "@montaj/config";
 
 import { hashEmail, parentalWaitlistRow } from "./parental-waitlist.js";
-import { PLATFORM_ADMINS_FLAG, platformAdmins } from "./platform-admin.guard.js";
 import { PRIVACY_NOTICE } from "./privacy-notice.js";
 import { CONSENT_PURPOSES } from "../consents/consents.dto.js";
 import { PRIVACY_NOTICE_VERSION } from "../users/users.service.js";
@@ -64,20 +63,5 @@ describe("the parental waiting list", () => {
     const second = parentalWaitlistRow({ email: "KID@EXAMPLE.TEST" });
     expect(second.emailHash).toBe(first.emailHash);
     expect(second.id).not.toBe(first.id);
-  });
-});
-
-describe("platformAdmins", () => {
-  it("is empty — and therefore closed — when the flag is absent or malformed", () => {
-    expect(platformAdmins({}).size).toBe(0);
-    expect(platformAdmins({ [PLATFORM_ADMINS_FLAG]: true }).size).toBe(0);
-    expect(platformAdmins({ [PLATFORM_ADMINS_FLAG]: "admin@example.test" }).size).toBe(0);
-  });
-
-  it("normalises the addresses it is given and drops non-strings", () => {
-    const allowed = platformAdmins({
-      [PLATFORM_ADMINS_FLAG]: [" Admin@Example.TEST ", 42, null, "second@example.test"],
-    });
-    expect([...allowed].sort()).toEqual(["admin@example.test", "second@example.test"]);
   });
 });

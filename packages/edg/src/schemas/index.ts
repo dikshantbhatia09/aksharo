@@ -9,4 +9,5 @@ export * from "./segment.js";
 export * from "./pass.js";
 export * from "./document.js";
 export * from "./ops.js";
+export * from "./snapshot.js";
 export * from "./json-schema.js";

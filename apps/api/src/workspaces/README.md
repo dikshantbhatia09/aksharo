@@ -13,31 +13,31 @@ dsr_requests, access_logs); `04-pricing-and-monetization.md` §Tax;
 
 ## Endpoints
 
-| Method   | Path                                      | Who             | Notes                                                            |
-| -------- | ----------------------------------------- | --------------- | ---------------------------------------------------------------- |
-| `GET`    | `/me`                                     | any member      | Profile plus the token's workspace and the caller's role.        |
-| `PATCH`  | `/me`                                     | any member      | Name, avatar, locale, onboarding, marketing opt-in.              |
-| `GET`    | `/me/data`                                | any member      | DPDP export; returns a single-use link valid one hour.           |
-| `GET`    | `/me/data/{requestId}?token=`             | public (signed) | Redeems that link. Excluded from the OpenAPI document.           |
-| `DELETE` | `/me`                                     | any member      | Erasure request; the cascade is B16.                             |
-| `GET`    | `/consents`                               | any member      | Current answer per purpose plus `reconsentRequired`.             |
-| `POST`   | `/consents`                               | any member      | Grant or withdraw one purpose.                                   |
-| `GET`    | `/privacy/notice`                         | public          | The itemised notice's version and purpose list.                  |
-| `GET`    | `/privacy/parental-waitlist`              | platform admin  | Digests only. Closed unless `FEATURE_FLAGS_JSON` names somebody. |
-| `GET`    | `/workspaces`                             | any member      | The caller's workspaces. Not scoped to the `ws` claim.           |
-| `POST`   | `/workspaces`                             | any member      | Creates a team or agency workspace; the caller owns it.          |
-| `GET`    | `/workspaces/{id}`                        | viewer          |                                                                  |
-| `PATCH`  | `/workspaces/{id}`                        | admin           | Name, slug, settings (settings are merged).                      |
-| `DELETE` | `/workspaces/{id}`                        | owner           | Soft delete; refused when it is the caller's only workspace.     |
-| `PUT`    | `/workspaces/{id}/tax-profile`            | owner           | Country, GST State, GSTIN, legal name.                           |
-| `GET`    | `/workspaces/{id}/entitlement`            | viewer          | Free-plan stub, cached 60 s (B02 computes it for real).          |
-| `GET`    | `/workspaces/{id}/members`                | viewer          | Members and outstanding invitations, owner first.                |
-| `POST`   | `/workspaces/{id}/members`                | admin           | Invite an address.                                               |
-| `PATCH`  | `/workspaces/{id}/members/{membershipId}` | admin           | Change a role.                                                   |
-| `DELETE` | `/workspaces/{id}/members/{membershipId}` | admin           | Remove a member or withdraw an invitation.                       |
-| `GET`    | `/invitations`                            | any member      | Invitations waiting for the caller's verified address.           |
-| `POST`   | `/invitations/{id}/accept`                | the invitee     | Joins; the caller then exchanges a token.                        |
-| `DELETE` | `/invitations/{id}`                       | the invitee     | Declines.                                                        |
+| Method   | Path                                      | Who             | Notes                                                        |
+| -------- | ----------------------------------------- | --------------- | ------------------------------------------------------------ |
+| `GET`    | `/me`                                     | any member      | Profile plus the token's workspace and the caller's role.    |
+| `PATCH`  | `/me`                                     | any member      | Name, avatar, locale, onboarding, marketing opt-in.          |
+| `GET`    | `/me/data`                                | any member      | DPDP export; returns a single-use link valid one hour.       |
+| `GET`    | `/me/data/{requestId}?token=`             | public (signed) | Redeems that link. Excluded from the OpenAPI document.       |
+| `DELETE` | `/me`                                     | any member      | Erasure request; the cascade is B16.                         |
+| `GET`    | `/consents`                               | any member      | Current answer per purpose plus `reconsentRequired`.         |
+| `POST`   | `/consents`                               | any member      | Grant or withdraw one purpose.                               |
+| `GET`    | `/privacy/notice`                         | public          | The itemised notice's version and purpose list.              |
+| `GET`    | `/admin/parental-waitlist`                | platform admin  | Digests only; behind A08b's `AdminGuard` (`users.is_admin`). |
+| `GET`    | `/workspaces`                             | any member      | The caller's workspaces. Not scoped to the `ws` claim.       |
+| `POST`   | `/workspaces`                             | any member      | Creates a team or agency workspace; the caller owns it.      |
+| `GET`    | `/workspaces/{id}`                        | viewer          |                                                              |
+| `PATCH`  | `/workspaces/{id}`                        | admin           | Name, slug, settings (settings are merged).                  |
+| `DELETE` | `/workspaces/{id}`                        | owner           | Soft delete; refused when it is the caller's only workspace. |
+| `PUT`    | `/workspaces/{id}/tax-profile`            | owner           | Country, GST State, GSTIN, legal name.                       |
+| `GET`    | `/workspaces/{id}/entitlement`            | viewer          | Free-plan stub, cached 60 s (B02 computes it for real).      |
+| `GET`    | `/workspaces/{id}/members`                | viewer          | Members and outstanding invitations, owner first.            |
+| `POST`   | `/workspaces/{id}/members`                | admin           | Invite an address.                                           |
+| `PATCH`  | `/workspaces/{id}/members/{membershipId}` | admin           | Change a role.                                               |
+| `DELETE` | `/workspaces/{id}/members/{membershipId}` | admin           | Remove a member or withdraw an invitation.                   |
+| `GET`    | `/invitations`                            | any member      | Invitations waiting for the caller's verified address.       |
+| `POST`   | `/invitations/{id}/accept`                | the invitee     | Joins; the caller then exchanges a token.                    |
+| `DELETE` | `/invitations/{id}`                       | the invitee     | Declines.                                                    |
 
 `@Roles("admin")` admits `admin` and `owner`, and `@Roles("owner")` admits only
 the owner — the ladder is `viewer < editor < admin < owner` and a route names the
@@ -210,6 +210,14 @@ a person types back to a row. Keeping the plaintext address of a declared minor
 for two years to send one message is not a trade worth making.
 `POST /auth/parental-waitlist` gained an optional `jurisdiction` so the sign-up
 form the age gate refused can carry over what it already knows.
+
+The list is read at `GET /admin/parental-waitlist`, which lives in `AdminModule`
+rather than beside the rest of this surface: it belongs to nobody's workspace, so
+there is no membership that could authorise reading it, and A08b's rule is that
+every route crossing a tenant boundary sits behind `AdminGuard` in that module,
+where it cannot be registered without one. `AdminGuard` re-reads `users.is_admin`
+on each request, so revoking platform-staff access takes effect immediately
+(THREAT-MODEL T20).
 
 ## Audit (05 §8, THREAT-MODEL T20)
 

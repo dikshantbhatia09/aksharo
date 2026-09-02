@@ -13,7 +13,7 @@
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { authSkipReason, createAuthTestContext, PLATFORM_ADMIN_EMAIL } from "./auth-harness.js";
+import { authSkipReason, createAuthTestContext } from "./auth-harness.js";
 import { isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { redisKeys } from "../src/auth/auth.constants.js";
 import { hashEmail } from "../src/privacy/parental-waitlist.js";
@@ -465,11 +465,13 @@ describe.skipIf(!available)("users, workspaces, consents and privacy (e2e)", () 
 
     it("keeps the parental waiting list closed to ordinary members", async () => {
       const user = await newUser("waitlist-nobody");
+      // A08b's `AdminGuard`: `users.is_admin`, re-read on every request, not a
+      // workspace role — the list belongs to nobody's workspace.
       await request(server)
-        .get("/privacy/parental-waitlist")
+        .get("/admin/parental-waitlist")
         .set("Authorization", auth(user))
         .expect(403);
-      await request(server).get("/privacy/parental-waitlist").expect(401);
+      await request(server).get("/admin/parental-waitlist").expect(401);
     });
 
     it("shows a platform administrator the digests, and never an address", async () => {
@@ -481,13 +483,10 @@ describe.skipIf(!available)("users, workspaces, consents and privacy (e2e)", () 
         .expect(202);
 
       const admin = await newUser("waitlist-admin");
-      await ctx.prisma.user.update({
-        where: { email: admin.email },
-        data: { email: PLATFORM_ADMIN_EMAIL },
-      });
+      await ctx.prisma.user.update({ where: { email: admin.email }, data: { isAdmin: true } });
 
       const response = await request(server)
-        .get("/privacy/parental-waitlist")
+        .get("/admin/parental-waitlist")
         .set("Authorization", auth(admin))
         .expect(200);
 

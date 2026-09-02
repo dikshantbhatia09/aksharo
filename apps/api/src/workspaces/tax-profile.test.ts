@@ -111,9 +111,10 @@ describe("validateTaxProfile — outside India", () => {
   });
 
   it("refuses a GSTIN rather than silently dropping it", () => {
-    expect(
-      validateTaxProfile({ billingCountry: "DE", gstin: MAHARASHTRA_GSTIN }),
-    ).toMatchObject({ ok: false, problem: "gstin_not_applicable" });
+    expect(validateTaxProfile({ billingCountry: "DE", gstin: MAHARASHTRA_GSTIN })).toMatchObject({
+      ok: false,
+      problem: "gstin_not_applicable",
+    });
   });
 
   it("treats an empty string as absent", () => {

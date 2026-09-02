@@ -8,9 +8,16 @@
  * Everything they cannot answer throws loudly rather than returning a plausible
  * empty result, so a new call site is a failing test, not a silent `undefined`.
  */
-import { ulid } from "ulid";
+import { monotonicFactory } from "ulid";
 
-import type { Job, JobEvent, JobStatus, PlanKey } from "@prisma/client";
+/**
+ * Monotonic, like `src/jobs/ids.ts`: fixtures are listed and paginated by id, so
+ * two rows minted in the same millisecond have to sort in creation order or a
+ * test asserting "newest first" is asserting a coin flip.
+ */
+const ulid = monotonicFactory();
+
+import type { AuditLog, DlqEntry, Job, JobEvent, JobStatus, PlanKey } from "@prisma/client";
 
 type Row = Record<string, unknown>;
 
@@ -28,6 +35,27 @@ function matches(row: Row, where: Row | undefined): boolean {
     if (actual !== expected) return false;
   }
   return true;
+}
+
+/**
+ * `matches`, plus the one `{ OR: [...] }` shape the DLQ queries use.
+ *
+ * The JSONB `string_contains` filter behind `?reason=` is deliberately NOT
+ * modelled: reproducing Postgres JSON path semantics in a fake would be testing
+ * the fake. `test/dlq.e2e-spec.ts` covers that filter against a real database.
+ */
+function matchesDlq(row: DlqEntry, where: Row | undefined): boolean {
+  if (where === undefined) return true;
+  const { OR, ...rest } = where as { OR?: Row[] };
+  if (!matches(row as unknown as Row, rest as Row)) return false;
+  if (OR === undefined) return true;
+  return OR.some((clause) => matches(row as unknown as Row, clause));
+}
+
+/** Prisma accepts an array of orderings; the fake sorts on the first. */
+function firstOrderBy(orderBy: unknown): Row | undefined {
+  if (Array.isArray(orderBy)) return orderBy[0] as Row | undefined;
+  return orderBy as Row | undefined;
 }
 
 function sort<T extends Row>(rows: T[], orderBy: Row | undefined): T[] {
@@ -72,6 +100,12 @@ export interface FakeMembership {
   readonly status: string;
 }
 
+export interface FakeUser {
+  readonly id: string;
+  readonly isAdmin: boolean;
+  readonly deletedAt: Date | null;
+}
+
 /** The mutable world the fake Prisma reads and writes. */
 export class FakeDb {
   readonly jobs = new Map<string, Job>();
@@ -80,6 +114,47 @@ export class FakeDb {
   readonly memberships: FakeMembership[] = [];
   /** `workspaceId -> plan`; absent means no live subscription (i.e. free). */
   readonly plans = new Map<string, PlanKey>();
+  /** A08b: dead-letter entries, the admin users who may act on them, and the trail. */
+  readonly dlq = new Map<string, DlqEntry>();
+  readonly users = new Map<string, FakeUser>();
+  readonly audit: AuditLog[] = [];
+
+  user(overrides: Partial<FakeUser> = {}): FakeUser {
+    const user: FakeUser = {
+      id: ulid(),
+      isAdmin: false,
+      deletedAt: null,
+      ...overrides,
+    };
+    this.users.set(user.id, user);
+    return user;
+  }
+
+  dlqEntry(overrides: Partial<DlqEntry> = {}): DlqEntry {
+    const id = overrides.id ?? ulid();
+    const entry = {
+      id,
+      jobId: ulid(),
+      workspaceId: "01JCWORKSPACE00000000000000".slice(0, 26),
+      projectId: null,
+      queue: "ai.transcribe",
+      jobKey: `key-${id}`,
+      attemptId: ulid(),
+      attemptNo: 1,
+      attempts: 1,
+      payload: {},
+      lastError: null,
+      worstCaseTenths: 0,
+      failedAt: new Date(),
+      status: "pending",
+      resolvedBy: null,
+      resolvedAt: null,
+      resolution: null,
+      ...overrides,
+    } as DlqEntry;
+    this.dlq.set(entry.id, entry);
+    return entry;
+  }
 
   job(overrides: Partial<Job> = {}): Job {
     const id = overrides.id ?? ulid();
@@ -106,7 +181,11 @@ export class FakeDb {
       finishedAt: null,
       jobKey: `key-${id}`,
       attemptId: ulid(),
+      attemptNo: 1,
       maxQueueWaitMs: 900_000,
+      dlq: false,
+      dlqReason: null,
+      dlqAt: null,
       ...overrides,
     };
     this.jobs.set(job.id, job);
@@ -123,6 +202,7 @@ export class FakeDb {
 /** A `PrismaService` substitute covering the jobs, events, plan and room queries. */
 export function createFakePrisma(db: FakeDb) {
   const jobRows = (): Job[] => [...db.jobs.values()];
+  const dlqRows = (): DlqEntry[] => [...db.dlq.values()];
 
   return {
     job: {
@@ -230,6 +310,88 @@ export function createFakePrisma(db: FakeDb) {
           matches(row as unknown as Row, args["where"] as Row),
         );
         return membership === undefined ? null : { id: membership.id };
+      },
+    },
+    user: {
+      findUnique: async ({ where }: { where: { id: string } }): Promise<FakeUser | null> =>
+        db.users.get(where.id) ?? null,
+    },
+    auditLog: {
+      create: async ({ data }: { data: Row }): Promise<AuditLog> => {
+        const row = { at: new Date(), ...data } as unknown as AuditLog;
+        db.audit.push(row);
+        return row;
+      },
+    },
+    dlqEntry: {
+      // `where` is the compound `jobId_attemptId` key; the fake only ever sees
+      // that one, which is the only unique index on the table besides the id.
+      upsert: async ({
+        where,
+        create,
+      }: {
+        where: { jobId_attemptId: { jobId: string; attemptId: string } };
+        create: Row;
+      }): Promise<DlqEntry> => {
+        const key = where.jobId_attemptId;
+        const existing = dlqRows().find(
+          (row) => row.jobId === key.jobId && row.attemptId === key.attemptId,
+        );
+        if (existing !== undefined) return existing;
+        return db.dlqEntry(create as Partial<DlqEntry>);
+      },
+      create: async ({ data }: { data: Row }): Promise<DlqEntry> =>
+        db.dlqEntry(data as Partial<DlqEntry>),
+      findUnique: async ({ where }: { where: { id: string } }): Promise<DlqEntry | null> =>
+        db.dlq.get(where.id) ?? null,
+      findFirst: async (args: Row): Promise<DlqEntry | null> => {
+        const rows = sort(
+          dlqRows().filter((row) => matchesDlq(row, args["where"] as Row)),
+          firstOrderBy(args["orderBy"]),
+        );
+        return rows[0] ?? null;
+      },
+      findMany: async (args: Row): Promise<DlqEntry[]> =>
+        paginate(
+          sort(
+            dlqRows().filter((row) => matchesDlq(row, args["where"] as Row)),
+            firstOrderBy(args["orderBy"]),
+          ),
+          args,
+        ),
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Row;
+      }): Promise<DlqEntry> => {
+        const current = db.dlq.get(where.id);
+        if (current === undefined) throw new Error(`no dlq entry ${where.id}`);
+        const next = { ...current, ...data } as DlqEntry;
+        db.dlq.set(next.id, next);
+        return next;
+      },
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: Row;
+        data: Row;
+      }): Promise<{ count: number }> => {
+        let count = 0;
+        for (const row of dlqRows()) {
+          if (!matchesDlq(row, where)) continue;
+          db.dlq.set(row.id, { ...row, ...data } as DlqEntry);
+          count += 1;
+        }
+        return { count };
+      },
+      groupBy: async (args: Row): Promise<{ queue: string; _count: { _all: number } }[]> => {
+        const rows = dlqRows().filter((row) => matchesDlq(row, args["where"] as Row));
+        const counts = new Map<string, number>();
+        for (const row of rows) counts.set(row.queue, (counts.get(row.queue) ?? 0) + 1);
+        return [...counts].map(([queue, total]) => ({ queue, _count: { _all: total } }));
       },
     },
   };
