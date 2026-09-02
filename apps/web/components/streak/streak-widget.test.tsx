@@ -40,7 +40,7 @@ describe("<StreakWidget />", () => {
       routes: { "/streak": { ...BASE, paused: true, publishDaysThisWeek: 1 } },
     });
     const paused = await screen.findByTestId("streak-widget-paused");
-    expect(paused).toHaveTextContent("Streak paused — one export restores it");
+    expect(paused).toHaveTextContent("streak paused — one export restores it");
     expect(screen.queryByTestId("streak-widget-summary")).toBeNull();
     expect(screen.queryByText(/reset/i)).toBeNull();
   });

@@ -8,6 +8,30 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A23b — a real Postgres 40P01 ("deadlock detected") in `auth-harness.ts`'s
+  `reset()`.** Several background writers the API starts inside a test app
+  outlive the HTTP request a test awaits: `AccessLogInterceptor` fires
+  `recordAccess` from a `tap()` that runs after the response has gone out, and
+  a plain `this.events.emit(...)` (`members.service.ts`'s
+  `MEMBERSHIP_SEAT_EVENTS.seatsChanged`, and the same pattern in `referrals`,
+  `invoices`, `webhooks`, `credits`, `exports`) starts an `@OnEvent` listener —
+  `SeatBillingListener` among them — without awaiting it. Either can still be
+  writing `access_logs`/`audit_log`/`subscriptions`/`credit_accounts` when the
+  next test's `beforeEach` truncates those tables, racing `TRUNCATE`'s
+  `AccessExclusiveLock` and occasionally losing to Postgres's own deadlock
+  detector. `test/auth-harness.ts` now patches (test-only, nothing under
+  `src/` changed) `EventEmitter2.prototype._on` and
+  `CommonAuditService.prototype.record`/`recordAccess` to track every such
+  write, and `reset()` drains them — alongside the existing `NotifyConsumer`
+  drain — before truncating, with a 40P01 retry (5 attempts, growing 150ms
+  backoff) as a last line of defence. Two new regression tests in
+  `users-workspaces.e2e-spec.ts` reproduce each race directly (a fire-and-forget
+  `recordAccess`, and a throwaway `EventEmitter2` listener) and assert `reset()`
+  waits for them. `scripts/verify-wave.mjs` and `docker-compose.test.yml` were
+  run end to end once on this host; see `docs/verification/verify-wave-2026-09-03.md`.
+
 ### Added
 
 - **C11 — Plugin licensing & devices UI: the activation card, and a
@@ -48,6 +72,100 @@ startsWith()` on any `/p*` path (so adding `/plugins` to the matcher briefly
   answered) — `isUnderPath()` now requires a segment boundary.
   `packages/api-client`: `PluginManifestResponse`/`PluginManifestChannel`
   types, `endpoints.plugins.manifest`, `usePluginManifest()`.
+
+- **C08 — DaVinci Resolve `aksharo_core`: Workspace ▸ Scripts launcher, in-Resolve
+  loopback server, bridge client, Text+ captions, cuts, dynamic zoom, marker
+  customData map.** New workspace `plugins/resolve` (Python 3.12, same
+  `pyproject.toml`/`scripts/py.mjs` tooling as `apps/worker-ai`): the Resolve
+  entry bootstrap `aksharo_core.py` (installed to Fusion's `Scripts/Utility`
+  by C10) delegates to the real, unit-tested library `aksharo_core_app/`.
+  `host/resolve.py` is the only module importing the real
+  `DaVinciResolveScript` (lazily); `FakeResolveHost` mirrors the documented
+  object model (ProjectManager → Project → MediaPool → Timeline →
+  TimelineItem, plus a Fusion comp for Text+) so everything else — the Text+
+  caption builder (`captions.py`, with an alpha-overlay fallback for styles
+  A18a marks `assRenderable=false`), the accepted-cut applier (`cuts.py`,
+  `Timeline.DeleteClips(items, ripple=True)`), the accepted-zoom applier
+  (`zooms.py`, MKF2-decoded keyframes collapsed to Resolve's two-point Dynamic
+  Zoom via `TimelineItem.SetProperty`), and the `{aksharo: {projectId,
+segmentId|itemId, rev}}` marker `customData` re-sync mapping
+  (`markers.py`) — is tested headless. `keyframes.py` ports
+  `packages/edg/src/passes/keyframes.ts`'s MKF2 codec byte-for-byte
+  (round-trip tested against fixture bytes produced by the TS encoder).
+  `bridge/` is a `websockets`-based JSON-RPC 2.0 client for the C01 local
+  bridge protocol plus a Python port of `apps/bridge/src/device-auth.ts`'s
+  B08b device-code bootstrap (`clientKind: "resolve"`). `server.py` is the
+  in-Resolve loopback JSON-RPC server (`host.info`, `timeline.current`,
+  `apply.*`, ports 47841-47843, bearer from a new `~/.aksharo/resolve.json`
+  discovery file distinct from the desktop bridge's). `tools/release/src/
+commands/packageResolve.ts` now stages and zips the real `aksharo_core.py` +
+  `aksharo_core_app/` tree (previously a placeholder `.lua` file) plus per-OS
+  installer scripts. `docs/GATE-C-CHECKLIST.md` (new) records the manual
+  first-run steps for a real DaVinci Resolve (Free and Studio) once human
+  spike A00-04 reports; several Resolve-side assumptions (the Utility-script
+  `resolve` global on Free, whether a loopback server may run inside Resolve,
+  the exact `SetProperty` keys Dynamic Zoom keyframes, and the absence of a
+  scriptable undo-transaction API) are called out there and in
+  `plugins/resolve/README.md` as unverified pending that spike.
+- **C05a — Premiere Pro UXP plugin foundation.** New workspace
+  `plugins/premiere-uxp` (`@montaj/premiere-uxp`): UXP manifest v5
+  (`ai.aksharo.panel`, host `PPRO` min `25.6`, minimal `requiredPermissions`
+  — no clipboard, no `launchProcess`, network limited to the API origin and
+  the loopback bridge ports 47831–47833); every UXP/Premiere-specific call is
+  isolated behind `src/host/premiere.ts`'s `PremiereHost` interface, with
+  `MockPremiereHost` exercised by every test and `createRealPremiereHost()`
+  written (typechecks) but throwing on `requestMixdown`/`readFile` until the
+  A00-03 human spike confirms the underlying EncoderManager/file-system calls
+  (`docs/GATE-C-CHECKLIST.md`). Bridge sign-in: a typed JSON-RPC caller over
+  `@montaj/bridge-core`'s protocol (`src/bridge/client.ts`) plus a `fetch`-based
+  production transport (`src/bridge/httpTransport.ts`); `src/auth/session.ts`
+  is a device-code/tray-gesture pairing state machine that holds the session
+  **in memory only** (THREAT-MODEL T13 / D25 — a deliberate deviation from the
+  WP brief's "UXP secure storage" line, documented in the plugin README).
+  Sequence/in-out/selection reads, an audio-mixdown-to-transcribe pipeline
+  (`src/upload/mixdown.ts`: mixdown → `media.uploadTicket` → presigned PUT →
+  `POST /transcribe`), a `/plugins/manifest` min/max-version update banner
+  (`src/version/manifestCheck.ts`), and a React panel UI (sign-in, source +
+  "Transcribe this sequence", status/progress, open-in-web-editor link,
+  footer version line with the D65 non-affiliation copy) round out the
+  foundation. `src/i18n/strings.ts` is this package's own English/Hindi
+  string table (no shared `packages/i18n` exists yet). Coverage gate 60/50
+  lines/branches (CONTRACTS §9's `apps/web` UI tier) added via
+  `coverageThresholds()` in the package's own `vitest.config.ts`.
+
+- **B10b — Audio clean wiring: `SetAudio.clean.cleanId`, Audio panel mounted,
+  audio parity gate, API e2e, RSS bound.** `packages/edg`: `AudioCleanSchema`
+  (`schemas/document.ts`) gains a first-class `cleanId` field (CONTRACTS §2,
+  amended 2026-09-03), replacing B10's interim `preset: "b10:<cleanId>"`
+  encoding; the EDG v2 loader (`migrations/migrate.ts`) rewrites any stored
+  document still carrying that encoding on load, and
+  `exports.service.ts#resolveAudioClean` reads `cleanId` directly (falling
+  back to the old `preset` form belt-and-braces). `apps/web`: the editor's
+  right panel gains an "Audio" tab (`RightPanel.tsx`) mounting B10's
+  `AudioPanel`, wired to the editor's `EdgOpQueue` via a new `onSetAudio`
+  handler in `editor-client.tsx` (undoable, like every other panel op);
+  `use-audio-clean.ts`'s `applyCleanOp`/`clearCleanOp` now build
+  `{clean: {enabled, cleanId, targetLufs}}` instead of the preset string. D82:
+  the panel exposes a Quick clean / Deep clean tier toggle, greying Deep clean
+  out with "coming to cloud renders" copy until the server-read
+  `AUDIO_DEEP_CLEAN_ENABLED=1` (new env var, `.env.example`) is set. Parity:
+  `apps/render/parity/audio-parity.ts` hashes the audio bytes the browser
+  export path (`sources.cleanedAudioUrl`) and the cloud render path
+  (`manifest.audio.cleanKey`) would each mux in for `audio.strategy:
+"replace"`, reporting a match; `parity:audio` writes this package's
+  `parity/results.json` `audio` block (render README documents both parity
+  sections). `apps/api/test/audio.e2e-spec.ts`: clean → simulated worker
+  completion → signed URLs and metrics → `SetAudio.clean.cleanId` applied →
+  a browser export's manifest and sources carry the cleaned track, end to
+  end against real Postgres/Redis. `apps/worker-ai`: fixed a real defect the
+  orchestrator's addendum flagged after a host-memory-pressure failure —
+  `true_peak_dbtp` oversampled the _whole_ reassembled signal 4x in one
+  `np.interp` allocation (~5.5 GB at 60 minutes), defeating
+  `run_clean_chain`'s 10-minute denoise chunking entirely; `true_peak_dbtp`
+  and `integrated_loudness`'s high-pass stage (`clean/dsp.py`) now measure in
+  bounded 30 s windows with boundary carry-over, and a new `slow`
+  (`RUN_SLOW=1`) test asserts < 2 GB peak RSS over baseline on a synthetic
+  60-minute file (`psutil`, added to worker-ai's dev deps).
 
 - **B19b — Reframe/zoom wiring: one keyframe codec, keyframe storage, `zoom`
   pass type, word-timed emphasis cues, frame/RMS sampling from the proxy.**
@@ -161,6 +279,64 @@ reframe_zoom_pass.py` calls it (`_sample_from_proxy`) whenever the producer
   UI. 12 new tests across the three packages (bridge-core: `keystore.test.ts`
   - cert migration tests; apps/bridge: `native-tray.test.ts`; apps/desktop:
     two new `createBridgeAdapter` cases), all suites green.
+- **C02b — Desktop shell follow-ups: real bridge adapter wiring, pairing
+  approval UX, `approvePairing` contract, Electron e2e in CI, packaging via
+  C00.** Resolves the C01b/C02 interface gap: `packages/bridge-core`'s
+  `BridgeCore` now emits a `clientConnected` event (`{pairingId, clientId,
+clientKind}`) once `pair.confirm` mints the real wire `clientId` (in-process
+  only — no wire `events.subscribe` broadcast transport exists yet;
+  `BridgeEventKind`/`events.subscribe` stay schema-only in `protocol.ts`).
+  `apps/desktop/src/bridge/adapter.ts`: `approvePairing(pairingId)` now
+  returns `{pairingId, approved: true}` (no `clientId`) per the ruling; added
+  `denyPairing(pairingId)`, `onPairingRequested` (fires with the pending
+  pairing's code/clientKind/clientName/expiresAt) and `onClientConnected`
+  (fires once the real `clientId` is known) to `BridgeAdapter`. New pairing
+  approval window (`src/main/pairing-window.ts` + `pairing-approval.{html,ts}`
+  - `pairing-preload.ts`): a small, focused window showing the code and
+    client name/kind, Approve/Deny buttons, 60s auto-deny — its own minimal
+    `contextIsolation`/`sandbox` preload, no new privileges on the main hosted
+    renderer (THREAT-MODEL T25). Tray (`src/tray/index.ts`) gained a
+    `hasPendingPairing()`-driven "Approve pairing…" item that re-focuses the
+    approval window; `main/index.ts` wires tray/approval-window/preload to
+    whichever `BridgeAdapter` is active and can swap the stub adapter for a real
+    one at runtime (`attachRealBridge`) once a device/bridge-token exists.
+    New device bootstrap (`src/bridge/device-bootstrap.ts`): registers this
+    install (`POST /devices/register`, B08) and mints a `kind:"bridge"` token
+    (`POST /devices/{id}/bridge-token`, B08b) given a user access token, caching
+    both (plus a generated per-install fingerprint) in `bridge-core`'s OS
+    keystore so a restart skips re-registration until the lease needs
+    refreshing; never logs the token in plaintext. The access-token hand-off
+    itself (`desktop:bridge-provide-access-token` IPC/preload
+    `bridge.provideAccessToken`) is wired on the desktop side only — the hosted
+    web app calling it is out of this WP's `apps/desktop/**` boundary (open
+    question for whoever owns that `apps/web` integration). CI:
+    `.github/workflows/release-desktop.yml` gained an `e2e` job (mac/win
+    matrix, real runners) running `pnpm --filter @montaj/desktop build`,
+    `electron-builder --dir`, then the Playwright-Electron smoke — the smoke
+    stays a documented manual step locally
+    (`pnpm --filter @montaj/desktop test:e2e`), since it needs a real Electron
+    runtime/display this sandbox doesn't have (ran it here: fails with "Process
+    failed to launch!", consistent with the brief's "Chromium network-service
+    crash under container restrictions" note, reproduced twice as instructed
+    then stopped). Packaging: `tools/release/src/commands/buildDesktop.ts`'s
+    `ensureAppTree` now prefers a real `electron-builder --dir` output under
+    `<desktopAppDir>/release` (`findRealElectronBuilderOutput`) over the
+    synthesized placeholder tree, falling back to the placeholder when no real
+    output is present yet — verified with new tests
+    (`tests/buildDesktopRealOutput.test.ts`) constructing a fake real tree.
+    **Known blocker, not introduced by this WP:** running the real
+    `electron-builder --dir` in this pnpm workspace fails before producing
+    output — `node_modules/@montaj/{bridge-core,config}` are pnpm symlinks
+    whose real path resolves outside `apps/desktop/`, and app-builder-lib's
+    asar packager throws `"<file> must be under <appDir>"` for their contents.
+    Reproduces with only pre-existing C01/C02 dependencies; flagged for C00
+    (release pipeline owner) rather than worked around — the standard fix
+    (`pnpm deploy`, an app-local hoisted linker, or bundling the main process)
+    is bigger than this WP's boundary. The new CI `e2e` job's
+    `electron-builder --dir` step will likely hit the same failure until that's
+    fixed. 25 new/changed tests across bridge-core, apps/desktop and
+    tools/release, all suites green (`pnpm lint`/`typecheck`/`format:check`
+    scoped to touched packages).
 - **B08b — Per-device bridge credential: `kind:"bridge"` tokens carry
   `deviceId`; relay pairing keyed per device (resolves C01's deviation).**
   `TokenService.mintAccessToken` now requires (and `verifyAccessToken`/the
@@ -421,6 +597,117 @@ admin-step-up.{controller,service,dto,constants}.ts`: TOTP enrol/verify
   carries the new `@AdminRoles(...)` decorator, a matching non-revoked
   `admin_roles` grant (`superadmin` always satisfies any role list). Role
   matrix contract test: `apps/api/src/admin/admin.guard.test.ts`.
+
+- **B13b — Admin users/workspaces search+detail, credits adjust/reverse,
+  refunds + credit notes.** `apps/api/src/admin/users/**`: read-only
+  cross-tenant search and detail (memberships, device count, active admin
+  roles; owner, member count, credit account, subscription) — open to any
+  admin role, no `@AdminRoles(...)` restriction (the brief's own e2e case:
+  support can view). `admin-credits.controller.ts` gains `POST
+/admin/credits/adjust` (wraps `CreditsFacade.grantLot(source: "adjust")`)
+  and `POST /admin/credits/reverse` (wraps `LedgerCreditsFacade.reverse()`,
+  named in that method's own doc comment as one of its two intended
+  callers), both `finance`/`superadmin` only, reason mandatory (min 10
+  chars), audited. `apps/api/src/admin/billing/**`: `POST
+/admin/billing/passes/:id/refund` — `admin-refund-policy.ts`'s pure
+  policy (within 7 days of purchase: full refund of the amount on file;
+  after: pro-rated by the fraction of the purchase's credits still unspent,
+  via `credit_lots.remaining_tenths`/`granted_tenths`) composed with B01's
+  `RefundsService.refundPassPurchase` (provider refund + credits clawback)
+  and B05's `InvoicesService.generateCreditNote` (skipped, not failed, when
+  no original tax invoice is on file). `AdminBillingModule`/
+  `AdminUsersModule` are their own modules (not folded into `AdminModule`)
+  to avoid a cycle: `InvoicesModule` already imports `AdminModule`.
+  `test/auth-harness.ts`'s new `createAdminContext` mints a real `kind:
+"admin"` token via an actual step-up (grant admin_roles, enrol a
+  deterministic TOTP secret, verify, step up) — every existing admin e2e
+  fixture (`dlq.e2e-spec.ts`, `offers.e2e-spec.ts`,
+  `users-workspaces.e2e-spec.ts`) that used to hand-mint a plain `kind:
+"web"` admin token now goes through it.
+
+- **B13c — Admin flags CRUD, styles catalogue publish/unpublish, routing
+  weight overrides.** `apps/api/src/admin/flags/**`: full CRUD over
+  `feature_flags` — reads open to any admin role, every mutation
+  `superadmin`-only with a mandatory reason and a before/after audit diff.
+  `FlagTargetsSchema` (the shape `schema.prisma`'s own comment had promised
+  since A05) adds `excludeWorkspaceIds` — B13's "holdouts" — as an additive
+  extension to `workspaces/entitlement.service.ts`'s existing
+  `flagTargets()`, checked first so a held-out workspace stays excluded even
+  if it also matches the allow-list. `apps/api/src/admin/styles/**`: the
+  system style catalogue with the A18a parity gate's own results
+  (`assRenderable`/`assExportable`/`requiresLayoutMetrics`/`parityScore`,
+  read-only here) and a new `published` column (migration `20260903030000`)
+  so `content`/`superadmin` can unpublish a style without deleting it.
+  `apps/api/src/admin/routing/**`: a `routing_weight_overrides` table (same
+  migration), CRUD, validation (weight 0-100, id shapes matching
+  `routing.yaml`/the provider registry), history via `audit_log` —
+  deliberately does NOT read or merge against
+  `apps/worker-ai/worker_ai/routing.yaml` at runtime (separately deployed
+  process/repo; see the controller's own doc comment and this WP's final
+  report "open questions" for the seam this leaves: the worker reading its
+  table from this store instead of the bundled YAML).
+
+- **B13d — job monitor + cancel, mandate/dunning monitor, TDS reports,
+  affiliate review + chained self-referral hold, DSR/breach (consumed,
+  B16), share-link report resolution, support stub (B12 absent).**
+  `apps/api/src/admin/jobs/**`: cross-tenant job list/stats/cancel — the
+  live-queue half of "job monitor (queues, counts, failed, DLQ)"; A08b's
+  `AdminDlqController` already had the dead-letter half.
+  `apps/api/src/admin/billing/admin-billing.controller.ts` gains `GET
+/admin/billing/dunning` (past-due subscriptions with mandate status/next
+  actions — read-only). `apps/api/src/admin/affiliates/**`: pending-review
+  list, `GET .../tds/:fy/export.csv` (every affiliate's FY gross/TDS/net),
+  `GET .../:id/form16a` (B07's existing PDF stub renderer, wired to a
+  controller for the first time); the 4 existing admin approve/suspend/
+  reject/revoke-code routes in `affiliates.controller.ts` now carry
+  `@AdminRoles("ops", "finance", "superadmin")`. **Orchestrator addendum**
+  (chained self-referral): `referral_rewards.hold_reason` (migration
+  `20260903040000`) — a referred workspace whose owner claimed as referred
+  for a different referrer within 90 days stays `pending` and is held out
+  of `grantForExport`'s auto-grant; `apps/api/src/admin/referrals/**`
+  reviews the queue (`ops`/`finance`/`superadmin`) and approves (settles
+  through the normal cap-check path) or rejects. The addendum's other
+  signal — a bare device/IP fingerprint match against any prior claim — was
+  tried and dropped: it false-positived on every claim sharing a
+  reused/NAT'd IP or common user agent (real traffic, not just this WP's
+  own e2e fixtures), which is exactly the failure mode
+  `immediateRejectionReason`'s narrowly-scoped "same as the referrer's OWN
+  session" check was built to avoid; left as a follow-up rather than shipped
+  as a blunt instrument. `apps/api/src/admin/share/**`: `GET
+/admin/share-reports` + `POST .../:id/resolve` (take-down calls a new
+  `ShareLinksService.adminTakedown`; "notify" is not wired — no
+  NOTIFY_KINDS template exists for it, see "open questions").
+  `apps/api/src/admin/support/admin-support.controller.ts`: a stub
+  (`GET /admin/support/status`) — `apps/api/src/support/**` (B12) had not
+  merged as of this commit.
+
+- **B13e — the `(admin)` web shell, dashboard, admin e2e (role matrix +
+  refund).** `apps/web/app/(admin)/**`: a separate layout with no product
+  chrome; the admin session (a `kind: "admin"` step-up token) lives in
+  `sessionStorage` (`lib/admin/admin-session.ts`), distinct from the regular
+  product session — `lib/admin/admin-fetch.ts` is a small standalone fetch
+  wrapper for it (the shared `@montaj/api-client` stays wired to the
+  regular session's token). New typed endpoints `adminAuth.{totpEnroll,
+totpVerify,stepUp}` in `packages/api-client` for step-up itself (the one
+  call still made with the regular session's bearer token); every other
+  admin route is called directly by the shell. Panels: users/workspaces
+  search+detail, credits adjust/reverse, refunds, flags, routing weight
+  overrides, styles catalogue, affiliates (pending queue + TDS CSV export),
+  referral review queue, share-report resolution, jobs monitor (list/
+  stats/cancel), a support stub, and a small numbers-only dashboard (no
+  chart library — see "open questions", the scope this WP still had to
+  cover left no room for it). `pnpm gen:client` regenerated (272
+  operations). **Simplifications flagged rather than hidden:** the layout
+  gates on session presence, not a genuine server-side "404 for
+  non-admins" (every panel's own fetch still 403s against `AdminGuard`
+  regardless of what the shell renders); no Playwright browser e2e for the
+  admin UI (would need its own step-up-aware browser harness) — instead,
+  `apps/api/test/admin-billing.e2e-spec.ts` proves the brief's literal
+  acceptance case ("support role can view but not refund; finance can
+  refund with reason") end to end against real Postgres/Redis, seeding a
+  genuine top-up purchase + credit lot (billing-harness.ts binds
+  `CREDITS_FACADE` to `NoopCreditsFacade` on purpose, so the lot is seeded
+  directly rather than re-testing B02's own ledger).
 
 - **A23 — Gate A e2e journey, sample-project seed, wave verification script,
   X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)

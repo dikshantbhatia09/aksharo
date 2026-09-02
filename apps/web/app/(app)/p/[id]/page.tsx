@@ -17,5 +17,10 @@ export default async function EditorPage({
   params: Promise<{ id: string }>;
 }): Promise<React.JSX.Element> {
   const { id } = await params;
-  return <EditorClient projectId={id} />;
+  // D82: Deep clean (DeepFilterNet, cloud) is greyed out with "coming to
+  // cloud renders" copy until the worker-ai image build provisions the model
+  // weights (X07). Read server-side rather than a `NEXT_PUBLIC_` var — the
+  // flag is deployment-wide, not something the client bundle needs to inline.
+  const deepCleanEnabled = process.env["AUDIO_DEEP_CLEAN_ENABLED"] === "1";
+  return <EditorClient projectId={id} deepCleanEnabled={deepCleanEnabled} />;
 }

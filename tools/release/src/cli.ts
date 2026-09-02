@@ -190,13 +190,19 @@ program
   .command("package-resolve")
   .description("Zip the Resolve script bundle + per-OS installer scripts")
   .option("--version <version>", "", "0.1.0")
+  .option(
+    "--dry-run",
+    "no signing step exists for this bundle (RR-03); kept for CLI symmetry",
+    true,
+  )
+  .option("--no-dry-run", "same as --dry-run: this command never signs anything")
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
     const config = await loadReleaseConfig(ctx.repoRoot);
     const result = await runPackageResolve(ctx, config, opts.version);
     if (result.placeholderPlugin) {
       console.warn(
-        "WARNING: plugins/resolve has no aksharo_core.lua yet (C08 not landed); packaged a placeholder plugin",
+        "WARNING: plugins/resolve has no aksharo_core.py yet (C08 not landed); packaged a placeholder plugin",
       );
     }
     console.log(`bundle: ${result.bundlePath}`);

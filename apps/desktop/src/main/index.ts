@@ -5,15 +5,28 @@
  * and the (stubbed, pending C01) embedded bridge.
  */
 import { readFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
-import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, session, shell } from "electron";
+import {
+  BrowserWindow,
+  Menu,
+  type Tray,
+  app,
+  clipboard,
+  dialog,
+  ipcMain,
+  session,
+  shell,
+} from "electron";
 import { autoUpdater } from "electron-updater";
 
 import { BRAND } from "@montaj/config/brand";
 
 import { buildAppMenu } from "./menu.js";
-import { createStubBridgeAdapter } from "../bridge/adapter.js";
+import { showPairingApprovalWindow, type PairingWindowController } from "./pairing-window.js";
+import { createBridgeAdapter, createStubBridgeAdapter } from "../bridge/adapter.js";
+import { bootstrapDevice } from "../bridge/device-bootstrap.js";
 import { parseDeepLink } from "../deeplink/parse.js";
 import {
   APP_ORIGIN,
@@ -25,13 +38,126 @@ import { offlinePageCsp } from "../security/csp.js";
 import { createTray } from "../tray/index.js";
 import { feedUrl, isUpdateChannel, type UpdateChannel } from "../updater/feed.js";
 
+import type { BridgeAdapter, BridgePendingPairing } from "../bridge/adapter.js";
+
 const OFFLINE_RETRY_SCHEME = "aksharo-offline-retry";
 const PRELOAD_PATH = path.join(__dirname, "..", "preload", "index.js");
 const OFFLINE_HTML_PATH = path.join(__dirname, "offline.html");
 
+/** Test-only escape hatch, gated on `app.isPackaged === false` (same pattern as
+ * `AKSHARO_DESKTOP_TEST_APP_URL`) so the device-bootstrap flow can be pointed at a
+ * fixture API in tests without a live network dependency. */
+function apiOrigin(): string {
+  const testOverride = process.env.AKSHARO_DESKTOP_TEST_API_URL;
+  return testOverride && app.isPackaged === false ? testOverride : `https://api.${BRAND.domain}`;
+}
+
 let mainWindow: BrowserWindow | null = null;
 let updateChannel: UpdateChannel = "stable";
-const bridge = createStubBridgeAdapter();
+let tray: Tray | null = null;
+let pairingWindow: PairingWindowController | null = null;
+let pendingPairing: BridgePendingPairing | null = null;
+let accessToken: string | undefined;
+let bridge: BridgeAdapter = createStubBridgeAdapter();
+
+/**
+ * Wires the tray/approval-window/renderer surfaces to whichever `BridgeAdapter`
+ * is currently active (brief §1, §2). Called once for the initial stub
+ * adapter and again after `attachRealBridge` swaps in the real one, so a
+ * restart-free upgrade from "bridge unavailable" to "bridge running" is
+ * possible once the user signs in and a device credential is minted.
+ */
+function wireBridgeEvents(adapter: BridgeAdapter): void {
+  adapter.onPairingRequested((pairing) => {
+    pendingPairing = pairing;
+    mainWindow?.webContents.send("desktop:bridge-pairing-requested", pairing);
+    pairingWindow?.close();
+    pairingWindow = showPairingApprovalWindow(pairing, adapter);
+    pairingWindow.window.on("closed", () => {
+      if (pendingPairing?.pairingId === pairing.pairingId) pendingPairing = null;
+      pairingWindow = null;
+    });
+  });
+  adapter.onClientConnected((client) => {
+    mainWindow?.webContents.send("desktop:bridge-client-connected", client);
+  });
+}
+
+/**
+ * Device bootstrap (brief §2, B08/B08b): once the hosted web app hands down a
+ * signed-in user's access token (`desktop:bridge-access-token` IPC — the web
+ * side of that hand-off is out of this WP's `apps/desktop/**` boundary),
+ * registers this device and mints a bridge token, then swaps the stub
+ * adapter for the real one and starts it. Safe to call more than once (e.g.
+ * a token refresh); `bootstrapDevice` itself is idempotent via its keystore
+ * cache. Never logs the access or device token in plaintext.
+ */
+async function attachRealBridge(token: string): Promise<void> {
+  accessToken = token;
+  let credential: Awaited<ReturnType<typeof bootstrapDevice>>;
+  try {
+    credential = await bootstrapDevice({
+      apiOrigin: apiOrigin(),
+      deviceName: os.hostname(),
+      platform: process.platform,
+      appVersion: app.getVersion(),
+      getAccessToken: () => accessToken,
+      log: (line) => console.warn(JSON.stringify(line)),
+    });
+  } catch (err) {
+    console.error("device bootstrap failed", err instanceof Error ? err.message : err);
+    return;
+  }
+  if (credential === undefined) return; // not signed in (yet)
+
+  await bridge.stop().catch(() => undefined);
+  bridge = createBridgeAdapter({
+    relayUrl: `wss://api.${BRAND.domain}/bridge/relay`,
+    deviceToken: credential.deviceToken,
+    log: (line) => console.warn(JSON.stringify(line)),
+  });
+  wireBridgeEvents(bridge);
+  await bridge.start();
+  rebuildTray();
+}
+
+function rebuildTray(): void {
+  tray?.destroy();
+  tray = createTray({
+    bridge,
+    showWindow: () => {
+      if (!mainWindow) {
+        mainWindow = createMainWindow();
+        return;
+      }
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    },
+    checkForUpdates: () => void autoUpdater.checkForUpdates().catch(() => undefined),
+    approvePairingPrompt: () => {
+      if (pendingPairing === null) return;
+      pairingWindow?.window.show();
+      pairingWindow?.window.focus();
+    },
+    hasPendingPairing: () => pendingPairing !== null,
+    copyDiagnostics: () => {
+      const status = bridge.getStatus();
+      clipboard.writeText(
+        JSON.stringify(
+          {
+            version: app.getVersion(),
+            platform: process.platform,
+            channel: updateChannel,
+            bridge: status,
+          },
+          null,
+          2,
+        ),
+      );
+    },
+  });
+}
 
 function loadAppUrl(): string {
   // Test-only escape hatch so the Playwright-Electron smoke suite can force
@@ -124,9 +250,9 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("desktop:engine-status", async () => ({ state: "unavailable" }) as const);
 
-  ipcMain.handle("desktop:bridge-pair", async (_event, pairCode: string) => {
+  ipcMain.handle("desktop:bridge-pair", async (_event, pairingId: string) => {
     try {
-      await bridge.approvePairing(pairCode);
+      await bridge.approvePairing(pairingId);
       return { ok: true as const };
     } catch (err) {
       return {
@@ -134,6 +260,26 @@ function registerIpcHandlers(): void {
         error: err instanceof Error ? err.message : "bridge pairing failed",
       };
     }
+  });
+
+  ipcMain.handle("desktop:bridge-deny", async (_event, pairingId: string) => {
+    try {
+      await bridge.denyPairing(pairingId);
+      return { ok: true as const };
+    } catch (err) {
+      return {
+        ok: false as const,
+        error: err instanceof Error ? err.message : "bridge pairing denial failed",
+      };
+    }
+  });
+
+  // Hand-off from the hosted web app (running in `mainWindow`, already signed
+  // in): the one bit the desktop shell needs to bootstrap its own device/
+  // bridge-token (brief §2). Never returns or logs the token itself.
+  ipcMain.handle("desktop:bridge-provide-access-token", async (_event, token: string) => {
+    await attachRealBridge(token);
+    return { ok: true as const };
   });
 
   ipcMain.handle("desktop:updates-check", async () => {
@@ -224,38 +370,8 @@ if (!gotSingleInstanceLock) {
     Menu.setApplicationMenu(buildAppMenu(`https://${BRAND.domain}/support`));
     mainWindow = createMainWindow();
     configureUpdater();
-    createTray({
-      bridge,
-      showWindow: () => {
-        if (!mainWindow) {
-          mainWindow = createMainWindow();
-          return;
-        }
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.show();
-        mainWindow.focus();
-      },
-      checkForUpdates: () => void autoUpdater.checkForUpdates().catch(() => undefined),
-      approvePairingPrompt: () => {
-        // A full pairing-code prompt UI is delivered with C01; for now the
-        // tray entry surfaces the bridge-unavailable status via getStatus().
-      },
-      copyDiagnostics: () => {
-        const status = bridge.getStatus();
-        clipboard.writeText(
-          JSON.stringify(
-            {
-              version: app.getVersion(),
-              platform: process.platform,
-              channel: updateChannel,
-              bridge: status,
-            },
-            null,
-            2,
-          ),
-        );
-      },
-    });
+    wireBridgeEvents(bridge);
+    rebuildTray();
   });
 
   app.on("window-all-closed", () => {

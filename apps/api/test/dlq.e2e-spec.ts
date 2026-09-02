@@ -19,6 +19,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 import type { Env } from "@montaj/config";
 
+import { createAdminContext } from "./auth-harness.js";
 import { createTestDatabase, isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness.js";
 import { PrismaService } from "../src/common/prisma/prisma.service.js";
@@ -103,7 +104,11 @@ function accessToken(sub: string): string {
   return `${signed}.${signer.sign(privateKey).toString("base64url")}`;
 }
 
-const asAdmin = () => `Bearer ${accessToken(ADMIN)}`;
+// B13: AdminGuard requires a real kind:"admin" step-up token — minted once in
+// beforeAll via the shared `createAdminContext` helper (test/auth-harness.ts),
+// not hand-rolled here.
+let adminToken: string;
+const asAdmin = () => `Bearer ${adminToken}`;
 const asUser = () => `Bearer ${accessToken(USER)}`;
 
 /** POST a signed internal callback exactly as a worker would. */
@@ -269,6 +274,12 @@ beforeAll(async () => {
 
   jobs = app.get(JobsService);
   dlq = app.get(DlqService);
+
+  // B13: AdminGuard requires a real kind:"admin" step-up token, not the
+  // hand-rolled kind:"web" one this fixture used to mint for ADMIN.
+  adminToken = (
+    await createAdminContext({ app, roles: ["superadmin"], userId: ADMIN, workspaceId: WORKSPACE })
+  ).accessToken;
 }, 180_000);
 
 afterEach(async () => {

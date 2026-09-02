@@ -14,7 +14,12 @@ export default mergeConfig(
   mergeConfig(
     defineConfig(vitestBaseConfig),
     defineConfig({
-      test: { name: "@montaj/render", testTimeout: 600_000, hookTimeout: 600_000 },
+      test: {
+        name: "@montaj/render",
+        testTimeout: 600_000,
+        hookTimeout: 600_000,
+        include: ["src/**/*.{test,spec}.{ts,tsx}", "parity/**/*.{test,spec}.{ts,tsx}"],
+      },
     }),
   ),
   mergeConfig(
