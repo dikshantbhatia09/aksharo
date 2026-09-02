@@ -94,6 +94,46 @@ RETURNING revision`. The lock makes read-decide-write atomic; the CAS is the
     `PassItem.keyframesRef`; the table had only the bytes column) and
     `edg_segments (edg_id, start_word_id)` / `(edg_id, end_word_id)`, which is how
     a word delete finds the segments it bounds.
+- **A16c — per-script type sizes (`typography.scriptScale`) and track-level shrink.**
+  - **The problem.** Shrink-to-fit is decided per caption, so a short caption is drawn at
+    full size and the next one, one word longer, smaller: the type size jitters shot to
+    shot inside one video, and the picker's tile — short preview text, never shrunk —
+    shows a size no real caption uses. 28 of 30 styles hit the shrink floor on a
+    budget-filling caption.
+  - **`typography.scriptScale`**, an optional, additive field on StyleDoc v2 (the schema
+    generation stays 2; a document without it renders exactly as before): a per-script
+    multiplier on `sizePct`, keyed by the lowercase OpenType tag (`latn`, `deva`,
+    `taml`). `render-core` applies the entry for the script it is actually laying out —
+    the script of the words on screen, not the project's language — so a Hinglish
+    caption picks the right one line by line. `sizePct` keeps recording the size the
+    style was drawn for.
+  - It exists because the budgets are counted in **base characters** with combining marks
+    excluded (that is what reading speed depends on) while width is a different question:
+    a 22-character Tamil line is ~37 code points and about **21 em** wide, against 15.3 em
+    for a full 32-character Latin line. One size per style cannot satisfy both.
+  - `src/styles/fit.ts` measures the worst shrink over the four caption fixtures **and** a
+    budget-filling caption per script, at every instant a `wordsPerCue` style rotates
+    through, on both canvases; `worstFitForScript` restricts that to the layouts a given
+    multiplier can move, which is what makes per-script tuning well-defined.
+    `scripts/tune-style-sizes.ts` bisects each multiplier; `src/styles/fit.test.ts` asserts
+    shrink ≥ 0.95 at 1080×1920 and ≥ 0.9 at 1920×1080, per script, for all 30 styles.
+  - **`computeTrackShrink({projection, catalogue, registry, shaper, canvas, script})`**
+    lays every caption out once and returns the minimum shrink per (styleId, script);
+    `renderFrame` and `layoutFrame` take the map and apply it uniformly, so every caption
+    in a style is one size for the whole video. Per-caption shrink remains the fallback
+    when no map is given. It is a pure function and costs one layout per caption, so the
+    exporters (A19, A20) and the preview stage compute it once per session — on a change
+    of document, catalogue or canvas — and cache it; nothing calls it per frame.
+  - Goldens, PNG baselines and the 30 catalogue previews regenerated; browser parity holds
+    at 0 pixels differing.
+  - **Reported, because it is a product decision.** Latin needed a multiplier below 1 in
+    **28 of 30 styles** (0.45–0.94), so Latin does not in fact keep its authored size. The
+    cause is the same arithmetic: 32 characters is roughly 16 em, and 16 em inside 78–90%
+    of a 1080-wide portrait frame forces an em of ~2.8% of frame height whatever the
+    script. The 32/24/22 budgets fit a 16:9 subtitle comfortably (a 4.2% line has ~33 em
+    of room there) and are simply generous for 9:16. A 9:16-specific budget — nearer
+    20–26 Latin characters — would let every `latn` multiplier go back to 1.
+    `word-pop` and `impact-shout` need no multipliers at all: they show one word at a time.
 
 - **A16 — `@montaj/render-core`, `@montaj/render-canvaskit`, the 30 system styles and
   the editor's caption canvas.**

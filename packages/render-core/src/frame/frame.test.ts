@@ -11,13 +11,11 @@ import { type FontRegistry } from "../fonts/types.js";
 import { createFixtureRenderer, GOLDEN_CANVAS } from "../testing.js";
 import {
   type EdgProjection,
-  layoutFrame,
   type ProjectedSegment,
-  renderFrame,
   visibleSegments,
-  watermarkFor,
   wordsBetween,
-} from "./render-frame.js";
+} from "./projection.js";
+import { layoutFrame, renderFrame, watermarkFor } from "./render-frame.js";
 import { mergeOverrides, resolveStyle, resolveWords, type TranscriptWord } from "./resolve.js";
 
 const catalogue = loadSystemStyleMap();
