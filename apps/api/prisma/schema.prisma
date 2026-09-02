@@ -304,6 +304,10 @@ enum BillingProvider {
 
 /// Not enumerated in 06 (`subscriptions.status`); the dunning ladder of 04.
 enum SubscriptionStatus {
+  /// Checkout created; awaiting the first authentication/charge (B01, added
+  /// after A03: the state machine of `04 §Mandates, renewals, dunning` and D40
+  /// starts here, and A03's original enum had no state for it).
+  pending
   trialing
   active
   past_due
@@ -383,6 +387,14 @@ enum PaymentStatus {
   captured
   failed
   refunded
+}
+
+/// New in B01 (`billing_events.status`): the idempotency ledger's own lifecycle.
+enum BillingEventStatus {
+  received
+  processed
+  ignored
+  failed
 }
 
 /// Not enumerated in 06 (`firc_records.edpmsStatus`).
@@ -1898,6 +1910,30 @@ model Payment {
   @@index([invoiceId])
   @@index([mandateId])
   @@map("payments")
+}
+
+/// Idempotency ledger for inbound payment-provider webhooks (THREAT-MODEL T16,
+/// CONTRACTS §8, B01). `eventId` is the provider's own event id
+/// (`razorpay_event_id`), unique so a replayed delivery is a no-op rather than a
+/// second state transition; `mismatch` records that the amount or currency in the
+/// payload disagreed with our order/subscription even though the signature was
+/// valid, which is audited rather than silently trusted.
+model BillingEvent {
+  id          String             @id @db.Char(26)
+  provider    BillingProvider    @default(razorpay)
+  eventId     String             @unique @map("event_id")
+  eventType   String             @map("event_type")
+  /// Zod: the verified provider payload, stored verbatim for replay and disputes.
+  payload     Json               @db.JsonB
+  status      BillingEventStatus @default(received)
+  mismatch    Boolean            @default(false)
+  error       String?
+  receivedAt  DateTime           @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt DateTime?          @map("processed_at") @db.Timestamptz(6)
+
+  @@index([eventType])
+  @@index([receivedAt])
+  @@map("billing_events")
 }
 
 /// Foreign inward remittance certificate per settlement (04 §Tax): export of

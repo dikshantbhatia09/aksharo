@@ -54,19 +54,19 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | WP | Title | Deps | Status |
 |---|---|---|---|
 | A10 | worker-ai vendor adapters, LID, routing, alignment registry, diarisation | A09 | done |
-| A11 | api transcripts, post-processing, segmentation → EDG init | A02b, A08, A09 | in-progress |
+| A11 | api transcripts, post-processing, segmentation → EDG init | A02b, A08, A09 | done |
 | A12 | api EDG module (ops, rebase, CAS, revisions, realtime) | A02b, A08 | done |
 | A13 | web shell + `@montaj/ui` + auth pages + onboarding + settings | A04, A05 | done |
 | A14 | web Home + Projects + upload engine | A06, A08, A13 | in-progress |
-| A15 | web Editor transcript column + EDG client store | A12, A13 | briefed |
+| A15 | web Editor transcript column + EDG client store | A12, A13 | in-progress |
 | A16 | render-core + render-canvaskit + 30 styles + panels | A02, A02c | done |
 | A17 | web Timeline | A15, A16 | briefed |
 | A18a | ass-exporter + parity gate | A16, A20 | briefed |
 | A18b | fonts pipeline | A06, A07 | done |
 | A19 | web browser export + export dialog | A16, A21, A02c | briefed |
 | A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | done |
-| A21 | api exports module (manifests, cloud jobs) | A08, A20 | briefed |
-| A22 | scripts + translation | A10, A11, A12 | briefed |
+| A21 | api exports module (manifests, cloud jobs) | A08, A20 | in-progress |
+| A22 | scripts + translation | A10, A11, A12 | in-progress |
 | A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | briefed |
 | A23a | api test isolation: one Postgres + one Redis container per vitest run (or `TEST_*` URLs), database per suite from a migrated template, Redis prefix per suite; CI service containers | A05, A12, A25 | done |
 | A24 | marketing site v1 | A16 | in-progress |
@@ -77,11 +77,11 @@ Sub-wave order: {A10, A11, A12, A13, A16, A18b, A20, A25, A26} → {A14, A15, A2
 ## Wave 3 — Monetisation (all briefs ready in `05-build/_orchestration/`)
 | WP | Title | Deps | Status |
 |---|---|---|---|
-| B01 | api billing core: `BillingProvider`, Razorpay subscriptions/orders, mandate cap + ₹15,000 UPI rule, half-yearly Studio, idempotent webhooks, dunning primitives | A03, A08 | in-progress |
+| B01 | api billing core: `BillingProvider`, Razorpay subscriptions/orders, mandate cap + ₹15,000 UPI rule, half-yearly Studio, idempotent webhooks, dunning primitives | A03, A08 | done |
 | B02 | api credits: lots, atomic conditional reserve, holds/settle/release/reversal, grants/expiry, entitlements engine, real `CreditsFacade`, concurrency property test | A03, A08 | in-progress |
 | B03 | web Subscription pages (overview, plans, methods/mandates, invoices, usage), checkout sheet with tax-profile step, `UpgradeGate` | B01, B02, B05, A13 | briefed |
 | B04 | Offers: signup-gift export, ₹9 clean export, ₹59 week pass, pay-once, ₹149 Free top-up; export-dialog upsell | B01, B02, A21 | briefed |
-| B05 | api invoices (Rule 46, series, credit notes, export under LUT, PDF + signature, IRN hook) + tax engine + FIRC records | B01 | briefed |
+| B05 | api invoices (Rule 46, series, credit notes, export under LUT, PDF + signature, IRN hook) + tax engine + FIRC records | B01 | in-progress |
 | B06 | Streak experiment engine (holdout flag, freezes, pause-not-reset, rewards) + widget | B01, B02, A21 | briefed |
 | B07 | Affiliate v2: apply with PAN, 60-day cookie + code attribution, rate tiers, TDS accumulator, RazorpayX payouts, dashboard | B01, B02, B05 | briefed |
 | B07b | Give-get referral loop (30/30 credits on first export, caps, abuse rules, prompt) | B02, A21 | briefed |
