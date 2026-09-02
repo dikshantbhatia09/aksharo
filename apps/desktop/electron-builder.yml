@@ -1,0 +1,38 @@
+# electron-builder config for the Aksharo desktop shell.
+#
+# Signing, notarisation, the cloud-HSM Windows cert and the release feed
+# hosting/channel promotion pipeline are C00's ("Signing & release pipeline"),
+# still `briefed` on docs/PLAN.md — this file only carries the app-identity and
+# packaging settings that are C02's to own (brief file boundary `apps/desktop/**`),
+# and is written to be dry-run-safe (unsigned) until C00 lands.
+appId: ai.aksharo.desktop
+productName: Aksharo
+copyright: "Aksharo"
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - package.json
+asarUnpack:
+  - dist/main/offline.html
+afterPack: ./scripts/after-pack.cjs
+protocols:
+  - name: Aksharo deep link
+    schemes:
+      - aksharo
+mac:
+  category: public.app-category.video
+  target: [dir]
+  hardenedRuntime: true
+  gatekeeperAssess: false
+win:
+  target: [dir]
+linux:
+  target: [dir]
+  category: AudioVideo
+publish:
+  # C00 owns the real host; `releases/<channel>/` matches src/updater/feed.ts.
+  - provider: generic
+    url: "https://releases.aksharo.ai/releases/stable/"
+    channel: stable

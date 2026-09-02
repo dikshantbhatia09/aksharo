@@ -1,0 +1,67 @@
+name: Release plugins
+
+# Packages the Premiere UXP `.ccx` (no signing required), the AE CEP `.zxp` (ZXPSignCmd) and
+# the DaVinci Resolve script bundle. Dry-run on every PR touching plugin code; signed .zxp
+# only on a `release/*` tag with the `release-zxp` environment's secrets.
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["release/*"]
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "plugins/**"
+      - "tools/release/**"
+      - "release.config.ts"
+      - ".github/workflows/release-plugins.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: release-plugins-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/release/') }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  RELEASE_MODE: dry-run
+
+jobs:
+  package:
+    name: Package plugins
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @montaj/release... build
+
+      - name: Package .ccx (UXP, no signing)
+        run: pnpm release package-ccx --dry-run
+
+      - name: Package + sign .zxp (AE CEP)
+        run: pnpm release sign-zxp ${{ startsWith(github.ref, 'refs/tags/release/') && '--no-dry-run' || '--dry-run' }}
+        env:
+          RELEASE_MODE: ${{ startsWith(github.ref, 'refs/tags/release/') && 'signed' || 'dry-run' }}
+          ZXP_CERT_P12_BASE64: ${{ secrets.ZXP_CERT_P12_BASE64 }}
+          ZXP_CERT_PASSWORD: ${{ secrets.ZXP_CERT_PASSWORD }}
+          ZXP_TIMESTAMP_URL: ${{ secrets.ZXP_TIMESTAMP_URL }}
+
+      - name: Package Resolve bundle (no signing)
+        run: pnpm release package-resolve
+
+      - run: pnpm release checksums --channel alpha
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-plugins
+          path: .release/artifacts/plugins/**
+          retention-days: 30
+          if-no-files-found: error

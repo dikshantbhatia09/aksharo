@@ -3,8 +3,13 @@ import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { newId } from "@montaj/edg";
 import type { Pass } from "@montaj/edg/schemas";
 
-import { PASS_ERROR_CODES, type AutocutPreset } from "./passes.errors.js";
-import { quoteAutocut } from "./passes.quote.js";
+import {
+  PASS_ERROR_CODES,
+  type AutocutPreset,
+  type ReframeAspect,
+  type ZoomPreset,
+} from "./passes.errors.js";
+import { quoteAutocut, quoteReframeZoom } from "./passes.quote.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { EdgService } from "../edg/index.js";
@@ -55,6 +60,34 @@ export interface StartAutocutRequest {
 }
 
 export interface StartAutocutAccepted {
+  readonly jobId: string;
+  readonly passId: string;
+  readonly status: string;
+  readonly deduplicated: boolean;
+  readonly quote: {
+    readonly tenths: number;
+    readonly credits: string;
+    readonly durationMs: number;
+  };
+}
+
+export interface StartZoomRequest {
+  readonly projectId: string;
+  readonly workspaceId: string;
+  readonly preset: ZoomPreset;
+}
+
+export interface StartReframeRequest {
+  readonly projectId: string;
+  readonly workspaceId: string;
+  readonly aspect: ReframeAspect;
+  readonly options?: {
+    readonly deadzoneFraction?: number;
+    readonly maxVelocityPerS?: number;
+  };
+}
+
+export interface StartReframeZoomAccepted {
   readonly jobId: string;
   readonly passId: string;
   readonly status: string;
@@ -129,6 +162,123 @@ export class PassesService {
   async list(projectId: string, workspaceId: string): Promise<Pass[]> {
     await this.project(projectId, workspaceId);
     return this.edg.passes(projectId, workspaceId);
+  }
+
+  /**
+   * `POST /projects/{id}/passes/zoom` (B19 §3).
+   *
+   * Emphasis-word cues come from the live document's segments (`Segment.
+   * emphasis`, CONTRACTS §2); a cue's timestamp is approximated as its
+   * segment's `startMs` rather than the emphasised word's own timing, since
+   * resolving a `wordId` back to milliseconds needs a transcript-chunk lookup
+   * this producer does not otherwise do (flagged in the final report).
+   *
+   * Real audio-energy cues and real subject detections need decoded audio
+   * and video frames respectively; neither is wired in this work package
+   * (`apps/worker-ai/worker_ai/passes/README.md`'s "Gap" note), so
+   * `rmsSamples`/`detections`/`sceneFrames` are sent empty. The worker still
+   * runs correctly on emphasis-only cues with a saliency-centre (0.5, 0.5)
+   * target; a follow-up work package that wires A07 frame extraction into
+   * this producer closes the gap without changing the worker.
+   */
+  async startZoom(request: StartZoomRequest): Promise<StartReframeZoomAccepted> {
+    const project = await this.project(request.projectId, request.workspaceId);
+    const media = await this.primaryMedia(project.id);
+
+    const quote = quoteReframeZoom("zoom", media.durationMs ?? 0);
+    const passId = newId();
+    const emphasisWords = await this.emphasisCuesOf(project.id, request.workspaceId);
+    const cutRanges = await this.acceptedCutRangesOf(project.id, request.workspaceId);
+
+    const jobKey = `ai.pass:zoom:${project.id}`;
+    const { job, deduplicated } = await this.jobs.enqueue({
+      type: "ai.pass",
+      workspaceId: request.workspaceId,
+      projectId: project.id,
+      jobKey,
+      worstCaseTenths: quote.tenths,
+      reason: quote.reason,
+      params: {
+        passId,
+        passType: "zoom",
+        preset: request.preset,
+        durationMs: media.durationMs,
+        mediaId: media.id,
+        emphasisWords,
+        rmsSamples: [],
+        words: [],
+        sceneFrames: [],
+        detections: [],
+        cutRanges,
+        protectedRanges: [],
+      },
+    });
+
+    this.logger.log(
+      { projectId: project.id, jobId: job.id, passId, tenths: quote.tenths, deduplicated },
+      "zoom pass enqueued",
+    );
+
+    return {
+      jobId: job.id,
+      passId: deduplicated ? (passIdOf(job.params) ?? passId) : passId,
+      status: job.status,
+      deduplicated,
+      quote: { tenths: quote.tenths, credits: quote.credits, durationMs: quote.durationMs },
+    };
+  }
+
+  /**
+   * `POST /projects/{id}/passes/reframe` (B19 §4).
+   *
+   * Same gap as `startZoom`: real subject detections need decoded video
+   * frames, not wired in this work package, so `detections` is sent empty
+   * and the worker fails the job non-retryably (`worker/invalid_payload`) —
+   * a documented limitation, not a silent no-op, until a follow-up work
+   * package wires A07 frame extraction into this producer.
+   */
+  async startReframe(request: StartReframeRequest): Promise<StartReframeZoomAccepted> {
+    const project = await this.project(request.projectId, request.workspaceId);
+    const media = await this.primaryMedia(project.id);
+
+    const quote = quoteReframeZoom("reframe", media.durationMs ?? 0);
+    const passId = newId();
+    const targetAspect = request.aspect === "1:1" ? 1 : 9 / 16;
+
+    const jobKey = `ai.pass:reframe:${project.id}`;
+    const { job, deduplicated } = await this.jobs.enqueue({
+      type: "ai.pass",
+      workspaceId: request.workspaceId,
+      projectId: project.id,
+      jobKey,
+      worstCaseTenths: quote.tenths,
+      reason: quote.reason,
+      params: {
+        passId,
+        passType: "reframe",
+        durationMs: media.durationMs,
+        mediaId: media.id,
+        sourceAspect: 16 / 9,
+        targetAspect,
+        deadzoneFraction: request.options?.deadzoneFraction,
+        maxVelocityPerS: request.options?.maxVelocityPerS,
+        detections: [],
+        sceneFrames: [],
+      },
+    });
+
+    this.logger.log(
+      { projectId: project.id, jobId: job.id, passId, tenths: quote.tenths, deduplicated },
+      "reframe pass enqueued",
+    );
+
+    return {
+      jobId: job.id,
+      passId: deduplicated ? (passIdOf(job.params) ?? passId) : passId,
+      status: job.status,
+      deduplicated,
+      quote: { tenths: quote.tenths, credits: quote.credits, durationMs: quote.durationMs },
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -254,6 +404,56 @@ export class PassesService {
       if (page.nextCursor === null) return ranges;
       cursor = page.nextCursor;
     }
+  }
+
+  /**
+   * Emphasis-word cues for the zoom pass, one per emphasised segment
+   * (`{tMs}`, the segment's own `startMs` — see `startZoom`'s docstring for
+   * why this is an approximation of the emphasised word's own timing).
+   */
+  private async emphasisCuesOf(projectId: string, workspaceId: string): Promise<{ tMs: number }[]> {
+    const cues: { tMs: number }[] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      let page;
+      try {
+        page = await this.edg.segments(projectId, workspaceId, cursor, 1_000);
+      } catch {
+        return []; // `edg/not_initialised`: no live document yet, no cues.
+      }
+      for (const segment of page.segments) {
+        if (Array.isArray(segment.emphasis) && segment.emphasis.length > 0) {
+          cues.push({ tMs: segment.startMs });
+        }
+      }
+      if (page.nextCursor === null) return cues;
+      cursor = page.nextCursor;
+    }
+  }
+
+  /**
+   * Millisecond ranges of every accepted `cut` pass item — the zoom pass must
+   * never place an event across one of these (brief §3).
+   */
+  private async acceptedCutRangesOf(
+    projectId: string,
+    workspaceId: string,
+  ): Promise<[number, number][]> {
+    let passes: Pass[];
+    try {
+      passes = await this.edg.passes(projectId, workspaceId);
+    } catch {
+      return [];
+    }
+    const ranges: [number, number][] = [];
+    for (const pass of passes) {
+      for (const item of pass.items) {
+        if (item.kind === "cut" && item.state === "accepted") {
+          ranges.push([item.startMs, item.endMs]);
+        }
+      }
+    }
+    return ranges;
   }
 }
 

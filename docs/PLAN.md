@@ -68,7 +68,7 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | done |
 | A21 | api exports module (manifests, cloud jobs) | A08, A20 | done (A21b merged: manifest sources + refresh, codec/audio eligibility, HDR cloud-only) |
 | A22 | scripts + translation | A10, A11, A12 | done |
-| A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | running |
+| A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | done (merged: Gate A journey e2e both browsers, sample seed, verify-wave script, X02 harness (p95 FAIL on shared host, re-measure at Gate A); A23b harness deadlock + verify-wave run, A07b media.proxy handler) |
 | A23a | api test isolation: one Postgres + one Redis container per vitest run (or `TEST_*` URLs), database per suite from a migrated template, Redis prefix per suite; CI service containers | A05, A12, A25 | done |
 | A24 | marketing site v1 | A16 | done |
 | A25 | notify consumer: transactional email (SES via IRSA / SMTP / dev outbox), templates en+hi, suppression, in-app notifications | A04, A08 | done |
@@ -96,17 +96,17 @@ Sub-wave order: {B01, B02, B05, B09} → {B03, B04, B06, B07, B07b, B08} → {B1
 | WP | Title | Deps | Status |
 |---|---|---|---|
 | B10 | Audio clean: 48 kHz deep-filter path, loudness targets, A/B preview, applied in browser + cloud exports | A09, A20, A19 | done (merged: Quick clean chain, A/B previews, cleanedAudioUrl in export sources; D82 tiers; B10b: SetAudio.cleanId, panel mount + op wiring, audio parity gate, e2e, RSS bound) |
-| B11 | LLM features (chapters, summary, hooks) + `packages/prompts` registry, region pinning, evals, Insights tab | A11, B02 | done (merged: packages/prompts registry + evals 12/12, worker llm with fail-closed region pinning, insights API/tab; B11b: per-kind burn rates in config, one filler lexicon, EDG-segment payload) |
+| B11 | LLM features (chapters, summary, hooks) + `packages/prompts` registry, region pinning, evals, Insights tab | A11, B02 | done (B11/B11b merged: per-kind burn rates in config, one lexicon loader, EDG-segment insights payload) |
 | B12 | Academy tracks + rewards, Changelog + What's new, Help centre, support tickets with diagnostics | A13, B02 | briefed |
-| B13 | Admin console: roles + step-up, users/credits/refunds, flags, styles/parity, routing weights, jobs/DLQ, mandates, TDS, affiliate review, DSR/breach, share reports, metrics | B01–B12, B16 | briefed |
-| B14 | Public API v1 + scoped API keys + signed webhooks + SSRF-guarded URL import + developer docs | B02, A21, A06 | done (merged: scoped API keys with rotation overlap, /v1, idempotency, SSRF-safe URL ingest, signed webhooks with retries, Developers settings + /developers docs; B14b: real event emits for transcript.completed/job.failed/credits.low + fixture-server e2e) |
-| B15 | Share/review links (view/comment/approve, hygiene), comments, batch, replace media (re-align), import transcript & align | A12, A21, A10, B08 | briefed |
+| B13 | Admin console: roles + step-up, users/credits/refunds, flags, styles/parity, routing weights, jobs/DLQ, mandates, TDS, affiliate review, DSR/breach, share reports, metrics | B01–B12, B16 | in-progress (increment a merged: admin_roles + TOTP step-up + AdminGuard(role) + role-matrix test; b–e running on wp/B13) |
+| B14 | Public API v1 + scoped API keys + signed webhooks + SSRF-guarded URL import + developer docs | B02, A21, A06 | done (B14 + B14b merged: keys, /v1, idempotency, SSRF ingest, signed webhooks with real event emits + fixture-server e2e, Developers docs) |
+| B15 | Share/review links (view/comment/approve, hygiene), comments, batch, replace media (re-align), import transcript & align | A12, A21, A10, B08 | in-progress (API half merged: share links scope ladder/password/expiry/view cap/auto-disable, comments, batch; web viewer + replace-media re-align + import-align running on wp/B15) |
 | B18 | Autocut pass (silences, filler lexicons, retakes, protection, pacing) → pass items | A10, A11, A02c | done (merged: autocut pass in worker + API over edg_passes, 12 filler lexicons (H-20 review), CONTRACTS protected ranges → B18b) |
-| B19 | Reframe & zoom pass (scene detection, subject tracking, cues, packed keyframes) | A07, A11, B18 | running |
+| B19 | Reframe & zoom pass (scene detection, subject tracking, cues, packed keyframes) | A07, A11, B18 | done (merged: scene-cut metric, tracking, zoom/reframe on the B18 runner, MKF2 keyframes; B19b: proxy frame sampling, single codec, keyframe storage, zoom type; H-22 weights) |
 | B20 | Proposal review UI + exports apply cuts/zooms via `timemap` (browser + cloud) + parity fixtures | A17, A19, A20, B18, B19 | briefed |
-| C00 | Signing & release pipeline (notarytool + 24 h buffer, cloud-HSM Windows signing, `.ccx`, ZXP, Resolve bundle, channels, SBOM); dry-run until A00-03 | A01 | briefed |
-| C01 | Local bridge v2: `bridge-core` + Node SEA app, relay-first WSS, loopback HTTPS + per-install cert, pairing, 12 h pair tokens, api relay module | A04, A08, B08 | briefed |
-| C02 | Desktop shell: Electron loading the hosted web app (decision D71), deep links, updater with channels, tray, embedded bridge, hardened defaults | A13, C00, C01 | briefed |
+| C00 | Signing & release pipeline (notarytool + 24 h buffer, cloud-HSM Windows signing, `.ccx`, ZXP, Resolve bundle, channels, SBOM); dry-run until A00-03 | A01 | done (merged: dry-run release CLI + workflows, fail-closed signed mode, 24 h notarisation gate, SBOM/checksums/feeds; release secrets in tools/release/.env.example; H-23) |
+| C01 | Local bridge v2: `bridge-core` + Node SEA app, relay-first WSS, loopback HTTPS + per-install cert, pairing, 12 h pair tokens, api relay module | A04, A08, B08 | done on wp/C01 (merge into main blocked by an app.module.ts conflict — agent re-merging main; C01b + B08b follow) |
+| C02 | Desktop shell: Electron loading the hosted web app (decision D71), deep links, updater with channels, tray, embedded bridge, hardened defaults | A13, C00, C01 | done (merged: hardened Electron shell, allowlist, aksharo:// deep links, updater channels, fuses, BridgeAdapter stub; T25 added; C00 provides release scripts) |
 Sub-wave order: {B10, B11, B18, C00} → {B12, B14, B15, B19, C01} → {B13, B20, C02} → **Gate B**.
 
 ## Wave 5 — Plugins

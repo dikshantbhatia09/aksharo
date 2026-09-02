@@ -34,3 +34,44 @@ frozen empty (CONTRACTS §2), so a cut item's payload is always `{}` on the wire
 filler, retake) and protection/merge/removal-cap logic; see its module docstring and
 `apps/worker-ai/tests/test_autocut.py` for the parameters, metric thresholds and property
 tests. This module only shapes the HTTP surface and the completion.
+
+## B19: zoom and reframe
+
+`POST /projects/{id}/passes/zoom` and `POST /projects/{id}/passes/reframe` follow the
+same producer shape as autocut — quote (`quoteReframeZoom`, `@montaj/config`'s
+`BURN_RATES.reframeZoomPass`, flash tier), mint a `passId`, enqueue `ai.pass` with
+`passType: "zoom"|"reframe"`. `passes.quote.ts`'s module docstring notes the same kind
+of number-to-reconcile B18 flagged: the brief's "3 credits per media minute" matches
+`reframeZoomPass`'s _pro_ rate, not the flash rate this quotes against.
+
+### Payload gaps (flagged, not silently worked around)
+
+Real scene detection and subject tracking need decoded video frames
+(`apps/worker-ai/worker_ai/passes/README.md`'s "Gap" section); no video-decode
+dependency was added in this work package, so `startZoom`/`startReframe` send
+`detections`/`sceneFrames`/`rmsSamples` empty. The worker still produces correct zoom
+events from emphasis-word cues alone (subject centre falls back to the frame's
+saliency centre, `(0.5, 0.5)`), but a reframe job fails non-retryably
+(`worker/invalid_payload`) with no subject track — this is a real, working failure
+mode, not a silent no-op, until a follow-up work package wires A07 frame extraction
+into this producer. `emphasisWords` are read from the live document's segments
+(`Segment.emphasis`, CONTRACTS §2), one cue per emphasised segment, timestamped at the
+segment's own `startMs` (an approximation of the emphasised word's own timing — see
+`startZoom`'s docstring).
+
+### `PassType` and `keyframesRef` gaps
+
+`passes-completion.handler.ts`'s class docstring covers both in full: `PassTypeSchema`
+has no `"zoom"` value, so both pass kinds land as `type: "reframe"`; and neither the
+inline-bytea nor the derived-storage write path for `keyframesRef` exists yet, so the
+handler computes and sets the addendum's key shape (`passes/{passId}/{itemId}.kf`)
+without yet writing any bytes there.
+
+## Algorithm (zoom/reframe)
+
+`apps/worker-ai/worker_ai/passes/{scenes,tracking,zoom,reframe}.py` own scene
+detection, subject tracking, cue detection and keyframe generation; see
+`apps/worker-ai/worker_ai/passes/README.md` for the full algorithm writeup, presets,
+and models used. `apps/worker-ai/worker_ai/processors/reframe_zoom_pass.py` is the
+thin queue adapter, including the byte-for-byte packed-keyframe encoder mirroring
+`@montaj/edg`'s `packKeyframes`.

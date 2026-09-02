@@ -34,9 +34,6 @@ export const WEBHOOK_SWEEP_INTERVAL_MS = 15_000;
 /** Deliveries dispatched per sweep tick, so one pass cannot hold the loop forever. */
 export const WEBHOOK_SWEEP_BATCH = 50;
 
-/** Deliveries this WP's event pollers (transcript/job/credits) scan per tick. */
-export const WEBHOOK_POLL_BATCH = 200;
-
 /** Per-attempt HTTP timeout. */
 export const WEBHOOK_DELIVERY_TIMEOUT_MS = 10_000;
 
