@@ -1,0 +1,34 @@
+{
+  "name": "@montaj/resolve-panel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aksharo Studio Workflow Integration panel for DaVinci Resolve Studio: docks over aksharo_core's loopback server (host.info, timeline.current, apply.*, session.status, transcribe.start, passes.list). C09.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --maxWorkers=2",
+    "test:coverage": "vitest run --coverage --maxWorkers=2",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "@montaj/config": "workspace:*",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.6",
+    "@types/node": "^22.19.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "esbuild": "^0.25.12",
+    "eslint": "^9.39.5",
+    "jsdom": "^30.0.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}
