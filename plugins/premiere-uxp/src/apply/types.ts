@@ -8,7 +8,18 @@
  * itself is pure TS/zod and may be safe to import directly in a later WP; until then this file
  * is the seam apply-mode code depends on, kept structurally identical to CONTRACTS §2 so a
  * caller can pass EDG data through without reshaping it.
+ *
+ * The MOGRT param table is different: it is not a workspace package, it is this same plugin's
+ * own `mogrt/params.ts` (plain TS/zod, no Node-only code, already imported directly by
+ * `src/styles/mogrt-map.ts` and proven to bundle fine), so `MOGRT_PARAM_ORDER`/`MogrtParamName`
+ * below import it instead of re-declaring it a second time. C06 originally hardcoded its own
+ * copy of the appendix table here because C06b (MOGRT authoring) had not landed yet when C06
+ * was built; now that it has, `mogrt/params.ts` is the single source of truth (14 params,
+ * append-only — see that file's doc comment for why `BoxFill`/`BoxOpacity` were added after the
+ * original 12).
  */
+
+import { MOGRT_PARAM_NAMES, type MogrtParamName } from "../../mogrt/params.js";
 
 export type FrameOf = { readonly startFrames: number; readonly endFrames: number };
 
@@ -51,9 +62,9 @@ export interface EdgPassItemLike {
 }
 
 /**
- * The appendix param table (C06 brief): the C08b Text+ macro's param names, shared with C06b's
- * MOGRT authoring so style mapping is common. `packages/caption-styles` → these params is
- * C06b/C08b's job; this module only *consumes* the resolved values.
+ * The frozen MOGRT param table (`mogrt/params.ts`, C06b): the C08b Text+ macro's param names,
+ * shared with C06b's MOGRT authoring so style mapping is common. `packages/caption-styles` →
+ * these params is C06b/C08b's job; this module only *consumes* the resolved values.
  */
 export interface MogrtCaptionParams {
   readonly Text: string;
@@ -68,24 +79,14 @@ export interface MogrtCaptionParams {
   readonly HighlightStart?: number;
   readonly HighlightEnd?: number;
   readonly StyleId?: string;
+  readonly BoxFill?: string;
+  readonly BoxOpacity?: number;
 }
 
-export const MOGRT_PARAM_ORDER = [
-  "Text",
-  "Font",
-  "Size",
-  "Colour",
-  "StrokeColour",
-  "StrokeWidth",
-  "ShadowOpacity",
-  "PositionY",
-  "HighlightColour",
-  "HighlightStart",
-  "HighlightEnd",
-  "StyleId",
-] as const;
+/** Re-exported from `mogrt/params.ts` — see the module doc comment above. */
+export const MOGRT_PARAM_ORDER = MOGRT_PARAM_NAMES;
 
-export type MogrtParamName = (typeof MOGRT_PARAM_ORDER)[number];
+export type { MogrtParamName };
 
 /** One row of an EDG revision fetch, used by the re-sync op (`src/apply/resync.ts`). */
 export interface EdgRevisionSnapshot {
