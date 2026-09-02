@@ -114,12 +114,17 @@ export class EntitlementService {
       throw new AppException(WORKSPACE_ERRORS.notFound, "No such workspace.", HttpStatus.NOT_FOUND);
     }
 
-    const [subscriptionPlan, seatsUsed, activeWeekPass] = await Promise.all([
+    const [subscriptionPlan, seatsUsed, activeWeekPass, liveSubscription] = await Promise.all([
       resolveWorkspacePlan(this.prisma, workspaceId),
       this.prisma.membership.count({ where: { workspaceId, status: "active" } }),
       this.prisma.passPurchase.findFirst({
         where: { workspaceId, kind: "week_pass", endsAt: { gt: new Date() } },
         select: { id: true },
+      }),
+      this.prisma.subscription.findFirst({
+        where: { workspaceId, status: { in: ["trialing", "active", "past_due", "paused"] } },
+        orderBy: { createdAt: "desc" },
+        select: { seats: true },
       }),
     ]);
     const effectivePlanKey =
@@ -143,14 +148,37 @@ export class EntitlementService {
     const seatsIncluded =
       typeof planEntitlements["seatsIncluded"] === "number" ? planEntitlements["seatsIncluded"] : 0;
 
+    // Agency pools credits and device slots per seat (04 §Plans, B08): a plan
+    // marked `perSeat` in its seeded entitlements multiplies both the monthly
+    // grant and the device ceiling by the seats the live subscription actually
+    // bills for (never by `seatsUsed`, which is memberships, not what the
+    // workspace pays for -- an unfilled paid seat still pools its credits and
+    // still opens a device slot). No live subscription (a team not yet
+    // checked out, or Free/Starter/Creator, none of which carry `seatPrice`)
+    // means exactly one seat's worth.
+    const perSeat = planEntitlements["perSeat"] === true;
+    const billedSeats = Math.max(1, liveSubscription?.seats ?? 1);
+    const creditsPerMonthTenths = perSeat
+      ? plan.creditsPerMonthTenths * billedSeats
+      : plan.creditsPerMonthTenths;
+    const activeDevices =
+      perSeat && typeof planEntitlements["activeDevices"] === "number"
+        ? planEntitlements["activeDevices"] * billedSeats
+        : planEntitlements["activeDevices"];
+
     return {
       workspaceId,
       planKey: plan.key,
       planName: plan.name,
-      creditsPerMonthTenths: plan.creditsPerMonthTenths,
+      creditsPerMonthTenths,
       seatsIncluded,
       seatsUsed,
-      entitlements: { ...planEntitlements, flags: await this.activeFlags(workspaceId, plan.key) },
+      entitlements: {
+        ...planEntitlements,
+        activeDevices,
+        billedSeats,
+        flags: await this.activeFlags(workspaceId, plan.key),
+      },
       computedAt: new Date().toISOString(),
     };
   }

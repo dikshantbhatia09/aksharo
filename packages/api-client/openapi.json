@@ -13920,6 +13920,1171 @@
         ]
       }
     },
+    "/devices": {
+      "get": {
+        "operationId": "listDevices",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Devices, revoked ones last.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "platform": {
+                        "type": "string"
+                      },
+                      "host": {
+                        "type": "string",
+                        "enum": [
+                          "web",
+                          "desktop",
+                          "premiere",
+                          "ae",
+                          "resolve"
+                        ]
+                      },
+                      "hostVersion": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "appVersion": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "lastActiveAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "leaseUntil": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "revokedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "isCurrentSession": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "platform",
+                      "host",
+                      "hostVersion",
+                      "appVersion",
+                      "lastActiveAt",
+                      "leaseUntil",
+                      "revokedAt",
+                      "createdAt",
+                      "isCurrentSession"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "This workspace's registered devices",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/devices/register": {
+      "post": {
+        "description": "Same fingerprint refreshes the 7-day lease without counting twice against the plan's device limit; a genuinely new device beyond the limit is refused with `devices/limit_reached` and the revocable list.",
+        "operationId": "registerDevice",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fingerprint": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 256
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "platform": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "host": {
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "desktop",
+                      "premiere",
+                      "ae",
+                      "resolve"
+                    ]
+                  },
+                  "hostVersion": {
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "appVersion": {
+                    "type": "string",
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "fingerprint",
+                  "name",
+                  "platform",
+                  "host"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The registered device.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "host": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "premiere",
+                        "ae",
+                        "resolve"
+                      ]
+                    },
+                    "hostVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "appVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastActiveAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "leaseUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revokedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "isCurrentSession": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "platform",
+                    "host",
+                    "hostVersion",
+                    "appVersion",
+                    "lastActiveAt",
+                    "leaseUntil",
+                    "revokedAt",
+                    "createdAt",
+                    "isCurrentSession"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`devices/limit_reached`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Register (or refresh) this device",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/devices/{deviceId}": {
+      "patch": {
+        "operationId": "renameDevice",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The renamed device.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "host": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "premiere",
+                        "ae",
+                        "resolve"
+                      ]
+                    },
+                    "hostVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "appVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastActiveAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "leaseUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revokedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "isCurrentSession": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "platform",
+                    "host",
+                    "hostVersion",
+                    "appVersion",
+                    "lastActiveAt",
+                    "leaseUntil",
+                    "revokedAt",
+                    "createdAt",
+                    "isCurrentSession"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Rename a device",
+        "tags": [
+          "devices"
+        ]
+      },
+      "delete": {
+        "description": "The next heartbeat against this device's lease/licence fails.",
+        "operationId": "revokeDevice",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The revoked device.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "host": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "premiere",
+                        "ae",
+                        "resolve"
+                      ]
+                    },
+                    "hostVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "appVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastActiveAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "leaseUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revokedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "isCurrentSession": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "platform",
+                    "host",
+                    "hostVersion",
+                    "appVersion",
+                    "lastActiveAt",
+                    "leaseUntil",
+                    "revokedAt",
+                    "createdAt",
+                    "isCurrentSession"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke a device",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/workspaces/{id}/transfer-ownership": {
+      "post": {
+        "description": "Owner only. The first call (no confirmToken) mints a 10-minute confirmation token and mails it to the current owner; the second call, with that token, executes the transfer. Sessions are unaffected.",
+        "operationId": "transferWorkspaceOwnership",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "toMembershipId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "confirmToken": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "toMembershipId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Confirmation sent, or transfer applied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "confirmation_sent",
+                        "transferred"
+                      ]
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "newOwnerMembershipId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Transfer workspace ownership",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}/client-tags": {
+      "get": {
+        "operationId": "listClientTags",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tags in use.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "tag": {
+                        "type": "string"
+                      },
+                      "projectCount": {
+                        "type": "number"
+                      },
+                      "folderCount": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "tag",
+                      "projectCount",
+                      "folderCount"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Client tags in use, with counts",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}/client-tags/{tag}/projects": {
+      "get": {
+        "operationId": "listProjectsForClientTag",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Projects with this tag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Projects carrying a client tag",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}/projects/{projectId}/client-tag": {
+      "patch": {
+        "operationId": "setProjectClientTag",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clientTag": {
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "clientTag"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The project's new client tag."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Set (or clear) a project's client tag",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}/folders/{folderId}/client-tag": {
+      "patch": {
+        "operationId": "setFolderClientTag",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "folderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clientTag": {
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "clientTag"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The folder's new client tag."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Set (or clear) a folder's client tag",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}/license-keys": {
+      "get": {
+        "operationId": "listLicenseKeys",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Licence keys.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "key": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "maxActivations": {
+                        "type": "number"
+                      },
+                      "activationCount": {
+                        "type": "number"
+                      },
+                      "offlineUntil": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "revokedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "revocationSerial": {
+                        "type": "number"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "key",
+                      "label",
+                      "maxActivations",
+                      "activationCount",
+                      "offlineUntil",
+                      "revokedAt",
+                      "revocationSerial",
+                      "createdAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "This workspace's licence keys",
+        "tags": [
+          "licensing"
+        ]
+      },
+      "post": {
+        "description": "Returns `AK-XXXX-XXXX-XXXX`, shown once in full.",
+        "operationId": "createLicenseKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "maxActivations": {
+                    "default": 1,
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 1000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new licence key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "maxActivations": {
+                      "type": "number"
+                    },
+                    "activationCount": {
+                      "type": "number"
+                    },
+                    "offlineUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revokedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revocationSerial": {
+                      "type": "number"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "key",
+                    "label",
+                    "maxActivations",
+                    "activationCount",
+                    "offlineUntil",
+                    "revokedAt",
+                    "revocationSerial",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a licence key",
+        "tags": [
+          "licensing"
+        ]
+      }
+    },
+    "/workspaces/{id}/license-keys/{keyId}": {
+      "delete": {
+        "description": "Every device it activated is revoked too; propagates on next heartbeat.",
+        "operationId": "revokeLicenseKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The revoked licence key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "maxActivations": {
+                      "type": "number"
+                    },
+                    "activationCount": {
+                      "type": "number"
+                    },
+                    "offlineUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revokedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "revocationSerial": {
+                      "type": "number"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "key",
+                    "label",
+                    "maxActivations",
+                    "activationCount",
+                    "offlineUntil",
+                    "revokedAt",
+                    "revocationSerial",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke a licence key",
+        "tags": [
+          "licensing"
+        ]
+      }
+    },
+    "/plugins/activate": {
+      "post": {
+        "description": "Exactly one of licenseKey or deviceCode. Returns a devices row and a signed licenseSnapshot verifiable offline for 7 days.",
+        "operationId": "activatePlugin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "licenseKey": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "deviceCode": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "device": {
+                    "type": "object",
+                    "properties": {
+                      "fingerprint": {
+                        "type": "string",
+                        "minLength": 8,
+                        "maxLength": 256
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "platform": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 60
+                      },
+                      "host": {
+                        "type": "string",
+                        "enum": [
+                          "web",
+                          "desktop",
+                          "premiere",
+                          "ae",
+                          "resolve"
+                        ]
+                      },
+                      "hostVersion": {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      "appVersion": {
+                        "type": "string",
+                        "maxLength": 60
+                      }
+                    },
+                    "required": [
+                      "fingerprint",
+                      "name",
+                      "platform",
+                      "host"
+                    ]
+                  }
+                },
+                "required": [
+                  "device"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Device registered; licence snapshot issued."
+          }
+        },
+        "summary": "Activate a device with a licence key or a device code",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
+    "/plugins/heartbeat": {
+      "post": {
+        "description": "Returns the current revocationSerial and a refreshed licenseSnapshot.",
+        "operationId": "pluginHeartbeat",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nonce": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "licenseKey": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "nonce",
+                  "deviceId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Lease renewed."
+          }
+        },
+        "summary": "Renew the 7-day entitlement lease",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
+    "/plugins/revocation-snapshot": {
+      "get": {
+        "operationId": "pluginRevocationSnapshot",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "A signed, compact snapshot token."
+          }
+        },
+        "summary": "Signed daily revocation snapshot for fully offline clients",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
     "/affiliate/apply": {
       "post": {
         "operationId": "applyAffiliate",

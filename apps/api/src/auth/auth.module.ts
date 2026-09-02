@@ -63,6 +63,10 @@ import type { OnModuleInit } from "@nestjs/common";
     ACCESS_TOKEN_VERIFIER,
     ApiKeyGuard,
     AuthAuditService,
+    // B08: `/plugins/activate {deviceCode}` polls the same device-grant state
+    // machine `POST /auth/device/token` does (`licensing/plugins.service.ts`),
+    // rather than forking it — needs the provider exported, not only `@Global()`.
+    DeviceCodeService,
     JwtAuthGuard,
     RateLimitGuard,
     RateLimitService,

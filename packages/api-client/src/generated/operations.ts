@@ -26,6 +26,13 @@ export const API_OPERATIONS = [
     summary: "Accept an invitation",
   },
   {
+    operationId: "activatePlugin",
+    method: "POST",
+    path: "/plugins/activate",
+    tags: ["plugins"],
+    summary: "Activate a device with a licence key or a device code",
+  },
+  {
     operationId: "adminApproveAffiliate",
     method: "POST",
     path: "/affiliate/admin/{affiliateId}/approve",
@@ -248,6 +255,13 @@ export const API_OPERATIONS = [
     path: "/folders",
     tags: ["projects"],
     summary: "Create a folder",
+  },
+  {
+    operationId: "createLicenseKey",
+    method: "POST",
+    path: "/workspaces/{id}/license-keys",
+    tags: ["licensing"],
+    summary: "Create a licence key",
   },
   {
     operationId: "createPassCheckout",
@@ -712,11 +726,25 @@ export const API_OPERATIONS = [
     summary: "List a workspace's brand assets",
   },
   {
+    operationId: "listClientTags",
+    method: "GET",
+    path: "/workspaces/{id}/client-tags",
+    tags: ["workspaces"],
+    summary: "Client tags in use, with counts",
+  },
+  {
     operationId: "listDeadLetters",
     method: "GET",
     path: "/admin/dlq",
     tags: ["admin"],
     summary: "List dead-lettered jobs, newest first",
+  },
+  {
+    operationId: "listDevices",
+    method: "GET",
+    path: "/devices",
+    tags: ["devices"],
+    summary: "This workspace's registered devices",
   },
   {
     operationId: "listEdgPasses",
@@ -780,6 +808,13 @@ export const API_OPERATIONS = [
     path: "/jobs",
     tags: ["jobs"],
     summary: "List the workspace's jobs, newest first",
+  },
+  {
+    operationId: "listLicenseKeys",
+    method: "GET",
+    path: "/workspaces/{id}/license-keys",
+    tags: ["licensing"],
+    summary: "This workspace's licence keys",
   },
   {
     operationId: "listMandates",
@@ -852,6 +887,13 @@ export const API_OPERATIONS = [
     summary: "List the workspace's projects, newest first",
   },
   {
+    operationId: "listProjectsForClientTag",
+    method: "GET",
+    path: "/workspaces/{id}/client-tags/{tag}/projects",
+    tags: ["workspaces"],
+    summary: "Projects carrying a client tag",
+  },
+  {
     operationId: "listStyles",
     method: "GET",
     path: "/styles",
@@ -922,6 +964,20 @@ export const API_OPERATIONS = [
     summary: "Skip one billing cycle (once per 12 months)",
   },
   {
+    operationId: "pluginHeartbeat",
+    method: "POST",
+    path: "/plugins/heartbeat",
+    tags: ["plugins"],
+    summary: "Renew the 7-day entitlement lease",
+  },
+  {
+    operationId: "pluginRevocationSnapshot",
+    method: "GET",
+    path: "/plugins/revocation-snapshot",
+    tags: ["plugins"],
+    summary: "Signed daily revocation snapshot for fully offline clients",
+  },
+  {
     operationId: "previewChangePlan",
     method: "GET",
     path: "/billing/subscription/change-preview",
@@ -957,11 +1013,25 @@ export const API_OPERATIONS = [
     summary: "Refund a pass/top-up purchase (admin/API path)",
   },
   {
+    operationId: "registerDevice",
+    method: "POST",
+    path: "/devices/register",
+    tags: ["devices"],
+    summary: "Register (or refresh) this device",
+  },
+  {
     operationId: "removeWorkspaceMember",
     method: "DELETE",
     path: "/workspaces/{id}/members/{membershipId}",
     tags: ["workspaces"],
     summary: "Remove a member or withdraw an invitation",
+  },
+  {
+    operationId: "renameDevice",
+    method: "PATCH",
+    path: "/devices/{deviceId}",
+    tags: ["devices"],
+    summary: "Rename a device",
   },
   {
     operationId: "replaceMedia",
@@ -1034,6 +1104,20 @@ export const API_OPERATIONS = [
     summary: "Transcribe the media again",
   },
   {
+    operationId: "revokeDevice",
+    method: "DELETE",
+    path: "/devices/{deviceId}",
+    tags: ["devices"],
+    summary: "Revoke a device",
+  },
+  {
+    operationId: "revokeLicenseKey",
+    method: "DELETE",
+    path: "/workspaces/{id}/license-keys/{keyId}",
+    tags: ["licensing"],
+    summary: "Revoke a licence key",
+  },
+  {
     operationId: "revokeMandate",
     method: "POST",
     path: "/billing/mandates/{mandateId}/revoke",
@@ -1046,6 +1130,20 @@ export const API_OPERATIONS = [
     path: "/consents",
     tags: ["consents"],
     summary: "Grant or withdraw one purpose",
+  },
+  {
+    operationId: "setFolderClientTag",
+    method: "PATCH",
+    path: "/workspaces/{id}/folders/{folderId}/client-tag",
+    tags: ["workspaces"],
+    summary: "Set (or clear) a folder's client tag",
+  },
+  {
+    operationId: "setProjectClientTag",
+    method: "PATCH",
+    path: "/workspaces/{id}/projects/{projectId}/client-tag",
+    tags: ["workspaces"],
+    summary: "Set (or clear) a project's client tag",
   },
   {
     operationId: "setWorkspaceTaxProfile",
@@ -1095,6 +1193,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/transcribe",
     tags: ["transcripts"],
     summary: "Transcribe the project's primary media",
+  },
+  {
+    operationId: "transferWorkspaceOwnership",
+    method: "POST",
+    path: "/workspaces/{id}/transfer-ownership",
+    tags: ["workspaces"],
+    summary: "Transfer workspace ownership",
   },
   {
     operationId: "translateProjectTranscript",

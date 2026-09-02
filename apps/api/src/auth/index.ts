@@ -16,3 +16,6 @@ export type { AgeGateVerdict } from "./age-gate.js";
 export { SessionService } from "./session.service.js";
 export type { IssuedTokens, SessionSummary } from "./session.service.js";
 export { TokenService } from "./token.service.js";
+// B08's `/plugins/activate {deviceCode}` branch polls the same device-grant
+// state machine `POST /auth/device/token` does, rather than forking it.
+export { DeviceCodeService } from "./device-code.service.js";

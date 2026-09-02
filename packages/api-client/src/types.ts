@@ -719,6 +719,89 @@ export interface PlanCatalogueEntry {
   hasHalfyear: { INR: boolean; USD: boolean };
 }
 
+// --- Teams, devices, licensing (B08) -------------------------------------------
+
+export type MembershipStatus = "invited" | "active" | "removed";
+
+export interface MemberView {
+  id: string;
+  userId: string | null;
+  email: string | null;
+  name: string | null;
+  avatarUrl: string | null;
+  role: WorkspaceRole;
+  status: MembershipStatus;
+  seatBilled: boolean;
+  createdAt: string;
+}
+
+export interface InviteMemberRequest {
+  email: string;
+  role: WorkspaceRole;
+}
+
+export interface ChangeRoleRequest {
+  role: WorkspaceRole;
+}
+
+export interface TransferOwnershipRequest {
+  toMembershipId: string;
+  confirmToken?: string;
+}
+
+export interface TransferOwnershipResult {
+  status: "confirmation_sent" | "transferred";
+  workspaceId?: string;
+  newOwnerMembershipId?: string;
+}
+
+export type DeviceHost = "web" | "desktop" | "premiere" | "ae" | "resolve";
+
+export interface DeviceView {
+  id: string;
+  name: string;
+  platform: string;
+  host: DeviceHost;
+  hostVersion: string | null;
+  appVersion: string | null;
+  lastActiveAt: string | null;
+  leaseUntil: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  isCurrentSession: boolean;
+}
+
+export interface RenameDeviceRequest {
+  name: string;
+}
+
+export interface LicenseKeyView {
+  id: string;
+  key: string;
+  label: string | null;
+  maxActivations: number;
+  activationCount: number;
+  offlineUntil: string | null;
+  revokedAt: string | null;
+  revocationSerial: number;
+  createdAt: string;
+}
+
+export interface CreateLicenseKeyRequest {
+  label?: string;
+  maxActivations?: number;
+}
+
+export interface ClientTagView {
+  tag: string;
+  projectCount: number;
+  folderCount: number;
+}
+
+export interface SetClientTagRequest {
+  clientTag: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Referrals (B07b): the give-get loop.
 // ---------------------------------------------------------------------------
