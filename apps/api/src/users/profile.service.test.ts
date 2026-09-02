@@ -67,10 +67,58 @@ describe("updateProfileSchema", () => {
 
   it("bounds the onboarding blob so the JSONB column cannot be abused", () => {
     const tooMany = Object.fromEntries(
-      Array.from({ length: 33 }, (_, index) => [`k${String(index)}`, true]),
+      Array.from({ length: 65 }, (_, index) => [`k${String(index)}`, true]),
     );
     expect(updateProfileSchema.safeParse({ onboarding: tooMany }).success).toBe(false);
+    const exactlyEnough = Object.fromEntries(
+      Array.from({ length: 64 }, (_, index) => [`k${String(index)}`, true]),
+    );
+    expect(updateProfileSchema.safeParse({ onboarding: exactlyEnough }).success).toBe(true);
     expect(updateProfileSchema.safeParse({ onboarding: { tourDone: true } }).success).toBe(true);
+  });
+
+  it("accepts the multi-select onboarding answers (string arrays)", () => {
+    // Onboarding steps 1-2: "what you make" and "languages you speak on
+    // camera" (08 §Onboarding) are multi-select, so `OnboardingProfile.makes`
+    // and `.languages` are `string[]` on the wire (`packages/api-client`).
+    expect(
+      updateProfileSchema.safeParse({
+        onboarding: {
+          makes: ["reels", "shorts"],
+          languages: ["hi-Latn", "en"],
+          source: "YouTube",
+        },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects an onboarding array once it exceeds 32 elements", () => {
+    const thirtyTwo = Array.from({ length: 32 }, (_, index) => `item-${String(index)}`);
+    expect(updateProfileSchema.safeParse({ onboarding: { makes: thirtyTwo } }).success).toBe(true);
+    const thirtyThree = [...thirtyTwo, "one-too-many"];
+    expect(updateProfileSchema.safeParse({ onboarding: { makes: thirtyThree } }).success).toBe(
+      false,
+    );
+  });
+
+  it("rejects an onboarding array element over 64 characters", () => {
+    expect(updateProfileSchema.safeParse({ onboarding: { makes: ["a".repeat(64)] } }).success).toBe(
+      true,
+    );
+    expect(updateProfileSchema.safeParse({ onboarding: { makes: ["a".repeat(65)] } }).success).toBe(
+      false,
+    );
+  });
+
+  it("still rejects a nested object as an onboarding value", () => {
+    // The value union is scalar-or-array-of-scalar; an object would let the
+    // JSONB column grow past the bounds above without them ever applying.
+    expect(updateProfileSchema.safeParse({ onboarding: { makes: { nested: true } } }).success).toBe(
+      false,
+    );
+    expect(
+      updateProfileSchema.safeParse({ onboarding: { makes: [{ nested: true }] } }).success,
+    ).toBe(false);
   });
 });
 

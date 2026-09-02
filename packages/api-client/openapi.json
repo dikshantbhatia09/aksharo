@@ -159,6 +159,14 @@
                         {
                           "type": "string",
                           "maxLength": 200
+                        },
+                        {
+                          "maxItems": 32,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
                         }
                       ]
                     }
