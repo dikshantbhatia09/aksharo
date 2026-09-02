@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
+- C12: consent-gated desktop/bridge telemetry (`POST /telemetry/events|crash`), `crash_reports` with 30-day retention, shared redaction in `bridge-core`, diagnostics bundle attached to support tickets, server-side Sentry/PostHog forwarding behind env keys.
 
 ### Fixed
 
