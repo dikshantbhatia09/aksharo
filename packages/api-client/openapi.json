@@ -11510,6 +11510,108 @@
         ]
       }
     },
+    "/projects/{projectId}/audio/clean": {
+      "post": {
+        "description": "Quotes the job from the probed media duration (1 credit a minute, rounded up to 0.1 of a minute, creator plan and above), holds the credits and enqueues `ai.clean`. Watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`, then read `GET /projects/{id}/audio/cleans` for the signed URLs and metrics.",
+        "operationId": "cleanProjectAudio",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleanRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          },
+          "409": {
+            "description": "`audio/media_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Clean the project's audio: denoise, normalise loudness",
+        "tags": [
+          "audio"
+        ]
+      }
+    },
+    "/projects/{projectId}/audio/cleans": {
+      "get": {
+        "description": "Newest first, capped at 50. `cleanedAudioUrl`/`previewOriginalUrl`/`previewCleanedUrl` are short-lived signed GET URLs, present once the run has succeeded.",
+        "operationId": "listProjectAudioCleans",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioCleanListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "This project's audio-clean history",
+        "tags": [
+          "audio"
+        ]
+      }
+    },
     "/projects/{projectId}/passes/autocut": {
       "post": {
         "description": "Quotes the job from the primary media's probed duration (`autocutPass` burn rate, source minutes), holds the credits and enqueues `ai.pass`. The proposed cuts land as `edg_pass_items` (state `proposed`) once the worker's completion arrives and `MergePass` merges them; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`.",
@@ -19706,6 +19808,185 @@
           "ok",
           "lotsDriftTenths",
           "ledgerDriftTenths"
+        ]
+      },
+      "CleanRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AudioCleanQuoteDto": {
+        "type": "object",
+        "properties": {
+          "tenths": {
+            "type": "number",
+            "description": "Credits held before the job was enqueued, in tenths."
+          },
+          "credits": {
+            "type": "string",
+            "description": "\"1.2\" — for display only, never for arithmetic."
+          },
+          "durationMs": {
+            "type": "number",
+            "description": "Media duration the quote was computed from."
+          }
+        },
+        "required": [
+          "tenths",
+          "credits",
+          "durationMs"
+        ]
+      },
+      "CleanAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
+          },
+          "cleanId": {
+            "type": "string",
+            "description": "The `audio_cleans` row this run will write to."
+          },
+          "status": {
+            "type": "string",
+            "description": "`queued` on a fresh accept."
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when an identical live run already existed."
+          },
+          "quote": {
+            "$ref": "#/components/schemas/AudioCleanQuoteDto"
+          }
+        },
+        "required": [
+          "jobId",
+          "cleanId",
+          "status",
+          "deduplicated",
+          "quote"
+        ]
+      },
+      "AudioCleanMetricsDto": {
+        "type": "object",
+        "properties": {
+          "inputLufs": {
+            "type": "number",
+            "description": "Approximate LUFS before cleaning."
+          },
+          "outputLufs": {
+            "type": "number",
+            "description": "Approximate LUFS after cleaning and normalising."
+          },
+          "snrGainDb": {
+            "type": "number",
+            "description": "Estimated noise-floor reduction, dB."
+          },
+          "clippingCount": {
+            "type": "number",
+            "description": "Samples at or beyond full scale in the output."
+          },
+          "truePeakDbtp": {
+            "type": "number",
+            "description": "Peak true level of the output, dBTP."
+          }
+        }
+      },
+      "AudioCleanDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "mediaId": {
+            "type": "string"
+          },
+          "strength": {
+            "type": "string",
+            "enum": [
+              "light",
+              "medium",
+              "strong"
+            ]
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "social",
+              "youtube",
+              "podcast"
+            ]
+          },
+          "dereverb": {
+            "type": "boolean"
+          },
+          "deesser": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed"
+            ]
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/AudioCleanMetricsDto"
+          },
+          "cleanedAudioUrl": {
+            "type": "string",
+            "description": "Signed GET URL for the cleaned 48 kHz WAV, when succeeded."
+          },
+          "previewOriginalUrl": {
+            "type": "string",
+            "description": "Signed GET URL for the original-track A/B preview clip."
+          },
+          "previewCleanedUrl": {
+            "type": "string",
+            "description": "Signed GET URL for the cleaned-track A/B preview clip."
+          },
+          "failureReason": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "completedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "mediaId",
+          "strength",
+          "target",
+          "dereverb",
+          "deesser",
+          "status",
+          "createdAt"
+        ]
+      },
+      "AudioCleanListDto": {
+        "type": "object",
+        "properties": {
+          "cleans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioCleanDto"
+            }
+          }
+        },
+        "required": [
+          "cleans"
         ]
       },
       "StartAutocutRequestDto": {

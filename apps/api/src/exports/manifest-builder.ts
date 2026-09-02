@@ -94,6 +94,13 @@ export interface BuildManifestInput {
     readonly opacity: number;
   };
   readonly now?: number;
+  /**
+   * B10: the succeeded `ai.clean` run to mux instead of the source track, when
+   * `EdgHot.audio.clean.enabled` is set for this project. `undefined` (the EDG
+   * default) keeps the manifest at `strategy: "passthrough"`, exactly A21b's
+   * prior behaviour.
+   */
+  readonly audioClean?: { readonly cleanId: string; readonly cleanKey: string };
 }
 
 export interface BuiltManifest {
@@ -114,10 +121,16 @@ function outputDimensions(input: BuildManifestInput): {
   return { width, height, aspect: ASPECT_FROM_PRISMA[input.projectAspect] };
 }
 
-function audioStrategyFor(outputKind: OutputKind): AudioStrategy {
+function audioStrategyFor(outputKind: OutputKind, hasClean: boolean): AudioStrategy {
   // A caption-only layer (alpha/green-screen) carries no soundtrack of its own —
   // the editor drops it over the source's audio in their NLE.
-  return outputKind === "alpha" || outputKind === "greenscreen" ? "none" : "passthrough";
+  if (outputKind === "alpha" || outputKind === "greenscreen") return "none";
+  // B10: a project with a clean applied (`EdgHot.audio.clean.enabled`) replaces
+  // the source track with the `ai.clean` output on both render paths — `apps/render`'s
+  // ffmpeg graph (`ffmpeg/graph.ts`) and `apps/web/lib/export/engine.ts` already
+  // read `audio.strategy === "replace"` plus `cleanKey`/`cleanId`; this is what
+  // sets them.
+  return hasClean ? "replace" : "passthrough";
 }
 
 function watermarkFor(input: BuildManifestInput): Watermark | null {
@@ -191,7 +204,10 @@ export function buildRenderManifest(input: BuildManifestInput): BuiltManifest {
       ...(input.outputKind === "greenscreen" ? { chromaKey: "#00FF00" } : {}),
     },
     audio: {
-      strategy: audioStrategyFor(input.outputKind),
+      strategy: audioStrategyFor(input.outputKind, input.audioClean !== undefined),
+      ...(input.audioClean === undefined
+        ? {}
+        : { cleanId: input.audioClean.cleanId, cleanKey: input.audioClean.cleanKey }),
       codec: "aac",
       bitrateKbps: 192,
     },

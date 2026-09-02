@@ -79,6 +79,39 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B10 — Audio clean: denoise, loudness normalise, A/B preview, applied to
+  browser and cloud exports.** Worker (`apps/worker-ai/worker_ai/clean/**`):
+  `ai.clean` denoises via spectral-subtraction gating (a DeepFilterNet3
+  stand-in — no model weights could be fetched or committed in this
+  environment; see `dsp.py`'s module docstring), an optional harder gate for
+  de-reverb and a sibilance-band gain reducer for de-essing, then
+  loudness-normalises to a target (social/youtube/podcast, `light`/`medium`/
+  `strong` mix presets) with a soft-knee peak limiter and an approximate-LUFS
+  meter (documented deviation from full ITU-R BS.1770 K-weighting); long
+  files run in 10-minute windows with a 1 s equal-power crossfade to bound
+  memory. Outputs `clean48k-{cleanId}.wav` plus original/cleaned 20 s A/B
+  preview MP3s to the derived bucket (`storage.py` gains `ObjectStore.
+upload()` — the worker's first write path). API (`apps/api/src/audio/**`,
+  `prisma` migration `b10_audio_clean`): `POST/GET
+/projects/{id}/audio/clean(s)`, quoted via `packages/config`'s
+  `audioClean` burn rate and gated on the `audioClean` entitlement, an
+  `ai.clean` completion handler, and a read-time reconciliation for a job
+  that failed or is still running (the completion handler only runs on
+  success). Exports: `EdgHot.audio.clean` (`SetAudio`'s frozen
+  `{enabled, preset?, targetLufs?}` shape — no `cleanId` field, so B10
+  encodes it as `preset: "b10:<cleanId>"`, a documented adaptation of the
+  brief's literal `{cleanId, strength}` wording) now drives
+  `manifest-builder.ts`'s `audio.strategy`: `"replace"` plus `cleanId`/
+  `cleanKey`, which `apps/render`'s ffmpeg graph already consumed and which
+  `exports.service.ts` now presigns into `ExportSources.cleanedAudioUrl`;
+  the browser engine (`apps/web/lib/export/engine.ts`) reads it as
+  `RunExportOptions.cleanAudioSource` and mixes it in instead of always
+  failing "replace" as before. Web: an Audio panel
+  (`apps/web/components/editor/audio/**`) with strength/target controls, an
+  A/B toggle over the two preview clips, metrics, and an "apply to export"
+  `Switch` that builds the `SetAudio` op (enqueuing it is left to the
+  editor's own `EdgOpQueue` — see the final report's reported gap).
+
 - **B14 — Public API v1, API keys, outgoing webhooks, `/developers` docs.**
   API: `apps/api/src/public-api/**` — `ApiKeysService`/`ApiKeysController`
   (`POST|GET /workspaces/{id}/api-keys`, `POST .../rotate`, `DELETE

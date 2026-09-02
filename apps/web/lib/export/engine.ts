@@ -238,7 +238,30 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
   const input = new Input({ source: sourceOf(options.source), formats: ALL_FORMATS });
   const videoTrack = await input.getPrimaryVideoTrack();
   if (videoTrack === null) throw new Error("the source has no video track");
-  const audioTrack = await input.getPrimaryAudioTrack();
+  let audioTrack = await input.getPrimaryAudioTrack();
+
+  // B10: "replace" points the encode path at the `ai.clean` output instead of
+  // the source's own audio. The cleaned track has the same duration and content
+  // timeline as the source (the worker never changes duration), so every
+  // downstream consumer — `retainedSourceRangesMs`, the splice-fade math — stays
+  // correct unmodified; only which track `AudioSampleSink` reads from changes.
+  if (manifest.audio.strategy === "replace") {
+    if (options.cleanAudioSource === undefined) {
+      throw new Error(
+        "the manifest asks for the cleaned audio track, but no cleanAudioSource was supplied " +
+          "(see CreateExportResponse.sources.cleanedAudioUrl) — render in the cloud instead.",
+      );
+    }
+    const cleanInput = new Input({
+      source: sourceOf(options.cleanAudioSource),
+      formats: ALL_FORMATS,
+    });
+    const cleanAudioTrack = await cleanInput.getPrimaryAudioTrack();
+    if (cleanAudioTrack === null) {
+      throw new Error("the cleaned audio source has no audio track — render in the cloud instead.");
+    }
+    audioTrack = cleanAudioTrack;
+  }
 
   // A19b: use render-manifest's own `coverScaleCrop` (the pixel-exact
   // function the cloud renderer's ffmpeg scale+crop pair uses) rather than
@@ -331,18 +354,9 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
     audioTrack !== null
   ) {
     // A19b: a real resampled source for the common case (cuts against the
-    // passthrough track), routed to cloud with a documented reason
-    // otherwise. "replace" has no client-reachable signed URL for the
-    // cleaned track's bytes (same gap class as the raw/watermark sources
-    // A19 reported; A21b's `sources` does not carry one), and a "speed"/
-    // "hold" edit needs a resample rate this pass does not implement.
-    if (manifest.audio.strategy === "replace") {
-      throw new Error(
-        "the manifest asks for the cleaned audio track, but no signed URL for its bytes " +
-          "is available to the browser yet (see the final report's reported gap) — render " +
-          "in the cloud instead.",
-      );
-    }
+    // passthrough track). B10 (`audioTrack` reassignment above) supplies the
+    // cleaned track for "replace" the same way; a "speed"/"hold" edit still
+    // needs a resample rate this pass does not implement.
     if (manifest.timemap.edits.some((edit) => edit.kind !== "cut")) {
       throw new Error(
         "a speed change or freeze frame needs a resampled audio rate the browser path does " +

@@ -186,9 +186,14 @@ export function useExportDialog(deps: ExportDialogDeps): {
           throw new Error("no source URL was returned for this export");
         }
         const watermarkUrl = sources.watermarkUrl;
+        // B10: present whenever the manifest asked for the cleaned track
+        // (`audio.strategy === "replace"`); the engine refuses to proceed on
+        // "replace" without it.
+        const cleanAudioSource = sources.cleanedAudioUrl;
         const result = await runExport({
           manifest,
           source: sourceUrl,
+          ...(cleanAudioSource === undefined ? {} : { cleanAudioSource }),
           projection: deps.projection,
           catalogue: deps.catalogue,
           registry: deps.registry,

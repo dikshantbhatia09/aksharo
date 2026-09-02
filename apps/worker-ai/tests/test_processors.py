@@ -456,19 +456,17 @@ async def test_diarise_ignores_a_nonsense_speaker_count(wav_file: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("queue", "owner"),
-    [
-        ("ai.clean", "B10"),
-    ],
-)
-async def test_an_unimplemented_queue_fails_fast_and_names_its_owner(
-    queue: str, owner: str
-) -> None:
+async def test_an_unimplemented_queue_fails_fast_and_names_its_owner() -> None:
+    """Every ai.* queue CONTRACTS section 3 names has a processor today
+
+    (`OWNERS` in `not_implemented.py` is empty), so this exercises the
+    fallback mechanism itself against a queue name that names none of them —
+    the shape a future work package's queue would take before it lands.
+    """
     with pytest.raises(JobFailureError) as raised:
-        await process_not_implemented(context_for(queue))
+        await process_not_implemented(context_for("ai.not-implemented-test"))
     assert raised.value.code == "worker/not_implemented"
-    assert owner in raised.value.message
+    assert "a later work package" in raised.value.message
     # Non-retryable, so the hold is released now and the job dead-letters.
     assert raised.value.retryable is False
 
@@ -493,6 +491,9 @@ class _FakeS3:
 
     def head_object(self, Bucket: str, Key: str) -> dict[str, Any]:  # noqa: N803
         return {"ContentLength": 42}
+
+    def upload_file(self, Filename: str, Bucket: str, Key: str) -> None:  # noqa: N803
+        raise NotImplementedError("this fixture only exercises the read path")
 
 
 async def test_a_processor_reads_the_contracts_derived_key(wav_file: Path) -> None:
@@ -569,6 +570,9 @@ def test_the_store_wraps_a_head_failure(wav_file: Path) -> None:
             raise RuntimeError("boom")
 
         def head_object(self, Bucket: str, Key: str) -> dict[str, Any]:  # noqa: N803
+            raise RuntimeError("boom")
+
+        def upload_file(self, Filename: str, Bucket: str, Key: str) -> None:  # noqa: N803
             raise RuntimeError("boom")
 
     store = ObjectStore(bucket="derived", client=_Failing())
