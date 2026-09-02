@@ -46,3 +46,22 @@ export const heartbeatSchema = z.object({
   licenseKey: z.string().trim().min(1).optional(),
 });
 export class HeartbeatDto extends zodDto(heartbeatSchema) {}
+
+/** `GET /plugins/manifest` (07 §Plugins, D65): per-host channel manifest. */
+export const pluginManifestChannelSchema = z.object({
+  available: z.boolean(),
+  version: z.string().nullable(),
+  minHostVersion: z.string().nullable(),
+  maxHostVersion: z.string().nullable(),
+  downloadUrl: z.string().nullable(),
+});
+export type PluginManifestChannel = z.infer<typeof pluginManifestChannelSchema>;
+
+export const pluginManifestSchema = z.object({
+  channels: z.object({
+    "premiere-uxp": pluginManifestChannelSchema,
+    "ae-cep": pluginManifestChannelSchema,
+    "resolve-script": pluginManifestChannelSchema,
+  }),
+});
+export type PluginManifestResponse = z.infer<typeof pluginManifestSchema>;

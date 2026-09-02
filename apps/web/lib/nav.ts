@@ -56,7 +56,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     icon: GraduationCap,
     ready: true,
   },
-  { key: "plugins", label: "Plugins", href: "/plugins", icon: Plug, ready: false, owner: "A24" },
+  { key: "plugins", label: "Plugins", href: "/plugins", icon: Plug, ready: true, owner: "C11" },
   { key: "team", label: "Team", href: "/team", icon: Users, ready: true },
   {
     key: "subscription",
