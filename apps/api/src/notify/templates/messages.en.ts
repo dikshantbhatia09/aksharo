@@ -140,5 +140,18 @@ export const EN_MESSAGES: MessageCatalogue = {
       cta: "Open the review",
       footnotes: ["Comments are grouped, so a busy review is one message and not twenty."],
     },
+
+    "streak-nudge": {
+      subject: "One export from keeping your streak this week",
+      heading: "Your streak needs one more export this week",
+      paragraphs: [
+        "Hi {name}, it is Tuesday and your streak has {days, plural, one {# publish day} other {# publish days}} so far this week — three keeps it.",
+        "One export or apply before Sunday keeps L{level} moving.",
+      ],
+      cta: "Open the app",
+      footnotes: [
+        "A freeze can cover a missed week automatically, but nothing beats a real export.",
+      ],
+    },
   },
 };

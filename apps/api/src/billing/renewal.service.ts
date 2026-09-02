@@ -1,13 +1,18 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 
 import type { Env } from "@montaj/config";
 
 import { B01_AUDIT_ACTIONS } from "./billing.constants.js";
 import { classifyDecline } from "./dunning.js";
+import { applyDiscountWithinCap } from "./money.js";
 import { BILLING_PROVIDER, type BillingProvider } from "./provider.js";
 import { PrismaService } from "../common/index.js";
 import { ENV } from "../config/config.module.js";
 import { NotifyService } from "../notify/notify.service.js";
+import {
+  STREAK_DISCOUNT_PROVIDER,
+  type StreakDiscountProvider,
+} from "../streak/streak-discount.port.js";
 import { AuditService } from "../users/audit.service.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
@@ -31,7 +36,27 @@ export class RenewalService {
     private readonly entitlements: EntitlementService,
     private readonly audit: AuditService,
     @Inject(ENV) private readonly env: Env,
+    @Optional()
+    @Inject(STREAK_DISCOUNT_PROVIDER)
+    private readonly streakDiscount?: StreakDiscountProvider,
   ) {}
+
+  /**
+   * `listPriceMinor`, discounted by the workspace's streak level when B06's
+   * `StreakModule` is wired (`STREAK_DISCOUNT_PROVIDER`) — 0% with no
+   * provider bound (billing's own unit tests), for a holdout workspace, or
+   * for a workspace with no streak experiment row. Never above the mandate
+   * cap: `applyDiscountWithinCap` clamps to `listPriceMinor` itself.
+   */
+  private async renewalAmountMinor(subscription: {
+    readonly workspaceId: string;
+    readonly listPriceMinor: number;
+  }): Promise<number> {
+    if (this.streakDiscount === undefined) return subscription.listPriceMinor;
+    const percentOff = await this.streakDiscount.getDiscountPercent(subscription.workspaceId);
+    if (percentOff <= 0) return subscription.listPriceMinor;
+    return applyDiscountWithinCap(subscription.listPriceMinor, percentOff);
+  }
 
   /**
    * Send the pre-debit notice ≥ 24h before the scheduled charge (D40, RBI
@@ -60,7 +85,8 @@ export class RenewalService {
     if (!["active", "past_due", "trialing"].includes(subscription.status)) return;
 
     const owner = subscription.workspace.owner;
-    const amount = formatMinor(subscription.listPriceMinor, subscription.currency);
+    const amountMinor = await this.renewalAmountMinor(subscription);
+    const amount = formatMinor(amountMinor, subscription.currency);
     const link = new URL("/settings/billing", this.env.WEB_ORIGIN).toString();
 
     await this.notify.enqueue({
@@ -135,9 +161,10 @@ export class RenewalService {
     if (step.action !== "retry" || subscription.providerSubId === null) return;
 
     try {
+      const amountMinor = await this.renewalAmountMinor(subscription);
       await this.provider.chargeRenewal({
         providerSubscriptionId: subscription.providerSubId,
-        amountMinor: subscription.listPriceMinor,
+        amountMinor,
         currency: subscription.currency,
       });
     } catch (error) {

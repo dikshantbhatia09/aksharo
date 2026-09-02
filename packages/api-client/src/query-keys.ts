@@ -23,6 +23,7 @@ export const queryKeys = {
   jobs: (workspaceId: string) => ["ws", workspaceId, "jobs"] as const,
   job: (workspaceId: string, jobId: string) => ["ws", workspaceId, "jobs", jobId] as const,
   subscription: (workspaceId: string) => ["ws", workspaceId, "subscription"] as const,
+  streak: (workspaceId: string) => ["ws", workspaceId, "streak"] as const,
   credits: (workspaceId: string) => ["ws", workspaceId, "credits"] as const,
   offersEligibility: (workspaceId: string) => ["ws", workspaceId, "offers", "eligibility"] as const,
   offersPasses: (workspaceId: string) => ["ws", workspaceId, "offers", "passes"] as const,

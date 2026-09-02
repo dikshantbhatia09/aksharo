@@ -28,6 +28,49 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B06 — streak experiment: 3-day weekly bar, auto-freezes, pause-not-reset,
+  level-ups, discounts/credit grants, holdout, and the widget.** `apps/api/src/streak/`:
+  a pure state machine (`streak.engine.ts`, table-tested with fake clocks) —
+  deterministic 50/50 holdout by `sha256(workspaceId)`, a Mon-Sun week window in the
+  workspace's own IANA timezone, a 3-publish-day bar, 2 auto-applied freezes/month
+  (consumed before a pause is ever reached), pause-not-reset on a missed week with no
+  freeze left, 4 consecutive kept weeks → level up (a level never decreases, capped at
+  L5), L2 5%/L3 10% off renewals, L4 +50/L5 +100 credits/month, yearly subscribers
+  start at L4, and a Free-plan credits-only variant (+5 credits after a two-week kept
+  streak). `StreakService` orchestrates assignment (`ensureAssigned`, minors and a
+  disabled `streak_experiment` flag both refuse a row), the `GET /streak` read model,
+  the weekly rollover (`StreakRolloverTask`, self-registered hourly against
+  `common/scheduler`) and the Tuesday-evening nudge (`StreakNudgeTask`, the new
+  `streak-nudge` notify kind, in-app + email, for 0-1 publish days by Tuesday
+  evening local time). `POST /streak/test-hooks` (refused outside `NODE_ENV=test`)
+  simulates publish days and forces a rollover for tests. A holdout workspace's row
+  still tracks real state (for cohort measurement) but `rolloverOne` never calls
+  `CreditsFacade.grantLot` for it, and `getView`/`getDiscountPercent` always answer
+  `0` for one.
+  **Billing integration**: `billing/money.ts` gained `applyDiscountWithinCap`
+  (never below zero, never above the undiscounted `listPriceMinor` — which already
+  IS the mandate cap); `RenewalService` takes an `@Optional()` `STREAK_DISCOUNT_PROVIDER`
+  (`streak/streak-discount.port.ts`, bound to `StreakDiscountService` inside
+  `StreakModule`, imported by `BillingModule`) and applies it to both the pre-debit
+  notice amount and the manual dunning retry charge — 0% with no provider bound, so
+  every existing billing test keeps passing unchanged.
+  **Credits integration**: rewards go through the existing `CreditsFacade.grantLot`
+  (`source: "grant"`), the monthly L4/L5 grant expiring at the end of the calendar
+  month it was granted in.
+  **Admin**: `GET /admin/metrics/streak` (`admin/streak/`) reports week-4 retention
+  and average exports/week, experiment vs holdout, behind `AdminGuard`.
+  **Web**: `apps/web/components/streak/streak-chip.tsx` (sidebar, "3 of 3 publish
+  days · L2 · 2 freezes left", paused reads "streak paused — one export restores it",
+  never a reset) and `streak-widget.tsx` (the Subscription overview's slot,
+  `overview-panel.tsx`) — both render nothing at all for an ineligible or holdout
+  workspace. `packages/api-client` gained `StreakView`, `streakEndpoints.getStreak`
+  and `useStreak()` (hand-written, generated `operations.ts` regenerated via
+  `pnpm gen:client`).
+  **Schema**: `streak_experiments` gained `freezesRemaining`/`freezesMonth`/`paused`/
+  `creditsOnly`/`lastNudgeAt`/`createdAt` (migration `20260902122834_b06_streak_experiment`,
+  additive only, a throwaway `freezes_month` default keeps it safe against a
+  populated table).
+
 - **B03 — web Subscription pages, checkout sheet and `UpgradeGate` wiring.** `/billing`
   (Overview: plan card with status/renewal/mandate cap, credits meter with lots and
   expiries, pause/cancel/resume with confirmations, streak slot behind a flag),

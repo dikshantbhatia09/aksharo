@@ -15,6 +15,7 @@ import { WebhooksService } from "./webhooks.service.js";
 import { ENV } from "../config/config.module.js";
 import { OffersDevController } from "../offers/offers-dev.controller.js";
 import { OffersModule } from "../offers/offers.module.js";
+import { StreakModule } from "../streak/streak.module.js";
 import { UsersModule } from "../users/users.module.js";
 import { WorkspacesModule } from "../workspaces/workspaces.module.js";
 
@@ -41,7 +42,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
  * both native to this module — see that controller's own doc comment.
  */
 @Module({
-  imports: [WorkspacesModule, UsersModule, OffersModule],
+  imports: [WorkspacesModule, UsersModule, OffersModule, StreakModule],
   controllers: [BillingController, OffersDevController],
   providers: [
     PlansService,
