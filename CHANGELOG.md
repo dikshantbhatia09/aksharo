@@ -58,6 +58,92 @@ DrawCommand[]`, pure TypeScript, HarfBuzz-wasm shaping (`harfbuzzjs` 1.6.1, pinn
     within D33's parity SLO. `render-core` sits at 99% lines / 93% branches against the
     90/85 gate, and a two-line 1080p frame lays out and draws in **0.11 ms** (p50)
     against a 2 ms target.
+- **A25 — api: `notify` consumer, transactional email (SES/SMTP/dev outbox),
+  English and Hindi templates, suppression, in-app notifications.**
+  - `apps/api/src/notify`: a `MailProvider` port with three adapters chosen once
+    at boot by `MAIL_PROVIDER` — `SesProvider` (AWS SDK v3 SESv2, credentials from
+    the pod's IRSA role and region from `S3_REGION`, so there is still no mail key
+    in CONTRACTS section 1), `SmtpProvider` (pooled nodemailer from `SMTP_URL`;
+    Mailpit locally under the new compose profile `mail`), and `DevOutboxProvider`,
+    which writes A04's Redis list at A04's key in A04's entry shape plus the
+    rendered message and refuses to run in production. A misconfigured transport is
+    a startup failure rather than a queue quietly filling with undeliverable jobs.
+  - `NotifyService.enqueue({kind, to, locale, data, idempotencyKey})` — the brief's
+    payload, carried as the `payload` of the frozen CONTRACTS section 3 envelope so
+    a future out-of-process consumer parses the same shape. The idempotency key is
+    the BullMQ job id, which is what makes a repeated enqueue a no-op; a message
+    produced before a user belongs to anything uses the documented sentinel
+    `workspaceId: "none"`, because the envelope requires a non-empty one.
+    Enqueueing never throws for a delivery reason: a notification is a side effect
+    of work the caller cares about, so a Redis hiccup is logged, exactly as
+    `RealtimePublisher` already swallows one.
+  - `NotifyConsumer`: one BullMQ `Worker` inside the API process behind
+    `NOTIFY_WORKER_ENABLED` (default on; `0` for one-shot processes and test runs,
+    the same lever `MONTAJ_SCHEDULER_DISABLED` is for the scheduler). Sending is a
+    render and one HTTPS call, so a second deployable would be a rollout and an
+    on-call surface for work the API is already sized for. Per job: suppression,
+    then a ten-an-hour per-recipient bucket that the account-security kinds skip,
+    then a delivery receipt checked before the render and written after the send —
+    so the queue's five retries cannot deliver the same message twice. A malformed
+    payload or a template missing a variable is an `UnrecoverableError`, because no
+    amount of retrying fixes either.
+  - Ten templates (`verify-email`, `magic-link`, `password-changed`,
+    `device-approval`, `login-new-device`, `parental-waitlist`, `renewal-notice`,
+    `low-credits`, `export-ready`, `share-comment`) as hand-written responsive HTML
+    plus a real text part, from ICU MessageFormat strings in English and Hindi
+    (08 section 6). **No remote images and therefore no tracking pixel**; values are
+    escaped before ICU formats them, so a project called `<b>` is text and not
+    markup; brand words arrive as `{brand}`/`{support}` from
+    `packages/config/src/brand.ts` rather than being written into a string
+    (CONTRACTS section 0). `List-Unsubscribe` (RFC 8058 one-click) only on
+    `low-credits` and `share-comment` — everything else is transactional or, for
+    the pre-debit `renewal-notice`, legally required.
+  - `POST /internal/mail/events`: the SES bounce and complaint feed over SNS,
+    authenticated by the **SNS message signature** rather than by
+    `InternalSignatureGuard`, because SNS will not compute our HMAC. Canonical
+    string, RSA-SHA1/SHA-256 verify, and a signing certificate fetched only from
+    `https://sns.<region>.amazonaws.com/*.pem` (05 section 8's SSRF rule) — without
+    that check the route would let anyone suppress any address they can name. SNS
+    posts `text/plain`, so a middleware parses the body for that one route instead
+    of widening the global parser. A `SubscriptionConfirmation` is verified and
+    logged but never auto-confirmed: confirming is an outbound GET to a URL that
+    arrived in a request.
+  - Suppression: permanent for a hard bounce or any complaint, a fortnight for a
+    transient one, released early by a later `Delivery`. The live set is in Redis
+    keyed by SHA-256 of the address (a Redis dump should not be a mailing list) and
+    every change — including each message _not_ sent — is an `audit_log` row with
+    the address masked, because a cache is not an answer to "why did we stop
+    mailing this customer?".
+  - In-app notifications: a `notifications` table (`id`, `userId`, `workspaceId?`,
+    `kind`, `data`, `readAt`, `createdAt`, both keys cascading so erasure takes the
+    bell with it), `GET /me/notifications` and `POST /me/notifications/{id}/read`
+    scoped to the user from the access token, and a realtime `notification.created`
+    event on the workspace room. Rows carry no body text: wording is rendered per
+    locale at read time, so switching language switches the bell.
+  - A04's `AuthMailerService` is now a thin adapter onto `NotifyService.enqueue`
+    instead of a logger. Its e2e suite completes real sign-up, verification and
+    magic-link flows unchanged — delivery became asynchronous, so `auth-harness`
+    drains the queue before reading the outbox rather than sleeping and hoping.
+  - `MAIL_SNS_TOPIC_ARN` (optional): when set, `POST /internal/mail/events` refuses
+    a correctly signed SNS message published to any other topic, and refuses it
+    before fetching the certificate. The signature proves AWS published the
+    message, not that we own the topic it came from, so an account can sign a
+    perfectly valid bounce for any address from a topic of its own. Unset, any
+    topic is accepted — a deployment that has not configured it is better off
+    receiving bounces than silently discarding them.
+  - Auth mail is written in the recipient's language: `users.locale` (default
+    `en-IN`) reaches `AuthMailerService` from both call sites, and
+    `test/notify-locale.e2e-spec.ts` drives a real sign-up to prove a `hi-IN`
+    account receives the Hindi subject and greeting — a chain that runs from the
+    sign-up request through the stored row, the notify job and the renderer, and
+    that no single-layer test would catch breaking.
+  - `tools/runbooks/mail-outbox.js` prints the development outbox.
+  - 130 notify tests (template snapshots in both languages, provider selection and
+    each adapter, SNS signature verification against a per-run self-signed
+    certificate, suppression, retry and idempotency semantics, both bell endpoints)
+    plus an HTTP suite for the `text/plain` webhook body. `apps/api` sits at 93.9%
+    lines and 87.2% branches against the CONTRACTS section 9 gate of 75/70.
+
 - **A09 — worker-ai: the BullMQ Python worker, provider interface, VAD and
   chunking, alignment and diarisation registries, evals.**
   - `apps/worker-ai/worker_ai/runtime.py`: one `bullmq.Worker` per `ai.*` queue.
@@ -125,6 +211,7 @@ DrawCommand[]`, pure TypeScript, HarfBuzz-wasm shaping (`harfbuzzjs` 1.6.1, pinn
     signature, and `tests/test_integration.py` — a real BullMQ job from the API's
     own producer modules, consumed by a real worker, completing against the real
     API (`RUN_INTEGRATION=1`).
+
 - **A05 — api: users, workspaces (tax profile), memberships, consent, privacy.**
   - `apps/api/src/users/`: `GET`/`PATCH /me` (name, avatar, locale, onboarding
     state, marketing opt-in, with a change to the opt-in also appending a
@@ -182,6 +269,7 @@ DrawCommand[]`, pure TypeScript, HarfBuzz-wasm shaping (`harfbuzzjs` 1.6.1, pinn
     probes the daemon at once, and A05 took that from three suites to five; a
     timeout there does not fail a run, it silently skips every integration suite.
     A daemon that is genuinely absent still fails in milliseconds.
+
 - **A08b — api: dead-letter queue, admin replay, retry/stall policy, job-event
   retention.**
   - `apps/api/prisma`: the `dlq` table (migration
@@ -594,6 +682,27 @@ DrawCommand[]`, pure TypeScript, HarfBuzz-wasm shaping (`harfbuzzjs` 1.6.1, pinn
   microsecond later, so the index is the actual guarantee.
 
 ### Changed
+
+- **A25** — `.env.example`, `packages/config/src/env.ts`, the Terraform secrets
+  contract and the Helm chart all gained `MAIL_PROVIDER`, `MAIL_FROM` and
+  `SMTP_URL`, the three variables CONTRACTS section 1 added after A04, and
+  `GPU_PROVIDER_URL` (non-secret) and `GPU_PROVIDER_TOKEN` (secret, human-filled),
+  the two it added after A09 — A25 was the next work package to touch all four
+  files, so it carried them across rather than leaving the parity check red.
+  `MAIL_SNS_TOPIC_ARN` followed after A25's first review.
+  `apps/worker-ai/worker_ai/settings.py` mirrors that list and its test enforces
+  the mirror, so the six names were added there too and the GPU pair moved out
+  of `WORKER_ENV_VARS`: they are product configuration now, not deployment
+  naming. `infra/scripts/check-contracts-parity.py` reports 38/38 on both sides.
+  `loadEnv()` also gained a cross-field check (`crossFieldProblems`): `ses` and
+  `smtp` require `MAIL_FROM`, and `smtp` requires `SMTP_URL`. It lives beside the
+  schema rather than inside it because a `.superRefine()` would remove
+  `envSchema.shape`, which the contract test walks.
+- **A25** — `REALTIME_EVENTS` gained `notification.created`, now also named in
+  CONTRACTS section 7.
+- **A25** — `UsersService.findByEmail` selects `locale`. It is the only lookup the
+  auth flows do before sending a message, and A25 renders that message in the
+  recipient's language; the alternative was a second query on the sign-in path.
 
 - **A02b** — `OpRejectionReasonSchema` gained `invalid-range`, `not-contiguous`,
   `invariant`, `rebased-away` and `stale-after-resegment`. The reason list is a

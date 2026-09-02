@@ -34,14 +34,24 @@ export interface FakeDependencies {
   readonly redisPing?: () => Promise<void>;
   /** Extra Prisma methods a suite needs; merged over the default stub. */
   readonly prisma?: Record<string, unknown>;
+  /** Replace the Redis client with one that actually stores (A25's suppression). */
+  readonly redisClient?: unknown;
   /** Share one broker between two apps to exercise cross-instance fan-out. */
   readonly broker?: InMemoryRealtimeBroker;
+  /**
+   * Extra provider substitutions, `[token, value]`.
+   *
+   * A25 added it for the SNS certificate fetcher: the mail-events route is
+   * authenticated by a signature over a certificate fetched from AWS, and a
+   * suite that boots the HTTP layer has to hand it a fixture instead.
+   */
+  readonly overrides?: readonly (readonly [unknown, unknown])[];
 }
 
 export async function createTestApp(fakes: FakeDependencies = {}): Promise<INestApplication> {
   const redis = createFakeRedis();
 
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+  const builder = Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(PrismaService)
     .useValue({
       ping: fakes.dbPing ?? (async () => undefined),
@@ -52,11 +62,17 @@ export async function createTestApp(fakes: FakeDependencies = {}): Promise<INest
     .overrideProvider(RedisService)
     .useValue({
       ...redis,
+      ...(fakes.redisClient === undefined ? {} : { client: fakes.redisClient }),
       ping: fakes.redisPing ?? redis.ping,
     })
     .overrideProvider(REALTIME_BUS)
-    .useValue(new InMemoryRealtimeBus(fakes.broker ?? new InMemoryRealtimeBroker()))
-    .compile();
+    .useValue(new InMemoryRealtimeBus(fakes.broker ?? new InMemoryRealtimeBroker()));
+
+  for (const [token, value] of fakes.overrides ?? []) {
+    builder.overrideProvider(token as never).useValue(value);
+  }
+
+  const moduleRef = await builder.compile();
 
   // `logger: false` keeps the deliberate 500-path tests from printing stack
   // traces that read like failures; the assertions cover the behaviour.

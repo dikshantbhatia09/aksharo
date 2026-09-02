@@ -3912,6 +3912,80 @@
         ]
       }
     },
+    "/me/notifications": {
+      "get": {
+        "description": "Cursor pagination: pass the previous page's `nextCursor` as `cursor`. `unread` is the badge count and covers every page, not just this one.",
+        "operationId": "listMyNotifications",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List your notifications, newest first",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/me/notifications/{id}/read": {
+      "post": {
+        "description": "Idempotent: a second call keeps the first `readAt`.",
+        "operationId": "markNotificationRead",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`notify/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mark one notification read",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/admin/dlq": {
       "get": {
         "description": "Filter by `queue`, `status`, `workspaceId`, a `reason` substring of the last error's code or message, and a `since`/`until` window. Cursor pagination: pass the previous page's `nextCursor`.",
@@ -4578,6 +4652,80 @@
         },
         "required": [
           "items"
+        ]
+      },
+      "NotificationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "01JBZ0Q4T7R8N4H1V0J9K2M3P5",
+            "description": "ULID."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "verify-email",
+              "magic-link",
+              "password-changed",
+              "device-approval",
+              "login-new-device",
+              "parental-waitlist",
+              "renewal-notice",
+              "low-credits",
+              "export-ready",
+              "share-comment"
+            ],
+            "description": "What happened. The client renders its own wording per locale, so the row carries no text of its own."
+          },
+          "workspaceId": {
+            "type": "object",
+            "nullable": true,
+            "description": "Workspace this belongs to, if any."
+          },
+          "data": {
+            "type": "object",
+            "description": "Template variables: project name, minutes remaining, a deep link."
+          },
+          "readAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "data",
+          "createdAt"
+        ]
+      },
+      "NotificationPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationDto"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true,
+            "description": "Pass as `cursor` for the next page."
+          },
+          "unread": {
+            "type": "number",
+            "description": "Unread rows for this user across every page — the bell's badge."
+          }
+        },
+        "required": [
+          "items",
+          "unread"
         ]
       },
       "DlqEntryDto": {

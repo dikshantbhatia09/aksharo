@@ -53,6 +53,9 @@ const PLACEHOLDER_ENV: Record<string, string> = {
   // and the generator never exits.
   MONTAJ_SCHEDULER_DISABLED: "1",
   MONTAJ_QUEUE_PREFIX: "montaj-gen-client",
+  // A25: same reason — the notify consumer's `Worker` would block on Redis.
+  NOTIFY_WORKER_ENABLED: "0",
+  MAIL_PROVIDER: "dev",
   DATABASE_URL: "postgresql://localhost:5432/unused?schema=public",
   REDIS_URL: "redis://localhost:6379",
   S3_ENDPOINT: "http://localhost:9000",

@@ -173,6 +173,16 @@ locals {
       human       = false
       description = "runpod | modal | replicate | none. See infra/gpu."
     }
+    GPU_PROVIDER_URL = {
+      secret      = false
+      human       = false
+      description = "Endpoint the serverless GPU pool is invoked at. Not a credential: it is the address, and the token beside it is what authorises the call."
+    }
+    GPU_PROVIDER_TOKEN = {
+      secret      = true
+      human       = true
+      description = "Bearer token for the serverless GPU endpoint. Pasted once by a human, like the other provider keys."
+    }
     SENTRY_DSN = {
       secret      = true
       human       = true
@@ -187,6 +197,26 @@ locals {
       secret      = false
       human       = false
       description = "JSON object of feature flags. Terraform owns the default; the admin console overrides at runtime."
+    }
+    MAIL_PROVIDER = {
+      secret      = false
+      human       = false
+      description = "ses | smtp | dev. Cloud environments use ses, which authenticates with the pod's IRSA role and takes its region from S3_REGION, so there is no mail access key in this contract."
+    }
+    MAIL_FROM = {
+      secret      = false
+      human       = true
+      description = "Envelope sender for transactional mail, e.g. `Aksharo <hello@aksharo.ai>`. Public, but a human fills it in once because it must match a verified SES identity."
+    }
+    SMTP_URL = {
+      secret      = true
+      human       = true
+      description = "SMTP connection URL for self-hosted and local delivery (Mailpit). Carries credentials, so it is a SecureString. Left as the placeholder wherever MAIL_PROVIDER is ses."
+    }
+    MAIL_SNS_TOPIC_ARN = {
+      secret      = false
+      human       = false
+      description = "SNS topic carrying the SES bounce and complaint feed. Public: an ARN is an address, not a credential. When set, POST /internal/mail/events refuses a correctly signed message published to any other topic."
     }
   }
 
