@@ -2,7 +2,9 @@ import { Module } from "@nestjs/common";
 
 import { AdminGuard } from "./admin.guard.js";
 import { AdminDlqController } from "./dlq/dlq.controller.js";
+import { AdminParentalWaitlistController } from "./parental-waitlist.controller.js";
 import { JobsModule } from "../jobs/jobs.module.js";
+import { PrivacyModule } from "../privacy/privacy.module.js";
 
 /**
  * The platform-staff surface: routes that cross workspace boundaries.
@@ -12,16 +14,17 @@ import { JobsModule } from "../jobs/jobs.module.js";
  * to an ordinary feature module by accident and quietly ship without the guard
  * (THREAT-MODEL T20).
  *
- * A08b lands one controller — the dead-letter queue. B13 builds the admin console
- * on top and adds the rest.
+ * A08b lands the dead-letter queue; A05 adds the parental-consent waiting list,
+ * which belongs to nobody's workspace and so has no membership that could
+ * authorise reading it. B13 builds the admin console on top and adds the rest.
  *
- * Only `JobsModule` is imported: A04's `JwtAuthGuard`, which {@link AdminGuard}
- * composes, comes from the `@Global()` `AuthModule`, and `PrismaService` from the
- * global `PrismaModule`.
+ * Only the modules owning those services are imported: A04's `JwtAuthGuard`,
+ * which {@link AdminGuard} composes, comes from the `@Global()` `AuthModule`, and
+ * `PrismaService` from the global `PrismaModule`.
  */
 @Module({
-  imports: [JobsModule],
-  controllers: [AdminDlqController],
+  imports: [JobsModule, PrivacyModule],
+  controllers: [AdminDlqController, AdminParentalWaitlistController],
   providers: [AdminGuard],
   exports: [AdminGuard],
 })

@@ -576,6 +576,7 @@ model User {
   lessonProgress  LessonProgress[]
   comments        Comment[]
   clearanceGrants AssetClearanceGrant[]
+  notifications   Notification[]
 
   @@index([deletedAt])
   @@map("users")
@@ -620,6 +621,28 @@ model DsrRequest {
   @@index([userId])
   @@index([receivedAt])
   @@map("dsr_requests")
+}
+
+/// The parental-consent waiting list (D60).
+///
+/// Not in `06-data-model.md`: A04 had to park these entries in a Redis hash
+/// (`montaj:auth:parental-waitlist`) because the schema was frozen outside A03,
+/// and A05 gives them the durable home the orchestrator asked for. Only a
+/// `sha256` of the address is stored — the row exists to say "somebody at this
+/// address asked to be told", and nothing here ever needs to read the address
+/// back. `notifiedAt` is stamped when the parental-consent flow ships and the
+/// list is worked through (before May 2027).
+model ParentalWaitlist {
+  id           String       @id @db.Char(26)
+  /// Lowercase hex `sha256(normalised email)`; unique, so a resubmission is idempotent.
+  emailHash    String       @unique @map("email_hash") @db.Char(64)
+  jurisdiction Jurisdiction @default(OTHER)
+  ageBracket   AgeBracket   @default(minor) @map("age_bracket")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  notifiedAt   DateTime?    @map("notified_at") @db.Timestamptz(6)
+
+  @@index([createdAt])
+  @@map("parental_waitlist")
 }
 
 model BreachIncident {
@@ -700,29 +723,32 @@ model Session {
 }
 
 model Workspace {
-  id               String        @id @db.Char(26)
-  slug             String        @unique
-  name             String
-  type             WorkspaceType @default(personal)
-  ownerId          String        @map("owner_id") @db.Char(26)
+  id                        String        @id @db.Char(26)
+  slug                      String        @unique
+  name                      String
+  type                      WorkspaceType @default(personal)
+  ownerId                   String        @map("owner_id") @db.Char(26)
   /// Data residency (THREAT-MODEL T24): raw media and DB pinned per workspace.
-  region           Region        @default(in)
+  region                    Region        @default(in)
   /// Derived from `billingCountry` and locked for the life of a subscription (04 §3).
-  currency         Currency      @default(INR)
-  billingCountry   String        @map("billing_country") @db.Char(2)
+  currency                  Currency      @default(INR)
+  billingCountry            String        @map("billing_country") @db.Char(2)
+  /// Null until the owner confirms the tax profile; sign-up only guesses it from
+  /// the declared jurisdiction (A05). B01 refuses to open a checkout while null.
+  billingCountryConfirmedAt DateTime?     @map("billing_country_confirmed_at") @db.Timestamptz(6)
   /// GST state code, mandatory for India (Circular 242/36/2024-GST, D41).
-  billingStateCode String?       @map("billing_state_code") @db.VarChar(2)
-  gstin            String?
-  gstinVerifiedAt  DateTime?     @map("gstin_verified_at") @db.Timestamptz(6)
-  legalName        String?       @map("legal_name")
+  billingStateCode          String?       @map("billing_state_code") @db.VarChar(2)
+  gstin                     String?
+  gstinVerifiedAt           DateTime?     @map("gstin_verified_at") @db.Timestamptz(6)
+  legalName                 String?       @map("legal_name")
   /// Zod: `PostalAddressSchema`.
-  billingAddress   Json          @default("{}") @map("billing_address") @db.JsonB
+  billingAddress            Json          @default("{}") @map("billing_address") @db.JsonB
   /// Zod: `WorkspaceSettingsSchema`.
-  settings         Json          @default("{}") @db.JsonB
+  settings                  Json          @default("{}") @db.JsonB
   /// Project retention in days, taken from the plan (04 §Plans).
-  retentionDays    Int           @default(7) @map("retention_days")
-  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  deletedAt        DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  retentionDays             Int           @default(7) @map("retention_days")
+  createdAt                 DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt                 DateTime?     @map("deleted_at") @db.Timestamptz(6)
 
   owner               User                  @relation("WorkspaceOwner", fields: [ownerId], references: [id])
   memberships         Membership[]
@@ -754,6 +780,7 @@ model Workspace {
   webhookEndpoints    WebhookEndpoint[]
   auditEntries        AuditLog[]
   dlqEntries          DlqEntry[]
+  notifications       Notification[]
 
   @@index([ownerId])
   @@index([billingCountry])
@@ -2192,6 +2219,35 @@ model AuditLog {
   @@index([actorId, at])
   @@index([resourceId])
   @@map("audit_log")
+}
+
+/// In-app notifications: the bell in the app shell (A13), written by A25 for the
+/// kinds a signed-in user should see again after the email has been archived.
+///
+/// `kind` stays a free string for the same reason `jobs.type` does: the closed set
+/// is `NOTIFY_KINDS` in `src/notify/notify.kinds.ts`, and pinning it as a Postgres
+/// enum would fork that list and turn adding a template into a migration.
+///
+/// There is no `body` column. A notification is `(kind, data)` and the wording is
+/// rendered per locale at read time, so a user who switches to Hindi sees the bell
+/// in Hindi rather than in whatever language the email happened to be sent in.
+model Notification {
+  id          String    @id @db.Char(26)
+  userId      String    @map("user_id") @db.Char(26)
+  workspaceId String?   @map("workspace_id") @db.Char(26)
+  kind        String
+  /// Zod: `NotificationDataSchema` — the same variables the email template used.
+  data        Json      @default("{}") @db.JsonB
+  readAt      DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([workspaceId])
+  @@map("notifications")
 }
 
 model WebhookEndpoint {

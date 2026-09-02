@@ -19,6 +19,13 @@ export const API_VERSION = "0.1.0";
 
 export const API_OPERATIONS = [
   {
+    operationId: "acceptInvitation",
+    method: "POST",
+    path: "/invitations/{id}/accept",
+    tags: ["invitations"],
+    summary: "Accept an invitation",
+  },
+  {
     operationId: "applyEdgOps",
     method: "POST",
     path: "/projects/{projectId}/edg/ops",
@@ -110,6 +117,41 @@ export const API_OPERATIONS = [
     summary: "Cancel a queued or running job",
   },
   {
+    operationId: "changeWorkspaceMemberRole",
+    method: "PATCH",
+    path: "/workspaces/{id}/members/{membershipId}",
+    tags: ["workspaces"],
+    summary: "Change a member's role",
+  },
+  {
+    operationId: "createWorkspace",
+    method: "POST",
+    path: "/workspaces",
+    tags: ["workspaces"],
+    summary: "Create a team or agency workspace",
+  },
+  {
+    operationId: "declineInvitation",
+    method: "DELETE",
+    path: "/invitations/{id}",
+    tags: ["invitations"],
+    summary: "Decline an invitation",
+  },
+  {
+    operationId: "deleteMe",
+    method: "DELETE",
+    path: "/me",
+    tags: ["me"],
+    summary: "Erase the account",
+  },
+  {
+    operationId: "deleteWorkspace",
+    method: "DELETE",
+    path: "/workspaces/{id}",
+    tags: ["workspaces"],
+    summary: "Delete a workspace",
+  },
+  {
     operationId: "DeviceController_decide",
     method: "POST",
     path: "/auth/device/approve",
@@ -152,6 +194,13 @@ export const API_OPERATIONS = [
     summary: "Discard many dead letters",
   },
   {
+    operationId: "getConsents",
+    method: "GET",
+    path: "/consents",
+    tags: ["consents"],
+    summary: "The caller's current answer for every purpose",
+  },
+  {
     operationId: "getDeadLetter",
     method: "GET",
     path: "/admin/dlq/{id}",
@@ -180,6 +229,20 @@ export const API_OPERATIONS = [
     summary: "Fetch one job",
   },
   {
+    operationId: "getMe",
+    method: "GET",
+    path: "/me",
+    tags: ["me"],
+    summary: "The signed-in person's profile",
+  },
+  {
+    operationId: "getPrivacyNotice",
+    method: "GET",
+    path: "/privacy/notice",
+    tags: ["privacy"],
+    summary: "The current itemised privacy notice",
+  },
+  {
     operationId: "getProjectEdg",
     method: "GET",
     path: "/projects/{projectId}/edg",
@@ -192,6 +255,27 @@ export const API_OPERATIONS = [
     path: "/health/ready",
     tags: ["health"],
     summary: "Readiness probe (db, redis, storage)",
+  },
+  {
+    operationId: "getWorkspace",
+    method: "GET",
+    path: "/workspaces/{id}",
+    tags: ["workspaces"],
+    summary: "One workspace",
+  },
+  {
+    operationId: "getWorkspaceEntitlement",
+    method: "GET",
+    path: "/workspaces/{id}/entitlement",
+    tags: ["workspaces"],
+    summary: "What this workspace may do",
+  },
+  {
+    operationId: "inviteWorkspaceMember",
+    method: "POST",
+    path: "/workspaces/{id}/members",
+    tags: ["workspaces"],
+    summary: "Invite an address to the workspace",
   },
   {
     operationId: "listDeadLetters",
@@ -236,6 +320,13 @@ export const API_OPERATIONS = [
     summary: "Revisions a snapshot was taken at, newest first",
   },
   {
+    operationId: "listInvitations",
+    method: "GET",
+    path: "/invitations",
+    tags: ["invitations"],
+    summary: "Invitations waiting for the caller's address",
+  },
+  {
     operationId: "listJobEvents",
     method: "GET",
     path: "/jobs/{id}/events",
@@ -248,6 +339,41 @@ export const API_OPERATIONS = [
     path: "/jobs",
     tags: ["jobs"],
     summary: "List the workspace's jobs, newest first",
+  },
+  {
+    operationId: "listMyNotifications",
+    method: "GET",
+    path: "/me/notifications",
+    tags: ["notifications"],
+    summary: "List your notifications, newest first",
+  },
+  {
+    operationId: "listParentalWaitlist",
+    method: "GET",
+    path: "/admin/parental-waitlist",
+    tags: ["admin"],
+    summary: "The parental-consent waiting list, oldest first",
+  },
+  {
+    operationId: "listWorkspaceMembers",
+    method: "GET",
+    path: "/workspaces/{id}/members",
+    tags: ["workspaces"],
+    summary: "The workspace's members and outstanding invitations",
+  },
+  {
+    operationId: "listWorkspaces",
+    method: "GET",
+    path: "/workspaces",
+    tags: ["workspaces"],
+    summary: "The workspaces the caller belongs to",
+  },
+  {
+    operationId: "markNotificationRead",
+    method: "POST",
+    path: "/me/notifications/{id}/read",
+    tags: ["notifications"],
+    summary: "Mark one notification read",
   },
   {
     operationId: "OAuthController_callback",
@@ -271,6 +397,13 @@ export const API_OPERATIONS = [
     summary: "Begin Google sign-in",
   },
   {
+    operationId: "removeWorkspaceMember",
+    method: "DELETE",
+    path: "/workspaces/{id}/members/{membershipId}",
+    tags: ["workspaces"],
+    summary: "Remove a member or withdraw an invitation",
+  },
+  {
     operationId: "replayDeadLetter",
     method: "POST",
     path: "/admin/dlq/{id}/replay",
@@ -285,6 +418,13 @@ export const API_OPERATIONS = [
     summary: "Replay many dead letters",
   },
   {
+    operationId: "requestMyData",
+    method: "GET",
+    path: "/me/data",
+    tags: ["me"],
+    summary: "Export everything the account holds about you",
+  },
+  {
     operationId: "resegmentEdg",
     method: "POST",
     path: "/projects/{projectId}/edg/resegment",
@@ -297,6 +437,34 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/edg/snapshots/{revision}/restore",
     tags: ["edg"],
     summary: "Restore a snapshot as a new revision",
+  },
+  {
+    operationId: "setConsent",
+    method: "POST",
+    path: "/consents",
+    tags: ["consents"],
+    summary: "Grant or withdraw one purpose",
+  },
+  {
+    operationId: "setWorkspaceTaxProfile",
+    method: "PUT",
+    path: "/workspaces/{id}/tax-profile",
+    tags: ["workspaces"],
+    summary: "Set the billing country, State and GSTIN",
+  },
+  {
+    operationId: "updateMe",
+    method: "PATCH",
+    path: "/me",
+    tags: ["me"],
+    summary: "Update name, avatar, locale, onboarding state or marketing opt-in",
+  },
+  {
+    operationId: "updateWorkspace",
+    method: "PATCH",
+    path: "/workspaces/{id}",
+    tags: ["workspaces"],
+    summary: "Rename a workspace or change its settings",
   },
 ] as const satisfies readonly ApiOperation[];
 

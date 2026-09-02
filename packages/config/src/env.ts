@@ -42,9 +42,15 @@ export const CONTRACT_ENV_VARS = [
   "ANTHROPIC_API_KEY",
   "OPENAI_API_KEY",
   "GPU_PROVIDER",
+  "GPU_PROVIDER_URL",
+  "GPU_PROVIDER_TOKEN",
   "SENTRY_DSN",
   "POSTHOG_KEY",
   "FEATURE_FLAGS_JSON",
+  "MAIL_PROVIDER",
+  "MAIL_FROM",
+  "SMTP_URL",
+  "MAIL_SNS_TOPIC_ARN",
 ] as const;
 
 export type ContractEnvVar = (typeof CONTRACT_ENV_VARS)[number];
@@ -88,6 +94,16 @@ const httpOrigin = (name: string) =>
     `${name} must be an http(s) URL, for example http://localhost:3000`,
   );
 
+/**
+ * `local@domain` or `Display Name <local@domain>`.
+ *
+ * Deliberately loose — RFC 5322 is not worth re-implementing here and the real
+ * check is SES refusing an unverified identity — but strict enough to catch the
+ * two mistakes that actually happen: a bare domain, and a display name with no
+ * angle brackets.
+ */
+const MAIL_FROM_PATTERN = /^(?:[^<>]{1,64}\s)?<?[^\s@<>]+@[^\s@<>.]+\.[^\s@<>]+>?$/;
+
 const pemKey = (name: string) =>
   nonEmpty(name).refine(
     (value) => value.includes("-----BEGIN") && value.includes("-----END"),
@@ -98,6 +114,9 @@ const pemKey = (name: string) =>
 const unescapeNewlines = (value: string): string => value.replace(/\\n/g, "\n");
 
 export const LLM_PROVIDERS = ["anthropic", "openai", "mock"] as const;
+export const MAIL_PROVIDERS = ["ses", "smtp", "dev"] as const;
+export type MailProviderName = (typeof MAIL_PROVIDERS)[number];
+
 export const GPU_PROVIDERS = ["runpod", "modal", "replicate", "none"] as const;
 
 export const envSchema = z.object({
@@ -160,12 +179,37 @@ export const envSchema = z.object({
   ANTHROPIC_API_KEY: optionalSecret(),
   OPENAI_API_KEY: optionalSecret(),
 
-  // --- GPU ---
+  // --- GPU (A09; the endpoint the serverless pool is invoked at) ---
   GPU_PROVIDER: z.enum(GPU_PROVIDERS).default("none"),
+  GPU_PROVIDER_URL: optionalSecret().refine(
+    (value) => value === undefined || /^https?:\/\/[^\s]+$/.test(value),
+    "GPU_PROVIDER_URL must be an http(s) URL",
+  ),
+  GPU_PROVIDER_TOKEN: optionalSecret(),
 
   // --- Observability (optional; empty disables the integration) ---
   SENTRY_DSN: optionalSecret(),
   POSTHOG_KEY: optionalSecret(),
+
+  // --- Transactional mail (A25; delivery lives in apps/api/src/notify) ---
+  // `ses` takes its credentials from the pod's IRSA role and its region from
+  // S3_REGION, so there is no mail access key anywhere in the contract.
+  MAIL_PROVIDER: z.enum(MAIL_PROVIDERS).default("dev"),
+  MAIL_FROM: optionalSecret().refine(
+    (value) => value === undefined || MAIL_FROM_PATTERN.test(value),
+    "MAIL_FROM must be an address, optionally with a display name: `Aksharo <hello@aksharo.ai>`",
+  ),
+  SMTP_URL: optionalSecret().refine(
+    (value) => value === undefined || /^smtps?:\/\/[^\s]+$/.test(value),
+    "SMTP_URL must be an smtp:// or smtps:// URL",
+  ),
+  // The topic the SES bounce/complaint feed is expected on. Optional, because a
+  // signature from AWS is already the authentication; setting it narrows that to
+  // one topic, so a signed message from any other one is refused.
+  MAIL_SNS_TOPIC_ARN: optionalSecret().refine(
+    (value) => value === undefined || /^arn:aws[a-z-]*:sns:[a-z0-9-]+:\d{12}:[\w-]+$/.test(value),
+    "MAIL_SNS_TOPIC_ARN must be an SNS topic ARN, e.g. arn:aws:sns:ap-south-1:123456789012:aksharo-mail-events",
+  ),
 
   // --- Feature flags ---
   FEATURE_FLAGS_JSON: z
@@ -215,6 +259,29 @@ export interface LoadEnvOptions {
 }
 
 /**
+ * Rules that span more than one variable, checked after the shape is known.
+ *
+ * They live here rather than in a `.superRefine()` on {@link envSchema} because
+ * that would turn the schema into an effect wrapper and `envSchema.shape` — which
+ * the contract test walks to prove every CONTRACTS section 1 variable has a key —
+ * would stop existing.
+ *
+ * Only one rule so far: a mail provider that talks to a real server needs an
+ * envelope sender, and SMTP needs somewhere to send it. `dev` needs neither, which
+ * is why a developer can boot with nothing configured.
+ */
+export function crossFieldProblems(env: Env): string[] {
+  const problems: string[] = [];
+  if (env.MAIL_PROVIDER !== "dev" && env.MAIL_FROM === undefined) {
+    problems.push(`MAIL_FROM is required when MAIL_PROVIDER is "${env.MAIL_PROVIDER}"`);
+  }
+  if (env.MAIL_PROVIDER === "smtp" && env.SMTP_URL === undefined) {
+    problems.push('SMTP_URL is required when MAIL_PROVIDER is "smtp"');
+  }
+  return problems;
+}
+
+/**
  * Parse and validate the environment, or throw {@link EnvValidationError} with a
  * message that names every offending variable. Values are never echoed.
  */
@@ -222,7 +289,11 @@ export function loadEnv(options: LoadEnvOptions = {}): Env {
   const source = options.source ?? (process.env as Record<string, string | undefined>);
   const result = envSchema.safeParse(source);
 
-  if (result.success) return result.data;
+  if (result.success) {
+    const problems = crossFieldProblems(result.data);
+    if (problems.length > 0) throw new EnvValidationError(problems);
+    return result.data;
+  }
 
   const problems = result.error.issues.map((issue) => {
     const variable = issue.path.length > 0 ? String(issue.path[0]) : "(environment)";
