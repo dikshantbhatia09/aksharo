@@ -112,6 +112,14 @@ Sub-wave order: {B10, B11, B18, C00} → {B12, B14, B15, B19, C01} → {B13, B20
 ## Wave 5 — Plugins
 C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 
+| ID | Package | Deps | Status |
+|---|---|---|---|
+| C11 | Plugin licensing & devices UI (activation limits, revoke, offline lease, activation card) | B08, B08b, C01 | running |
+| C12 | Desktop/plugin telemetry (consent), crash reporting, diagnostics bundle | C02, A05, B12, B16 | running |
+| C05a | Premiere UXP plugin foundation over a mocked host adapter (Gate C runs it on a real machine) | C01, C00, A00-03 | running |
+| C08 | Resolve `aksharo_core` over a FakeResolve adapter | C01, A00-04 | briefed |
+| C06, C06b, C08b, C10, D08 | — | C05a / C08 / C00 | to brief |
+
 ## Wave 6 — AE, local engine, library
 C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machines).
 
