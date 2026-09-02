@@ -3,6 +3,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import type { ScriptId, Word } from "@montaj/edg/schemas";
 
 import { type PrismaTransaction, PrismaService } from "../../common/prisma/prisma.service.js";
+import { newestChunkRows } from "../../edg/chunk-rows.js";
 
 import type { Prisma } from "@prisma/client";
 
@@ -24,8 +25,6 @@ export interface ApplyWordScriptsResult {
   readonly wordsUpdated: number;
 }
 
-type ChunkRow = { id: string; chunkIdx: number; words: Prisma.JsonValue };
-
 /**
  * The write side of `word.scripts` (A22's `POST /internal/transcripts/{id}/scripts`).
  *
@@ -37,25 +36,19 @@ type ChunkRow = { id: string; chunkIdx: number; words: Prisma.JsonValue };
  * rows, because word ids are addressed by `(chunkIdx, n)` and every chunk keeps
  * its own row.
  *
- * ### `transcripts.currentRevision` is deliberately **not** touched here
+ * The chunk read is A11d's shared `newestChunkRows` (`apps/api/src/edg/chunk-rows.ts`)
+ * — the newest `transcript_chunks` row per `chunk_idx` — the same helper
+ * `EdgRepository` and `TranscriptsRepository` both read through, so a
+ * transliteration and an `EditWord` op patch the exact same notion of "the
+ * chunk as it stands" and `GET /projects/{id}/transcript` sees both kinds of
+ * edit without a revision mismatch. (A11d closed the gap this class used to
+ * route around by refusing to bump `transcripts.currentRevision` at all —
+ * that workaround is gone.)
  *
- * `EdgRepository.persistWords` bumps it on every `EditWord`, and this write is
- * the same shape of change — but `TranscriptsRepository.chunkPage`/`allChunks`
- * (`GET /projects/{id}/transcript`, the exporters) select
- * `transcript_chunks` by an **exact** `revision` match, which is right for "a
- * named revision" (a full re-transcription writes a second generation of rows
- * at `revision + 1`) and wrong for an in-place `UPDATE` that never changes the
- * row's own `revision` column at all. A caller that reads the default revision
- * (`transcript.currentRevision`) after `persistWords` has advanced it past the
- * chunk rows' own value gets an empty page — a **pre-existing gap between
- * A11's chunk-read contract and A12's word-patch contract**, reachable today
- * through an ordinary `EditWord` op followed by `GET /transcript` with no
- * `revision` pinned. This method avoids adding a second way to hit it: the
- * write is visible on the very next read at the **same** revision the caller
- * was already using, because the row it updated never changed which revision
- * it belongs to. Reported to the orchestrator rather than fixed here — the fix
- * belongs to whichever of A11/A12 owns resolving it, not to a work package
- * extending a third feature on top of both.
+ * `transcripts.currentRevision` now moves by exactly one when at least one
+ * word actually changed, exactly as `EdgRepository.persist` does for an
+ * `EditWord`: increment, re-read, and mirror the new value into the EDG
+ * document's `transcript.revision` in the same transaction.
  */
 @Injectable()
 export class ScriptsRepository {
@@ -76,11 +69,12 @@ export class ScriptsRepository {
           throw new TranscriptNotFoundError(input.transcriptId);
         }
 
-        const rows = await this.newestChunkRows(tx, input.transcriptId, [...byChunk.keys()]);
+        const rows = await newestChunkRows(tx, input.transcriptId, { only: [...byChunk.keys()] });
+        const byChunkIdx = new Map(rows.map((row) => [row.chunkIdx, row]));
 
         let changed = 0;
         for (const [chunkIdx, patch] of byChunk) {
-          const row = rows.get(chunkIdx);
+          const row = byChunkIdx.get(chunkIdx);
           if (row === undefined) continue; // no such chunk on this transcript; skip, don't fail the batch
           const words = (row.words as unknown as Word[] | null) ?? [];
           const { words: merged, changedCount } = mergeScripts(words, patch, input.targetScript);
@@ -92,18 +86,20 @@ export class ScriptsRepository {
           changed += changedCount;
         }
 
+        let revision = transcript.currentRevision;
         if (changed > 0) {
-          await this.mirrorIntoEdgDocument(
-            tx,
-            transcript.projectId,
-            input.targetScript,
-            transcript.currentRevision,
-          );
+          const updated = await tx.transcript.update({
+            where: { id: transcript.id },
+            data: { currentRevision: { increment: 1 } },
+            select: { currentRevision: true },
+          });
+          revision = updated.currentRevision;
+          await this.mirrorIntoEdgDocument(tx, transcript.projectId, input.targetScript, revision);
         }
 
         return {
           projectId: transcript.projectId,
-          revision: transcript.currentRevision,
+          revision,
           wordsUpdated: changed,
         };
       },
@@ -111,28 +107,11 @@ export class ScriptsRepository {
     );
   }
 
-  /** Chunk rows, newest revision per `chunkIdx` — the same read A12's EDG repository does. */
-  private async newestChunkRows(
-    tx: PrismaTransaction,
-    transcriptId: string,
-    chunkIdxs: readonly number[],
-  ): Promise<Map<number, ChunkRow>> {
-    if (chunkIdxs.length === 0) return new Map();
-    const rows = await tx.transcriptChunk.findMany({
-      where: { transcriptId, chunkIdx: { in: [...chunkIdxs] } },
-      orderBy: [{ chunkIdx: "asc" }, { revision: "desc" }],
-      select: { id: true, chunkIdx: true, words: true },
-    });
-    const newest = new Map<number, ChunkRow>();
-    for (const row of rows) if (!newest.has(row.chunkIdx)) newest.set(row.chunkIdx, row);
-    return newest;
-  }
-
   /**
-   * Add `targetScript` to `EdgHot.transcript.scripts` (and keep
-   * `EdgHot.transcript.revision` mirroring `transcripts.currentRevision`,
-   * which this write does not change — see the class doc above), when a
-   * document exists.
+   * Add `targetScript` to `EdgHot.transcript.scripts` and set
+   * `EdgHot.transcript.revision` to `transcriptRevision` — the same
+   * `transcripts.currentRevision` value `applyWordScripts` just bumped and
+   * re-read — when a document exists.
    *
    * Best-effort and outside any compare-and-swap on `edg_documents.revision`:
    * this is the same category of update as `engineVersions` (`edg/README.md`
