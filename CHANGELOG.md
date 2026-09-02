@@ -60,8 +60,13 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     (`sha256(address)`, jurisdiction, age bracket, `notifiedAt`), which
     `ParentalWaitlistService` drains A04's Redis hash into at boot. Migration
     `20260902030000_a05_billing_country_confirmed_and_parental_waitlist`.
-  - No new environment variables; `pnpm gen:client` regenerated
-    `packages/api-client` (46 operations).
+  - No new environment variables and no new feature flags; `pnpm gen:client`
+    regenerated `packages/api-client` (53 operations).
+  - `apps/api/test/db-harness.ts`: the Docker probe waits 60 s rather than 20 s.
+    Vitest collects the suite files in parallel, so every Docker-backed suite
+    probes the daemon at once, and A05 took that from three suites to five; a
+    timeout there does not fail a run, it silently skips every integration suite.
+    A daemon that is genuinely absent still fails in milliseconds.
 - **A08b — api: dead-letter queue, admin replay, retry/stall policy, job-event
   retention.**
   - `apps/api/prisma`: the `dlq` table (migration

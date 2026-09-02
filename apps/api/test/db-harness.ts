@@ -47,15 +47,27 @@ export function isDatabaseAvailable(): boolean {
     return false;
   }
 
+  // Sixty seconds, not twenty (raised in A05): Vitest collects the suite files in
+  // parallel, so every Docker-backed suite probes the daemon at the same moment,
+  // and A05 took that from three suites to five. `docker info` costs a second or
+  // two idle and can take far longer while Docker Desktop is also pulling images
+  // for a sibling worker. A daemon that is genuinely absent still fails in
+  // milliseconds — the shell reports "command not found" — so the longer budget
+  // is only ever spent waiting for a daemon that IS there. Timing out here does
+  // not fail a run; it silently skips every integration suite, which is the worst
+  // possible outcome and is why the budget is generous.
   const probe = spawnSync("docker", ["info", "--format", "{{.ServerVersion}}"], {
     stdio: "pipe",
     shell: true,
     encoding: "utf8",
-    timeout: 20_000,
+    timeout: 60_000,
   });
   if (probe.status === 0) return true;
 
-  skipReason = `docker is not available (${(probe.stderr ?? "").trim().slice(0, 200)})`;
+  skipReason =
+    probe.signal !== null || probe.status === null
+      ? "docker did not answer within 60s (daemon busy or stopped)"
+      : `docker is not available (${(probe.stderr ?? "").trim().slice(0, 200)})`;
   return false;
 }
 
