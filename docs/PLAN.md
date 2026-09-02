@@ -117,7 +117,8 @@ C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 | C11 | Plugin licensing & devices UI (activation limits, revoke, offline lease, activation card) | B08, B08b, C01 | running |
 | C12 | Desktop/plugin telemetry (consent), crash reporting, diagnostics bundle | C02, A05, B12, B16 | running |
 | C05a | Premiere UXP plugin foundation over a mocked host adapter (Gate C runs it on a real machine) | C01, C00, A00-03 | running |
-| C08 | Resolve `aksharo_core` over a FakeResolve adapter | C01, A00-04 | running |
+| C08 | Resolve `aksharo_core` over a FakeResolve adapter | C01, A00-04 | done pending merge (a109dfc; DynamicZoom property keys flagged for Gate C) |
+| C08b | Fusion Text+ macro generator + style coverage report | C08 | briefed |
 | C10 | Installers (NSIS/pkg/Resolve/.ccx), `/plugins/manifest`, plugins + download pages | C00, C02, C05a, C08 | briefed |
 | D08 | Eval harness & quality gates on fixture datasets, shadow routing, routing freeze, admin leaderboard | A10, B13, B16 | briefed |
 | C06, C06b, C08b | Premiere apply modes, MOGRT authoring, Text+ macro | C05a / C08 | to brief after C05a/C08 land |
