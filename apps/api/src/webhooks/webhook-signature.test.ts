@@ -1,4 +1,4 @@
-import { createRequire , Module } from "node:module";
+import { createRequire, Module } from "node:module";
 
 import { describe, expect, it } from "vitest";
 
@@ -17,7 +17,7 @@ function loadDocSnippet(): { verifyAksharoSignature: (...args: unknown[]) => boo
   // `require`s a Node builtin ("node:crypto"), which resolves the same from
   // any base path, and this keeps the file buildable as CommonJS too.
   mod.require = createRequire(`${process.cwd()}/`);
-   
+
   (mod as any)._compile(NODE_VERIFY_SNIPPET, "doc-snippet.js");
   return mod.exports as { verifyAksharoSignature: (...args: unknown[]) => boolean };
 }

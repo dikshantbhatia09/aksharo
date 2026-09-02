@@ -27,7 +27,7 @@ redirect a delivery at a private address.
 
 Signature: `X-Aksharo-Signature: t=<unix>,v1=hmac_sha256(secret, t + "." +
 body)` (`webhook-signature.ts`). `webhook-signature.test.ts` executes the
-*exact* Node snippet `/developers` renders under "Verify a webhook"
+_exact_ Node snippet `/developers` renders under "Verify a webhook"
 (`webhook-doc-snippets.ts`) against `signWebhookPayload`'s own output — the
 doc and the implementation cannot silently drift, which is B14 acceptance
 criterion 2.

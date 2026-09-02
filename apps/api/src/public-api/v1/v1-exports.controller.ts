@@ -1,5 +1,12 @@
 import { Body, Controller, Get, HttpStatus, Param, Post, Req, UseGuards } from "@nestjs/common";
-import { ApiForbiddenResponse, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags, ApiUnauthorizedResponse } from "@nestjs/swagger";
+import {
+  ApiForbiddenResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
 
 import { ApiKeyRateLimitGuard } from "./api-key-rate-limit.guard.js";
 import { IdempotencyService } from "./idempotency.service.js";
@@ -87,7 +94,10 @@ export class V1ExportsController {
 
   @Get("exports/:exportId")
   @ApiScopes("exports_write")
-  @ApiOperation({ summary: "Fetch an export's status and (once ready) its download URL", operationId: "v1GetExport" })
+  @ApiOperation({
+    summary: "Fetch an export's status and (once ready) its download URL",
+    operationId: "v1GetExport",
+  })
   @ApiOkResponse({ type: V1ExportDto })
   async get(
     @CurrentUser() principal: AuthPrincipal,

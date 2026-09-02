@@ -135,7 +135,9 @@ function ApiKeysCard(): React.JSX.Element {
                   </p>
                   <p className="text-fg-2 truncate text-xs">
                     {key.prefix}.… · {key.scopes.map((s) => SCOPE_LABEL[s]).join(", ")}
-                    {key.expiresAt !== null ? ` · expires ${new Date(key.expiresAt).toLocaleDateString()}` : ""}
+                    {key.expiresAt !== null
+                      ? ` · expires ${new Date(key.expiresAt).toLocaleDateString()}`
+                      : ""}
                   </p>
                 </div>
                 {key.revokedAt === null ? (
@@ -327,7 +329,9 @@ function WebhooksCard(): React.JSX.Element {
                     <p className="text-fg-2 truncate text-xs">
                       {endpoint.events.join(", ")}
                       {!endpoint.active ? " · disabled" : ""}
-                      {endpoint.failures > 0 ? ` · ${String(endpoint.failures)} consecutive failures` : ""}
+                      {endpoint.failures > 0
+                        ? ` · ${String(endpoint.failures)} consecutive failures`
+                        : ""}
                     </p>
                   </div>
                   <div className="flex shrink-0 gap-2">
@@ -416,7 +420,10 @@ function DeliveryLog({ endpointId }: { endpointId: string }): React.JSX.Element 
   if (rows.length === 0) return <p className="text-fg-2 text-xs">No deliveries yet.</p>;
 
   return (
-    <ul className="border-border flex flex-col gap-1 border-t pt-2 text-xs" data-testid={`deliveries-${endpointId}`}>
+    <ul
+      className="border-border flex flex-col gap-1 border-t pt-2 text-xs"
+      data-testid={`deliveries-${endpointId}`}
+    >
       {rows.map((delivery) => (
         <li key={delivery.id} className="flex items-center justify-between gap-2">
           <span className="text-fg-1">

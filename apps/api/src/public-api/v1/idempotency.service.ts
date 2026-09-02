@@ -64,7 +64,7 @@ export class IdempotencyService {
         workspaceId,
         requestHash: hashBody(body),
         responseStatus: response.status,
-         
+
         responseBody: (response.body ?? null) as never,
         expiresAt: new Date(now.getTime() + IDEMPOTENCY_TTL_MS),
       },
@@ -78,5 +78,7 @@ function recordId(workspaceId: string, route: string, key: string): string {
 }
 
 function hashBody(body: unknown): string {
-  return createHash("sha256").update(JSON.stringify(body ?? {}), "utf8").digest("hex");
+  return createHash("sha256")
+    .update(JSON.stringify(body ?? {}), "utf8")
+    .digest("hex");
 }

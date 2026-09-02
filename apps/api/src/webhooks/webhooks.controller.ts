@@ -70,7 +70,10 @@ export class WebhooksController {
 
   @Get()
   @Roles("viewer")
-  @ApiOperation({ summary: "List a workspace's webhook endpoints", operationId: "listWebhookEndpoints" })
+  @ApiOperation({
+    summary: "List a workspace's webhook endpoints",
+    operationId: "listWebhookEndpoints",
+  })
   @ApiOkResponse({ type: [WebhookEndpointDto] })
   @LogAccess("webhooks.endpoint.list")
   async list(@Param("id") workspaceId: string): Promise<readonly WebhookEndpointView[]> {
@@ -79,7 +82,10 @@ export class WebhooksController {
 
   @Patch(":endpointId")
   @Roles("admin")
-  @ApiOperation({ summary: "Update a webhook endpoint's URL, events or active state", operationId: "updateWebhookEndpoint" })
+  @ApiOperation({
+    summary: "Update a webhook endpoint's URL, events or active state",
+    operationId: "updateWebhookEndpoint",
+  })
   @ApiOkResponse({ type: WebhookEndpointDto })
   @ApiNotFoundResponse({ description: "`webhooks/endpoint_not_found`." })
   async update(
@@ -106,7 +112,10 @@ export class WebhooksController {
 
   @Post(":endpointId/test")
   @Roles("admin")
-  @ApiOperation({ summary: "Send a synthetic `ping` event to this endpoint", operationId: "sendWebhookTestEvent" })
+  @ApiOperation({
+    summary: "Send a synthetic `ping` event to this endpoint",
+    operationId: "sendWebhookTestEvent",
+  })
   @ApiOkResponse({ type: WebhookTestResultDto })
   @ApiNotFoundResponse({ description: "`webhooks/endpoint_not_found`." })
   async test(
@@ -118,7 +127,10 @@ export class WebhooksController {
 
   @Get(":endpointId/deliveries")
   @Roles("viewer")
-  @ApiOperation({ summary: "This endpoint's recent delivery log", operationId: "listWebhookDeliveries" })
+  @ApiOperation({
+    summary: "This endpoint's recent delivery log",
+    operationId: "listWebhookDeliveries",
+  })
   @ApiOkResponse({ type: [WebhookDeliveryDto] })
   @ApiNotFoundResponse({ description: "`webhooks/endpoint_not_found`." })
   async deliveries(
@@ -141,7 +153,10 @@ export class WebhooksController {
 
   @Post("deliveries/:deliveryId/redeliver")
   @Roles("admin")
-  @ApiOperation({ summary: "Manually redeliver an exhausted delivery", operationId: "redeliverWebhookDelivery" })
+  @ApiOperation({
+    summary: "Manually redeliver an exhausted delivery",
+    operationId: "redeliverWebhookDelivery",
+  })
   @ApiOkResponse({ type: WebhookRedeliverResultDto })
   @ApiNotFoundResponse({ description: "`webhooks/delivery_not_found`." })
   async redeliver(

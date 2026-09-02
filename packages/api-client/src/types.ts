@@ -964,11 +964,7 @@ export interface AffiliateStats {
 // --- B14: API keys and webhooks (Settings → Developers) --------------------
 
 export type ApiKeyScope =
-  | "projects_read"
-  | "projects_write"
-  | "transcripts_read"
-  | "exports_write"
-  | "webhooks_manage";
+  "projects_read" | "projects_write" | "transcripts_read" | "exports_write" | "webhooks_manage";
 
 export const API_KEY_SCOPES: readonly ApiKeyScope[] = [
   "projects_read",
@@ -1002,7 +998,8 @@ export interface CreateApiKeyRequest {
   expiresAt?: string;
 }
 
-export type WebhookEventName = "transcript.completed" | "export.completed" | "job.failed" | "credits.low";
+export type WebhookEventName =
+  "transcript.completed" | "export.completed" | "job.failed" | "credits.low";
 
 export const WEBHOOK_EVENT_NAMES: readonly WebhookEventName[] = [
   "transcript.completed",

@@ -41,11 +41,14 @@ export class ApiKeysController {
   @Roles("admin")
   @ApiOperation({
     summary: "Mint a new API key",
-    description: "The full key (`ak_live_<prefix>.<secret>`) is returned once, here, and never again.",
+    description:
+      "The full key (`ak_live_<prefix>.<secret>`) is returned once, here, and never again.",
     operationId: "createApiKey",
   })
   @ApiOkResponse({ type: MintedApiKeyDto })
-  @ApiPaymentRequiredResponse({ description: "`entitlement/upgrade_required` — Studio/Agency only." })
+  @ApiPaymentRequiredResponse({
+    description: "`entitlement/upgrade_required` — Studio/Agency only.",
+  })
   async create(
     @CurrentUser() principal: AuthPrincipal,
     @Param("id") workspaceId: string,
@@ -62,7 +65,10 @@ export class ApiKeysController {
 
   @Get()
   @Roles("viewer")
-  @ApiOperation({ summary: "List a workspace's API keys (never the secret)", operationId: "listApiKeys" })
+  @ApiOperation({
+    summary: "List a workspace's API keys (never the secret)",
+    operationId: "listApiKeys",
+  })
   @ApiOkResponse({ type: [ApiKeyDto] })
   async list(@Param("id") workspaceId: string): Promise<readonly ApiKeyView[]> {
     return this.keys.list(workspaceId);

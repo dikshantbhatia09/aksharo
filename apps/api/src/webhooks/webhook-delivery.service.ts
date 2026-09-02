@@ -178,7 +178,15 @@ export class WebhookDeliveryService {
   }
 
   private async attempt(
-    delivery: WebhookDelivery & { readonly endpoint: { readonly id: string; readonly url: string; readonly secret: string; readonly workspaceId: string; readonly failureCount: number } },
+    delivery: WebhookDelivery & {
+      readonly endpoint: {
+        readonly id: string;
+        readonly url: string;
+        readonly secret: string;
+        readonly workspaceId: string;
+        readonly failureCount: number;
+      };
+    },
   ): Promise<void> {
     const body = JSON.stringify(delivery.payload);
     const { header } = signWebhookPayload(delivery.endpoint.secret, body);

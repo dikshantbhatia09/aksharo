@@ -90,7 +90,11 @@ export class WebhookEndpointsService {
     workspaceId: string,
     userId: string,
     endpointId: string,
-    input: { readonly url?: string; readonly events?: readonly WebhookEventName[]; readonly active?: boolean },
+    input: {
+      readonly url?: string;
+      readonly events?: readonly WebhookEventName[];
+      readonly active?: boolean;
+    },
   ): Promise<WebhookEndpointView> {
     const existing = await this.require(workspaceId, endpointId);
     if (input.url !== undefined) await this.assertSafeUrl(input.url);
@@ -156,11 +160,7 @@ export class WebhookEndpointsService {
     try {
       parsed = new URL(url);
     } catch {
-      throw new AppException(
-        WEBHOOK_ERRORS.invalidUrl,
-        "Not a valid URL.",
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new AppException(WEBHOOK_ERRORS.invalidUrl, "Not a valid URL.", HttpStatus.BAD_REQUEST);
     }
     if (parsed.protocol !== "https:") {
       throw new AppException(

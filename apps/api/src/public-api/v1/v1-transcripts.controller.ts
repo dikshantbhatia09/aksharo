@@ -1,5 +1,23 @@
-import { Body, Controller, Get, HttpStatus, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
-import { ApiForbiddenResponse, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags, ApiUnauthorizedResponse } from "@nestjs/swagger";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from "@nestjs/common";
+import {
+  ApiForbiddenResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
 
 import { ApiKeyRateLimitGuard } from "./api-key-rate-limit.guard.js";
 import { IdempotencyService } from "./idempotency.service.js";
@@ -59,7 +77,11 @@ export class V1TranscriptsController {
           workspaceId: principal.workspaceId,
           data: { projectId, jobId: accepted.jobId },
         });
-        return { jobId: accepted.jobId, transcriptId: accepted.transcriptId, status: accepted.status };
+        return {
+          jobId: accepted.jobId,
+          transcriptId: accepted.transcriptId,
+          status: accepted.status,
+        };
       },
     );
   }

@@ -82,16 +82,16 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 - **B14 — Public API v1, API keys, outgoing webhooks, `/developers` docs.**
   API: `apps/api/src/public-api/**` — `ApiKeysService`/`ApiKeysController`
   (`POST|GET /workspaces/{id}/api-keys`, `POST .../rotate`, `DELETE
-  .../{keyId}`) mints `ak_live_<prefix>.<secret>` against A04's `ApiKeyGuard`
+.../{keyId}`) mints `ak_live_<prefix>.<secret>` against A04's `ApiKeyGuard`
   contract, gated on the `apiAccess` entitlement (Studio/Agency), with a 24h
   rotation-overlap window via `expiresAt` (`ApiKeyGuard` now also refuses an
   expired key). `ApiKeyScope` (schema) narrowed to exactly `projects_read`,
   `projects_write`, `transcripts_read`, `exports_write`, `webhooks_manage` —
   no admin/billing scope exists. `/v1` (`public-api/v1/**`): `POST|GET
-  /v1/projects`, `POST /v1/projects/{id}/transcribe`, `GET
-  /v1/projects/{id}/transcript?format=json|srt|vtt`, `POST
-  /v1/projects/{id}/exports` (cloud path only), `GET /v1/exports/{id}`, `GET
-  /v1/jobs/{id}` — `X-Api-Key` only, `ApiKeyRateLimitGuard` (`RateLimit-*`
+/v1/projects`, `POST /v1/projects/{id}/transcribe`, `GET
+/v1/projects/{id}/transcript?format=json|srt|vtt`, `POST
+/v1/projects/{id}/exports` (cloud path only), `GET /v1/exports/{id}`, `GET
+/v1/jobs/{id}` — `X-Api-Key` only, `ApiKeyRateLimitGuard` (`RateLimit-*`
   headers, 60/120 default, 120/240 Agency), `IdempotencyService`
   (`Idempotency-Key`, 24h, new `idempotency_records` table) wraps every
   mutating route. `sourceUrl` project creation
@@ -101,7 +101,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   implementation. Webhooks: `apps/api/src/webhooks/**` — CRUD at
   `/workspaces/{id}/webhooks` against the schema's existing (pre-B14)
   `WebhookEndpoint`/`WebhookDelivery` tables, `X-Aksharo-Signature:
-  t=<unix>,v1=hmac_sha256(secret, t + "." + body)`
+t=<unix>,v1=hmac_sha256(secret, t + "." + body)`
   (`webhook-signature.ts`; `webhook-signature.test.ts` executes the exact
   Node verification snippet the docs page renders, proving they cannot
   drift), delivery via `common/ssrf/webhook-fetch.ts` (POST analogue of

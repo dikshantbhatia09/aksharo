@@ -285,9 +285,7 @@ describe("ApiKeyGuard", () => {
   it("admits a key inside its rotation overlap window (expiresAt in the future)", async () => {
     const guard = guardWith({ ...record, expiresAt: new Date(Date.now() + 60_000) });
     await expect(
-      guard.canActivate(
-        contextFor({ headers: { "x-api-key": `ak_prefix01.${secret}` } } as never),
-      ),
+      guard.canActivate(contextFor({ headers: { "x-api-key": `ak_prefix01.${secret}` } } as never)),
     ).resolves.toBe(true);
   });
 });

@@ -115,7 +115,12 @@ export class WebhookEventPollerService {
     type: string | undefined,
     status: "succeeded" | "failed",
     event: "transcript.completed" | "job.failed",
-    data: (job: { readonly id: string; readonly type: string; readonly projectId: string | null; readonly error: unknown }) => Record<string, unknown>,
+    data: (job: {
+      readonly id: string;
+      readonly type: string;
+      readonly projectId: string | null;
+      readonly error: unknown;
+    }) => Record<string, unknown>,
   ): Promise<{ readonly seen: number }> {
     const cursorKey = this.cursorKey(event);
     const cursor = await this.readCursor(cursorKey);
@@ -153,7 +158,10 @@ export class WebhookEventPollerService {
       const value = await this.redis.client.get(key);
       return value ?? undefined;
     } catch (error) {
-      this.logger.warn({ err: error, key }, "could not read a webhook poll cursor; scanning from the start");
+      this.logger.warn(
+        { err: error, key },
+        "could not read a webhook poll cursor; scanning from the start",
+      );
       return undefined;
     }
   }

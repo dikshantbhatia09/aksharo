@@ -1439,11 +1439,7 @@ export function useApiKeys(): UseQueryResult<ApiKeyView[]> {
   });
 }
 
-export function useCreateApiKey(): UseMutationResult<
-  MintedApiKeyView,
-  Error,
-  CreateApiKeyRequest
-> {
+export function useCreateApiKey(): UseMutationResult<MintedApiKeyView, Error, CreateApiKeyRequest> {
   const client = useApiClient();
   const queryClient = useQueryClient();
   const workspaceId = useWorkspaceId();
@@ -1562,7 +1558,9 @@ export function useSendWebhookTestEvent(): UseMutationResult<
   });
 }
 
-export function useWebhookDeliveries(endpointId: string | null): UseQueryResult<WebhookDeliveryView[]> {
+export function useWebhookDeliveries(
+  endpointId: string | null,
+): UseQueryResult<WebhookDeliveryView[]> {
   const client = useApiClient();
   const workspaceId = useWorkspaceId();
   return useQuery({

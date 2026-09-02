@@ -123,11 +123,7 @@ export class ApiKeysService {
    * than revoking it outright (brief §1) — `ApiKeyGuard` refuses it once
    * `expiresAt` passes, no separate "grace" concept needed on the guard side.
    */
-  async rotate(
-    workspaceId: string,
-    userId: string,
-    keyId: string,
-  ): Promise<MintedApiKeyView> {
+  async rotate(workspaceId: string, userId: string, keyId: string): Promise<MintedApiKeyView> {
     const existing = await this.require(workspaceId, keyId);
     if (existing.revokedAt !== null) {
       throw new AppException(

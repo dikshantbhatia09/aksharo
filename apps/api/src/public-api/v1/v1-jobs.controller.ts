@@ -1,5 +1,12 @@
 import { Controller, Get, Param, UseGuards } from "@nestjs/common";
-import { ApiForbiddenResponse, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags, ApiUnauthorizedResponse } from "@nestjs/swagger";
+import {
+  ApiForbiddenResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
 
 import { ApiKeyRateLimitGuard } from "./api-key-rate-limit.guard.js";
 import { V1JobDto } from "./v1.dto.js";
@@ -21,10 +28,7 @@ export class V1JobsController {
   @ApiScopes("projects_read")
   @ApiOperation({ summary: "Poll a job's status", operationId: "v1GetJob" })
   @ApiOkResponse({ type: V1JobDto })
-  async get(
-    @CurrentUser() principal: AuthPrincipal,
-    @Param("id") id: string,
-  ): Promise<V1JobDto> {
+  async get(@CurrentUser() principal: AuthPrincipal, @Param("id") id: string): Promise<V1JobDto> {
     const job = await this.jobs.get(id, principal.workspaceId);
     return {
       id: job.id,

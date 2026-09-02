@@ -1,8 +1,16 @@
 import openapi from "@montaj/api-client/openapi.json";
 
 import { CodeTabs } from "./code-tabs";
-import { CURL_CREATE_PROJECT, NODE_CREATE_PROJECT, PYTHON_CREATE_PROJECT } from "./quickstart-snippets";
-import { CURL_VERIFY_EXAMPLE, NODE_VERIFY_SNIPPET, PYTHON_VERIFY_SNIPPET } from "./signature-snippets";
+import {
+  CURL_CREATE_PROJECT,
+  NODE_CREATE_PROJECT,
+  PYTHON_CREATE_PROJECT,
+} from "./quickstart-snippets";
+import {
+  CURL_VERIFY_EXAMPLE,
+  NODE_VERIFY_SNIPPET,
+  PYTHON_VERIFY_SNIPPET,
+} from "./signature-snippets";
 
 interface OpenApiOperation {
   operationId?: string;
@@ -16,7 +24,12 @@ interface OpenApiDocument {
 
 const METHOD_ORDER = ["get", "post", "put", "patch", "delete"];
 
-function publicEndpoints(): { method: string; path: string; summary: string; description?: string }[] {
+function publicEndpoints(): {
+  method: string;
+  path: string;
+  summary: string;
+  description?: string;
+}[] {
   const doc = openapi as unknown as OpenApiDocument;
   const rows: { method: string; path: string; summary: string; description?: string }[] = [];
   for (const [path, methods] of Object.entries(doc.paths)) {
@@ -27,7 +40,12 @@ function publicEndpoints(): { method: string; path: string; summary: string; des
       // page IS the OpenAPI document rendered, not a second hand-typed list —
       // add a `/v1` route in the API and it appears here without an edit.
       if (path.startsWith("/v1/")) {
-        rows.push({ method, path, summary: op.summary ?? op.operationId ?? path, description: op.description });
+        rows.push({
+          method,
+          path,
+          summary: op.summary ?? op.operationId ?? path,
+          description: op.description,
+        });
       }
     }
   }
@@ -127,8 +145,8 @@ export function DevelopersDocs(): React.JSX.Element {
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold">Idempotency</h2>
         <p className="text-fg-2 text-sm">
-          Pass an <code>Idempotency-Key</code> header on any <code>POST</code>. The same key
-          replays the first response for 24 hours; the same key with a different body is refused.
+          Pass an <code>Idempotency-Key</code> header on any <code>POST</code>. The same key replays
+          the first response for 24 hours; the same key with a different body is refused.
         </p>
       </section>
 
@@ -159,11 +177,11 @@ export function DevelopersDocs(): React.JSX.Element {
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold">sourceUrl imports</h2>
         <p className="text-fg-2 text-sm">
-          <code>POST /v1/projects</code> accepts a <code>sourceUrl</code> instead of an upload.
-          The URL is fetched under an SSRF guard: https only, DNS resolved and every address
-          checked against private/loopback/link-local/metadata ranges, the connection pinned to
-          the vetted address so a later DNS change cannot redirect it, redirects re-validated the
-          same way and capped at 3 hops, and a content-type allow-list (video/audio only).
+          <code>POST /v1/projects</code> accepts a <code>sourceUrl</code> instead of an upload. The
+          URL is fetched under an SSRF guard: https only, DNS resolved and every address checked
+          against private/loopback/link-local/metadata ranges, the connection pinned to the vetted
+          address so a later DNS change cannot redirect it, redirects re-validated the same way and
+          capped at 3 hops, and a content-type allow-list (video/audio only).
         </p>
       </section>
 
@@ -172,8 +190,8 @@ export function DevelopersDocs(): React.JSX.Element {
         <p className="text-fg-2 text-sm">
           Subscribe to <code>transcript.completed</code>, <code>export.completed</code>,{" "}
           <code>job.failed</code> and <code>credits.low</code> under{" "}
-          <strong>Settings → Developers → Webhooks</strong>. Retries follow 1m, 5m, 30m, 2h, 12h;
-          an endpoint that fails 20 deliveries in a row is disabled automatically.
+          <strong>Settings → Developers → Webhooks</strong>. Retries follow 1m, 5m, 30m, 2h, 12h; an
+          endpoint that fails 20 deliveries in a row is disabled automatically.
         </p>
         <h3 className="text-base font-semibold">Verify a webhook</h3>
         <p className="text-fg-2 text-sm">
