@@ -32,6 +32,68 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A24 — the marketing site (`apps/web`'s `(site)` route group): home, features, styles
+  gallery, pricing, plugins, download, comparison and legal pages.**
+  - **Home.** A hero condensing the eight value propositions to three lines, with an
+    English/Hindi headline toggle (a small local ICU-syntax formatter — no `next-intl`
+    dependency, see `content/site/hero-copy.ts` for why), and a live browser demo:
+    a bundled 15-second Hinglish mock transcript rendered by the real
+    `@montaj/render-canvaskit` + `@montaj/render-core` pipeline (no ASR call) with a
+    `punch-pop`-first style switcher.
+  - **Features.** Every value proposition with its own section; the accuracy section
+    carries the target Hinglish/English/alignment numbers from
+    `02-product-vision.md §Success metrics` with the measured column left honestly
+    blank pending the public eval run (D08).
+  - **Styles gallery.** All 30 system styles, hover-to-animate (`StylePreviewCanvas`,
+    reused from the editor unmodified), filterable by category and by preview script
+    (Roman / Devanagari / Tamil).
+  - **Pricing.** The full plan ladder, an INR/USD toggle (locale-guessed default,
+    remembered per visitor), the offers ladder, a credits-to-outcomes table, the burn-rate
+    table sourced live from `@montaj/config`'s `BURN_RATES` (never duplicated), the full
+    plan comparison matrix transcribed from `04-pricing-and-monetization.md §Plans`, and
+    an FAQ answering both Pause's own FAQ questions and the India-payments objections
+    (mandates, refunds, GST-inclusive display, the ₹15,000 UPI mandate cap on Studio
+    yearly). Prices come from a static mirror of `apps/api/prisma/seed-data.ts`'s
+    `PLAN_SEEDS`, not a live `GET /billing/plans` — no billing module exists in
+    `apps/api/src` yet (Billing is Wave 2); `content/site/pricing-data.ts` documents the
+    swap-to-live-fetch seam.
+  - **Plugins.** D65-compliant naming throughout ("Aksharo Panel — works with Adobe
+    Premiere Pro and Adobe After Effects", "Aksharo — works with DaVinci Resolve"), the
+    three-step activation card, honest capability notes ("waiting on Adobe", "not
+    supported by Resolve's API"), and the Adobe/Blackmagic attribution line.
+  - **Download.** Platform detection (Windows/macOS/Linux from the user agent),
+    SmartScreen/Gatekeeper first-run notes, and the publisher name from `BRAND` — every
+    download link is a labelled placeholder pending C10's signed builds.
+  - **Comparison pages** (`/vs/kalakar`, `/vs/captik`, `/vs/submagic`, `/vs/autocut`),
+    every fact transcribed from `01-competitive-analysis.md` with a dated
+    "last verified" line and a source citation (the competitor's own site where the
+    research doc gives one; the research doc itself, dated, where it does not — no
+    external URL is guessed).
+  - **Legal & footer.** Privacy, Terms, AUP, Refunds and DPA scaffolds, each carrying a
+    "draft — pending counsel" banner (A00-13 is still `todo`); the privacy page also
+    renders the real, already-implemented itemised notice (`apps/api/src/privacy/
+privacy-notice.ts`, statically mirrored — see the file for why not a live build-time
+    fetch); a Grievance Officer page with the IT Rules response-time targets; the
+    Adobe/Blackmagic attribution line in the footer of every page.
+  - **SEO/perf.** `sitemap.xml`, `robots.txt`, per-page canonical/OpenGraph metadata,
+    build-time-generated OpenGraph images (home, pricing, features, plugins, styles, and
+    one per comparison slug).
+  - **Tests.** Playwright on chromium and webkit: smoke, axe, a dedicated codename-guard
+    spec (extends A13's own `smoke.spec.ts` check to every page this WP adds), SEO
+    metadata checks, the pricing currency/interval toggle, the styles gallery filters and
+    real-renderer pixel output, the live demo's real-renderer output and its "no ASR
+    request fires" assertion, plugin naming compliance, and the legal draft banners.
+    Vitest unit tests for the content-data layer (`app/(site)/(marketing)/_test/
+site-content.test.ts` — colocated under `app/` because `vitest.config.ts`'s coverage
+    scope, set by A13, does not include `content/**` or `app/**`, the same reason its own
+    route code is Playwright-covered rather than unit-covered).
+  - **Deviations reported in the WP's final message:** no live plan-catalogue endpoint
+    exists to fetch from; the task instructions' Hindi-copy request and the brief
+    document's own "out of scope: localisation" line disagree, and the instructions were
+    followed at the smallest defensible scope; no bundled sample video existed for the
+    live demo, so it draws over a placeholder frame; Lighthouse was run manually rather
+    than wired into CI (no `@lhci/cli` dependency added without discussion).
+
 - **A18b — `@montaj/fonts`: the bundled open-licence catalogue, upload with licence
   attestation, validation/subsetting/WOFF2, and the `RENDER_FONT_DIR` v1 pack.**
   - **The catalogue.** 21 families (Inter, Montserrat, Poppins, Playfair Display,
