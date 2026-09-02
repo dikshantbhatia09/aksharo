@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { cpSync, copyFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import process from "node:process";
@@ -85,7 +85,37 @@ function main() {
   // always agree on; requiring the package's own CLI entry is unambiguous.
   run(process.execPath, postjectArgs);
 
+  copyTraybin();
+
   console.log(`built ${outputPath}`);
+}
+
+/**
+ * Copies `systray2`'s prebuilt per-OS helper binaries to `dist/traybin/`, next
+ * to the packaged executable (`native-tray.ts`'s `traybinDirectories()` looks
+ * there first). The SEA blob has no `node_modules` of its own, so these files
+ * — never committed to the repo, only ever copied out of the installed
+ * dependency at build time — are how the native tray finds its helper binary
+ * once the app is packaged. Missing them is not fatal: `createNativeTray`
+ * falls back to the console tray if `dist/traybin` is absent.
+ */
+function copyTraybin() {
+  const require = createRequire(import.meta.url);
+  let traybinSrc;
+  try {
+    traybinSrc = join(dirname(require.resolve("systray2/package.json")), "traybin");
+  } catch {
+    console.warn("systray2 not installed; packaged binary will fall back to the console tray");
+    return;
+  }
+  if (!existsSync(traybinSrc)) {
+    console.warn(`systray2 traybin not found at ${traybinSrc}; skipping`);
+    return;
+  }
+  const traybinDest = join(dist, "traybin");
+  rmSync(traybinDest, { recursive: true, force: true });
+  cpSync(traybinSrc, traybinDest, { recursive: true });
+  console.log(`copied tray helper binaries to ${traybinDest}`);
 }
 
 main();

@@ -1,10 +1,13 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import selfsigned from "selfsigned";
 
 import { aksharoDir } from "./discovery.js";
+import { createDefaultKeyStore } from "./keystore.js";
+
+import type { KeyStore } from "./keystore.js";
 
 /**
  * The per-install loopback TLS leaf certificate (brief §2 asks ECDSA P-256; this
@@ -28,13 +31,16 @@ function certDir(): string {
   return join(aksharoDir(), "cert");
 }
 
-function certPath(): string {
-  return join(certDir(), "leaf.pem");
+function certPath(dir: string): string {
+  return join(dir, "leaf.pem");
 }
 
-function keyPath(): string {
-  return join(certDir(), "leaf.key.pem");
+/** The legacy (pre-C01b) plaintext key file — read once for migration, never written again. */
+function legacyKeyPath(dir: string): string {
+  return join(dir, "leaf.key.pem");
 }
+
+const PRIVATE_KEY_NAME = "bridge-leaf-private-key";
 
 export function fingerprintOf(certPem: string): string {
   // DER-less fingerprint over the PEM body is sufficient for pinning purposes
@@ -87,20 +93,60 @@ function generate(): BridgeCertificate {
   };
 }
 
-/** Loads the cached per-install cert, generating and caching one on first run. */
-export function loadOrCreateCertificate(): BridgeCertificate {
-  const dir = certDir();
-  if (existsSync(certPath()) && existsSync(keyPath())) {
-    const certPem = readFileSync(certPath(), "utf8");
-    const privateKeyPem = readFileSync(keyPath(), "utf8");
-    return { certPem, privateKeyPem, fingerprint: fingerprintOf(certPem) };
+/**
+ * Loads the cached per-install cert, generating and caching one on first run.
+ * The private key lives in the OS keychain/DPAPI (T14); `keyStore` defaults to
+ * the platform-appropriate store (`createDefaultKeyStore`) but tests pass an
+ * `InMemoryKeyStore` so no test touches a real keychain or spawns PowerShell.
+ *
+ * Migration: an install that ran before C01b has the private key sitting in
+ * `leaf.key.pem` (mode `0600`) next to the cert. The first run after upgrade
+ * reads that file, saves it into the key store, and deletes the plaintext
+ * copy — so an existing pairing/session keeps working with the same cert
+ * fingerprint instead of forcing every paired client to re-pair.
+ *
+ * `dir` defaults to `~/.aksharo/cert/` and is overridable only for tests
+ * (mirrors the `path` override on `writeDiscoveryFile`/`readDiscoveryFile`).
+ */
+export async function loadOrCreateCertificate(
+  keyStore?: KeyStore,
+  dir: string = certDir(),
+): Promise<BridgeCertificate> {
+  const store = keyStore ?? (await createDefaultKeyStore());
+  const certFile = certPath(dir);
+
+  if (existsSync(certFile)) {
+    const certPem = readFileSync(certFile, "utf8");
+    const migrated = await migrateLegacyKeyIfPresent(store, dir);
+    const privateKeyPem = migrated ?? (await store.load(PRIVATE_KEY_NAME));
+    if (privateKeyPem !== undefined) {
+      return { certPem, privateKeyPem, fingerprint: fingerprintOf(certPem) };
+    }
+    // Cert on disk but no private key anywhere reachable (e.g. the key store
+    // backend changed under us): the pair is unusable, so regenerate both.
   }
 
   const cert = generate();
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
-  writeFileSync(certPath(), cert.certPem, { mode: 0o600 });
-  writeFileSync(keyPath(), cert.privateKeyPem, { mode: 0o600 });
+  writeFileSync(certFile, cert.certPem, { mode: 0o600 });
+  await store.save(PRIVATE_KEY_NAME, cert.privateKeyPem);
   return cert;
+}
+
+/** Returns the migrated key (and deletes the legacy file) if one was found, else `undefined`. */
+async function migrateLegacyKeyIfPresent(
+  keyStore: KeyStore,
+  dir: string,
+): Promise<string | undefined> {
+  const legacyFile = legacyKeyPath(dir);
+  if (!existsSync(legacyFile)) return undefined;
+  const existing = await keyStore.load(PRIVATE_KEY_NAME);
+  const legacyKeyPem = readFileSync(legacyFile, "utf8");
+  if (existing === undefined) {
+    await keyStore.save(PRIVATE_KEY_NAME, legacyKeyPem);
+  }
+  rmSync(legacyFile, { force: true });
+  return existing ?? legacyKeyPem;
 }
 
 /** For tests: a fresh, clearly-marked self-signed cert that touches no disk. */

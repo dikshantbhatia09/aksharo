@@ -51,6 +51,48 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   workspace+user (one paired bridge per signed-in user per workspace) until a
   follow-up work package adds a real per-device bridge credential — see the
   WP report's open questions.
+- **C01b — Bridge follow-ups: native tray for standalone installs, OS
+  keychain/DPAPI for the per-install key, CI matrix dry run.** `apps/bridge`:
+  a real system tray (`native-tray.ts`) via `systray2` (MIT) — a prebuilt
+  per-OS helper binary spawned over stdio, the only tray option compatible
+  with the Node SEA bundling model (a native addon has no stable path once
+  `esbuild` folds everything into one `dist/bundle.cjs`); `build-sea.mjs`
+  copies `systray2`'s helper binaries into `dist/traybin` next to the
+  packaged executable. Falls back to `bridge-core`'s console tray on Linux
+  with no `DISPLAY`, in any `CI` environment, if the helper binary is
+  missing, or if the helper fails/times out (3 s) — the CI-env skip exists
+  because the tray helper was observed to hang indefinitely on this runner
+  outside that guard, which would otherwise make the `bridge-sea` matrix job
+  flaky. `packages/bridge-core`: a `KeyStore` interface (`keystore.ts`) with
+  `KeychainKeyStore` (macOS, shells out to `security`), `DpapiKeyStore`
+  (Windows, shells out to `powershell.exe`'s
+  `System.Security.Cryptography.ProtectedData`), `FileKeyStore` (the
+  original `0600` file, kept as the documented fallback) and
+  `InMemoryKeyStore` for tests; `createDefaultKeyStore()` probes the
+  platform-appropriate backend once and falls back to the file store if the
+  probe fails. No new native/npm dependency: a real keychain client library
+  is a native addon on every OS, incompatible with the SEA bundle for the
+  same reason a native tray is. `cert.ts`'s `loadOrCreateCertificate` now
+  stores the private key through a `KeyStore` (defaulting to
+  `createDefaultKeyStore()`) instead of a plaintext file, migrating an
+  existing plaintext `leaf.key.pem` into the key store (and deleting it) on
+  first run so existing pairings survive the upgrade; it is now `async`.
+  CI: `.github/workflows/ci.yml` gained `workflow_dispatch: {}` so the
+  `bridge-sea` job (and the rest of the matrix) can be re-run manually
+  without an empty commit; the local dry-run steps are documented in
+  `apps/bridge/README.md`. `apps/desktop/src/bridge/adapter.ts`: replaced the
+  pre-C01 stub with `createBridgeAdapter`, a real `BridgeAdapter` wrapping
+  `BridgeCore` (`createStubBridgeAdapter` is kept for a "bridge disabled"
+  caller). Documented interface gap: `approvePairing`'s `BridgePairResult`
+  predates `bridge-core`'s actual protocol — a local/tray approval only
+  flips a pairing to `"approved"`; the pairing *client* mints its own
+  `clientId` by calling `pair.confirm` afterwards, so the approver never
+  observes that id synchronously. `createBridgeAdapter` returns the
+  `pairingId` in its place (documented, not the wire `clientId`) rather than
+  inventing an unverified shape — flagged for whoever wires this into C02's
+  UI. 12 new tests across the three packages (bridge-core: `keystore.test.ts`
+  + cert migration tests; apps/bridge: `native-tray.test.ts`; apps/desktop:
+  two new `createBridgeAdapter` cases), all suites green.
 - **C00 — Signing & release pipeline (dry-run only; credentials do not exist yet).**
   New `tools/release` package (`@montaj/release`) exposing `pnpm release <cmd>`:
   `version` (conventional-commit semver bump + `CHANGELOG.md` section assembly),

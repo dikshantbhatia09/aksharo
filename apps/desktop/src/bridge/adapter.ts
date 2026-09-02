@@ -1,16 +1,29 @@
+import { BridgeCore } from "@montaj/bridge-core";
+import type { PendingPairing, TrayController } from "@montaj/bridge-core";
+
 /**
  * Documented interface for the embedded local bridge (brief §6).
  *
- * C01 ("Local bridge v2: `bridge-core` + Node SEA app...") is still `briefed`
- * on `docs/PLAN.md`, not merged to `main`, so there is no `@montaj/bridge-core`
- * package to import yet. This file defines the shape C02 needs and a stub
- * implementation so the rest of the desktop app (tray status, `bridge.pair`
- * preload call, IPC wiring) can be built and tested against it now.
+ * C01 landed `@montaj/bridge-core` after this file was written against a
+ * stub; `createBridgeAdapter` (C01b) is the real implementation, wrapping
+ * `BridgeCore` start/stop/pairing/status. `createStubBridgeAdapter` stays for
+ * now (still exercised by `adapter.test.ts`, and useful if a caller wants a
+ * "bridge disabled" adapter without constructing a real `BridgeCore`).
  *
- * When C01 lands, replace `createStubBridgeAdapter` with an adapter that
- * wraps the real `bridge-core` start/stop/pairing/status API — the
- * `BridgeAdapter` interface below is the contract both sides should agree on;
- * do not change its shape without re-checking with C01.
+ * `BridgeAdapter` is the contract both sides (this adapter and C02's tray/
+ * IPC/preload code) should agree on; do not change its shape without
+ * re-checking with C02's owner.
+ *
+ * **Known interface gap (see the WP report):** `approvePairing`'s return type
+ * (`BridgePairResult`, a real `clientId`/`expiresAt`) predates `bridge-core`'s
+ * actual protocol. In that protocol, a tray/local approval only flips the
+ * pending pairing to `"approved"`; the pairing client itself is the one that
+ * mints its `clientId` and pair token, by calling `pair.confirm` afterwards
+ * over its own connection (`PairingService.confirm`, `packages/bridge-core/
+ * src/pairing.ts`). The approver never learns that `clientId` synchronously.
+ * `createBridgeAdapter` below approves the pairing for real and returns the
+ * `pairingId` in place of `clientId` (documented, not the wire `clientId`) —
+ * flagged here rather than silently guessing a shape C02 hasn't confirmed.
  */
 
 export type BridgeStatus = "stopped" | "starting" | "running" | "error";
@@ -80,6 +93,112 @@ export function createStubBridgeAdapter(): BridgeAdapter {
       return status;
     },
     onStatusChange(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
+export interface CreateBridgeAdapterOptions {
+  readonly relayUrl?: string;
+  readonly deviceToken?: string;
+  readonly log?: (line: Record<string, unknown>) => void;
+}
+
+/**
+ * The real adapter (C01b): wraps a `BridgeCore` instance embedded in the
+ * desktop process. The tray implementation this passes to `BridgeCore` is a
+ * thin bridge to this adapter's own `approvePairing`/status surface — C02's
+ * actual tray icon (`apps/desktop/src/tray/index.ts`) drives approval through
+ * this `BridgeAdapter`, not by talking to `bridge-core` directly.
+ */
+export function createBridgeAdapter(options: CreateBridgeAdapterOptions = {}): BridgeAdapter {
+  const listeners = new Set<(event: BridgeStatusEvent) => void>();
+  const pairedClients: BridgePairedClient[] = [];
+  let status: BridgeStatusEvent = { status: "stopped", pairedClients: [] };
+  let pending:
+    | { pairing: PendingPairing; resolve: (decision: "approved" | "denied") => void }
+    | undefined;
+
+  function emit(next: Partial<BridgeStatusEvent>): void {
+    status = { ...status, pairedClients: [...pairedClients], ...next };
+    for (const listener of listeners) listener(status);
+  }
+
+  const tray: TrayController = {
+    requestApproval(pairing: PendingPairing): Promise<"approved" | "denied"> {
+      return new Promise((resolve) => {
+        pending = { pairing, resolve };
+      });
+    },
+    setStatus(): void {
+      // Desktop status is driven by `BridgeCore`'s own `status` event below,
+      // not by the tray-gesture status string.
+    },
+    showNotification(): void {
+      // C02's tray owns user-facing notifications; nothing to do here.
+    },
+    onQuitRequested(): void {
+      // Quitting the whole desktop app is C02's menu ("Quit"), not this
+      // adapter's concern.
+    },
+    onRevokeRequested(): void {
+      // Revocation is driven by `BridgeAdapter` callers (the devices page /
+      // tray "Revoke" action), not by a gesture bridge-core originates.
+    },
+  };
+
+  const core = new BridgeCore({
+    ...(options.relayUrl !== undefined ? { relayUrl: options.relayUrl } : {}),
+    ...(options.deviceToken !== undefined ? { deviceToken: options.deviceToken } : {}),
+    tray,
+    ...(options.log !== undefined ? { log: options.log } : {}),
+  });
+
+  core.on("status", (event) => {
+    emit({
+      status: event.status,
+      ...(event.port !== undefined ? { port: event.port } : {}),
+      ...(event.message !== undefined ? { error: event.message } : { error: undefined }),
+    });
+  });
+
+  return {
+    async start(): Promise<void> {
+      await core.start();
+    },
+    async stop(): Promise<void> {
+      await core.stop();
+      pending = undefined;
+    },
+    async approvePairing(pairCode: string): Promise<BridgePairResult> {
+      if (pending === undefined) {
+        throw new Error("no pending pairing request to approve");
+      }
+      if (pending.pairing.code !== pairCode) {
+        throw new Error("pairing code does not match the pending request");
+      }
+      const { pairing, resolve } = pending;
+      pending = undefined;
+      resolve("approved");
+      pairedClients.push({
+        clientId: pairing.pairingId,
+        label: pairing.clientName,
+        pairedAt: new Date().toISOString(),
+      });
+      emit({});
+      // See the module doc comment: `clientId` here is the pairing id, not
+      // the wire `clientId` bridge-core mints once the pairing client itself
+      // completes `pair.confirm` — that value is never observed locally.
+      return {
+        clientId: pairing.pairingId,
+        expiresAt: new Date(pairing.expiresAt).toISOString(),
+      };
+    },
+    getStatus(): BridgeStatusEvent {
+      return status;
+    },
+    onStatusChange(listener: (event: BridgeStatusEvent) => void): () => void {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },

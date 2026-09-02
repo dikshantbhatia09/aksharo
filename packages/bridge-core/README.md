@@ -59,6 +59,42 @@ issuing an EC-signed certificate. The leaf is pinned by SHA-256 fingerprint
 (published in the discovery file) rather than trusted via a CA chain, so this
 does not weaken the loopback-TLS control.
 
+The certificate (public) still lives on disk; the **private key** does not —
+see "Key storage" below (THREAT-MODEL T14).
+
+## Key storage (`keystore.ts`, C01b)
+
+`KeyStore` is the interface `cert.ts` uses to persist the loopback private key.
+`createDefaultKeyStore()` picks, per OS, the backend that keeps that key out of
+a plain file:
+
+| Platform | Backend           | Mechanism                                                                                     |
+| -------- | ------------------ | ---------------------------------------------------------------------------------------------- |
+| macOS    | `KeychainKeyStore`  | shells out to the `security` CLI (generic password item) — Apple's own tool, not an npm package |
+| Windows  | `DpapiKeyStore`     | shells out to `powershell.exe` calling `System.Security.Cryptography.ProtectedData` (DPAPI, `CurrentUser` scope), ciphertext cached in a file |
+| other    | `FileKeyStore`      | the original `0600` file, unchanged — the documented fallback                                  |
+
+No new native/npm dependency was added for this: a keychain client library is
+a native addon on every OS we ship, and a native addon has no stable path once
+`apps/bridge`'s esbuild bundle folds everything into one `dist/bundle.cjs` — so
+shelling out to a tool the OS itself already ships and maintains is the only
+approach that works inside the Node SEA binary. `createDefaultKeyStore()`
+probes its candidate once (a real save/load/delete round-trip) before trusting
+it, and falls back to `FileKeyStore` if the probe fails (headless CI runner, a
+locked-down PowerShell execution policy, etc.) — so the choice reflects what
+actually works on this machine, not just `os.platform()`.
+
+**Migration:** an install from before C01b has the private key sitting in
+`~/.aksharo/cert/leaf.key.pem` (mode `0600`). The first `loadOrCreateCertificate()`
+call after upgrading reads that file, saves it into the key store, and deletes
+the plaintext copy — the existing cert/fingerprint (and therefore existing
+pairings) survive the upgrade.
+
+Tests use `InMemoryKeyStore` exclusively — no test spawns `security` or
+PowerShell, real machine state is never touched. (Windows CI/dev runs of this
+package's own `vitest` suite do exercise `createDefaultKeyStore()`'s probe for
+real, since `platform() === "win32"` is true there.)
+
 ## Discovery file
 
 `~/.aksharo/bridge.json`, mode `0600`: `{port, certFingerprint, bearer, pid,
