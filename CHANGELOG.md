@@ -10,6 +10,26 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Fixed
 
+- **A05b — `onboardingSchema` rejected the multi-select onboarding answers.** Reported
+  by A13. `apps/api/src/users/users.dto.ts`'s `onboardingSchema` accepted only
+  `boolean | number | string` per `onboarding` value, so `PATCH /me` answered
+  `400 common/validation_failed` (`path: "onboarding.makes"`, `code: "invalid_union"`)
+  the moment either of onboarding steps 1–2 ("what you make", "languages you speak on
+  camera" — both multi-select per `03-architecture/08-ux-design-system.md`
+  §Onboarding) carried an answer, even though `CurrentUser.onboarding` /
+  `OnboardingProfile` in `packages/api-client` and the onboarding screen had agreed on
+  a `string[]` shape since A13 shipped. The value union now also accepts
+  `z.array(z.string().max(64)).max(32)`; record keys are still capped at 48 characters
+  each, and the record itself at 64 keys (up from 32, headroom for future onboarding
+  questions) — every other bound unchanged. New unit tests in `profile.service.test.ts`
+  cover an accepted array, one over the 32-element cap, one over the 64-character
+  element cap, and a nested object still refused either as a top-level value or inside
+  an array; a new `users-workspaces.e2e-spec.ts` case round-trips `makes`/`languages`
+  arrays through `PATCH /me` and `GET /me` against a real database.
+  `apps/web/e2e/auth.spec.ts`'s sign-up → onboarding → shell journey test is restored
+  to its original assertions — the "documented failure" workaround A13 left in a
+  comment in that file is gone.
+
 - **A16e — the CanvasKit backdrop blur is clipped to its bounds.** Reported by A20.
   `render-core` documents a `backdrop` blur as blurring what is already on the surface
   **inside `bounds`**, and `@montaj/render-skia-node` clips to honour that. The browser
@@ -67,6 +87,148 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     account, asserting `balance = Σ lots = Σ ledger ≥ 0` after every batch.
   - A11/A21/A22 (the intended `quote()` callers) had not landed when this WP was
     written; nothing there to switch over yet.
+
+- **B01 — api: billing core — `BillingProvider` (Razorpay + fake), plan
+  catalogue, checkout with the ₹15,000 UPI mandate rule, passes/top-ups,
+  idempotent signed webhooks with a subscription state machine, subscription
+  management and the renewal/dunning primitives.**
+  - **`BillingProvider`** (`billing/provider.ts`): `createCustomer`,
+    `createSubscription`, `createOrder`, `registerMandate`, `chargeRenewal`,
+    `cancelSubscription`, `refund`, `parseWebhook`, `listPaymentMethods`.
+    `FakeProvider` (in-memory, emits signed webhook fixtures) is what every
+    test in this work package runs against — there are no live Razorpay keys
+    in this environment; `RazorpayProvider` wraps the official `razorpay` SDK
+    and its call shapes are read from the SDK's own shipped source. The
+    factory (`providers/provider.factory.ts`) picks between them exactly as
+    `notify/mail/mail.factory.ts` does for `MAIL_PROVIDER`.
+  - **Checkout** (`POST /billing/checkout`): resolves the plan/currency/
+    interval price (`money.ts`), computes the mandate cap as the undiscounted
+    list price (D40), and refuses a UPI Autopay mandate above ₹15,000 with
+    `billing/mandate_cap_exceeded` and actionable `halfyear_upi`/`card_once`/
+    `enach` alternatives (D05). Refused with `billing/tax_profile_required`
+    until the workspace confirms its billing country (orchestrator addendum
+    after A04). `interval: "once"` and a `card` request above the cap both
+    create a one-time order with no mandate.
+  - **Passes and top-ups** (`POST /billing/passes/checkout`,
+    `POST /billing/topups/checkout`): one-time orders that grant credits
+    through `CreditsFacade.grantLot` on payment.
+  - **Webhooks** (`POST /billing/webhooks/razorpay`, THREAT-MODEL T16):
+    signature-verified, idempotent by an event id derived from the payload
+    (`billing_events`, new table via migration), amount/currency
+    cross-checked against the stored subscription/order and flagged +
+    audited on mismatch rather than applied. Drives the `subscriptions.status`
+    state machine (`pending → active → past_due → paused/cancelled/expired`
+    — `pending` is a new `SubscriptionStatus` value, additive migration),
+    invalidates the entitlement cache, writes `audit_log`.
+  - **Subscription management**: `GET /billing/subscription`, cancel (at
+    period end), resume, pause (once per 12 months), change-plan with a
+    proration preview (`GET .../change-preview`) and mandate re-registration
+    when the new cap exceeds the current one (D40), mandate list/revoke,
+    payment methods.
+  - **Renewal and dunning primitives** (`renewal.service.ts`, scheduler
+    wiring is B16's): `initiateRenewal` (pre-debit notice via `NotifyService`'s
+    `renewal-notice` template, ≥ 24h ahead), `handleDecline` (a
+    substring-matched dunning ladder — `dunning.ts` — offering a card/eNACH/
+    pay-once fallback per decline-code class), `graceExpiry` (3-day
+    entitlement grace, D40 invariant 7).
+  - **`CreditsFacade.grantLot`** (`credits/credits.facade.ts`) gained three
+    optional fields — `currency`, `amountMinor`, `invoiceId` — signature only;
+    `NoopCreditsFacade` (A08's file) is unchanged.
+  - Coverage on `apps/api/src/billing/**`: 86% lines / 75% branches (own
+    subset), against the CONTRACTS §9 threshold of 75/70.
+  - See `apps/api/src/billing/README.md` for the state machine diagram,
+    mandate rules as implemented, and open questions (Razorpay behaviours
+    that could not be verified without live keys).
+
+- **A11c — api: unify A11's and A07's completion-handler registries; bind
+  `CAPTION_RENDER_CONTEXT` (D78) to the bundled font pack.**
+  - A07 (`media.probe`) independently converged on the same `JobCompletionRegistry`
+    design as A11 — same interfaces, same "runs before the status flip" contract,
+    same `actualTenths` override. Merging `main` kept A07's `completion-handlers.ts`,
+    `jobs.service.ts`, `jobs.module.ts` and `job-events.service.ts` as the one
+    registry both `TranscribeCompletionHandler` and `MediaProbeCompletionHandler`
+    register against; `JOB_EVENT_NAMES` keeps both producers' domain events
+    (`job.completion_handler_failed` from A07, `transcript.postprocessed` from A11)
+    under the file's existing `job.*` lifecycle / `<domain>.<verb>` fact convention.
+  - **The fit half of D78 is live.** `apps/api/src/edg/init/caption-render-context.ts`
+    builds the `CaptionRenderContext` `TranscriptsModule` provides for
+    `CAPTION_RENDER_CONTEXT` from `@montaj/fonts/node`'s `loadPack()` (the bundled
+    open-licence pack, now that A18b is on `main`) and `@montaj/render-core`'s
+    `createHarfBuzzShaper`, built once per process and reused. `resolveBudgets()`
+    now measures the real Inter/Noto Sans faces and reports `source: "fit"` rather
+    than falling back to the readability cap.
+
+- **A11 — api: transcripts, post-processing, segmentation and the EDG hand-off.**
+  - **The worker stays stateless.** `ai.transcribe` completions carry
+    `result.chunks` already shaped like `transcript_chunks` (A09's
+    `processors/transcribe.py::_result`), and everything that turns them into a
+    project happens in one place: `TranscribeCompletionHandler`.
+  - **A per-job-type completion handler registry** in `apps/api/src/jobs/completion-handlers.ts`.
+    A08 owns the state machine — the conditional `UPDATE`, the settlement, the
+    dead letter, the realtime echo — and it is the same for every queue; what a
+    completion _means_ is not, so a queue's owner registers a handler at boot and
+    `jobs` never learns what a transcript is. Exactly one handler per queue; a
+    second is a boot-time error.
+  - **The handler runs before the status flip**, so a throw leaves the job
+    `running` and the worker's at-least-once retry re-drives it. The alternative
+    would make the first transient database error permanent, because the replay
+    would be answered `already_completed` before the handler was reached. Every
+    write is therefore idempotent: an upsert on the **producer-minted**
+    `transcriptId` that travels in the job payload, a delete-and-rewrite of the
+    revision's chunks and of the job's provider submissions, and A12's
+    `EdgService.initialise`, which is idempotent by project.
+  - **One transaction** for `transcripts` + `transcript_chunks` +
+    `provider_submissions` + the project's language and scripts. The EDG document
+    is deliberately outside it — A12's repository opens its own and Prisma cannot
+    nest one — in the safe order: the transcript exists before anything points at
+    it, and both halves converge on a retry.
+  - **Post-processing (`09 §3`)**, pure and table-tested across Roman Hinglish,
+    Devanagari and Tamil: ASR timings rounded to **integer milliseconds** at the
+    trust boundary and clamped into their chunk; speaker labels renumbered `s1…`
+    by first appearance in the media; **two-signal LID** (D14) combining the
+    provider's answer with the script the words are actually written in, so
+    Hindi in Roman letters is `hi-Latn` and both signals are stored;
+    punctuation from pauses ≥ 600 ms with a danda for Devanagari and capitals
+    only where a script has them; Indian numeral grouping (`ek lakh bees hazaar`
+    → `1,20,000`, `rupaye pachaas` → `₹50`) that refuses any run which does not
+    read as a number; glossary and remembered-spelling correction on a phonetic
+    key plus edit distance ≤ 2; and filler tagging from `fillers.json`, where a
+    contextual entry such as `toh` is tagged only when a pause brackets it.
+  - **The consent gate is the query.** `MemoryGlossarySource` reads
+    `memory_entries` only while the memory consent record is granted and
+    un-withdrawn and the entry is unexpired — there is no boolean a caller can
+    forget to pass. B09 writes those entries; A11 reads them.
+  - **Every change is logged.** Each step reports `{step, wordId, before, after,
+reason}`; the log is written to `job_events` as `transcript.postprocessed`
+    and returned by `GET /projects/{id}/transcript` as `postProcessing`.
+  - **Caption budgets (D78).** `maxChars = min(readability cap, fit cap,
+workspace preference)`, resolved per script from the project's canvas in
+    `src/edg/init/caption-budgets.ts` and recorded on
+    `EdgHot.meta.engineVersions.captionBudgets` so A15 can offer "Reflow
+    captions". The fit half calls A16d's `fitBudget` for real; it needs a font
+    registry and a shaper, which **A18b** registers, so until something binds
+    `CAPTION_RENDER_CONTEXT` the budget is the readability cap and says so
+    (`source: "readability"`). The call is covered through
+    `@montaj/render-core/testing`'s fixture renderer, so binding a registry is
+    the only change left. Landscape footage overrides an _untouched_ 9:16
+    default; a chosen aspect is never second-guessed.
+  - **Endpoints**, all behind `WorkspaceMemberGuard` with roles, and a project in
+    another workspace is a 404 (THREAT-MODEL T4, T5):
+    `POST /projects/{id}/transcribe` (quotes from the probed duration at 1 credit
+    a media minute, reserves, enqueues), `GET /projects/{id}/transcript` (paged
+    chunks), `GET /projects/{id}/transcript/export?format=json|srt|vtt|txt`
+    (**source time**; output-time exports are A21's), and
+    `POST /projects/{id}/transcript/retranscribe`, refused with
+    `transcript/has_edits` once the captions have been edited unless `force`.
+  - **The `/internal` JSON body limit is 32 MB** (`internal-body-limit.ts`),
+    because a 60-minute transcript is megabytes of words — with a test that posts
+    one. `/internal` only: that surface needs `INTERNAL_CALLBACK_SECRET`, and
+    raising the limit globally would let any anonymous request tie up 32 MB.
+  - **Widow rebalancing in `@montaj/edg`'s segmenter.** A forced break must not
+    leave one word alone in a caption when the caption before it can give up its
+    last word and both halves still fit; a speaker change and a full stop are
+    left alone, because a one-word caption after a full stop is the speaker's.
+    Goldens regenerated (`pnpm --filter @montaj/edg golden:build`).
 
 - **A18b — `@montaj/fonts`: the bundled open-licence catalogue, upload with licence
   attestation, validation/subsetting/WOFF2, and the `RENDER_FONT_DIR` v1 pack.**
@@ -241,19 +403,14 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     A08c has since fixed it (A12 reported the same thing independently), so the
     shell connects by default; `FEATURE_FLAGS_JSON={"realtime.enabled":false}`
     remains as a kill switch.
-  - **Found and reported, not fixed here (A05's files): `onboardingSchema`
-    rejects the multi-select answers this screen collects.**
-    `apps/api/src/users/users.dto.ts` accepts only `boolean | number | string`
-    per `onboarding` value; "what you make" and "languages you speak" are
-    `string[]` (multi-select, per `OnboardingProfile` and 08 §Onboarding), so
-    `PATCH /me` answers `400 common/validation_failed` on
-    `onboarding.makes`/`.languages` every time, not intermittently — confirmed
-    directly against the API, isolated to the array branch alone. The client
-    side is real and covered: the rejection surfaces as an honest toast instead
-    of a silent hang, and nothing typed is lost. `e2e/auth.spec.ts`'s journey
-    test asserts today's honest failure and says exactly where to restore the
-    original "lands in the shell" assertions once `onboardingSchema` gains an
-    array branch.
+  - `onboardingSchema` rejected the multi-select answers this screen collects
+    (found during this verification: `apps/api/src/users/users.dto.ts` accepted
+    only `boolean | number | string` per `onboarding` value, so `PATCH /me`
+    answered `400 common/validation_failed` on `onboarding.makes`/`.languages`
+    every time — outside `apps/web/**`, so reported rather than fixed here). A05b
+    has since fixed it: the schema gained the missing array branch, and
+    `e2e/auth.spec.ts`'s journey test is back to its original "lands in the
+    shell" assertions.
 - **A10c — the model-server alignment rung, and the stale-reference sweep after A26.**
   - `worker_ai/alignment/gpu.py`: `GpuCtcAligner`, `POST /align` on
     `apps/model-server`. It sits at rank 35 — **below** the two local CTC rungs,

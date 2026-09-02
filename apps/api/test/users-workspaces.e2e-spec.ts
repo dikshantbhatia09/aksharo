@@ -188,6 +188,33 @@ describe.skipIf(!available)("users, workspaces, consents and privacy (e2e)", () 
       expect(await auditActions()).toContain("user.profile.updated");
     });
 
+    it("round-trips multi-select onboarding answers (makes, languages) through GET /me", async () => {
+      // Onboarding steps 1-2 are multi-select by design (08 §Onboarding): the
+      // client sends `string[]` for `makes`/`languages`. A05B: `onboardingSchema`
+      // used to accept only boolean | number | string per value and answered
+      // `400 common/validation_failed` (`path: "onboarding.makes"`,
+      // `code: "invalid_union"`) the instant either question had an answer.
+      const user = await newUser("onboarding-multiselect");
+      const onboarding = {
+        makes: ["reels", "shorts"],
+        languages: ["hi-Latn", "en"],
+        source: "YouTube",
+      };
+
+      const patchResponse = await request(server)
+        .patch("/me")
+        .set("Authorization", auth(user))
+        .send({ onboarding })
+        .expect(200);
+      expect(patchResponse.body).toMatchObject({ onboarding });
+
+      const getResponse = await request(server)
+        .get("/me")
+        .set("Authorization", auth(user))
+        .expect(200);
+      expect(getResponse.body).toMatchObject({ onboarding });
+    });
+
     it("writes a consent record when the marketing opt-in changes", async () => {
       const user = await newUser("marketing");
       await request(server)

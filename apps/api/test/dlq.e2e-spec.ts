@@ -116,10 +116,17 @@ function callback(path: string, body: unknown, attemptId: string) {
 }
 
 let enqueued = 0;
+/**
+ * The queue is `ai.clean`, not `ai.transcribe`: this suite is about the
+ * dead-letter path and posts a generic completion, and since A11 `ai.transcribe`
+ * has an owner that validates its payload into `transcript_chunks` and refuses
+ * anything that is not a transcript. `ai.clean` is the same CONTRACTS §3 family
+ * with no handler registered against it.
+ */
 async function enqueue(worstCaseTenths = 100) {
   enqueued += 1;
   return jobs.enqueue({
-    type: "ai.transcribe",
+    type: "ai.clean",
     workspaceId: WORKSPACE,
     projectId: PROJECT,
     params: { mediaId: id("MEDA") },
@@ -299,7 +306,7 @@ describe.skipIf(!CAN_RUN)("dead-letter queue, end to end", () => {
 
     const entry = await prisma.dlqEntry.findFirstOrThrow({ where: { jobId: job.id } });
     expect(entry.status).toBe("pending");
-    expect(entry.queue).toBe("ai.transcribe");
+    expect(entry.queue).toBe("ai.clean");
     expect(entry.attempts).toBe(3);
     expect(entry.worstCaseTenths).toBe(120);
     expect(entry.lastError).toMatchObject({
@@ -319,7 +326,7 @@ describe.skipIf(!CAN_RUN)("dead-letter queue, end to end", () => {
 
     const response = await request(app.getHttpServer())
       .get("/admin/dlq")
-      .query({ queue: "ai.transcribe" })
+      .query({ queue: "ai.clean" })
       .set("Authorization", asAdmin())
       .expect(200);
     const entryId = (response.body as { items: { id: string; jobId: string }[] }).items.find(
@@ -335,7 +342,7 @@ describe.skipIf(!CAN_RUN)("dead-letter queue, end to end", () => {
     expect(attemptNo).toBe(4);
 
     // A REAL BullMQ job exists under the new attempt's id.
-    const queue = new Queue("ai.transcribe", { connection: redis, prefix: PREFIX });
+    const queue = new Queue("ai.clean", { connection: redis, prefix: PREFIX });
     try {
       const bull = await queue.getJob(bullJobId(job.id, attemptId));
       expect(bull).not.toBeUndefined();
@@ -407,7 +414,7 @@ describe.skipIf(!CAN_RUN)("dead-letter queue, end to end", () => {
       pending: number;
       queues: { queue: string; pending: number; oldestFailedAt: string | null }[];
     };
-    const transcribe = body.queues.find((row) => row.queue === "ai.transcribe");
+    const transcribe = body.queues.find((row) => row.queue === "ai.clean");
     expect(transcribe?.pending).toBeGreaterThan(0);
     expect(transcribe?.oldestFailedAt).toBeTypeOf("string");
   });
@@ -578,7 +585,7 @@ describe.skipIf(!CAN_RUN)("GET /internal/metrics", () => {
     expect(text).toContain("# TYPE montaj_dlq_depth gauge");
     expect(text).toContain("# TYPE montaj_job_queue_wait_ms histogram");
     expect(text).toContain("# TYPE montaj_queue_wait_duration_seconds histogram");
-    expect(text).toContain('montaj_jobs_failed_total{queue="ai.transcribe"}');
+    expect(text).toContain('montaj_jobs_failed_total{queue="ai.clean"}');
   });
 
   it("is not in the OpenAPI document: it is plumbing, not product API", async () => {

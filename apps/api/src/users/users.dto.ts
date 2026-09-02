@@ -28,10 +28,21 @@ const avatarUrlSchema = z
   .max(2048)
   .refine((value) => value.startsWith("https://"), "must be an https URL");
 
-/** Free-form onboarding progress; bounded so the JSONB column cannot be abused. */
+/**
+ * Free-form onboarding progress; bounded so the JSONB column cannot be abused.
+ *
+ * Onboarding steps 1-2 ("what you make", "languages you speak on camera") are
+ * multi-select (`03-architecture/08-ux-design-system.md` §Onboarding;
+ * `OnboardingProfile.makes`/`.languages` in `packages/api-client`), so a value
+ * is a scalar OR a bounded array of scalars — never a nested object, which
+ * would let the JSONB column grow without the limits below applying to it.
+ */
 export const onboardingSchema = z
-  .record(z.string().max(48), z.union([z.boolean(), z.number(), z.string().max(200)]))
-  .refine((value) => Object.keys(value).length <= 32, "at most 32 keys");
+  .record(
+    z.string().max(48),
+    z.union([z.boolean(), z.number(), z.string().max(200), z.array(z.string().max(64)).max(32)]),
+  )
+  .refine((value) => Object.keys(value).length <= 64, "at most 64 keys");
 
 export const updateProfileSchema = z
   .object({
