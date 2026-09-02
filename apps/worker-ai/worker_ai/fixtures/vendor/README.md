@@ -17,12 +17,12 @@ smoke tests" section lists what to check first on the day the keys arrive, and
 each adapter's module docstring states the wire contract it assumes so a
 correction is a single, obvious edit.
 
-| Directory | Vendor | What the session covers |
-| --- | --- | --- |
-| `elevenlabs/` | Scribe v2 | one `POST /v1/speech-to-text` with word timestamps and two speakers |
-| `elevenlabs-alignment/` | Forced Alignment | one `POST /v1/forced-alignment` |
-| `elevenlabs-rate-limited/` | Scribe v2 | a 429 with `Retry-After`, then success — the backoff path |
-| `sarvam/` | Saaras v4 Batch | init, blob upload, start, two polls, output download |
-| `sarvam-failed/` | Saaras v4 Batch | a job that reaches `Failed`, which must not be retried |
-| `assemblyai/` | Universal-2 | upload, submit, one `processing` poll, then `completed` |
-| `gpu-whisper/` | serverless GPU | one `POST /transcribe` (D15) |
+| Directory                  | Vendor           | What the session covers                                             |
+| -------------------------- | ---------------- | ------------------------------------------------------------------- |
+| `elevenlabs/`              | Scribe v2        | one `POST /v1/speech-to-text` with word timestamps and two speakers |
+| `elevenlabs-alignment/`    | Forced Alignment | one `POST /v1/forced-alignment`                                     |
+| `elevenlabs-rate-limited/` | Scribe v2        | a 429 with `Retry-After`, then success — the backoff path           |
+| `sarvam/`                  | Saaras v4 Batch  | init, blob upload, start, two polls, output download                |
+| `sarvam-failed/`           | Saaras v4 Batch  | a job that reaches `Failed`, which must not be retried              |
+| `assemblyai/`              | Universal-2      | upload, submit, one `processing` poll, then `completed`             |
+| `gpu-whisper/`             | serverless GPU   | one `POST /transcribe` (D15)                                        |
