@@ -8,6 +8,7 @@ import {
   type BillingEvent,
   type BillingProvider,
 } from "./provider.js";
+import { RefundsService } from "./refunds.service.js";
 import { RenewalService } from "./renewal.service.js";
 import { graceUntil, periodEnd, renewalInitiateAt } from "./schedule.js";
 import { AppException, PrismaService } from "../common/index.js";
@@ -52,6 +53,7 @@ export class WebhooksService {
     @Inject(CREDITS_FACADE) private readonly credits: CreditsFacade,
     private readonly audit: AuditService,
     private readonly renewal: RenewalService,
+    private readonly refunds: RefundsService,
   ) {}
 
   async handleRazorpay(rawBody: Buffer, signature: string): Promise<WebhookOutcome> {
@@ -420,7 +422,7 @@ export class WebhooksService {
     });
 
     if (pass.creditsGrantedTenths > 0) {
-      await this.credits.grantLot({
+      const granted = await this.credits.grantLot({
         workspaceId: pass.workspaceId,
         source: "pass",
         tenths: pass.creditsGrantedTenths,
@@ -429,6 +431,33 @@ export class WebhooksService {
         ...(event.currency === undefined ? {} : { currency: event.currency }),
         ...(event.amountMinor === undefined ? {} : { amountMinor: event.amountMinor }),
       });
+      // B01b: the lot a refund needs to claw back from (RefundsService).
+      // `passes_purchased.lot_id` has a real foreign key to `credit_lots`
+      // (schema.prisma), which the production `LedgerCreditsFacade` always
+      // satisfies -- it creates the row in the same transaction. Some test
+      // suites (this one included, see billing-harness.ts) bind
+      // `CREDITS_FACADE` to `NoopCreditsFacade` on purpose, whose `lotId` is
+      // a synthetic id with nothing behind it; storing that would violate
+      // the constraint for a reason that has nothing to do with billing's
+      // own logic, which is what this suite is actually testing. The lot
+      // link is bookkeeping for the (best-effort) credits clawback, not
+      // part of granting the credits itself, so a failure here is caught
+      // and logged rather than allowed to fail the whole webhook.
+      try {
+        await this.prisma.passPurchase.update({
+          where: { id: pass.id },
+          data: { lotId: granted.lotId },
+        });
+      } catch (error) {
+        this.logger.warn(
+          {
+            passPurchaseId: pass.id,
+            lotId: granted.lotId,
+            err: error instanceof Error ? error.message : String(error),
+          },
+          "could not record the credit lot on the pass purchase",
+        );
+      }
     }
 
     await this.audit.record({
@@ -456,25 +485,58 @@ export class WebhooksService {
     return outcome;
   }
 
+  /**
+   * Two shapes of refund reach this handler: a **subscription** payment (has
+   * a `payments` row, created by {@link recordPayment}) and a **pass/top-up**
+   * order (never gets a `payments` row — {@link grantPass} only ever writes
+   * `passes_purchased` — so it is resolved the same way {@link onOrderPaid}
+   * resolves one, by `providerOrderId`/notes).
+   *
+   * Subscription credits are granted by B02's periodic monthly-grant task
+   * (`credit-grant-reset.task.ts`), not by this webhook, so there is no
+   * B01-owned lot to claw back for a subscription refund — the payment is
+   * marked refunded and audited, and that is the whole of it. A pass/top-up
+   * refund goes through {@link RefundsService}, which is where the actual
+   * (currently inapplicable — see its class doc) clawback attempt lives.
+   */
   private async onPaymentRefunded(event: BillingEvent): Promise<"processed" | "ignored"> {
-    if (event.providerPaymentId === undefined) return "ignored";
-    const payment = await this.prisma.payment.findFirst({
-      where: { providerPaymentId: event.providerPaymentId },
-    });
-    if (payment === null) {
-      this.logger.warn({ eventId: event.eventId }, "refund for an unknown payment");
+    if (event.providerPaymentId !== undefined) {
+      const payment = await this.prisma.payment.findFirst({
+        where: { providerPaymentId: event.providerPaymentId },
+      });
+      if (payment !== null) {
+        const claimed = await this.prisma.payment.updateMany({
+          where: { id: payment.id, status: { not: "refunded" } },
+          data: { status: "refunded" },
+        });
+        if (claimed.count === 0) return "processed"; // already handled (idempotent)
+        await this.audit.record({
+          action: B01_AUDIT_ACTIONS.webhookProcessed,
+          resource: "payment",
+          resourceId: payment.id,
+          data: {
+            refunded: true,
+            creditsClawback: "not_applicable_subscription_payment_grants_are_periodic",
+          },
+        });
+        return "processed";
+      }
+    }
+
+    const passPurchaseId = event.notes?.["passPurchaseId"];
+    const orderId = event.providerOrderId;
+    const pass =
+      passPurchaseId !== undefined
+        ? await this.prisma.passPurchase.findUnique({ where: { id: passPurchaseId } })
+        : orderId !== undefined
+          ? await this.prisma.passPurchase.findFirst({ where: { providerOrderId: orderId } })
+          : null;
+    if (pass === null) {
+      this.logger.warn({ eventId: event.eventId }, "refund for an unknown payment, order or pass");
       return "ignored";
     }
-    await this.prisma.payment.update({ where: { id: payment.id }, data: { status: "refunded" } });
-    // No credit clawback here: `CreditsFacade` (CONTRACTS §4, frozen for Wave 1)
-    // exposes reserve/settle/release/grantLot only — nothing that reverses a
-    // lot. B02 owns that; see the README's open question.
-    await this.audit.record({
-      action: B01_AUDIT_ACTIONS.webhookProcessed,
-      resource: "payment",
-      resourceId: payment.id,
-      data: { refunded: true },
-    });
+
+    await this.refunds.clawbackPassPurchase(pass.id, `payment.refunded webhook (${event.eventId})`);
     return "processed";
   }
 
