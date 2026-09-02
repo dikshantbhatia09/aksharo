@@ -55,11 +55,16 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   - `@montaj/api-client`: the fetch layer and hooks on top of A04's generated
     operation index. Typed endpoint descriptors checked against that index by
     `contract.test.ts`, which fails both ways — a route that moved, and a route
-    marked `pending` that has since landed. The A05 surface (`/me`,
-    `/workspaces`, `/entitlement`, `/usage`, `/consents`, `/memory`) is declared
-    `pending` and raises `client/not_implemented` without a request, so the shell
-    renders honestly for the weeks between the two work packages instead of
-    showing an error state everyone learns to ignore.
+    marked `pending` that has since landed. A13 was written against a `pending`
+    stub for the whole A05 surface (`/me`, `/workspaces`, `/entitlement`,
+    `/usage`, `/consents`, `/memory`); A05 merged first, so `accountEndpoints`
+    (`/me`, `/workspaces`, `/workspaces/{id}/entitlement`, `/consents`) call the
+    real routes and `useCurrentUser`/`useWorkspaces`/`useEntitlement`/
+    `useConsents` no longer need a fallback. `/usage` (the credit ledger, B02)
+    and `/memory` (D62, B09) are still declared `pending` and raise
+    `client/not_implemented` without a request, so the shell renders honestly
+    for the weeks before those two work packages land instead of showing an
+    error state everyone learns to ignore.
   - The client owns the bearer header, the CONTRACTS §8 envelope and one
     single-flight refresh: ten parallel 401s cause one rotation. A 401 on a
     **public** route is a domain answer, not an expired session — refreshing
@@ -132,6 +137,19 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     A08c has since fixed it (A12 reported the same thing independently), so the
     shell connects by default; `FEATURE_FLAGS_JSON={"realtime.enabled":false}`
     remains as a kill switch.
+  - **Found and reported, not fixed here (A05's files): `onboardingSchema`
+    rejects the multi-select answers this screen collects.**
+    `apps/api/src/users/users.dto.ts` accepts only `boolean | number | string`
+    per `onboarding` value; "what you make" and "languages you speak" are
+    `string[]` (multi-select, per `OnboardingProfile` and 08 §Onboarding), so
+    `PATCH /me` answers `400 common/validation_failed` on
+    `onboarding.makes`/`.languages` every time, not intermittently — confirmed
+    directly against the API, isolated to the array branch alone. The client
+    side is real and covered: the rejection surfaces as an honest toast instead
+    of a silent hang, and nothing typed is lost. `e2e/auth.spec.ts`'s journey
+    test asserts today's honest failure and says exactly where to restore the
+    original "lands in the shell" assertions once `onboardingSchema` gains an
+    array branch.
 - **A10c — the model-server alignment rung, and the stale-reference sweep after A26.**
   - `worker_ai/alignment/gpu.py`: `GpuCtcAligner`, `POST /align` on
     `apps/model-server`. It sits at rank 35 — **below** the two local CTC rungs,

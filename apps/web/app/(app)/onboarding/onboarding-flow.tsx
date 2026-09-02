@@ -94,7 +94,7 @@ function writeDraft(draft: Draft): void {
   try {
     window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
   } catch {
-    // Storage disabled. The answers still reach the API when A05 lands.
+    // Storage disabled. `finish` still saves the answers through `PATCH /me`.
   }
 }
 
