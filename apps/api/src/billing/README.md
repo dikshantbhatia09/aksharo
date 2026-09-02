@@ -76,22 +76,23 @@ new one at the new cap.
 
 ## Endpoints (07 §Billing)
 
-| Method | Path                                   | Auth      | Notes                                                                                                                        |
-| ------ | -------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/billing/plans`                       | public    | INR + USD catalogue                                                                                                          |
-| POST   | `/billing/checkout`                    | admin     | `{planKey, interval, coupon?, seats?, method?}` → checkout payload or `409 billing/mandate_cap_exceeded` with `alternatives` |
-| POST   | `/billing/passes/checkout`             | admin     | `{kind: first_export\|week_pass\|pay_once, planKey?}`                                                                        |
-| POST   | `/billing/topups/checkout`             | admin     | `{credits}`                                                                                                                  |
-| POST   | `/billing/webhooks/razorpay`           | signature | idempotent by derived event id                                                                                               |
-| GET    | `/billing/subscription`                | viewer    | current subscription, or `null`                                                                                              |
-| POST   | `/billing/subscription/cancel`         | admin     | at period end                                                                                                                |
-| POST   | `/billing/subscription/resume`         | admin     | undoes cancel, or unpauses                                                                                                   |
-| POST   | `/billing/subscription/pause`          | admin     | once per 12 months                                                                                                           |
-| GET    | `/billing/subscription/change-preview` | viewer    | proration preview                                                                                                            |
-| POST   | `/billing/subscription/change-plan`    | admin     | applies the change; re-registers the mandate when needed                                                                     |
-| GET    | `/billing/mandates`                    | viewer    |                                                                                                                              |
-| POST   | `/billing/mandates/{mandateId}/revoke` | admin     | cancels the linked subscription too                                                                                          |
-| GET    | `/billing/payment-methods`             | viewer    |                                                                                                                              |
+| Method | Path                                      | Auth      | Notes                                                                                                                        |
+| ------ | ----------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/billing/plans`                          | public    | INR + USD catalogue                                                                                                          |
+| POST   | `/billing/checkout`                       | admin     | `{planKey, interval, coupon?, seats?, method?}` → checkout payload or `409 billing/mandate_cap_exceeded` with `alternatives` |
+| POST   | `/billing/passes/checkout`                | admin     | `{kind: first_export\|week_pass\|pay_once, planKey?}`                                                                        |
+| POST   | `/billing/topups/checkout`                | admin     | `{credits}`                                                                                                                  |
+| POST   | `/billing/webhooks/razorpay`              | signature | idempotent by derived event id                                                                                               |
+| GET    | `/billing/subscription`                   | viewer    | current subscription, or `null`                                                                                              |
+| POST   | `/billing/subscription/cancel`            | admin     | at period end                                                                                                                |
+| POST   | `/billing/subscription/resume`            | admin     | undoes cancel, or unpauses                                                                                                   |
+| POST   | `/billing/subscription/pause`             | admin     | once per 12 months                                                                                                           |
+| GET    | `/billing/subscription/change-preview`    | viewer    | proration preview                                                                                                            |
+| POST   | `/billing/subscription/change-plan`       | admin     | applies the change; re-registers the mandate when needed                                                                     |
+| GET    | `/billing/mandates`                       | viewer    |                                                                                                                              |
+| POST   | `/billing/mandates/{mandateId}/revoke`    | admin     | cancels the linked subscription too                                                                                          |
+| GET    | `/billing/payment-methods`                | viewer    |                                                                                                                              |
+| POST   | `/billing/passes/{passPurchaseId}/refund` | admin     | B01b: admin/API refund path -- calls the provider's refund API, attempts the credits clawback                                |
 
 None of these routes carry a workspace id in the path — like `/projects/*`,
 they are scoped through the access token via `WorkspaceMemberGuard`. **The
@@ -292,11 +293,13 @@ Flagged as an open question below rather than guessed silently.
    accepts an optional `coupon` field for forward API compatibility, but no
    discount is applied; the amount charged always equals the undiscounted
    list price today.
-5. **`payment.refunded` does not claw back credits.** `CreditsFacade`
-   (CONTRACTS §4, frozen for Wave 1) has no "reverse a lot" method — only
-   `reserve`/`settle`/`release`/`grantLot`. The refund is recorded on the
-   `payments` row and audited; the credit ledger is left untouched. B02 owns
-   the real ledger and the reversal semantics.
+5. **`payment.refunded` credits clawback (B01b): implemented, but blocked on
+   a primitive gap in `LedgerCreditsFacade`.** See "Credits clawback: an open
+   primitive gap" below — the short version is that `reverse()` requires a
+   `credit_holds` row (hard FK to `jobs`) that a grant-sourced lot never has,
+   so the attempt this work package makes is expected to fail every time,
+   caught, and turned into an audited `manual_action_required` outcome rather
+   than a crash or a silent no-op.
 6. **`chargeRenewal` against the live `RazorpayProvider` throws.** Razorpay
    auto-charges a registered recurring mandate on its own schedule; there is
    no publicly documented "charge this subscription now" call for a manual
@@ -305,6 +308,81 @@ Flagged as an open question below rather than guessed silently.
    catches and logs the failure rather than crashing the webhook path.
 7. **`event id` is derived from the webhook body**, not read from an
    `X-Razorpay-Event-Id` header — see "Open questions".
+
+## Credits clawback: an open primitive gap (B01b)
+
+The B01b follow-up asked for "`payment.refunded` (and refund via the
+admin/API path) claws back the credits granted by that payment through
+`CreditsFacade.reverse(...)`". This is implemented end to end —
+`refunds.service.ts`'s `RefundsService` — but the call to `reverse()` is
+expected to fail for every real pass/top-up refund in this codebase, and here
+is exactly why, so nobody has to re-derive it:
+
+- **`reverse()` refunds a _settled job_, not a _granted lot_.** Its doc
+  comment: "Refund a settled job: a new lot inheriting the original lot's
+  expiry, and a `reversal` ledger row" — this is 04 §Refunds & cancellation's
+  "a settled job with a bad artefact gets a reversal lot", i.e. compensating a
+  customer for bad _output_. It **adds** tenths to the balance. "Claw back
+  credits granted by a refunded payment" needs the opposite: **subtracting**
+  tenths a purchase granted.
+- **Its precondition cannot be satisfied by a grant.** `reverse()` looks up
+  `credit_holds` by `jobId` — a column with a hard foreign key to `jobs.id`.
+  `CreditsFacade.grantLot()` (what `webhooks.service.ts`'s `grantPass` calls
+  for every pass/top-up purchase) creates **only** a `credit_lots` row — never
+  a hold, never a job. There is no `jobId` a grant-sourced lot could ever
+  supply, real or synthetic (creating a fake `jobs` row to satisfy the FK
+  would pollute a table that represents actual queued work, and was rejected
+  as a workaround for that reason).
+- **Nothing else on `CreditsFacade`/`LedgerCreditsFacade` subtracts.**
+  `grantLot`'s `tenths` is asserted non-negative; `reserve()`/`settle()` have
+  the same `jobs.id` foreign key `reverse()` does. There is no
+  `revokeLot`/`adjust`-shaped method to reach for instead.
+
+**What this work package does given that:** `RefundsService.
+clawbackPassPurchase` resolves exactly which lot a purchase granted
+(`passes_purchased.lot_id`, now populated by `grantPass` — B01b), guards the
+whole operation with a compare-and-swap on `passes_purchased.refunded_at` so
+a replayed webhook or a repeated admin call is a clean no-op, calls
+`LedgerCreditsFacade.reverse()` exactly as instructed, and catches precisely
+`credits/reversal_source_not_found` (`CREDIT_ERROR_CODES.
+reversalSourceNotFound`) to record a fully detailed, clearly labelled
+`billing.credits.clawback_unavailable` audit row — never a crash, never a
+silently-dropped refund. `refunds.service.test.ts` also proves the success
+path works correctly (mocking `reverse()` to resolve), so if B02 ever adds a
+primitive this can call — a real `revokeLot(lotId, tenths, reason)` or a
+signed `adjust(workspaceId, deltaTenths, reason)` — the fix is one line in
+`clawbackPassPurchase`, not a rewrite.
+
+Subscription-renewal payment refunds are narrower still: B02's periodic
+`credit-grant-reset.task.ts` grants the monthly allowance on the billing
+anniversary, not per payment, so there is no B01-owned lot tied to a specific
+subscription `payments` row to begin with — `onPaymentRefunded` marks the
+payment `refunded` (idempotent, via a `status` compare-and-swap) and audits
+that no clawback applies, honestly, rather than pretending otherwise.
+
+**A second, smaller gap found while testing this (B01b):**
+`passes_purchased.lot_id` has a real foreign key to `credit_lots`, which the
+production `LedgerCreditsFacade` always satisfies (it creates the row in the
+same transaction as `grantLot`). This suite's own harness
+(`test/billing-harness.ts`) deliberately binds `CREDITS_FACADE` to
+`NoopCreditsFacade` for billing's tests — "this suite is about billing's own
+logic ... not on the ledger actually moving money" — whose `grantLot` returns
+a synthetic id with no row behind it. Storing that id on `passes_purchased.
+lot_id` violated the foreign key (Prisma `P2003`, mapped to a bare 409 by the
+shared `HttpExceptionFilter`) on every pass/top-up checkout in this suite,
+which had nothing to do with the clawback logic actually under test. Two
+fixes were possible: bind the real `LedgerCreditsFacade` in this harness (a
+bigger change, and against the harness's own stated purpose), or make the
+one write that needs a real lot tolerate a synthetic one. `grantPass`
+(`webhooks.service.ts`) now catches that specific write in a `try`/`catch` —
+the lot link is bookkeeping for a best-effort clawback, not part of granting
+the credits itself, so a failure to record it must not fail the webhook. The
+practical effect in this suite: `passes_purchased.lot_id` stays `null`, so
+the e2e clawback tests exercise `"nothing_to_claw_back"`, not
+`"manual_action_required"` — that branch (and the happy path, and the
+`reversalSourceNotFound` branch) is covered instead by
+`refunds.service.test.ts`, which mocks `LedgerCreditsFacade` directly and so
+is not affected by which facade the e2e harness binds.
 
 ## Open questions (Razorpay behaviours not verifiable without live keys)
 
