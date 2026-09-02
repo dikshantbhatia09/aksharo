@@ -79,6 +79,61 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A19c — browser export throughput: offscreen WebGL CanvasKit surface,
+  hardware-encoder capability probe, cloud-default policy above 1080p, 5ms
+  splice fades.** `packages/render-canvaskit`: `createExportSurface(ck,
+width, height)` — the export worker's off-screen counterpart to A16's
+  `createBrowserSurface`, trying an `OffscreenCanvas`-backed
+  `MakeWebGLCanvasSurface` first and falling back to the plain CPU raster
+  `MakeSurface` A19b used exclusively; both are Skia, proven equal by
+  `engine-parity.test.ts`'s new fallback-path check (Node has no
+  `OffscreenCanvas`, so the CPU fallback is what vitest exercises; the GPU
+  path is exercised for real by `apps/web/e2e/export.spec.ts`'s
+  `caption-surface-backend` annotation and by `render-canvaskit`'s own
+  browser e2e suite, which shares the same GPU-first/CPU-fallback logic).
+  `apps/web/lib/export/engine.ts` now allocates the caption layer through
+  `createExportSurface` and reports which backend ran
+  (`EngineResult.captionSurfaceBackend`). `apps/web/lib/export/probe.ts`:
+  `probeHardwareEncoder` — a dedicated `VideoEncoder.isConfigSupported`
+  check with `hardwareAcceleration: "prefer-hardware"` against the probe's
+  best H.264 rung, reported as `ExportCapabilityProbe.hardwareEncoder` /
+  `capabilities.hardwareEncoder`, `false` (not thrown) when the browser
+  answers `supported: false` or throws outright (observed in this sandbox).
+  `apps/api/src/exports/decision.ts`: an `auto` request at 1080p or larger
+  now defaults to the cloud when `capabilities.hardwareEncoder` is not
+  `true` (`SOFTWARE_ENCODER_CLOUD_DEFAULT_REASON`); an explicit `mode:
+"browser"` request still bypasses it, with a warned reason
+  (`SOFTWARE_ENCODER_BROWSER_WARNING`) carried in `reasons` for the dialog.
+  `apps/web/components/editor/export/ExportDialog.tsx` offers an "Export in
+  this browser anyway" button (BRAND-worded warned copy) on the cloud-offer
+  panel when this specific policy, not some other cloud reason, is why the
+  request landed there. `apps/web/e2e/export.spec.ts`'s throughput check is
+  now a _reported_ `realtime-multiplier`/`caption-surface-backend`
+  annotation on every run, with a hard ≥0.5x floor gated on
+  `capabilities.hardwareEncoder === true` only (this sandbox's headless
+  chromium has neither a hardware encoder nor a GPU context proven, so it
+  still only asserts forward progress — see `apps/web/lib/export/README.md`).
+  Audio: `applySpliceFades` applies a 5ms linear gain ramp at each join
+  `retainedSourceRangesMs` creates between two cut-separated retained
+  ranges (A19b left this unimplemented); the outer edges of the whole
+  track are never faded, only a join adjacent to a removed range.
+
+- **A19c (orchestrator addendum) — export dialog pre-selects B17's onboarding
+  export preset.** `apps/web/components/editor/export/onboarding-preset.ts`:
+  a small named-preset table (resolution + aspect + `RenderPreset`, e.g.
+  `reels-1080-vertical`, `youtube-1080`, `podcast-clip`) and
+  `resolveOnboardingExportPreset`, mapping B17's free-form
+  `me.onboarding.defaultExportPreset` label (`onboarding-flow.tsx`'s
+  `MAKE_DEFAULTS`: `reels`/`youtube`/`podcast-clip`/`client-review`/
+  `highlights`) onto one of the dialog's own `RenderPreset` values —
+  falling back to `reels-1080-vertical` when the field is absent or
+  unrecognised. `ExportDialog.tsx` applies it once, the first time
+  `useCurrentUser()` resolves, and never overwrites a manual preset choice.
+  `youtube` and `client-review` both want 16:9, but `@montaj/render-manifest`'s
+  frozen `RENDER_PRESETS` has no 1080p 16:9 entry — both fall back to
+  `youtube-4k` (the only 16:9 option) rather than inventing a preset value;
+  reported as an open gap.
+
 - **B09b — wired B09's three memory learning hooks to their real producers/consumers
   (A17/A02d timing nudge, the editor's spelling fix, and transcribe hints).**
   Web: `apps/web/lib/timeline/memory-nudge-sink.ts`'s `createMemoryNudgeSink` is
