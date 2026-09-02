@@ -8,6 +8,30 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A23b — a real Postgres 40P01 ("deadlock detected") in `auth-harness.ts`'s
+  `reset()`.** Several background writers the API starts inside a test app
+  outlive the HTTP request a test awaits: `AccessLogInterceptor` fires
+  `recordAccess` from a `tap()` that runs after the response has gone out, and
+  a plain `this.events.emit(...)` (`members.service.ts`'s
+  `MEMBERSHIP_SEAT_EVENTS.seatsChanged`, and the same pattern in `referrals`,
+  `invoices`, `webhooks`, `credits`, `exports`) starts an `@OnEvent` listener —
+  `SeatBillingListener` among them — without awaiting it. Either can still be
+  writing `access_logs`/`audit_log`/`subscriptions`/`credit_accounts` when the
+  next test's `beforeEach` truncates those tables, racing `TRUNCATE`'s
+  `AccessExclusiveLock` and occasionally losing to Postgres's own deadlock
+  detector. `test/auth-harness.ts` now patches (test-only, nothing under
+  `src/` changed) `EventEmitter2.prototype._on` and
+  `CommonAuditService.prototype.record`/`recordAccess` to track every such
+  write, and `reset()` drains them — alongside the existing `NotifyConsumer`
+  drain — before truncating, with a 40P01 retry (5 attempts, growing 150ms
+  backoff) as a last line of defence. Two new regression tests in
+  `users-workspaces.e2e-spec.ts` reproduce each race directly (a fire-and-forget
+  `recordAccess`, and a throwaway `EventEmitter2` listener) and assert `reset()`
+  waits for them. `scripts/verify-wave.mjs` and `docker-compose.test.yml` were
+  run end to end once on this host; see `docs/verification/verify-wave-2026-09-03.md`.
+
 ### Added
 
 - **C08 — DaVinci Resolve `aksharo_core`: Workspace ▸ Scripts launcher, in-Resolve
