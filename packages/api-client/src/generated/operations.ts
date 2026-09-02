@@ -509,6 +509,20 @@ export const API_OPERATIONS = [
     summary: "Readiness probe (db, redis, storage)",
   },
   {
+    operationId: "getStreak",
+    method: "GET",
+    path: "/streak",
+    tags: ["streak"],
+    summary: "This workspace's streak state",
+  },
+  {
+    operationId: "getStreakCohortMetrics",
+    method: "GET",
+    path: "/admin/metrics/streak",
+    tags: ["admin"],
+    summary: "Streak experiment vs holdout cohort metrics",
+  },
+  {
     operationId: "getSubscription",
     method: "GET",
     path: "/billing/subscription",
@@ -962,6 +976,13 @@ export const API_OPERATIONS = [
     path: "/offers/dev/simulate-nine-pass-payment",
     tags: ["offers"],
     summary: "Dev/test only: simulate a ₹9 pass payment landing (FakeProvider environments)",
+  },
+  {
+    operationId: "streakTestHooks",
+    method: "POST",
+    path: "/streak/test-hooks",
+    tags: ["streak"],
+    summary: "Simulate weeks (test environment only)",
   },
   {
     operationId: "TaxRegistrationsController_list",

@@ -54,6 +54,7 @@ import type {
   SessionSummary,
   SignUpRequest,
   SignUpResponse,
+  StreakView,
   StyleCatalogueEntry,
   StylePresetRequest,
   SubscriptionView,
@@ -413,6 +414,26 @@ export function useDecideDeviceApproval(): UseMutationResult<
 // --- Billing, credits, offers (B01/B02/B04) ---------------------------------
 
 /** The workspace's current subscription, or `null` with no plan on file. */
+/**
+ * B06's streak state (sidebar chip, Subscription widget). `eligible:false`
+ * means "render nothing" — the flag is off, the caller is a declared minor,
+ * or the workspace has not been assigned; a holdout workspace also answers
+ * with real state but MUST never be shown a reward (`nextRewardLabel` is
+ * still computed for it, so a consumer checks `holdout` explicitly, not just
+ * `eligible`, before rendering anything reward-shaped).
+ */
+export function useStreak(): UseQueryResult<StreakView> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.streak(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    staleTime: 60_000,
+    queryFn: () => client.call(endpoints.streak.getStreak),
+  });
+}
+
 export function useSubscription(): UseQueryResult<SubscriptionView | null> {
   const client = useApiClient();
   const workspaceId = useWorkspaceId();

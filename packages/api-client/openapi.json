@@ -9360,6 +9360,98 @@
         ]
       }
     },
+    "/admin/metrics/streak": {
+      "get": {
+        "description": "Week-4 retention and export frequency, per 04 §Streak rewards.",
+        "operationId": "getStreakCohortMetrics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Experiment vs holdout cohort metrics.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "experiment": {
+                      "type": "object",
+                      "properties": {
+                        "workspaces": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "week4RetentionPct": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "avgExportsPerWeek": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "workspaces",
+                        "week4RetentionPct",
+                        "avgExportsPerWeek"
+                      ]
+                    },
+                    "holdout": {
+                      "type": "object",
+                      "properties": {
+                        "workspaces": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "week4RetentionPct": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "avgExportsPerWeek": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "workspaces",
+                        "week4RetentionPct",
+                        "avgExportsPerWeek"
+                      ]
+                    },
+                    "generatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "experiment",
+                    "holdout",
+                    "generatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Streak experiment vs holdout cohort metrics",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/offers/eligibility": {
       "get": {
         "description": "Every amount is read from the same catalogue `/billing/passes/checkout` quotes from — the export dialog never hardcodes a price.",
@@ -13341,6 +13433,154 @@
         ]
       }
     },
+    "/streak": {
+      "get": {
+        "operationId": "getStreak",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Streak state; `eligible:false` when not assigned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "eligible": {
+                      "type": "boolean"
+                    },
+                    "holdout": {
+                      "type": "boolean"
+                    },
+                    "creditsOnly": {
+                      "type": "boolean"
+                    },
+                    "level": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 5
+                    },
+                    "publishDaysThisWeek": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "bar": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "paused": {
+                      "type": "boolean"
+                    },
+                    "freezesRemaining": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "consecutiveWeeks": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "weekWindowStart": {
+                      "type": "string"
+                    },
+                    "weekWindowEnd": {
+                      "type": "string"
+                    },
+                    "nextRewardLabel": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "discountPercent": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "creditGrantTenths": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "eligible",
+                    "holdout",
+                    "creditsOnly",
+                    "level",
+                    "publishDaysThisWeek",
+                    "bar",
+                    "paused",
+                    "freezesRemaining",
+                    "consecutiveWeeks",
+                    "weekWindowStart",
+                    "weekWindowEnd",
+                    "nextRewardLabel",
+                    "discountPercent",
+                    "creditGrantTenths"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "This workspace's streak state",
+        "tags": [
+          "streak"
+        ]
+      }
+    },
+    "/streak/test-hooks": {
+      "post": {
+        "operationId": "streakTestHooks",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publishDays": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 7
+                  },
+                  "rolloverWeek": {
+                    "type": "boolean"
+                  },
+                  "resetMonth": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "403": {
+            "description": "`common/forbidden` outside a test environment."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Simulate weeks (test environment only)",
+        "tags": [
+          "streak"
+        ]
+      }
+    },
     "/invoices": {
       "get": {
         "operationId": "InvoicesController_list",
@@ -13887,7 +14127,8 @@
               "renewal-notice",
               "low-credits",
               "export-ready",
-              "share-comment"
+              "share-comment",
+              "streak-nudge"
             ],
             "description": "What happened. The client renders its own wording per locale, so the row carries no text of its own."
           },

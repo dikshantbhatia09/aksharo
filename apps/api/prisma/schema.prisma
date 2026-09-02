@@ -2107,14 +2107,28 @@ model CreditLedger {
 model StreakExperiment {
   id               String   @id @db.Char(26)
   workspaceId      String   @unique @map("workspace_id") @db.Char(26)
+  /// When this workspace was assigned (holdout or experiment) — the anchor for
+  /// week-4 retention cohort metrics (`/admin/metrics/streak`).
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   level            Int      @default(1)
   weekWindowStart  DateTime @map("week_window_start") @db.Date
   /// Zod: `PublishDaysSchema` — the ISO dates counted in the current window.
   publishDays      Json     @default("[]") @map("publish_days") @db.JsonB
   consecutiveWeeks Int      @default(0) @map("consecutive_weeks")
   frozen           Int      @default(0)
+  /// Auto-freezes left this calendar month (D52: 2/month, consumed automatically).
+  freezesRemaining Int      @default(2) @map("freezes_remaining")
+  /// Calendar month (`YYYY-MM`) `freezesRemaining` was last reset for.
+  freezesMonth     String   @map("freezes_month")
+  /// `true` once a missed week with no freeze paused progression (no reset, no level change).
+  paused           Boolean  @default(false)
   /// Holdout arm, so the experiment can be measured against a control.
   holdout          Boolean  @default(false)
+  /// Free-plan workspaces run the credits-only variant (D52/D60): no discounts,
+  /// no yearly L4 start, just +5 credits after a two-week publish streak.
+  creditsOnly      Boolean  @default(false) @map("credits_only")
+  /// Stamped by the Tuesday-evening nudge task so a re-run this week is a no-op.
+  lastNudgeAt      DateTime? @map("last_nudge_at") @db.Timestamptz(6)
   updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

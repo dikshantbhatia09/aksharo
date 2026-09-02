@@ -14,7 +14,7 @@ import { EN_MESSAGES } from "./templates/messages.en.js";
 import { HI_MESSAGES } from "./templates/messages.hi.js";
 
 describe("the kind list", () => {
-  it("is the ten templates the brief names", () => {
+  it("is the templates the briefs name (B06 adds streak-nudge)", () => {
     expect([...NOTIFY_KINDS].sort()).toEqual([
       "device-approval",
       "export-ready",
@@ -25,6 +25,7 @@ describe("the kind list", () => {
       "password-changed",
       "renewal-notice",
       "share-comment",
+      "streak-nudge",
       "verify-email",
     ]);
   });

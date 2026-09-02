@@ -20,6 +20,7 @@ import { OffersModule } from "./offers/offers.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
+import { StreakModule } from "./streak/streak.module.js";
 import { StylesModule } from "./styles/styles.module.js";
 import { TaxModule } from "./tax/tax.module.js";
 import { ScriptsModule } from "./transcripts/scripts/scripts.module.js";
@@ -101,6 +102,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     HealthModule,
     BillingModule,
     OffersModule,
+    StreakModule,
     TaxModule,
     InvoicesModule,
   ],

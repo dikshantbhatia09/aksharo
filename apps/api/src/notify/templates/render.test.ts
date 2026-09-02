@@ -65,6 +65,12 @@ const DATA: Readonly<Record<NotifyKind, TemplateData>> = {
     count: 3,
     link: "https://app.example.test/p/01J/review",
   },
+  "streak-nudge": {
+    name: "Asha",
+    days: 1,
+    level: 2,
+    link: "https://app.example.test/billing",
+  },
 };
 
 const UNSUBSCRIBE = "https://app.example.test/settings/notifications";

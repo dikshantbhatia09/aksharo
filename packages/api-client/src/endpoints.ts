@@ -48,6 +48,7 @@ import type {
   SetConsentRequest,
   SignUpRequest,
   SignUpResponse,
+  StreakView,
   StyleCatalogueEntry,
   StylePresetRequest,
   SubscriptionView,
@@ -447,6 +448,16 @@ export const billingEndpoints = {
   }),
 } as const;
 
+/** The streak experiment (B06): sidebar chip and Subscription widget. */
+export const streakEndpoints = {
+  getStreak: defineEndpoint<void, StreakView>({
+    method: "GET",
+    path: "/streak",
+    auth: "bearer",
+    operationId: "getStreak",
+  }),
+} as const;
+
 /** Credits (B02) — only the balance summary; usage history is out of scope here. */
 export const creditsEndpoints = {
   getBalance: defineEndpoint<void, CreditsSummary>({
@@ -540,6 +551,7 @@ export const endpoints = {
   billing: billingEndpoints,
   credits: creditsEndpoints,
   offers: offersEndpoints,
+  streak: streakEndpoints,
   pending: pendingEndpoints,
 } as const;
 

@@ -140,6 +140,7 @@ export type {
   SetConsentRequest,
   SignUpRequest,
   SignUpResponse,
+  StreakView,
   StyleCatalogueEntry,
   StylePresetRequest,
   SubscriptionView,

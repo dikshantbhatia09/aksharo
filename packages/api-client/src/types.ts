@@ -601,6 +601,26 @@ export interface PassCheckoutResponse {
   creditsGrantedTenths: number;
 }
 
+/** `GET /streak` (B06). `eligible:false` when the flag is off, the caller is a
+ * declared minor, or the workspace is not otherwise in the experiment. */
+export interface StreakView {
+  eligible: boolean;
+  /** `true` for the holdout arm — the caller should still never render a reward for it. */
+  holdout: boolean;
+  creditsOnly: boolean;
+  level: number;
+  publishDaysThisWeek: number;
+  bar: number;
+  paused: boolean;
+  freezesRemaining: number;
+  consecutiveWeeks: number;
+  weekWindowStart: string;
+  weekWindowEnd: string;
+  nextRewardLabel: string | null;
+  discountPercent: number;
+  creditGrantTenths: number;
+}
+
 export interface SubscriptionView {
   id: string;
   planKey: PlanKey;
