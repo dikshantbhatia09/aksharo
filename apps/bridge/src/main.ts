@@ -28,7 +28,10 @@ async function main(): Promise<void> {
   const tray = await createNativeTray({
     log: (line) => log({ evt: "bridge.tray", line }),
   }).catch((error: unknown) => {
-    log({ evt: "bridge.tray_error", message: error instanceof Error ? error.message : String(error) });
+    log({
+      evt: "bridge.tray_error",
+      message: error instanceof Error ? error.message : String(error),
+    });
     return undefined;
   });
   if (tray === undefined) {

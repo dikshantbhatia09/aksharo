@@ -85,14 +85,14 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `BridgeCore` (`createStubBridgeAdapter` is kept for a "bridge disabled"
   caller). Documented interface gap: `approvePairing`'s `BridgePairResult`
   predates `bridge-core`'s actual protocol — a local/tray approval only
-  flips a pairing to `"approved"`; the pairing *client* mints its own
+  flips a pairing to `"approved"`; the pairing _client_ mints its own
   `clientId` by calling `pair.confirm` afterwards, so the approver never
   observes that id synchronously. `createBridgeAdapter` returns the
   `pairingId` in its place (documented, not the wire `clientId`) rather than
   inventing an unverified shape — flagged for whoever wires this into C02's
   UI. 12 new tests across the three packages (bridge-core: `keystore.test.ts`
-  + cert migration tests; apps/bridge: `native-tray.test.ts`; apps/desktop:
-  two new `createBridgeAdapter` cases), all suites green.
+  - cert migration tests; apps/bridge: `native-tray.test.ts`; apps/desktop:
+    two new `createBridgeAdapter` cases), all suites green.
 - **B20 — Passes tab, ProposalCard, bulk accept, timeline lanes; export application
   of accepted cuts/zoom/reframe through `@montaj/timemap` (browser + cloud).**
   - **Review UI** (`apps/web/components/editor/passes/**`): `PassesTab` (run-autocut

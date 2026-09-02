@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createNativeTray } from "./native-tray.js";
 
@@ -115,6 +115,89 @@ describe("createNativeTray", () => {
     fake.ready = () => Promise.reject(new Error("helper crashed"));
     const factory: SysTrayFactory = () => fake;
     const tray = await createNativeTray({ factory });
+    expect(tray).toBeUndefined();
+  });
+});
+
+describe("createNativeTray — no injected factory (real wiring paths)", () => {
+  const originalCi = process.env["CI"];
+
+  afterEach(() => {
+    vi.doUnmock("node:fs");
+    vi.resetModules();
+    if (originalCi === undefined) delete process.env["CI"];
+    else process.env["CI"] = originalCi;
+  });
+
+  it("skips entirely under CI, without ever touching the helper-binary check", async () => {
+    process.env["CI"] = "true";
+    const { createNativeTray: freshCreateNativeTray } = await import("./native-tray.js");
+    const tray = await freshCreateNativeTray({});
+    expect(tray).toBeUndefined();
+  });
+
+  it("resolves undefined when no traybin directory exists (packaged build missing dist/traybin)", async () => {
+    delete process.env["CI"];
+    vi.resetModules();
+    vi.doMock("node:fs", () => ({ existsSync: () => false }));
+    const { createNativeTray: freshCreateNativeTray } = await import("./native-tray.js");
+    const tray = await freshCreateNativeTray({});
+    expect(tray).toBeUndefined();
+  });
+});
+
+describe("createNativeTray — real systray2 import path (mocked)", () => {
+  afterEach(() => {
+    vi.doUnmock("node:fs");
+    vi.doUnmock("systray2");
+    vi.resetModules();
+    delete process.env["CI"];
+  });
+
+  it("constructs the tray via the real (mocked) systray2 default export", async () => {
+    delete process.env["CI"];
+    vi.resetModules();
+    vi.doMock("node:fs", () => ({ existsSync: () => true }));
+    vi.doMock("systray2", () => ({
+      default: class {
+        onReady() {
+          return undefined;
+        }
+        onClick() {
+          return Promise.resolve();
+        }
+        onError() {
+          return undefined;
+        }
+        onExit() {
+          return undefined;
+        }
+        sendAction() {
+          return Promise.resolve();
+        }
+        kill() {
+          return Promise.resolve();
+        }
+        ready() {
+          return Promise.resolve();
+        }
+      },
+    }));
+    const { createNativeTray: freshCreateNativeTray } = await import("./native-tray.js");
+    const tray = await freshCreateNativeTray({});
+    expect(tray).toBeDefined();
+    await tray?.close();
+  });
+
+  it("resolves undefined when importing systray2 itself throws", async () => {
+    delete process.env["CI"];
+    vi.resetModules();
+    vi.doMock("node:fs", () => ({ existsSync: () => true }));
+    vi.doMock("systray2", () => {
+      throw new Error("module load failed");
+    });
+    const { createNativeTray: freshCreateNativeTray } = await import("./native-tray.js");
+    const tray = await freshCreateNativeTray({});
     expect(tray).toBeUndefined();
   });
 });

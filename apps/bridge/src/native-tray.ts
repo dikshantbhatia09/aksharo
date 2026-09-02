@@ -41,7 +41,9 @@ export interface NativeTrayHandle extends TrayController {
 /** The subset of `systray2`'s API this module actually uses (for test injection). */
 export interface SysTrayLike {
   onReady(listener: () => void): unknown;
-  onClick(listener: (action: { item: { title: string }; seq_id: number }) => void): Promise<unknown>;
+  onClick(
+    listener: (action: { item: { title: string }; seq_id: number }) => void,
+  ): Promise<unknown>;
   onError(listener: (err: Error) => void): void;
   onExit(listener: (code: number | null, signal: string | null) => void): void;
   sendAction(action: unknown): Promise<unknown>;

@@ -68,11 +68,11 @@ see "Key storage" below (THREAT-MODEL T14).
 `createDefaultKeyStore()` picks, per OS, the backend that keeps that key out of
 a plain file:
 
-| Platform | Backend           | Mechanism                                                                                     |
-| -------- | ------------------ | ---------------------------------------------------------------------------------------------- |
-| macOS    | `KeychainKeyStore`  | shells out to the `security` CLI (generic password item) — Apple's own tool, not an npm package |
-| Windows  | `DpapiKeyStore`     | shells out to `powershell.exe` calling `System.Security.Cryptography.ProtectedData` (DPAPI, `CurrentUser` scope), ciphertext cached in a file |
-| other    | `FileKeyStore`      | the original `0600` file, unchanged — the documented fallback                                  |
+| Platform | Backend            | Mechanism                                                                                                                                     |
+| -------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| macOS    | `KeychainKeyStore` | shells out to the `security` CLI (generic password item) — Apple's own tool, not an npm package                                               |
+| Windows  | `DpapiKeyStore`    | shells out to `powershell.exe` calling `System.Security.Cryptography.ProtectedData` (DPAPI, `CurrentUser` scope), ciphertext cached in a file |
+| other    | `FileKeyStore`     | the original `0600` file, unchanged — the documented fallback                                                                                 |
 
 No new native/npm dependency was added for this: a keychain client library is
 a native addon on every OS we ship, and a native addon has no stable path once

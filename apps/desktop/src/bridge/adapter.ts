@@ -117,8 +117,7 @@ export function createBridgeAdapter(options: CreateBridgeAdapterOptions = {}): B
   const pairedClients: BridgePairedClient[] = [];
   let status: BridgeStatusEvent = { status: "stopped", pairedClients: [] };
   let pending:
-    | { pairing: PendingPairing; resolve: (decision: "approved" | "denied") => void }
-    | undefined;
+    { pairing: PendingPairing; resolve: (decision: "approved" | "denied") => void } | undefined;
 
   function emit(next: Partial<BridgeStatusEvent>): void {
     status = { ...status, pairedClients: [...pairedClients], ...next };
