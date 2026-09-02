@@ -23,6 +23,7 @@ import type {
   MemoryEntry,
   OAuthCompleteRequest,
   PendingApproval,
+  PlanCatalogueEntry,
   RightsRequest,
   SessionSummary,
   SetConsentRequest,
@@ -180,6 +181,16 @@ export const accountEndpoints = {
 } as const;
 
 /** Jobs (A08) — the shell needs them for `JobProgress` and the realtime resync. */
+/** Billing (B01). Public — the plan catalogue needs no session (07 §Billing). */
+export const billingEndpoints = {
+  listPlans: defineEndpoint<void, PlanCatalogueEntry[]>({
+    method: "GET",
+    path: "/billing/plans",
+    auth: "public",
+    operationId: "listPlans",
+  }),
+} as const;
+
 export const jobEndpoints = {
   get: defineEndpoint<void, { id: string; status: string; progress?: number; etaMs?: number }>({
     method: "GET",
@@ -228,6 +239,7 @@ export const endpoints = {
   device: deviceEndpoints,
   account: accountEndpoints,
   jobs: jobEndpoints,
+  billing: billingEndpoints,
   pending: pendingEndpoints,
 } as const;
 
@@ -237,5 +249,6 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(deviceEndpoints),
   ...Object.entries(accountEndpoints),
   ...Object.entries(jobEndpoints),
+  ...Object.entries(billingEndpoints),
   ...Object.entries(pendingEndpoints),
 ] as const;

@@ -52,6 +52,22 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A24b — the pricing page now fetches B01's live `GET /billing/plans`.** Follow-up
+  to A24, once B01 shipped the endpoint. `content/site/pricing-live.ts` calls it through
+  `@montaj/api-client` (a plain `ApiClient` — the route is public, no session needed),
+  with Next.js ISR (`next: { revalidate: 300 }`) rather than a fetch on every request; the
+  server component (`pricing/page.tsx`) resolves the catalogue before rendering and hands
+  it to the client component as props. `content/site/pricing-data.ts`'s
+  `FALLBACK_PLAN_CATALOGUE` is kept as the fallback for when the API is unreachable — never
+  throws, logs a warning and serves the static mirror instead, exercised automatically by
+  any build that runs without the API up (a bare `pnpm --filter @montaj/web build`).
+  `packages/api-client` gained the one missing piece: a `billingEndpoints.listPlans`
+  descriptor and a `PlanCatalogueEntry` type (B01 had only regenerated the OpenAPI
+  operation index, not this hand-written layer) — outside A24's original file boundary,
+  touched here on the coordinator's explicit instruction. A new pricing e2e test fetches
+  `GET /billing/plans` from the suite's own API instance and asserts every rendered plan
+  card's price equals it exactly.
+
 - **B01 — api: billing core — `BillingProvider` (Razorpay + fake), plan
   catalogue, checkout with the ₹15,000 UPI mandate rule, passes/top-ups,
   idempotent signed webhooks with a subscription state machine, subscription
