@@ -145,6 +145,13 @@ export const API_OPERATIONS = [
     summary: "Change a member's role",
   },
   {
+    operationId: "completeExportManifest",
+    method: "POST",
+    path: "/exports/manifests/{manifestId}/complete",
+    tags: ["exports"],
+    summary: "Close a browser export: single-use nonce, marks the export succeeded",
+  },
+  {
     operationId: "completeFontUpload",
     method: "POST",
     path: "/workspaces/{id}/fonts/{fontId}/complete",
@@ -171,6 +178,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/media/{mediaId}/complete",
     tags: ["media"],
     summary: "Finish an upload (project-scoped form)",
+  },
+  {
+    operationId: "createBrandAsset",
+    method: "POST",
+    path: "/workspaces/{id}/brand-assets",
+    tags: ["exports"],
+    summary: "Start uploading a brand asset (watermark or logo PNG)",
   },
   {
     operationId: "createCheckout",
@@ -220,6 +234,13 @@ export const API_OPERATIONS = [
     path: "/invitations/{id}",
     tags: ["invitations"],
     summary: "Decline an invitation",
+  },
+  {
+    operationId: "deleteBrandAsset",
+    method: "DELETE",
+    path: "/workspaces/{id}/brand-assets/{assetId}",
+    tags: ["exports"],
+    summary: "Delete a brand asset",
   },
   {
     operationId: "deleteFolder",
@@ -348,6 +369,13 @@ export const API_OPERATIONS = [
     summary: "Per-queue dead-letter counts",
   },
   {
+    operationId: "getExportDownloadUrl",
+    method: "GET",
+    path: "/exports/{exportId}/download",
+    tags: ["exports"],
+    summary: "A short-lived signed download URL",
+  },
+  {
     operationId: "getFolder",
     method: "GET",
     path: "/folders/{folderId}",
@@ -446,6 +474,13 @@ export const API_OPERATIONS = [
     summary: "One workspace",
   },
   {
+    operationId: "getWorkspaceCredits",
+    method: "GET",
+    path: "/workspaces/{id}/credits",
+    tags: ["credits"],
+    summary: "Balance, next grant reset, and live lots",
+  },
+  {
     operationId: "getWorkspaceEntitlement",
     method: "GET",
     path: "/workspaces/{id}/entitlement",
@@ -472,6 +507,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/fonts/{fontId}/url",
     tags: ["fonts"],
     summary: "Signed URLs for one font's bytes",
+  },
+  {
+    operationId: "getWorkspaceUsage",
+    method: "GET",
+    path: "/workspaces/{id}/usage",
+    tags: ["credits"],
+    summary: "Ledger history, newest first",
   },
   {
     operationId: "handleRazorpayWebhook",
@@ -528,6 +570,13 @@ export const API_OPERATIONS = [
     path: "/invoices",
     tags: ["invoices"],
     summary: "List the caller's workspace's invoices, most recent first.",
+  },
+  {
+    operationId: "listBrandAssets",
+    method: "GET",
+    path: "/workspaces/{id}/brand-assets",
+    tags: ["exports"],
+    summary: "List a workspace's brand assets",
   },
   {
     operationId: "listDeadLetters",
@@ -614,6 +663,13 @@ export const API_OPERATIONS = [
     summary: "List your notifications, newest first",
   },
   {
+    operationId: "listOrphanedCreditHolds",
+    method: "GET",
+    path: "/admin/credits/orphaned-holds",
+    tags: ["admin"],
+    summary: "Holds still `held` whose job has already reached a terminal status",
+  },
+  {
     operationId: "listParentalWaitlist",
     method: "GET",
     path: "/admin/parental-waitlist",
@@ -633,6 +689,13 @@ export const API_OPERATIONS = [
     path: "/billing/plans",
     tags: ["billing"],
     summary: "The public plan catalogue (INR and USD)",
+  },
+  {
+    operationId: "listProjectExports",
+    method: "GET",
+    path: "/projects/{projectId}/exports",
+    tags: ["exports"],
+    summary: "List a project's exports",
   },
   {
     operationId: "listProjectMedia",
@@ -712,6 +775,20 @@ export const API_OPERATIONS = [
     summary: "Proration preview for a plan/interval/seat change",
   },
   {
+    operationId: "reconcileAllCreditAccounts",
+    method: "GET",
+    path: "/admin/credits/reconcile",
+    tags: ["admin"],
+    summary: "Reconcile every credit account (06 invariant 1)",
+  },
+  {
+    operationId: "reconcileCreditAccount",
+    method: "GET",
+    path: "/admin/credits/reconcile/{accountId}",
+    tags: ["admin"],
+    summary: "Reconcile one credit account",
+  },
+  {
     operationId: "removeWorkspaceMember",
     method: "DELETE",
     path: "/workspaces/{id}/members/{membershipId}",
@@ -740,6 +817,13 @@ export const API_OPERATIONS = [
     summary: "Replay many dead letters",
   },
   {
+    operationId: "requestExport",
+    method: "POST",
+    path: "/projects/{projectId}/exports",
+    tags: ["exports"],
+    summary: "Request an export: decides browser vs. cloud and issues a signed manifest or a job",
+  },
+  {
     operationId: "requestMyData",
     method: "GET",
     path: "/me/data",
@@ -752,6 +836,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/edg/resegment",
     tags: ["edg"],
     summary: "Re-run segmentation over the whole document",
+  },
+  {
+    operationId: "resolveOrphanedCreditHolds",
+    method: "POST",
+    path: "/admin/credits/orphaned-holds/resolve",
+    tags: ["admin"],
+    summary: "Settle or release orphaned holds per their job's outcome",
   },
   {
     operationId: "restoreEdgSnapshot",
