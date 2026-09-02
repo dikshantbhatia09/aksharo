@@ -17,6 +17,10 @@ export const JOB_EVENT_NAMES = [
   "job.timed_out",
   "job.child_enqueued",
   "job.dead_lettered",
+  /** An admin sent a dead letter back to its queue with a fresh attempt (A08b). */
+  "job.replayed",
+  /** An admin gave up on a dead letter and released its hold (A08b). */
+  "job.dlq_discarded",
 ] as const;
 
 export type JobEventName = (typeof JOB_EVENT_NAMES)[number];

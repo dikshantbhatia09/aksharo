@@ -63,11 +63,165 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   - `apps/worker-ai/Dockerfile` (CPU: ffmpeg, onnxruntime, faster-whisper and the
     Silero model baked in) and `Dockerfile.gpu`, a placeholder documenting the
     serverless-GPU image contract of D15.
-  - Tests: 298 unit and property tests with the CONTRACTS section 9 coverage gate,
+  - `worker_ai/policies.py`: A08b's retry, stall and heartbeat table, mirrored from
+    `apps/api/src/jobs/jobs.config.ts` and pinned by a parity test that parses the
+    TypeScript. `attempts` and `backoff` reach the worker inside the job options,
+    but `lockDurationMs`, `stalledIntervalMs` and `maxStalledCount` are `Worker`
+    constructor options a worker has to read — and **the progress callback is the
+    heartbeat**, so `JobContext.heartbeat()` reposts the last percentage every
+    third of the lock and `ai.transcribe` beats while a chunk is inside a provider.
+    Without it a ten-minute chunk on a two-minute lock would be declared stalled
+    and handed to a second worker mid-transcription.
+  - Tests: 321 unit and property tests with the CONTRACTS section 9 coverage gate,
     a callback suite verified against a server that implements the section 3
     signature, and `tests/test_integration.py` — a real BullMQ job from the API's
     own producer modules, consumed by a real worker, completing against the real
     API (`RUN_INTEGRATION=1`).
+- **A08b — api: dead-letter queue, admin replay, retry/stall policy, job-event
+  retention.**
+  - `apps/api/prisma`: the `dlq` table (migration
+    `20260902030000_a08b_dlq_replay`) — one row per attempt that exhausted its
+    retry budget, carrying the queue, the payload, the last error, the attempt
+    ordinal and the credit hold a replay has to reserve again — plus
+    `jobs.dlq` / `dlq_reason` / `dlq_at` / `attempt_no` and `users.is_admin`. The
+    migration **backfills** from the `job.dead_lettered` events A08 wrote when
+    there was nowhere else to put them, so no dead letter is lost.
+  - `apps/api/src/jobs/dlq.service.ts`: the dead-letter path. The copy is taken
+    from the job row *before* the completion update, so it remembers the hold, and
+    it is idempotent on `(jobId, attemptId)` so an at-least-once callback writes
+    one row. **Replay** claims the entry with a conditional update (two admins,
+    one replay), reuses the same `jobs` row, mints a fresh `attemptId` and
+    increments `attempt_no` — which makes the old attempt's late callback a
+    `stale_attempt` no-op (THREAT-MODEL T8) — reserves credits again through the
+    facade, and adds the BullMQ job last, so every earlier failure unwinds with
+    nothing enqueued. **Discard** releases the hold and records a mandatory reason.
+  - `apps/api/src/admin`: `AdminGuard`, which reads `users.is_admin` from the
+    database on every request rather than from a token claim, so revoking an admin
+    takes effect at once; and `GET /admin/dlq`, `/admin/dlq/stats`,
+    `/admin/dlq/{id}`, `POST /admin/dlq/{id}/replay`, `/{id}/discard` and the bulk
+    `/admin/dlq/replay` and `/admin/dlq/discard`, which **dry-run by default**.
+    Every replay and discard writes an `audit_log` row (THREAT-MODEL T20); a
+    non-admin is 403.
+  - **Retry and stall policy per queue** (`jobs.config.ts`): attempts (media 3,
+    ai 2, render 2, notify 5), exponential backoff **with jitter** — an
+    un-jittered backoff retries a whole outage into the same dead provider at the
+    same millisecond — and lock durations and stall intervals tuned per queue,
+    with ten minutes on `ai.transcribe`, `ai.diarise` and `render.video`.
+    `heartbeatIntervalMs()` is a third of the lock, and the heartbeat is the
+    existing progress callback.
+  - **Job-event retention** (D47): `jobs.event-retention`, nightly, deletes rows
+    past their own `data.retainUntil` in batches, falling back to `at` for rows
+    written before the marker existed. `dlq` rows are never purged.
+  - **Metrics** and `GET /internal/metrics`, a Prometheus exposition rendered from
+    an in-process registry that also mirrors into the OpenTelemetry metrics API.
+    Names follow `infra/observability/METRICS.md` — `montaj_job_completed_total`,
+    `montaj_queue_dlq_depth`, `montaj_queue_wait_duration_seconds`,
+    `montaj_job_attempts`, `montaj_dlq_resolved_total` — with the A08b brief's
+    `montaj_jobs_failed_total`, `montaj_dlq_depth` and `montaj_job_queue_wait_ms`
+    emitted as aliases of the same data, because the shipped dashboards and the
+    `MontajDlqNonEmpty` / `MontajDlqGrowing` rules query the METRICS.md names.
+  - `tools/runbooks/dlq-replay.js`: `stats`, `list`, `show`, `replay` and
+    `discard` against the admin API — not against Postgres, because the policy a
+    replay has to honour lives in `DlqService`. `replay` and `discard` are dry runs
+    unless `--confirm`, and refuse to run with no target.
+    `docs/runbooks/dlq-replay.md` is rewritten around the real commands.
+  - New optional environment variable `MONTAJ_METRICS_TOKEN` (non-contract): when
+    set, `GET /internal/metrics` requires it as a bearer token.
+
+- **A02b — `@montaj/edg` ops engine: apply, rebase, segmenter, snapshots, migrations.**
+  - `@montaj/edg/ops`: `EdgState` (hot document, segments by id in `seq` order,
+    passes and items, the transcript word index, tombstones and a 10,000-entry
+    `opId` idempotency window) with `fromProjection`/`toProjection`, and
+    `applyOps(state, ops, ctx)` implementing all 16 ops of CONTRACTS section 2.
+    Pure TypeScript with no database access, so the API module (A12) and the
+    browser client run the identical code; per-op atomic, so one rejected op never
+    rolls back the rest of a batch; `toProjection` is canonical, so two clients
+    that applied the same commuting ops in a different order serialise the same
+    bytes.
+  - `@montaj/edg/ops`: `rebaseOps(incoming, opsSince)` — the D29 transform table.
+    Last writer wins per `(target, field)` for the scalar fields; a `Resegment`
+    since the base revision invalidates segment-addressed ops but keeps
+    word-level ones; a word deleted since the base makes any op naming it
+    `stale`; a concurrent edit of the same text — `EditWord` on one word,
+    `SetSegmentText` on one `(segment, script)` — is a `conflict` rather than a
+    silent drop, so the 409 carries both texts and the client resolves it;
+    segments merged away are remapped onto the segment that swallowed them where
+    the op still means something, and a `MergeSegments` list grows the children
+    of any segment split since the base. It reads only ops, never the document.
+  - `MergeSegments` spans the outermost words of the segments it joins rather
+    than the first and last segment's own ends: `seq` decides what shows when and a
+    client may set bounds that do not follow the transcript, so taking the ends on
+    trust could leave a caption whose range ran backwards. Found by the projection
+    property, not by a hand-written case.
+  - `@montaj/edg/ops`: `snapshot`/`restore`/`replay` over `EdgSnapshotSchema`
+    (`{schemaVersion: 2, projection, chunks?}`), and the types-only
+    `EdgRepository` (`loadHot`, `loadSegments`, `loadItems`, `appendRevision`
+    returning either the new revision or `{latestRevision, opsSince}`,
+    `snapshotEvery = 100`) that A12 implements.
+  - `@montaj/edg/segmenter`: `segmentWords` with the script-aware limits of
+    `09 §3` — Latin 32 characters a line at 20 CPS, Devanagari 24 at 15, Tamil 22
+    at 15, anything else 26 at 15 — detected per word by Unicode block, with
+    speaker-change and sentence breaks, a 150 ms minimum breakable pause, 700 to
+    6,000 ms captions and a merge pass that absorbs anything shorter. Deterministic
+    by construction.
+  - `@montaj/edg/migrations`: `migrate(snapshot, targetVersion)` with a registered
+    `v1` to `v2` step that turns v1's flat word array and index-addressed
+    `wordRange: [i, j]` segments into `transcript_chunks` with stable word ids,
+    deriving the chunk index from the cumulative `chunkSizes` v1 stored (or from
+    10-minute windows when it did not), preserving segment texts and timings.
+  - Fixtures: `fixtures/segmenter-golden.json` (Roman Hinglish, Devanagari Hindi
+    and Tamil, with the wrapped lines and their character counts so the limits can
+    be reviewed by eye, regenerated by `pnpm --filter @montaj/edg golden:build`)
+    and `fixtures/legacy-v1-document.json` for the migration test.
+  - 253 tests at 98.9% lines and 92.9% branches, over the CONTRACTS section 9 gate
+    of 90/85: a table-driven case per op (happy path and every rejection reason),
+    the transform table case by case, and eleven fast-check properties — a batch
+    that fully applied leaves the document untouched when it arrives twice and a
+    replay never re-applies what already landed, commuting ops converge whatever
+    the order, `validateProjection` holds after any random op sequence, `rebaseOps`
+    never produces an op naming a tombstoned id and never drops a caption-text
+    edit silently, and the segmenter covers every live word exactly once inside
+    its limits, deterministically. Benchmarks: 1,000 ops on a 9,000-segment
+    document in ~20 ms (budget 200 ms) and 54,000 words segmented in ~205 ms
+    (budget 500 ms).
+
+- **A04 — api: auth (email/password, Google PKCE, magic link, refresh families,
+  device grant, token exchange, sessions).**
+  - `apps/api/src/auth/`: sign-up with the D60 age gate (India under 18 and the EU
+    under 16 are refused with `auth/age_restricted` and offered a parental-consent
+    waitlist) and per-purpose consent written into `consent_records`; email
+    verification and magic links as single-use Redis tokens; login over argon2id
+    (64 MiB, t=3, p=1) with a feature-flagged, fail-open breached-password check
+    against HIBP's k-anonymity range API; Google sign-in with PKCE, a single-use
+    state entry and a handoff code so no token ever rides in a redirect URL, plus
+    the https `/auth/desktop-landing` page that triggers the deep-link scheme for
+    desktop and panel clients; the RFC 8628 device grant with an 8-character
+    unambiguous user code, a 10-minute TTL, a five-per-address cap on flows in
+    flight, a server-enforced poll interval and an approval screen naming the host
+    application, the device, the address and a coarse location; RS256 access
+    tokens carrying exactly the CONTRACTS section 5 claims; refresh-token families
+    rotated in place with a 60-second grace that replays the same pair, and reuse
+    outside the window revoking the whole family and auditing it; workspace token
+    exchange, session listing and session revocation.
+  - `apps/api/src/common/guards/`: `JwtAuthGuard`, `RolesGuard`, `ApiKeyGuard`
+    (B14 issues the keys; the guard and the scope check ship now), `@Public()`,
+    `@Roles()`, `@CurrentUser()`, `@CurrentWorkspace()`, and a Redis token-bucket
+    rate limiter behind `@RateLimit(...)` that answers 429 with `Retry-After`.
+  - `apps/api/src/users/`: the minimal accounts surface auth needs — create a user
+    with a personal workspace, an owner membership and the consent rows in one
+    transaction, look one up, and answer membership questions.
+  - `pnpm gen:client` regenerates `packages/api-client/openapi.json` and
+    `src/generated/operations.ts` from the API's own OpenAPI document.
+  - `TRUST_PROXY` (local process setting, not part of CONTRACTS section 1): the API
+    reads the client address from `X-Forwarded-For` only when it is `1`, so per-IP
+    rate limits cannot be side-stepped by setting the header.
+  - Tests: 53 e2e cases against a real PostgreSQL and Redis (testcontainers) plus
+    unit suites for the token service, the password policy, the guards, the age
+    gate and the token primitives. THREAT-MODEL T1–T4 are mapped to evidence in
+    `apps/api/src/auth/README.md`.
+  - Fixed `apps/api/vitest.config.ts`: `mergeConfig` takes two configs and a
+    boolean, so the four-argument call had been silently dropping the CONTRACTS
+    section 9 coverage gate and the exclude list.
 
 - **A08 — api: jobs module, realtime gateway, idempotent completion callbacks,
   no-op `CreditsFacade`, admission control.**
@@ -110,6 +264,17 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   - New optional environment variables: `INTERNAL_CALLBACK_SECRET_NEXT`
     (CONTRACTS section 1, rotation), and the non-contract `MONTAJ_QUEUE_PREFIX`
     (defaults to BullMQ's own `bull`) and `MONTAJ_SCHEDULER_DISABLED`.
+- **A03c — api: `PassStatus.succeeded` becomes `ready`.**
+  - `@montaj/edg`'s `PassStatusSchema` is the source of truth for the pass
+    lifecycle; A03 had written `succeeded` by analogy with `JobStatus`, but a pass
+    whose job succeeded is not finished — its items are `ready` for review, and
+    only a `MergePass` op moves it to `merged`. Migration
+    `20260902020000_pass_status_ready` renames the value in place (no row rewrite);
+    `JobStatus.succeeded` is untouched, since it mirrors the completion callback of
+    CONTRACTS section 3.
+  - The integration suite now compares `PassStatus` and `ItemState` in the database
+    against the package's own enums, so this class of drift fails a test instead of
+    reaching a client.
 
 - **A03b — api: seq is a base-62 string; style loader hardened.**
   - `edg_segments.seq` becomes `text COLLATE "C"` (migration
@@ -311,8 +476,27 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     contract, that worker egress is denied by default, and that nothing
     credential-shaped is committed.
 
+### Fixed
+
+- **A08b — `jobKey` deduplication was scoped globally, not per workspace.** A08's
+  `jobs_live_job_key_key` was `UNIQUE (job_key) WHERE status IN
+  ('queued','running')` with no workspace column, so two tenants with the same
+  live job key collided and the second enqueue failed with an unexplainable unique
+  violation. `prisma/sql/0005-a08b-dlq.sql` replaces it with
+  `jobs_live_workspace_job_key_key` on `(workspace_id, job_key)`, and
+  `JobsService.enqueue` now handles the unique violation by returning the existing
+  job — the `findLiveByKey` read cannot exclude a writer that commits a
+  microsecond later, so the index is the actual guarantee.
+
 ### Changed
 
+- **A02b** — `OpRejectionReasonSchema` gained `invalid-range`, `not-contiguous`,
+  `invariant`, `rebased-away` and `stale-after-resegment`. The reason list is a
+  closed enum that the ops engine was always meant to extend rather than send free
+  text (A02 said so in `packages/edg/README.md`); `schemas/edg-ops-v2.json` is
+  regenerated to match. `EdgSourceSchema` was lifted out of `EdgOpsEventSchema` so
+  the engine can name the writer that submitted a batch — the same six values,
+  now a `$def`.
 - **A03** — `docker-compose.yml` now runs `pgvector/pgvector:pg16` instead of
   `postgres:16`. `audio_assets.embedding` is a `vector(512)` column, so stock
   Postgres cannot apply the first migration. Managed Postgres needs `vector` on

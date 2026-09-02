@@ -15,11 +15,19 @@ export {
 export type { ErrorCode } from "./errors/error-codes.js";
 export { HttpExceptionFilter } from "./errors/http-exception.filter.js";
 export type { ErrorEnvelope } from "./errors/http-exception.filter.js";
+// Guards, decorators and the rate limiter (A04). Re-exported so a feature module
+// keeps importing one path; the implementations live in `./guards/`.
+export * from "./guards/index.js";
 export {
   LoggingModule,
   pinoHttpOptions,
   requestContextMiddleware,
 } from "./logging/logging.module.js";
+export { MetricsController, metricsToken } from "./metrics/metrics.controller.js";
+export { MetricsModule } from "./metrics/metrics.module.js";
+export { MetricsRegistry } from "./metrics/metrics.registry.js";
+export type { Labels, MetricDefinition, MetricKind } from "./metrics/metrics.registry.js";
+export { METRIC, MetricsService } from "./metrics/metrics.service.js";
 export {
   maskEmail,
   REDACT_PATHS,

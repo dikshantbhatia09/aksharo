@@ -1,0 +1,253 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "edgId": "01HF7YAT1D333333333333DZ33",
+    "projectId": "01HF7YAT1E333333333333E6TJ",
+    "revision": 12,
+    "engineVersions": {
+      "asr": "sarvam-saarika-v1"
+    }
+  },
+  "media": [
+    {
+      "mediaId": "01HF7YAT1F333333333333EEJ1",
+      "role": "primary",
+      "durationMs": 640000,
+      "fps": 30,
+      "width": 1080,
+      "height": 1920
+    }
+  ],
+  "transcript": {
+    "transcriptId": "01HF7YAT1G333333333333EP9G",
+    "revision": 2,
+    "language": "hi-Latn",
+    "scripts": ["roman", "native"],
+    "speakers": [
+      {
+        "id": "sp1",
+        "name": "Aarav",
+        "color": "#f2a541"
+      },
+      {
+        "id": "sp2",
+        "name": "Priya",
+        "color": "#3fa7d6"
+      }
+    ]
+  },
+  "canvas": {
+    "aspect": "9:16",
+    "width": 1080,
+    "height": 1920
+  },
+  "styles": {
+    "defaultStyleId": "punch-pop"
+  },
+  "audio": {
+    "clean": {
+      "enabled": true,
+      "preset": "podcast"
+    }
+  },
+  "render": {
+    "presets": ["social-1080x1920"]
+  },
+  "words": [
+    {
+      "s": 0,
+      "e": 800,
+      "t": "Bhai",
+      "c": 0.9,
+      "sp": "sp1",
+      "scripts": {
+        "roman": "Bhai",
+        "native": "भाई"
+      }
+    },
+    {
+      "s": 1000,
+      "e": 1800,
+      "t": "aaj",
+      "c": 0.9,
+      "sp": "sp1",
+      "scripts": {
+        "roman": "aaj",
+        "native": "आज"
+      }
+    },
+    {
+      "s": 2000,
+      "e": 2800,
+      "t": "hum",
+      "c": 0.9,
+      "sp": "sp1",
+      "scripts": {
+        "roman": "hum",
+        "native": "हम"
+      }
+    },
+    {
+      "s": 3000,
+      "e": 3800,
+      "t": "baat",
+      "c": 0.9,
+      "sp": "sp1",
+      "scripts": {
+        "roman": "baat",
+        "native": "बात"
+      }
+    },
+    {
+      "s": 4000,
+      "e": 4800,
+      "t": "karenge",
+      "c": 0.9,
+      "sp": "sp1",
+      "scripts": {
+        "roman": "karenge",
+        "native": "करेंगे"
+      }
+    },
+    {
+      "s": 5000,
+      "e": 5800,
+      "t": "video",
+      "c": 0.9,
+      "sp": "sp1",
+      "scripts": {
+        "roman": "video"
+      },
+      "filler": true
+    },
+    {
+      "s": 6000,
+      "e": 6800,
+      "t": "editing",
+      "c": 0.9,
+      "sp": "sp1",
+      "scripts": {
+        "roman": "editing"
+      }
+    },
+    {
+      "s": 7000,
+      "e": 7800,
+      "t": "ke",
+      "c": 0.9,
+      "sp": "sp1",
+      "scripts": {
+        "roman": "ke",
+        "native": "के"
+      }
+    },
+    {
+      "s": 600000,
+      "e": 600800,
+      "t": "Haan",
+      "c": 0.9,
+      "sp": "sp2",
+      "scripts": {
+        "roman": "Haan",
+        "native": "हाँ"
+      }
+    },
+    {
+      "s": 601000,
+      "e": 601800,
+      "t": "bilkul",
+      "c": 0.9,
+      "sp": "sp2",
+      "scripts": {
+        "roman": "bilkul",
+        "native": "बिलकुल"
+      }
+    },
+    {
+      "s": 602000,
+      "e": 602800,
+      "t": "sahi",
+      "c": 0.9,
+      "sp": "sp2",
+      "scripts": {
+        "roman": "sahi",
+        "native": "सही"
+      }
+    },
+    {
+      "s": 603000,
+      "e": 603800,
+      "t": "hai",
+      "c": 0.9,
+      "sp": "sp2",
+      "scripts": {
+        "roman": "hai",
+        "native": "है"
+      }
+    },
+    {
+      "s": 604000,
+      "e": 604800,
+      "t": "chalo",
+      "c": 0.9,
+      "sp": "sp2",
+      "scripts": {
+        "roman": "chalo",
+        "native": "चलो"
+      }
+    },
+    {
+      "s": 605000,
+      "e": 605800,
+      "t": "shuru",
+      "c": 0.9,
+      "sp": "sp2",
+      "scripts": {
+        "roman": "shuru",
+        "native": "शुरू"
+      }
+    }
+  ],
+  "chunkSizes": [8, 6],
+  "segments": [
+    {
+      "id": "01HF7YAT19333333333333D057",
+      "wordRange": [0, 3],
+      "startMs": 0,
+      "endMs": 3800,
+      "styleRef": "punch-pop",
+      "text": "Bhai aaj hum baat",
+      "emphasis": [
+        {
+          "wordIndex": 2,
+          "presetId": "pop"
+        }
+      ]
+    },
+    {
+      "id": "01HF7YAT1A333333333333D7WP",
+      "wordRange": [4, 7],
+      "textOverrides": {
+        "native": "करेंगे वीडियो एडिटिंग के"
+      },
+      "position": {
+        "x": 0.5,
+        "y": 0.82,
+        "anchor": "bottom-center"
+      },
+      "overrides": {
+        "fontSize": 72
+      }
+    },
+    {
+      "id": "01HF7YAT1B333333333333DFM5",
+      "wordRange": [8, 10],
+      "hidden": true
+    },
+    {
+      "id": "01HF7YAT1C333333333333DQBM",
+      "wordRange": [11, 13]
+    }
+  ],
+  "passes": []
+}
