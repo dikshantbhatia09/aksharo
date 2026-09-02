@@ -17,11 +17,7 @@ import { Badge, Button } from "@montaj/ui";
 
 import type { ShareLinkScope } from "@/lib/share/types";
 
-import {
-  useCreateShareLink,
-  useProjectShareLinks,
-  useRevokeShareLink,
-} from "@/lib/share/hooks";
+import { useCreateShareLink, useProjectShareLinks, useRevokeShareLink } from "@/lib/share/hooks";
 
 const SCOPES: readonly { value: ShareLinkScope; label: string }[] = [
   { value: "view", label: "View only" },
@@ -137,9 +133,7 @@ export function ShareLinksPanel({ projectId }: { projectId: string }): React.JSX
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <Badge tone={status.tone}>
-                    {status.label}
-                  </Badge>
+                  <Badge tone={status.tone}>{status.label}</Badge>
                   <span className="text-fg-2 text-xs">{link.scope}</span>
                   {link.hasPassword ? (
                     <span className="text-fg-2 text-xs" title="Password-protected">

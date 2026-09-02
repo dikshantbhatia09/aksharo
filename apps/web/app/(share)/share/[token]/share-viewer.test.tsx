@@ -6,7 +6,6 @@ import { ShareViewer } from "./share-viewer";
 
 import { renderWithProviders } from "@/test/harness";
 
-
 // `CaptionStage` needs CanvasKit/wasm, which A15/A17 already test on their
 // own; this suite is about the surrounding viewer (gating, comments, report,
 // decision), so the stage is replaced with a marker.
@@ -114,7 +113,10 @@ describe("ShareViewer", () => {
         [`/s/${TOKEN}`]: RESOLVE_VIEW,
         [`/s/${TOKEN}/preview`]: PREVIEW,
         [`/s/${TOKEN}/comments`]: [],
-        [`/s/${TOKEN}/report`]: { id: "01JREPORT0000000000000AA", dueAt: "2026-09-05T00:00:00.000Z" },
+        [`/s/${TOKEN}/report`]: {
+          id: "01JREPORT0000000000000AA",
+          dueAt: "2026-09-05T00:00:00.000Z",
+        },
       },
     });
 

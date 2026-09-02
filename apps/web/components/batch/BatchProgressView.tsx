@@ -31,7 +31,10 @@ export function BatchProgressView({ batchId }: { batchId: string }): React.JSX.E
 
   if (batch.isPending) {
     return (
-      <div className="border-border bg-bg-1 rounded-md border p-4" data-testid="batch-progress-loading">
+      <div
+        className="border-border bg-bg-1 rounded-md border p-4"
+        data-testid="batch-progress-loading"
+      >
         <p className="text-fg-2 text-sm">Loading batch…</p>
       </div>
     );
@@ -39,7 +42,10 @@ export function BatchProgressView({ batchId }: { batchId: string }): React.JSX.E
 
   if (batch.data === undefined) {
     return (
-      <div className="border-border bg-bg-1 rounded-md border p-4" data-testid="batch-progress-error">
+      <div
+        className="border-border bg-bg-1 rounded-md border p-4"
+        data-testid="batch-progress-error"
+      >
         <p className="text-fg-2 text-sm">Could not load this batch.</p>
       </div>
     );
@@ -69,7 +75,10 @@ export function BatchProgressView({ batchId }: { batchId: string }): React.JSX.E
           {apply.isPending ? "Starting…" : "Transcribe all"}
         </Button>
       </div>
-      <ProgressBar value={total === 0 ? 0 : (done / total) * 100} label={`${String(done)} of ${String(total)} projects transcribed`} />
+      <ProgressBar
+        value={total === 0 ? 0 : (done / total) * 100}
+        label={`${String(done)} of ${String(total)} projects transcribed`}
+      />
       <ul className="flex flex-col gap-2">
         {batch.data.projects.map((project) => (
           <li

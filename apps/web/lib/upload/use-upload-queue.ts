@@ -151,5 +151,13 @@ export function useUploadQueue(): {
     });
   }, []);
 
-  return { items: Object.values(items), addFiles, addFilesToProjects, pause, resume, cancel, dismiss };
+  return {
+    items: Object.values(items),
+    addFiles,
+    addFilesToProjects,
+    pause,
+    resume,
+    cancel,
+    dismiss,
+  };
 }

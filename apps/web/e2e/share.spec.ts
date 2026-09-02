@@ -1,4 +1,11 @@
-import { API_ORIGIN, expect, expectNoSeriousA11yViolations, gotoHydrated, signIn, test } from "./fixtures";
+import {
+  API_ORIGIN,
+  expect,
+  expectNoSeriousA11yViolations,
+  gotoHydrated,
+  signIn,
+  test,
+} from "./fixtures";
 
 import type { Page } from "@playwright/test";
 
@@ -45,10 +52,10 @@ async function createShareLink(
   expect(projectResponse.ok()).toBeTruthy();
   const project = (await projectResponse.json()) as { id: string };
 
-  const linkResponse = await page.request.post(
-    `${API_ORIGIN}/projects/${project.id}/share-links`,
-    { headers, data: { scope, ...extra } },
-  );
+  const linkResponse = await page.request.post(`${API_ORIGIN}/projects/${project.id}/share-links`, {
+    headers,
+    data: { scope, ...extra },
+  });
   expect(linkResponse.ok()).toBeTruthy();
   const link = (await linkResponse.json()) as { token: string; url: string };
 

@@ -56,7 +56,13 @@ function makeService() {
       update: vi.fn(async () => linkRow()),
     },
     mediaAsset: {
-      findFirst: vi.fn(async (): Promise<{ id: string; proxyKey: string; durationMs: number } | null> => ({ id: "MEDIA1", proxyKey: "derived/proxy.mp4", durationMs: 60000 })),
+      findFirst: vi.fn(
+        async (): Promise<{ id: string; proxyKey: string; durationMs: number } | null> => ({
+          id: "MEDIA1",
+          proxyKey: "derived/proxy.mp4",
+          durationMs: 60000,
+        }),
+      ),
     },
     edgDocument: {
       findUnique: vi.fn(async () => ({ id: "EDG1" })),

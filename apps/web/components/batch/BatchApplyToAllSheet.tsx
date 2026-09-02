@@ -122,7 +122,9 @@ export function BatchApplyToAllSheet({
       </div>
       {createBatch.isError ? (
         <p className="text-sm text-red-400" data-testid="batch-error">
-          {isApiError(createBatch.error) ? createBatch.error.message : "Could not create the batch."}
+          {isApiError(createBatch.error)
+            ? createBatch.error.message
+            : "Could not create the batch."}
         </p>
       ) : null}
     </div>

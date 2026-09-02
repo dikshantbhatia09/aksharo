@@ -48,7 +48,10 @@ export const shareEndpoints = {
     path: "/s/{token}/report",
     auth: "public",
   }),
-  decide: defineEndpoint<{ readonly decision: "approved" | "changes_requested" }, ShareDecisionResponse>({
+  decide: defineEndpoint<
+    { readonly decision: "approved" | "changes_requested" },
+    ShareDecisionResponse
+  >({
     method: "POST",
     path: "/s/{token}/decision",
     auth: "public",

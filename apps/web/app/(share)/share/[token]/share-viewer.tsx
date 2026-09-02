@@ -33,7 +33,6 @@ import {
   useUnlockShareLink,
 } from "@/lib/share/hooks";
 
-
 const REPORT_CATEGORIES: readonly { value: ShareReportCategory; label: string }[] = [
   { value: "ncii", label: "Non-consensual intimate imagery" },
   { value: "impersonation", label: "Impersonation" },
@@ -259,7 +258,13 @@ function formatTimestamp(ms: number): string {
   return `${String(minutes)}:${seconds.toString().padStart(2, "0")}`;
 }
 
-function DecisionBar({ token, reviewStatus }: { token: string; reviewStatus: string }): React.JSX.Element {
+function DecisionBar({
+  token,
+  reviewStatus,
+}: {
+  token: string;
+  reviewStatus: string;
+}): React.JSX.Element {
   const decide = useDecideShareLink(token);
 
   if (reviewStatus === "approved" || reviewStatus === "changes_requested") {
@@ -353,7 +358,10 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
         <Badge tone="accent">{data.scope}</Badge>
       </header>
 
-      <div ref={stageRef} className="aspect-[9/16] max-h-[70dvh] self-center overflow-hidden rounded-lg">
+      <div
+        ref={stageRef}
+        className="aspect-[9/16] max-h-[70dvh] self-center overflow-hidden rounded-lg"
+      >
         {preview.isPending ? (
           <div className="bg-bg-1 flex h-full w-full items-center justify-center">
             <p className="text-fg-2 text-sm">Loading preview…</p>
@@ -361,7 +369,9 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
         ) : preview.isError || preview.data === undefined ? (
           <div className="bg-bg-1 flex h-full w-full items-center justify-center">
             <p className="text-fg-2 text-sm">
-              {isApiError(preview.error) ? preview.error.message : "This project has no preview yet."}
+              {isApiError(preview.error)
+                ? preview.error.message
+                : "This project has no preview yet."}
             </p>
           </div>
         ) : (

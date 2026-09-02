@@ -5,7 +5,6 @@ import { BatchApplyToAllSheet, type BatchConfirmed } from "./BatchApplyToAllShee
 
 import { renderWithProviders } from "@/test/harness";
 
-
 // Duration reading goes through a real <video>'s `loadedmetadata` event,
 // which jsdom does not implement (no `URL.createObjectURL`, no media
 // decoding) -- that is `lib/batch/duration.ts`'s own concern, not this

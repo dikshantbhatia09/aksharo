@@ -5,7 +5,6 @@ import { ShareLinksPanel } from "./ShareLinksPanel";
 
 import { renderWithProviders } from "@/test/harness";
 
-
 const PROJECT_ID = "01JPROJECT0000000000000AA";
 
 const LINK = {

@@ -2,7 +2,6 @@ import { ShareViewer } from "./share-viewer";
 
 import type { Metadata } from "next";
 
-
 /**
  * The public review surface (B15 brief §1, §3): `/share/:token`.
  *
