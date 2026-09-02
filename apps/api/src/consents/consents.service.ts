@@ -1,8 +1,10 @@
 import { Injectable } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ulid } from "ulid";
 
 import { CONSENT_PURPOSES } from "./consents.dto.js";
 import { PrismaService } from "../common/index.js";
+import { CONSENT_EVENTS } from "../memory/consent-events.js";
 import { A05_AUDIT_ACTIONS, AuditService } from "../users/audit.service.js";
 import { PRIVACY_NOTICE_VERSION } from "../users/users.service.js";
 
@@ -45,6 +47,7 @@ export class ConsentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly events: EventEmitter2,
   ) {}
 
   /** The current answer for every purpose the notice asks about. */
@@ -137,6 +140,9 @@ export class ConsentsService {
       ...(context.ip === undefined ? {} : { ip: context.ip }),
       data: { purpose, granted, noticeVersion: PRIVACY_NOTICE_VERSION },
     });
+
+    // B09 (D62): a memory withdrawal erases `memory_entries`, not just the grant.
+    if (!granted) this.events.emit(CONSENT_EVENTS.withdrawn, { userId, workspaceId, purpose });
 
     return this.current(userId);
   }

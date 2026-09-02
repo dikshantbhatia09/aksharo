@@ -22,6 +22,7 @@ import type {
   CompleteUploadRequest,
   ConsentState,
   CreateFolderRequest,
+  CreateMemoryEntryRequest,
   CreateProjectRequest,
   CreditsSummary,
   CurrentUser,
@@ -29,6 +30,8 @@ import type {
   DismissReferralPromptResult,
   Entitlement,
   Folder,
+  ImportGlossaryRequest,
+  ImportGlossaryResult,
   InitUploadRequest,
   JobPage,
   JobSummary,
@@ -58,6 +61,7 @@ import type {
   TokenResponse,
   TopupCheckoutRequest,
   TranscribeAccepted,
+  UpdateMemoryEntryRequest,
   TranscribeRequest,
   TranslateAccepted,
   TranslateRequest,
@@ -529,10 +533,56 @@ export const transcriptScriptsEndpoints = {
 } as const;
 
 /**
+ * `/memory` — Settings → "What Aksharo learned" (F-204, D62, B09).
+ *
+ * Every route requires the `memory` consent server-side; `useMemoryEntries`
+ * gates the query on it client-side too, so an ungranted workspace never
+ * issues the request at all.
+ */
+export const memoryEndpoints = {
+  list: defineEndpoint<void, MemoryEntry[]>({
+    method: "GET",
+    path: "/memory",
+    auth: "bearer",
+    operationId: "listMemory",
+  }),
+  create: defineEndpoint<CreateMemoryEntryRequest, MemoryEntry>({
+    method: "POST",
+    path: "/memory",
+    auth: "bearer",
+    operationId: "createMemory",
+  }),
+  update: defineEndpoint<UpdateMemoryEntryRequest, MemoryEntry>({
+    method: "PATCH",
+    path: "/memory/{id}",
+    auth: "bearer",
+    operationId: "updateMemory",
+  }),
+  remove: defineEndpoint<void, void>({
+    method: "DELETE",
+    path: "/memory/{id}",
+    auth: "bearer",
+    operationId: "deleteMemoryEntry",
+  }),
+  clear: defineEndpoint<void, void>({
+    method: "DELETE",
+    path: "/memory",
+    auth: "bearer",
+    operationId: "clearMemory",
+  }),
+  importGlossary: defineEndpoint<ImportGlossaryRequest, ImportGlossaryResult>({
+    method: "POST",
+    path: "/memory/import",
+    auth: "bearer",
+    operationId: "importMemoryGlossary",
+  }),
+} as const;
+
+/**
  * Routes `07-api-and-contracts.md` specifies whose work package has not landed.
  *
  * `/usage` carries the credit balance and the burn rate, which belong to the
- * ledger (B02); `/memory` is the learned-memory store of D62 (B09).
+ * ledger (B02).
  */
 export const pendingEndpoints = {
   usage: defineEndpoint<void, UsageSummary>({
@@ -540,18 +590,6 @@ export const pendingEndpoints = {
     path: "/usage",
     auth: "bearer",
     pending: "B02",
-  }),
-  listMemory: defineEndpoint<void, MemoryEntry[]>({
-    method: "GET",
-    path: "/memory",
-    auth: "bearer",
-    pending: "B09",
-  }),
-  clearMemory: defineEndpoint<void, void>({
-    method: "DELETE",
-    path: "/memory",
-    auth: "bearer",
-    pending: "B09",
   }),
 } as const;
 
@@ -570,6 +608,7 @@ export const endpoints = {
   credits: creditsEndpoints,
   offers: offersEndpoints,
   referrals: referralsEndpoints,
+  memory: memoryEndpoints,
   pending: pendingEndpoints,
 } as const;
 
@@ -589,5 +628,6 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(creditsEndpoints),
   ...Object.entries(offersEndpoints),
   ...Object.entries(referralsEndpoints),
+  ...Object.entries(memoryEndpoints),
   ...Object.entries(pendingEndpoints),
 ] as const;

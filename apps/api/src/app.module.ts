@@ -15,6 +15,7 @@ import { InternalModule } from "./internal/internal.module.js";
 import { InvoicesModule } from "./invoices/invoices.module.js";
 import { JobsModule } from "./jobs/jobs.module.js";
 import { MediaModule } from "./media/media.module.js";
+import { MemoryModule } from "./memory/memory.module.js";
 import { NotifyModule } from "./notify/notify.module.js";
 import { OffersModule } from "./offers/offers.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
@@ -91,6 +92,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     NotifyModule,
     ProjectsModule,
     MediaModule,
+    MemoryModule,
     StylesModule,
     InternalModule,
     AdminModule,

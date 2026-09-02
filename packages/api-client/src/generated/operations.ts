@@ -152,6 +152,13 @@ export const API_OPERATIONS = [
     summary: "Claim a code posted at onboarding",
   },
   {
+    operationId: "clearMemory",
+    method: "DELETE",
+    path: "/memory",
+    tags: ["memory"],
+    summary: "Clear every memory entry for the workspace",
+  },
+  {
     operationId: "completeExportManifest",
     method: "POST",
     path: "/exports/manifests/{manifestId}/complete",
@@ -206,6 +213,13 @@ export const API_OPERATIONS = [
     path: "/folders",
     tags: ["projects"],
     summary: "Create a folder",
+  },
+  {
+    operationId: "createMemory",
+    method: "POST",
+    path: "/memory",
+    tags: ["memory"],
+    summary: "Create or merge a memory entry",
   },
   {
     operationId: "createPassCheckout",
@@ -276,6 +290,13 @@ export const API_OPERATIONS = [
     path: "/me",
     tags: ["me"],
     summary: "Erase the account",
+  },
+  {
+    operationId: "deleteMemoryEntry",
+    method: "DELETE",
+    path: "/memory/{id}",
+    tags: ["memory"],
+    summary: "Delete one memory entry",
   },
   {
     operationId: "deleteProject",
@@ -586,6 +607,13 @@ export const API_OPERATIONS = [
     summary: "Razorpay webhook (THREAT-MODEL T16)",
   },
   {
+    operationId: "importMemoryGlossary",
+    method: "POST",
+    path: "/memory/import",
+    tags: ["memory"],
+    summary: "Bulk-import glossary terms from CSV",
+  },
+  {
     operationId: "importSubtitles",
     method: "POST",
     path: "/projects/{projectId}/import",
@@ -717,6 +745,13 @@ export const API_OPERATIONS = [
     path: "/billing/mandates",
     tags: ["billing"],
     summary: "Every mandate this workspace has registered",
+  },
+  {
+    operationId: "listMemory",
+    method: "GET",
+    path: "/memory",
+    tags: ["memory"],
+    summary: "List the caller's workspace's memory entries",
   },
   {
     operationId: "listMyNotifications",
@@ -871,6 +906,27 @@ export const API_OPERATIONS = [
     path: "/admin/credits/reconcile/{accountId}",
     tags: ["admin"],
     summary: "Reconcile one credit account",
+  },
+  {
+    operationId: "recordSpellingFixMemory",
+    method: "POST",
+    path: "/memory/hooks/spelling-fix",
+    tags: ["memory"],
+    summary: "A15's 'Fix spelling everywhere' hook",
+  },
+  {
+    operationId: "recordStylePrefMemory",
+    method: "POST",
+    path: "/memory/hooks/style-pref",
+    tags: ["memory"],
+    summary: "Last style/template used per aspect",
+  },
+  {
+    operationId: "recordTimingNudgeMemory",
+    method: "POST",
+    path: "/memory/hooks/timing-nudge",
+    tags: ["memory"],
+    summary: "A17/A02d timing-nudge sink feed",
   },
   {
     operationId: "refundPassPurchase",
@@ -1039,6 +1095,13 @@ export const API_OPERATIONS = [
     path: "/me",
     tags: ["me"],
     summary: "Update name, avatar, locale, onboarding state or marketing opt-in",
+  },
+  {
+    operationId: "updateMemory",
+    method: "PATCH",
+    path: "/memory/{id}",
+    tags: ["memory"],
+    summary: "Edit one memory entry",
   },
   {
     operationId: "updateProject",

@@ -7393,6 +7393,632 @@
         ]
       }
     },
+    "/memory": {
+      "get": {
+        "operationId": "listMemory",
+        "parameters": [
+          {
+            "name": "kind",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Memory entries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "spelling",
+                        "glossary",
+                        "timingNudge",
+                        "stylePref"
+                      ]
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "aliases": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "deviceOnly": {
+                      "type": "boolean"
+                    },
+                    "hits": {
+                      "type": "number"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "lastUsedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "key",
+                    "value",
+                    "source",
+                    "deviceOnly",
+                    "hits",
+                    "expiresAt",
+                    "lastUsedAt",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List the caller's workspace's memory entries",
+        "tags": [
+          "memory"
+        ]
+      },
+      "post": {
+        "operationId": "createMemory",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "spelling",
+                      "glossary",
+                      "timingNudge",
+                      "stylePref"
+                    ]
+                  },
+                  "key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "value": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "aliases": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  },
+                  "source": {
+                    "default": "manual",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "deviceOnly": {
+                    "default": false,
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "key",
+                  "value"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored entry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "spelling",
+                        "glossary",
+                        "timingNudge",
+                        "stylePref"
+                      ]
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "aliases": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "deviceOnly": {
+                      "type": "boolean"
+                    },
+                    "hits": {
+                      "type": "number"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "lastUsedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "key",
+                    "value",
+                    "source",
+                    "deviceOnly",
+                    "hits",
+                    "expiresAt",
+                    "lastUsedAt",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create or merge a memory entry",
+        "tags": [
+          "memory"
+        ]
+      },
+      "delete": {
+        "operationId": "clearMemory",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Clear every memory entry for the workspace",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/memory/{id}": {
+      "patch": {
+        "operationId": "updateMemory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "aliases": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  },
+                  "deviceOnly": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated entry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "spelling",
+                        "glossary",
+                        "timingNudge",
+                        "stylePref"
+                      ]
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "aliases": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "deviceOnly": {
+                      "type": "boolean"
+                    },
+                    "hits": {
+                      "type": "number"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "lastUsedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "key",
+                    "value",
+                    "source",
+                    "deviceOnly",
+                    "hits",
+                    "expiresAt",
+                    "lastUsedAt",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Edit one memory entry",
+        "tags": [
+          "memory"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteMemoryEntry",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete one memory entry",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/memory/import": {
+      "post": {
+        "operationId": "importMemoryGlossary",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "csv": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200000
+                  }
+                },
+                "required": [
+                  "csv"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Import counts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "imported": {
+                      "type": "number"
+                    },
+                    "updated": {
+                      "type": "number"
+                    },
+                    "skipped": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "imported",
+                    "updated",
+                    "skipped"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Bulk-import glossary terms from CSV",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/memory/hooks/spelling-fix": {
+      "post": {
+        "description": "Records the correction as a `spelling` memory entry (script-aware).",
+        "operationId": "recordSpellingFixMemory",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "wrong": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "right": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "script": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  }
+                },
+                "required": [
+                  "wrong",
+                  "right"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "A15's 'Fix spelling everywhere' hook",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/memory/hooks/timing-nudge": {
+      "post": {
+        "description": "One drag delta (ms); rolled into a per-workspace median caption offset.",
+        "operationId": "recordTimingNudgeMemory",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deltaMs": {
+                    "type": "integer",
+                    "minimum": -10000,
+                    "maximum": 10000
+                  }
+                },
+                "required": [
+                  "deltaMs"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "A17/A02d timing-nudge sink feed",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/memory/hooks/style-pref": {
+      "post": {
+        "operationId": "recordStylePrefMemory",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "aspect": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  },
+                  "styleId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "aspect",
+                  "styleId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Last style/template used per aspect",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
     "/styles": {
       "get": {
         "description": "Every entry is a full StyleDoc v2 document (the shape `StylePicker` already reads), with `presetId`, `source` (`system`|`custom`) and `previewKey` added. `previewKey` names a file the web app serves from its own `/style-previews/`; it is `null` for a preset with no static preview rendered yet.",
