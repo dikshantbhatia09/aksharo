@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { ulid } from "ulid";
 
+import { LIVE_SUBSCRIPTION_STATES } from "./currency-lock.js";
 import { validateTaxProfile } from "./tax-profile.js";
 import { WORKSPACE_ERRORS } from "./workspaces.constants.js";
 import { AppException, ERROR_CODES, PrismaService } from "../common/index.js";
@@ -19,14 +20,6 @@ import type {
 } from "./workspaces.dto.js";
 import type { RequestContextInfo } from "../users/profile.service.js";
 import type { $Enums, Prisma } from "@prisma/client";
-
-/** Subscription states that lock the currency (04 §Tax): anything not finished. */
-const LIVE_SUBSCRIPTION_STATES: readonly $Enums.SubscriptionStatus[] = [
-  "trialing",
-  "active",
-  "past_due",
-  "paused",
-];
 
 const WORKSPACE_SELECT = {
   id: true,
@@ -389,23 +382,40 @@ export class WorkspacesService {
   }
 
   /**
-   * Which of these workspaces have a live subscription.
+   * Which of these workspaces have their currency locked (04 §Tax, D41).
    *
-   * Nothing creates a subscription before B01 (the seed's demo workspace aside),
-   * so this is the no-op check the brief describes — but it is written against the
-   * real table so that B01 turns it on by inserting a row, not by editing this.
+   * B01 orchestrator addendum (after A05, ruling on open question 3): the
+   * currency locks only when a **non-zero-priced** subscription is live
+   * (`trialing|active|past_due|paused`), or any invoice has been **paid** —
+   * never for a zero-priced (Free) subscription. `prisma/seed.ts` gives the
+   * demo workspace a Free-plan subscription row precisely to exercise this:
+   * without the price filter it would incorrectly lock that workspace's
+   * currency forever.
+   *
+   * Invoices are B05's table (not yet populated by anything in this
+   * codebase), but the column and status enum already exist (A03), so the
+   * query is written against the real thing rather than stubbed — B05 turns
+   * it on by writing a `paid` row, not by editing this.
    */
   private async lockedWorkspaces(workspaceIds: readonly string[]): Promise<ReadonlySet<string>> {
     if (workspaceIds.length === 0) return new Set();
-    const rows = await this.prisma.subscription.findMany({
-      where: {
-        workspaceId: { in: [...workspaceIds] },
-        status: { in: [...LIVE_SUBSCRIPTION_STATES] },
-      },
-      select: { workspaceId: true },
-      distinct: ["workspaceId"],
-    });
-    return new Set(rows.map((row) => row.workspaceId));
+    const [subscriptions, invoices] = await Promise.all([
+      this.prisma.subscription.findMany({
+        where: {
+          workspaceId: { in: [...workspaceIds] },
+          status: { in: [...LIVE_SUBSCRIPTION_STATES] },
+          listPriceMinor: { gt: 0 },
+        },
+        select: { workspaceId: true },
+        distinct: ["workspaceId"],
+      }),
+      this.prisma.invoice.findMany({
+        where: { workspaceId: { in: [...workspaceIds] }, status: "paid" },
+        select: { workspaceId: true },
+        distinct: ["workspaceId"],
+      }),
+    ]);
+    return new Set([...subscriptions, ...invoices].map((row) => row.workspaceId));
   }
 
   private async assertSlugFree(slug: string): Promise<void> {

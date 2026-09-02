@@ -16,6 +16,7 @@ import { JobsService } from "./jobs.service.js";
 import type { QueueRegistry } from "./queue.registry.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { CreditsFacade } from "../credits/credits.facade.js";
+import type { NotifyService } from "../notify/notify.service.js";
 import type { RealtimePublisher } from "../realtime/realtime.publisher.js";
 
 const WS = "01JCWS0000000000000000000A";
@@ -38,6 +39,9 @@ interface Harness {
     jobProgress: ReturnType<typeof vi.fn>;
     jobCompleted: ReturnType<typeof vi.fn>;
   };
+  notify: {
+    enqueue: ReturnType<typeof vi.fn>;
+  };
 }
 
 function harness(): Harness {
@@ -46,13 +50,21 @@ function harness(): Harness {
   const queues = new FakeQueueRegistry();
   const credits = {
     reserve: vi.fn(async () => ({ holdId: "hold-1" })),
-    settle: vi.fn(async () => ({ settledTenths: 0 })),
+    // Echoes the requested figure back by default — "the ledger could fully
+    // settle it" — which is what most of this suite's fixtures assume; the
+    // `needs_credits` tests override this per case to return less.
+    settle: vi.fn(async ({ actualTenths }: { holdId: string; actualTenths: number }) => ({
+      settledTenths: actualTenths,
+    })),
     release: vi.fn(async () => undefined),
     grantLot: vi.fn(async () => ({ lotId: "lot-1" })),
   };
   const realtime = {
     jobProgress: vi.fn(async () => undefined),
     jobCompleted: vi.fn(async () => undefined),
+  };
+  const notify = {
+    enqueue: vi.fn(async () => ({ idempotencyKey: "x", enqueued: true })),
   };
 
   const metrics = new MetricsService();
@@ -76,9 +88,10 @@ function harness(): Harness {
     metrics,
     completionHandlers,
     credits as unknown as CreditsFacade,
+    notify as unknown as NotifyService,
   );
 
-  return { jobs, completionHandlers, dlq, metrics, db, queues, credits, realtime };
+  return { jobs, completionHandlers, dlq, metrics, db, queues, credits, realtime, notify };
 }
 
 const ENQUEUE = {
@@ -94,6 +107,11 @@ let h: Harness;
 beforeEach(() => {
   h = harness();
   h.db.plans.set(WS, "creator");
+  // `notifyCreditsShortfall`'s workspace-owner lookup; harmless for every test
+  // that never reaches `needs_credits` (the default `settle` mock echoes the
+  // requested figure back, so it never does).
+  const owner = h.db.user({ email: "owner@example.test", name: "Workspace Owner" });
+  h.db.workspace({ id: WS, ownerId: owner.id });
 });
 
 describe("enqueue", () => {
@@ -461,13 +479,87 @@ describe("complete (THREAT-MODEL T8/T9)", () => {
     expect(h.credits.settle).toHaveBeenCalledWith({ holdId: "hold-1", actualTenths: 120 });
   });
 
-  it("never settles more than was held", async () => {
+  it("passes the real reported figure to settle uncapped (B02b)", async () => {
+    // The ledger, not this clamp, now owns "what happens when actual > held" —
+    // a delta charge or a `needs_credits` shortfall (CONTRACTS §4).
     const { job } = await h.jobs.enqueue(ENQUEUE);
     await h.jobs.complete(job.id, job.attemptId ?? "", {
       status: "succeeded",
       usage: { actualTenths: 10_000 },
     });
-    expect(h.credits.settle).toHaveBeenCalledWith({ holdId: "hold-1", actualTenths: 120 });
+    expect(h.credits.settle).toHaveBeenCalledWith({ holdId: "hold-1", actualTenths: 10_000 });
+    // The default mock fully covers it, so the job is charged for what it used.
+    expect(h.db.jobs.get(job.id)?.creditsChargedTenths).toBe(10_000);
+  });
+
+  describe("needs_credits (B02b)", () => {
+    it("marks the result, records an event and notifies the workspace owner", async () => {
+      h.credits.settle.mockResolvedValueOnce({ settledTenths: 120 }); // less than requested, no deltaHoldId
+      h.db.creditAccount({ workspaceId: WS, balanceTenths: 30 });
+      const { job } = await h.jobs.enqueue(ENQUEUE);
+
+      const ack = await h.jobs.complete(job.id, job.attemptId ?? "", {
+        status: "succeeded",
+        usage: { actualTenths: 500 },
+      });
+
+      expect(ack.applied).toBe(true);
+      const stored = h.db.jobs.get(job.id);
+      expect(stored?.creditsChargedTenths).toBe(120); // what the ledger actually settled
+      expect(stored?.result).toMatchObject({ creditsShortfallTenths: 380 }); // 500 - 120
+
+      expect(h.db.eventNames(job.id)).toContain("job.needs_credits");
+
+      expect(h.notify.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "low-credits",
+          to: "owner@example.test",
+          workspaceId: WS,
+          data: expect.objectContaining({ name: "Workspace Owner", minutes: 3 }), // 30 tenths -> 3 min
+        }),
+      );
+    });
+
+    it("is not needs_credits when a delta hold covers the overage", async () => {
+      h.credits.settle.mockResolvedValueOnce({ settledTenths: 500, deltaHoldId: "delta-1" });
+      const { job } = await h.jobs.enqueue(ENQUEUE);
+
+      await h.jobs.complete(job.id, job.attemptId ?? "", {
+        status: "succeeded",
+        usage: { actualTenths: 500 },
+      });
+
+      expect(h.db.jobs.get(job.id)?.creditsChargedTenths).toBe(500);
+      expect(h.db.jobs.get(job.id)?.result).not.toMatchObject({
+        creditsShortfallTenths: expect.anything(),
+      });
+      expect(h.db.eventNames(job.id)).not.toContain("job.needs_credits");
+      expect(h.notify.enqueue).not.toHaveBeenCalled();
+    });
+
+    it("is not needs_credits when the ledger settles exactly what was asked", async () => {
+      h.credits.settle.mockResolvedValueOnce({ settledTenths: 120 });
+      const { job } = await h.jobs.enqueue(ENQUEUE);
+
+      await h.jobs.complete(job.id, job.attemptId ?? "", { status: "succeeded" }); // no usage -> requests the full 120 held
+
+      expect(h.db.eventNames(job.id)).not.toContain("job.needs_credits");
+      expect(h.notify.enqueue).not.toHaveBeenCalled();
+    });
+
+    it("swallows a notification failure rather than failing the callback", async () => {
+      h.credits.settle.mockResolvedValueOnce({ settledTenths: 120 });
+      h.notify.enqueue.mockRejectedValueOnce(new Error("redis is down"));
+      const { job } = await h.jobs.enqueue(ENQUEUE);
+
+      const ack = await h.jobs.complete(job.id, job.attemptId ?? "", {
+        status: "succeeded",
+        usage: { actualTenths: 500 },
+      });
+
+      expect(ack.applied).toBe(true);
+      expect(h.db.jobs.get(job.id)?.status).toBe("succeeded");
+    });
   });
 
   it("releases the hold on failure and charges nothing", async () => {

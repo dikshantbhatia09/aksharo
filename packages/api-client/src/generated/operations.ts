@@ -824,6 +824,13 @@ export const API_OPERATIONS = [
     summary: "Reconcile one credit account",
   },
   {
+    operationId: "refundPassPurchase",
+    method: "POST",
+    path: "/billing/passes/{passPurchaseId}/refund",
+    tags: ["billing"],
+    summary: "Refund a pass/top-up purchase (admin/API path)",
+  },
+  {
     operationId: "removeWorkspaceMember",
     method: "DELETE",
     path: "/workspaces/{id}/members/{membershipId}",

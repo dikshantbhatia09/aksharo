@@ -2,7 +2,7 @@ import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { ulid } from "ulid";
 import { z } from "zod";
 
-import { creditCostTenths } from "@montaj/config";
+import { quote } from "@montaj/config";
 
 import { EXPORT_RETENTION_DAYS } from "./exports.constants.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
@@ -120,10 +120,10 @@ export class RenderVideoCompletionHandler implements JobCompletionHandler, OnMod
     const result = RenderVideoResultSchema.parse(context.result);
     const manifest = params.manifest;
 
-    const actualTenths = creditCostTenths({
-      operation: "cloudRender",
-      durationMs: result.outputMs,
-    });
+    // B02b: `quote()`, not `creditCostTenths` directly — the same helper the
+    // reserve side (`exports.service.ts`) and the dialog estimate
+    // (`decision.ts`) use, so all three price a render the same way.
+    const actualTenths = quote("cloudRender", result.outputMs / 60_000).costTenths;
 
     const firstTime = await claimManifest(this.prisma, manifest.manifestId);
     if (!firstTime) {

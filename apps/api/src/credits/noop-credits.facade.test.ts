@@ -199,6 +199,31 @@ describe("grantLot", () => {
   });
 });
 
+describe("revokeLot (B02b)", () => {
+  it("reports full success — no lot table in Wave 1 to actually claw back", async () => {
+    await expect(
+      credits.revokeLot({
+        lotId: "lot-1",
+        tenths: 30,
+        reason: "payment refund",
+        refundId: "refund-1",
+      }),
+    ).resolves.toEqual({ revokedTenths: 30, shortfallTenths: 0 });
+  });
+
+  it("defaults to zero when tenths is omitted", async () => {
+    await expect(
+      credits.revokeLot({ lotId: "lot-1", reason: "payment refund", refundId: "refund-2" }),
+    ).resolves.toEqual({ revokedTenths: 0, shortfallTenths: 0 });
+  });
+
+  it("validates the amount", async () => {
+    await expect(
+      credits.revokeLot({ lotId: "lot-1", tenths: -1, reason: "r", refundId: "refund-3" }),
+    ).rejects.toBeInstanceOf(RangeError);
+  });
+});
+
 describe("reset", () => {
   it("drops every hold and allowance", async () => {
     const { holdId } = await credits.reserve({

@@ -30,22 +30,25 @@ import {
   mandateViewSchema,
   passCheckoutSchema,
   planViewSchema,
+  refundPassSchema,
   subscriptionViewSchema,
   topupCheckoutSchema,
   type ChangePlanDto,
   type ChangePreviewQueryDto,
   type CheckoutDto,
   type PassCheckoutDto,
+  type RefundPassDto,
   type TopupCheckoutDto,
-  CheckoutResponse,
-  ChangePreview,
-  MandateView,
-  PassCheckoutResponse,
-  SubscriptionView,
+  type CheckoutResponse,
+  type ChangePreview,
+  type MandateView,
+  type PassCheckoutResponse,
+  type SubscriptionView,
 } from "./billing.dto.js";
 import { CheckoutService } from "./checkout.service.js";
 import { PassesService } from "./passes.service.js";
 import { type PlanView, PlansService } from "./plans.service.js";
+import { RefundsService } from "./refunds.service.js";
 import { SubscriptionService } from "./subscription.service.js";
 import { WebhooksService } from "./webhooks.service.js";
 import { zodArrayResponse, zodBody, zodResponse } from "../auth/dto/openapi.js";
@@ -72,6 +75,7 @@ export class BillingController {
     private readonly passes: PassesService,
     private readonly subscriptions: SubscriptionService,
     private readonly webhooks: WebhooksService,
+    private readonly refunds: RefundsService,
   ) {}
 
   @Get("plans")
@@ -307,6 +311,37 @@ export class BillingController {
   @ApiOkResponse({ description: "Payment methods, most recently used first." })
   async listPaymentMethods(@CurrentUser() principal: AuthPrincipal): Promise<PaymentMethodView[]> {
     return this.subscriptions.paymentMethods(principal.workspaceId);
+  }
+
+  @Post("passes/:passPurchaseId/refund")
+  @UseGuards(JwtAuthGuard, WorkspaceMemberGuard, RolesGuard)
+  @Roles("admin")
+  @ApiBearerAuth("access-token")
+  @ApiOperation({
+    summary: "Refund a pass/top-up purchase (admin/API path)",
+    description:
+      "Calls the provider's refund API and attempts to claw back the credits it granted. " +
+      'The credits clawback is best-effort -- see billing/README.md "Credits clawback" for why ' +
+      "it cannot yet fully succeed against a grant-sourced lot.",
+    operationId: "refundPassPurchase",
+  })
+  @ApiBody(zodBody(refundPassSchema))
+  @ApiOkResponse({ description: "The refund outcome, including the credits clawback outcome." })
+  @ApiNotFoundResponse({ description: "`billing/pass_purchase_not_found`." })
+  @ApiConflictResponse({ description: "`billing/already_refunded`." })
+  async refundPassPurchase(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("passPurchaseId") passPurchaseId: string,
+    @Body() body: RefundPassDto,
+    @Req() request: Request,
+  ): Promise<{ outcome: string; providerRefundId: string }> {
+    return this.refunds.refundPassPurchase(
+      principal.workspaceId,
+      passPurchaseId,
+      body,
+      principal.userId,
+      context(request),
+    );
   }
 
   @Post("webhooks/razorpay")

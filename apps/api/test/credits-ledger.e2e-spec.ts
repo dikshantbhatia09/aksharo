@@ -561,6 +561,155 @@ describe.skipIf(!available)("LedgerCreditsFacade (e2e)", () => {
   });
 
   // -------------------------------------------------------------------------
+  // revokeLot (B02b)
+  // -------------------------------------------------------------------------
+
+  describe("revokeLot", () => {
+    it("takes tenths off the named lot and the account balance", async () => {
+      const workspaceId = await newWorkspace();
+      const { lotId } = await credits.grantLot({
+        workspaceId,
+        source: "topup",
+        tenths: 100,
+        reason: "top-up",
+      });
+
+      const result = await credits.revokeLot({
+        lotId,
+        tenths: 40,
+        reason: "payment refund",
+        refundId: "01JREFUNDA0000000000000000",
+      });
+
+      expect(result).toEqual({ revokedTenths: 40, shortfallTenths: 0 });
+      const account = await accountFor(workspaceId);
+      expect(account.balanceTenths).toBe(60);
+      const lot = await prisma.creditLot.findUniqueOrThrow({ where: { id: lotId } });
+      expect(lot.remainingTenths).toBe(60);
+
+      const ledger = await ledgerFor(workspaceId);
+      const revokeRow = ledger.find((row) => row.kind === "revoke");
+      expect(revokeRow).toMatchObject({
+        deltaTenths: -40,
+        lotId,
+        refId: "01JREFUNDA0000000000000000",
+      });
+    });
+
+    it("revokes everything remaining when tenths is omitted", async () => {
+      const workspaceId = await newWorkspace();
+      const { lotId } = await credits.grantLot({
+        workspaceId,
+        source: "grant",
+        tenths: 75,
+        reason: "grant",
+      });
+
+      const result = await credits.revokeLot({
+        lotId,
+        reason: "refund",
+        refundId: "01JREFUNDB0000000000000000",
+      });
+      expect(result).toEqual({ revokedTenths: 75, shortfallTenths: 0 });
+      expect((await accountFor(workspaceId)).balanceTenths).toBe(0);
+    });
+
+    it("caps at what the lot has left and reports the rest as a shortfall", async () => {
+      const workspaceId = await newWorkspace();
+      const { lotId } = await credits.grantLot({
+        workspaceId,
+        source: "topup",
+        tenths: 100,
+        reason: "top-up",
+      });
+      const jobId = await newJob(workspaceId);
+      // Spend 60 of the 100, so only 40 remains on the lot.
+      const { holdId } = await credits.reserve({
+        workspaceId,
+        jobId,
+        worstCaseTenths: 60,
+        reason: "t",
+      });
+      await credits.settle({ holdId, actualTenths: 60 });
+
+      const result = await credits.revokeLot({
+        lotId,
+        tenths: 100, // asks for the original amount, but only 40 is left
+        reason: "full refund",
+        refundId: "01JREFUNDC0000000000000000",
+      });
+
+      expect(result).toEqual({ revokedTenths: 40, shortfallTenths: 60 });
+      expect((await accountFor(workspaceId)).balanceTenths).toBe(0);
+      const lot = await prisma.creditLot.findUniqueOrThrow({ where: { id: lotId } });
+      expect(lot.remainingTenths).toBe(0);
+    });
+
+    it("is idempotent per refundId — a retry reports the same result and moves no more money", async () => {
+      const workspaceId = await newWorkspace();
+      const { lotId } = await credits.grantLot({
+        workspaceId,
+        source: "topup",
+        tenths: 100,
+        reason: "top-up",
+      });
+
+      const first = await credits.revokeLot({
+        lotId,
+        tenths: 30,
+        reason: "refund",
+        refundId: "01JREFUNDD0000000000000000",
+      });
+      const second = await credits.revokeLot({
+        lotId,
+        tenths: 30,
+        reason: "refund (retried)",
+        refundId: "01JREFUNDD0000000000000000",
+      });
+
+      expect(second).toEqual(first);
+      expect((await accountFor(workspaceId)).balanceTenths).toBe(70); // not 40
+      const ledger = await ledgerFor(workspaceId);
+      expect(ledger.filter((row) => row.kind === "revoke")).toHaveLength(1);
+    });
+
+    it("throws credits/lot_not_found for an unknown lot", async () => {
+      await expect(
+        credits.revokeLot({
+          lotId: "01JUNKNOWNLOT0000000000000",
+          tenths: 10,
+          reason: "refund",
+          refundId: "01JREFUNDE0000000000000000",
+        }),
+      ).rejects.toMatchObject({ code: "credits/lot_not_found" });
+    });
+
+    it("never takes the lot or the balance below zero", async () => {
+      const workspaceId = await newWorkspace();
+      const { lotId } = await credits.grantLot({
+        workspaceId,
+        source: "topup",
+        tenths: 10,
+        reason: "top-up",
+      });
+
+      const result = await credits.revokeLot({
+        lotId,
+        tenths: 1_000, // far more than was ever granted
+        reason: "over-ask",
+        refundId: "01JREFUNDF0000000000000000",
+      });
+
+      expect(result).toEqual({ revokedTenths: 10, shortfallTenths: 990 });
+      const account = await accountFor(workspaceId);
+      expect(account.balanceTenths).toBe(0);
+      expect(account.balanceTenths).toBeGreaterThanOrEqual(0);
+      const lot = await prisma.creditLot.findUniqueOrThrow({ where: { id: lotId } });
+      expect(lot.remainingTenths).toBe(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // expireLots
   // -------------------------------------------------------------------------
 
