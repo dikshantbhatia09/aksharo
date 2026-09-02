@@ -99,8 +99,21 @@ async function setStreakState(
   });
 }
 
+async function disableStreakFlag(): Promise<void> {
+  await withDb(async (client) => {
+    await client.query(`UPDATE feature_flags SET enabled = false WHERE key = 'streak_experiment'`);
+  });
+}
+
 test.describe("streak widget and sidebar chip (B06)", () => {
   test.skip(DATABASE_URL === "", "DATABASE_URL not resolved for this suite");
+
+  // This suite is the only one that flips the global `streak_experiment` flag
+  // on (there is no per-workspace toggle) — turn it back off once done so a
+  // concurrently-running spec file never sees an unexpected chip.
+  test.afterAll(async () => {
+    if (DATABASE_URL !== "") await disableStreakFlag();
+  });
 
   test("shows the exact copy on the sidebar chip and the Subscription widget, and is axe clean", async ({
     page,

@@ -97,20 +97,21 @@ Order inside one job:
 
 ## Kinds
 
-Ten, in `notify.kinds.ts`, each classified three ways:
+Eleven, in `notify.kinds.ts`, each classified three ways:
 
-| Kind                | Critical | In the bell | Unsubscribe |
-| ------------------- | :------: | :---------: | :---------: |
-| `verify-email`      |    ●     |             |             |
-| `magic-link`        |    ●     |             |             |
-| `password-changed`  |    ●     |             |             |
-| `device-approval`   |    ●     |             |             |
-| `login-new-device`  |    ●     |      ●      |             |
-| `parental-waitlist` |          |             |             |
-| `renewal-notice`    |          |      ●      |             |
-| `low-credits`       |          |      ●      |      ●      |
-| `export-ready`      |          |      ●      |             |
-| `share-comment`     |          |      ●      |      ●      |
+| Kind                 | Critical | In the bell | Unsubscribe |
+| -------------------- | :------: | :---------: | :---------: |
+| `verify-email`       |    ●     |             |             |
+| `magic-link`         |    ●     |             |             |
+| `password-changed`   |    ●     |             |             |
+| `device-approval`    |    ●     |             |             |
+| `login-new-device`   |    ●     |      ●      |             |
+| `parental-waitlist`  |          |             |             |
+| `renewal-notice`     |          |      ●      |             |
+| `low-credits`        |          |      ●      |      ●      |
+| `export-ready`       |          |      ●      |             |
+| `share-comment`      |          |      ●      |      ●      |
+| `streak-nudge` (B06) |          |      ●      |      ●      |
 
 **Critical** means never rate limited. **Unsubscribe** means a `List-Unsubscribe`
 header (RFC 8058 one-click) and a footer link; everything else is transactional or
