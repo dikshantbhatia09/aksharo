@@ -55,6 +55,63 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     when the filename's extension is one we know, and the extension that reaches a
     key is chosen from the same lists, never from the filename directly.
 
+- **A20 — the cloud render service: `apps/render`, `@montaj/render-skia-node`,
+  `@montaj/render-manifest`.**
+  - `@montaj/render-skia-node` is implemented: the same `DrawCommand[]` the browser
+    executes, run against Skia's native build (`@napi-rs/canvas` 1.0.8, pinned), with
+    `outlineTextCommands` converting every glyph run to a path because Canvas2D has no
+    glyph-id entry point. No system font is ever consulted (D33). Frames come out as
+    straight RGBA through a reusable batch buffer — a 1080×1920 frame is 8.3 MB and a
+    ninety-second Reel is 2,700 of them.
+  - **Parity against CanvasKit is measured, not asserted.** Nineteen frames — A16's
+    seven baselines plus the four caption fixtures at three instants — of which sixteen
+    are inside decision D33's SLO (≤ 1% of pixels off by more than 2/255) and the mean
+    is 0.83%. Everything except text is bit-exact; the residual is Skia's glyph cache
+    against an analytic path fill, and it grows as the type gets smaller.
+    `neon-glow-english` (3.31%) and the two entry-instant frames (1.10% and 1.20%) are
+    over, pinned with their measured values and their reason. Four conversions with a
+    unit in them — blur sigma, shadow sigma, the miter limit and layer opacity — are
+    asserted on their own so a regression names the conversion rather than a whole
+    frame.
+  - `@montaj/render-manifest` defines the server-signed `RenderManifest` of `05 §5.2`:
+    project and EDG revision, style-catalogue snapshot ids, timemap edits, aspect,
+    resolution and fps, the watermark decision, the plan's caps, the audio strategy and
+    the subtitle request. Signed with `INTERNAL_CALLBACK_SECRET` over canonical JSON
+    under a domain-separation prefix, verified against `INTERNAL_CALLBACK_SECRET_NEXT`
+    too, so one rotation procedure covers manifests and callbacks and no new secret was
+    added. Five refusals with stable codes: malformed, bad signature, expired, not yet
+    valid, caps exceeded.
+  - `apps/render` consumes `render.video` and `render.subtitle`. A render verifies the
+    manifest, builds the timemap (D30), and checks the caps against the _rendered_
+    length — all **before a byte of media moves** — then downloads the source, probes
+    it, draws frames on Skia and pipes them into ffmpeg as a second `rawvideo` input.
+    Cuts become `trim`/`concat` per retained span so video and audio are cut at the same
+    instants; the base is forced to the output frame rate immediately before `overlay`
+    so the two streams stay frame-aligned; presets get a centre cover `scale`/`crop`.
+    x264 `veryfast` at CRF 20 (1080p) / 18 (4K) with `+faststart`, or ProRes 4444 /
+    VP9-alpha for an alpha export and a solid chroma ground for green-screen. Output to
+    R2 under CONTRACTS §6, with `usage.outputSeconds` and `egressBytes: 0` (D35).
+  - **The watermark decision is the server's** (THREAT-MODEL T10): it travels inside the
+    signature, is drawn from the manifest rather than the projection, and stripping it
+    from a signed document is a `manifest/bad-signature` refusal — tested with that
+    exact attack.
+  - A frame cache keyed on `hashCommands` reuses the previous frame's pixels whenever
+    the command list is unchanged: two thirds of the frames of the sample project at
+    1080p, four fifths at 4K. It is exact rather than heuristic, because outlining is a
+    pure function of the hashed list.
+  - `render.subtitle` writes SRT, VTT, TXT and Markdown, one file per (format × script),
+    with every cue remapped onto the output clock and a segment straddling a splice
+    split into two cues. ASS is refused with a message naming A18a.
+  - The signed callback client is a TypeScript mirror of
+    `apps/worker-ai/worker_ai/callbacks.py`, down to the header names and the rule that
+    the bytes signed are the bytes sent; the A08b retry, stall and heartbeat table is
+    mirrored with a test that parses the API's own source to prove it has not drifted.
+  - `BENCHMARK.md` reports measured throughput: **1.05× realtime at 1080p**, 3.85× at
+    540p, 0.30× at 4K, on a 12-thread desktop. The ≥ 2× target is not met; the file
+    contains the stage split showing that Skia and x264 do not overlap because
+    rasterising blocks Node's only thread, the two optimisations tried (bounded layer
+    surfaces, landed, 0.69× → ~1.1×; a pipe run-ahead buffer, reverted, slower), and the
+    worker-thread change that would close the gap.
 - **A10b — Meta MMS excluded on licence grounds (D77); tests no longer read a
   developer's `.env`.**
   - `worker_ai/alignment/mms.py` is **deleted**. The common
