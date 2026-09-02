@@ -22,10 +22,13 @@ import { toAssTimestamp, toKaraokeCentis } from "./time.js";
 import type { AssWarning } from "./capabilities.js";
 import type { AssSegment, AssWord, ToAssOptions } from "./types.js";
 
-
 /** Escapes text for the ASS `Text` field: literal braces and newlines only. */
 export function escapeAssText(text: string): string {
-  return text.replace(/\\/g, "\\\\").replace(/\{/g, "\\{").replace(/\}/g, "\\}").replace(/\n/g, "\\N");
+  return text
+    .replace(/\\/g, "\\\\")
+    .replace(/\{/g, "\\{")
+    .replace(/\}/g, "\\}")
+    .replace(/\n/g, "\\N");
 }
 
 export interface AssDialogueEvent {
@@ -105,9 +108,7 @@ export function buildSegmentEvents(
 
   for (const range of ranges) {
     if (override !== undefined && override !== "") {
-      events.push(
-        oneLineEvent(style, range.startMs, range.endMs, escapeAssText(override), canvas),
-      );
+      events.push(oneLineEvent(style, range.startMs, range.endMs, escapeAssText(override), canvas));
       continue;
     }
 
@@ -201,7 +202,9 @@ function perWordEvents(
   const highlight = style.animation.wordHighlight.type;
   const restColour =
     style.colors.upcomingText !== undefined ? toAssColourNoAlpha(style.colors.upcomingText) : null;
-  const activeColour = toAssColourNoAlpha(style.colors.activeText ?? style.colors.accent ?? style.colors.text);
+  const activeColour = toAssColourNoAlpha(
+    style.colors.activeText ?? style.colors.accent ?? style.colors.text,
+  );
 
   return words.map((word) => {
     const wordSpan: WordSpan = { word, text: wordText(word, opts.script) };

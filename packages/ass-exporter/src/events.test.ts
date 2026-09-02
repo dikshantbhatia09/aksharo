@@ -38,7 +38,11 @@ describe("wordsFor", () => {
   });
 
   it("drops fillers when asked", () => {
-    const withFiller: AssWord[] = [WORDS[0] as AssWord, { ...(WORDS[1] as AssWord), filler: true }, WORDS[2] as AssWord];
+    const withFiller: AssWord[] = [
+      WORDS[0] as AssWord,
+      { ...(WORDS[1] as AssWord), filler: true },
+      WORDS[2] as AssWord,
+    ];
     expect(wordsFor(SEGMENT, withFiller, true).map((w) => w.wid)).toEqual(["w1", "w3"]);
   });
 
@@ -50,9 +54,9 @@ describe("wordsFor", () => {
 describe("buildSegmentEvents", () => {
   it("returns nothing for a hidden segment", () => {
     const warnings: AssWarning[] = [];
-    expect(buildSegmentEvents({ ...SEGMENT, hidden: true }, makeStyle(), WORDS, opts(), warnings)).toEqual(
-      [],
-    );
+    expect(
+      buildSegmentEvents({ ...SEGMENT, hidden: true }, makeStyle(), WORDS, opts(), warnings),
+    ).toEqual([]);
   });
 
   it("emits one plain Dialogue line for a highlight-free style", () => {
@@ -186,14 +190,26 @@ describe("buildSegmentEvents", () => {
 
   it("resolves the native script text when script: 'native' is requested", () => {
     const warnings: AssWarning[] = [];
-    const events = buildSegmentEvents(SEGMENT, makeStyle(), WORDS, opts({ script: "native" }), warnings);
+    const events = buildSegmentEvents(
+      SEGMENT,
+      makeStyle(),
+      WORDS,
+      opts({ script: "native" }),
+      warnings,
+    );
     expect(events[0]?.line).toContain("देवनागरी");
   });
 
   it("returns nothing when the segment has no visible words", () => {
     const warnings: AssWarning[] = [];
     expect(
-      buildSegmentEvents({ ...SEGMENT, startWordId: "missing" }, makeStyle(), WORDS, opts(), warnings),
+      buildSegmentEvents(
+        { ...SEGMENT, startWordId: "missing" },
+        makeStyle(),
+        WORDS,
+        opts(),
+        warnings,
+      ),
     ).toEqual([]);
   });
 });

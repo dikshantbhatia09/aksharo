@@ -52,8 +52,22 @@ describe("toAss", () => {
     const projection: AssProjection = {
       canvas: CANVAS,
       segments: [
-        segment({ id: "second", seq: "b0", startWordId: "w2", endWordId: "w2", startMs: 300, endMs: 700 }),
-        segment({ id: "first", seq: "a0", startWordId: "w1", endWordId: "w1", startMs: 0, endMs: 300 }),
+        segment({
+          id: "second",
+          seq: "b0",
+          startWordId: "w2",
+          endWordId: "w2",
+          startMs: 300,
+          endMs: 700,
+        }),
+        segment({
+          id: "first",
+          seq: "a0",
+          startWordId: "w1",
+          endWordId: "w1",
+          startMs: 0,
+          endMs: 300,
+        }),
       ],
     };
     const { ass } = toAss(projection, WORDS, { "test-style": style });
@@ -61,7 +75,10 @@ describe("toAss", () => {
   });
 
   it("warns and skips a segment whose style cannot be resolved", () => {
-    const projection: AssProjection = { canvas: CANVAS, segments: [segment({ styleRef: "missing" })] };
+    const projection: AssProjection = {
+      canvas: CANVAS,
+      segments: [segment({ styleRef: "missing" })],
+    };
     const { warnings, ass, stylesUsed } = toAss(projection, WORDS, {});
     expect(warnings).toHaveLength(1);
     expect(warnings[0]?.code).toBe("effect_only_style");
@@ -71,7 +88,10 @@ describe("toAss", () => {
 
   it("falls back to opts.defaultStyleId when a segment carries no styleRef", () => {
     const style = makeStyle({ id: "default-style" });
-    const projection: AssProjection = { canvas: CANVAS, segments: [segment({ styleRef: undefined })] };
+    const projection: AssProjection = {
+      canvas: CANVAS,
+      segments: [segment({ styleRef: undefined })],
+    };
     const { stylesUsed } = toAss(projection, WORDS, { "default-style": style }, CANVAS, {
       defaultStyleId: "default-style",
     });
@@ -92,7 +112,12 @@ describe("toAss", () => {
   it("defaults the canvas to the projection's own canvas when none is passed", () => {
     const style = makeStyle();
     const projection: AssProjection = { canvas: CANVAS, segments: [segment()] };
-    const { ass } = toAss(projection, WORDS, { "test-style": style }, undefined as unknown as typeof CANVAS);
+    const { ass } = toAss(
+      projection,
+      WORDS,
+      { "test-style": style },
+      undefined as unknown as typeof CANVAS,
+    );
     expect(ass).toContain(`PlayResX: ${String(CANVAS.width)}`);
   });
 });

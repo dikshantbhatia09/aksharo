@@ -24,7 +24,10 @@ function runFfmpeg(
   cwd?: string,
 ): Promise<{ stdout: Buffer; stderr: string; code: number | null }> {
   return new Promise((resolve, reject) => {
-    const child = spawn("ffmpeg", [...args], { windowsHide: true, ...(cwd === undefined ? {} : { cwd }) });
+    const child = spawn("ffmpeg", [...args], {
+      windowsHide: true,
+      ...(cwd === undefined ? {} : { cwd }),
+    });
     const chunks: Buffer[] = [];
     let stderr = "";
     const timer = setTimeout(() => {

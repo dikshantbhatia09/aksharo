@@ -480,16 +480,41 @@ importers:
         version: 3.2.7(@types/node@22.20.1)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0)
 
   packages/ass-exporter:
+    dependencies:
+      '@montaj/caption-styles':
+        specifier: workspace:*
+        version: link:../caption-styles
+      '@montaj/render-core':
+        specifier: workspace:*
+        version: link:../render-core
+      '@montaj/timemap':
+        specifier: workspace:*
+        version: link:../timemap
     devDependencies:
       '@montaj/config':
         specifier: workspace:*
         version: link:../config
+      '@montaj/render-canvaskit':
+        specifier: workspace:*
+        version: link:../render-canvaskit
+      '@montaj/render-skia-node':
+        specifier: workspace:*
+        version: link:../render-skia-node
       '@types/node':
         specifier: ^22.19.2
         version: 22.20.1
+      '@vitest/coverage-v8':
+        specifier: ^3.2.7
+        version: 3.2.7(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0))
+      canvaskit-wasm:
+        specifier: 0.42.0
+        version: 0.42.0
       eslint:
         specifier: ^9.39.5
         version: 9.39.5(jiti@2.7.0)
+      tsx:
+        specifier: ^4.20.6
+        version: 4.23.13
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

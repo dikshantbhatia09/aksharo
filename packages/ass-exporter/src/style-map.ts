@@ -65,7 +65,9 @@ export { STYLE_FORMAT };
 export function buildStyleLine(style: StyleDoc, canvas: AssCanvas): AssStyleLine {
   const sizePx = fontSizePx(style, canvas);
   const primary = toAssColour(style.colors.text);
-  const secondary = toAssColour(style.colors.accent ?? style.colors.activeText ?? style.colors.text);
+  const secondary = toAssColour(
+    style.colors.accent ?? style.colors.activeText ?? style.colors.text,
+  );
   const outlineColour = style.stroke.enabled
     ? toAssColour(style.stroke.color ?? "#000000ff")
     : toAssColour("#00000000");
@@ -94,11 +96,11 @@ export function buildStyleLine(style: StyleDoc, canvas: AssCanvas): AssStyleLine
       )
     : 0;
   const alignment = alignmentOf(style.layout.anchor);
-  const marginH = Math.max(0, Math.round((1 - style.layout.maxWidthPct / 100) * canvas.width * 0.5));
-  const marginV = Math.max(
+  const marginH = Math.max(
     0,
-    Math.round(((style.layout.safeAreaPct ?? 4) / 100) * canvas.height),
+    Math.round((1 - style.layout.maxWidthPct / 100) * canvas.width * 0.5),
   );
+  const marginV = Math.max(0, Math.round(((style.layout.safeAreaPct ?? 4) / 100) * canvas.height));
 
   const fields = [
     style.id,

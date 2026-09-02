@@ -23,7 +23,6 @@ import {
 
 import type { AssWarning } from "./capabilities.js";
 
-
 export type { AssWarning, AssWarningCode } from "./capabilities.js";
 export type {
   AssCanvas,
@@ -100,7 +99,9 @@ export function toAss(
     for (const event of events) eventLines.push(event.line);
   }
 
-  const styleLines = [...usedStyles.values()].map((style) => buildStyleLine(style, effectiveCanvas).line);
+  const styleLines = [...usedStyles.values()].map(
+    (style) => buildStyleLine(style, effectiveCanvas).line,
+  );
 
   const doc = [
     SCRIPT_INFO_HEADER(effectiveCanvas),

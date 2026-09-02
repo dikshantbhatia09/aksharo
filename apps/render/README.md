@@ -169,7 +169,7 @@ ASS is not written here: `@montaj/ass-exporter` owns it (A18a). A `render.subtit
 manifest asking for the `ass` format is still refused with a message that says so —
 writing the sidecar bytes is entirely `@montaj/ass-exporter`'s job.
 
-`render.video`'s `path: "ass"` is a different question — a *burned-in* fast path via
+`render.video`'s `path: "ass"` is a different question — a _burned-in_ fast path via
 `ffmpeg -vf ass=` (libass), bypassing the Skia pipeline below entirely. A18a's parity
 gate is the only writer of each style's `assRenderable` flag (D33: a real, measured
 pixel-diff against libass, not a hand-set flag), and this service checks it: a request

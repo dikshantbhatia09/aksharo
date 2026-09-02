@@ -68,13 +68,9 @@ jobs:
           ffmpeg -hide_banner -filters | grep -i "ass" || echo "::warning::ffmpeg has no ass filter; assVsSkia will be 'not measured'"
 
       - name: Build workspace packages the gate needs
-        run: >
-          pnpm --filter @montaj/edg --filter @montaj/timemap --filter @montaj/render-core
-          --filter @montaj/render-canvaskit --filter @montaj/render-skia-node
-          --filter @montaj/caption-styles --filter @montaj/render-manifest
-          --filter @montaj/config build
+        run: pnpm --filter @montaj/edg --filter @montaj/timemap --filter @montaj/render-core --filter @montaj/render-canvaskit --filter @montaj/render-skia-node --filter @montaj/caption-styles --filter @montaj/render-manifest --filter @montaj/config build
 
-      - name: Run the parity gate (full sweep: 30 styles x 4 fixtures x 3 instants)
+      - name: "Run the parity gate (full sweep: 30 styles x 4 fixtures x 3 instants)"
         working-directory: packages/ass-exporter
         run: node --import tsx parity/run.ts --full
 
@@ -82,10 +78,16 @@ jobs:
         working-directory: packages/ass-exporter
         run: node --import tsx parity/apply-flags.ts
 
+      # Gated on styles/*.json only, not parity/results.json: that file's
+      # `measuredAt`/`generatedAt` timestamps differ on every run by design,
+      # which would fail this check on an unchanged measurement. The uploaded
+      # artifact above is where a reviewer reads the fresh numbers; this step
+      # exists to catch a *flag* change (`assRenderable` flipping, a new
+      # `parityScore`) landing without a human having reviewed and committed it.
       - name: Fail with a diff if the flags changed (never auto-committed)
         run: |
-          if ! git diff --exit-code -- packages/caption-styles/styles packages/caption-styles/parity/results.json; then
-            echo "::error::The parity gate changed packages/caption-styles/styles/*.json or parity/results.json. Commit the diff above (reviewed by Fable) rather than merging without it — the gate never writes these files silently."
+          if ! git diff --exit-code -- packages/caption-styles/styles; then
+            echo "::error::The parity gate changed packages/caption-styles/styles/*.json's flag fields. Commit the diff above (reviewed by Fable) rather than merging without it — the gate never writes these files silently. See the uploaded parity-results artifact for the full measurement."
             exit 1
           fi
 

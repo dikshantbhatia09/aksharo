@@ -43,7 +43,9 @@ function parityScoreOf(result: StyleParityResult): number | undefined {
 
 async function main(): Promise<void> {
   const results = JSON.parse(await readFile(RESULTS_PATH, "utf8")) as ResultsFile;
-  const files = (await readdir(STYLES_DIR)).filter((f) => f.endsWith(".json") && f !== "registry.json");
+  const files = (await readdir(STYLES_DIR)).filter(
+    (f) => f.endsWith(".json") && f !== "registry.json",
+  );
 
   let changed = 0;
   for (const file of files) {
@@ -70,7 +72,9 @@ async function main(): Promise<void> {
     if (nextText !== raw) {
       await writeFile(path, nextText, "utf8");
       changed += 1;
-      console.warn(`updated ${file}: assRenderable=${String(result.assRenderable)} parityScore=${String(next["parityScore"])}`);
+      console.warn(
+        `updated ${file}: assRenderable=${String(result.assRenderable)} parityScore=${String(next["parityScore"])}`,
+      );
     }
   }
 

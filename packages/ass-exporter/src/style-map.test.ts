@@ -23,9 +23,9 @@ describe("alignmentOf", () => {
 
 describe("fontSizePx", () => {
   it("is a percentage of canvas height", () => {
-    expect(fontSizePx(makeStyle({ typography: { ...makeStyle().typography, sizePct: 5 } }), CANVAS)).toBe(
-      96,
-    );
+    expect(
+      fontSizePx(makeStyle({ typography: { ...makeStyle().typography, sizePct: 5 } }), CANVAS),
+    ).toBe(96);
   });
 });
 
@@ -40,14 +40,29 @@ describe("buildStyleLine", () => {
   });
 
   it("marks bold when weight >= 600", () => {
-    const bold = buildStyleLine(makeStyle({ typography: { ...makeStyle().typography, weight: 700 } }), CANVAS);
-    const light = buildStyleLine(makeStyle({ typography: { ...makeStyle().typography, weight: 400 } }), CANVAS);
+    const bold = buildStyleLine(
+      makeStyle({ typography: { ...makeStyle().typography, weight: 700 } }),
+      CANVAS,
+    );
+    const light = buildStyleLine(
+      makeStyle({ typography: { ...makeStyle().typography, weight: 400 } }),
+      CANVAS,
+    );
     expect(bold.line.split(",")[7]).toBe("-1");
     expect(light.line.split(",")[7]).toBe("0");
   });
 
   it("uses BorderStyle 3 and outline-as-padding for an enabled block box", () => {
-    const style = makeStyle({ box: { enabled: true, mode: "block", fill: "#101018ff", paddingPct: 20, radiusPct: 10, opacity: 1 } });
+    const style = makeStyle({
+      box: {
+        enabled: true,
+        mode: "block",
+        fill: "#101018ff",
+        paddingPct: 20,
+        radiusPct: 10,
+        opacity: 1,
+      },
+    });
     const { line } = buildStyleLine(style, CANVAS);
     const fields = line.replace("Style: ", "").split(",");
     expect(fields[15]).toBe("3"); // BorderStyle
@@ -64,7 +79,14 @@ describe("buildStyleLine", () => {
 
   it("computes a shadow distance from the average absolute offset", () => {
     const style = makeStyle({
-      shadow: { enabled: true, color: "#000000ff", offsetXPct: 4, offsetYPct: 4, blurPct: 0, opacity: 1 },
+      shadow: {
+        enabled: true,
+        color: "#000000ff",
+        offsetXPct: 4,
+        offsetYPct: 4,
+        blurPct: 0,
+        opacity: 1,
+      },
     });
     const { line } = buildStyleLine(style, CANVAS);
     const fields = line.replace("Style: ", "").split(",");

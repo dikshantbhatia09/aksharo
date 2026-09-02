@@ -34,7 +34,8 @@ describe("capabilitiesOf", () => {
   it("requires layout metrics for a non-none word highlight", () => {
     const style = styles.find(
       (candidate) =>
-        candidate.animation.wordHighlight.type !== "none" && !EFFECT_ONLY_STYLE_IDS.has(candidate.id),
+        candidate.animation.wordHighlight.type !== "none" &&
+        !EFFECT_ONLY_STYLE_IDS.has(candidate.id),
     );
     expect(style).toBeDefined();
     if (style === undefined) return;

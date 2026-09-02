@@ -38,7 +38,19 @@ export {
   type AssWarningCode,
   type StyleAssCapability,
 } from "./capabilities.js";
-export { alignmentOf, buildStyleLine, fontSizePx, STYLE_FORMAT, type AssStyleLine } from "./style-map.js";
+export {
+  alignmentOf,
+  buildStyleLine,
+  fontSizePx,
+  STYLE_FORMAT,
+  type AssStyleLine,
+} from "./style-map.js";
 export { buildSegmentEvents, escapeAssText, wordsFor, type AssDialogueEvent } from "./events.js";
-export { toAssAlpha, toAssColour, toAssColourNoAlpha, parseHexColour, type Rgba } from "./colour.js";
+export {
+  toAssAlpha,
+  toAssColour,
+  toAssColourNoAlpha,
+  parseHexColour,
+  type Rgba,
+} from "./colour.js";
 export { toAssTimestamp, toKaraokeCentis } from "./time.js";

@@ -122,7 +122,8 @@ describe("Devanagari shaping=complex golden", () => {
         const r = pixels[i] ?? 0;
         const g = pixels[i + 1] ?? 0;
         const b = pixels[i + 2] ?? 0;
-        if (Math.abs(r - 0x1a) > 8 || Math.abs(g - 0x1a) > 8 || Math.abs(b - 0x20) > 8) differing += 1;
+        if (Math.abs(r - 0x1a) > 8 || Math.abs(g - 0x1a) > 8 || Math.abs(b - 0x20) > 8)
+          differing += 1;
       }
       const totalPixels = pixels.length / 4;
       expect(differing / totalPixels).toBeGreaterThan(0.005);

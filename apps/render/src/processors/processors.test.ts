@@ -248,7 +248,10 @@ describe("the render.video processor", () => {
         segments:
           firstSegment === undefined
             ? []
-            : [{ ...firstSegment, styleRef: "not-renderable" }, ...base.projection.segments.slice(1)],
+            : [
+                { ...firstSegment, styleRef: "not-renderable" },
+                ...base.projection.segments.slice(1),
+              ],
       },
     };
     await expect(

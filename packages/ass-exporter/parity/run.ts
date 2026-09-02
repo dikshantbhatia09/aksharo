@@ -111,7 +111,9 @@ async function main(): Promise<void> {
 
   const libassProbe = await probeLibass();
   if (!libassProbe.available) {
-    console.warn(`ass-exporter parity: libass not available (${libassProbe.reason ?? "unknown"}); assVsSkia will be "not measured" for every style.`);
+    console.warn(
+      `ass-exporter parity: libass not available (${libassProbe.reason ?? "unknown"}); assVsSkia will be "not measured" for every style.`,
+    );
   }
 
   // The full 30 x 4 fixtures x 3 instants x (canvas+ass) sweep is what CI runs;
@@ -139,7 +141,14 @@ async function main(): Promise<void> {
         });
         const commands = animate({ layout, style, tMs });
 
-        const expected = browserPixels(ck, browser, commands, PROXY_CANVAS.width, PROXY_CANVAS.height, PARITY_BACKGROUND);
+        const expected = browserPixels(
+          ck,
+          browser,
+          commands,
+          PROXY_CANVAS.width,
+          PROXY_CANVAS.height,
+          PARITY_BACKGROUND,
+        );
         const actual = cloud.renderFrameToRgba(commands, {
           width: PROXY_CANVAS.width,
           height: PROXY_CANVAS.height,
@@ -168,7 +177,12 @@ async function main(): Promise<void> {
               },
             ],
           };
-          const { ass, warnings: exportWarnings } = toAss(projection, words, { [style.id]: style }, PROXY_CANVAS);
+          const { ass, warnings: exportWarnings } = toAss(
+            projection,
+            words,
+            { [style.id]: style },
+            PROXY_CANVAS,
+          );
           for (const warning of exportWarnings) warnings.add(warning.code);
           try {
             const assActual = await renderAssFrameToRgba({
@@ -181,12 +195,15 @@ async function main(): Promise<void> {
               // RR-04 F6/F14: Devanagari/Tamil need HarfBuzz shaping for
               // conjuncts and matra reordering; libass's `auto` default was
               // never verified, so this gate always asks for it explicitly.
-              shaping: fixture.script === "devanagari" || fixture.script === "tamil" ? "complex" : "auto",
+              shaping:
+                fixture.script === "devanagari" || fixture.script === "tamil" ? "complex" : "auto",
             });
             assRatios.push(comparePixels(expected, assActual).ratio);
           } catch (error) {
             warnings.add("ass_render_failed");
-            console.warn(`ass render failed for ${style.id}/${fixture.name}@${String(tMs)}: ${String(error)}`);
+            console.warn(
+              `ass render failed for ${style.id}/${fixture.name}@${String(tMs)}: ${String(error)}`,
+            );
           }
         }
       }
@@ -198,7 +215,10 @@ async function main(): Promise<void> {
 
     const assExportable = !warnings.has("effect_only_style");
     const assRenderable =
-      libassProbe.available && worstAss !== null && worstAss <= budget && !warnings.has("ass_render_failed");
+      libassProbe.available &&
+      worstAss !== null &&
+      worstAss <= budget &&
+      !warnings.has("ass_render_failed");
 
     results[style.id] = {
       styleId: style.id,
@@ -222,7 +242,8 @@ async function main(): Promise<void> {
   }
 
   const failures = Object.values(results).filter(
-    (result) => result.canvasVsSkia !== null && result.canvasVsSkia > MAX_DIFF_RATIO + TEXT_EDGE_HEADROOM,
+    (result) =>
+      result.canvasVsSkia !== null && result.canvasVsSkia > MAX_DIFF_RATIO + TEXT_EDGE_HEADROOM,
   );
 
   const output: ResultsFile = {
