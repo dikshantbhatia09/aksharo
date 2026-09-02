@@ -34,8 +34,18 @@ export interface NamedExportPreset {
  * table.
  */
 export const NAMED_EXPORT_PRESETS: readonly NamedExportPreset[] = [
-  { id: "reels-1080-vertical", label: "Reels / TikTok (1080×1920)", aspect: "9:16", preset: "reels" },
-  { id: "shorts-1080-vertical", label: "YouTube Shorts (1080×1920)", aspect: "9:16", preset: "shorts" },
+  {
+    id: "reels-1080-vertical",
+    label: "Reels / TikTok (1080×1920)",
+    aspect: "9:16",
+    preset: "reels",
+  },
+  {
+    id: "shorts-1080-vertical",
+    label: "YouTube Shorts (1080×1920)",
+    aspect: "9:16",
+    preset: "shorts",
+  },
   // No 1080p 16:9 `RenderPreset` exists yet (see the module header); this
   // named preset's *label* says 1080 because that is what B17's "youtube"
   // and "client-review" answers mean, but it renders through `youtube-4k`
@@ -43,7 +53,12 @@ export const NAMED_EXPORT_PRESETS: readonly NamedExportPreset[] = [
   { id: "youtube-1080", label: "YouTube (16:9)", aspect: "16:9", preset: "youtube-4k" },
   { id: "podcast-clip", label: "Podcast clip (1080×1080)", aspect: "1:1", preset: "square" },
   { id: "client-review", label: "Client review (16:9)", aspect: "16:9", preset: "youtube-4k" },
-  { id: "highlights-1080-vertical", label: "Highlights (1080×1920)", aspect: "9:16", preset: "reels" },
+  {
+    id: "highlights-1080-vertical",
+    label: "Highlights (1080×1920)",
+    aspect: "9:16",
+    preset: "reels",
+  },
 ];
 
 const DEFAULT_NAMED_PRESET_ID = "reels-1080-vertical";

@@ -112,8 +112,13 @@ describe("probeExportCapabilities", () => {
     // *some* rung of the ladder answers `prefer-software` successfully.
     vi.stubGlobal("VideoEncoder", {
       isConfigSupported: async (config: { codec: string; hardwareAcceleration?: string }) => {
-        if (config.hardwareAcceleration === "prefer-hardware" && config.codec === H264_CODEC_LADDER[0]) {
-          throw new Error("this specific encoder configuration is not supported in this environment");
+        if (
+          config.hardwareAcceleration === "prefer-hardware" &&
+          config.codec === H264_CODEC_LADDER[0]
+        ) {
+          throw new Error(
+            "this specific encoder configuration is not supported in this environment",
+          );
         }
         return { supported: config.hardwareAcceleration !== "prefer-hardware" };
       },

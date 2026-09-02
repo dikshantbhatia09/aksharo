@@ -218,7 +218,7 @@ highest-leverage remaining item and did not attempt it; this pass does.
 
 1. **Offscreen WebGL caption surface.** `engine.ts`'s persistent caption surface is now
    allocated through `@montaj/render-canvaskit`'s new `createExportSurface(ck, width,
-   height)`, which tries `ck.MakeWebGLCanvasSurface(new OffscreenCanvas(...))` first and
+height)`, which tries `ck.MakeWebGLCanvasSurface(new OffscreenCanvas(...))` first and
    falls back to the plain CPU raster `MakeSurface` A19b used exclusively. The
    `drawFrame` → `flush` → `readPixels` → `putImageData` → `drawImage` sequence A19b
    built is unchanged — only where the pixels come from differs — so `EngineResult`
@@ -242,7 +242,7 @@ highest-leverage remaining item and did not attempt it; this pass does.
    `supported: false` answer.
 3. **Server-side cloud-default policy above 1080p.** `decision.ts`'s `choosePath`: an
    `auto` request at 1080p or larger (`requestedWidth(input) >=
-   SOFTWARE_ENCODER_CLOUD_DEFAULT_MIN_WIDTH`) now defaults to the cloud when
+SOFTWARE_ENCODER_CLOUD_DEFAULT_MIN_WIDTH`) now defaults to the cloud when
    `capabilities.hardwareEncoder !== true`, with `SOFTWARE_ENCODER_CLOUD_DEFAULT_REASON`
    in `reasons`. An explicit `mode: "browser"` request still bypasses this (the ruling's
    own carve-out) and instead carries `SOFTWARE_ENCODER_BROWSER_WARNING` in `reasons` so
@@ -255,15 +255,19 @@ highest-leverage remaining item and did not attempt it; this pass does.
    pipeline — so it requests `mode: "browser"` explicitly (the dialog's own "browser
    anyway" override) and annotates `hardware-encoder` (from the probe),
    `realtime-multiplier` and `caption-surface-backend` on every run, unconditionally.
-   The ≥1× target from A19b's own report stays a *reported* number, not an assertion;
+   The ≥1× target from A19b's own report stays a _reported_ number, not an assertion;
    the brief's new hard floor — 0.5× — is asserted **only** when the run's own probe
    reports `hardwareEncoder === true`; otherwise the test only asserts forward progress
-   (`> 0`), exactly as A19b's version did. Measured in this sandbox (no hardware
-   encoder, `MakeWebGLCanvasSurface` on an `OffscreenCanvas` inside headless chromium —
-   confirm the annotation for whether it landed on `webgl` or fell back to `cpu`): see
-   the final report for this run's actual `realtime-multiplier` and
-   `caption-surface-backend` values; the 0.5× floor is not exercised here because
-   `hardwareEncoder` is `false` in this environment, same as A19b's ≥1× target was not.
+   (`> 0`), exactly as A19b's version did. Measured in this pass, this sandbox:
+   `hardware-encoder: false`, `caption-surface-backend: webgl` (the `OffscreenCanvas`
+   `MakeWebGLCanvasSurface` path did engage — headless chromium's software GL
+   (SwiftShader/ANGLE) counts as "WebGL available" for CanvasKit's purposes, even with
+   no hardware video encoder), `realtime-multiplier: 0.15` (up from A19b's 0.12× CPU-raster
+   number, in the same no-hardware-encoder environment — consistent with the WebGL surface
+   being faster than CPU raster, but nowhere near ≥1× without a hardware encoder too). The
+   0.5× floor is not exercised here because `hardwareEncoder` is `false` in this
+   environment, same as A19b's ≥1× target was not; both remain open items against real
+   desktop Chrome hardware, which this sandbox cannot provide.
    To reproduce: `pnpm --filter @montaj/web test:e2e -- export.spec.ts --project=chromium`
    and read the `realtime-multiplier`/`caption-surface-backend`/`hardware-encoder`
    annotations from the HTML report (or `--reporter=json` and inspect `annotations` on

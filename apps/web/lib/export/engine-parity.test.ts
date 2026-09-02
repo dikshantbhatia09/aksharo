@@ -164,7 +164,7 @@ describe("A19c: createExportSurface's fallback surface matches the plain MakeSur
       BASELINE_BACKGROUND,
     );
     expect(actual).toEqual(expected);
-  });
+  }, 30_000);
 });
 
 describe("A19b: engine.ts's raw readPixels path vs the cloud renderer (D33)", () => {

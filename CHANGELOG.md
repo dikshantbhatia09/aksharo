@@ -82,7 +82,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 - **A19c — browser export throughput: offscreen WebGL CanvasKit surface,
   hardware-encoder capability probe, cloud-default policy above 1080p, 5ms
   splice fades.** `packages/render-canvaskit`: `createExportSurface(ck,
-  width, height)` — the export worker's off-screen counterpart to A16's
+width, height)` — the export worker's off-screen counterpart to A16's
   `createBrowserSurface`, trying an `OffscreenCanvas`-backed
   `MakeWebGLCanvasSurface` first and falling back to the plain CPU raster
   `MakeSurface` A19b used exclusively; both are Skia, proven equal by
@@ -108,7 +108,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   this browser anyway" button (BRAND-worded warned copy) on the cloud-offer
   panel when this specific policy, not some other cloud reason, is why the
   request landed there. `apps/web/e2e/export.spec.ts`'s throughput check is
-  now a *reported* `realtime-multiplier`/`caption-surface-backend`
+  now a _reported_ `realtime-multiplier`/`caption-surface-backend`
   annotation on every run, with a hard ≥0.5x floor gated on
   `capabilities.hardwareEncoder === true` only (this sandbox's headless
   chromium has neither a hardware encoder nor a GPU context proven, so it

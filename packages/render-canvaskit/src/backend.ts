@@ -236,11 +236,7 @@ export function createBrowserSurface(ck: CanvasKit, element: HTMLCanvasElement):
  * output matches (proven by `engine-parity.test.ts`'s D33 check); only the speed
  * differs, which is why the fallback is silent-but-reported, not an error.
  */
-export function createExportSurface(
-  ck: CanvasKit,
-  width: number,
-  height: number,
-): BrowserSurface {
+export function createExportSurface(ck: CanvasKit, width: number, height: number): BrowserSurface {
   if (typeof OffscreenCanvas !== "undefined") {
     const canvas = new OffscreenCanvas(width, height);
     const gpu = ck.MakeWebGLCanvasSurface(canvas);

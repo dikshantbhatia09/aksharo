@@ -212,8 +212,8 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
               {softwareEncoderCloudDefault ? (
                 <div className="mt-2">
                   <p className="text-amber-200/80">
-                    Export directly in this browser instead — no upload to {BRAND.name}&apos;s
-                    cloud renderer, but without a hardware video encoder it may be slow.
+                    Export directly in this browser instead — no upload to {BRAND.name}&apos;s cloud
+                    renderer, but without a hardware video encoder it may be slow.
                   </p>
                   <Button
                     size="sm"
