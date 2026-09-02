@@ -37,7 +37,6 @@ import { StreakModule } from "./streak/streak.module.js";
 import { StylesModule } from "./styles/styles.module.js";
 import { TaxModule } from "./tax/tax.module.js";
 import { ScriptsModule } from "./transcripts/scripts/scripts.module.js";
-
 import { TranscriptsModule } from "./transcripts/transcripts.module.js";
 import { UsersModule } from "./users/users.module.js";
 import { WebhooksModule } from "./webhooks/webhooks.module.js";
