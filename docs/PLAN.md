@@ -82,7 +82,7 @@ Sub-wave order: {A10, A11, A12, A13, A16, A18b, A20, A25, A26} → {A14, A15, A2
 | B03 | web Subscription pages (overview, plans, methods/mandates, invoices, usage), checkout sheet with tax-profile step, `UpgradeGate` | B01, B02, B05, A13 | done |
 | B04 | Offers: signup-gift export, ₹9 clean export, ₹59 week pass, pay-once, ₹149 Free top-up; export-dialog upsell | B01, B02, A21 | done |
 | B05 | api invoices (Rule 46, series, credit notes, export under LUT, PDF + signature, IRN hook) + tax engine + FIRC records | B01 | done |
-| B06 | Streak experiment engine (holdout flag, freezes, pause-not-reset, rewards) + widget | B01, B02, A21 | briefed |
+| B06 | Streak experiment engine (holdout flag, freezes, pause-not-reset, rewards) + widget | B01, B02, A21 | in-progress |
 | B07 | Affiliate v2: apply with PAN, 60-day cookie + code attribution, rate tiers, TDS accumulator, RazorpayX payouts, dashboard | B01, B02, B05 | in-progress |
 | B07b | Give-get referral loop (30/30 credits on first export, caps, abuse rules, prompt) | B02, A21 | in-progress |
 | B08 | Team/Agency workspaces, seat billing, pooled credits, client tags, devices/leases, licence keys | B01, B02, A05 | in-progress |
