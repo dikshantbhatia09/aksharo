@@ -224,3 +224,4 @@ export * from "./pairing.js";
 export * from "./server.js";
 export * from "./relay-client.js";
 export * from "./tray.js";
+export * from "./redact.js";

@@ -69,6 +69,13 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # C06b: the committed placeholder .mogrt (no .aep, no After Effects on any
+      # CI runner) must still unzip and its definition.json must still match the
+      # frozen param table — this is the same check C06's start-up self-test
+      # runs against the real shipped .mogrt.
+      - name: MOGRT placeholder verifies
+        run: pnpm --filter @montaj/premiere-uxp verify:mogrt
+
   # ---------------------------------------------------------------------------
   # Python AI worker: ruff, mypy --strict, pytest
   # ---------------------------------------------------------------------------

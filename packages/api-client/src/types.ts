@@ -17,8 +17,9 @@ export type WorkspaceRole = "owner" | "admin" | "editor" | "viewer";
 /** D60: the jurisdictions with their own minimum age. */
 export type Jurisdiction = "IN" | "EU" | "OTHER";
 
-/** The purposes `consent_records` knows about (A05). All default false. */
-export type ConsentPurpose = "analytics" | "memory" | "marketing" | "share_upload" | "affiliate";
+/** The purposes `consent_records` knows about (A05; `telemetry` added by C12). All default false. */
+export type ConsentPurpose =
+  "analytics" | "memory" | "marketing" | "share_upload" | "affiliate" | "telemetry";
 
 export const CONSENT_PURPOSES: readonly ConsentPurpose[] = [
   "analytics",
@@ -26,6 +27,7 @@ export const CONSENT_PURPOSES: readonly ConsentPurpose[] = [
   "marketing",
   "share_upload",
   "affiliate",
+  "telemetry",
 ];
 
 /** The three a sign-up form asks about. */
@@ -895,6 +897,24 @@ export interface CreateLicenseKeyRequest {
   maxActivations?: number;
 }
 
+/** `GET /plugins/manifest` (07 §Plugins, D65). Every channel is `available:
+ * false` until C10 (installer builds and hosting) lands. */
+export interface PluginManifestChannel {
+  available: boolean;
+  version: string | null;
+  minHostVersion: string | null;
+  maxHostVersion: string | null;
+  downloadUrl: string | null;
+}
+
+export interface PluginManifestResponse {
+  channels: {
+    "premiere-uxp": PluginManifestChannel;
+    "ae-cep": PluginManifestChannel;
+    "resolve-script": PluginManifestChannel;
+  };
+}
+
 export interface ClientTagView {
   tag: string;
   projectCount: number;
@@ -1171,4 +1191,55 @@ export interface SupportTicketView {
 
 export interface ListSupportTicketsResponse {
   tickets: SupportTicketView[];
+}
+
+// ---------------------------------------------------------------------------
+// Telemetry (C12): consent-gated desktop/plugin events, crash reports, and
+// the diagnostics-bundle presign/confirm attached to a support ticket.
+// ---------------------------------------------------------------------------
+
+export interface TelemetryEventInput {
+  eventId: string;
+  kind: string;
+  at: string;
+  appVersion: string;
+  props: Record<string, unknown>;
+}
+
+export interface SubmitTelemetryEventsRequest {
+  events: TelemetryEventInput[];
+}
+
+export interface SubmitTelemetryEventsResponse {
+  accepted: number;
+}
+
+export interface SubmitCrashReportRequest {
+  clientKind: "desktop" | "bridge" | "premiere" | "ae" | "resolve";
+  appVersion: string;
+  osVersion: string;
+  stack: string;
+  logTail: string[];
+}
+
+export interface SubmitCrashReportResponse {
+  crashReportId: string;
+}
+
+export interface PresignDiagnosticsBundleRequest {
+  ticketId: string;
+}
+
+export interface PresignDiagnosticsBundleResponse {
+  uploadUrl: string;
+  bundleKey: string;
+  maxBytes: number;
+}
+
+export interface ConfirmDiagnosticsBundleRequest {
+  ticketId: string;
+}
+
+export interface ConfirmDiagnosticsBundleResponse {
+  bundleKey: string;
 }

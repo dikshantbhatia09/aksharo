@@ -4,7 +4,7 @@
  * `aksharo://` deep-link scheme, wires electron-updater, and hosts the tray
  * and the (stubbed, pending C01) embedded bridge.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -21,6 +21,7 @@ import {
 } from "electron";
 import { autoUpdater } from "electron-updater";
 
+import { discoveryFilePath } from "@montaj/bridge-core";
 import { BRAND } from "@montaj/config/brand";
 
 import { buildAppMenu } from "./menu.js";
@@ -35,6 +36,11 @@ import {
   isOpenExternalAllowed,
 } from "../security/allowlist.js";
 import { offlinePageCsp } from "../security/csp.js";
+import { createConsentStore, type ConsentFileIO } from "../telemetry/consent-store.js";
+import { buildCrashPayload } from "../telemetry/crash-handler.js";
+import { buildDiagnosticsBundle } from "../telemetry/diagnostics-bundle.js";
+import { createLogRingBuffer } from "../telemetry/log-ring-buffer.js";
+import { createFileBackedQueue, type QueueFileIO } from "../telemetry/offline-queue.js";
 import { createTray } from "../tray/index.js";
 import { feedUrl, isUpdateChannel, type UpdateChannel } from "../updater/feed.js";
 
@@ -158,6 +164,28 @@ function rebuildTray(): void {
     },
   });
 }
+
+// --- C12: consent-gated telemetry -------------------------------------------
+// The main process owns the local consent mirror, the offline event queue and
+// crash capture (it can run before any renderer/web session exists); the
+// hosted web app (already holding the user's access token) is the one that
+// actually calls the API — see `preload/api-types.ts`'s `telemetry` doc comment.
+const fsIo: ConsentFileIO & QueueFileIO = {
+  readText: (p) => (existsSync(p) ? readFileSync(p, "utf8") : undefined),
+  writeText: (p, content) => {
+    mkdirSync(path.dirname(p), { recursive: true });
+    writeFileSync(p, content, "utf8");
+  },
+};
+const consentStore = createConsentStore(
+  path.join(app.getPath("userData"), "telemetry-consent.json"),
+  fsIo,
+);
+const telemetryQueue = createFileBackedQueue(
+  path.join(app.getPath("userData"), "telemetry-queue.json"),
+  fsIo,
+);
+const telemetryLogs = createLogRingBuffer();
 
 function loadAppUrl(): string {
   // Test-only escape hatch so the Playwright-Electron smoke suite can force
@@ -290,6 +318,77 @@ function registerIpcHandlers(): void {
       version: result?.updateInfo?.version,
     };
   });
+
+  // --- C12 --------------------------------------------------------------
+  ipcMain.handle("desktop:telemetry-get-consent", () => consentStore.get());
+  ipcMain.handle("desktop:telemetry-set-consent", (_event, granted: boolean) => {
+    if (!granted) telemetryQueue.clear(); // withdrawal takes effect immediately.
+    return consentStore.set(granted);
+  });
+  ipcMain.handle("desktop:telemetry-drain-queue", (_event, limit: number) =>
+    telemetryQueue.drain(limit),
+  );
+  ipcMain.handle("desktop:telemetry-build-diagnostics-bundle", () => {
+    const zip = buildDiagnosticsBundle({
+      appVersion: app.getVersion(),
+      platform: process.platform,
+      osVersion: `${os.type()} ${os.release()}`,
+      updateChannel,
+      logLines: telemetryLogs.lines(),
+      config: { channel: updateChannel },
+      bridgeDiscovery: readBridgeDiscovery(),
+    });
+    return zip.toString("base64");
+  });
+}
+
+/** The bridge discovery file's contents (`@montaj/bridge-core`), if present. */
+function readBridgeDiscovery(): Record<string, unknown> | undefined {
+  try {
+    const raw = readFileSync(discoveryFilePath(), "utf8");
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Installs the crash handler (brief §2). Only ever queues a redacted payload
+ * — via `consentStore`, so nothing is queued before consent is granted — and
+ * never rethrows or exits the process itself.
+ */
+function installTelemetryCrashHandler(): void {
+  const onCrash = (payload: ReturnType<typeof buildCrashPayload>) => {
+    if (!consentStore.get().granted) return;
+    telemetryQueue.enqueue({
+      eventId: `crash-${String(Date.now())}-${Math.random().toString(36).slice(2)}`,
+      kind: "app_crashed",
+      at: new Date().toISOString(),
+      appVersion: app.getVersion(),
+      props: payload as unknown as Record<string, unknown>,
+    });
+  };
+
+  process.on("uncaughtException", (error) => {
+    onCrash(
+      buildCrashPayload(error, {
+        appVersion: app.getVersion(),
+        osVersion: `${os.type()} ${os.release()}`,
+        logs: telemetryLogs,
+      }),
+    );
+  });
+  process.on("unhandledRejection", (reason) => {
+    const error =
+      reason instanceof Error ? reason : { message: `Unhandled rejection: ${String(reason)}` };
+    onCrash(
+      buildCrashPayload(error, {
+        appVersion: app.getVersion(),
+        osVersion: `${os.type()} ${os.release()}`,
+        logs: telemetryLogs,
+      }),
+    );
+  });
 }
 
 function dispatchDeepLink(rawUrl: string): void {
@@ -367,6 +466,7 @@ if (!gotSingleInstanceLock) {
     app.setAsDefaultProtocolClient(BRAND.deepLinkScheme);
     configureSession();
     registerIpcHandlers();
+    installTelemetryCrashHandler();
     Menu.setApplicationMenu(buildAppMenu(`https://${BRAND.domain}/support`));
     mainWindow = createMainWindow();
     configureUpdater();

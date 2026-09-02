@@ -215,6 +215,8 @@ export type {
   LicenseKeyView,
   MemberView,
   MembershipStatus,
+  PluginManifestChannel,
+  PluginManifestResponse,
   RenameDeviceRequest,
   SetClientTagRequest,
   TransferOwnershipRequest,
