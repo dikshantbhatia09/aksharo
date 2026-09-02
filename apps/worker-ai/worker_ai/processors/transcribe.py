@@ -23,6 +23,7 @@ turns "fan out everything" into a rate-limit incident (`09 §9`).
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from typing import Any
 
 from worker_ai.alignment.base import Aligner
@@ -215,7 +216,19 @@ async def _run_chunks(
             )
         return result
 
-    return tuple(await asyncio.gather(*(one(entry) for entry in plan)))
+    async def beat() -> None:
+        """Keep the lock alive while a ten-minute chunk is in a provider (A08b)."""
+        while True:
+            await asyncio.sleep(context.heartbeat_interval_s)
+            await context.heartbeat(f"transcribing ({done}/{total} chunks done)")
+
+    heartbeat = asyncio.create_task(beat())
+    try:
+        return tuple(await asyncio.gather(*(one(entry) for entry in plan)))
+    finally:
+        heartbeat.cancel()
+        with suppress(asyncio.CancelledError):
+            await heartbeat
 
 
 async def _transcribe_chunk(

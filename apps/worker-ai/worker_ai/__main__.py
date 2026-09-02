@@ -26,6 +26,7 @@ from bullmq import Worker
 from worker_ai import __version__
 from worker_ai.control import create_app
 from worker_ai.logging_setup import configure_logging, get_logger
+from worker_ai.policies import heartbeat_interval_ms, worker_options
 from worker_ai.runtime import build_services, close_services, drain, make_handler, queues_for
 from worker_ai.settings import load_repo_dotenv, load_settings
 
@@ -49,14 +50,15 @@ async def main() -> int:
         Worker(
             queue,
             make_handler(queue, services),
-            {
-                "connection": settings.redis_url,
-                "concurrency": settings.concurrency,
-                "prefix": settings.queue_prefix,
-                # A ten-minute chunk on a cold serverless GPU can outlast the
-                # 30 s default; BullMQ renews the lock while the job runs.
-                "lockDuration": 120_000,
-            },
+            # Lock, stall interval and max stalled count come from A08b's table
+            # (`apps/api/src/jobs/jobs.config.ts`), mirrored in `policies.py` and
+            # held there by a parity test.
+            worker_options(
+                queue,
+                redis_url=settings.redis_url,
+                concurrency=settings.concurrency,
+                prefix=settings.queue_prefix,
+            ),
         )
         for queue in queues
     ]
@@ -69,6 +71,7 @@ async def main() -> int:
             "prefix": settings.queue_prefix,
             "version": __version__,
             "vad": services.vad.name,
+            "heartbeatMs": {queue: heartbeat_interval_ms(queue) for queue in queues},
             "routing": services.routing.source,
             "providers": [row.name for row in services.providers.describe() if row.enabled],
             "controlPort": settings.control_port,

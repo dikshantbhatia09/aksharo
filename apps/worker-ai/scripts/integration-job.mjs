@@ -7,8 +7,9 @@
  * design — a worker never touches Postgres, CONTRACTS §3), and the API exposes no
  * public "enqueue this" endpoint. So this script plays the producer, using the
  * API's **own** contract modules rather than a re-implementation of them:
- * `buildJobEnvelope`, `bullJobId` and `retryPolicyFor` are imported from
- * `apps/api/dist`, so if A08 changes the envelope this harness changes with it.
+ * `buildJobEnvelope`, `bullJobId` and `queuePolicyFor` are imported from
+ * `apps/api/dist`, so if A08/A08b changes the envelope or the retry policy this
+ * harness changes with it.
  *
  *   node scripts/integration-job.mjs seed  --type ai.transcribe --payload '{...}'
  *   node scripts/integration-job.mjs check --job 01J...
@@ -91,7 +92,7 @@ async function loadContracts() {
   return {
     buildJobEnvelope: envelope.buildJobEnvelope,
     bullJobId: registry.bullJobId,
-    retryPolicyFor: config.retryPolicyFor,
+    queuePolicyFor: config.queuePolicyFor,
     queuePrefix: config.queuePrefix,
   };
 }
@@ -178,12 +179,17 @@ async function seed(flags) {
       payload,
     });
 
-    const policy = contracts.retryPolicyFor(type);
+    // The same options `QueueRegistry.optionsFor` builds, from the same table.
+    const policy = contracts.queuePolicyFor(type);
     await queue.add(type, envelope, {
       jobId: contracts.bullJobId(jobId, attemptId),
       priority,
       attempts: policy.attempts,
-      backoff: { type: "exponential", delay: policy.backoffMs },
+      backoff: {
+        type: "exponential",
+        delay: policy.backoffMs,
+        jitter: policy.backoffJitter,
+      },
     });
 
     console.log(

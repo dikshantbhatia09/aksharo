@@ -40,6 +40,7 @@ import httpx2
 import pytest
 
 from worker_ai.audio import write_wav
+from worker_ai.policies import worker_options
 from worker_ai.runtime import build_services, close_services, make_handler
 from worker_ai.settings import load_repo_dotenv, load_settings
 
@@ -132,12 +133,11 @@ async def _consume_one(settings: Any, queue: str, bull_job_id: str) -> dict[str,
     worker = Worker(
         queue,
         process,
-        {
-            "connection": settings.redis_url,
-            "concurrency": 1,
-            "prefix": settings.queue_prefix,
-            "lockDuration": 120_000,
-        },
+        # The same A08b policy options `__main__` uses, so the integration run
+        # exercises the real lock and stall settings.
+        worker_options(
+            queue, redis_url=settings.redis_url, concurrency=1, prefix=settings.queue_prefix
+        ),
     )
     try:
         return await asyncio.wait_for(finished, timeout=120)
@@ -250,4 +250,4 @@ def test_the_harness_uses_the_apis_own_contract_modules() -> None:
     source = HARNESS.read_text(encoding="utf-8")
     assert "buildJobEnvelope" in source
     assert "bullJobId" in source
-    assert "retryPolicyFor" in source
+    assert "queuePolicyFor" in source

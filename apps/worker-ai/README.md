@@ -107,12 +107,40 @@ completion as `already_completed`. Hence:
 `markDeadLetterIfFinal` reads, so an exhausted job reaches the DLQ with its last
 error attached.
 
+### Locks, stalls and the heartbeat (A08b)
+
+`worker_ai/policies.py` mirrors the policy table of
+`apps/api/src/jobs/jobs.config.ts`. `attempts` and `backoff` travel to the worker
+inside the BullMQ job options, but `lockDurationMs`, `stalledIntervalMs` and
+`maxStalledCount` are `Worker` **constructor** options that each worker package
+has to read — so `tests/test_policies.py` parses the TypeScript and fails on any
+drift, the same guard the queue names have.
+
+| Queue                          | Lock   | Stall check | Heartbeat |
+| ------------------------------ | ------ | ----------- | --------- |
+| `ai.transcribe`, `ai.diarise`  | 10 min | 60 s        | 200 s     |
+| `ai.align`                     | 5 min  | 60 s        | 100 s     |
+| every other `ai.*`             | 2 min  | 30 s        | 40 s      |
+
+Every `ai.*` queue gets 2 attempts, 15 s exponential backoff with 0.3 jitter, and
+`maxStalledCount: 1` — a job that stalls twice is not unlucky, it is killing its
+worker.
+
+**The progress callback is the heartbeat.** A worker that goes quiet for longer
+than its lock is declared stalled and its job is handed to a second worker while
+the first is still transcribing it — a double charge and a double vendor call. So
+`JobContext.heartbeat()` reposts the last known percentage once the interval has
+elapsed, `ai.transcribe` beats while a chunk is inside a provider, and
+`worker_options()` sets `lockRenewTime` to the same third-of-the-lock cadence so
+two consecutive missed beats still leave the lock alive.
+
 ## Layout
 
 ```
 worker_ai/
   __main__.py        one BullMQ Worker per ai.* queue + uvicorn, in one process
   runtime.py         the handler: callbacks, retry semantics, service wiring
+  policies.py        the A08b lock/stall/heartbeat table, mirrored from the API
   settings.py        env validation mirroring loadEnv() from @montaj/config
   queues.py          frozen queue names + the pydantic job envelope (CONTRACTS §3)
   callbacks.py       signed progress/completion client

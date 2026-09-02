@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
 from itertools import pairwise
 from pathlib import Path
 from typing import Any
@@ -604,3 +606,79 @@ async def test_a_failing_progress_callback_never_fails_the_job() -> None:
 def test_the_clip_helper_produces_the_expected_duration() -> None:
     pcm: Pcm = clip(("speech", 500), ("silence", 500))
     assert pcm.duration_ms == 1_000
+
+
+# ---------------------------------------------------------------------------
+# The heartbeat (A08b): the progress callback is what keeps the lock alive
+# ---------------------------------------------------------------------------
+
+
+def _skip_ahead(monkeypatch: pytest.MonkeyPatch, seconds: float = 10_000) -> None:
+    """Move the context's clock forward without touching the real one."""
+    now = time.monotonic()
+    monkeypatch.setattr("worker_ai.processors.context.time.monotonic", lambda: now + seconds)
+
+
+def test_the_heartbeat_interval_follows_the_queues_lock() -> None:
+    assert context_for("ai.transcribe").heartbeat_interval_s == 200.0
+    assert context_for("ai.transcribe").lock_duration_ms == 600_000
+    assert context_for("ai.vad").heartbeat_interval_s == 40.0
+
+
+async def test_a_heartbeat_is_skipped_while_the_interval_has_not_elapsed() -> None:
+    """Calling it in a loop is free; only the clock decides when a beat is posted."""
+    services = build_services()
+    context = context_for("ai.transcribe", services)
+    await context.progress(10)
+    await context.heartbeat()
+    await context.heartbeat()
+    assert [percent for percent, _ in recorder(services).progress_calls] == [10]
+
+
+async def test_a_heartbeat_after_the_interval_reposts_the_last_percentage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    services = build_services()
+    context = context_for("ai.transcribe", services)
+    await context.progress(42)
+
+    _skip_ahead(monkeypatch)
+    await context.heartbeat("still transcribing")
+
+    calls = recorder(services).progress_calls
+    assert [percent for percent, _ in calls] == [42, 42]
+    assert calls[-1][1] == "still transcribing"
+
+
+async def test_a_heartbeat_before_any_progress_reports_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    services = build_services()
+    context = context_for("ai.transcribe", services)
+    _skip_ahead(monkeypatch)
+    await context.heartbeat()
+    assert recorder(services).progress_calls == [(0.0, "still working")]
+
+
+async def test_transcribe_beats_while_a_chunk_is_in_flight(
+    wav_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ten-minute chunk in a vendor must not let the lock expire."""
+    from worker_ai.providers.mock import MockProvider
+
+    original = MockProvider.transcribe
+
+    async def slow(self: Any, request: Any) -> Any:
+        await asyncio.sleep(0.05)
+        return await original(self, request)
+
+    monkeypatch.setattr(MockProvider, "transcribe", slow)
+    # A heartbeat every 10 ms, so the 50 ms chunk sees several.
+    monkeypatch.setattr(JobContext, "heartbeat_interval_s", property(lambda self: 0.01))
+
+    services = build_services()
+    context = context_for("ai.transcribe", services, mediaId=MEDIA_ID, audioUri=str(wav_file))
+    await process_transcribe(context)
+
+    messages = [message for _, message in recorder(services).progress_calls]
+    assert any(message is not None and "chunks done" in message for message in messages)

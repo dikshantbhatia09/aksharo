@@ -9,6 +9,13 @@ Progress is throttled rather than sent per chunk: a 90-minute file is nine chunk
 but a 6-hour file is thirty-six, and each callback is a signed HTTP round trip
 plus a Postgres write plus a WebSocket fan-out (`jobs.service.ts`). One percent of
 movement, or three seconds, is the floor.
+
+There is a ceiling too, and it is the more important number. **The progress
+callback is the heartbeat** (A08b, `jobs.config.ts`): a worker that goes quiet for
+longer than its queue's lock is declared stalled and its job is handed to a second
+worker while the first is still running it. :meth:`JobContext.heartbeat` posts the
+last known percentage whenever `heartbeat_interval_ms` has passed, so a chunk that
+takes ten minutes to transcribe still keeps its job alive.
 """
 
 from __future__ import annotations
@@ -24,6 +31,7 @@ from worker_ai.alignment import AlignerRegistry
 from worker_ai.callbacks import CallbackClient, JobUsage
 from worker_ai.diarisation import DiariserRegistry
 from worker_ai.logging_setup import get_logger
+from worker_ai.policies import heartbeat_interval_ms, queue_policy_for
 from worker_ai.providers.base import ProviderSubmission
 from worker_ai.providers.registry import ProviderRegistry
 from worker_ai.queues import JobEnvelope
@@ -103,6 +111,16 @@ class JobContext:
         return self.services.settings
 
     @property
+    def heartbeat_interval_s(self) -> float:
+        """How often this queue's lock needs a progress call (A08b)."""
+        return heartbeat_interval_ms(self.queue) / 1000
+
+    @property
+    def lock_duration_ms(self) -> int:
+        """The lock this job is holding, for logging when a beat is late."""
+        return queue_policy_for(self.queue).lock_duration_ms
+
+    @property
     def final_attempt(self) -> bool:
         """True when BullMQ has no retry left after this run."""
         return self.attempts_made + 1 >= self.max_attempts
@@ -159,8 +177,27 @@ class JobContext:
             and percent < 100
         ):
             return
+        await self._post_progress(percent, message=message, eta_ms=eta_ms)
+
+    async def heartbeat(self, message: str | None = None) -> None:
+        """Keep the job's lock alive when nothing has changed (A08b).
+
+        Called from the slow paths — a chunk in flight, a batch vendor being
+        polled — where minutes pass with no progress to report. It posts only when
+        the heartbeat interval has actually elapsed, so calling it in a tight loop
+        is free.
+        """
+        if time.monotonic() - self._last_progress_at < self.heartbeat_interval_s:
+            return
+        percent = self._last_progress if self._last_progress >= 0 else 0.0
+        await self._post_progress(percent, message=message or "still working")
+
+    async def _post_progress(
+        self, percent: float, *, message: str | None = None, eta_ms: int | None = None
+    ) -> None:
+        """The one call site that touches the progress endpoint."""
         self._last_progress = percent
-        self._last_progress_at = now
+        self._last_progress_at = time.monotonic()
         try:
             await self.services.callbacks.progress(
                 self.envelope.job_id,
@@ -169,8 +206,13 @@ class JobContext:
                 message=message,
                 eta_ms=eta_ms,
             )
-        except Exception as error:
+        except Exception as error:  # progress is best-effort
             _log.warning(
                 "progress callback failed",
-                extra={**self.envelope.log_fields(), "reason": str(error)[:200]},
+                extra={
+                    **self.envelope.log_fields(),
+                    "queue": self.queue,
+                    "lockDurationMs": self.lock_duration_ms,
+                    "reason": str(error)[:200],
+                },
             )

@@ -30,10 +30,16 @@ FROM python:3.12-slim-bookworm AS runtime
 
 # ffmpeg cuts the chunks the VAD plan defines; ca-certificates is needed for the
 # vendor and callback HTTPS calls. `--no-install-recommends` keeps the layer small.
+#
+# The apt versions are deliberately NOT pinned: Debian's security archive drops
+# the superseded build the moment it publishes a fix, so a pinned line turns every
+# rebuild after a CVE into a failure. The reproducibility pin that matters is the
+# base image tag, and the Python side is pinned exactly in `requirements.lock`.
+# hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
-        ca-certificates=20230311+deb12u1 \
-        ffmpeg=7:5.1.7-0+deb12u1 \
+        ca-certificates \
+        ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
