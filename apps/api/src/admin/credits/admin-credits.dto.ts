@@ -63,3 +63,32 @@ export function toAccountReconciliationDto(
 ): AccountReconciliationDto {
   return { ...reconciliation };
 }
+
+// ---------------------------------------------------------------------------
+// B13b — admin adjust / reverse (finance/superadmin only, mandatory reason)
+// ---------------------------------------------------------------------------
+
+const AdjustCreditsBody = z.object({
+  workspaceId: z.string().length(26),
+  /** Tenths of a credit (CONTRACTS §0). Positive only — this is a grant, not a debit. */
+  tenths: z.number().int().positive(),
+  /** Mandatory free-text reason: every money/credit action is reason-required (B13 scope §1). */
+  reason: z.string().trim().min(10).max(500),
+});
+export class AdjustCreditsDto extends zodDto(AdjustCreditsBody) {}
+
+export class AdjustCreditsResultDto {
+  @ApiProperty() lotId!: string;
+}
+
+const ReverseCreditsBody = z.object({
+  workspaceId: z.string().length(26),
+  jobId: z.string().length(26),
+  tenths: z.number().int().positive(),
+  reason: z.string().trim().min(10).max(500),
+});
+export class ReverseCreditsDto extends zodDto(ReverseCreditsBody) {}
+
+export class ReverseCreditsResultDto {
+  @ApiProperty({ type: [String] }) lotIds!: string[];
+}

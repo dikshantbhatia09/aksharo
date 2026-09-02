@@ -13,7 +13,7 @@
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { authSkipReason, createAuthTestContext } from "./auth-harness.js";
+import { authSkipReason, createAdminContext, createAuthTestContext } from "./auth-harness.js";
 import { isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { redisKeys } from "../src/auth/auth.constants.js";
 import { hashEmail } from "../src/privacy/parental-waitlist.js";
@@ -511,11 +511,25 @@ describe.skipIf(!available)("users, workspaces, consents and privacy (e2e)", () 
         .expect(202);
 
       const admin = await newUser("waitlist-admin");
-      await ctx.prisma.user.update({ where: { email: admin.email }, data: { isAdmin: true } });
+      const adminUser = await ctx.prisma.user.update({
+        where: { email: admin.email },
+        data: { isAdmin: true },
+      });
+      const ownedWorkspace = await ctx.prisma.workspace.findFirstOrThrow({
+        where: { ownerId: adminUser.id },
+      });
+      // B13: AdminGuard requires a real kind:"admin" step-up token — the same
+      // shared helper every other admin e2e uses.
+      const adminCtx = await createAdminContext({
+        app: ctx.app,
+        roles: ["superadmin"],
+        userId: adminUser.id,
+        workspaceId: ownedWorkspace.id,
+      });
 
       const response = await request(server)
         .get("/admin/parental-waitlist")
-        .set("Authorization", auth(admin))
+        .set("Authorization", `Bearer ${adminCtx.accessToken}`)
         .expect(200);
 
       expect(response.body.total).toBe(1);

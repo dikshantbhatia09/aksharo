@@ -81,6 +81,33 @@ admin-step-up.{controller,service,dto,constants}.ts`: TOTP enrol/verify
   `admin_roles` grant (`superadmin` always satisfies any role list). Role
   matrix contract test: `apps/api/src/admin/admin.guard.test.ts`.
 
+- **B13b — Admin users/workspaces search+detail, credits adjust/reverse,
+  refunds + credit notes.** `apps/api/src/admin/users/**`: read-only
+  cross-tenant search and detail (memberships, device count, active admin
+  roles; owner, member count, credit account, subscription) — open to any
+  admin role, no `@AdminRoles(...)` restriction (the brief's own e2e case:
+  support can view). `admin-credits.controller.ts` gains `POST
+/admin/credits/adjust` (wraps `CreditsFacade.grantLot(source: "adjust")`)
+  and `POST /admin/credits/reverse` (wraps `LedgerCreditsFacade.reverse()`,
+  named in that method's own doc comment as one of its two intended
+  callers), both `finance`/`superadmin` only, reason mandatory (min 10
+  chars), audited. `apps/api/src/admin/billing/**`: `POST
+/admin/billing/passes/:id/refund` — `admin-refund-policy.ts`'s pure
+  policy (within 7 days of purchase: full refund of the amount on file;
+  after: pro-rated by the fraction of the purchase's credits still unspent,
+  via `credit_lots.remaining_tenths`/`granted_tenths`) composed with B01's
+  `RefundsService.refundPassPurchase` (provider refund + credits clawback)
+  and B05's `InvoicesService.generateCreditNote` (skipped, not failed, when
+  no original tax invoice is on file). `AdminBillingModule`/
+  `AdminUsersModule` are their own modules (not folded into `AdminModule`)
+  to avoid a cycle: `InvoicesModule` already imports `AdminModule`.
+  `test/auth-harness.ts`'s new `createAdminContext` mints a real `kind:
+"admin"` token via an actual step-up (grant admin_roles, enrol a
+  deterministic TOTP secret, verify, step up) — every existing admin e2e
+  fixture (`dlq.e2e-spec.ts`, `offers.e2e-spec.ts`,
+  `users-workspaces.e2e-spec.ts`) that used to hand-mint a plain `kind:
+"web"` admin token now goes through it.
+
 - **A23 — Gate A e2e journey, sample-project seed, wave verification script,
   X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)
   through onboarding, a real MinIO upload, transcription completion via the
