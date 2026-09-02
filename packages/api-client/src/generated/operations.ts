@@ -145,6 +145,13 @@ export const API_OPERATIONS = [
     summary: "Change a member's role",
   },
   {
+    operationId: "claimReferral",
+    method: "POST",
+    path: "/referrals/claim",
+    tags: ["referrals"],
+    summary: "Claim a code posted at onboarding",
+  },
+  {
     operationId: "completeExportManifest",
     method: "POST",
     path: "/exports/manifests/{manifestId}/complete",
@@ -509,6 +516,13 @@ export const API_OPERATIONS = [
     summary: "Readiness probe (db, redis, storage)",
   },
   {
+    operationId: "getReferralsMe",
+    method: "GET",
+    path: "/referrals/me",
+    tags: ["referrals"],
+    summary: "This workspace's referral code and reward counts",
+  },
+  {
     operationId: "getSubscription",
     method: "GET",
     path: "/billing/subscription",
@@ -801,6 +815,13 @@ export const API_OPERATIONS = [
     path: "/me/notifications/{id}/read",
     tags: ["notifications"],
     summary: "Mark one notification read",
+  },
+  {
+    operationId: "markReferralPromptShown",
+    method: "POST",
+    path: "/referrals/prompt/shown",
+    tags: ["referrals"],
+    summary: "Mark the give-get sheet as shown for this workspace",
   },
   {
     operationId: "OAuthController_callback",

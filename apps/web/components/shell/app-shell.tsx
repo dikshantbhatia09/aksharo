@@ -12,6 +12,7 @@ import { Sidebar } from "./sidebar";
 import { TopBar } from "./top-bar";
 
 import { useRuntimeConfig } from "@/components/providers";
+import { ReferralPromptSheet } from "@/components/referrals/referral-prompt-sheet";
 import { refreshSession } from "@/lib/session/client";
 
 /**
@@ -147,6 +148,12 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
       </div>
 
       <CommandPalette open={open} onOpenChange={setOpen} recentProjects={recentProjects} />
+
+      {/* B07b: the give-get sheet is a global growth prompt, not scoped to one
+          screen — see `components/referrals/README.md`'s "Mount points". Waits
+          for `bootstrapped` the same way the realtime connection above does,
+          so it never queries `/referrals/me` before there is an access token. */}
+      {bootstrapped && session !== null ? <ReferralPromptSheet /> : null}
     </div>
   );
 }

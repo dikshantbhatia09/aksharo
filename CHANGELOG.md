@@ -52,6 +52,65 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B07b — the give-get referral loop (D53, F-607): personal `AK-XXXXXX` codes, claim at onboarding, 30/30 credits on the referred workspace's first completed export, caps and abuse rules, the tiered bonus, the in-app prompt and the Invite-friends tab.**
+  - **`apps/api/src/referrals/**` (new `ReferralsModule`).** `POST /referrals/claim
+{code}` classifies a posted code by prefix (`AK-` is a referral code; anything
+    else is a no-op here — B07's affiliate attribution owns it) and creates a
+    `pending` `referral_rewards` row, running every check decidable immediately:
+    self-referral, either side a declared minor (D60), a disposable referred-email
+    domain, or the same device/IP fingerprint as the referrer's most recent session
+    (THREAT-MODEL T17) — all four reject at claim time. `GET /referrals/me` lazily
+    allocates the workspace's personal code and reports reward counts, the tiered-
+    bonus timestamp, and `promptEligible` (computed server-side: a succeeded export
+    exists and the sheet has not been shown yet, so the frontend never re-derives
+    "first export" itself). `POST /referrals/prompt/shown` marks the sheet shown,
+    once, idempotently.
+  - **The grant.** `ExportCompletedListener` reacts to a new `export.completed`
+    `EventEmitter2` event (`export-completed.event.ts`) emitted from
+    `exports/exports.service.ts`'s browser `completeManifest()` and both cloud
+    completion handlers in `exports/render-completion.handler.ts` (one shared
+    `recordPublishEvent()` helper covers `render.video` and `render.subtitle`) —
+    additive, non-forking edits outside this work package's file boundary, flagged
+    per `invoices/billing-events.ts`'s precedent. `ReferralsService.grantForExport`
+    is a no-op unless the workspace has a still-`pending` referral; when it does, it
+    checks the referrer's Free-plan monthly cap (10 granted rewards/calendar month,
+    checked at grant time since it moves between claim and export) and resolves the
+    row to `granted` or `rejected: cap` with the same conditional `UPDATE … WHERE
+status = 'pending'` idempotency trick `claimManifest` uses for a replayed
+    completion — so a duplicate event grants at most once. A granted row calls
+    `CreditsFacade.grantLot({source: "referral", tenths: 300})` for both sides as
+    non-expiring lots (B02); a 3rd granted referral for one referrer additionally
+    grants a once-only 1000-tenths (100-credit) tier bonus
+    (13-launch-plan), guarded by a new `workspaces.referral_bonus_granted_at`.
+  - **Data**: migration `20260902090000_b07b_referral_loop` reshapes A03's unused
+    `referral_rewards` (no application code read or wrote it) into the brief's
+    two-workspace shape — `referrerWorkspaceId`, `referredWorkspaceId` (unique, the
+    exactly-once grant guarantee), separate `referrerLotId`/`referredLotId`,
+    `reason`, `deviceHash`/`ipHash` — and adds `workspaces.referral_code` (unique),
+    `referral_bonus_granted_at`, `referral_prompt_shown_at`.
+  - **web: `apps/web/components/referrals/**`.** `ReferralPromptSheet` (the give-get
+    sheet, "Give 30 credits, get 30 credits") and `InviteFriendsTab`, both
+    self-contained (they read `useReferralStats`/`useMarkReferralPromptShown`/
+    `useClaimReferral` themselves) and shipped with a documented mount point rather
+    than wired into a page — B07's Refer & Earn page shell had not landed on `main`
+    yet. `ReferralPromptSheet` is mounted into `components/shell/app-shell.tsx`
+    (documented, additive) so a workspace sees it once, on any authenticated page,
+    after its first completed export; `onboarding-flow.tsx` gets one additive,
+    best-effort `useClaimReferral()` call on a successful `finish()` (documented,
+    additive) so the code the form already collected is actually claimed.
+    `ReferralShareRow`/`share-links.ts` back the copy-code/copy-link/WhatsApp/X/
+    Instagram-caption row both surfaces render.
+  - **Tests**: `apps/api/src/referrals/*.test.ts` (code generation/classification,
+    disposable-email); `apps/api/test/referrals.e2e-spec.ts` (26 cases against a
+    real Postgres and the real `LedgerCreditsFacade` — claim, all four abuse
+    rejections, idempotent claim, the Free cap and its Starter exemption, the tiered
+    bonus and its once-only guard, `promptEligible` transitions, idempotent grant
+    under a duplicate `grantForExport` call); `apps/api/test/referrals-http.e2e-spec.ts`
+    (the same grant proven over real HTTP through the real `export.completed` emit,
+    not by calling the service directly); web component tests for both components;
+    `apps/web/e2e/referral-prompt.spec.ts` (Playwright + axe: the sheet opens once,
+    marks itself shown, does not reopen, no serious/critical a11y violations).
+
 - **B04 — api: the `offers` module (real signup-gift/₹9-pass/week-pass/top-up backing, ₹9 eligibility, instrumentation); web: export-dialog upsell panel, credits-meter top-up card, Subscription overview pass chips.**
   - **`OffersModule` backs the interfaces A21 left as no-ops.** `PassesNinePassLedger`
     (`nine-pass-ledger.impl.ts`) replaces `NoopNinePassLedger` as `ExportsModule`'s

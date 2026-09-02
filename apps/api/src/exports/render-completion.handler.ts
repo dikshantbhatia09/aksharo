@@ -1,4 +1,5 @@
 import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ulid } from "ulid";
 import { z } from "zod";
 
@@ -7,6 +8,7 @@ import { quote } from "@montaj/config";
 import { EXPORT_RETENTION_DAYS } from "./exports.constants.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
+import { EXPORT_COMPLETED_EVENT } from "../referrals/export-completed.event.js";
 
 import type {
   JobCompletionContext,
@@ -91,6 +93,7 @@ async function claimManifest(prisma: PrismaService, manifestId: string): Promise
 
 async function recordPublishEvent(
   prisma: PrismaService,
+  events: EventEmitter2,
   workspaceId: string,
   projectId: string,
   exportId: string,
@@ -98,6 +101,9 @@ async function recordPublishEvent(
   await prisma.publishEvent.create({
     data: { id: ulid(), workspaceId, projectId, surface: "web", exportId },
   });
+  // B07b: the give-get referral loop grants on a workspace's first
+  // completed export — see `referrals/export-completed.event.ts`.
+  events.emit(EXPORT_COMPLETED_EVENT, { workspaceId, exportId });
 }
 
 @Injectable()
@@ -108,6 +114,7 @@ export class RenderVideoCompletionHandler implements JobCompletionHandler, OnMod
   constructor(
     private readonly prisma: PrismaService,
     private readonly registry: JobCompletionRegistry,
+    private readonly events: EventEmitter2,
   ) {}
 
   onModuleInit(): void {
@@ -165,6 +172,7 @@ export class RenderVideoCompletionHandler implements JobCompletionHandler, OnMod
 
     await recordPublishEvent(
       this.prisma,
+      this.events,
       manifest.workspaceId,
       manifest.projectId,
       manifest.exportId,
@@ -194,6 +202,7 @@ export class RenderSubtitleCompletionHandler implements JobCompletionHandler, On
   constructor(
     private readonly prisma: PrismaService,
     private readonly registry: JobCompletionRegistry,
+    private readonly events: EventEmitter2,
   ) {}
 
   onModuleInit(): void {
@@ -238,6 +247,7 @@ export class RenderSubtitleCompletionHandler implements JobCompletionHandler, On
     }
     await recordPublishEvent(
       this.prisma,
+      this.events,
       manifest.workspaceId,
       manifest.projectId,
       manifest.exportId,

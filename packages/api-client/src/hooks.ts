@@ -24,6 +24,8 @@ import type { ApiClient } from "./http.js";
 import type {
   AvailableScripts,
   BatchCreateProjectsRequest,
+  ClaimReferralRequest,
+  ClaimReferralResult,
   CompleteUploadRequest,
   CompletedUpload,
   ConsentPurpose,
@@ -32,6 +34,7 @@ import type {
   CreateProjectRequest,
   CreditsSummary,
   CurrentUser,
+  DismissReferralPromptResult,
   Entitlement,
   Folder,
   InitUploadRequest,
@@ -50,6 +53,7 @@ import type {
   PendingApproval,
   Project,
   ProjectPage,
+  ReferralStats,
   RightsRequest,
   SessionSummary,
   SignUpRequest,
@@ -860,6 +864,61 @@ export function usePassCheckout(): UseMutationResult<
       if (workspaceId === null) return;
       void queryClient.invalidateQueries({ queryKey: queryKeys.offersEligibility(workspaceId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.offersPasses(workspaceId) });
+    },
+  });
+}
+
+/**
+ * This workspace's referral code and reward counts (B07b). Backs the
+ * Invite-friends tab and the give-get sheet.
+ */
+export function useReferralStats(): UseQueryResult<ReferralStats> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.referrals(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.referrals.me),
+  });
+}
+
+/**
+ * Claim a code posted at onboarding (B07b). A non-referral code (no `AK-`
+ * prefix) resolves with `claimed: false` rather than an error — B07's
+ * affiliate attribution owns everything else typed into the same field.
+ */
+export function useClaimReferral(): UseMutationResult<
+  ClaimReferralResult,
+  Error,
+  ClaimReferralRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) => client.call(endpoints.referrals.claim, { body }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.referrals(workspaceId) });
+    },
+  });
+}
+
+/** Marks the give-get sheet as shown for this workspace — it shows once, ever (B07b). */
+export function useMarkReferralPromptShown(): UseMutationResult<
+  DismissReferralPromptResult,
+  Error,
+  void
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: () => client.call(endpoints.referrals.markPromptShown),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.referrals(workspaceId) });
     },
   });
 }

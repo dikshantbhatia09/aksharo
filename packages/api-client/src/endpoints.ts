@@ -16,6 +16,8 @@ import { defineEndpoint } from "./http.js";
 import type {
   AvailableScripts,
   BatchCreateProjectsRequest,
+  ClaimReferralRequest,
+  ClaimReferralResult,
   CompletedUpload,
   CompleteUploadRequest,
   ConsentState,
@@ -24,6 +26,7 @@ import type {
   CreditsSummary,
   CurrentUser,
   DeviceApproveRequest,
+  DismissReferralPromptResult,
   Entitlement,
   Folder,
   InitUploadRequest,
@@ -43,6 +46,7 @@ import type {
   PlanCatalogueEntry,
   Project,
   ProjectPage,
+  ReferralStats,
   RightsRequest,
   SessionSummary,
   SetConsentRequest,
@@ -477,6 +481,31 @@ export const offersEndpoints = {
   }),
 } as const;
 
+/**
+ * The give-get referral loop (B07b): the personal code, claim-at-onboarding,
+ * and the give-get sheet's "shown once" marker.
+ */
+export const referralsEndpoints = {
+  me: defineEndpoint<void, ReferralStats>({
+    method: "GET",
+    path: "/referrals/me",
+    auth: "bearer",
+    operationId: "getReferralsMe",
+  }),
+  claim: defineEndpoint<ClaimReferralRequest, ClaimReferralResult>({
+    method: "POST",
+    path: "/referrals/claim",
+    auth: "bearer",
+    operationId: "claimReferral",
+  }),
+  markPromptShown: defineEndpoint<void, DismissReferralPromptResult>({
+    method: "POST",
+    path: "/referrals/prompt/shown",
+    auth: "bearer",
+    operationId: "markReferralPromptShown",
+  }),
+} as const;
+
 /** Scripts and translation (A22): `apps/api/src/transcripts/scripts`. */
 export const transcriptScriptsEndpoints = {
   transliterate: defineEndpoint<TransliterateRequest, TransliterateAccepted>({
@@ -540,6 +569,7 @@ export const endpoints = {
   billing: billingEndpoints,
   credits: creditsEndpoints,
   offers: offersEndpoints,
+  referrals: referralsEndpoints,
   pending: pendingEndpoints,
 } as const;
 
@@ -558,5 +588,6 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(billingEndpoints),
   ...Object.entries(creditsEndpoints),
   ...Object.entries(offersEndpoints),
+  ...Object.entries(referralsEndpoints),
   ...Object.entries(pendingEndpoints),
 ] as const;
