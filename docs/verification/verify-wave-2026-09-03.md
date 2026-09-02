@@ -19,14 +19,14 @@ Six samples were taken over the course of this session's work on scope item 1
 `referrals`(+`-http`), `affiliates` and `b08-*`), with real work — not idle
 sleeps — between each:
 
-| When (relative to this run)                          | Free RAM (GB) |
-| ------------------------------------------------------ | ------------- |
+| When (relative to this run)                              | Free RAM (GB) |
+| -------------------------------------------------------- | ------------- |
 | after the item-1 acceptance runs, before the first check | 2.94          |
-| immediately after committing item 1                     | 0.39          |
+| immediately after committing item 1                      | 0.39          |
 | ~1 minute later                                          | 0.01          |
 | after reading `docker-compose.test.yml`                  | 1.00          |
-| after listing `scripts/e2e-stack.mjs` etc.                | 1.11          |
-| after reading `scripts/e2e-stack.mjs`'s `up` handler      | 0.73          |
+| after listing `scripts/e2e-stack.mjs` etc.               | 1.11          |
+| after reading `scripts/e2e-stack.mjs`'s `up` handler     | 0.73          |
 
 The host is shared by roughly a dozen concurrent agents (05-build's own
 host-guard note), and every sample sat between roughly 0 and 1.1 GB free —
