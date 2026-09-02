@@ -10,6 +10,30 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B11b — LLM follow-up reconciliation: per-kind burn rates, one filler
+  lexicon, EDG-segment transcript payload.** `packages/config/src/credits.ts`:
+  the flat `chaptersSummaryHook` burn rate (2 credits/job for every kind) is
+  retired in favour of three per-kind operations — `insightsChapters` (2),
+  `insightsSummary` (1), `insightsHooks` (2) — now the single source for
+  insight pricing; `apps/api/src/insights/insights.quote.ts` reads them
+  through `creditCostTenths` instead of carrying its own local table, and
+  `03-architecture/04-pricing-and-monetization.md`'s credits table row is
+  updated to match. `packages/prompts`: B11's flat, in-code
+  `src/lexicon/fillers.ts` word arrays are deleted; `src/lexicon/index.ts`
+  (`loadFillers(language)`, `loadLexiconFile`, `lexiconLanguages`) reads B18's
+  richer per-language JSON lexicon (`packages/prompts/lexicons/fillers/*.json`)
+  directly, so the package has one filler lexicon instead of two that could
+  drift apart (the worker's `autocut.py::load_lexicon` already read the JSON;
+  no import-path change was needed there). `apps/api/src/insights/insights.service.ts`:
+  the `ai.llm` job's transcript payload is now built from the project's EDG
+  caption segments when it has one — each live segment's
+  `startWordId`/`endWordId` resolved to text via `EdgRepository.projectionOf`
+  and `loadChunks` (the same read path `ExportsModule` uses) — so the
+  templates see the creator's edited captions (cuts, re-segmentation, text
+  fixes already applied) rather than the raw ASR chunks; a project with no EDG
+  document yet (or one with no live segments) falls back to the original
+  `TranscriptsService.chunks()` path unchanged.
+
 - **A23 — Gate A e2e journey, sample-project seed, wave verification script,
   X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)
   through onboarding, a real MinIO upload, transcription completion via the
@@ -260,7 +284,8 @@ t=<unix>,v1=hmac_sha256(secret, t + "." + body)`
   `packages/prompts`: versioned template registry (`chapters@1`, `summary@1`,
   `hooks@1`, `keyphrases@1`) with Zod input/output schemas, a shared
   prompt-injection guardrail (transcript fenced as `<transcript>` DATA), a filler
-  lexicon (`en`/`hi`/`hi-Latn`/`ta`, shared with B18), a fake-provider generator
+  lexicon (`en`/`hi`/`hi-Latn`/`ta`; B11b later replaced this in-code lexicon
+  with a typed loader over B18's JSON lexicon, the single source), a fake-provider generator
   and an eval runner (`pnpm --filter @montaj/prompts eval`) over four fixture
   transcripts (English, Hindi, Hinglish, Tamil) with five automatic checks
   (schema validity, timestamp validity/ordering, hallucination guard, length
@@ -274,11 +299,12 @@ t=<unix>,v1=hmac_sha256(secret, t + "." + body)`
   call with retry → validate → one repair attempt); `processors/llm.py` wires
   it to the now-implemented `ai.llm` queue. `apps/api/src/insights/`:
   `POST /projects/{id}/insights {kinds, tone?, regenerate?}` quotes and holds
-  credits per kind (chapters 2, summary 1, hooks 2 — see the README note on the
-  conflict with `packages/config`'s flat `chaptersSummaryHook` rate), builds the
-  job's transcript payload from `TranscriptsService.chunks()` (language,
-  optional media title, segments only — no user identity, brief's PII
-  minimisation), and enqueues one `ai.llm` job per kind; `GET
+  credits per kind (chapters 2, summary 1, hooks 2 — reconciled into
+  `packages/config`'s `BURN_RATES` by B11b, see that entry and the README),
+  builds the job's transcript payload from `TranscriptsService.chunks()`
+  (language, optional media title, segments only — no user identity, brief's
+  PII minimisation; B11b later added the EDG-segment path), and enqueues one
+  `ai.llm` job per kind; `GET
 /projects/{id}/insights` reads the latest `llm_outputs` row per kind plus the
   ASCI-friendly disclosure line. Migration adds `llm_outputs` (id, projectId,
   workspaceId, jobId, kind, templateVersion, provider, region, output jsonb,

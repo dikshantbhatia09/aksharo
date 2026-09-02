@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 
-import type { TranscriptChunk } from "@montaj/edg/schemas";
+import type { Segment, TranscriptChunk } from "@montaj/edg/schemas";
 import type { PromptTranscriptInput, InsightKind } from "@montaj/prompts";
 
 import {
@@ -11,6 +11,7 @@ import { quoteInsight } from "./insights.quote.js";
 import { InsightsRepository } from "./insights.repository.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
+import { EdgRepository } from "../edg/index.js";
 import { JobsService } from "../jobs/jobs.service.js";
 import { TranscriptsService } from "../transcripts/transcripts.service.js";
 
@@ -64,6 +65,7 @@ export class InsightsService {
     private readonly jobs: JobsService,
     private readonly transcripts: TranscriptsService,
     private readonly repository: InsightsRepository,
+    private readonly edgRepository: EdgRepository,
   ) {}
 
   async request(input: RequestInsightsInput): Promise<InsightsAccepted> {
@@ -140,14 +142,71 @@ export class InsightsService {
   }
 
   /**
-   * Reads every transcript chunk page (brief §3: builds the prompt from the
-   * transcript) and reduces it to the language-agnostic shape the template
-   * registry and the worker share. Capped at
-   * {@link INSIGHTS_MAX_CHUNK_PAGES} pages as a runaway-loop guard; a project
-   * with more than that (several hours of chunks) is not a realistic input for
-   * these templates in the first place.
+   * The prompt transcript (brief §3): built from the project's EDG caption
+   * segments when it has one — `startWordId`/`endWordId` resolved to text
+   * through {@link EdgRepository.projectionOf} and `loadChunks`, so the
+   * templates see what the creator actually kept (cuts, re-segmentation and
+   * text edits already applied), not the raw ASR output. A project that has
+   * not been segmented into an EDG document yet (brief B11b ruling 3) falls
+   * back to {@link buildTranscriptInputFromChunks}, the original raw-chunk
+   * path.
    */
   private async buildTranscriptInput(
+    projectId: string,
+    workspaceId: string,
+    mediaTitle: string,
+  ): Promise<PromptTranscriptInput> {
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, workspaceId, deletedAt: null },
+      select: { edgDocument: { select: { id: true } } },
+    });
+    const edgId = project?.edgDocument?.id;
+    if (edgId !== undefined) {
+      const fromEdg = await this.buildTranscriptInputFromEdg(edgId, mediaTitle);
+      if (fromEdg !== null) return fromEdg;
+    }
+    return this.buildTranscriptInputFromChunks(projectId, workspaceId, mediaTitle);
+  }
+
+  /**
+   * The EDG path: resolve every live segment's `startWordId`/`endWordId` to
+   * text via the document's transcript chunks. `null` when the document has
+   * no live segments yet (e.g. initialised but not yet split), so the caller
+   * falls back to the chunk path rather than sending the templates nothing.
+   */
+  private async buildTranscriptInputFromEdg(
+    edgId: string,
+    mediaTitle: string,
+  ): Promise<PromptTranscriptInput | null> {
+    const edg = await this.edgRepository.projectionOf(edgId);
+    if (edg.segments.length === 0) return null;
+
+    const chunks = await this.edgRepository.loadChunks(edg.transcript.transcriptId);
+    const words = wordIndexOf(chunks);
+
+    const segments = edg.segments
+      .map((segment) => segmentFromEdg(segment, words))
+      .filter((segment) => segment.text !== "");
+    if (segments.length === 0) return null;
+
+    const durationMs = Math.max(0, ...chunks.map((chunk) => chunk.endMs));
+
+    return {
+      language: edg.transcript.language,
+      mediaTitle,
+      durationMs,
+      segments,
+    };
+  }
+
+  /**
+   * Reads every transcript chunk page (the original, pre-EDG path) and
+   * reduces it to the language-agnostic shape the template registry and the
+   * worker share. Capped at {@link INSIGHTS_MAX_CHUNK_PAGES} pages as a
+   * runaway-loop guard; a project with more than that (several hours of
+   * chunks) is not a realistic input for these templates in the first place.
+   */
+  private async buildTranscriptInputFromChunks(
     projectId: string,
     workspaceId: string,
     mediaTitle: string,
@@ -189,6 +248,58 @@ function segmentOf(chunk: TranscriptChunk): PromptTranscriptInput["segments"][nu
   return {
     startMs: chunk.startMs,
     endMs: chunk.endMs,
+    text,
+    ...(speaker === undefined ? {} : { speaker }),
+  };
+}
+
+/** Every live word, in document order, keyed by `wid` for O(1) boundary lookups. */
+function wordIndexOf(chunks: readonly TranscriptChunk[]): {
+  order: readonly string[];
+  byId: ReadonlyMap<string, TranscriptChunk["words"][number]>;
+} {
+  const ordered = [...chunks].sort((left, right) => left.chunkIdx - right.chunkIdx);
+  const order: string[] = [];
+  const byId = new Map<string, TranscriptChunk["words"][number]>();
+  for (const chunk of ordered) {
+    for (const word of chunk.words) {
+      order.push(word.wid);
+      byId.set(word.wid, word);
+    }
+  }
+  return { order, byId };
+}
+
+/**
+ * One EDG segment's `startWordId..endWordId` span, resolved to plain text.
+ * Deleted words are dropped, same as the chunk path's `segmentOf`; an
+ * unresolvable boundary (a word id the loaded chunk window does not carry)
+ * yields an empty-text segment, which the caller filters out.
+ */
+function segmentFromEdg(
+  segment: Segment,
+  words: { order: readonly string[]; byId: ReadonlyMap<string, TranscriptChunk["words"][number]> },
+): PromptTranscriptInput["segments"][number] {
+  const startIndex = words.order.indexOf(segment.startWordId);
+  const endIndex = words.order.indexOf(segment.endWordId);
+  const span =
+    startIndex < 0 || endIndex < startIndex
+      ? []
+      : words.order
+          .slice(startIndex, endIndex + 1)
+          .map((wid) => words.byId.get(wid))
+          .filter((word): word is TranscriptChunk["words"][number] => word !== undefined)
+          .filter((word) => word.deleted !== true);
+
+  const text = span
+    .map((word) => word.t)
+    .join(" ")
+    .trim();
+  const speaker = span.find((word) => word.sp !== undefined)?.sp;
+
+  return {
+    startMs: segment.startMs,
+    endMs: segment.endMs,
     text,
     ...(speaker === undefined ? {} : { speaker }),
   };

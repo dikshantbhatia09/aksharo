@@ -26,18 +26,12 @@ GET /projects/{id}/insights → latest llm_outputs row per kind + the disclosure
 ## Credits
 
 `insights.quote.ts` prices per kind (brief §4): chapters 2 credits, summary 1
-credit, hooks 2 credits, flat per run.
-
-**Known conflict with `packages/config`.** `BURN_RATES.chaptersSummaryHook`
-already exists there as a single flat "2 credits per job" rate for all three
-kinds — which disagrees with this brief's per-kind pricing (summary is 1, not
-2). `packages/config` is outside this work package's file boundary
-(`packages/prompts/**`, `apps/worker-ai/worker_ai/llm/**`,
-`apps/api/src/insights/**`, `apps/api/prisma/**`), so the per-kind prices are
-implemented locally in `insights.quote.ts` rather than edited into the shared
-table. Flagged for Fable to reconcile — either retire `chaptersSummaryHook` in
-favour of three per-kind rates, or fold summary into the same flat rate and
-update this brief.
+credit, hooks 2 credits, flat per run. Reconciled 2026-09-02 (B11b):
+`packages/config`'s `BURN_RATES` is the single source, with per-kind
+operations `insightsChapters` (2), `insightsSummary` (1), `insightsHooks` (2)
+replacing the old flat `chaptersSummaryHook` (2 credits/job for every kind).
+`insights.quote.ts` maps each `InsightKind` onto its `CreditOperation` and
+reads the rate through `creditCostTenths` instead of carrying its own table.
 
 ## PII minimisation
 

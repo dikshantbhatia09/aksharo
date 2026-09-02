@@ -66,10 +66,10 @@ describe("creditCostTenths", () => {
   });
 
   it("charges a flat rate for job-basis operations", () => {
-    expect(creditCostTenths({ operation: "chaptersSummaryHook" })).toBe(20);
-    expect(creditCostTenths({ operation: "chaptersSummaryHook", durationMs: 99 * MINUTE })).toBe(
-      20,
-    );
+    expect(creditCostTenths({ operation: "insightsChapters" })).toBe(20);
+    expect(creditCostTenths({ operation: "insightsChapters", durationMs: 99 * MINUTE })).toBe(20);
+    expect(creditCostTenths({ operation: "insightsSummary" })).toBe(10);
+    expect(creditCostTenths({ operation: "insightsHooks" })).toBe(20);
   });
 
   it("always returns a non-negative integer number of tenths", () => {
@@ -102,7 +102,7 @@ describe("worstCaseHoldTenths", () => {
 
 describe("BURN_RATES", () => {
   it("covers every operation exactly once", () => {
-    expect(CREDIT_OPERATIONS).toHaveLength(9);
+    expect(CREDIT_OPERATIONS).toHaveLength(11);
     for (const operation of CREDIT_OPERATIONS) {
       expect(BURN_RATES[operation].operation).toBe(operation);
     }
