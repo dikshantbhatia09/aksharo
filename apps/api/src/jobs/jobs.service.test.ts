@@ -390,6 +390,62 @@ describe("complete (THREAT-MODEL T8/T9)", () => {
     expect(h.realtime.jobCompleted).toHaveBeenCalledTimes(1);
   });
 
+  it("runs the job type's completion handler BEFORE the status flip", async () => {
+    const seen: string[] = [];
+    h.completionHandlers.register({
+      jobType: "ai.transcribe",
+      handle: async (context) => {
+        seen.push(h.db.jobs.get(context.job.id)?.status ?? "gone");
+        return { actualTenths: 7, data: { transcriptId: "01JCTRANSCRIPT0000000000000" } };
+      },
+    });
+    const { job } = await h.jobs.enqueue({ ...ENQUEUE, type: "ai.transcribe" });
+
+    const ack = await h.jobs.complete(job.id, job.attemptId ?? "", {
+      status: "succeeded",
+      usage: { actualTenths: 90 },
+    });
+
+    expect(ack.applied).toBe(true);
+    // The handler saw a job that was still open, which is what makes a retry work.
+    expect(seen).toEqual(["queued"]);
+    // The handler's figure beats the worker's.
+    expect(h.credits.settle).toHaveBeenCalledWith({ holdId: "hold-1", actualTenths: 7 });
+  });
+
+  it("leaves the job open when the completion handler throws", async () => {
+    h.completionHandlers.register({
+      jobType: "ai.transcribe",
+      handle: async () => {
+        throw new Error("transcript persistence failed");
+      },
+    });
+    const { job } = await h.jobs.enqueue({ ...ENQUEUE, type: "ai.transcribe" });
+
+    await expect(
+      h.jobs.complete(job.id, job.attemptId ?? "", { status: "succeeded" }),
+    ).rejects.toThrow("transcript persistence failed");
+
+    // Still retryable: nothing was settled and the row never reached a terminal state.
+    expect(h.db.jobs.get(job.id)?.status).toBe("queued");
+    expect(h.credits.settle).not.toHaveBeenCalled();
+    expect(h.realtime.jobCompleted).not.toHaveBeenCalled();
+  });
+
+  it("never runs a completion handler for a failed job", async () => {
+    const handle = vi.fn(async () => undefined);
+    h.completionHandlers.register({ jobType: "ai.transcribe", handle });
+    const { job } = await h.jobs.enqueue({ ...ENQUEUE, type: "ai.transcribe" });
+
+    await h.jobs.complete(job.id, job.attemptId ?? "", {
+      status: "failed",
+      error: { code: "worker/provider_failed", message: "nope", retryable: true },
+    });
+
+    expect(handle).not.toHaveBeenCalled();
+    expect(h.credits.release).toHaveBeenCalledTimes(1);
+  });
+
   it("ignores a completion from a superseded attempt", async () => {
     const { job } = await h.jobs.enqueue(ENQUEUE);
     const ack = await h.jobs.complete(job.id, "01JCOLDATTEMPT000000000000", { status: "failed" });

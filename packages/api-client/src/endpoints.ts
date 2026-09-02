@@ -34,6 +34,7 @@ import type {
   MemoryEntry,
   OAuthCompleteRequest,
   PendingApproval,
+  PlanCatalogueEntry,
   Project,
   ProjectPage,
   RightsRequest,
@@ -44,6 +45,8 @@ import type {
   StyleCatalogueEntry,
   StylePresetRequest,
   TokenResponse,
+  TranscribeAccepted,
+  TranscribeRequest,
   UpdateFolderRequest,
   UpdateMeRequest,
   UpdateProjectRequest,
@@ -194,6 +197,16 @@ export const accountEndpoints = {
     path: "/me",
     auth: "bearer",
     operationId: "deleteMe",
+  }),
+} as const;
+
+/** Billing (B01). Public — the plan catalogue needs no session (07 §Billing). */
+export const billingEndpoints = {
+  listPlans: defineEndpoint<void, PlanCatalogueEntry[]>({
+    method: "GET",
+    path: "/billing/plans",
+    auth: "public",
+    operationId: "listPlans",
   }),
 } as const;
 
@@ -387,16 +400,28 @@ export const styleEndpoints = {
 } as const;
 
 /**
+ * Transcripts (A11). `transcribe` quotes the job from the probed media
+ * duration, holds credits and enqueues `ai.transcribe`; a `transcript/
+ * media_not_ready` conflict means the media hasn't been probed yet, which the
+ * upload engine's best-effort `tryStartTranscription()` treats the same as
+ * any other failure here — the upload is still a complete success, and the
+ * project starts transcribing itself once probing catches up (watch
+ * `job.completed`, or `GET /jobs/{id}`).
+ */
+export const transcriptEndpoints = {
+  transcribe: defineEndpoint<TranscribeRequest, TranscribeAccepted>({
+    method: "POST",
+    path: "/projects/{projectId}/transcribe",
+    auth: "bearer",
+    operationId: "transcribeProject",
+  }),
+} as const;
+
+/**
  * Routes `07-api-and-contracts.md` specifies whose work package has not landed.
  *
  * `/usage` carries the credit balance and the burn rate, which belong to the
- * ledger (B02); `/memory` is the learned-memory store of D62 (B09). `transcribe`
- * is A11's — the main `wp/A14` branch was cut from `main` before A11 merged
- * (main carries A13's shell, A06's projects/media, A16's style panels and A07's
- * media pipeline, and no `transcripts` module), so the upload engine calls this
- * and treats `client/not_implemented` as "uploaded, not yet transcribing"
- * rather than an error — the project still shows up, ready to open, and starts
- * transcribing itself the moment this line moves out of `pending`.
+ * ledger (B02); `/memory` is the learned-memory store of D62 (B09).
  */
 export const pendingEndpoints = {
   usage: defineEndpoint<void, UsageSummary>({
@@ -417,15 +442,6 @@ export const pendingEndpoints = {
     auth: "bearer",
     pending: "B09",
   }),
-  transcribe: defineEndpoint<
-    { language?: string; diarise?: boolean; glossary?: string[] },
-    { jobId: string }
-  >({
-    method: "POST",
-    path: "/projects/{projectId}/transcribe",
-    auth: "bearer",
-    pending: "A11",
-  }),
 } as const;
 
 export const endpoints = {
@@ -437,6 +453,8 @@ export const endpoints = {
   folders: folderEndpoints,
   media: mediaEndpoints,
   styles: styleEndpoints,
+  transcripts: transcriptEndpoints,
+  billing: billingEndpoints,
   pending: pendingEndpoints,
 } as const;
 
@@ -450,5 +468,7 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(folderEndpoints),
   ...Object.entries(mediaEndpoints),
   ...Object.entries(styleEndpoints),
+  ...Object.entries(transcriptEndpoints),
+  ...Object.entries(billingEndpoints),
   ...Object.entries(pendingEndpoints),
 ] as const;

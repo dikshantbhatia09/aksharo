@@ -480,3 +480,62 @@ export interface StylePresetRequest {
   /** A full StyleDoc v2 document; validated server-side (D64 naming rule too). */
   doc: Record<string, unknown>;
 }
+
+// --- Transcripts (A11, A14) --------------------------------------------------
+
+interface TranscribeCaptionPreferences {
+  maxLines?: number;
+  minMs?: number;
+  maxMs?: number;
+  maxChars?: number;
+  dropFillers?: boolean;
+  styleRef?: string;
+}
+
+/** `POST /projects/{id}/transcribe` and `/transcript/retranscribe`'s shared body. */
+export interface TranscribeRequest {
+  /** Language hints, best first; the first is passed to the provider. */
+  languages?: string[];
+  /** Glossary terms: hotword prompts where the provider supports them. */
+  hints?: string[];
+  /** Free — the transcription rate includes diarisation. */
+  diarise?: boolean;
+  captions?: TranscribeCaptionPreferences;
+}
+
+export interface TranscriptionQuote {
+  /** Credits held before the job was enqueued, in tenths. */
+  tenths: number;
+  /** For display only, never for arithmetic. */
+  credits: string;
+  durationMs: number;
+}
+
+export interface TranscribeAccepted {
+  /** Poll `GET /jobs/{id}` or listen for `job.completed`. */
+  jobId: string;
+  /** The transcript the completion will write. */
+  transcriptId: string;
+  /** `queued`, or the live job's status when deduplicated. */
+  status: string;
+  /** True when a transcription was already running and none was enqueued. */
+  deduplicated: boolean;
+  quote: TranscriptionQuote;
+}
+
+// --- Billing (B01) ------------------------------------------------------------
+
+/**
+ * `GET /billing/plans` (B01, public — no auth required). One entry per active
+ * plan; `prices`/`seatPrice` are in minor units (paise/cents) keyed by ISO
+ * currency then interval (`month`, `year`, and `halfyear` for Studio/INR
+ * only — `hasHalfyear` says which currency actually carries one).
+ */
+export interface PlanCatalogueEntry {
+  key: "free" | "starter" | "creator" | "studio" | "agency";
+  name: string;
+  prices: Record<string, Record<string, number>>;
+  creditsPerMonthTenths: number;
+  seatPrice: Record<string, number> | null;
+  hasHalfyear: { INR: boolean; USD: boolean };
+}

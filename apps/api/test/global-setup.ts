@@ -555,7 +555,20 @@ function specName(path: string): string {
 }
 
 /**
- * A slot per e2e spec, from the sorted list of ALL of them.
+ * Does this spec need the shared Postgres/Redis? Every `*.e2e-spec.ts` does, by
+ * definition; B02's `*.property.spec.ts` needs it too — it runs the credits
+ * ledger concurrency property test against a real database from its own vitest
+ * config (`vitest.property.config.ts`), kept out of `vitest.config.ts`'s
+ * `include` (and so out of `pnpm test`) precisely by NOT being named
+ * `*.e2e-spec.ts` — but it still needs `global-setup.ts` to start the same
+ * infrastructure and hand it a slot.
+ */
+function needsTestInfrastructure(name: string): boolean {
+  return name.endsWith(".e2e-spec") || name.endsWith(".property.spec");
+}
+
+/**
+ * A slot per e2e (or property) spec, from the sorted list of ALL of them.
  *
  * Derived from the whole package rather than the files being run so a suite keeps
  * its database name, its logical Redis database and its queue prefix whether it
@@ -565,7 +578,7 @@ function specName(path: string): string {
 function assignSlots(paths: readonly string[]): Record<string, number> {
   const names = paths
     .map(specName)
-    .filter((name) => name.endsWith(".e2e-spec"))
+    .filter(needsTestInfrastructure)
     .sort((a, b) => a.localeCompare(b, "en"));
   const slots: Record<string, number> = {};
   names.forEach((name, index) => {
@@ -591,7 +604,7 @@ export default async function setup(project: TestProject): Promise<() => Promise
     const filtered = await project.globTestFiles(filters);
     if (filtered.testFiles.length > 0) wanted = filtered.testFiles;
   }
-  const needsInfrastructure = wanted.some((path) => specName(path).endsWith(".e2e-spec"));
+  const needsInfrastructure = wanted.some((path) => needsTestInfrastructure(specName(path)));
 
   if (!needsInfrastructure) {
     console.warn("[test-run] no e2e specs selected — no database or Redis started");

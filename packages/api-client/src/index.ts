@@ -41,6 +41,7 @@ export type {
 export {
   ALL_ENDPOINTS,
   authEndpoints,
+  billingEndpoints,
   deviceEndpoints,
   endpoints,
   folderEndpoints,
@@ -49,6 +50,7 @@ export {
   pendingEndpoints,
   projectEndpoints,
   styleEndpoints,
+  transcriptEndpoints,
 } from "./endpoints.js";
 
 export { decodeAccessToken, REFRESH_SKEW_MS, SessionStore } from "./session.js";
@@ -111,6 +113,7 @@ export type {
   OAuthCompleteRequest,
   OnboardingProfile,
   PendingApproval,
+  PlanCatalogueEntry,
   Project,
   ProjectAspect,
   ProjectPage,
@@ -123,6 +126,9 @@ export type {
   StyleCatalogueEntry,
   StylePresetRequest,
   TokenResponse,
+  TranscribeAccepted,
+  TranscribeRequest,
+  TranscriptionQuote,
   UpdateFolderRequest,
   UpdateMeRequest,
   UpdateProjectRequest,

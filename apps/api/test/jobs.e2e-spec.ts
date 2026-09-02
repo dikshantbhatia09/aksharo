@@ -26,6 +26,7 @@ import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness
 import { PrismaService } from "../src/common/prisma/prisma.service.js";
 import { RedisService } from "../src/common/redis/redis.service.js";
 import { ENV } from "../src/config/config.module.js";
+import { CREDITS_FACADE } from "../src/credits/credits.facade.js";
 import { NoopCreditsFacade } from "../src/credits/noop-credits.facade.js";
 import {
   ATTEMPT_HEADER,
@@ -189,11 +190,22 @@ async function cleanup(): Promise<void> {
 }
 
 let enqueued = 0;
-/** A fresh enqueue with a unique jobKey, unless one is given. */
+/**
+ * A fresh enqueue with a unique jobKey, unless one is given.
+ *
+ * The queue is `ai.clean` rather than `ai.transcribe` because this suite is about
+ * the **job system** — the envelope, the state machine, the settlement, the
+ * frames — and posts a deliberately generic `result`. Since A11, `ai.transcribe`
+ * has an owner (`TranscribeCompletionHandler`) that validates its completion into
+ * `transcript_chunks` and rightly refuses a payload that is not a transcript, so
+ * borrowing that queue name as a stand-in would test A11's schema instead of
+ * A08's state machine. `ai.clean` is the same CONTRACTS §3 family with nobody
+ * registered against it.
+ */
 async function enqueue(overrides: Partial<Parameters<JobsService["enqueue"]>[0]> = {}) {
   enqueued += 1;
   return jobs.enqueue({
-    type: "ai.transcribe",
+    type: "ai.clean",
     workspaceId: WORKSPACE,
     projectId: PROJECT,
     params: { mediaId: MEDIA },
@@ -242,6 +254,15 @@ beforeAll(async () => {
       JWT_PUBLIC_KEY: PEM_PUBLIC,
       INTERNAL_CALLBACK_SECRET: CALLBACK_SECRET,
     } as Env)
+    // This suite is about the job state machine (envelope, callbacks, realtime,
+    // admission) — not about ledger balances — and it reads its assertions off
+    // `NoopCreditsFacade.holdStatus()`, which B02's real `LedgerCreditsFacade`
+    // does not expose. Bind `CREDITS_FACADE` to the SAME `NoopCreditsFacade`
+    // instance the suite fetches below, rather than the one `CreditsModule`
+    // binds it to in production, so a fixture workspace with no grant is not a
+    // `credits/insufficient` before the first job is even queued.
+    .overrideProvider(CREDITS_FACADE)
+    .useFactory({ factory: (noop: NoopCreditsFacade) => noop, inject: [NoopCreditsFacade] })
     .compile();
 
   app = moduleRef.createNestApplication({ logger: false, rawBody: true });
@@ -322,11 +343,11 @@ describe.skipIf(!CAN_RUN)("jobs (e2e)", () => {
   it("puts a BullMQ job on the queue carrying the CONTRACTS §3 envelope", async () => {
     const { job } = await enqueue();
 
-    const queue = new Queue("ai.transcribe", { connection: redis, prefix: PREFIX });
+    const queue = new Queue("ai.clean", { connection: redis, prefix: PREFIX });
     try {
       const entry = await queue.getJob(bullJobId(job.id, job.attemptId ?? ""));
       expect(entry).toBeDefined();
-      expect(entry?.name).toBe("ai.transcribe");
+      expect(entry?.name).toBe("ai.clean");
       expect(entry?.data).toEqual({
         jobId: job.id,
         attemptId: job.attemptId,
@@ -618,7 +639,7 @@ describe.skipIf(!CAN_RUN)("the public jobs API", () => {
       .get(`/jobs/${job.id}`)
       .set("authorization", bearer);
     expect(one.status).toBe(200);
-    expect(one.body).toMatchObject({ id: job.id, type: "ai.transcribe", status: "queued" });
+    expect(one.body).toMatchObject({ id: job.id, type: "ai.clean", status: "queued" });
     expect(one.body).not.toHaveProperty("creditHoldId");
 
     const events = await request(app.getHttpServer())
@@ -649,7 +670,7 @@ describe.skipIf(!CAN_RUN)("the public jobs API", () => {
     expect(response.body.status).toBe("cancelled");
     expect(release).toHaveBeenCalledWith({ holdId: job.creditHoldId });
 
-    const queue = new Queue("ai.transcribe", { connection: redis, prefix: PREFIX });
+    const queue = new Queue("ai.clean", { connection: redis, prefix: PREFIX });
     try {
       expect(await queue.getJob(bullJobId(job.id, job.attemptId ?? ""))).toBeUndefined();
     } finally {
