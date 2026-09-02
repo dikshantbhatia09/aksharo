@@ -8008,6 +8008,1361 @@
         ]
       }
     },
+    "/fonts/manifest": {
+      "get": {
+        "description": "Every open-licence face that ships with the product: family, weight, the scripts it covers, its licence, its SHA-256 and the URLs its bytes are at. The renderer registers these into `FontRegistry`; the same document is baked into the cloud render image as `fonts.json`.",
+        "operationId": "getBundledFontManifest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The bundled pack manifest.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "v": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "origin": {
+                      "type": "string",
+                      "enum": [
+                        "bundled",
+                        "workspace"
+                      ]
+                    },
+                    "generatedAt": {
+                      "type": "string"
+                    },
+                    "fonts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "family": {
+                            "type": "string"
+                          },
+                          "weight": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "italic": {
+                            "type": "boolean"
+                          },
+                          "file": {
+                            "type": "string"
+                          },
+                          "scripts": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "scriptTags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "woff2": {
+                            "type": "string"
+                          },
+                          "sizeBytes": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "woff2SizeBytes": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "sha256": {
+                            "type": "string"
+                          },
+                          "licence": {
+                            "type": "string"
+                          },
+                          "licenceFile": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "woff2Url": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "family",
+                          "weight",
+                          "italic",
+                          "file",
+                          "scripts",
+                          "scriptTags",
+                          "sizeBytes",
+                          "sha256"
+                        ]
+                      }
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "v",
+                    "origin",
+                    "fonts"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The bundled font catalogue",
+        "tags": [
+          "fonts"
+        ]
+      }
+    },
+    "/styles/fonts/catalog": {
+      "get": {
+        "description": "The bundled families with their weights, script coverage tags and licences, plus the 22 scheduled languages and the script each needs. Built from the shipped manifest, so a family cannot be offered without its bytes being in the image.",
+        "operationId": "getFontCatalogue",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Families and languages.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "families": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "family": {
+                            "type": "string"
+                          },
+                          "weights": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "scripts": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "scriptNames": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "licence": {
+                            "type": "string"
+                          },
+                          "licenceUrl": {
+                            "type": "string"
+                          },
+                          "totalBytes": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "note": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "family",
+                          "weights",
+                          "scripts",
+                          "scriptNames",
+                          "licence",
+                          "licenceUrl",
+                          "totalBytes",
+                          "note"
+                        ]
+                      }
+                    },
+                    "languages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "script": {
+                            "type": "string"
+                          },
+                          "scriptName": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "name",
+                          "script",
+                          "scriptName"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "families",
+                    "languages"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The font picker's curated list",
+        "tags": [
+          "fonts"
+        ]
+      }
+    },
+    "/workspaces/{id}/fonts": {
+      "get": {
+        "description": "Every uploaded font and its licence-warranty record.",
+        "operationId": "listWorkspaceFonts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The workspace's fonts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": "string"
+                      },
+                      "family": {
+                        "type": "string"
+                      },
+                      "style": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "ready",
+                          "failed"
+                        ]
+                      },
+                      "sanitised": {
+                        "type": "boolean"
+                      },
+                      "weight": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "italic": {
+                        "type": "boolean"
+                      },
+                      "scripts": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "sizeBytes": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "woff2SizeBytes": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "filename": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "licenceAttestedBy": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "attestedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "attestationVersion": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "licenceNote": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "servedOnlyToWorkspace": {
+                        "type": "boolean"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "workspaceId",
+                      "family",
+                      "style",
+                      "status",
+                      "sanitised",
+                      "weight",
+                      "italic",
+                      "scripts",
+                      "sizeBytes",
+                      "woff2SizeBytes",
+                      "filename",
+                      "licenceAttestedBy",
+                      "attestedAt",
+                      "attestationVersion",
+                      "licenceNote",
+                      "servedOnlyToWorkspace",
+                      "createdAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The workspace's custom fonts",
+        "tags": [
+          "fonts"
+        ]
+      }
+    },
+    "/workspaces/{id}/fonts/manifest": {
+      "get": {
+        "description": "The sanitised fonts in the same shape as `getBundledFontManifest`, with five-minute signed URLs on each face. The browser and the cloud renderer read this and the bundled manifest with one loader.",
+        "operationId": "getWorkspaceFontManifest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Signed manifest, valid five minutes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "v": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "origin": {
+                      "type": "string",
+                      "enum": [
+                        "bundled",
+                        "workspace"
+                      ]
+                    },
+                    "generatedAt": {
+                      "type": "string"
+                    },
+                    "fonts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "family": {
+                            "type": "string"
+                          },
+                          "weight": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "italic": {
+                            "type": "boolean"
+                          },
+                          "file": {
+                            "type": "string"
+                          },
+                          "scripts": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "scriptTags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "woff2": {
+                            "type": "string"
+                          },
+                          "sizeBytes": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "woff2SizeBytes": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "sha256": {
+                            "type": "string"
+                          },
+                          "licence": {
+                            "type": "string"
+                          },
+                          "licenceFile": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "woff2Url": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "family",
+                          "weight",
+                          "italic",
+                          "file",
+                          "scripts",
+                          "scriptTags",
+                          "sizeBytes",
+                          "sha256"
+                        ]
+                      }
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "v",
+                    "origin",
+                    "fonts"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The workspace's fonts as a renderer manifest",
+        "tags": [
+          "fonts"
+        ]
+      }
+    },
+    "/workspaces/{id}/fonts/init": {
+      "post": {
+        "description": "Checks the plan's custom-font allowance, opens a row and returns a single-shot presigned PUT plus the exact licence warranty the uploader must be shown. PUT the file, then call `completeFontUpload`.",
+        "operationId": "initFontUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filename": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8388608
+                  },
+                  "family": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "scripts": {
+                    "maxItems": 13,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "Latn",
+                        "Deva",
+                        "Beng",
+                        "Guru",
+                        "Gujr",
+                        "Orya",
+                        "Taml",
+                        "Telu",
+                        "Knda",
+                        "Mlym",
+                        "Olck",
+                        "Mtei",
+                        "Arab"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "filename",
+                  "sizeBytes"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "A presigned PUT and the warranty.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "fontId": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "attestation": {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "text"
+                      ]
+                    },
+                    "quota": {
+                      "type": "object",
+                      "properties": {
+                        "used": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "limit": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "planKey": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "used",
+                        "limit",
+                        "planKey"
+                      ]
+                    },
+                    "font": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "workspaceId": {
+                          "type": "string"
+                        },
+                        "family": {
+                          "type": "string"
+                        },
+                        "style": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "ready",
+                            "failed"
+                          ]
+                        },
+                        "sanitised": {
+                          "type": "boolean"
+                        },
+                        "weight": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "italic": {
+                          "type": "boolean"
+                        },
+                        "scripts": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "woff2SizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "filename": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "licenceAttestedBy": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "attestedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "attestationVersion": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "licenceNote": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "servedOnlyToWorkspace": {
+                          "type": "boolean"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "workspaceId",
+                        "family",
+                        "style",
+                        "status",
+                        "sanitised",
+                        "weight",
+                        "italic",
+                        "scripts",
+                        "sizeBytes",
+                        "woff2SizeBytes",
+                        "filename",
+                        "licenceAttestedBy",
+                        "attestedAt",
+                        "attestationVersion",
+                        "licenceNote",
+                        "servedOnlyToWorkspace",
+                        "createdAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "fontId",
+                    "url",
+                    "key",
+                    "expiresAt",
+                    "attestation",
+                    "quota",
+                    "font"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`fonts/plan_limit_reached`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Begin a custom font upload",
+        "tags": [
+          "fonts"
+        ]
+      }
+    },
+    "/workspaces/{id}/fonts/{fontId}": {
+      "get": {
+        "operationId": "getWorkspaceFont",
+        "parameters": [
+          {
+            "name": "fontId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The font.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "family": {
+                      "type": "string"
+                    },
+                    "style": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "ready",
+                        "failed"
+                      ]
+                    },
+                    "sanitised": {
+                      "type": "boolean"
+                    },
+                    "weight": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "italic": {
+                      "type": "boolean"
+                    },
+                    "scripts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "sizeBytes": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "woff2SizeBytes": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "filename": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "licenceAttestedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "attestedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "attestationVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "licenceNote": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "servedOnlyToWorkspace": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "family",
+                    "style",
+                    "status",
+                    "sanitised",
+                    "weight",
+                    "italic",
+                    "scripts",
+                    "sizeBytes",
+                    "woff2SizeBytes",
+                    "filename",
+                    "licenceAttestedBy",
+                    "attestedAt",
+                    "attestationVersion",
+                    "licenceNote",
+                    "servedOnlyToWorkspace",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`fonts/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One custom font",
+        "tags": [
+          "fonts"
+        ]
+      },
+      "delete": {
+        "description": "Removes the row and both objects. Projects using it fall back.",
+        "operationId": "deleteWorkspaceFont",
+        "parameters": [
+          {
+            "name": "fontId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{ deleted: true }`."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`fonts/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete a custom font",
+        "tags": [
+          "fonts"
+        ]
+      }
+    },
+    "/workspaces/{id}/fonts/{fontId}/url": {
+      "get": {
+        "description": "The sanitised original for the cloud renderer and the subset WOFF2 for the browser, valid five minutes, scoped to the owning workspace: a font id from another workspace is a 404.",
+        "operationId": "getWorkspaceFontUrls",
+        "parameters": [
+          {
+            "name": "fontId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Short-lived download URLs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "fontId": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "woff2Url": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "fontId",
+                    "url",
+                    "expiresAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`fonts/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Signed URLs for one font's bytes",
+        "tags": [
+          "fonts"
+        ]
+      }
+    },
+    "/workspaces/{id}/fonts/{fontId}/complete": {
+      "post": {
+        "description": "Records the uploader's licence warranty (`licenceAttestedBy`, `attestedAt`, the attestation text version), then validates the file, subsets it to the declared scripts and writes the WOFF2 the browser loads. Without `licenceAttested: true` nothing is processed. Idempotent.",
+        "operationId": "completeFontUpload",
+        "parameters": [
+          {
+            "name": "fontId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "licenceAttested": {
+                    "type": "boolean"
+                  },
+                  "licenceNote": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "attestationVersion": {
+                    "type": "string",
+                    "maxLength": 32
+                  }
+                },
+                "required": [
+                  "licenceAttested"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The sanitised font.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "family": {
+                      "type": "string"
+                    },
+                    "style": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "ready",
+                        "failed"
+                      ]
+                    },
+                    "sanitised": {
+                      "type": "boolean"
+                    },
+                    "weight": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "italic": {
+                      "type": "boolean"
+                    },
+                    "scripts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "sizeBytes": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "woff2SizeBytes": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "filename": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "licenceAttestedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "attestedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "attestationVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "licenceNote": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "servedOnlyToWorkspace": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "family",
+                    "style",
+                    "status",
+                    "sanitised",
+                    "weight",
+                    "italic",
+                    "scripts",
+                    "sizeBytes",
+                    "woff2SizeBytes",
+                    "filename",
+                    "licenceAttestedBy",
+                    "attestedAt",
+                    "attestationVersion",
+                    "licenceNote",
+                    "servedOnlyToWorkspace",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "422": {
+            "description": "`fonts/attestation_required` or a `fonts/*` validation refusal."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Attest the licence and sanitise the font",
+        "tags": [
+          "fonts"
+        ]
+      }
+    },
+    "/fonts/{fontId}/complete": {
+      "post": {
+        "description": "As `completeFontUpload`, without repeating the workspace id.",
+        "operationId": "completeFontUploadUnscoped",
+        "parameters": [
+          {
+            "name": "fontId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "licenceAttested": {
+                    "type": "boolean"
+                  },
+                  "licenceNote": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "attestationVersion": {
+                    "type": "string",
+                    "maxLength": 32
+                  }
+                },
+                "required": [
+                  "licenceAttested"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The sanitised font.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "family": {
+                      "type": "string"
+                    },
+                    "style": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "ready",
+                        "failed"
+                      ]
+                    },
+                    "sanitised": {
+                      "type": "boolean"
+                    },
+                    "weight": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "italic": {
+                      "type": "boolean"
+                    },
+                    "scripts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "sizeBytes": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "woff2SizeBytes": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "filename": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "licenceAttestedBy": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "attestedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "attestationVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "licenceNote": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "servedOnlyToWorkspace": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "family",
+                    "style",
+                    "status",
+                    "sanitised",
+                    "weight",
+                    "italic",
+                    "scripts",
+                    "sizeBytes",
+                    "woff2SizeBytes",
+                    "filename",
+                    "licenceAttestedBy",
+                    "attestedAt",
+                    "attestationVersion",
+                    "licenceNote",
+                    "servedOnlyToWorkspace",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`fonts/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Attest the licence and sanitise the font (unscoped form)",
+        "tags": [
+          "fonts"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "getHealth",

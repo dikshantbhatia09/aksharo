@@ -1,7 +1,8 @@
-import { type FontManifest, type ScriptTag } from "@montaj/fonts";
-import { FontSubsetError, FontValidationError, processFont } from "@montaj/fonts/node";
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 import { ulid } from "ulid";
+
+import { type FontManifest, type ScriptTag } from "@montaj/fonts";
+import { FontSubsetError, FontValidationError, processFont } from "@montaj/fonts/node";
 
 import {
   ACCEPTED_ATTESTATION_VERSIONS,

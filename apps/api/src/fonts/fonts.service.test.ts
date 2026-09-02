@@ -1,10 +1,11 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import {
   fakeTtfBytes,
   sampleDevanagariFont,
   sampleLatinFont,
   withNoEmbedding,
 } from "@montaj/fonts/testing";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   customFontLimitFor,

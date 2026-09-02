@@ -131,6 +131,20 @@ export const API_OPERATIONS = [
     summary: "Change a member's role",
   },
   {
+    operationId: "completeFontUpload",
+    method: "POST",
+    path: "/workspaces/{id}/fonts/{fontId}/complete",
+    tags: ["fonts"],
+    summary: "Attest the licence and sanitise the font",
+  },
+  {
+    operationId: "completeFontUploadUnscoped",
+    method: "POST",
+    path: "/fonts/{fontId}/complete",
+    tags: ["fonts"],
+    summary: "Attest the licence and sanitise the font (unscoped form)",
+  },
+  {
     operationId: "completeMediaUpload",
     method: "POST",
     path: "/media/{mediaId}/complete",
@@ -201,6 +215,13 @@ export const API_OPERATIONS = [
     summary: "Delete a workspace",
   },
   {
+    operationId: "deleteWorkspaceFont",
+    method: "DELETE",
+    path: "/workspaces/{id}/fonts/{fontId}",
+    tags: ["fonts"],
+    summary: "Delete a custom font",
+  },
+  {
     operationId: "DeviceController_decide",
     method: "POST",
     path: "/auth/device/approve",
@@ -243,6 +264,13 @@ export const API_OPERATIONS = [
     summary: "Discard many dead letters",
   },
   {
+    operationId: "getBundledFontManifest",
+    method: "GET",
+    path: "/fonts/manifest",
+    tags: ["fonts"],
+    summary: "The bundled font catalogue",
+  },
+  {
     operationId: "getConsents",
     method: "GET",
     path: "/consents",
@@ -269,6 +297,13 @@ export const API_OPERATIONS = [
     path: "/folders/{folderId}",
     tags: ["projects"],
     summary: "Fetch one folder",
+  },
+  {
+    operationId: "getFontCatalogue",
+    method: "GET",
+    path: "/styles/fonts/catalog",
+    tags: ["fonts"],
+    summary: "The font picker's curated list",
   },
   {
     operationId: "getHealth",
@@ -348,6 +383,27 @@ export const API_OPERATIONS = [
     summary: "What this workspace may do",
   },
   {
+    operationId: "getWorkspaceFont",
+    method: "GET",
+    path: "/workspaces/{id}/fonts/{fontId}",
+    tags: ["fonts"],
+    summary: "One custom font",
+  },
+  {
+    operationId: "getWorkspaceFontManifest",
+    method: "GET",
+    path: "/workspaces/{id}/fonts/manifest",
+    tags: ["fonts"],
+    summary: "The workspace's fonts as a renderer manifest",
+  },
+  {
+    operationId: "getWorkspaceFontUrls",
+    method: "GET",
+    path: "/workspaces/{id}/fonts/{fontId}/url",
+    tags: ["fonts"],
+    summary: "Signed URLs for one font's bytes",
+  },
+  {
     operationId: "importSubtitles",
     method: "POST",
     path: "/projects/{projectId}/import",
@@ -360,6 +416,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/import-url",
     tags: ["media"],
     summary: "Import a subtitle file from a URL",
+  },
+  {
+    operationId: "initFontUpload",
+    method: "POST",
+    path: "/workspaces/{id}/fonts/init",
+    tags: ["fonts"],
+    summary: "Begin a custom font upload",
   },
   {
     operationId: "initMediaUpload",
@@ -472,6 +535,13 @@ export const API_OPERATIONS = [
     path: "/projects",
     tags: ["projects"],
     summary: "List the workspace's projects, newest first",
+  },
+  {
+    operationId: "listWorkspaceFonts",
+    method: "GET",
+    path: "/workspaces/{id}/fonts",
+    tags: ["fonts"],
+    summary: "The workspace's custom fonts",
   },
   {
     operationId: "listWorkspaceMembers",

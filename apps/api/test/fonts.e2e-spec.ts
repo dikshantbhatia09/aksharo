@@ -18,13 +18,13 @@
  */
 import { createSign, generateKeyPairSync } from "node:crypto";
 
-import { validateFont } from "@montaj/fonts/node";
-import { fakeTtfBytes, packFontBytes, withNoEmbedding } from "@montaj/fonts/testing";
 import { type PrismaClient } from "@prisma/client";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Env } from "@montaj/config";
+import { validateFont } from "@montaj/fonts/node";
+import { fakeTtfBytes, packFontBytes, withNoEmbedding } from "@montaj/fonts/testing";
 
 import { createTestDatabase, isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { isStorageAvailable, storageSkipReason } from "./minio-harness.js";

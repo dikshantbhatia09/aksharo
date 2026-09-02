@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { HttpStatus, Injectable, Logger } from "@nestjs/common";
+
 import {
   CATALOGUE,
   SCHEDULED_LANGUAGES,
@@ -10,7 +12,6 @@ import {
   type ScriptTag,
 } from "@montaj/fonts";
 import { bundledPackDirectory, readPackManifest } from "@montaj/fonts/node";
-import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 
 import { FONT_ERRORS } from "./fonts.constants.js";
 import { AppException } from "../common/index.js";

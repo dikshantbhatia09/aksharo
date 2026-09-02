@@ -1,5 +1,6 @@
-import { SCRIPT_TAGS } from "@montaj/fonts";
 import { z } from "zod";
+
+import { SCRIPT_TAGS } from "@montaj/fonts";
 
 import { MAX_FONT_UPLOAD_BYTES } from "./fonts.constants.js";
 import { zodDto } from "../common/index.js";
