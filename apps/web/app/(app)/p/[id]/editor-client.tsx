@@ -16,6 +16,8 @@ import { newId, orderedSegments, wordsBetween } from "@montaj/edg";
 import type { Segment } from "@montaj/edg";
 import { resolveStyle } from "@montaj/render-core";
 import type { FontRegistry, Shaper } from "@montaj/render-core";
+import { fromAcceptedItems } from "@montaj/timemap";
+import type { TimeMap } from "@montaj/timemap";
 
 import type { EditorSnapshot, EditorStore } from "@/lib/edg/store";
 
@@ -25,6 +27,7 @@ import { ExportButton } from "@/components/editor/export/ExportButton";
 import { type PanelOp, type PanelScope } from "@/components/editor/panels/ops";
 import { RightPanel } from "@/components/editor/panels/RightPanel";
 import { SYSTEM_STYLE_MAP, SYSTEM_STYLES } from "@/components/editor/panels/system-styles";
+import { Timeline, type SegmentBoundsOp } from "@/components/editor/timeline/Timeline";
 import {
   BulkActionsBar,
   type ResegmentParams,
@@ -51,6 +54,9 @@ import {
 import { PlayheadStore } from "@/lib/edg/playhead";
 import { toRenderProjection } from "@/lib/edg/render-projection";
 import { useEdgRealtime, useEditorStore } from "@/lib/edg/use-editor-store";
+import { noopNudgeSink } from "@/lib/timeline/nudge";
+import { type TimeDisplayMode } from "@/lib/timeline/output-clock";
+import { useTimelineMedia } from "@/lib/timeline/use-timeline-media";
 
 export interface EditorClientProps {
   readonly projectId: string;
@@ -219,6 +225,18 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
 
   const projection = useMemo(() => toRenderProjection(state), [state]);
 
+  // --- Timeline (A17) ---------------------------------------------------
+  const primaryMedia = state.hot.media.find((media) => media.role === "primary");
+  const timelineMedia = useTimelineMedia(projectId, primaryMedia?.mediaId);
+  const passItems = useMemo(() => [...state.items.values()], [state.items]);
+  const timeMap: TimeMap | undefined = useMemo(() => {
+    if (primaryMedia === undefined) return undefined;
+    const cutItems = passItems.filter((item) => item.kind === "cut");
+    if (cutItems.length === 0) return undefined;
+    return fromAcceptedItems(passItems, { sourceDurationMs: primaryMedia.durationMs });
+  }, [passItems, primaryMedia]);
+  const [timelineDisplayMode, setTimelineDisplayMode] = useState<TimeDisplayMode>("source");
+
   const reflow = useMemo(() => {
     if (registry === undefined || shaper === undefined) return undefined;
     const stored = parseStoredCaptionBudgets(state.hot.meta.engineVersions);
@@ -262,6 +280,25 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     store.submitOp(splitSegment(selectedSegmentId, selectedWordId, newId(), newId), {
       label: "Split segment",
     });
+  }
+
+  function onSplitAt(segmentId: string, atWordId: string): void {
+    store.submitOp(splitSegment(segmentId, atWordId, newId(), newId), { label: "Split segment" });
+  }
+
+  function onTimelineSetSegmentBounds(op: SegmentBoundsOp): void {
+    store.submitOp(
+      {
+        type: "SetSegmentBounds",
+        opId: newId(),
+        segmentId: op.segmentId,
+        startMs: op.startMs,
+        endMs: op.endMs,
+        ...(op.startWordId === undefined ? {} : { startWordId: op.startWordId as never }),
+        ...(op.endWordId === undefined ? {} : { endWordId: op.endWordId as never }),
+      },
+      { label: "Move caption boundary" },
+    );
   }
 
   function onMergeWithNext(segmentId?: string): void {
@@ -513,7 +550,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
 
         <div className="min-w-0 flex-1 bg-black/40 p-4">
           <CaptionStage
-            src=""
+            src={timelineMedia.proxyUrl ?? ""}
             projection={projection}
             catalogue={SYSTEM_STYLE_MAP}
             {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
@@ -544,6 +581,34 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
             onOp={submitPanelOp}
           />
         </div>
+      </div>
+
+      <div className="border-t border-white/10 bg-black/30 p-2" data-testid="editor-timeline-row">
+        <Timeline
+          words={allLiveWords}
+          segments={segments}
+          passItems={passItems}
+          {...(timelineMedia.waveform === undefined ? {} : { waveform: timelineMedia.waveform })}
+          durationMs={primaryMedia?.durationMs ?? 0}
+          playheadMs={playheadSnapshot.ms}
+          playing={playheadSnapshot.playing}
+          onSeek={(ms) => playhead.seek(ms)}
+          onTogglePlay={() => playhead.togglePlaying()}
+          {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
+          {...(selectedWordId === undefined ? {} : { selectedWordId })}
+          onSelectSegment={setSelectedSegmentId}
+          onSelectWord={(segmentId, wordId) => {
+            setSelectedSegmentId(segmentId);
+            setSelectedWordId(wordId);
+          }}
+          onSetSegmentBounds={onTimelineSetSegmentBounds}
+          onSplitSegment={onSplitAt}
+          onMergeSegments={([a]) => onMergeWithNext(a)}
+          {...(timeMap === undefined ? {} : { timeMap })}
+          displayMode={timelineDisplayMode}
+          onDisplayModeChange={setTimelineDisplayMode}
+          nudgeSink={noopNudgeSink}
+        />
       </div>
 
       <FindReplaceDialog

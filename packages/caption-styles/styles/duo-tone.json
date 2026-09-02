@@ -13,7 +13,10 @@
     "lineHeight": 1.2,
     "letterSpacingEm": 0,
     "textTransform": "none",
-    "scriptScale": { "deva": 0.74, "taml": 0.45 }
+    "scriptScale": {
+      "deva": 0.74,
+      "taml": 0.45
+    }
   },
   "colors": {
     "text": "#3fa7d6",
@@ -74,8 +77,9 @@
       "effect": "none"
     }
   ],
-  "assRenderable": false,
-  "assExportable": false,
+  "assRenderable": true,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/duo-tone.mp4"
+  "previewKey": "system/style-previews/duo-tone.mp4",
+  "parityScore": 0.9521
 }

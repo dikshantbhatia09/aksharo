@@ -13,7 +13,9 @@
     "lineHeight": 1.24,
     "letterSpacingEm": 0.01,
     "textTransform": "uppercase",
-    "scriptScale": { "taml": 0.71 }
+    "scriptScale": {
+      "taml": 0.71
+    }
   },
   "colors": {
     "text": "#ffffff",
@@ -71,7 +73,8 @@
     }
   ],
   "assRenderable": false,
-  "assExportable": false,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/news-ticker.mp4"
+  "previewKey": "system/style-previews/news-ticker.mp4",
+  "parityScore": 0.9038
 }

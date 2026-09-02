@@ -21,6 +21,7 @@ import type {
   ConsentState,
   CreateFolderRequest,
   CreateProjectRequest,
+  CreditsSummary,
   CurrentUser,
   DeviceApproveRequest,
   Entitlement,
@@ -34,6 +35,10 @@ import type {
   MediaUrls,
   MemoryEntry,
   OAuthCompleteRequest,
+  OffersEligibilityView,
+  PassCheckoutRequest,
+  PassCheckoutResponse,
+  PassView,
   PendingApproval,
   PlanCatalogueEntry,
   Project,
@@ -45,7 +50,9 @@ import type {
   SignUpResponse,
   StyleCatalogueEntry,
   StylePresetRequest,
+  SubscriptionView,
   TokenResponse,
+  TopupCheckoutRequest,
   TranscribeAccepted,
   TranscribeRequest,
   TranslateAccepted,
@@ -202,16 +209,6 @@ export const accountEndpoints = {
     path: "/me",
     auth: "bearer",
     operationId: "deleteMe",
-  }),
-} as const;
-
-/** Billing (B01). Public — the plan catalogue needs no session (07 §Billing). */
-export const billingEndpoints = {
-  listPlans: defineEndpoint<void, PlanCatalogueEntry[]>({
-    method: "GET",
-    path: "/billing/plans",
-    auth: "public",
-    operationId: "listPlans",
   }),
 } as const;
 
@@ -422,6 +419,64 @@ export const transcriptEndpoints = {
   }),
 } as const;
 
+/** Billing (B01, B04). Plan catalogue is public; checkout/subscription need a session. */
+export const billingEndpoints = {
+  listPlans: defineEndpoint<void, PlanCatalogueEntry[]>({
+    method: "GET",
+    path: "/billing/plans",
+    auth: "public",
+    operationId: "listPlans",
+  }),
+  getSubscription: defineEndpoint<void, SubscriptionView | null>({
+    method: "GET",
+    path: "/billing/subscription",
+    auth: "bearer",
+    operationId: "getSubscription",
+  }),
+  createPassCheckout: defineEndpoint<PassCheckoutRequest, PassCheckoutResponse>({
+    method: "POST",
+    path: "/billing/passes/checkout",
+    auth: "bearer",
+    operationId: "createPassCheckout",
+  }),
+  createTopupCheckout: defineEndpoint<TopupCheckoutRequest, PassCheckoutResponse>({
+    method: "POST",
+    path: "/billing/topups/checkout",
+    auth: "bearer",
+    operationId: "createTopupCheckout",
+  }),
+} as const;
+
+/** Credits (B02) — only the balance summary; usage history is out of scope here. */
+export const creditsEndpoints = {
+  getBalance: defineEndpoint<void, CreditsSummary>({
+    method: "GET",
+    path: "/workspaces/{id}/credits",
+    auth: "bearer",
+    operationId: "getWorkspaceCredits",
+  }),
+} as const;
+
+/**
+ * Offers (B04): the signup gift / ₹9 clean export / week pass / ₹149 Free
+ * top-up read model the export-dialog upsell panel and the Subscription
+ * overview's pass chips render from.
+ */
+export const offersEndpoints = {
+  eligibility: defineEndpoint<void, OffersEligibilityView>({
+    method: "GET",
+    path: "/offers/eligibility",
+    auth: "bearer",
+    operationId: "getOffersEligibility",
+  }),
+  listPasses: defineEndpoint<void, PassView[]>({
+    method: "GET",
+    path: "/offers/passes",
+    auth: "bearer",
+    operationId: "listOffersPasses",
+  }),
+} as const;
+
 /** Scripts and translation (A22): `apps/api/src/transcripts/scripts`. */
 export const transcriptScriptsEndpoints = {
   transliterate: defineEndpoint<TransliterateRequest, TransliterateAccepted>({
@@ -483,6 +538,8 @@ export const endpoints = {
   transcripts: transcriptEndpoints,
   transcriptScripts: transcriptScriptsEndpoints,
   billing: billingEndpoints,
+  credits: creditsEndpoints,
+  offers: offersEndpoints,
   pending: pendingEndpoints,
 } as const;
 
@@ -499,5 +556,7 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(transcriptEndpoints),
   ...Object.entries(transcriptScriptsEndpoints),
   ...Object.entries(billingEndpoints),
+  ...Object.entries(creditsEndpoints),
+  ...Object.entries(offersEndpoints),
   ...Object.entries(pendingEndpoints),
 ] as const;

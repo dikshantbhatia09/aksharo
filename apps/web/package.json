@@ -61,6 +61,7 @@
     "@types/react-dom": "^19.2.5",
     "eslint": "^9.39.5",
     "fake-indexeddb": "^6.2.2",
+    "fast-check": "^3.23.2",
     "ioredis": "^5.11.1",
     "jsdom": "^30.0.1",
     "pg": "^8.16.3",

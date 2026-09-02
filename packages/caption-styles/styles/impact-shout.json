@@ -74,7 +74,8 @@
     }
   ],
   "assRenderable": false,
-  "assExportable": false,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/impact-shout.mp4"
+  "previewKey": "system/style-previews/impact-shout.mp4",
+  "parityScore": 0.8276
 }

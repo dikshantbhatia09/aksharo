@@ -59,12 +59,24 @@ describe("loadSystemStyles", () => {
     }
   });
 
-  it("ships every style with the pre-gate parity flags", () => {
+  it("has parity flags written by the A18a gate for every shipped style (D33)", () => {
+    // Before the A18a gate ever runs, every style ships the conservative
+    // pre-gate defaults (`false`/`false`/`true`/`undefined` — see
+    // `schema.test.ts`'s "defaults the parity flags to the pre-gate answer").
+    // Once `packages/ass-exporter/parity/run.ts` + `apply-flags.ts` have run —
+    // which they have, for this checkout's `styles/*.json` — every style
+    // instead carries the gate's own measured answer: `assExportable` is
+    // always true (a readable `.ass` sidecar is always producible),
+    // `parityScore` is a real number in `[0, 1]`, and `assRenderable` is
+    // whatever the measured CanvasKit/Skia/libass diff actually found. The
+    // flags are never hand-edited (D33), so this test is really asserting
+    // "the gate has run and its numbers look sane", not any particular value.
     for (const style of styles) {
-      expect(style.assRenderable, style.id).toBe(false);
-      expect(style.assExportable, style.id).toBe(false);
-      expect(style.requiresLayoutMetrics, style.id).toBe(true);
-      expect(style.parityScore, style.id).toBeUndefined();
+      expect(style.assExportable, style.id).toBe(true);
+      expect(typeof style.assRenderable, style.id).toBe("boolean");
+      expect(typeof style.requiresLayoutMetrics, style.id).toBe("boolean");
+      expect(style.parityScore, style.id).toBeGreaterThanOrEqual(0);
+      expect(style.parityScore, style.id).toBeLessThanOrEqual(1);
     }
   });
 
