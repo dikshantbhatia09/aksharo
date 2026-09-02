@@ -110,6 +110,8 @@ QUEUE_POLICY_BY_FAMILY: Final[dict[str, QueuePolicy]] = {
 #: Queues whose work outlives the family lock. Only the differing fields appear,
 #: exactly as in ``QUEUE_POLICY_OVERRIDES``.
 QUEUE_POLICY_OVERRIDES: Final[dict[str, dict[str, int]]] = {
+    "media.probe": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
+    "media.proxy": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
     "ai.transcribe": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
     "ai.diarise": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
     "ai.align": {"lockDurationMs": 300_000, "stalledIntervalMs": 60_000},

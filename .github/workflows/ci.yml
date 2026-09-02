@@ -56,8 +56,11 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # @montaj/api runs in its own job below, against Postgres and Redis service
+      # containers; running it here as well would start testcontainers a second
+      # time for the same suites (A23a).
       - name: Unit tests
-        run: pnpm test --filter='!@montaj/worker-ai' --filter='!@montaj/model-server'
+        run: pnpm test --filter='!@montaj/worker-ai' --filter='!@montaj/model-server' --filter='!@montaj/api'
 
       - name: Build
         run: pnpm build
@@ -102,6 +105,80 @@ jobs:
 
       - name: pytest
         run: python -m pytest -q
+
+  # ---------------------------------------------------------------------------
+  # API suite: one Postgres and one Redis as service containers.
+  #
+  # A23a: `apps/api/test/global-setup.ts` starts its own pair when it has to, but
+  # a GitHub runner would then be running Docker inside a Docker-provisioned job
+  # for no gain. `TEST_DATABASE_URL` and `TEST_REDIS_URL` point it at the services
+  # below instead, so the whole suite runs with ZERO containers of its own: the
+  # template database is built once on the Postgres service and each suite clones
+  # it, taking a logical Redis database and a queue prefix of its own.
+  #
+  # The Redis service is this job's alone, so the run may hand out all sixteen of
+  # its logical databases — one per e2e suite. `global-setup.ts` leaves database 0
+  # alone when it can and takes it, loudly, when there are more suites than
+  # databases above it.
+  # ---------------------------------------------------------------------------
+  api:
+    name: API (Postgres + Redis services)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        # Must be pgvector, not stock postgres:16: the first migration creates a
+        # `vector(512)` column and needs the extension to exist.
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: montaj
+          POSTGRES_PASSWORD: montaj
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U montaj -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://montaj:montaj@localhost:5432/postgres
+      TEST_REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `turbo run test` builds the workspace packages @montaj/api imports first.
+      - name: API unit, integration and e2e tests
+        run: pnpm test --filter=@montaj/api
+
+      # The point of the two service containers above: testcontainers labels
+      # everything it starts, so this is a hard gate on "the suite started none".
+      - name: The suite started no containers of its own
+        if: always()
+        run: |
+          count=$(docker ps --all --quiet --filter 'label=org.testcontainers=true' | wc -l)
+          echo "testcontainers-managed containers: $count"
+          test "$count" -eq 0
 
   # ---------------------------------------------------------------------------
   # GPU model server (A26): ruff, mypy --strict, pytest, and both halves of the

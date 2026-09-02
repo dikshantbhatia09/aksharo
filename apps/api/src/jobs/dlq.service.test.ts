@@ -58,6 +58,7 @@ function harness(): Harness {
     realtime,
     credits as unknown as CreditsFacade,
   );
+  const completionHandlers = new JobCompletionRegistry();
   const jobs = new JobsService(
     prisma,
     queues as unknown as QueueRegistry,
@@ -66,7 +67,7 @@ function harness(): Harness {
     realtime,
     dlq,
     metrics,
-    new JobCompletionRegistry(),
+    completionHandlers,
     credits as unknown as CreditsFacade,
   );
   return { jobs, dlq, metrics, db, queues, credits };

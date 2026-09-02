@@ -6,15 +6,7 @@ import { PrismaService } from "../common/prisma/prisma.service.js";
 
 import type { LogLevel, Prisma } from "@prisma/client";
 
-/**
- * The points a job records.
- *
- * `job.*` is the **lifecycle**, and a log search for that prefix finds every
- * transition A08 owns. A completion handler (A11's `ai.transcribe`, and whatever
- * follows it) also has things worth recording that are not transitions, and those
- * are named `<domain>.<verb>`: the row belongs to the job, the fact belongs to the
- * domain, and the two prefixes keep them apart in a log.
- */
+/** The lifecycle points a job records. `job.*` so a log search finds them all. */
 export const JOB_EVENT_NAMES = [
   "job.queued",
   "job.started",
@@ -29,10 +21,8 @@ export const JOB_EVENT_NAMES = [
   "job.replayed",
   /** An admin gave up on a dead letter and released its hold (A08b). */
   "job.dlq_discarded",
-  /** The job type's completion handler threw; the job stays open for a retry (A11). */
+  /** The job type's completion handler threw; the job stays open for a retry (A07). */
   "job.completion_handler_failed",
-  /** What post-processing changed on a transcript — the corrections log (A11). */
-  "transcript.postprocessed",
 ] as const;
 
 export type JobEventName = (typeof JOB_EVENT_NAMES)[number];

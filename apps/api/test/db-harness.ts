@@ -1,26 +1,29 @@
 /**
- * A migrated PostgreSQL for the integration suite.
+ * A migrated PostgreSQL for one integration suite.
  *
- * Resolution order:
- *   1. `TEST_DATABASE_URL` — a database the developer or CI has already provided.
- *   2. A testcontainers `pgvector/pgvector:pg16` container. The image matters: the
- *      schema has a `vector(512)` column, so stock `postgres:16` cannot run the
- *      first migration.
- *   3. Nothing — the suite skips with a loud message rather than failing, so a
- *      laptop with Docker stopped can still run the unit tests.
+ * Since A23a there is exactly ONE PostgreSQL per Vitest run — `test/global-setup.ts`
+ * either reuses `TEST_DATABASE_URL` or starts a single `pgvector/pgvector:pg16`
+ * container — and it carries a `montaj_test_template` database built by the same
+ * code path `pnpm db:migrate` uses: `prisma migrate deploy`, then `prisma/sql/`.
  *
- * Whichever source wins, the SAME code path builds it that `pnpm db:migrate` uses:
- * `prisma migrate deploy` followed by `prisma/sql/`. A test that built the schema
- * some other way would prove nothing about the command operators actually run.
+ * What this file does is hand each suite a private COPY of that template:
+ *
+ *     CREATE DATABASE "montaj_t_<runId>_<suite>" TEMPLATE "montaj_test_template"
+ *
+ * which PostgreSQL performs as a file copy, so it costs a fraction of a second
+ * rather than the twenty a migration run costs — and, far more importantly, means
+ * a suite can `TRUNCATE` any table it likes while thirteen other suites do the
+ * same, with no interference. `stop()` drops the copy; `global-setup.ts` sweeps
+ * whatever a crash left behind.
+ *
+ * When no PostgreSQL can be reached the suite skips with a loud message rather
+ * than failing, so a laptop with Docker stopped can still run the unit tests.
  */
-import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
-
 import { PrismaClient } from "@prisma/client";
+import { Client } from "pg";
 
-import { applySql } from "../scripts/apply-sql.js";
-
-const API_DIR = resolve(__dirname, "..");
+import { suiteName, testRun } from "./suite-context.js";
+import { databaseUrlFor, suiteDatabaseName } from "./test-run.js";
 
 export interface TestDatabase {
   readonly url: string;
@@ -32,102 +35,160 @@ export interface TestDatabase {
 /** Why the suite was skipped, for the console message. */
 export let skipReason = "";
 
+/** Databases this worker has already created, so a second call gets a new name. */
+let created = 0;
+
+/**
+ * PostgreSQL refuses to copy a template another session is connected to, and two
+ * suites cloning at the same instant can collide. Both are transient, so retry.
+ */
+const CLONE_RETRY_BUDGET_MS = 60_000;
+const CLONE_RETRY_DELAY_MS = 250;
+
+/**
+ * How long `afterAll` will wait for `DROP DATABASE` before handing it on.
+ *
+ * `DROP DATABASE` forces an immediate checkpoint and waits for it. That is tens of
+ * milliseconds on an idle server and was measured at eleven seconds with two
+ * suites dropping at once on a laptop already running thirty containers — and
+ * fifteen suites finishing together would be far worse. A suite must never fail
+ * because the checkpointer was busy, so the wait is bounded: whatever is still
+ * dropping when the budget runs out is finished by the run teardown in
+ * `global-setup.ts`, which sweeps sequentially with nothing racing it.
+ *
+ * The cancellation is safe. PostgreSQL removes the database's files only after the
+ * checkpoint it is waiting on, so a statement cancelled during that wait leaves the
+ * database exactly as it was — present, and there to be dropped again.
+ */
+const DROP_BUDGET_MS = 15_000;
+
 /**
  * Can the integration suite run at all?
  *
  * Answered SYNCHRONOUSLY, because `describe.skipIf` is evaluated while the file is
- * collected and this package compiles to CommonJS (no top-level await). Starting
- * the container itself still happens in `beforeAll`.
+ * collected and this package compiles to CommonJS (no top-level await). Before
+ * A23a that meant every suite shelled out to `docker info` in parallel, on the
+ * very daemon they were all about to overload; now `global-setup.ts` has already
+ * answered the question once for the whole run and this is a property read.
  */
 export function isDatabaseAvailable(): boolean {
-  const fromEnv = process.env["TEST_DATABASE_URL"];
-  if (fromEnv !== undefined && fromEnv !== "") return true;
-  if (process.env["MONTAJ_SKIP_DB_TESTS"] === "1") {
-    skipReason = "MONTAJ_SKIP_DB_TESTS=1";
+  const run = testRun();
+  if (run === null) {
+    skipReason = "vitest globalSetup did not run (test/global-setup.ts)";
     return false;
   }
-
-  // Sixty seconds, not twenty (raised in A05): Vitest collects the suite files in
-  // parallel, so every Docker-backed suite probes the daemon at the same moment,
-  // and A05 took that from three suites to five. `docker info` costs a second or
-  // two idle and can take far longer while Docker Desktop is also pulling images
-  // for a sibling worker. A daemon that is genuinely absent still fails in
-  // milliseconds — the shell reports "command not found" — so the longer budget
-  // is only ever spent waiting for a daemon that IS there. Timing out here does
-  // not fail a run; it silently skips every integration suite, which is the worst
-  // possible outcome and is why the budget is generous.
-  const probe = spawnSync("docker", ["info", "--format", "{{.ServerVersion}}"], {
-    stdio: "pipe",
-    shell: true,
-    encoding: "utf8",
-    timeout: 60_000,
-  });
-  if (probe.status === 0) return true;
-
-  skipReason =
-    probe.signal !== null || probe.status === null
-      ? "docker did not answer within 60s (daemon busy or stopped)"
-      : `docker is not available (${(probe.stderr ?? "").trim().slice(0, 200)})`;
-  return false;
+  if (run.database === null) {
+    skipReason = run.databaseSkipReason;
+    return false;
+  }
+  skipReason = "";
+  return true;
 }
 
-function migrate(url: string): void {
-  const result = spawnSync("prisma", ["migrate", "deploy"], {
-    cwd: API_DIR,
-    stdio: "pipe",
-    shell: true,
-    encoding: "utf8",
-    env: { ...process.env, DATABASE_URL: url, PRISMA_HIDE_UPDATE_MESSAGE: "1" },
-  });
-  if (result.status !== 0) {
-    throw new Error(`prisma migrate deploy failed:\n${result.stdout}\n${result.stderr}`);
+/** Transient enough to be worth waiting out: the template is momentarily busy. */
+function isTransientCloneError(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  if (code === "55006" || code === "57P03") return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("being accessed by other users");
+}
+
+const sleep = async (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+async function cloneTemplate(adminUrl: string, template: string, name: string): Promise<void> {
+  const deadline = Date.now() + CLONE_RETRY_BUDGET_MS;
+  for (;;) {
+    const admin = new Client({ connectionString: adminUrl });
+    await admin.connect();
+    try {
+      await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+      await admin.query(`CREATE DATABASE "${name}" TEMPLATE "${template}"`);
+      return;
+    } catch (error) {
+      if (!isTransientCloneError(error) || Date.now() > deadline) throw error;
+    } finally {
+      await admin.end();
+    }
+    // Jitter, so two suites that collided do not collide again on the retry.
+    await sleep(CLONE_RETRY_DELAY_MS + Math.floor(Math.random() * CLONE_RETRY_DELAY_MS));
   }
 }
 
-/** A database with the schema and the hand SQL applied, or `null` when unavailable. */
+/**
+ * Pin Prisma's connection pool, because the PostgreSQL is now shared.
+ *
+ * Prisma sizes a pool at `cpus * 2 + 1` — twenty-five on a twelve-core laptop —
+ * which was harmless while every suite had a PostgreSQL container to itself and
+ * is not now: a dozen suites running at once, two or three clients each, against
+ * one server whose `max_connections` is 100, and the run dies with "Can't reach
+ * database server" halfway through. Three is far more than a suite ever uses at
+ * one instant (Prisma opens them lazily), and it keeps the whole run inside the
+ * budget with room for whatever else is on the machine.
+ */
+const SUITE_CONNECTION_LIMIT = 3;
+/** Seconds a query may wait for one of those connections before it gives up. */
+const SUITE_POOL_TIMEOUT_S = 30;
+
+function withPoolLimit(url: string): string {
+  const parsed = new URL(url);
+  parsed.searchParams.set("connection_limit", String(SUITE_CONNECTION_LIMIT));
+  parsed.searchParams.set("pool_timeout", String(SUITE_POOL_TIMEOUT_S));
+  return parsed.toString();
+}
+
+/** `true` when the database is gone, `false` when the budget ran out first. */
+async function dropDatabase(adminUrl: string, name: string, budgetMs: number): Promise<boolean> {
+  const admin = new Client({ connectionString: adminUrl });
+  await admin.connect();
+  try {
+    await admin.query(`SET statement_timeout = ${String(budgetMs)}`);
+    await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+    return true;
+  } catch (error) {
+    if ((error as { code?: string } | null)?.code === "57014") return false;
+    throw error;
+  } finally {
+    await admin.end();
+  }
+}
+
+/**
+ * This suite's own copy of the migrated template, or `null` when unavailable.
+ *
+ * The signature is the one every spec has always called; only what happens inside
+ * changed.
+ */
 export async function createTestDatabase(): Promise<TestDatabase | null> {
-  const fromEnv = process.env["TEST_DATABASE_URL"];
-
-  if (fromEnv !== undefined && fromEnv !== "") {
-    migrate(fromEnv);
-    await applySql(fromEnv);
-    const prisma = new PrismaClient({ datasources: { db: { url: fromEnv } } });
-    return {
-      url: fromEnv,
-      prisma,
-      source: "env",
-      stop: async () => {
-        await prisma.$disconnect();
-      },
-    };
+  const run = testRun();
+  if (run?.database == null) {
+    skipReason = run?.databaseSkipReason ?? "vitest globalSetup did not run";
+    return null;
   }
+
+  const { adminUrl, template, source } = run.database;
+  const name = suiteDatabaseName(run.runId, suiteName(), created);
+  created += 1;
 
   try {
-    const { PostgreSqlContainer } = await import("@testcontainers/postgresql");
-
-    const container = await new PostgreSqlContainer("pgvector/pgvector:pg16")
-      .withDatabase("montaj_test")
-      .withUsername("montaj")
-      .withPassword("montaj")
-      .withStartupTimeout(120_000)
-      .start();
-
-    const url = container.getConnectionUri();
-    migrate(url);
-    await applySql(url);
-    const prisma = new PrismaClient({ datasources: { db: { url } } });
-
-    return {
-      url,
-      prisma,
-      source: "testcontainers",
-      stop: async () => {
-        await prisma.$disconnect();
-        await container.stop();
-      },
-    };
+    await cloneTemplate(adminUrl, template, name);
   } catch (error) {
     skipReason = error instanceof Error ? error.message : String(error);
     return null;
   }
+
+  const url = withPoolLimit(databaseUrlFor(adminUrl, name));
+  const prisma = new PrismaClient({ datasources: { db: { url } } });
+
+  return {
+    url,
+    prisma,
+    source,
+    stop: async () => {
+      await prisma.$disconnect();
+      if (!(await dropDatabase(adminUrl, name, DROP_BUDGET_MS))) {
+        console.warn(`[test-run] ${name} is still busy; the run teardown will drop it`);
+      }
+    },
+  };
 }

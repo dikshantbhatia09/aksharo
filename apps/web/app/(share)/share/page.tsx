@@ -9,7 +9,7 @@ export default function SharePage(): React.JSX.Element {
       <h1 className="text-2xl font-semibold tracking-tight" data-testid="share-heading">
         Shared review
       </h1>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-fg-2 text-sm">
         Public review link surface — route group <code>(share)</code>. Built in B15.
       </p>
     </main>

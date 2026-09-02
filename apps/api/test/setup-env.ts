@@ -6,16 +6,24 @@
  * here connects to it: the A01 health test needs no infrastructure.
  *
  * Real environment variables are never overwritten, so `DATABASE_URL=... vitest`
- * still works when a later work package needs a live database.
+ * still works when a later work package needs a live database. The two exceptions
+ * are A23a's: `MONTAJ_QUEUE_PREFIX` and `REDIS_URL` are ASSIGNED, at the bottom of
+ * this file, from the slice of the run's infrastructure this suite owns — an
+ * inherited value pointing at a developer's own stack is precisely what the
+ * isolation exists to override.
  */
+import { Logger } from "@nestjs/common";
+
+import { applySuiteEnvironment } from "./suite-context.js";
+
 const TEST_ENV: Record<string, string> = {
   NODE_ENV: "test",
   // A08: the scheduler's BullMQ worker would dial Redis the moment a Nest app
   // boots. Suites drive scheduled tasks through `ScheduledTasksService.runNow`.
   MONTAJ_SCHEDULER_DISABLED: "1",
-  // A08: partition every BullMQ key and realtime channel this suite touches. The
-  // pid keeps two suites — or two agents sharing one Redis — from colliding, and
-  // the integration suite deletes its own keys when it is done.
+  // A08: partition every BullMQ key and realtime channel this suite touches.
+  // A23a replaces this default with the suite's own prefix below; the default
+  // still matters for a spec run under some other Vitest config.
   MONTAJ_QUEUE_PREFIX: `montaj-test-${String(process.pid)}`,
   // A25: same reasoning as the scheduler. Most suites boot the app with a
   // substituted Redis, and a BullMQ `Worker` on a stub would throw at bootstrap.
@@ -53,6 +61,15 @@ for (const [key, value] of Object.entries(TEST_ENV)) {
 }
 
 /**
+ * A23a: point this worker at the corner of the run's infrastructure it owns.
+ *
+ * Runs here, in a setup file, rather than in a harness, because
+ * `jobs.e2e-spec.ts` and `dlq.e2e-spec.ts` read `MONTAJ_QUEUE_PREFIX` at module
+ * scope — long before any `beforeAll` hook could have set it.
+ */
+applySuiteEnvironment();
+
+/**
  * Silence Nest's console logger during tests.
  *
  * Several suites deliberately drive the failure paths (`HttpExceptionFilter`
@@ -60,6 +77,4 @@ for (const [key, value] of Object.entries(TEST_ENV)) {
  * real results and read like failures. Assertions cover the behaviour; the console
  * output adds nothing.
  */
-import { Logger } from "@nestjs/common";
-
 Logger.overrideLogger(false);

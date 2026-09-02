@@ -37,6 +37,15 @@ export interface EnqueueJobInput {
   readonly worstCaseTenths: number;
   /** Credit audit trail, e.g. `"ai.transcribe · 12.4 media minutes"`. */
   readonly reason?: string;
+  /**
+   * Take the plan's priority and queue-wait budget but check neither cap.
+   *
+   * Only for the second half of a piece of work the workspace was already
+   * admitted for — `media.probe` asking for its `media.proxy` (A07). It is
+   * deliberately absent from `EnqueueChildSchema`, so nothing a worker can send
+   * reaches it (THREAT-MODEL T23).
+   */
+  readonly skipAdmission?: boolean;
 }
 
 export interface EnqueueResult {
@@ -121,11 +130,16 @@ export class JobsService {
     const existing = await this.findLiveByKey(input.workspaceId, input.jobKey);
     if (existing !== null) return { job: existing, deduplicated: true };
 
-    const decision = await this.admission.admit({
-      workspaceId: input.workspaceId,
-      worstCaseTenths: input.worstCaseTenths,
-    });
-    const priority = input.priority ?? decision.limits.priority;
+    const limits =
+      input.skipAdmission === true
+        ? await this.admission.limitsFor(input.workspaceId)
+        : (
+            await this.admission.admit({
+              workspaceId: input.workspaceId,
+              worstCaseTenths: input.worstCaseTenths,
+            })
+          ).limits;
+    const priority = input.priority ?? limits.priority;
 
     const jobId = jobUlid();
     const attemptId = jobUlid();
@@ -145,7 +159,7 @@ export class JobsService {
           jobKey: input.jobKey,
           attemptId,
           attemptNo: 1,
-          maxQueueWaitMs: decision.limits.maxQueueWaitMs,
+          maxQueueWaitMs: limits.maxQueueWaitMs,
           // The worst-case hold, which the completion path overwrites with the
           // settled amount. Admission control sums this column.
           creditsChargedTenths: input.worstCaseTenths,
@@ -231,8 +245,8 @@ export class JobsService {
         attemptId,
         holdId,
         worstCaseTenths: input.worstCaseTenths,
-        maxQueueWaitMs: decision.limits.maxQueueWaitMs,
-        plan: decision.limits.plan,
+        maxQueueWaitMs: limits.maxQueueWaitMs,
+        plan: limits.plan,
       },
     });
 
@@ -465,7 +479,7 @@ export class JobsService {
         settledTenths: actualTenths,
         ...(usage === undefined ? {} : { usage }),
         ...(body.error === undefined ? {} : { error: body.error }),
-        ...(outcome?.data ?? {}),
+        ...(outcome?.data === undefined ? {} : outcome.data),
       },
     });
 
@@ -548,6 +562,8 @@ export class JobsService {
       readonly worstCaseTenths: number;
       readonly jobKey?: string;
       readonly reason?: string;
+      /** API-side callers only; see {@link EnqueueJobInput.skipAdmission}. */
+      readonly skipAdmission?: boolean;
     },
   ): Promise<EnqueueResult> {
     const jobKey = input.jobKey ?? `${parent.jobKey}:${input.type}`;
@@ -560,6 +576,7 @@ export class JobsService {
       jobKey,
       worstCaseTenths: input.worstCaseTenths,
       reason: input.reason ?? `child of ${parent.id}`,
+      ...(input.skipAdmission === undefined ? {} : { skipAdmission: input.skipAdmission }),
     });
 
     await this.events.append({

@@ -6,6 +6,7 @@ import { CommonModule } from "./common/common.module.js";
 import { ConsentsModule } from "./consents/consents.module.js";
 import { CreditsModule } from "./credits/credits.module.js";
 import { EdgModule } from "./edg/edg.module.js";
+import { FontsModule } from "./fonts/fonts.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { InternalModule } from "./internal/internal.module.js";
 import { JobsModule } from "./jobs/jobs.module.js";
@@ -32,8 +33,9 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
  * its op batches; A06 adds `projects` (with folders) and `media` (upload,
  * derived URLs, import, retention); A11 adds `transcripts` — the
  * `ai.transcribe` producer, the completion that writes the transcript and
- * initialises the document, and the read and export surface. Later work
- * packages append to `imports`.
+ * initialises the document, and the read and export surface; A18b adds
+ * `fonts`, the bundled open-licence catalogue and a workspace's own uploads
+ * with their licence warranty. Later work packages append to `imports`.
  *
  * `NotifyModule` sits after `JobsModule` because it takes the `notify` queue from
  * that module's registry, and it is `@Global()` because `AuthModule` — declared
@@ -65,6 +67,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     AdminModule,
     EdgModule,
     TranscriptsModule,
+    FontsModule,
     HealthModule,
   ],
 })

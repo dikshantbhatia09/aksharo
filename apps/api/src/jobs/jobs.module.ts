@@ -24,7 +24,7 @@ import { QueueTimeoutTask } from "./tasks/queue-timeout.task.js";
  *
  * `JobCompletionRegistry` is exported for the other half of that relationship: a
  * producer also owns what its completions *mean*, and registers a handler here at
- * boot (A11's `ai.transcribe` is the first).
+ * boot (A07's `media.probe` is the first).
  */
 @Module({
   controllers: [JobsController],

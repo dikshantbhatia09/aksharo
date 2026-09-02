@@ -82,7 +82,16 @@ export interface InitUploadInput {
 export interface CompletedUpload {
   readonly media: MediaView;
   readonly probeJobId: string;
-  readonly proxyJobId: string;
+  /**
+   * Always `null` from here.
+   *
+   * The proxy is enqueued by the probe's completion handler as a child job, not
+   * by this call (A07) — so at the moment `complete` answers there is no proxy
+   * job to name. The field stays in the response because a client polls it and a
+   * removed field is a breaking change; a client that wants the proxy watches the
+   * media asset's derived keys instead.
+   */
+  readonly proxyJobId: string | null;
 }
 
 export interface MediaUrls {
@@ -112,13 +121,14 @@ const SETTLED_STATUSES: readonly string[] = ["uploaded", "probing", "ready"];
  *
  * ```
  * complete the multipart upload -> HEAD for the real size -> row (uploadedAt,
- *   purge dates) -> enqueue media.probe -> enqueue media.proxy
+ *   purge dates) -> enqueue media.probe
  * ```
  *
  * The object is finished before the row says so, and the row is written before
  * anything is enqueued, so a worker can never pick up a job for an object that is
  * not there. `JobsService.enqueue` dedupes on `jobKey`, so a client that retries
- * `complete` gets the same two job ids rather than four jobs.
+ * `complete` gets the same job id rather than two jobs. `media.proxy` follows as a
+ * child of the probe's completion, not from here (A07).
  */
 @Injectable()
 export class MediaService {
@@ -478,14 +488,17 @@ export class MediaService {
   }
 
   /**
-   * Enqueue `media.probe` and then `media.proxy` (CONTRACTS §3).
+   * Enqueue `media.probe`, and only `media.probe` (CONTRACTS §3).
    *
-   * Both are enqueued here rather than the probe enqueuing the proxy as a child,
-   * because the brief says the API is the producer for both and because a
-   * workspace's admission decision should be taken once, at upload, rather than
-   * inside a worker. Neither job costs credits: `04-pricing` charges for
-   * transcription, translation, passes and cloud renders, and normalising an
-   * upload is not one of them.
+   * A06 enqueued the proxy here too, which took **two** admission slots for one
+   * upload: a Free workspace has a lane of two, so its second concurrent upload
+   * 429'd on `jobs/concurrency_cap` with nothing wrong anywhere. The proxy is the
+   * second half of one piece of work and now rides on the probe's completion as a
+   * child job (`MediaProbeCompletionHandler`), which also means it is never built
+   * for a file the probe rejected.
+   *
+   * The job costs no credits: `04-pricing` charges for transcription, translation,
+   * passes and cloud renders, and normalising an upload is not one of them.
    */
   private async startPipeline(
     media: MediaAsset,
@@ -513,17 +526,7 @@ export class MediaService {
       reason: `media.probe · ${media.id}`,
     });
 
-    const proxy = await this.jobs.enqueue({
-      type: "media.proxy",
-      workspaceId: project.workspaceId,
-      projectId: project.id,
-      params: payload,
-      jobKey: MEDIA_JOB_KEYS.proxy(media.id),
-      worstCaseTenths: MEDIA_JOB_QUOTES.proxyTenths,
-      reason: `media.proxy · ${media.id}`,
-    });
-
-    return { media: view, probeJobId: probe.job.id, proxyJobId: proxy.job.id };
+    return { media: view, probeJobId: probe.job.id, proxyJobId: null };
   }
 
   /** A settled upload of the same bytes, anywhere in this workspace. */

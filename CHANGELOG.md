@@ -104,6 +104,192 @@ workspace preference)`, resolved per script from the project's canvas in
     left alone, because a one-word caption after a full stop is the speaker's.
     Goldens regenerated (`pnpm --filter @montaj/edg golden:build`).
 
+- **A18b — `@montaj/fonts`: the bundled open-licence catalogue, upload with licence
+  attestation, validation/subsetting/WOFF2, and the `RENDER_FONT_DIR` v1 pack.**
+  - **The catalogue.** 21 families (Inter, Montserrat, Poppins, Playfair Display,
+    Roboto Mono, Anton, Bricolage Grotesque, JetBrains Mono, plus a Noto Sans per
+    script) at 400/700 or the weights the 30 system styles actually name — OFL-1.1
+    or Apache-2.0 only, licence text committed beside the bytes in `pack/licences/`,
+    every upstream file pinned to one `google/fonts` commit and checked against
+    `sources.lock.json`. No system fonts, ever (D33): nothing is fetched at
+    runtime. `SCHEDULED_LANGUAGES`/`REQUIRED_SCRIPTS` name the 22 Eighth-Schedule
+    languages' scripts plus Latin, and `catalogue.test.ts` checks the shipped
+    faces' own character maps cover every one — not a claim in a table.
+  - **Validation (T7, `validateFont`).** Cheapest-first refusals, each a `fonts/*`
+    code: size, empty, unknown format, unparsable, `.ttc` collections, no outlines,
+    `OS/2.fsType` embedding restrictions (checked **before** the licence attestation
+    is even recorded — the file itself says the uploader lacks the right the
+    attestation would warrant), too many glyphs, a script claim under 90% of its
+    required repertoire, no supported script at all, and metrics outside a sane
+    `unitsPerEm`.
+  - **Subsetting and WOFF2** (`hb-subset` via `subset-font`, both formats from two
+    independent runs over the same character set, never by compressing the first
+    result). A variable source is **instanced** — every axis pinned before the
+    static face is written, so nothing ships variable and the browser and the
+    cloud cannot disagree about a default. `subset.test.ts` shapes Devanagari,
+    Tamil and Latin samples through the real HarfBuzz shaper on the original and
+    the subset face and asserts identical clusters, advances and offsets (glyph
+    ids alone differ — `hb-subset` renumbers them).
+  - **Upload API**: `POST /workspaces/{id}/fonts/init` (plan limit 0/5/15/50/50,
+    presigned PUT, the exact attestation text to show) → `POST /fonts/{id}/complete
+{licenceAttested: true, licenceNote?}` (refused without the warranty; records
+    `licenceAttestedBy`/`attestedAt`/the attestation text version; validates,
+    subsets and writes the WOFF2 inline — CONTRACTS §3's queue list is frozen and
+    has none for fonts, so this follows A05's precedent for the same wall) →
+    `GET /workspaces/{id}/fonts/{fontId}/url` and `GET /workspaces/{id}/fonts/manifest`
+    for signed, workspace-scoped URLs (five minutes; another workspace's font id is
+    a 404, T5). `FontsService.purgeWorkspace` deletes every font object a
+    workspace owns, for B16's erasure cascade (D70).
+  - **Serving**: `GET /fonts/manifest` and `GET /styles/fonts/catalog` (session
+    required — product surface) and public, year-cached `GET /fonts/pack/{file}`
+    (OFL/Apache bytes, identical for every tenant, so no signature and no tenant
+    scope apply).
+  - **`FontManifest`** (`fonts.json`, `v: 1`) is a superset of `apps/render`'s own
+    `FontPackSchema` — same `{id, family, weight, italic, file, scripts}` in the
+    same order, plus `scriptTags` (ISO 15924, the catalogue/coverage truth),
+    `woff2`, sizes, `sha256`, licence and provenance. One file, so `apps/render`
+    parses a manifest written here without a second schema that can drift.
+  - **Loaders**: `@montaj/fonts/node`'s `loadPack()`/`registerManifestFonts()` for
+    the cloud (bundled pack off disk, or a fetched manifest's faces into an
+    existing `FontRegistry`, warning rather than throwing on one unreachable
+    custom font); `@montaj/fonts/browser`'s `loadFontsInBrowser()` (fetch, decode
+    WOFF2 with an **injected** decompressor since `woff2-encoder` is ESM-only,
+    register the sfnt) and `installCssFontFaces()` for the picker's own-typeface
+    preview.
+  - **`pack/`** is committed: `fonts.json` plus a `.ttf` and a `.woff2` per face
+    and `licences/*.txt`, built by `scripts/build-pack.ts` (`pnpm --filter
+@montaj/fonts pack:build`) and reported by the new `pack:report` script.
+    `apps/render/src/render/fonts.ts`'s `RENDER_FONT_DIR` reads this exact layout
+    (its `FontPackSchema` is the v1 subset of this manifest by design); the render
+    image bakes the directory in. `apps/render/src/render/font-pack.test.ts` loads
+    the real committed pack and shapes Devanagari, Tamil and Latin samples with the
+    fixture-fallback warning asserted **absent**.
+  - `apps/render/package.json` gained the `@montaj/fonts` devDependency the new
+    test needed; `.gitignore` gained `packages/fonts/.cache/` (the pack build's
+    gitignored download cache).
+  - Coverage (CONTRACTS §9, `packages/fonts` = 90/85): 97.3% lines, 85.6% branches,
+    150 tests across 8 files, plus a Playwright suite that fetches the pack's own
+    WOFF2 files over a static server, decompresses and draws a Latin, a Devanagari
+    and a Tamil caption in Chromium.
+
+- **A13 — web app shell: auth screens, onboarding step 0, settings, `@montaj/ui` and the typed client layer.**
+  - `@montaj/ui`: the design system of `03-architecture/08-ux-design-system.md`
+    §1–§2. `src/styles/tokens.css` _is_ the Tailwind v4 preset — the near-black
+    and lime palette, the signal colours, 8/12/16 radii, the type scale, the
+    120–200 ms motion band, one lime focus ring and a `prefers-reduced-motion`
+    rule that applies to chrome only, because caption animation is the product's
+    output rather than decoration. `src/tokens.ts` carries the same values as
+    data and a test fails if the two drift. shadcn/ui primitives over Radix
+    (Button, Input, Field, Dialog, Sheet, Tabs, Tooltip, DropdownMenu, Toast,
+    Command palette, Switch, Checkbox, Separator, Card, Badge, Skeleton,
+    ProgressBar) plus the product components: `CreditMeter` (credits, minutes,
+    reset date, burn-rate tooltip with runway, streak badge behind a flag),
+    `JobProgress` (stage chips and ETA), `UpgradeGate` (the exact plan and a
+    checkout-sheet slot), `StatusChip`, `LangChip`, `ShortcutHint`,
+    `EmptyState`. The nine Indic Noto families load on demand — `loadIndicFont`
+    inserts one the first time that script is rendered, rather than putting
+    ~1.5 MB of webfont in front of a first paint nobody needs it for.
+  - The package is consumed as **source** through Next's `transpilePackages`, so
+    the app's own compiler handles the `"use client"` boundaries and there is no
+    build artefact to keep in step.
+  - `@montaj/api-client`: the fetch layer and hooks on top of A04's generated
+    operation index. Typed endpoint descriptors checked against that index by
+    `contract.test.ts`, which fails both ways — a route that moved, and a route
+    marked `pending` that has since landed. A13 was written against a `pending`
+    stub for the whole A05 surface (`/me`, `/workspaces`, `/entitlement`,
+    `/usage`, `/consents`, `/memory`); A05 merged first, so `accountEndpoints`
+    (`/me`, `/workspaces`, `/workspaces/{id}/entitlement`, `/consents`) call the
+    real routes and `useCurrentUser`/`useWorkspaces`/`useEntitlement`/
+    `useConsents` no longer need a fallback. `/usage` (the credit ledger, B02)
+    and `/memory` (D62, B09) are still declared `pending` and raise
+    `client/not_implemented` without a request, so the shell renders honestly
+    for the weeks before those two work packages land instead of showing an
+    error state everyone learns to ignore.
+  - The client owns the bearer header, the CONTRACTS §8 envelope and one
+    single-flight refresh: ten parallel 401s cause one rotation. A 401 on a
+    **public** route is a domain answer, not an expired session — refreshing
+    there signed the user out of a session they were in the middle of creating,
+    which is the bug the login e2e caught.
+  - `RealtimeClient` for CONTRACTS §7: subprotocol `aksharo.v1` plus
+    `bearer.<token>` (never a query string, T21), backoff with jitter capped at
+    30 s, re-subscribe after every `welcome`, `onResync` so a client that was
+    offline converges by re-reading rather than replaying, refused rooms
+    remembered, and 4401/4403/4503 handled distinctly.
+  - The package is ESM-only. A CommonJS build resolves `@tanstack/react-query`
+    through the `require` condition while the app resolves it through `import`,
+    which makes two `QueryClient` contexts and an error that points nowhere near
+    its cause.
+  - `apps/web`: the shell of 08 §3 — sidebar with the full information
+    architecture (items whose routes have not been built are disabled with a
+    "Soon" chip rather than shipped as dead links), workspace switcher over
+    `POST /auth/token/exchange`, credit meter, desktop download, profile menu,
+    top bar with Ctrl+K, New project, What's new and Upgrade, a drawer at phone
+    width, a skip link and a focusable `main`.
+  - Auth screens: `/signup` (credentials, then onboarding **step 0** — date of
+    birth, jurisdiction and two consent switches that both start off), `/login`,
+    `/magic`, `/verify`, `/auth/callback` (Google `status=registration` asks
+    step 0 before the account exists), `/auth/desktop-landing`, `/device`.
+    `/auth/verify-email` and `/auth/magic-link` forward to the first two,
+    because that is where A04's emails point.
+  - Sign-up copy never distinguishes a new address from a taken one, because the
+    API deliberately answers 202 either way; an e2e test compares the two
+    responses character for character.
+  - D60 throughout: the browser checks the same age floors the API enforces so a
+    15-year-old gets an explanation instead of a red error after typing a
+    password; a blocked sign-up is offered the parental waiting list; a declared
+    minor never gets analytics whatever the toggle says.
+  - Settings: profile, languages and defaults, "What Aksharo learned" (disabled
+    until the memory consent exists, D62), devices and sessions (revoke a family
+    from a list with the current one marked), privacy (consents, data export,
+    deletion behind a typed confirmation), notifications — a placeholder that
+    says why there is nothing to choose yet rather than offering switches that
+    do nothing.
+  - Sessions: the refresh token lives in an httpOnly SameSite=Lax cookie only
+    `app/api/session/*` can read, and the access token lives in memory for its
+    15 minutes (T2). Both handlers refuse a cross-site request, because a route
+    that writes a session cookie is a session-fixation primitive otherwise.
+    `middleware.ts` keeps signed-out visitors out of the studio before any HTML
+    is sent — a routing decision; the shell still rotates on mount, because a
+    cookie is not proof the family is alive.
+  - Analytics loads **after** consent and not before: `posthog-js` is a dynamic
+    import, so before consent it is not in the page and there is no request to
+    any analytics host. Sentry runs through a scrubber that replaces addresses,
+    JWTs, bearer headers and signed URL parameters, with tracing and replay off.
+  - `/(admin)/ui-kit` renders every component state; Playwright screenshots it
+    and the auth, shell, onboarding and settings screens into
+    `apps/web/e2e/__screenshots__/` and runs axe over each one.
+  - Tests: 82 component tests in `@montaj/ui`, 78 in `@montaj/api-client`, 115
+    in `apps/web`, and a Playwright suite on chromium and webkit covering sign-up
+    → onboarding → shell, the enumeration-safe 202, the age gate and the
+    waiting list, sign-in and sign-out, magic links, device-code approval and
+    refusal, consent persistence, "no analytics before consent", and an axe pass
+    on every screen.
+  - Two things A13 changed for everyone else: `/studio/*` is now behind a
+    session, so A16's `/studio/styles` harness signs in before it navigates;
+    and the end-to-end suite takes one confirmed account per Playwright worker
+    rather than one per test, because A04's development outbox is a 50-entry
+    Redis list every work package's local API shares and eighteen sign-ups in
+    one run lose their own message.
+  - The realtime channel found a live defect on the way in: joining a room took
+    the API process down, because `RedisRealtimeBus` duplicated a connection
+    created with `lazyConnect: true` and `enableOfflineQueue: false`, so the
+    duplicate was never dialled and the first `SUBSCRIBE` was rejected outright.
+    A08c has since fixed it (A12 reported the same thing independently), so the
+    shell connects by default; `FEATURE_FLAGS_JSON={"realtime.enabled":false}`
+    remains as a kill switch.
+  - **Found and reported, not fixed here (A05's files): `onboardingSchema`
+    rejects the multi-select answers this screen collects.**
+    `apps/api/src/users/users.dto.ts` accepts only `boolean | number | string`
+    per `onboarding` value; "what you make" and "languages you speak" are
+    `string[]` (multi-select, per `OnboardingProfile` and 08 §Onboarding), so
+    `PATCH /me` answers `400 common/validation_failed` on
+    `onboarding.makes`/`.languages` every time, not intermittently — confirmed
+    directly against the API, isolated to the array branch alone. The client
+    side is real and covered: the rejection surfaces as an honest toast instead
+    of a silent hang, and nothing typed is lost. `e2e/auth.spec.ts`'s journey
+    test asserts today's honest failure and says exactly where to restore the
+    original "lands in the shell" assertions once `onboardingSchema` gains an
+    array branch.
 - **A10c — the model-server alignment rung, and the stale-reference sweep after A26.**
   - `worker_ai/alignment/gpu.py`: `GpuCtcAligner`, `POST /align` on
     `apps/model-server`. It sits at rank 35 — **below** the two local CTC rungs,
@@ -290,6 +476,95 @@ audioSeconds, model, batchSize}` on every response, the arithmetic behind it,
   - Media types are an allow-list (T7): `application/octet-stream` is accepted only
     when the filename's extension is one we know, and the extension that reaches a
     key is chosen from the same lists, never from the filename directly.
+
+- **A07 — worker-media: probe, 16 kHz + 48 kHz audio, 540p proxy, waveform,
+  thumbnails.**
+  - `apps/worker-media`: a BullMQ worker consuming `media.probe` and
+    `media.proxy` (CONTRACTS §3) with concurrency and queue selection from
+    `WORKER_MEDIA_*` env, a ten-minute lock with a heartbeat at a third of it
+    (`src/policies.ts`, kept in step with `apps/api/src/jobs/jobs.config.ts` by
+    a source-parsing drift guard, same as the Python worker's), graceful
+    shutdown that aborts every ffmpeg child before closing the workers, and
+    structured logs with `jobId` on every line. Refuses to start when
+    ffmpeg/ffprobe are missing or older than major 6
+    (`assertMediaToolsAvailable`) rather than silently producing flat HDR
+    proxies and no progress.
+  - **The source is never downloaded.** ffprobe and ffmpeg read the raw object
+    through a presigned GET URL; the only files on disk are the outputs
+    `+faststart` and a patched WAV header need a seekable destination for, in a
+    scratch directory `withWorkspace` deletes in a `finally`.
+  - **`media.probe`**: `ffprobe` for duration, fps, dimensions, rotation
+    (display-matrix side data, not just the `rotate` tag), codec, audio
+    channels/sample rate and HDR (`smpte2084`/`arib-std-b67` transfer curves);
+    one audio-only `ebur128`+`silencedetect` decode for loudness range, true
+    peak and silence ratio/spans, never fatal to the probe itself. Writes the
+    measured facts through `PATCH /internal/media/{id}` and reports the full
+    result on `POST /internal/jobs/{id}/complete`; the plan's duration cap and
+    whether a proxy gets built at all are the API's decision, not the worker's.
+  - **`media.proxy`**: `audio16k.wav` (mono PCM s16le, for ASR/alignment),
+    `audio48k.wav` (mono PCM s16le, `09 §5` mastering), `waveform.json` (peaks
+    at 100/s and RMS at 10/s, both 0–1 of full scale, streamed off the 16 kHz
+    WAV in 64 KiB chunks so a sixty-minute file never sits in memory),
+    `proxy540.mp4` (H.264 main profile, short side 540 computed in TypeScript
+    and never upscaled, CRF 28, faststart, AAC 96k) and ten `thumb-{n}.jpg`
+    filmstrip frames (320px wide, midpoints of even slices, input-seek so a
+    sixty-minute source costs one range request per frame instead of a decode
+    from zero). Audio-only inputs skip the video half entirely; a silent video
+    skips the audio half. HDR sources are tone-mapped to BT.709
+    (`zscale` → `tonemap=hable` → `zscale`) ahead of the scale filter, with a
+    same-job fallback to a flat SDR encode when this ffmpeg has no `libzimg`.
+    CONTRACTS §6 names no poster key, so `thumb-0.jpg` is the poster and an
+    audio-only asset simply has an empty `thumbKeys`.
+  - **A06's upload path changes here**: `POST /media/{id}/complete` now
+    enqueues only `media.probe`.
+    `apps/api/src/media/probe.handler.ts` (`MediaProbeCompletionHandler`) is
+    the probe's completion handler and enqueues `media.proxy` as a **child
+    job** via `JobsService.enqueueChild({ skipAdmission: true })` — the proxy
+    is the second half of one piece of work the workspace was already admitted
+    for at upload, and enqueuing it from `complete` used to cost two admission
+    slots for one file, 429ing a Free workspace on its second concurrent
+    upload. `skipAdmission` is unreachable from a worker (THREAT-MODEL T23): it
+    keeps the plan's priority and queue-wait budget but checks neither cap, and
+    only `MediaProbeCompletionHandler` ever sets it. `probeJobId`/`proxyJobId`
+    stay in the `complete` response for compatibility; `proxyJobId` is now
+    always `null`.
+  - `apps/api/src/jobs/completion-handlers.ts` (`JobCompletionRegistry`): one
+    completion handler per queue, registered by the feature module that owns
+    it rather than a `switch` inside `JobsService`. Runs **before** the
+    conditional status-flip `UPDATE`, so a handler that throws leaves the job
+    `running` and the callback answers 5xx for the worker to retry — flipping
+    first would make the first transient failure permanent, since a replay
+    would find a terminal job and never reach the handler again.
+  - `apps/api/src/internal/internal-media.controller.ts`: `PATCH
+/internal/media/{id}`'s allow-list gained `codec`, `hasAudio`, `hdr`,
+    `failureReason` (a closed `media/*` set — `MEDIA_FAILURE_REASONS` in
+    `apps/api/src/media/media.constants.ts` — since it is rendered to the
+    user) and `thumbKeys`, plus `assertOwnKeys()`: every derived key in a
+    patch must resolve, after rejecting `..`, under the asset's own
+    `ws/{ws}/p/{project}/media/{media}` prefix rebuilt from the row — never
+    from anything in the request body — so a worker with a stolen callback
+    secret can write nonsense about its own asset but cannot repoint
+    `proxyKey` at another tenant's object (THREAT-MODEL T5).
+  - `media_assets` gained `codec`, `has_audio`, `hdr` and `failure_reason`
+    (all nullable with no default — `NULL` means "not probed yet", a different
+    statement from `false`).
+  - `apps/api/src/jobs/jobs.config.ts` and the Python `worker_ai/policies.py`
+    both give `media.probe`/`media.proxy` a 600 000 ms lock: the family
+    default of two minutes was sized for "ffprobe a short clip", and would
+    declare a 4K sixty-minute proxy encode stalled and hand it to a second
+    worker while the first is still writing the same derived keys.
+  - Tests: unit coverage for every module above; `processors.test.ts` runs
+    both processors against real ffmpeg (fixtures generated with
+    `testsrc`/`sine` at test time, never committed) with the object store
+    faked; `apps/api/test/media-pipeline.e2e-spec.ts` uploads a synthetic clip
+    through A06's presigned flow to MinIO, spawns the built worker as a
+    process against the shared Redis, and asserts every CONTRACTS §6 object
+    exists, that the row was updated through the allow-listed patch, and that
+    the proxy ran as a child job — plus the audio-only, HDR and corrupt-input
+    paths.
+  - `apps/worker-media/Dockerfile`: a `turbo prune`-based multi-stage build
+    (Debian trixie, ffmpeg from the distro archive) so a media pod carries
+    ffmpeg and this package's compiled output and nothing else.
 
 - **A20 — the cloud render service: `apps/render`, `@montaj/render-skia-node`,
   `@montaj/render-manifest`.**
@@ -1288,6 +1563,82 @@ sarvam` replays the recorded session, `--live` calls the configured vendor.
 
 ### Changed
 
+- **A23a — the API test suite starts two containers per run instead of one pair
+  per suite, and isolates the suites from each other properly.**
+  - Every Docker-backed suite used to start its own PostgreSQL and Redis through
+    testcontainers. One run asked Docker for eight containers; a machine running
+    several agents at once asked for thirty or forty, and the daemon answered with
+    HTTP 500s and `beforeAll` timeouts — failures that had nothing to do with the
+    code under test and cost every agent a re-run.
+  - `apps/api/test/global-setup.ts` (new, wired in as Vitest's `globalSetup`)
+    resolves **one** `pgvector/pgvector:pg16` and **one** `redis:7-alpine` for the
+    whole run, or reuses the servers `TEST_DATABASE_URL` / `TEST_REDIS_URL` point
+    at and starts nothing. It builds `montaj_test_template` once with
+    `prisma migrate deploy` followed by `prisma/sql/` — the same code path
+    `pnpm db:migrate` uses — under a PostgreSQL advisory lock, and stamps it with a
+    fingerprint of the migrations and the hand SQL, so a second run (or a second
+    agent on the same server) reuses it instead of re-migrating.
+  - Each suite then gets a database of its own,
+    `CREATE DATABASE montaj_t_<runId>_<suite> TEMPLATE montaj_test_template`,
+    dropped in `afterAll`. A clone is a file copy, so it costs a fraction of a
+    second where a migration run costs twenty — and a suite may now `TRUNCATE` any
+    table it likes while a dozen others do the same. A05 and A12 both reported the
+    opposite: setting `TEST_DATABASE_URL` made the suites truncate each other.
+  - Each suite also gets its own **logical Redis database**, which is what isolates
+    the keys the product hard-codes (`montaj:auth:*`, `montaj:rl:*`) with no
+    product change, and its own **`MONTAJ_QUEUE_PREFIX`**, which is what isolates
+    BullMQ structures and realtime channels — Redis pub/sub ignores the logical
+    database, so the prefix is the only isolation there. A run leaves logical
+    database 0 alone — a developer's own compose stack lives there — until there
+    are more suites than databases above it, and then claims it too rather than
+    make two suites share one, saying so on the way past.
+  - `apps/api/test/test-run.ts` and `apps/api/test/suite-context.ts` are the new
+    contract and the worker-side accessors. Slots are assigned from the sorted list
+    of every `*.e2e-spec.ts` in the package rather than the subset being run, so a
+    suite keeps the same database name, logical Redis database and queue prefix
+    whether it runs alone or with all the others — which is what makes a parallel
+    failure reproducible with one `vitest run test/<file>`.
+  - **The public harness API did not change.** `createTestDatabase()`,
+    `createAuthTestContext()`, `createEdgTestContext()`, `isDatabaseAvailable()`,
+    `isRedisAvailable()` and `testRedisUrl()` keep their signatures; no spec was
+    edited. The `docker info` probe that gated the skip path still exists, moved
+    into the global setup, where it runs once per run instead of once per suite on
+    the very daemon the suites were about to overload.
+  - `apps/api/test/isolation-alpha.e2e-spec.ts` and `-beta` are the deliberate
+    collision test. They rendezvous through the filesystem so their writes really
+    do overlap, then insert the same primary key into the same table from both
+    sides, truncate that table from one side, and write the same hard-coded Redis
+    key from both — each of which fails loudly if the isolation regresses.
+    `rendezvous()`'s own timeout (30s) is documented as "not a failure", but every
+    `it` calling it now gets an explicit Vitest timeout well above that (40s single
+    barrier, 70s for the two sequential Redis barriers) — found stress-testing this
+    work package on a machine busy enough that a sibling could still be running:
+    Vitest's global 30s `testTimeout` matched `rendezvous()`'s default exactly, so
+    it could kill the test itself a hair before the graceful "proves less" path
+    got to return, turning "the sibling never arrived" into a hard timeout failure.
+  - One PostgreSQL for the run is also one connection budget for the run, so the
+    suite database URL pins `connection_limit=3` and both context harnesses reuse
+    the client `createTestDatabase()` already opened instead of a second one of
+    their own. Prisma sizes a pool at `cpus * 2 + 1` by default — twenty-five on a
+    twelve-core laptop — which cost nothing while every suite had a container to
+    itself, and sank a dozen concurrent suites against one server's
+    `max_connections` of 100 with "Can't reach database server" the moment they
+    shared.
+  - `DROP DATABASE` forces an immediate checkpoint and waits for it: measured at
+    eleven seconds with two suites dropping at once on a laptop already running
+    thirty containers. `afterAll` therefore bounds the drop with a
+    `statement_timeout` and hands anything slower to the run teardown, which sweeps
+    sequentially; a crashed run's databases are swept by the next one. The
+    cancellation is safe — PostgreSQL removes the files only after the checkpoint
+    it is waiting on.
+  - `.github/workflows/ci.yml` gains an `api` job with PostgreSQL and Redis service
+    containers and the `TEST_*` URLs pointed at them, so the suite runs with no
+    Docker-in-Docker at all; a step asserts that nothing labelled
+    `org.testcontainers` was started. `@montaj/api` is excluded from the
+    `typescript` job's unit-test step so the suite does not run twice.
+  - `apps/api/README.md` §Tests rewritten: how the isolation works, how to point a
+    run at the compose stack, how to debug one suite. The `TEST_DATABASE_URL`
+    hazard note is gone, because the hazard is.
 - **A06 — `WorkspaceMemberGuard` now guards routes with no workspace id in the
   path.** On a `/workspaces/:id` route both of its rules are unchanged; on a route
   without an `:id` — every `/projects/*` route — there is nothing to compare, so it

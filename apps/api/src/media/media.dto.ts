@@ -134,9 +134,14 @@ export const uploadTicketSchema = z.object({
 
 export const completedUploadSchema = z.object({
   media: mediaSchema,
-  /** The `media.probe` job the completion enqueued, and the `media.proxy` behind it. */
+  /** The `media.probe` job this call enqueued. */
   probeJobId: z.string(),
-  proxyJobId: z.string(),
+  /**
+   * Always `null`: `media.proxy` is enqueued by the probe's completion handler as
+   * a child job (A07), so there is nothing to name yet. Kept in the response
+   * because removing a field a client reads is a breaking change.
+   */
+  proxyJobId: z.string().nullable(),
 });
 
 export const mediaUrlsSchema = z.object({
