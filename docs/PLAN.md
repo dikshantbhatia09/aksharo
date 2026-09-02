@@ -114,16 +114,16 @@ C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 
 | ID | Package | Deps | Status |
 |---|---|---|---|
-| C11 | Plugin licensing & devices UI (activation limits, revoke, offline lease, activation card) | B08, B08b, C01 | running |
-| C12 | Desktop/plugin telemetry (consent), crash reporting, diagnostics bundle | C02, A05, B12, B16 | running |
+| C11 | Plugin licensing & devices UI (activation limits, revoke, offline lease, activation card) | B08, B08b, C01 | done (merged + verified; 8c196c4: activation card v2 at /plugins→/plugins-app, GET /plugins/manifest stub, middleware prefix bug fixed; cue mounted by B20b) |
+| C12 | Desktop/plugin telemetry (consent), crash reporting, diagnostics bundle | C02, A05, B12, B16 | done (merged + verified; a296f94: telemetry consent, events/crash endpoints, 30-day retention, shared redaction, diagnostics bundle → ticket; bridge consent sync is a follow-up) |
 | C05a | Premiere UXP plugin foundation over a mocked host adapter (Gate C runs it on a real machine) | C01, C00, A00-03 | done (merged: manifest v5 ai.aksharo.panel, PremiereHost + mock, in-memory session per T13, .ccx packaged; C06/C06b running) |
 | C08 | Resolve `aksharo_core` over a FakeResolve adapter | C01, A00-04 | done (merged + verified 58 tests; DynamicZoom property keys flagged for Gate C; C08b running) |
-| C08b | Fusion Text+ macro generator + style coverage report | C08 | briefed |
-| C00b | Real desktop packaging: esbuild-bundled main/preload, electron-builder over dist, CI e2e runnable | C02b | briefed |
+| C08b | Fusion Text+ macro generator + style coverage report | C08 | done (merged + verified: 19 supported / 6 approximate / 5 unsupported of 30; classification_rules.json is the reference; real-Fusion check at Gate C) |
+| C00b | Real desktop packaging: esbuild-bundled main/preload, electron-builder over dist, CI e2e runnable | C02b | done (merged + verified: pack:dry produces Aksharo.exe, 270 MB unpacked; C10 measures the installer) |
 | C10 | Installers (NSIS/pkg/Resolve/.ccx), `/plugins/manifest`, plugins + download pages | C00, C02, C05a, C08 | briefed |
 | D08 | Eval harness & quality gates on fixture datasets, shadow routing, routing freeze, admin leaderboard | A10, B13, B16 | briefed |
-| C06 | Premiere apply modes (transcript injection, MOGRT captions, overlay, SRT, cuts/zooms/audio, transactions, marker map, re-sync) over the mocked host | C05a, C06b | briefed |
-| C06b | MOGRT authoring: definition.json generator, verifier, style coverage; the .aep itself is human (H-25) | C05a | briefed |
+| C06 | Premiere apply modes (transcript injection, MOGRT captions, overlay, SRT, cuts/zooms/audio, transactions, marker map, re-sync) over the mocked host | C05a, C06b | done (merged + verified, 99 tests; MOGRT param addressing + per-word keyframing flagged for Gate C) |
+| C06b | MOGRT authoring: definition.json generator, verifier, style coverage; the .aep itself is human (H-25) | C05a | done pending verification (ff7662c + aba71de: 14 frozen params as the single source for C06 too, verifier in CI, 19/6/5 coverage matching Resolve) |
 
 ## Wave 6 — AE, local engine, library
 C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machines).
@@ -134,12 +134,12 @@ C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machine
 | D04a | Owned audio pack ingestion (licence columns, CLAP, loudness) + SFX pass + ducking, on a fixture pack until A00-07 | B19b, B20b, A00-07 | briefed |
 | C09 | Resolve Studio Workflow Integration panel over aksharo_core's loopback server | C08, C08b | briefed |
 | D05 | Music pass: sections/mood/BPM, beat-aligned cuts, loops/fades, ducking; owned pack only | D04a | briefed |
-| C05b | After Effects CEP panel over a mocked AeHost; ZXP dry run | C05a, C06b, C00 | briefed |
-| C03a | `apps/engine` local sidecar supervisor: whisper.cpp/Silero/deep-filter/ffmpeg via a signed manifest, model manager, backend detection, FakeBackend | C02, A00-10 | briefed |
+| C05b | After Effects CEP panel over a mocked AeHost; ZXP dry run | C05a, C06b, C00 | running |
+| C03a | `apps/engine` local sidecar supervisor: whisper.cpp/Silero/deep-filter/ffmpeg via a signed manifest, model manager, backend detection, FakeBackend | C02, A00-10 | done (merged + verified — engine 51, engine-client 15, release 53; c12df56: /health /models /transcribe(+WS) /align /clean /render, manifest + resumable SHA-256 model manager, tier table, FakeBackend; the A01 scaffold engine/montaj-engine is deleted by C03b) |
 | C03b | Local quality gate + tiered latency harness (real-hardware run at Gate C) | C03a, D08 | briefed |
-| C04 | Local mode: SQLite + files, local export, upload-to-cloud as a new project, Starter+ gate | C03a | briefed |
+| C04 | Local mode: SQLite + files, local export, upload-to-cloud as a new project, Starter+ gate | C03a | running |
 | D09 | Apply passes inside Premiere/Resolve: audio tracks from owned assets, titles, ripple/keyframes via a shared apply-plan | C06, C08b, D04a, D06 | briefed |
-| X01 | Security review: threat-model audit with evidence, dependency/secret/header checks, negative tests, pen-test scope (H-26) | — | briefed |
+| X01 | Security review: threat-model audit with evidence, dependency/secret/header checks, negative tests, pen-test scope (H-26) | — | running |
 
 ## Wave 7 — Remaining
 
@@ -147,8 +147,8 @@ C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machine
 |---|---|---|---|
 | D07 | Prompted edits: edit-plan@1 planner, Flash/Pro engines, plan preview, hold on source / settle on finished minutes | D05, D06 | briefed |
 | X03 | Docs site under /docs: guides, plugin guides, generated API reference, search | C10 | briefed |
-| X04 | Launch checklist: status page, backup/restore drill, on-call runbooks, legal pages (H-27), DPDP records generator, sub-processor list | B13, B16 | briefed |
-| X08 | Cilium FQDN egress policies + inventory check + runbook (charts only, nothing applied) | X05 | briefed |
+| X04 | Launch checklist: status page, backup/restore drill, on-call runbooks, legal pages (H-27), DPDP records generator, sub-processor list | B13, B16 | running |
+| X08 | Cilium FQDN egress policies + inventory check + runbook (charts only, nothing applied) | X05 | done pending verification (a9e5eea: 17-host inventory with drift check, off/audit/enforce modes, runbook) |
 | D04b | Partner catalogue over a mock adapter behind PARTNER_CATALOGUE (contract gate A00-11 / H-28) | D05 | briefed |
 
 D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for prod — chart variant exists from X05; prod-hardening item before Gate C), X07 hardening also includes: split `packages/api-client`'s hand-written `endpoints/hooks/index/query-keys/types` into per-module files with a generated barrel (three WPs in a row — A22, A14, B04 — conflicted on those five files; B07 found a second latent defect there: Nest controllers returning bare `null` send an empty body which `readJson` turns into `undefined` — `GET /billing/subscription` still does this; wrap nullable responses in an object), D81 schema migration (invoice/ledger/commission foreign keys to workspaces → Restrict; workspaces soft-delete only), the web e2e fixture's hard-coded `montaj:auth:dev-outbox` key (A23 addendum), a browser-safe subpath export for `packages/bridge-core` (C05a vendored the protocol schemas because the barrel pulls Node-only modules), and under D08: extend A22's rule-table transliteration (Hindi + Tamil today) to the remaining AI4Bharat languages as table data once A00-05 eval sets exist. **Gate D**.

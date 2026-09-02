@@ -51,6 +51,14 @@ const api: AksharoDesktopApi = {
       return () => ipcRenderer.removeListener(channel, handler);
     },
   },
+
+  telemetry: {
+    getConsent: () => ipcRenderer.invoke("desktop:telemetry-get-consent"),
+    setConsent: (granted: boolean) => ipcRenderer.invoke("desktop:telemetry-set-consent", granted),
+    drainQueuedEvents: (limit: number) =>
+      ipcRenderer.invoke("desktop:telemetry-drain-queue", limit),
+    buildDiagnosticsBundle: () => ipcRenderer.invoke("desktop:telemetry-build-diagnostics-bundle"),
+  },
 };
 
 contextBridge.exposeInMainWorld("aksharoDesktop", api);

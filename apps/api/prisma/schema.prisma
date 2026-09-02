@@ -47,6 +47,9 @@ enum ConsentPurpose {
   marketing
   share_upload
   affiliate
+  /// C12: desktop/plugin telemetry and crash reporting. Off until granted;
+  /// shown once in the desktop first-run and in Settings -> Privacy.
+  telemetry
 }
 
 enum DsrKind {
@@ -3052,6 +3055,39 @@ model ProductEvent {
   @@index([kind, createdAt])
   @@index([workspaceId])
   @@map("product_events")
+}
+
+// ===========================================================================
+// Telemetry crash reports — C12
+// ===========================================================================
+
+/// Consent-gated desktop/bridge crash reports (`POST /telemetry/crash`). Minidump-free
+/// by default: a redacted stack trace, app/OS version and the last 50 (already redacted)
+/// log lines. Deliberately standalone like `ProductEvent` (no FK to `User`/`Workspace`):
+/// recording a crash must never fail on an unrelated cascade, and `workspaceId`/`userId`
+/// are plain ids resolved best-effort. Retained 30 days (`CrashReportRetentionTask`), and
+/// explicitly deleted for both `userId` and `workspaceId` matches by the erasure cascade
+/// (`ErasureCascadeService`) since 30 days can outlast an erasure request's own window.
+model CrashReport {
+  id           String   @id @db.Char(26)
+  workspaceId  String?  @map("workspace_id") @db.Char(26)
+  userId       String?  @map("user_id") @db.Char(26)
+  deviceId     String?  @map("device_id") @db.Char(26)
+  /// `desktop` | `bridge` | `premiere` | `ae` | `resolve` — the reporting client kind.
+  clientKind   String   @map("client_kind")
+  appVersion   String   @map("app_version")
+  osVersion    String   @map("os_version")
+  /// Redacted stack trace (`packages/bridge-core/src/redact.ts`).
+  stack        String
+  /// Redacted last-50 log lines, newest last.
+  logTail      String[] @map("log_tail")
+  forwardedAt  DateTime? @map("forwarded_at") @db.Timestamptz(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt])
+  @@index([workspaceId])
+  @@index([userId])
+  @@map("crash_reports")
 }
 
 // ===========================================================================

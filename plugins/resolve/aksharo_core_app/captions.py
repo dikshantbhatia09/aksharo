@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from aksharo_core_app.fusion.macro import MACRO_TOOL_NAME, fusion_macro_available
 from aksharo_core_app.host.resolve import ResolveHost, TimelineHandle, TimelineItemHandle
 from aksharo_core_app.markers import (
     HostMapping,
@@ -39,6 +40,9 @@ class CaptionStyle:
     # style faithfully (e.g. a per-character gradient/animation preset) and the
     # caption must come in as a pre-rendered alpha overlay instead.
     ass_renderable: bool = True
+    # C08b: the macro's `HighlightColour` input. Defaults to `color` (no visible
+    # change) when a style doesn't define a distinct highlight/accent colour.
+    highlight_color: tuple[float, float, float, float] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +55,11 @@ class CaptionSegment:
     rev: int
     # Required only when the resolved style has `ass_renderable=False`.
     overlay_media_path: str | None = None
+    # C08b: per-word (start_ms, end_ms) spans, in segment-relative time, driving
+    # the macro's `HighlightStart`/`HighlightEnd` keyframes. `None` means "no
+    # per-word timing available"; the macro branch then leaves the whole
+    # segment highlighted (no keyframes) rather than guessing word boundaries.
+    word_highlights: tuple[tuple[float, float], ...] | None = None
 
 
 class UnsupportedStyleError(Exception):
@@ -76,19 +85,30 @@ def build_segment_item(
     start_frame = ms_to_frame(segment.start_ms, timeline.fps)
     end_frame = ms_to_frame(segment.end_ms, timeline.fps)
     if style.ass_renderable:
-        return host.append_text_plus(
-            timeline,
-            track_index,
-            start_frame,
-            end_frame,
-            {
-                "text": segment.text,
-                "font": style.font,
-                "size": style.size,
-                "color": style.color,
-                "position": style.position,
-            },
-        )
+        params: dict[str, object] = {
+            "text": segment.text,
+            "font": style.font,
+            "size": style.size,
+            "color": style.color,
+            "position": style.position,
+        }
+        # C08b: when `AksharoCaption.setting` is installed, use it instead of a
+        # bare Text+ so per-word highlight timing is expressed as the macro's
+        # published `HighlightStart`/`HighlightEnd` keyframes; when it is not
+        # installed (dev/CI, or an older Resolve install C10 hasn't reached
+        # yet), fall through to the minimal param set above unchanged.
+        if fusion_macro_available():
+            params["fusion_macro"] = MACRO_TOOL_NAME
+            params["highlight_color"] = style.highlight_color or style.color
+            if segment.word_highlights is not None:
+                params["highlight_keyframes"] = tuple(
+                    (
+                        ms_to_frame(start_ms, timeline.fps) - start_frame,
+                        ms_to_frame(end_ms, timeline.fps) - start_frame,
+                    )
+                    for start_ms, end_ms in segment.word_highlights
+                )
+        return host.append_text_plus(timeline, track_index, start_frame, end_frame, params)
     if segment.overlay_media_path is None:
         raise UnsupportedStyleError(
             f"style {style.style_id!r} is not Text+-renderable and segment "

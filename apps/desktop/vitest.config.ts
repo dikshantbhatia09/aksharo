@@ -8,6 +8,14 @@ const withSettings = mergeConfig(
     test: {
       name: "@montaj/desktop",
       root: "./",
+      // Adds scripts/**/*.test.mjs (bundle.mjs's own unit test, C00b) to the
+      // shared src/**/tests/** include patterns — it lives next to bundle.mjs
+      // rather than under src/ since it isn't part of the TS build graph.
+      include: [
+        "src/**/*.{test,spec}.{ts,tsx}",
+        "tests/**/*.{test,spec}.{ts,tsx}",
+        "scripts/**/*.{test,spec}.mjs",
+      ],
     },
   }),
 );

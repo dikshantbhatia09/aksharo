@@ -155,7 +155,7 @@ proxy. Two consequences:
 - Adding a provider means editing `networkPolicy.providerAllowlist` in
   `values.yaml` **and** the egress proxy configuration. The first is
   documentation until the second is done.
-- On a Cilium cluster, set `networkPolicy.fqdn.enabled=true` and the allow-list
+- On a Cilium cluster, set `networkPolicy.fqdn.mode=audit (then enforce; see egress-policy.md)` and the allow-list
   becomes enforcement. That is the intended end state.
 
 ## Infrastructure changes (Terraform)
