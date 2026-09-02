@@ -37,15 +37,17 @@ describe("metricsSummary", () => {
 });
 
 describe("SetAudio op builders", () => {
-  it("applies the b10:<cleanId> preset convention exports.service.ts reads", () => {
+  it("carries the clean's id as a first-class cleanId (B10b, CONTRACTS §2)", () => {
     const row = clean({ id: "01JBQ8Z2W4N7Y0K3M5P8R1T6VE", target: "youtube" });
     const op = applyCleanOp(row);
     expect(op).toEqual({
-      clean: { enabled: true, preset: "b10:01JBQ8Z2W4N7Y0K3M5P8R1T6VE", targetLufs: -14 },
+      clean: { enabled: true, cleanId: "01JBQ8Z2W4N7Y0K3M5P8R1T6VE", targetLufs: -14 },
     });
   });
 
-  it("clears with enabled: false", () => {
-    expect(clearCleanOp().clean.enabled).toBe(false);
+  it("clears with enabled: false and cleanId: null", () => {
+    const op = clearCleanOp();
+    expect(op.clean.enabled).toBe(false);
+    expect(op.clean.cleanId).toBeNull();
   });
 });

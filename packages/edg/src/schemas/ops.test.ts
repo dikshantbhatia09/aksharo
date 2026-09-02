@@ -198,6 +198,29 @@ describe("op cross-field rules", () => {
     ).toBe(true);
   });
 
+  it("accepts a first-class cleanId on SetAudio.clean (B10b)", () => {
+    const cleanId = id();
+    const result = SetAudioOpSchema.safeParse({
+      opId: id(),
+      type: "SetAudio",
+      clean: { enabled: true, cleanId },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.clean?.cleanId).toBe(cleanId);
+    }
+  });
+
+  it("accepts a null cleanId on SetAudio.clean to clear a clean run", () => {
+    expect(
+      SetAudioOpSchema.safeParse({
+        opId: id(),
+        type: "SetAudio",
+        clean: { enabled: false, cleanId: null },
+      }).success,
+    ).toBe(true);
+  });
+
   it("keeps Resegment bounds in order", () => {
     expect(
       ResegmentOpSchema.safeParse({

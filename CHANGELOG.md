@@ -10,6 +10,39 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B10b — Audio clean wiring: `SetAudio.clean.cleanId`, Audio panel mounted,
+  audio parity gate, API e2e, RSS bound.** `packages/edg`: `AudioCleanSchema`
+  (`schemas/document.ts`) gains a first-class `cleanId` field (CONTRACTS §2,
+  amended 2026-09-03), replacing B10's interim `preset: "b10:<cleanId>"`
+  encoding; the EDG v2 loader (`migrations/migrate.ts`) rewrites any stored
+  document still carrying that encoding on load, and
+  `exports.service.ts#resolveAudioClean` reads `cleanId` directly (falling
+  back to the old `preset` form belt-and-braces). `apps/web`: the editor's
+  right panel gains an "Audio" tab (`RightPanel.tsx`) mounting B10's
+  `AudioPanel`, wired to the editor's `EdgOpQueue` via a new `onSetAudio`
+  handler in `editor-client.tsx` (undoable, like every other panel op);
+  `use-audio-clean.ts`'s `applyCleanOp`/`clearCleanOp` now build
+  `{clean: {enabled, cleanId, targetLufs}}` instead of the preset string. D82:
+  the panel exposes a Quick clean / Deep clean tier toggle, greying Deep clean
+  out with "coming to cloud renders" copy until the server-read
+  `AUDIO_DEEP_CLEAN_ENABLED=1` (new env var, `.env.example`) is set. Parity:
+  `apps/render/parity/audio-parity.ts` hashes the audio bytes the browser
+  export path (`sources.cleanedAudioUrl`) and the cloud render path
+  (`manifest.audio.cleanKey`) would each mux in for `audio.strategy:
+  "replace"`, reporting a match; `parity:audio` writes this package's
+  `parity/results.json` `audio` block (render README documents both parity
+  sections). `apps/api/test/audio.e2e-spec.ts`: clean → simulated worker
+  completion → signed URLs and metrics → `SetAudio.clean.cleanId` applied →
+  a browser export's manifest and sources carry the cleaned track, end to
+  end against real Postgres/Redis. `apps/worker-ai`: fixed a real defect the
+  orchestrator's addendum flagged after a host-memory-pressure failure —
+  `true_peak_dbtp` oversampled the *whole* reassembled signal 4x in one
+  `np.interp` allocation (~5.5 GB at 60 minutes), defeating
+  `run_clean_chain`'s 10-minute denoise chunking entirely; `true_peak_dbtp`
+  and `integrated_loudness`'s high-pass stage (`clean/dsp.py`) now measure in
+  bounded 30 s windows with boundary carry-over, and a new `slow`
+  (`RUN_SLOW=1`) test asserts < 2 GB peak RSS over baseline on a synthetic
+  60-minute file (`psutil`, added to worker-ai's dev deps).
 - **B14b — Webhook events: real event emits replace the poller.**
   `transcript.completed` (`transcripts/transcribe.handler.ts`), `job.failed`
   (`jobs/jobs.service.ts::complete()`, after DLQ handling) and `credits.low`

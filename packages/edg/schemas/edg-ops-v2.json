@@ -1098,6 +1098,16 @@
         "enabled": {
           "type": "boolean"
         },
+        "cleanId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ulid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "preset": {
           "type": "string",
           "minLength": 1,
