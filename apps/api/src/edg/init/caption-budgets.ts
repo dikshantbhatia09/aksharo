@@ -217,12 +217,20 @@ export function resolveBudgets(input: ResolveBudgetsInput): CaptionBudgets {
     lineCaps.push(fit.maxLines);
   }
   // A workspace asking for narrower captions is another cap, never a licence to
-  // exceed the readability limit.
-  if (input.preferences?.maxChars !== undefined) caps.push(input.preferences.maxChars);
-  if (input.preferences?.maxLines !== undefined) lineCaps.push(input.preferences.maxLines);
+  // exceed the readability limit — and its own bounds are clamped here rather
+  // than applied to the result, because a floor applied at the end would silently
+  // WIDEN a measured fit cap and put the caption back outside its box.
+  if (input.preferences?.maxChars !== undefined) {
+    caps.push(clamp(input.preferences.maxChars, CAPTION_BOUNDS.maxChars));
+  }
+  if (input.preferences?.maxLines !== undefined) {
+    lineCaps.push(clamp(input.preferences.maxLines, CAPTION_BOUNDS.maxLines));
+  }
 
   return {
-    maxChars: Math.max(CAPTION_BOUNDS.maxChars.min, Math.min(...caps)),
+    // Floored at 1, as `fitBudget` floors it: a budget of zero is not a number of
+    // characters, and anything above 1 is honoured exactly as measured.
+    maxChars: Math.max(1, Math.min(...caps)),
     maxLines: Math.max(1, Math.min(...lineCaps)),
     script: input.script,
     aspect,
@@ -257,4 +265,10 @@ export function budgetsForMeta(budgets: CaptionBudgets): Record<string, string> 
       ...(budgets.fitChars === undefined ? {} : { fitChars: budgets.fitChars }),
     }),
   };
+}
+
+/** Clamp a preference into the bounds a caption can actually be read at. */
+function clamp(value: number, bounds: { min: number; max: number }): number {
+  if (!Number.isFinite(value)) return bounds.min;
+  return Math.min(bounds.max, Math.max(bounds.min, Math.round(value)));
 }

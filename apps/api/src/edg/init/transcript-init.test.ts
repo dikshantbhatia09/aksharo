@@ -185,6 +185,10 @@ describe("caption budgets (D78)", () => {
     expect(resolveBudgets({ script: "latin", preferences: { maxChars: 60 } }).maxChars).toBe(32);
     expect(resolveBudgets({ script: "latin", preferences: { maxLines: 1 } }).maxLines).toBe(1);
     expect(resolveBudgets({ script: "latin", preferences: { maxLines: 3 } }).maxLines).toBe(2);
+    // A preference below the bound is clamped to the bound, not to zero.
+    expect(resolveBudgets({ script: "latin", preferences: { maxChars: 1 } }).maxChars).toBe(
+      CAPTION_BOUNDS.maxChars.min,
+    );
   });
 
   it("takes the canvas from the project's chosen aspect", () => {
