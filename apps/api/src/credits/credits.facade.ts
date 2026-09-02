@@ -90,13 +90,7 @@ export interface ReleaseInput {
 
 /** Where the credits came from; mirrors the `CreditLotSource` enum of 06. */
 export type CreditLotSource =
-  | "grant"
-  | "topup"
-  | "pass"
-  | "referral"
-  | "adjust"
-  | "reversal"
-  | "academy";
+  "grant" | "topup" | "pass" | "referral" | "adjust" | "reversal" | "academy";
 
 export interface GrantLotInput {
   readonly workspaceId: string;

@@ -10,6 +10,31 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **M03 — Main hygiene: academy lot source, load-sensitive assertions, DLQ/jobs/offers
+  e2e triage, help-slug wiring.** `apps/api/prisma`: migration
+  `20260902222436_m03_academy_lot_source` adds `academy` to the
+  `CreditLotSource` enum (CONTRACTS §4, 2026-09-03); `academy.service.ts`
+  grants with `source: "academy"` instead of B12's stopgap `"adjust"`, and
+  `ledger-credits.facade.ts`'s `ledgerKindForSource` ledgers it as a `grant`.
+  `apps/api/test`: `edg.e2e-spec.ts`'s "costs the same on a 9,000-segment
+  document" ratio budget widened from `3x`/30ms to `5x`/150ms (a real host
+  observation of ~3.5x under load was ordinary jitter, not an O(n)
+  regression); `dlq.e2e-spec.ts` and `jobs.e2e-spec.ts` switched their
+  generic-completion fixture queue from `ai.clean` to `ai.vad` after B10
+  registered a real `AudioCleanCompletionHandler` against `ai.clean` that
+  400s a bare `{status:"succeeded"}` completion; `offers.e2e-spec.ts`'s ₹9
+  pass suite now sends a real capability probe on its explicit
+  `mode:"browser"` export request, which A21b started requiring. `apps/web`:
+  the editor's right panel (`RightPanel.tsx`) gains a "?" affordance per tab
+  opening the matching help article via B12's `help-slug-map.ts`
+  (Style/Colors/Look → `caption-styles`, Anim → `emphasis-timing`, Audio →
+  `caption-styles`), unit-tested against the real slug catalogue
+  (`RightPanel.help.test.ts`). Verified: `dlq.e2e-spec.ts`, `jobs.e2e-spec.ts`
+  and `offers.e2e-spec.ts` green 3× on the compose stack after merging main
+  (which independently landed B13's `createAdminContext` fix for the same
+  admin-auth 403s these suites hit, and B13d's chained-self-referral hold,
+  which `referrals-http.e2e-spec.ts` already passes 3×).
+
 - **B10b — Audio clean wiring: `SetAudio.clean.cleanId`, Audio panel mounted,
   audio parity gate, API e2e, RSS bound.** `packages/edg`: `AudioCleanSchema`
   (`schemas/document.ts`) gains a first-class `cleanId` field (CONTRACTS §2,
