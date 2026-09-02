@@ -65,7 +65,7 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A18b | fonts pipeline | A06, A07 | done |
 | A19 | web browser export + export dialog | A16, A21, A02c | briefed |
 | A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | done |
-| A21 | api exports module (manifests, cloud jobs) | A08, A20 | in-progress |
+| A21 | api exports module (manifests, cloud jobs) | A08, A20 | done |
 | A22 | scripts + translation | A10, A11, A12 | in-progress |
 | A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | briefed |
 | A23a | api test isolation: one Postgres + one Redis container per vitest run (or `TEST_*` URLs), database per suite from a migrated template, Redis prefix per suite; CI service containers | A05, A12, A25 | done |
