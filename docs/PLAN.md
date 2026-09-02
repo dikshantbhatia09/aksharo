@@ -68,7 +68,7 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | done |
 | A21 | api exports module (manifests, cloud jobs) | A08, A20 | done (A21b merged: manifest sources + refresh, codec/audio eligibility, HDR cloud-only) |
 | A22 | scripts + translation | A10, A11, A12 | done |
-| A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | running |
+| A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | done (merged: Gate A journey e2e both browsers, sample seed, verify-wave script, X02 harness (p95 FAIL on shared host, re-measure at Gate A); A23b harness deadlock + verify-wave run, A07b media.proxy handler) |
 | A23a | api test isolation: one Postgres + one Redis container per vitest run (or `TEST_*` URLs), database per suite from a migrated template, Redis prefix per suite; CI service containers | A05, A12, A25 | done |
 | A24 | marketing site v1 | A16 | done |
 | A25 | notify consumer: transactional email (SES via IRSA / SMTP / dev outbox), templates en+hi, suppression, in-app notifications | A04, A08 | done |

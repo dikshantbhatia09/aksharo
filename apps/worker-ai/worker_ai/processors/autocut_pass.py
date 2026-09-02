@@ -49,22 +49,28 @@ from worker_ai.passes.autocut import (
 from worker_ai.processors.context import JobContext, JobFailureError, ProcessorOutcome
 from worker_ai.processors.media import load_audio
 from worker_ai.processors.media import speech_regions as vad_speech_regions
+from worker_ai.processors.reframe_zoom_pass import process_reframe, process_zoom
 
 __all__ = ["process_pass"]
 
-_SUPPORTED_PASS_TYPES = frozenset({"autocut"})
+_SUPPORTED_PASS_TYPES = frozenset({"autocut", "zoom", "reframe"})
 
 
 async def process_pass(context: JobContext) -> ProcessorOutcome:
-    """Dispatch `ai.pass` on `payload.passType`; only `"autocut"` exists (B18)."""
+    """Dispatch `ai.pass` on `payload.passType`: `"autocut"` (B18),
+    `"zoom"`/`"reframe"` (B19, `worker_ai.processors.reframe_zoom_pass`).
+    """
     pass_type = context.payload_str("passType", default="autocut")
     if pass_type not in _SUPPORTED_PASS_TYPES:
         raise JobFailureError(
             "worker/not_implemented",
-            f"ai.pass passType={pass_type!r} is not implemented yet "
-            "(reframe/zoom lands in B19).",
+            f"ai.pass passType={pass_type!r} is not implemented",
             retryable=False,
         )
+    if pass_type == "zoom":  # noqa: S105 - a pass kind, not a password
+        return await process_zoom(context)
+    if pass_type == "reframe":  # noqa: S105 - a pass kind, not a password
+        return await process_reframe(context)
     return await _process_autocut(context)
 
 
