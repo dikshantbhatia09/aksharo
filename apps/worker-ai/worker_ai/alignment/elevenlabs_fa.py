@@ -86,6 +86,13 @@ class ElevenLabsForcedAligner(Aligner):
             )
         return result.words
 
+    def drain_submissions(self) -> tuple[ProviderSubmission, ...]:
+        """The calls made since the last drain. Draining is the point: this
+        aligner outlives the job that used it."""
+        drained = tuple(self.submissions)
+        self.submissions.clear()
+        return drained
+
     async def aclose(self) -> None:
         """Close the client this aligner created."""
         if self._provider is not None:

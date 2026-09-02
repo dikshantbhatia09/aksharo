@@ -563,3 +563,90 @@ async def test_a_diariser_failure_degrades_rather_than_failing_the_job(
     )
     assert outcome.result["wordCount"] == 3
     assert "diarisation" not in outcome.result
+
+
+async def test_a_fallback_result_is_not_cached_under_the_primary_key(
+    wav_file: Path,
+) -> None:
+    """Otherwise a healthy primary would later serve the fallback's transcript."""
+    broken = FakeProvider(
+        "elevenlabs", error=ProviderError("vendor down", provider="elevenlabs")
+    )
+    fallback = FakeProvider("sarvam", words=("ek", "do"), language="hi")
+    cache = MemoryResultCache()
+    services = services_with(
+        {"elevenlabs": broken, "sarvam": fallback}, cache=cache, language_id=FixedLid("hi")
+    )
+    await process_transcribe(
+        context(services, mediaId=MEDIA_ID, audioUri=str(wav_file), language="hi")
+    )
+
+    # The primary recovers; its own key must still be a miss, so it is called.
+    healthy = FakeProvider("elevenlabs", words=("teen", "chaar"), language="hi")
+    services = services_with(
+        {"elevenlabs": healthy, "sarvam": fallback}, cache=cache, language_id=FixedLid("hi")
+    )
+    outcome = await process_transcribe(
+        context(services, mediaId=MEDIA_ID, audioUri=str(wav_file), language="hi")
+    )
+    assert outcome.result["provider"] == "elevenlabs"
+    assert [word["t"] for word in outcome.result["chunks"][0]["words"]] == ["teen", "chaar"]
+    assert healthy.calls
+
+
+async def test_an_aligner_does_not_carry_its_submissions_into_the_next_job(
+    wav_file: Path,
+) -> None:
+    """The registries are process-wide; a leaked submission is a wrong audit row."""
+    from worker_ai.alignment.base import Aligner, AlignerRegistry
+    from worker_ai.providers.base import AlignmentRequest, ProviderSubmission, Word
+
+    class _Recording(Aligner):
+        name = "recording"
+        rank = 1
+
+        def __init__(self) -> None:
+            self.submissions: list[ProviderSubmission] = []
+
+        async def align(self, request: AlignmentRequest, regions: Any = ()) -> tuple[Word, ...]:
+            self.submissions.append(
+                ProviderSubmission(provider="x", endpoint="https://x", artefact="a")
+            )
+            return tuple(
+                Word(s=request.start_ms, e=request.start_ms + 10, t=text)
+                for text in request.words
+            )
+
+        def drain_submissions(self) -> tuple[ProviderSubmission, ...]:
+            drained = tuple(self.submissions)
+            self.submissions.clear()
+            return drained
+
+    aligner = _Recording()
+    provider = FakeProvider("sarvam", segments_only=True, language="hi-en")
+    services = services_with({"sarvam": provider})
+    services = Services(
+        settings=services.settings,
+        callbacks=services.callbacks,
+        providers=services.providers,
+        routing=services.routing,
+        aligners=AlignerRegistry(aligners=(aligner,)),
+        diarisers=services.diarisers,
+        vad=services.vad,
+        cache=services.cache,
+        language_id=services.language_id,
+        text_lid=services.text_lid,
+    )
+
+    first = await process_transcribe(
+        context(services, mediaId=MEDIA_ID, audioUri=str(wav_file), language="hi-en")
+    )
+    second = await process_transcribe(
+        context(services, mediaId=MEDIA_ID, audioUri=str(wav_file), language="hi-en")
+    )
+    aligner_rows = [
+        row for row in second.result["providerSubmissions"] if row["provider"] == "x"
+    ]
+    assert len(aligner_rows) == len(
+        [row for row in first.result["providerSubmissions"] if row["provider"] == "x"]
+    )

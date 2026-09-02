@@ -85,6 +85,15 @@ class Aligner(ABC):
         """Release any client or session. Idempotent; the default is a no-op."""
         return None
 
+    def drain_submissions(self) -> tuple[Any, ...]:
+        """External calls made since the last drain, and forget them.
+
+        An aligner instance is process-wide (the registry caches it), so a caller
+        that only *read* the list would attach one job's submissions to the next
+        job's completion. The default has nothing to drain.
+        """
+        return ()
+
 
 @dataclass(frozen=True, slots=True)
 class AlignerRegistry:

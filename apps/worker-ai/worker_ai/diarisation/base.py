@@ -49,6 +49,14 @@ class Diariser(ABC):
         """Speaker turns in file time, in order."""
         raise NotImplementedError
 
+    def drain_submissions(self) -> tuple[Any, ...]:
+        """External calls made since the last drain, and forget them.
+
+        A diariser instance is process-wide, so a caller that only *read* the
+        list would attach one job's submissions to the next job's completion.
+        """
+        return ()
+
 
 @dataclass(frozen=True, slots=True)
 class DiariserRegistry:

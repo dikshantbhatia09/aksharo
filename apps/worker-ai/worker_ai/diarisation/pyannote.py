@@ -104,6 +104,12 @@ class PyannoteCommunityDiariser(Diariser):
             return "GPU_PROVIDER_URL is not set, so the model server is unreachable"
         return None
 
+    def drain_submissions(self) -> tuple[ProviderSubmission, ...]:
+        """The calls made since the last drain; this diariser outlives the job."""
+        drained = tuple(self.submissions)
+        self.submissions.clear()
+        return drained
+
     def _client(self) -> Any:
         if self._http is None:
             from worker_ai.providers.http import VendorHttp

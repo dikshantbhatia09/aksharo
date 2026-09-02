@@ -508,21 +508,29 @@ async def _transcribe_chunk(
         )
         audio_uri = str(chunk_path)
 
-    key = _cache_key(context, audio, entry, run)
-    if key is not None:
-        cached = await context.services.cache.get(key)
-        METRICS.record_cache(hit=cached is not None)
-        if cached is not None:
-            run.cache_hits += 1
-            _log.info(
-                "transcription served from cache",
-                extra={**context.envelope.log_fields(), "chunkIdx": entry.chunk_idx},
-            )
-            return cached
-
     last: ProviderError | None = None
     start_rank = run.decision.rank
     for decision in run.chain[start_rank:]:
+        # The cache is keyed on the candidate that would answer, not on the lane's
+        # primary: a result produced by a fallback is a *different transcript* and
+        # must never be served back for the provider that was down at the time.
+        key = _cache_key(context, audio, entry, run, decision)
+        if key is not None:
+            cached = await context.services.cache.get(key)
+            METRICS.record_cache(hit=cached is not None)
+            if cached is not None:
+                run.cache_hits += 1
+                _log.info(
+                    "transcription served from cache",
+                    extra={
+                        **context.envelope.log_fields(),
+                        "chunkIdx": entry.chunk_idx,
+                        "provider": decision.candidate.provider,
+                    },
+                )
+                _adopt(run, decision, provider=None)
+                return cached
+
         provider = (
             run.provider
             if decision is run.decision
@@ -566,17 +574,7 @@ async def _transcribe_chunk(
                 retryable=False,
             ) from error
 
-        if decision is not run.decision:
-            METRICS.record_fallback(
-                from_provider=run.decision.candidate.provider,
-                to_provider=decision.candidate.provider,
-            )
-            run.fallbacks = (
-                *run.fallbacks,
-                (run.decision.candidate.provider, decision.candidate.provider),
-            )
-            run.decision = decision
-            run.provider = provider
+        _adopt(run, decision, provider=provider)
 
         METRICS.record_call(
             metric,
@@ -598,8 +596,29 @@ async def _transcribe_chunk(
     )
 
 
+def _adopt(run: _Run, decision: RoutingDecision, *, provider: Provider | None) -> None:
+    """Record that ``decision`` served the job, counting the fallback if it is one."""
+    if decision is run.decision:
+        return
+    METRICS.record_fallback(
+        from_provider=run.decision.candidate.provider,
+        to_provider=decision.candidate.provider,
+    )
+    run.fallbacks = (
+        *run.fallbacks,
+        (run.decision.candidate.provider, decision.candidate.provider),
+    )
+    run.decision = decision
+    if provider is not None:
+        run.provider = provider
+
+
 def _cache_key(
-    context: JobContext, audio: MediaAudio, entry: ChunkPlanEntry, run: _Run
+    context: JobContext,
+    audio: MediaAudio,
+    entry: ChunkPlanEntry,
+    run: _Run,
+    decision: RoutingDecision,
 ) -> str | None:
     """The `09 §1` cache key for this chunk, or ``None`` when caching is off."""
     if context.services.cache.name == "none":
@@ -612,9 +631,9 @@ def _cache_key(
     return cache_key(
         content=digest,
         language=_request_language(run) or "",
-        provider=run.decision.candidate.provider,
-        model=run.decision.candidate.model,
-        mode=run.decision.candidate.mode or "",
+        provider=decision.candidate.provider,
+        model=decision.candidate.model,
+        mode=decision.candidate.mode or "",
         offset_ms=entry.start_ms,
         duration_ms=entry.end_ms - entry.start_ms,
     )
@@ -694,7 +713,7 @@ async def _align_results(
             aligned.append(result)
             continue
         aligned.append(await _align_one(result, aligner, regions, language))
-    context.record(tuple(getattr(aligner, "submissions", ()) or ()))
+    context.record(aligner.drain_submissions())
     return aligner, tuple(aligned)
 
 
@@ -815,7 +834,7 @@ async def _diarise(
 
     for index, words in enumerate(words_by_chunk):
         words_by_chunk[index] = list(assign_speakers(tuple(words), turns).words)
-    context.record(tuple(getattr(diariser, "submissions", ()) or ()))
+    context.record(diariser.drain_submissions())
     return _Diarisation(
         diariser=diariser.name,
         turns=turns,
