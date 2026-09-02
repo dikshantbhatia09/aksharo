@@ -6,7 +6,8 @@ replacement, watermark, progress and cancellation, a File System Access or in-me
 sink. `apps/web/components/editor/export/**` is the dialog that drives it from A15's
 editor shell.
 
-**Status:** implemented (A19); A21b integration + throughput/parity/audio/HDR follow-ups implemented (A19b).
+**Status:** implemented (A19); A21b integration + throughput/parity/audio/HDR follow-ups implemented (A19b);
+offscreen WebGL surface + hardware-encoder policy + splice fades implemented (A19c).
 
 ## Pipeline
 
@@ -209,6 +210,72 @@ are worth separating:
   the pixel output did not change. The honest number this pass can report is "0.12× in
   a no-hardware-encode, CPU-raster sandbox"; the ≥1× target is not verified against the
   hardware it is scoped for and is reported as an open item, not claimed as met.
+
+## A19c (GPU surface, hardware-encoder policy, splice fades)
+
+A19b's own "Throughput" section above named the offscreen WebGL surface as the
+highest-leverage remaining item and did not attempt it; this pass does.
+
+1. **Offscreen WebGL caption surface.** `engine.ts`'s persistent caption surface is now
+   allocated through `@montaj/render-canvaskit`'s new `createExportSurface(ck, width,
+   height)`, which tries `ck.MakeWebGLCanvasSurface(new OffscreenCanvas(...))` first and
+   falls back to the plain CPU raster `MakeSurface` A19b used exclusively. The
+   `drawFrame` → `flush` → `readPixels` → `putImageData` → `drawImage` sequence A19b
+   built is unchanged — only where the pixels come from differs — so `EngineResult`
+   gained a `captionSurfaceBackend: "webgl" | "cpu"` field reporting which one actually
+   ran, surfaced by `e2e/export.spec.ts`'s `caption-surface-backend` annotation.
+   Parity: `engine-parity.test.ts` gained a check that `createExportSurface`'s fallback
+   path (the only one Node can exercise — no `OffscreenCanvas`/WebGL there) produces
+   byte-identical pixels to the plain `MakeSurface` call the existing D33 parity suite
+   already proves matches `@montaj/render-skia-node`; the GPU path itself is exercised
+   for real by `packages/render-canvaskit`'s own browser e2e suite (`createBrowserSurface`,
+   the same GPU-first/CPU-fallback logic on the visible canvas) and by this package's own
+   `export.spec.ts`, both running in real chromium.
+2. **Hardware-encoder capability probe.** `probe.ts#probeHardwareEncoder` asks
+   `VideoEncoder.isConfigSupported` for the probe's best H.264 rung with
+   `hardwareAcceleration: "prefer-hardware"` specifically (separate from the ladder's
+   own hardware/software-blind "is this codec supported at all" check), reported as
+   `ExportCapabilityProbe.hardwareEncoder: boolean | null` (`null` only when there is no
+   WebCodecs at all) and threaded into `capabilities.hardwareEncoder` for `POST
+/exports`. A throw (this sandbox's own behaviour, confirmed by testing — see A19b's
+   note above) is caught and reported as `false`, exactly like an explicit
+   `supported: false` answer.
+3. **Server-side cloud-default policy above 1080p.** `decision.ts`'s `choosePath`: an
+   `auto` request at 1080p or larger (`requestedWidth(input) >=
+   SOFTWARE_ENCODER_CLOUD_DEFAULT_MIN_WIDTH`) now defaults to the cloud when
+   `capabilities.hardwareEncoder !== true`, with `SOFTWARE_ENCODER_CLOUD_DEFAULT_REASON`
+   in `reasons`. An explicit `mode: "browser"` request still bypasses this (the ruling's
+   own carve-out) and instead carries `SOFTWARE_ENCODER_BROWSER_WARNING` in `reasons` so
+   the dialog can show warned copy. `ExportDialog.tsx` detects this specific reason (not
+   any cloud-offer reason) and shows an "Export in this browser anyway" button, worded
+   with `BRAND.name`, that re-issues the same request with `mode: "browser"`.
+4. **Throughput measurement procedure (brief §3).** `e2e/export.spec.ts` no longer
+   requests `mode: "auto"` — item 3 above means `auto` would now send this sandbox's
+   no-hardware-encoder chromium to the cloud, and the test's job is to exercise the real
+   pipeline — so it requests `mode: "browser"` explicitly (the dialog's own "browser
+   anyway" override) and annotates `hardware-encoder` (from the probe),
+   `realtime-multiplier` and `caption-surface-backend` on every run, unconditionally.
+   The ≥1× target from A19b's own report stays a *reported* number, not an assertion;
+   the brief's new hard floor — 0.5× — is asserted **only** when the run's own probe
+   reports `hardwareEncoder === true`; otherwise the test only asserts forward progress
+   (`> 0`), exactly as A19b's version did. Measured in this sandbox (no hardware
+   encoder, `MakeWebGLCanvasSurface` on an `OffscreenCanvas` inside headless chromium —
+   confirm the annotation for whether it landed on `webgl` or fell back to `cpu`): see
+   the final report for this run's actual `realtime-multiplier` and
+   `caption-surface-backend` values; the 0.5× floor is not exercised here because
+   `hardwareEncoder` is `false` in this environment, same as A19b's ≥1× target was not.
+   To reproduce: `pnpm --filter @montaj/web test:e2e -- export.spec.ts --project=chromium`
+   and read the `realtime-multiplier`/`caption-surface-backend`/`hardware-encoder`
+   annotations from the HTML report (or `--reporter=json` and inspect `annotations` on
+   the test result) — the list reporter does not print custom annotations to stdout.
+5. **5ms splice fades.** `engine.ts#applySpliceFades`, called from the "encode"/
+   "polyfill" audio branch for each chunk `AudioSampleSink` yields: a linear gain ramp
+   over the brief's 5ms window at each join `retainedSourceRangesMs` creates between two
+   cut-separated retained ranges (A19b explicitly left this out). The outer edges of the
+   whole track — the very start of the first retained range, the very end of the last —
+   are never faded, because nothing was cut there; only a boundary adjacent to a removed
+   range ramps. Unit-tested directly (`engine.test.ts`) against a duck-typed
+   `AudioBuffer` stand-in, since Node has no such global.
 
 ## Layout
 

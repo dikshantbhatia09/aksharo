@@ -120,6 +120,18 @@ test.describe("browser export (chromium)", () => {
       return harness.lib.toCapabilitiesRequest(probe);
     });
 
+    test.info().annotations.push({
+      type: "hardware-encoder",
+      description: String(capabilities.hardwareEncoder ?? "unknown"),
+    });
+
+    // A19c ruling (2): `auto` now defaults 1080p-and-up to the cloud when the
+    // client did not report a hardware encoder — this sandbox's headless
+    // chromium has none (see `README.md`'s "Throughput" section), so `auto`
+    // would no longer pick "browser" here. The dialog's own "export in the
+    // browser anyway" override (`mode: "browser"`, warned copy) is exactly
+    // the escape hatch this test needs to keep exercising the real pipeline
+    // end to end regardless of which machine it runs on.
     const manifestResponse = await page.request.post(
       `${API_ORIGIN}/projects/${projectId}/exports`,
       {
@@ -127,18 +139,19 @@ test.describe("browser export (chromium)", () => {
           Authorization: `Bearer ${await accessTokenFromPage(page)}`,
           "content-type": "application/json",
         },
-        data: { kind: "video", preset: "reels", mode: "auto", capabilities },
+        data: { kind: "video", preset: "reels", mode: "browser", capabilities },
       },
     );
     expect(manifestResponse.ok(), await manifestResponse.text()).toBe(true);
     const decision = (await manifestResponse.json()) as {
       path: "browser" | "cloud";
       watermarked: boolean;
+      reasons: string[];
       manifest?: Record<string, unknown>;
     };
 
     test.info().annotations.push({ type: "export-path", description: decision.path });
-    expect(decision.path, "a fresh, ≤10-minute browser export should be eligible").toBe("browser");
+    expect(decision.path, "an explicit browser request should be honoured").toBe("browser");
     expect(decision.watermarked, "a fresh account's signup gift clears the watermark").toBe(false);
     expect(decision.manifest).toBeDefined();
 
@@ -172,6 +185,7 @@ test.describe("browser export (chromium)", () => {
           checksum: engineResult.checksum,
           progressEvents: progressEvents.length,
           realtimeMultiplier: engineResult.realtimeMultiplier,
+          captionSurfaceBackend: engineResult.captionSurfaceBackend,
           base64: btoa(binary),
         };
       },
@@ -183,16 +197,29 @@ test.describe("browser export (chromium)", () => {
       type: "realtime-multiplier",
       description: result.realtimeMultiplier.toFixed(2),
     });
-    // A19b's throughput target is >= 1x realtime at 1080p on chromium. This
-    // sandbox runs headless Chromium with no GPU and no hardware H.264
-    // encoder (measured well under 1x here even after raw pixel readback +
-    // `hardwareAcceleration: "prefer-hardware"`), so the number this
-    // environment reports is not representative of the target machine (a
-    // real desktop Chrome with hardware encode). Reported honestly in the
-    // final report's throughput section rather than gated on an unrealistic
-    // floor here; the only thing asserted is that the pipeline made forward
+    test.info().annotations.push({
+      type: "caption-surface-backend",
+      description: result.captionSurfaceBackend,
+    });
+    // A19c (brief §3): the ≥1x realtime target stays a *reported* metric,
+    // annotated above rather than gated on unconditionally — the measured
+    // number is a function of the machine's GPU and hardware encoder, not of
+    // whether this pipeline is correct. The hard floor only applies once the
+    // run itself reports a hardware encoder (this sandbox's headless
+    // chromium does not, per `capabilities.hardwareEncoder` above and
+    // `README.md`'s "Throughput" section) — at that point 0.5x is a
+    // reasonable floor to gate on, since the whole point of a hardware
+    // encoder + a GPU-backed caption surface is to clear it comfortably.
+    // Without one, the only thing asserted is that the pipeline made forward
     // progress at all.
-    expect(result.realtimeMultiplier).toBeGreaterThan(0);
+    if (capabilities.hardwareEncoder === true) {
+      expect(
+        result.realtimeMultiplier,
+        "a hardware-encoder run should clear the 0.5x floor",
+      ).toBeGreaterThanOrEqual(0.5);
+    } else {
+      expect(result.realtimeMultiplier).toBeGreaterThan(0);
+    }
     expect(result.checksum).toMatch(/^[0-9a-f]{64}$/);
     expect(result.progressEvents).toBeGreaterThan(0);
 

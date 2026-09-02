@@ -11,7 +11,9 @@
 import { AlertTriangle, Loader2 } from "lucide-react";
 import * as React from "react";
 
+import { useCurrentUser } from "@montaj/api-client";
 import type { StyleDoc } from "@montaj/caption-styles";
+import { BRAND } from "@montaj/config";
 import type { EdgProjection, FontRegistry, Shaper } from "@montaj/render-core";
 import {
   Button,
@@ -27,11 +29,14 @@ import {
   TabsTrigger,
 } from "@montaj/ui";
 
+import { resolveOnboardingExportPreset } from "./onboarding-preset";
 import { SubtitlesTab, type SubtitlesTabValue } from "./SubtitlesTab";
 import { ToEditorTab } from "./ToEditorTab";
 import { useExportDialog } from "./use-export-dialog";
 import { VideoTab, type VideoTabValue } from "./VideoTab";
 import { WatermarkNotice } from "./WatermarkNotice";
+
+import { isBrowserExportEligible } from "@/lib/export";
 
 export interface ExportDialogProps {
   readonly open: boolean;
@@ -51,6 +56,26 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
   const [tab, setTab] = React.useState<"video" | "subtitles" | "to-editor">("video");
   const [video, setVideo] = React.useState<VideoTabValue>(DEFAULT_VIDEO);
   const [subtitles, setSubtitles] = React.useState<SubtitlesTabValue>(DEFAULT_SUBTITLES);
+
+  // B17 preset: pre-select the preset `me.onboarding.defaultExportPreset`
+  // names, once, the first time it becomes available — a manual choice
+  // (`onVideoChange` below) marks this done so a later refetch of `me` can
+  // never overwrite what the user picked.
+  const me = useCurrentUser();
+  const appliedOnboardingPreset = React.useRef(false);
+  React.useEffect(() => {
+    if (appliedOnboardingPreset.current) return;
+    const defaultExportPreset = me.data?.onboarding?.defaultExportPreset;
+    if (defaultExportPreset === undefined) return;
+    appliedOnboardingPreset.current = true;
+    const named = resolveOnboardingExportPreset(defaultExportPreset);
+    setVideo((v) => ({ ...v, preset: named.preset }));
+  }, [me.data]);
+
+  const onVideoChange = React.useCallback((next: VideoTabValue) => {
+    appliedOnboardingPreset.current = true;
+    setVideo(next);
+  }, []);
 
   const { state, startExport, cancel, reset } = useExportDialog({
     projectId: props.projectId,
@@ -73,6 +98,30 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
       script: video.script,
       dropFillers: video.dropFillers,
       mode: "auto",
+    });
+  }, [startExport, video]);
+
+  // A19c ruling (2): `auto` defaults 1080p-and-up to the cloud when this
+  // browser has no hardware video encoder (`decision.ts`'s
+  // `SOFTWARE_ENCODER_CLOUD_DEFAULT_REASON`). An explicit `mode: "browser"`
+  // request overrides that default — offered only when the client's own
+  // probe says the browser path is otherwise workable at all
+  // (`isBrowserExportEligible`), so this never appears for a genuinely
+  // ineligible browser (no WebCodecs, mobile, etc.).
+  const softwareEncoderCloudDefault =
+    state.phase === "cloud-offered" &&
+    state.response?.path === "cloud" &&
+    state.probe !== null &&
+    isBrowserExportEligible(state.probe) &&
+    (state.response.reasons ?? []).some((reason) => /hardware/i.test(reason));
+
+  const onExportVideoBrowserAnyway = React.useCallback(() => {
+    void startExport({
+      kind: "video",
+      preset: video.preset,
+      script: video.script,
+      dropFillers: video.dropFillers,
+      mode: "browser",
     });
   }, [startExport, video]);
 
@@ -111,7 +160,7 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
           </TabsList>
 
           <TabsContent value="video">
-            <VideoTab value={video} onChange={setVideo} disabled={busy} />
+            <VideoTab value={video} onChange={onVideoChange} disabled={busy} />
             <WatermarkNotice
               watermarked={state.response?.watermarked}
               reasons={state.response?.reasons}
@@ -160,6 +209,23 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
                 <p key={index}>{reason}</p>
               ))}
               {state.error !== null ? <p>{state.error}</p> : null}
+              {softwareEncoderCloudDefault ? (
+                <div className="mt-2">
+                  <p className="text-amber-200/80">
+                    Export directly in this browser instead — no upload to {BRAND.name}&apos;s
+                    cloud renderer, but without a hardware video encoder it may be slow.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="mt-1"
+                    onClick={onExportVideoBrowserAnyway}
+                    data-testid="export-browser-anyway"
+                  >
+                    Export in this browser anyway
+                  </Button>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}

@@ -32,7 +32,12 @@ const MIN = 60_000;
  * not deliberately probe that gate spreads this in first, so the matrix below
  * still isolates one variable at a time.
  */
-const ELIGIBLE_CAPS = { codecs: ["avc1.640034"], audioEncoder: true };
+// A19c: also carries `hardwareEncoder: true`, so this fixture represents a
+// *fully* capable browser (real H.264 decode/encode, usable audio, and a
+// hardware video encoder) — every test that isolates a different variable
+// spreads this in first, same as before. The dedicated
+// "software encoder above 1080p" describe block below overrides it.
+const ELIGIBLE_CAPS = { codecs: ["avc1.640034"], audioEncoder: true, hardwareEncoder: true };
 
 function base(overrides: Partial<ExportDecisionInput> = {}): ExportDecisionInput {
   return {
@@ -488,7 +493,7 @@ describe("decideExport — A21b: H.264 decode+encode and a usable audio path, at
   it("audioEncoder false but audioCopyPossible true -> browser (the re-encode-free escape hatch)", () => {
     const decision = decideExport(
       base({
-        capabilities: { codecs: ["avc1.640034"], audioEncoder: false },
+        capabilities: { codecs: ["avc1.640034"], audioEncoder: false, hardwareEncoder: true },
         audioCopyPossible: true,
       }),
     );
@@ -522,6 +527,67 @@ describe("decideExport — A21b: H.264 decode+encode and a usable audio path, at
       expect(error).toBeInstanceOf(AppException);
       expect((error as AppException).code).toBe("export/unsupported_in_browser");
     }
+  });
+});
+
+describe("decideExport — A19c ruling (2): software-encoder cloud default at 1080p+", () => {
+  it("auto mode, 1080p reels, no hardwareEncoder reported -> cloud, with the software-encoder reason", () => {
+    const decision = decideExport(
+      base({ capabilities: { ...ELIGIBLE_CAPS, hardwareEncoder: false } }),
+    );
+    expect(decision.path).toBe("cloud");
+    expect(decision.reasons.join(" ")).toMatch(/hardware/i);
+  });
+
+  it("auto mode, 1080p reels, hardwareEncoder omitted (older client) -> cloud, same as false", () => {
+    const { hardwareEncoder: _omit, ...capsWithoutHardwareEncoder } = ELIGIBLE_CAPS;
+    const decision = decideExport(base({ capabilities: capsWithoutHardwareEncoder }));
+    expect(decision.path).toBe("cloud");
+  });
+
+  it("auto mode, 1080p reels, hardwareEncoder true -> browser (the happy path)", () => {
+    const decision = decideExport(base({ capabilities: ELIGIBLE_CAPS }));
+    expect(decision.path).toBe("browser");
+  });
+
+  it("auto mode, 4K, no hardwareEncoder -> cloud (the gate also applies above 1080p)", () => {
+    const decision = decideExport(
+      base({
+        preset: "youtube-4k",
+        entitlements: CREATOR_ENTITLEMENTS,
+        outputDurationMs: 5 * MIN,
+        sourceDurationMs: 5 * MIN,
+        capabilities: {
+          ...ELIGIBLE_CAPS,
+          hardwareEncoder: false,
+          isDesktopChromium: true,
+          fileSink: true,
+        },
+      }),
+    );
+    expect(decision.path).toBe("cloud");
+  });
+
+  it("explicit browser mode overrides the software-encoder default, with a warned reason", () => {
+    const decision = decideExport(
+      base({
+        requestedMode: "browser",
+        capabilities: { ...ELIGIBLE_CAPS, hardwareEncoder: false },
+      }),
+    );
+    expect(decision.path).toBe("browser");
+    expect(decision.reasons.join(" ")).toMatch(/hardware/i);
+    expect(decision.reasons.join(" ")).toMatch(/slow/i);
+  });
+
+  it("explicit cloud mode is unaffected either way", () => {
+    const decision = decideExport(
+      base({
+        requestedMode: "cloud",
+        capabilities: { ...ELIGIBLE_CAPS, hardwareEncoder: true },
+      }),
+    );
+    expect(decision.path).toBe("cloud");
   });
 });
 
