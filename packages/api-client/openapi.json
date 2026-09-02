@@ -11910,6 +11910,55 @@
         ]
       }
     },
+    "/exports/manifests/{manifestId}/sources": {
+      "get": {
+        "description": "Same ownership checks as the completion callback, minus the nonce claim: refreshing does not consume anything.",
+        "operationId": "refreshExportManifestSources",
+        "parameters": [
+          {
+            "name": "manifestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportSourcesDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`export/manifest_not_found`."
+          },
+          "409": {
+            "description": "`export/manifest_invalid` or `export/manifest_already_consumed`."
+          },
+          "410": {
+            "description": "`export/manifest_expired`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reissue a browser manifest's source URLs once the originals expire",
+        "tags": [
+          "exports"
+        ]
+      }
+    },
     "/exports/{exportId}/download": {
       "get": {
         "description": "409 `export/not_ready` for a browser export — it never leaves the browser.",
@@ -15326,6 +15375,26 @@
           "credits"
         ]
       },
+      "ExportSourcesDto": {
+        "type": "object",
+        "properties": {
+          "rawUrl": {
+            "type": "string",
+            "description": "15-minute signed GET for the ORIGINAL media (S3)."
+          },
+          "proxyUrl": {
+            "type": "string",
+            "description": "15-minute signed GET for the 540p proxy (R2), when one exists."
+          },
+          "watermarkUrl": {
+            "type": "string",
+            "description": "15-minute signed GET for the watermark PNG (R2), when the manifest carries one."
+          }
+        },
+        "required": [
+          "rawUrl"
+        ]
+      },
       "ExportJobDto": {
         "type": "object",
         "properties": {
@@ -15378,6 +15447,14 @@
             "type": "object",
             "additionalProperties": true,
             "description": "The signed `RenderManifest` (`@montaj/render-manifest`), present on the browser path only — the browser renders locally and never uploads. Verify it before drawing a frame."
+          },
+          "sources": {
+            "description": "Present on the browser path only. NOT part of the signed manifest body — issued alongside it, and refreshable at `GET /exports/manifests/{id}/sources` once these expire.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ExportSourcesDto"
+              }
+            ]
           },
           "job": {
             "description": "Present on the cloud path only.",

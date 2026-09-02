@@ -83,6 +83,15 @@ export interface ExportDecisionInput {
    * exactly as it did before A18a landed.
    */
   readonly assStylesRenderable?: boolean;
+  /**
+   * True when the source audio can be container-copied into the browser
+   * export without re-encoding (its codec already matches the target, e.g.
+   * AAC into MP4) — the escape hatch the addendum names alongside
+   * `capabilities.audioEncoder`. Undefined/false is the conservative default
+   * until a caller can prove otherwise (A21b: `ExportsService` does not yet
+   * probe the source audio codec, so this is always unset today).
+   */
+  readonly audioCopyPossible?: boolean;
 }
 
 export type ExportPath = "browser" | "cloud";
@@ -148,6 +157,25 @@ function creditsFor(outputDurationMs: number): number {
   return quote("cloudRender", outputDurationMs / 60_000).costTenths;
 }
 
+/** `capabilities.codecs` entries the probe reports as WebCodecs-encode-capable H.264 profiles. */
+const H264_CODEC_PREFIX = "avc1";
+
+/**
+ * H.264 decode + encode, both (A21b, after A19). A19's probe only ever
+ * populates `codecs` from `VideoEncoder.isConfigSupported` — but it gates that
+ * probe on `VideoDecoder` existing at all (`probe.ts`'s `webCodecs` flag), so
+ * an avc1 entry in the array is evidence of both: the array is empty on every
+ * browser that lacks a decoder.
+ */
+function hasH264Support(capabilities: ExportCapabilities | undefined): boolean {
+  return (capabilities?.codecs ?? []).some((codec) => codec.startsWith(H264_CODEC_PREFIX));
+}
+
+/** `capabilities.audioEncoder`, or an audio strategy that needs no re-encode at all. */
+function hasUsableAudio(input: ExportDecisionInput): boolean {
+  return input.capabilities?.audioEncoder === true || input.audioCopyPossible === true;
+}
+
 /**
  * Whether the browser path is technically eligible at all (D34), independent of
  * plan and watermark. Returns the reason it is not, when it is not.
@@ -165,8 +193,29 @@ function browserEligibility(
         "channel through hardware encode.",
     };
   }
+  if (input.isHdrSource === true) {
+    return {
+      ok: false,
+      reason: "HDR sources render in the cloud, with tone-mapping to BT.709.",
+    };
+  }
   if (capabilities?.isMobile === true) {
     return { ok: false, reason: "Mobile browsers render in the cloud." };
+  }
+  // A21b: required at every resolution, not only 4K — a browser that cannot
+  // decode and encode H.264, or cannot encode audio (and the source cannot be
+  // copied through untouched), cannot produce any export locally at all.
+  if (!hasH264Support(capabilities)) {
+    return {
+      ok: false,
+      reason: "This browser cannot decode and encode H.264 — this renders in the cloud.",
+    };
+  }
+  if (!hasUsableAudio(input)) {
+    return {
+      ok: false,
+      reason: "This browser cannot encode audio for this export — this renders in the cloud.",
+    };
   }
 
   const width = requestedWidth(input);

@@ -15,7 +15,7 @@ import { BrandAssetsService } from "./brand-assets.service.js";
 import { BrowserManifestDailyCap } from "./daily-cap.js";
 import { decideExport, type ExportDecisionInput, type SubtitleFormat } from "./decision.js";
 import { DefaultWatermarkService } from "./default-watermark.service.js";
-import { EXPORT_RETENTION_DAYS } from "./exports.constants.js";
+import { EXPORT_RETENTION_DAYS, SOURCE_URL_TTL_SECONDS } from "./exports.constants.js";
 import { EXPORT_ERROR_CODES } from "./exports.errors.js";
 import { buildRenderManifest, RENDER_CORE_VERSION } from "./manifest-builder.js";
 import { NINE_PASS_LEDGER, type NinePassLedger } from "./nine-pass-ledger.js";
@@ -24,8 +24,10 @@ import { ManifestSignerService } from "../common/crypto/manifest-signer.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import {
+  brandAssetKey,
   DERIVED_STORE,
   DOWNLOAD_URL_TTL_SECONDS,
+  RAW_STORE,
   type ObjectStore,
 } from "../common/storage/index.js";
 import { EdgRepository } from "../edg/index.js";
@@ -60,6 +62,19 @@ export interface RequestExportInput {
   };
 }
 
+/**
+ * Short-lived signed GET URLs for a browser export's sources (A21b, after A19):
+ * the ORIGINAL media (a 540p proxy cannot produce a clean 1080p export), the
+ * proxy (an offline/low-bandwidth fallback), and the watermark PNG when the
+ * manifest carries one. Issued alongside the signed manifest, never inside
+ * it — none of this is signed, all of it is re-issuable.
+ */
+export interface ExportSources {
+  readonly rawUrl: string;
+  readonly proxyUrl?: string;
+  readonly watermarkUrl?: string;
+}
+
 export interface RequestExportResult {
   readonly exportId: string;
   readonly path: "browser" | "cloud";
@@ -67,6 +82,7 @@ export interface RequestExportResult {
   readonly watermarked: boolean;
   readonly quote: { readonly tenths: number; readonly credits: string };
   readonly manifest?: Record<string, unknown>;
+  readonly sources?: ExportSources;
   readonly job?: {
     readonly jobId: string;
     readonly status: string;
@@ -122,6 +138,7 @@ export class ExportsService {
     private readonly dailyCap: BrowserManifestDailyCap,
     private readonly defaultWatermark: DefaultWatermarkService,
     @Inject(DERIVED_STORE) private readonly store: ObjectStore,
+    @Inject(RAW_STORE) private readonly rawStore: ObjectStore,
     @Inject(NINE_PASS_LEDGER) private readonly ninePass: NinePassLedger,
     private readonly events: EventEmitter2,
   ) {}
@@ -179,6 +196,7 @@ export class ExportsService {
       signupGiftAvailable,
       ninePassAvailable,
       ...(input.capabilities === undefined ? {} : { capabilities: input.capabilities }),
+      ...(media.hdr === true ? { isHdrSource: true } : {}),
     };
     const decision = decideExport(decisionInput);
     if (decision.watermark) await this.defaultWatermark.ensure(input.workspaceId);
@@ -277,6 +295,12 @@ export class ExportsService {
         },
       });
 
+      const sources = await this.buildSources({
+        mediaId: media.id,
+        workspaceId: input.workspaceId,
+        watermark: manifest.watermark,
+      });
+
       return {
         exportId,
         path: "browser",
@@ -284,6 +308,7 @@ export class ExportsService {
         watermarked: decision.watermark,
         quote: { tenths: 0, credits: formatCredits(0) },
         manifest: manifest as unknown as Record<string, unknown>,
+        sources,
       };
     }
 
@@ -364,30 +389,7 @@ export class ExportsService {
   async completeManifest(
     input: CompleteManifestInput,
   ): Promise<{ exportId: string; downloadAvailable: boolean }> {
-    const row = await this.prisma.exportManifest.findFirst({
-      where: { id: input.manifestId, workspaceId: input.workspaceId },
-    });
-    if (row === null) {
-      throw new AppException(
-        EXPORT_ERROR_CODES.manifestNotFound,
-        "No such manifest.",
-        HttpStatus.NOT_FOUND,
-      );
-    }
-    if (row.mode !== "browser") {
-      throw new AppException(
-        EXPORT_ERROR_CODES.manifestInvalid,
-        "This manifest is not a browser-render manifest.",
-        HttpStatus.CONFLICT,
-      );
-    }
-    if (row.expiresAt.getTime() < Date.now()) {
-      throw new AppException(
-        EXPORT_ERROR_CODES.manifestExpired,
-        "This manifest has expired.",
-        HttpStatus.GONE,
-      );
-    }
+    const row = await this.assertUsableBrowserManifest(input.manifestId, input.workspaceId);
 
     const claimed = await this.prisma.exportManifest.updateMany({
       where: { id: input.manifestId, workspaceId: input.workspaceId, consumedAt: null },
@@ -452,6 +454,38 @@ export class ExportsService {
     });
 
     return { exportId: exportRow.id, downloadAvailable: false };
+  }
+
+  // -------------------------------------------------------------------------
+  // GET /exports/manifests/{id}/sources
+  // -------------------------------------------------------------------------
+
+  /**
+   * Reissue a browser manifest's source URLs once the originals expire —
+   * a long original can outlast `SOURCE_URL_TTL_SECONDS` before the browser
+   * finishes decoding it. Same ownership checks as `completeManifest`, minus
+   * the nonce claim: refreshing does not consume anything, so a manifest that
+   * has already been completed has nothing left to refresh.
+   */
+  async refreshSources(manifestId: string, workspaceId: string): Promise<ExportSources> {
+    const row = await this.assertUsableBrowserManifest(manifestId, workspaceId);
+    if (row.consumedAt !== null) {
+      throw new AppException(
+        EXPORT_ERROR_CODES.manifestAlreadyConsumed,
+        "This manifest has already been used.",
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const manifest = row.manifest as unknown as {
+      readonly source: { readonly mediaId: string };
+      readonly watermark: { readonly assetId: string } | null;
+    };
+    return this.buildSources({
+      mediaId: manifest.source.mediaId,
+      workspaceId,
+      watermark: manifest.watermark,
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -532,6 +566,81 @@ export class ExportsService {
   // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------
+
+  /** Not found / wrong mode / expired — the checks `completeManifest` and `refreshSources` share. */
+  private async assertUsableBrowserManifest(
+    manifestId: string,
+    workspaceId: string,
+  ): Promise<ExportManifest> {
+    const row = await this.prisma.exportManifest.findFirst({
+      where: { id: manifestId, workspaceId },
+    });
+    if (row === null) {
+      throw new AppException(
+        EXPORT_ERROR_CODES.manifestNotFound,
+        "No such manifest.",
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    if (row.mode !== "browser") {
+      throw new AppException(
+        EXPORT_ERROR_CODES.manifestInvalid,
+        "This manifest is not a browser-render manifest.",
+        HttpStatus.CONFLICT,
+      );
+    }
+    if (row.expiresAt.getTime() < Date.now()) {
+      throw new AppException(
+        EXPORT_ERROR_CODES.manifestExpired,
+        "This manifest has expired.",
+        HttpStatus.GONE,
+      );
+    }
+    return row;
+  }
+
+  /**
+   * Signed GET URLs for a browser export's sources (A21b). The raw key comes
+   * from S3 (`RAW_STORE`), the proxy and the watermark PNG from R2
+   * (`DERIVED_STORE`) — the same bucket split `common/storage` draws
+   * everywhere else. `mediaId` is always read from the signed manifest's own
+   * `source.mediaId` (at issuance, the media this export was just resolved
+   * against; on refresh, whatever the manifest was signed over), never
+   * re-resolved from the project's current primary media.
+   */
+  private async buildSources(input: {
+    readonly mediaId: string;
+    readonly workspaceId: string;
+    readonly watermark: { readonly assetId: string } | null;
+  }): Promise<ExportSources> {
+    const media = await this.prisma.mediaAsset.findFirst({ where: { id: input.mediaId } });
+    if (media === null) {
+      throw new AppException(
+        EXPORT_ERROR_CODES.mediaNotReady,
+        "The source media for this export is no longer available.",
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const rawUrl = await this.rawStore.presignGet(media.storageKey, SOURCE_URL_TTL_SECONDS);
+    const proxyUrl =
+      media.proxyKey === null
+        ? undefined
+        : await this.store.presignGet(media.proxyKey, SOURCE_URL_TTL_SECONDS);
+    const watermarkUrl =
+      input.watermark === null
+        ? undefined
+        : await this.store.presignGet(
+            brandAssetKey(input.workspaceId, input.watermark.assetId),
+            SOURCE_URL_TTL_SECONDS,
+          );
+
+    return {
+      rawUrl,
+      ...(proxyUrl === undefined ? {} : { proxyUrl }),
+      ...(watermarkUrl === undefined ? {} : { watermarkUrl }),
+    };
+  }
 
   private async resolveRenderContext(projectId: string, workspaceId: string) {
     const project = await this.prisma.project.findFirst({

@@ -873,6 +873,13 @@ export const API_OPERATIONS = [
     summary: "Reconcile one credit account",
   },
   {
+    operationId: "refreshExportManifestSources",
+    method: "GET",
+    path: "/exports/manifests/{manifestId}/sources",
+    tags: ["exports"],
+    summary: "Reissue a browser manifest's source URLs once the originals expire",
+  },
+  {
     operationId: "refundPassPurchase",
     method: "POST",
     path: "/billing/passes/{passPurchaseId}/refund",

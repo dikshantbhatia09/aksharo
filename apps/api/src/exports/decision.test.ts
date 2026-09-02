@@ -26,6 +26,14 @@ const STARTER_ENTITLEMENTS = {
 
 const MIN = 60_000;
 
+/**
+ * A21b: browser eligibility now requires proven H.264 decode+encode and a
+ * usable audio path at every resolution, not only 4K. Every test that does
+ * not deliberately probe that gate spreads this in first, so the matrix below
+ * still isolates one variable at a time.
+ */
+const ELIGIBLE_CAPS = { codecs: ["avc1.640034"], audioEncoder: true };
+
 function base(overrides: Partial<ExportDecisionInput> = {}): ExportDecisionInput {
   return {
     requestedMode: "auto",
@@ -38,6 +46,7 @@ function base(overrides: Partial<ExportDecisionInput> = {}): ExportDecisionInput
     entitlements: FREE_ENTITLEMENTS,
     signupGiftAvailable: false,
     ninePassAvailable: false,
+    capabilities: ELIGIBLE_CAPS,
     ...overrides,
   };
 }
@@ -62,7 +71,7 @@ describe("decideExport — video, browser eligibility", () => {
   });
 
   it("mobile capability -> cloud even for a short 1080p clip", () => {
-    const decision = decideExport(base({ capabilities: { isMobile: true } }));
+    const decision = decideExport(base({ capabilities: { ...ELIGIBLE_CAPS, isMobile: true } }));
     expect(decision.path).toBe("cloud");
   });
 
@@ -99,7 +108,7 @@ describe("decideExport — video, browser eligibility", () => {
         entitlements: CREATOR_ENTITLEMENTS,
         outputDurationMs: 9 * MIN,
         sourceDurationMs: 9 * MIN,
-        capabilities: { isDesktopChromium: true, fileSink: true },
+        capabilities: { ...ELIGIBLE_CAPS, isDesktopChromium: true, fileSink: true },
       }),
     );
     expect(decision.path).toBe("browser");
@@ -112,7 +121,7 @@ describe("decideExport — video, browser eligibility", () => {
         entitlements: CREATOR_ENTITLEMENTS,
         outputDurationMs: 11 * MIN,
         sourceDurationMs: 11 * MIN,
-        capabilities: { isDesktopChromium: true, fileSink: true },
+        capabilities: { ...ELIGIBLE_CAPS, isDesktopChromium: true, fileSink: true },
       }),
     );
     expect(decision.path).toBe("cloud");
@@ -125,7 +134,7 @@ describe("decideExport — video, browser eligibility", () => {
         entitlements: CREATOR_ENTITLEMENTS,
         outputDurationMs: 5 * MIN,
         sourceDurationMs: 5 * MIN,
-        capabilities: { isDesktopChromium: false, fileSink: true },
+        capabilities: { ...ELIGIBLE_CAPS, isDesktopChromium: false, fileSink: true },
       }),
     );
     expect(decision.path).toBe("cloud");
@@ -140,7 +149,7 @@ describe("decideExport — video, browser eligibility", () => {
         entitlements: CREATOR_ENTITLEMENTS,
         outputDurationMs: 5 * MIN,
         sourceDurationMs: 5 * MIN,
-        capabilities: { isDesktopChromium: true, fileSink: true },
+        capabilities: { ...ELIGIBLE_CAPS, isDesktopChromium: true, fileSink: true },
       }),
     );
     expect(decision.path).toBe("browser");
@@ -441,4 +450,111 @@ describe("decideExport — reasons are non-empty, UI-safe strings", () => {
       }
     });
   }
+});
+
+describe("decideExport — A21b: H.264 decode+encode and a usable audio path, at every resolution", () => {
+  it("no capabilities at all -> cloud, even at 1080p and well under 20 minutes", () => {
+    const decision = decideExport(base({ capabilities: undefined }));
+    expect(decision.path).toBe("cloud");
+    expect(decision.reasons.join(" ")).toMatch(/h\.264/i);
+  });
+
+  it("codecs present but no h264 profile -> cloud", () => {
+    const decision = decideExport(
+      base({ capabilities: { codecs: ["vp09.00.10.08"], audioEncoder: true } }),
+    );
+    expect(decision.path).toBe("cloud");
+    expect(decision.reasons.join(" ")).toMatch(/h\.264/i);
+  });
+
+  it("empty codecs array -> cloud", () => {
+    const decision = decideExport(base({ capabilities: { codecs: [], audioEncoder: true } }));
+    expect(decision.path).toBe("cloud");
+  });
+
+  it("h264 present but audioEncoder false, and no audio-copy escape hatch -> cloud", () => {
+    const decision = decideExport(
+      base({ capabilities: { codecs: ["avc1.640034"], audioEncoder: false } }),
+    );
+    expect(decision.path).toBe("cloud");
+    expect(decision.reasons.join(" ")).toMatch(/audio/i);
+  });
+
+  it("h264 and audioEncoder both true -> browser (the happy path every other test relies on)", () => {
+    const decision = decideExport(base());
+    expect(decision.path).toBe("browser");
+  });
+
+  it("audioEncoder false but audioCopyPossible true -> browser (the re-encode-free escape hatch)", () => {
+    const decision = decideExport(
+      base({
+        capabilities: { codecs: ["avc1.640034"], audioEncoder: false },
+        audioCopyPossible: true,
+      }),
+    );
+    expect(decision.path).toBe("browser");
+  });
+
+  it("the gate applies at 1080p, not only 4K", () => {
+    const decision = decideExport(base({ preset: "reels", capabilities: { audioEncoder: true } }));
+    expect(decision.path).toBe("cloud");
+  });
+
+  it("the gate applies at 4K too, even with desktop Chromium and fileSink granted", () => {
+    const decision = decideExport(
+      base({
+        preset: "youtube-4k",
+        entitlements: CREATOR_ENTITLEMENTS,
+        outputDurationMs: 5 * MIN,
+        sourceDurationMs: 5 * MIN,
+        capabilities: { isDesktopChromium: true, fileSink: true },
+      }),
+    );
+    expect(decision.path).toBe("cloud");
+    expect(decision.reasons.join(" ")).toMatch(/h\.264/i);
+  });
+
+  it("explicit browser mode without h264 support throws export/unsupported_in_browser", () => {
+    try {
+      decideExport(base({ requestedMode: "browser", capabilities: undefined }));
+      expect.unreachable("should have thrown");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AppException);
+      expect((error as AppException).code).toBe("export/unsupported_in_browser");
+    }
+  });
+});
+
+describe("decideExport — A21b: HDR sources are cloud-only", () => {
+  it("an HDR source is refused the browser path even when otherwise eligible", () => {
+    const decision = decideExport(base({ isHdrSource: true }));
+    expect(decision.path).toBe("cloud");
+    expect(decision.reasons.join(" ")).toMatch(/hdr/i);
+  });
+
+  it("an HDR source falls back to cloud under auto mode without throwing", () => {
+    expect(() => decideExport(base({ isHdrSource: true, requestedMode: "auto" }))).not.toThrow();
+  });
+
+  it("an HDR source under explicit browser mode is refused with export/unsupported_in_browser", () => {
+    try {
+      decideExport(base({ isHdrSource: true, requestedMode: "browser" }));
+      expect.unreachable("should have thrown");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AppException);
+      expect((error as AppException).code).toBe("export/unsupported_in_browser");
+    }
+  });
+
+  it("a non-HDR source with the same otherwise-eligible inputs still gets the browser", () => {
+    const decision = decideExport(base({ isHdrSource: false }));
+    expect(decision.path).toBe("browser");
+  });
+
+  it("HDR is irrelevant to the cloud path itself — no watermark or caps side effect", () => {
+    const hdr = decideExport(base({ isHdrSource: true, requestedMode: "cloud" }));
+    const sdr = decideExport(base({ isHdrSource: false, requestedMode: "cloud" }));
+    expect(hdr.maxWidth).toBe(sdr.maxWidth);
+    expect(hdr.watermark).toBe(sdr.watermark);
+  });
 });
