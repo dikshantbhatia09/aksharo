@@ -43,7 +43,7 @@ Fable 5.1 orchestrates, designs and decides; coding agents implement briefs. Cod
 | A04 | api: auth (families, device code, token exchange) | A03, X06 | Opus | done |
 | A05 | api: users, workspaces (tax profile), memberships | A04 | Opus | done |
 | A06 | api: projects + media (S3 raw, R2 derived) | A05 | Opus | done |
-| A07 | worker-media: probe, 16k/48k audio, proxy, waveform, thumbs | A03, A06 | Opus | done |
+| A07 | worker-media: probe, 16k/48k audio, proxy, waveform, thumbs | A03, A06 | Opus | done (A07 + A07b merged: media.proxy completion handler with failure hook; export dialog automatable) |
 | A08 | api: jobs, WS gateway, idempotent completion, CreditsFacade (no-op), admission control | A03 | Opus | done |
 | A08b | DLQ + admin replay | A08 | Opus | done |
 | A08c | api: Redis realtime bus connects lazily-created clients before subscribe/publish; gateway join rollback; real-Redis two-instance e2e (defect found by A12) | A08, A12 | Opus | done |
@@ -86,7 +86,7 @@ Sub-wave order: {A10, A11, A12, A13, A16, A18b, A20, A25, A26} → {A14, A15, A2
 | B06 | Streak experiment engine (holdout flag, freezes, pause-not-reset, rewards) + widget | B01, B02, A21 | done (B06/B06b merged: plan-derived creditsOnly, GET /streak null fix; streak chip e2e failing on main → M02) |
 | B07 | Affiliate v2: apply with PAN, 60-day cookie + code attribution, rate tiers, TDS accumulator, RazorpayX payouts, dashboard | B01, B02, B05 | done (merged; TDS section pending H-18; RazorpayX unverified pending H-15) |
 | B07b | Give-get referral loop (30/30 credits on first export, caps, abuse rules, prompt) | B02, A21 | done |
-| B08 | Team/Agency workspaces, seat billing, pooled credits, client tags, devices/leases, licence keys | B01, B02, A05 | done (merged; licence signing reuses JWT RSA pair + LICENSE_SIGNING_KID; Playwright team spec run on main pending) |
+| B08 | Team/Agency workspaces, seat billing, pooled credits, client tags, devices/leases, licence keys | B01, B02, A05 | done (B08 + B08b merged/merging: teams, devices/leases, licence keys, per-device bridge tokens keyed by deviceId) |
 | B09 | Memory & glossary (opt-in): spelling/timing/style entries, provider hints, matcher, settings page | A11, A15, A17 | done (B09 + B09b merged: hooks wired at timeline sink, editor spelling fix, transcribe hints) |
 | B16 | Scheduler tasks (retention, renewals/dunning, grants/expiry, commissions, provider deletions), audit completion, privacy module (erasure cascade, DSR, export, breach, access logs) | B01, B02, B07 | done (merged: 12 scheduler tasks, erasure cascade with DMMF residue check, audit-completeness contract test found 4 gaps, access logs; D81 recorded) |
 | B17 | Onboarding completion (defaults, language hints, source + code), sample project, coach marks, attribution events, Hindi strings | A13, B07, B07b | done (merged: step 4, MAKE_DEFAULTS, coach marks, product_events + /admin/metrics/acquisition, code classifier; defaultExportPreset consumed by A19c) |
@@ -97,20 +97,30 @@ Sub-wave order: {B01, B02, B05, B09} → {B03, B04, B06, B07, B07b, B08} → {B1
 |---|---|---|---|
 | B10 | Audio clean: 48 kHz deep-filter path, loudness targets, A/B preview, applied in browser + cloud exports | A09, A20, A19 | done (merged: Quick clean chain, A/B previews, cleanedAudioUrl in export sources; D82 tiers; B10b: SetAudio.cleanId, panel mount + op wiring, audio parity gate, e2e, RSS bound) |
 | B11 | LLM features (chapters, summary, hooks) + `packages/prompts` registry, region pinning, evals, Insights tab | A11, B02 | done (B11/B11b merged: per-kind burn rates in config, one lexicon loader, EDG-segment insights payload) |
-| B12 | Academy tracks + rewards, Changelog + What's new, Help centre, support tickets with diagnostics | A13, B02 | briefed |
+| B12 | Academy tracks + rewards, Changelog + What's new, Help centre, support tickets with diagnostics | A13, B02 | done (merged + verified: 4 academy tracks with exactly-once rewards, 10 help articles, /updates changelog + What's new + RSS, support tickets; academy lot source + academy-help Playwright → M03) |
 | B13 | Admin console: roles + step-up, users/credits/refunds, flags, styles/parity, routing weights, jobs/DLQ, mandates, TDS, affiliate review, DSR/breach, share reports, metrics | B01–B12, B16 | in-progress (increment a merged: admin_roles + TOTP step-up + AdminGuard(role) + role-matrix test; b–e running on wp/B13) |
 | B14 | Public API v1 + scoped API keys + signed webhooks + SSRF-guarded URL import + developer docs | B02, A21, A06 | done (B14 + B14b merged: keys, /v1, idempotency, SSRF ingest, signed webhooks with real event emits + fixture-server e2e, Developers docs) |
 | B15 | Share/review links (view/comment/approve, hygiene), comments, batch, replace media (re-align), import transcript & align | A12, A21, A10, B08 | in-progress (API half merged: share links scope ladder/password/expiry/view cap/auto-disable, comments, batch; web viewer + replace-media re-align + import-align running on wp/B15) |
-| B18 | Autocut pass (silences, filler lexicons, retakes, protection, pacing) → pass items | A10, A11, A02c | done (merged: autocut pass in worker + API over edg_passes, 12 filler lexicons (H-20 review), CONTRACTS protected ranges → B18b) |
-| B19 | Reframe & zoom pass (scene detection, subject tracking, cues, packed keyframes) | A07, A11, B18 | done (merged: scene-cut metric, tracking, zoom/reframe on the B18 runner, MKF2 keyframes; B19b: proxy frame sampling, single codec, keyframe storage, zoom type; H-22 weights) |
-| B20 | Proposal review UI + exports apply cuts/zooms via `timemap` (browser + cloud) + parity fixtures | A17, A19, A20, B18, B19 | briefed |
+| B18 | Autocut pass (silences, filler lexicons, retakes, protection, pacing) → pass items | A10, A11, A02c | done (B18 + B18b merged: autocut pass, protected ranges op + timeline protect + passes payload) |
+| B19 | Reframe & zoom pass (scene detection, subject tracking, cues, packed keyframes) | A07, A11, B18 | done (B19 + B19b merging: single MKF2 codec, zoom PassType, inline/ref keyframe storage, proxy frame + RMS sampling, word-timed cues; 30-min pass 2.4 min after two perf fixes; H-22 weights) |
+| B20 | Proposal review UI + exports apply cuts/zooms via `timemap` (browser + cloud) + parity fixtures | A17, A19, A20, B18, B19 | done (merged: shared crop-window curve for browser + ffmpeg, Passes tab/ProposalCard/bulk accept, split lanes, output-length test, crop parity; B20b after B19b) |
 | C00 | Signing & release pipeline (notarytool + 24 h buffer, cloud-HSM Windows signing, `.ccx`, ZXP, Resolve bundle, channels, SBOM); dry-run until A00-03 | A01 | done (merged: dry-run release CLI + workflows, fail-closed signed mode, 24 h notarisation gate, SBOM/checksums/feeds; release secrets in tools/release/.env.example; H-23) |
-| C01 | Local bridge v2: `bridge-core` + Node SEA app, relay-first WSS, loopback HTTPS + per-install cert, pairing, 12 h pair tokens, api relay module | A04, A08, B08 | done on wp/C01 (merge into main blocked by an app.module.ts conflict — agent re-merging main; C01b + B08b follow) |
-| C02 | Desktop shell: Electron loading the hosted web app (decision D71), deep links, updater with channels, tray, embedded bridge, hardened defaults | A13, C00, C01 | done (merged: hardened Electron shell, allowlist, aksharo:// deep links, updater channels, fuses, BridgeAdapter stub; T25 added; C00 provides release scripts) |
+| C01 | Local bridge v2: `bridge-core` + Node SEA app, relay-first WSS, loopback HTTPS + per-install cert, pairing, 12 h pair tokens, api relay module | A04, A08, B08 | done (C01 + C01b + B08b merged: bridge-core protocol, loopback TLS + relay, per-install cert in keychain/DPAPI with file fallback, flagged native tray (off), per-device bridge tokens) |
+| C02 | Desktop shell: Electron loading the hosted web app (decision D71), deep links, updater with channels, tray, embedded bridge, hardened defaults | A13, C00, C01 | done (C02 merged; C02b running: real bridge adapter wiring, pairing approval UX, Electron e2e in the release workflow) |
 Sub-wave order: {B10, B11, B18, C00} → {B12, B14, B15, B19, C01} → {B13, B20, C02} → **Gate B**.
 
 ## Wave 5 — Plugins
 C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
+
+| ID | Package | Deps | Status |
+|---|---|---|---|
+| C11 | Plugin licensing & devices UI (activation limits, revoke, offline lease, activation card) | B08, B08b, C01 | running |
+| C12 | Desktop/plugin telemetry (consent), crash reporting, diagnostics bundle | C02, A05, B12, B16 | running |
+| C05a | Premiere UXP plugin foundation over a mocked host adapter (Gate C runs it on a real machine) | C01, C00, A00-03 | running |
+| C08 | Resolve `aksharo_core` over a FakeResolve adapter | C01, A00-04 | running |
+| C10 | Installers (NSIS/pkg/Resolve/.ccx), `/plugins/manifest`, plugins + download pages | C00, C02, C05a, C08 | briefed |
+| D08 | Eval harness & quality gates on fixture datasets, shadow routing, routing freeze, admin leaderboard | A10, B13, B16 | briefed |
+| C06, C06b, C08b | Premiere apply modes, MOGRT authoring, Text+ macro | C05a / C08 | to brief after C05a/C08 land |
 
 ## Wave 6 — AE, local engine, library
 C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machines).

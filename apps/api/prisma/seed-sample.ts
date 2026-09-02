@@ -126,6 +126,15 @@ interface FixtureWord {
   filler?: boolean;
 }
 
+/** Explicit-throw indexed access — clearer at a seed-script call site than a bare `!`. */
+function wordAt(words: readonly FixtureWord[], index: number): FixtureWord {
+  const word = words[index];
+  if (word === undefined) {
+    throw new Error(`seed-sample: fixture word index ${String(index)} is out of range.`);
+  }
+  return word;
+}
+
 const TURNS: { sp: "s1" | "s2"; words: { t: string; roman: string; native?: string }[] }[] = [
   {
     sp: "s1",
@@ -435,7 +444,7 @@ async function main(): Promise<void> {
     select: { id: true, edgDocument: { select: { id: true } } },
   });
   if (existing !== null && existing.edgDocument !== null) {
-    console.log(`seed-sample: project ${existing.id} already seeded, leaving it as is.`);
+    console.warn(`seed-sample: project ${existing.id} already seeded, leaving it as is.`);
     await prisma.$disconnect();
     return;
   }
@@ -554,8 +563,18 @@ async function main(): Promise<void> {
       ? []
       : [{ startMs: fillerWord.s, endMs: fillerWord.e, reason: "filler_word", confidence: 0.86 }]),
     // Two of the 800ms inter-turn gaps, picked past the first two turns.
-    { startMs: words[5]!.e, endMs: words[5]!.e + 800, reason: "silence", confidence: 0.95 },
-    { startMs: words[12]!.e, endMs: words[12]!.e + 800, reason: "silence", confidence: 0.95 },
+    {
+      startMs: wordAt(words, 5).e,
+      endMs: wordAt(words, 5).e + 800,
+      reason: "silence",
+      confidence: 0.95,
+    },
+    {
+      startMs: wordAt(words, 12).e,
+      endMs: wordAt(words, 12).e + 800,
+      reason: "silence",
+      confidence: 0.95,
+    },
   ];
   for (const item of items) {
     await prisma.edgPassItem.create({
@@ -574,7 +593,7 @@ async function main(): Promise<void> {
     });
   }
 
-  console.log(
+  console.warn(
     `seed-sample: project ${project.id} ready (transcript ${transcriptId}, pass ${passId}).`,
   );
 }

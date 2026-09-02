@@ -221,6 +221,7 @@ enum Aspect {
 enum PassType {
   autocut
   reframe
+  zoom
   sfx
   music
   textfx
@@ -626,6 +627,9 @@ model User {
   comments        Comment[]
   clearanceGrants AssetClearanceGrant[]
   notifications   Notification[]
+  academyProgress AcademyProgress[]
+  supportTickets  SupportTicket[]
+  changelogDismissal ChangelogDismissal?
   adminRoles      AdminRole[]
   adminTotp       AdminTotp?
 
@@ -862,6 +866,7 @@ model Workspace {
   apiKeys             ApiKey[]
   sessions            Session[]
   bridgePairings      BridgePairing[]
+  bridgeSessions      BridgeSession[]
   consentRecords      ConsentRecord[]
   creditAccount       CreditAccount?
   subscriptions       Subscription[]
@@ -881,6 +886,9 @@ model Workspace {
   streakExperiment    StreakExperiment?
   publishEvents       PublishEvent[]
   referral            Referral?
+  academyProgress     AcademyProgress[]
+  academyRewards      AcademyReward[]
+  supportTickets      SupportTicket[]
   referralRewardsGiven    ReferralReward[] @relation("ReferralRewardReferrer")
   referralRewardReceived  ReferralReward?  @relation("ReferralRewardReferred")
   assetUsages         AssetUsage[]
@@ -936,6 +944,7 @@ model Device {
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   sessions       Session[]
   bridgePairings BridgePairing[]
+  bridgeSessions BridgeSession[]
 
   @@unique([workspaceId, fingerprint])
   @@index([workspaceId])
@@ -1047,6 +1056,28 @@ model BridgePairing {
   @@index([workspaceId])
   @@index([expiresAt])
   @@map("bridge_pairings")
+}
+
+/// Audit row for one relay connection through `/bridge/relay` (C01 brief §3, §6:
+/// "the relay never stores payloads; `bridge_sessions` rows for audit"). One row
+/// per WebSocket connection, bridge or client side; `clientKind` mirrors the
+/// token's `kind` claim so an admin view (B13 hook) can tell a bridge's own
+/// relay leg from the browser/plugin session it carried.
+model BridgeSession {
+  id             String    @id @db.Char(26)
+  workspaceId    String    @map("workspace_id") @db.Char(26)
+  deviceId       String?   @map("device_id") @db.Char(26)
+  clientKind     String    @map("client_kind")
+  connectedAt    DateTime  @default(now()) @map("connected_at") @db.Timestamptz(6)
+  disconnectedAt DateTime? @map("disconnected_at") @db.Timestamptz(6)
+  framesRelayed  Int       @default(0) @map("frames_relayed")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  device    Device?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([connectedAt])
+  @@map("bridge_sessions")
 }
 
 // ===========================================================================
@@ -2986,4 +3017,107 @@ model ProductEvent {
   @@index([kind, createdAt])
   @@index([workspaceId])
   @@map("product_events")
+}
+
+// ===========================================================================
+// Academy, changelog, help & support — B12
+//
+// Content itself (track/step/help-article/changelog copy) lives as MDX in
+// `apps/web/content/{academy,help,changelog}`, validated at build by zod
+// schemas in `apps/web/lib/content/schema.ts` — these tables hold only the
+// per-user/per-workspace state a static file cannot: which steps are done,
+// which one-time rewards were paid, which changelog version a user has
+// dismissed, and support tickets. `AcademyLesson`/`LessonProgress`/
+// `ChangelogEntry`/`HelpArticle` above are an earlier (A01) DB-body content
+// design this brief supersedes with the file-based one; left in place
+// untouched (unreferenced by any app code) rather than risk a cross-package
+// break for a table nothing outside this migration touches.
+// ===========================================================================
+
+/// One row per (workspace, user, track, step) the user has completed. A step
+/// is "done" either because the user clicked "Mark done" or because a product
+/// event satisfied its `completionEvent` (export.completed → matching step).
+model AcademyProgress {
+  id          String   @id @db.Char(26)
+  workspaceId String   @map("workspace_id") @db.Char(26)
+  userId      String   @map("user_id") @db.Char(26)
+  trackId     String   @map("track_id")
+  stepId      String   @map("step_id")
+  /// "manual" (Mark done) | "event" (product event auto-completed it).
+  source      String   @default("manual")
+  completedAt DateTime @default(now()) @map("completed_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId, trackId, stepId])
+  @@index([workspaceId, trackId])
+  @@map("academy_progress")
+}
+
+/// One-time credit reward for finishing a track. Unique on
+/// `(workspaceId, trackId)` is what makes the reward exactly-once — a second
+/// completion (e.g. a step re-marked done after `DeleteWord`-style edits) finds
+/// the row already there and grants nothing. The lifetime-100-credits-per-
+/// workspace cap (brief §2) is enforced by summing `tenths` across a
+/// workspace's rows before granting a new one.
+model AcademyReward {
+  id          String   @id @db.Char(26)
+  workspaceId String   @map("workspace_id") @db.Char(26)
+  trackId     String   @map("track_id")
+  /// Credits, tenths (CONTRACTS §0). Capped 25 credits (250 tenths) per track.
+  tenths      Int
+  lotId       String?  @map("lot_id") @db.Char(26)
+  grantedAt   DateTime @default(now()) @map("granted_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, trackId])
+  @@index([workspaceId])
+  @@map("academy_rewards")
+}
+
+/// Per-user dismissed changelog version, backing the "What's new" modal's
+/// once-per-version gating. One row per user (not per workspace): the modal is
+/// about what a *person* has seen, and a person can belong to several
+/// workspaces.
+model ChangelogDismissal {
+  id            String   @id @db.Char(26)
+  userId        String   @unique @map("user_id") @db.Char(26)
+  /// Latest changelog version this user has dismissed (or opened) the modal for.
+  version       String
+  dismissedAt   DateTime @default(now()) @map("dismissed_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("changelog_dismissals")
+}
+
+/// A workspace member's support request, optionally carrying a consent-gated
+/// diagnostics bundle assembled client-side (app version, browser/OS,
+/// workspace id, last 10 job ids/statuses, a console-error ring buffer — never
+/// media). Emailed to `BRAND.supportEmail` via `notify` and listed back to the
+/// requester in Settings → Support; B13's admin console reads the same table.
+model SupportTicket {
+  id          String   @id @db.Char(26)
+  workspaceId String   @map("workspace_id") @db.Char(26)
+  userId      String   @map("user_id") @db.Char(26)
+  subject     String
+  body        String
+  /// Free string, closed set enforced by `CreateSupportTicketSchema` (bug |
+  /// billing | export | account | other).
+  category    String
+  /// open | in_progress | resolved | closed — B13 (admin) transitions it.
+  status      String   @default("open")
+  /// Zod: `SupportDiagnosticsSchema`. Null when the requester declined consent.
+  diagnostics Json?    @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([status])
+  @@map("support_tickets")
 }

@@ -5,6 +5,10 @@ on:
     branches: ["main", "wave/**", "wp/**"]
   pull_request:
     branches: ["main", "wave/**"]
+  # C01b: lets a maintainer re-run the whole matrix (including `bridge-sea`,
+  # which otherwise only runs on a push) from the Actions UI/`gh workflow run`
+  # without needing an empty commit, e.g. to dry-run a workflow-file change.
+  workflow_dispatch: {}
 
 # One run per ref: a new push cancels the previous run, except on main where
 # every commit must be proven green.
@@ -354,6 +358,44 @@ jobs:
           name: playwright-report
           path: apps/web/playwright-report/
           retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # C01: the bridge Node SEA must actually build and run a smoke check on both
+  # platforms it ships to (Windows and macOS; a Linux runner is not a real
+  # target so it is not in the matrix). This mirrors the local smoke test that
+  # produced the discovery file during development of this work package.
+  # ---------------------------------------------------------------------------
+  bridge-sea:
+    name: Bridge SEA build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build bridge-core and apps/bridge
+        run: pnpm --filter @montaj/bridge... build
+
+      - name: Build the SEA binary
+        run: pnpm --filter @montaj/bridge build:sea
+
+      - name: Smoke test (starts, binds loopback, writes discovery file, exits clean)
+        shell: bash
+        run: node scripts/ci/bridge-sea-smoke.mjs
 
   # ---------------------------------------------------------------------------
   # The dev stack must stay valid: a broken compose file blocks every wave gate

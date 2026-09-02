@@ -50,7 +50,7 @@ describe("<StreakChip />", () => {
       config: { flags: { "growth.streakWidget": true } },
     });
     const chip = await screen.findByTestId("streak-chip-paused");
-    expect(chip).toHaveTextContent("Streak paused — one export restores it");
+    expect(chip).toHaveTextContent("streak paused — one export restores it");
     expect(screen.queryByText(/reset/i)).toBeNull();
   });
 

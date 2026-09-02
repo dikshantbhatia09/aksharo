@@ -6,7 +6,7 @@ import { RequestContext } from "../request-context.js";
 import { ApiKeyGuard, hashApiKeySecret, parseApiKey } from "./api-key.guard.js";
 import { bearerToken, JwtAuthGuard } from "./jwt-auth.guard.js";
 import { clientIp, clientUserAgent, roleAtLeast } from "./principal.js";
-import { IS_PUBLIC_KEY } from "./public.decorator.js";
+import { ALLOW_BRIDGE_TOKEN_KEY, IS_PUBLIC_KEY } from "./public.decorator.js";
 import { RateLimitGuard, RATE_LIMIT_KEY } from "./rate-limit.guard.js";
 import { RateLimitService } from "./rate-limit.service.js";
 import { ROLES_KEY, RolesGuard } from "./roles.guard.js";
@@ -155,6 +155,46 @@ describe("JwtAuthGuard", () => {
       kind: "web",
       jti: "session-1",
     });
+  });
+
+  // ---------------------------------------------------------------------
+  // B08b (CONTRACTS §5): a bridge token never passes this guard for an
+  // ordinary user route unless one opts in with `@AllowBridgeToken()`.
+  // ---------------------------------------------------------------------
+
+  const bridgeVerifier = () => ({
+    verifyAccessToken: vi.fn().mockResolvedValue({
+      sub: "user-1",
+      ws: "ws-1",
+      role: "editor",
+      kind: "bridge",
+      jti: "session-1",
+      iat: 1,
+      exp: 2,
+      iss: "http://localhost:3001",
+      deviceId: "device-1",
+    }),
+  });
+
+  it("refuses a bridge token on a route with no @AllowBridgeToken()", async () => {
+    const guard = new JwtAuthGuard(reflectorFor({}), bridgeVerifier());
+    const request = { headers: { authorization: "Bearer token" } } as unknown as Request;
+    await expect(guard.canActivate(contextFor(request))).rejects.toMatchObject({
+      code: "common/forbidden",
+      httpStatus: HttpStatus.FORBIDDEN,
+    });
+  });
+
+  it("lets a bridge token through a route that opts in with @AllowBridgeToken()", async () => {
+    const guard = new JwtAuthGuard(
+      reflectorFor({ [ALLOW_BRIDGE_TOKEN_KEY]: true }),
+      bridgeVerifier(),
+    );
+    const request = {
+      headers: { authorization: "Bearer token" },
+    } as unknown as Request & { principal?: unknown };
+    await expect(guard.canActivate(contextFor(request))).resolves.toBe(true);
+    expect(request.principal).toMatchObject({ kind: "bridge", deviceId: "device-1" });
   });
 });
 
