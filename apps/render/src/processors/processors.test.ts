@@ -242,7 +242,12 @@ describe("the render.video processor", () => {
     const payload = {
       ...base,
       path: "ass" as const,
-      styles: { "not-renderable": { ...sampleStyles()["punch-pop"], assRenderable: false } },
+      styles: {
+        "not-renderable": {
+          ...(sampleStyles()["punch-pop"] as Record<string, unknown>),
+          assRenderable: false,
+        },
+      },
       projection: {
         ...base.projection,
         segments:
