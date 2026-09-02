@@ -34,6 +34,7 @@ Fable 5.1 orchestrates, designs and decides; coding agents implement briefs. Cod
 | A02 | `@montaj/edg` v2 + `@montaj/caption-styles` v2 schemas + fixtures | A01 | Opus | done |
 | A02b | EDG ops engine (rebase table, CAS, snapshots, migrations, property tests) | A02 | Opus | done |
 | A02c | `@montaj/timemap` | A02 | Opus | done |
+| A02d | `SetWordTiming` op end to end: EDG engine + rebase rule, API passthrough, client inverse op, timeline word-edge drag (A17 finding; CONTRACTS §2 amended) | A02b, A12, A17 | Sonnet | briefed |
 | A03 | api: Prisma schema v2 + hand SQL, migrations, seed, base modules | A01 | Opus | done |
 | A03b | api: seed loader injection, `registry.json` exclusion, `edg_segments.seq` → `text COLLATE "C"` migration (A02/A03 reconciliation) | A02, A03 | Opus | done |
 | A03c | api: `PassStatus` enum `succeeded` → `ready` migration (package is source of truth) | A02b, A03b | Opus | done |
