@@ -1,4 +1,5 @@
 import { newId as defaultNewId, parseWordId, type WordId } from "../ids.js";
+import { type ProtectedRange } from "../schemas/document.js";
 import {
   type DecideItemsOp,
   type EdgOp,
@@ -17,6 +18,7 @@ import {
   type SetRenderOp,
   type SetSegmentBoundsOp,
   type SetSegmentPositionOp,
+  type SetProtectedRangesOp,
   type SetSegmentTextOp,
   type SetStyleOp,
   type SetWordTimingOp,
@@ -544,6 +546,56 @@ function applySetWordTiming(draft: EdgDraft, op: SetWordTimingOp): void {
   putWord(draft, { ...word, s: op.s, e: op.e });
 }
 
+/** The media duration ranges clamp to: the primary media, or the longest media. */
+function mediaDurationMs(draft: EdgDraft): number | undefined {
+  const primary = draft.hot.media.find((media) => media.role === "primary");
+  if (primary !== undefined) return primary.durationMs;
+  return draft.hot.media.reduce<number | undefined>(
+    (max, media) => (max === undefined || media.durationMs > max ? media.durationMs : max),
+    undefined,
+  );
+}
+
+/**
+ * Sorts, clamps to `[0, durationMs]` and merges overlapping (or touching)
+ * ranges. A range that collapses to empty after clamping is dropped. The
+ * surviving id of a merged run is the first range's, in sorted order.
+ */
+export function normaliseProtectedRanges(
+  ranges: readonly { id: string; s: number; e: number }[],
+  durationMs: number | undefined,
+): ProtectedRange[] {
+  const clamped = ranges
+    .map((range) => ({
+      id: range.id,
+      s: Math.max(0, range.s),
+      e: durationMs === undefined ? range.e : Math.min(range.e, durationMs),
+    }))
+    .filter((range) => range.s < range.e)
+    .sort((a, b) => a.s - b.s || a.e - b.e);
+
+  const merged: ProtectedRange[] = [];
+  for (const range of clamped) {
+    const last = merged[merged.length - 1];
+    if (last !== undefined && range.s <= last.e) {
+      if (range.e > last.e) merged[merged.length - 1] = { ...last, e: range.e };
+      continue;
+    }
+    merged.push({ id: range.id, s: range.s, e: range.e, reason: "user" });
+  }
+  return merged;
+}
+
+function applySetProtectedRanges(draft: EdgDraft, op: SetProtectedRangesOp): void {
+  for (const range of op.ranges) {
+    if (range.s >= range.e) {
+      fail("invalid-range", `range ${range.id} has s ${range.s} >= e ${range.e}`);
+    }
+  }
+  const protectedRanges = normaliseProtectedRanges(op.ranges, mediaDurationMs(draft));
+  draft.hot = { ...draft.hot, protected: protectedRanges };
+}
+
 function applyResegment(draft: EdgDraft, op: ResegmentOp, ctx: ApplyContext): void {
   if (draft.words.size === 0) fail("invariant", "Resegment needs the transcript to be loaded");
   const words = draftLiveWords(draft);
@@ -715,6 +767,8 @@ function dispatch(draft: EdgDraft, op: EdgOp, ctx: ApplyContext): void {
       return applyDeleteWord(draft, op);
     case "InsertWordAfter":
       return applyInsertWordAfter(draft, op);
+    case "SetProtectedRanges":
+      return applySetProtectedRanges(draft, op);
     case "SetWordTiming":
       return applySetWordTiming(draft, op);
     case "Resegment":

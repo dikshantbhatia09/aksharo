@@ -290,8 +290,29 @@ describe("Resegment since the base revision", () => {
       op("SetStyle", { scope: "doc", styleRef: "punch-pop" }),
       op("SetAudio", { clean: { enabled: true } }),
       op("SetWordTiming", { wordId: "0:4", s: 10, e: 20 }),
+      op("SetProtectedRanges", { ranges: [{ id: "a", s: 1_000, e: 2_000 }] }),
     ];
     const { rebased, rejected } = rebaseOps(incoming, since);
+    expect(rebased).toEqual(incoming);
+    expect(rejected).toEqual([]);
+  });
+});
+
+describe("SetProtectedRanges", () => {
+  it("last write wins on doc:protected", () => {
+    const incoming = [op("SetProtectedRanges", { ranges: [{ id: "a", s: 1_000, e: 2_000 }] })];
+    const { rebased, rejected } = rebaseOps(incoming, [
+      op("SetProtectedRanges", { ranges: [{ id: "b", s: 3_000, e: 4_000 }] }),
+    ]);
+    expect(rebased).toEqual([]);
+    expect(reasons(rejected)).toEqual(["rebased-away"]);
+  });
+
+  it("survives a Resegment since the base (it names no segment or word)", () => {
+    const incoming = [op("SetProtectedRanges", { ranges: [{ id: "a", s: 1_000, e: 2_000 }] })];
+    const { rebased, rejected } = rebaseOps(incoming, [
+      op("Resegment", { maxChars: 30, maxLines: 2, minMs: 700, maxMs: 6000 }),
+    ]);
     expect(rebased).toEqual(incoming);
     expect(rejected).toEqual([]);
   });

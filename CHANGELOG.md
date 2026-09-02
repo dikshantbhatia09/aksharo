@@ -10,6 +10,115 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **C01 — Local bridge v2: `packages/bridge-core` + `apps/bridge` (Node SEA);
+  relay-first WSS; loopback HTTPS + per-install cert; pairing; api
+  `bridge-relay` module.** `packages/bridge-core`: a JSON-RPC 2.0 protocol
+  (`hello`, `pair.request`/`pair.confirm`, `session.exchange`, `host.list`,
+  `engine.status`, `fs.pickMedia`, `media.stat`/`uploadTicket`,
+  `transcript.push`, `apply.begin/step/commit/abort`, `events.subscribe`) with
+  zod schemas for every method; a loopback HTTPS+WS server on the first free
+  port of 47831-47833 bound to `127.0.0.1` with bearer-on-every-route
+  (constant-time compare), `Host` allowlist, `Origin` allowlist (`null` never
+  allowed, Chrome Local Network Access header only for allowlisted origins),
+  message-size and rate limits; a per-install self-signed leaf certificate
+  (RSA 2048 — see the ECDSA P-256 deviation note in `cert.ts`) cached under
+  `~/.aksharo/cert/` and fingerprinted into the `~/.aksharo/bridge.json`
+  discovery file (mode 0600); tray-gesture pairing with an 8-character
+  code fallback and 12-hour HMAC-signed scoped pair tokens, revocable by
+  `clientId`; a relay client (`RelayClient`) with heartbeat and jittered
+  exponential-backoff reconnection; a small documented public API
+  (`BridgeCore`: `start`/`stop`/`getStatus`/`status` events/pairing) that is
+  the only surface `apps/bridge` and the desktop shell (C02) import. 45 tests,
+  85.7%/82.2% line/branch coverage (threshold 75/70). `apps/bridge`: the Node
+  22 SEA wrapper (`main.ts` + `config.ts` for `~/.aksharo/config.json`);
+  `scripts/build-sea.mjs` bundles with esbuild, runs
+  `--experimental-sea-config`, and injects the blob with `postject`; smoke
+  tested locally on Windows (binary starts, binds a loopback port, writes a
+  valid discovery file, exits clean) and wired into CI as the `bridge-sea`
+  matrix job (Windows + macOS) via `scripts/ci/bridge-sea-smoke.mjs`. A real
+  system tray (brief §5) is not implemented — `createConsoleTray` is the
+  documented headless fallback; see the WP report for why and what a
+  follow-up needs. `apps/api/src/bridge-relay`: the `/bridge/relay` WS module
+  pairing one bridge connection to one client connection per workspace and
+  forwarding opaque JSON-RPC text between them (payloads are never parsed or
+  stored), with bearer/rate-limit/message-size guards, heartbeat, and a
+  `bridge_sessions` audit table (new Prisma model + migration
+  `20260902195854_c01_bridge_sessions`); e2e-tested against real Postgres with
+  a fake bridge and fake client. Deviation: the brief assumes a per-device
+  bridge token: CONTRACTS §5's `sub` claim is always the user id and B08
+  registers devices by fingerprint under a normal user session rather than
+  minting one token per device, so relay pairing is keyed by
+  workspace+user (one paired bridge per signed-in user per workspace) until a
+  follow-up work package adds a real per-device bridge credential — see the
+  WP report's open questions.
+- **B20 — Passes tab, ProposalCard, bulk accept, timeline lanes; export application
+  of accepted cuts/zoom/reframe through `@montaj/timemap` (browser + cloud).**
+  - **Review UI** (`apps/web/components/editor/passes/**`): `PassesTab` (run-autocut
+    dialog with a client-side credits estimate, kind/status/confidence filters, bulk
+    accept — "Accept all ≥ 0.8", "Accept all cuts", "Reset decisions" — a summary bar,
+    J/K/A/R/Space keyboard review) and `ProposalCard` (reason, confidence,
+    accept/reject/undo, a before/after preview callback seam). Decisions are real
+    `DecideItems` ops sent through the existing `EditorStore.submitOps` (A12's
+    debounce/optimistic-apply/rebase path, unmodified). `apps/web/lib/passes/**`:
+    `decisions.ts` (pure op-builder + filter/bulk-accept predicates + `summaryDurations`
+    over `@montaj/timemap`), `client.ts`/`quote.ts` (the `startAutocutPass` endpoint
+    descriptor + a client-side quote estimate), `realtime.ts`
+    (`usePassRunProgress`, a `job.progress`/`job.completed` subscription).
+  - **Timeline lanes** (`apps/web/lib/timeline/lanes.ts`, `components/editor/timeline/
+Timeline.tsx`, extending A17): the merged "Zoom & reframe" lane split into
+    separate `zoom`/`reframe` rows; `laneItemStrokeStyle` — accepted dimmed +
+    struck-through, proposed dashed; hover reports an item's reason
+    (`onHoverPassItem`) and click selects it (`onSelectPassItem`).
+  - **Export application, browser + cloud** — the render-manifest schema gained an
+    optional `timemap.keyframes: KeyframeTrack[]` field (`{itemId, itemStartMs,
+kind, packed}`, base64 of B19's real `@montaj/edg` `passes/keyframes.ts`
+    ("MKF2") rows). `packages/render-core`'s new `frame/crop-window.ts`
+    (`sampleCropWindow`, pure interpolation + easing over a normalised source crop
+    rect) and `frame/keyframe-track.ts` (`outputCropKeyframesFromTracks`: decode +
+    remap onto the output clock via `TimeMap.mapKeyframes`, pinning at every
+    splice) are the one implementation both `apps/web/lib/export/engine.ts`
+    (samples the crop window per frame, draws the corresponding sub-rect of the
+    cover-fit source canvas) and `apps/render`'s ffmpeg graph (a hand-verified
+    `crop=w:h:x:y` expression builder, `ffmpeg/crop-expr.ts`, spliced before the
+    cover-fit scale) consume — proven to agree via
+    `apps/render/src/ffmpeg/crop-parity.test.ts`'s two fixtures (cut+zoom,
+    cut+reframe).
+  - **Output-length verification** (B18's leftover TODO): `apps/web/lib/export/
+output-length.test.ts` proves only `accepted` cut items shorten
+    `fromAcceptedItems`' `outputDurationMs`.
+  - **Known gaps, reported not fixed here:** (1) the API's manifest builder
+    (`apps/api/src/exports/manifest-builder.ts`) has the additive
+    `keyframeTracks` field wired but nothing populates it from accepted
+    zoom/reframe items yet — blocked on B19's keyframe-bytes storage (its own
+    final report already flags this as the "keyframesRef gap"); (2) drag-to-adjust
+    cut boundaries needs an `EditPassItem` op that does not exist in CONTRACTS §2 —
+    not added unilaterally, per the brief's own instruction to report first;
+    (3) A18a's parity gate (`packages/ass-exporter/parity`) measures caption
+    _style_ rendering fidelity and has no axis for "a cut/zoom was applied" — the
+    crop-window parity is proven separately (above) rather than forced into that
+    harness; (4) the CanvasKit preview's live zoom-rectangle/reframe-crop-window
+    overlay and "preview with cuts" scrubbing are not implemented — the shared
+    crop-window primitives are ready for that integration.
+- **B18b — Protected ranges end to end: `SetProtectedRanges` op, editor
+  marking UI, passes honour the stored set.** `packages/edg`: `EdgHot.protected[]`
+  (CONTRACTS §2) and the `SetProtectedRanges{ranges:[{id,s,e}]}` op — apply
+  clamps every range to the primary media's duration, merges overlapping or
+  touching ranges, drops empty ones, and stamps `reason: "user"`; rebase adds
+  the `doc:protected` field (last write wins); a property test
+  (`ops/properties.test.ts`) holds the stored set sorted and non-overlapping
+  after any sequence of ops; `edg-v2.json`/`edg-ops-v2.json` regenerated.
+  `apps/api/src/passes/passes.service.ts`: `protectedRanges` sent to every
+  `ai.pass` is now the stored `EdgHot.protected` set concatenated with the
+  existing emphasis/textOverrides-derived `guardedRanges`; e2e in
+  `passes.e2e-spec.ts` proves a `SetProtectedRanges` op reaches the enqueued
+  autocut job's `protectedRanges`. `apps/web`: `lib/edg/ops.ts` gets
+  `setProtectedRanges`, `toggleProtectedRange` (adds, merges, subtracts or
+  removes a range against the current selection) and `isFullyProtected`, plus
+  a `SetProtectedRanges` inverse for undo; `Timeline.tsx` draws a
+  `--color-info` band for every protected range and wires the "P" key (and a
+  "Protect (P)" button) to toggle protection on the selected segment or word;
+  one chromium Playwright case in `timeline.spec.ts`.
+
 - **C00 — Signing & release pipeline (dry-run only; credentials do not exist yet).**
   New `tools/release` package (`@montaj/release`) exposing `pnpm release <cmd>`:
   `version` (conventional-commit semver bump + `CHANGELOG.md` section assembly),
@@ -258,6 +367,37 @@ admin-step-up.{controller,service,dto,constants}.ts`: TOTP enrol/verify
   `docs/verification/load-<date>.md`. `.github/workflows/e2e.yml`: the Gate
   A journey plus the load harness against the compose stack, on PRs into a
   wave branch.
+
+### Added
+
+- **A07b — a `media.proxy` completion handler, and a real-dialog export e2e.**
+  `apps/api/src/media/proxy.handler.ts` (`MediaProxyCompletionHandler`)
+  registers on `JobCompletionRegistry` alongside A07's probe handler: it
+  independently flips `media_assets.status` to `ready`/`failed` off the
+  job's own completion, alongside (never instead of) the worker's `PATCH
+/internal/media/{id}` write-back — closing the gap A23 found where a
+  completed `media.proxy` job left the asset stuck unless that separate
+  write-back happened to land. Idempotent both ways: the same outcome
+  twice is a no-op, and a conflicting outcome always resolves to `failed`
+  (a stray `ready` is overwritten; a success completion never undoes an
+  existing `failed`). Failure completions needed a new, additive
+  `JobCompletionHandler.handleFailure?` hook (`apps/api/src/jobs/
+completion-handlers.ts`) and one call site in `JobsService.complete`
+  (`apps/api/src/jobs/jobs.service.ts`) — every existing handler is
+  unaffected since none implements it. `apps/web/e2e/gate-a.spec.ts` no
+  longer needs `patchMediaForTest` to reach `status: "ready"`.
+
+  `apps/web/components/editor/export/use-export-dialog.ts` now accepts a
+  `preferFileSystemAccess` dep (default `true`) and, in non-production
+  builds only, reads `window.__aksharoE2E?.noFilePicker` to force `false`
+  — a synthetic Playwright click is not a "user activation"
+  `showSaveFilePicker` recognises, so without this a real click on the
+  export dialog's own button aborted the export before this fix.
+  `apps/web/e2e/export.spec.ts` adds a second chromium test that drives the
+  real `ExportDialog` end to end (open → Video tab → Export → the software-
+  encoder cloud-offer override where a headless browser needs it → `export-
+done`), verified against `GET /projects/{id}/exports`, alongside the
+  existing `/export-harness`-driven ffprobe assertion.
 
 ### Fixed
 

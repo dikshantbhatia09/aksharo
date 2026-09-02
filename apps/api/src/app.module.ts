@@ -12,6 +12,7 @@ import { AudioModule } from "./audio/audio.module.js";
 import { AuthModule } from "./auth/auth.module.js";
 import { BatchModule } from "./batch/batch.module.js";
 import { BillingModule } from "./billing/billing.module.js";
+import { BridgeRelayModule } from "./bridge-relay/bridge-relay.module.js";
 import { CommentsModule } from "./comments/comments.module.js";
 import { CommonModule } from "./common/common.module.js";
 import { ConsentsModule } from "./consents/consents.module.js";
@@ -160,6 +161,10 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     ShareModule,
     CommentsModule,
     BatchModule,
+    // C01: `/bridge/relay` — the outbound-WSS tunnel the local bridge and web/
+    // plugin clients ride when loopback is unreachable (brief §3). Last, like
+    // `PublicApiModule`/`WebhooksModule`: nothing above depends on it.
+    BridgeRelayModule,
   ],
 })
 export class AppModule {}
