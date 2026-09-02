@@ -14,6 +14,7 @@
 import { defineEndpoint } from "./http.js";
 
 import type {
+  AvailableScripts,
   ConsentState,
   CurrentUser,
   DeviceApproveRequest,
@@ -23,12 +24,17 @@ import type {
   MemoryEntry,
   OAuthCompleteRequest,
   PendingApproval,
+  PlanCatalogueEntry,
   RightsRequest,
   SessionSummary,
   SetConsentRequest,
   SignUpRequest,
   SignUpResponse,
   TokenResponse,
+  TranslateAccepted,
+  TranslateRequest,
+  TransliterateAccepted,
+  TransliterateRequest,
   UpdateMeRequest,
   UsageSummary,
   WorkspaceSummary,
@@ -180,6 +186,16 @@ export const accountEndpoints = {
 } as const;
 
 /** Jobs (A08) — the shell needs them for `JobProgress` and the realtime resync. */
+/** Billing (B01). Public — the plan catalogue needs no session (07 §Billing). */
+export const billingEndpoints = {
+  listPlans: defineEndpoint<void, PlanCatalogueEntry[]>({
+    method: "GET",
+    path: "/billing/plans",
+    auth: "public",
+    operationId: "listPlans",
+  }),
+} as const;
+
 export const jobEndpoints = {
   get: defineEndpoint<void, { id: string; status: string; progress?: number; etaMs?: number }>({
     method: "GET",
@@ -192,6 +208,28 @@ export const jobEndpoints = {
     path: "/jobs",
     auth: "bearer",
     operationId: "listJobs",
+  }),
+} as const;
+
+/** Scripts and translation (A22): `apps/api/src/transcripts/scripts`. */
+export const transcriptScriptsEndpoints = {
+  transliterate: defineEndpoint<TransliterateRequest, TransliterateAccepted>({
+    method: "POST",
+    path: "/projects/{projectId}/transcript/transliterate",
+    auth: "bearer",
+    operationId: "transliterateProjectTranscript",
+  }),
+  translate: defineEndpoint<TranslateRequest, TranslateAccepted>({
+    method: "POST",
+    path: "/projects/{projectId}/transcript/translate",
+    auth: "bearer",
+    operationId: "translateProjectTranscript",
+  }),
+  scripts: defineEndpoint<void, AvailableScripts>({
+    method: "GET",
+    path: "/projects/{projectId}/transcript/scripts",
+    auth: "bearer",
+    operationId: "getProjectTranscriptScripts",
   }),
 } as const;
 
@@ -228,6 +266,8 @@ export const endpoints = {
   device: deviceEndpoints,
   account: accountEndpoints,
   jobs: jobEndpoints,
+  transcriptScripts: transcriptScriptsEndpoints,
+  billing: billingEndpoints,
   pending: pendingEndpoints,
 } as const;
 
@@ -237,5 +277,7 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(deviceEndpoints),
   ...Object.entries(accountEndpoints),
   ...Object.entries(jobEndpoints),
+  ...Object.entries(transcriptScriptsEndpoints),
+  ...Object.entries(billingEndpoints),
   ...Object.entries(pendingEndpoints),
 ] as const;

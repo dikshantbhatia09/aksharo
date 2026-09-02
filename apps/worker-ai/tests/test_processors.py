@@ -31,6 +31,8 @@ from worker_ai.queues import parse_envelope
 from worker_ai.routing import load_routing_table
 from worker_ai.settings import Settings, load_settings
 from worker_ai.storage import ObjectStore, StorageError
+from worker_ai.translate.providers.base import TranslationProvider
+from worker_ai.transliterate import TransliterationProvider
 from worker_ai.vad import EnergyVad
 
 from .conftest import MEDIA_ID, PROJECT_ID, VALID_ENV, WORKSPACE_ID, clip, envelope
@@ -51,6 +53,8 @@ class RecordingCallbacks(CallbackClient):
         super().__init__("http://callbacks.invalid", "r" * 64)
         self.progress_calls: list[tuple[float, str | None]] = []
         self.completions: list[JobCompletion] = []
+        self.transcript_scripts_calls: list[tuple[str, dict[str, Any]]] = []
+        self.edg_ops_calls: list[tuple[str, dict[str, Any]]] = []
 
     async def progress(
         self,
@@ -70,6 +74,18 @@ class RecordingCallbacks(CallbackClient):
         self.completions.append(completion)
         return CallbackAck(applied=True, job_id=job_id, status=completion.status)
 
+    async def write_transcript_scripts(
+        self, transcript_id: str, attempt_id: str, payload: dict[str, Any]
+    ) -> CallbackAck:
+        self.transcript_scripts_calls.append((transcript_id, payload))
+        return CallbackAck(applied=True, job_id=transcript_id, status="written")
+
+    async def apply_edg_ops(
+        self, project_id: str, attempt_id: str, payload: dict[str, Any]
+    ) -> CallbackAck:
+        self.edg_ops_calls.append((project_id, payload))
+        return CallbackAck(applied=True, job_id=project_id, status="applied")
+
 
 def recorder(services: Services) -> RecordingCallbacks:
     """The recording client behind `services`, narrowed for the type checker."""
@@ -78,12 +94,21 @@ def recorder(services: Services) -> RecordingCallbacks:
 
 
 def build_services(
-    settings: Settings | None = None, *, store: ObjectStore | None = None
+    settings: Settings | None = None,
+    *,
+    store: ObjectStore | None = None,
+    transliteration: TransliterationProvider | None = None,
+    translation_providers: tuple[TranslationProvider, ...] | None = None,
 ) -> Services:
     """Services wired for tests: real registries, a recording callback client."""
     resolved = settings or load_settings(
         {**VALID_ENV, "FEATURE_FLAGS_JSON": '{"asr.local-whisper": false}'}
     )
+    kwargs: dict[str, Any] = {}
+    if transliteration is not None:
+        kwargs["transliteration"] = transliteration
+    if translation_providers is not None:
+        kwargs["translation_providers"] = translation_providers
     return Services(
         settings=resolved,
         callbacks=RecordingCallbacks(),
@@ -93,6 +118,7 @@ def build_services(
         diarisers=DiariserRegistry.default(),
         vad=EnergyVad(),
         derived_store=store,
+        **kwargs,
     )
 
 
@@ -433,11 +459,9 @@ async def test_diarise_ignores_a_nonsense_speaker_count(wav_file: Path) -> None:
 @pytest.mark.parametrize(
     ("queue", "owner"),
     [
-        ("ai.translate", "A12"),
-        ("ai.transliterate", "A12"),
-        ("ai.clean", "A13"),
-        ("ai.pass", "A14"),
-        ("ai.llm", "A15"),
+        ("ai.clean", "B10"),
+        ("ai.pass", "B18"),
+        ("ai.llm", "B11"),
     ],
 )
 async def test_an_unimplemented_queue_fails_fast_and_names_its_owner(

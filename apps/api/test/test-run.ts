@@ -41,6 +41,15 @@ export interface TestRunRedis {
   readonly baseUrl: string;
   /** Logical database index the first slot is given (see {@link redisDbForSlot}). */
   readonly firstDb: number;
+  /**
+   * The URL named a logical database, so every suite uses that one.
+   *
+   * `TEST_REDIS_URL=redis://…/0` is an instruction, not a starting point: it says
+   * "this database", and since A23b the suites are separated by their key
+   * prefixes, so obeying it costs nothing. It is also how the whole suite is
+   * verified against a single logical database.
+   */
+  readonly pinned: boolean;
   /** How many logical databases the server has (`CONFIG GET databases`). */
   readonly databases: number;
   readonly source: TestServiceSource;
@@ -151,6 +160,7 @@ export function databaseUrlFor(baseUrl: string, database: string): string {
  * `global-setup.ts` warns when it would happen rather than failing the run.
  */
 export function redisDbPool(redis: TestRunRedis): readonly number[] {
+  if (redis.pinned) return [redis.firstDb];
   const total = redis.databases;
   if (total <= 1) return [0];
   const first = Math.min(Math.max(redis.firstDb, 0), total - 1);
@@ -162,6 +172,7 @@ export function redisDbPool(redis: TestRunRedis): readonly number[] {
 
 /** Which logical Redis database a slot gets. */
 export function redisDbForSlot(redis: TestRunRedis, slot: number): number {
+  if (redis.pinned) return redis.firstDb;
   const pool = redisDbPool(redis);
   return pool[slot % pool.length] ?? 0;
 }

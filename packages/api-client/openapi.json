@@ -3758,6 +3758,92 @@
         ]
       }
     },
+    "/workspaces/{id}/credits": {
+      "get": {
+        "description": "Lots are listed in consumption order: soonest-expiring first, then FIFO (D32) — the same order `reserve` draws from them.",
+        "operationId": "getWorkspaceCredits",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditsSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Balance, next grant reset, and live lots",
+        "tags": [
+          "credits"
+        ]
+      }
+    },
+    "/workspaces/{id}/usage": {
+      "get": {
+        "description": "Every balance move this workspace's account has ever recorded, with per-job attribution where `refType` is `\"job\"`. Cursor pagination: pass the previous page's `nextCursor`.",
+        "operationId": "getWorkspaceUsage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsagePageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Ledger history, newest first",
+        "tags": [
+          "credits"
+        ]
+      }
+    },
     "/jobs": {
       "get": {
         "description": "Cursor pagination: pass the previous page's `nextCursor` as `cursor`. Ids are ULIDs, so the cursor is stable and ordered by creation time.",
@@ -7583,6 +7669,169 @@
         ]
       }
     },
+    "/admin/credits/orphaned-holds": {
+      "get": {
+        "description": "`docs/runbooks/credits-orphaned-holds.md` §1.",
+        "operationId": "listOrphanedCreditHolds",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrphanedHoldDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Holds still `held` whose job has already reached a terminal status",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/credits/orphaned-holds/resolve": {
+      "post": {
+        "description": "A succeeded job settles for `jobs.credits_charged_tenths`; every other terminal status releases in full. `dryRun` defaults to true.",
+        "operationId": "resolveOrphanedCreditHolds",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveOrphanedHoldsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrphanedHoldResolutionDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Settle or release orphaned holds per their job's outcome",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/credits/reconcile": {
+      "get": {
+        "description": "`docs/runbooks/billing-reconcile.md`. Detection only — never corrects drift.",
+        "operationId": "reconcileAllCreditAccounts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountReconciliationDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reconcile every credit account (06 invariant 1)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/credits/reconcile/{accountId}": {
+      "get": {
+        "operationId": "reconcileCreditAccount",
+        "parameters": [
+          {
+            "name": "accountId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountReconciliationDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reconcile one credit account",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/projects/{projectId}/edg": {
       "get": {
         "description": "The hot state is under 64 KB. Segments are paged — `nextCursor` continues at `/edg/segments` — because a long-form project has thousands and an editor opens on the first screenful.",
@@ -8229,6 +8478,158 @@
           }
         ],
         "summary": "Download the transcript",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript/transliterate": {
+      "post": {
+        "description": "Free (`04 §Credits`). Enqueues `ai.transliterate`, which writes per-word `scripts` variants — Hinglish stays Roman-first, English words are preserved — and never touches `t`, timings or a script the user has already edited via `textOverrides`.",
+        "operationId": "transliterateProjectTranscript",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransliterateRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransliterateAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Transliterate the transcript into a script",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript/translate": {
+      "post": {
+        "description": "0.5 credit per media minute per target language (`04 §Credits`); English on Starter+, every language on Creator+. One `ai.translate` job per target, each held and quoted on its own. The result lands as `textOverrides.translated` through the ordinary EDG op path, so it is revisioned and undoable, and a concurrent edit to the same segment's `translated` text comes back as a 409 the job reports as failed rather than a silent overwrite.",
+        "operationId": "translateProjectTranscript",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranslateRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslateAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`transcript/plan_required`."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Translate the transcript's captions",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript/scripts": {
+      "get": {
+        "description": "`roman` / `native` / `en` come from the words themselves; `translated` from the editing document's segment overrides. Each carries the job that produced it when one is known, for the editor's script tabs and the \"regenerate\" confirmation.",
+        "operationId": "getProjectTranscriptScripts",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableScriptsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Which scripts this transcript has, and where they came from",
         "tags": [
           "transcripts"
         ]
@@ -9589,6 +9990,334 @@
         ]
       }
     },
+    "/projects/{projectId}/exports": {
+      "post": {
+        "description": "Always returns the chosen path with human-readable reasons for the export dialog. The browser path returns a server-signed `RenderManifest` and never uploads bytes; the cloud path enqueues `render.video` or `render.subtitle` and returns the job.",
+        "operationId": "requestExport",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportDecisionResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`entitlement/upgrade_required` or `credits/insufficient`."
+          },
+          "409": {
+            "description": "`export/unsupported_in_browser`, `export/media_not_ready`, or similar."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Request an export: decides browser vs. cloud and issues a signed manifest or a job",
+        "tags": [
+          "exports"
+        ]
+      },
+      "get": {
+        "operationId": "listProjectExports",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List a project's exports",
+        "tags": [
+          "exports"
+        ]
+      }
+    },
+    "/exports/manifests/{manifestId}/complete": {
+      "post": {
+        "description": "Consumes the manifest's signup gift / ₹9 pass when the decision cleared the watermark that way, and emits a `publish_events` row for the streak experiment.",
+        "operationId": "completeExportManifest",
+        "parameters": [
+          {
+            "name": "manifestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManifestCompleteRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManifestCompleteResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`export/manifest_not_found`."
+          },
+          "409": {
+            "description": "`export/manifest_already_consumed`."
+          },
+          "410": {
+            "description": "`export/manifest_expired`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Close a browser export: single-use nonce, marks the export succeeded",
+        "tags": [
+          "exports"
+        ]
+      }
+    },
+    "/exports/{exportId}/download": {
+      "get": {
+        "description": "409 `export/not_ready` for a browser export — it never leaves the browser.",
+        "operationId": "getExportDownloadUrl",
+        "parameters": [
+          {
+            "name": "exportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportDownloadDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`export/not_found`."
+          },
+          "409": {
+            "description": "`export/not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "A short-lived signed download URL",
+        "tags": [
+          "exports"
+        ]
+      }
+    },
+    "/workspaces/{id}/brand-assets": {
+      "post": {
+        "description": "Returns a presigned PUT URL; the browser uploads the bytes directly to R2.",
+        "operationId": "createBrandAsset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrandAssetCreateRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandAssetUploadDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start uploading a brand asset (watermark or logo PNG)",
+        "tags": [
+          "exports"
+        ]
+      },
+      "get": {
+        "operationId": "listBrandAssets",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BrandAssetDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List a workspace's brand assets",
+        "tags": [
+          "exports"
+        ]
+      }
+    },
+    "/workspaces/{id}/brand-assets/{assetId}": {
+      "delete": {
+        "operationId": "deleteBrandAsset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`export/brand_asset_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete a brand asset",
+        "tags": [
+          "exports"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "getHealth",
@@ -9642,6 +10371,1232 @@
           "health"
         ]
       }
+    },
+    "/billing/plans": {
+      "get": {
+        "operationId": "listPlans",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Active plans.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "enum": [
+                          "free",
+                          "starter",
+                          "creator",
+                          "studio",
+                          "agency"
+                        ]
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "prices": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "number"
+                          }
+                        }
+                      },
+                      "creditsPerMonthTenths": {
+                        "type": "number"
+                      },
+                      "seatPrice": {
+                        "nullable": true,
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "name",
+                      "prices",
+                      "creditsPerMonthTenths",
+                      "seatPrice"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "The public plan catalogue (INR and USD)",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/checkout": {
+      "post": {
+        "description": "Mandate cap is always the undiscounted list price (D40). Refused with `billing/mandate_cap_exceeded` and `details.alternatives` when a UPI Autopay mandate would exceed ₹15,000; refused with `billing/tax_profile_required` until the workspace confirms its billing country (PUT /workspaces/{id}/tax-profile).",
+        "operationId": "createCheckout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "planKey": {
+                    "type": "string",
+                    "enum": [
+                      "free",
+                      "starter",
+                      "creator",
+                      "studio",
+                      "agency"
+                    ]
+                  },
+                  "interval": {
+                    "type": "string",
+                    "enum": [
+                      "month",
+                      "year",
+                      "halfyear",
+                      "once"
+                    ]
+                  },
+                  "coupon": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "seats": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 500
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "upi_autopay",
+                      "card",
+                      "enach"
+                    ]
+                  }
+                },
+                "required": [
+                  "planKey",
+                  "interval"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checkout payload for the client SDK.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subscriptionId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "keyId": {
+                      "type": "string"
+                    },
+                    "amountMinor": {
+                      "type": "number"
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "interval": {
+                      "type": "string",
+                      "enum": [
+                        "month",
+                        "year",
+                        "halfyear",
+                        "once"
+                      ]
+                    },
+                    "mandateCapMinor": {
+                      "nullable": true,
+                      "type": "number"
+                    },
+                    "method": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "upi_autopay",
+                        "card",
+                        "enach"
+                      ]
+                    },
+                    "providerSubscriptionId": {
+                      "type": "string"
+                    },
+                    "providerOrderId": {
+                      "type": "string"
+                    },
+                    "prefill": {
+                      "type": "object",
+                      "properties": {
+                        "email": {
+                          "type": "string"
+                        },
+                        "contact": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "notes": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "subscriptionId",
+                    "status",
+                    "keyId",
+                    "amountMinor",
+                    "currency",
+                    "interval",
+                    "mandateCapMinor",
+                    "method"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "409": {
+            "description": "`billing/mandate_cap_exceeded` or `billing/tax_profile_required`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start a plan checkout",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/passes/checkout": {
+      "post": {
+        "operationId": "createPassCheckout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "first_export",
+                      "week_pass",
+                      "pay_once"
+                    ]
+                  },
+                  "planKey": {
+                    "type": "string",
+                    "enum": [
+                      "free",
+                      "starter",
+                      "creator",
+                      "studio",
+                      "agency"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checkout payload for the client SDK."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Buy a pass (clean export, week pass, pay-once credits)",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/topups/checkout": {
+      "post": {
+        "operationId": "createTopupCheckout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "credits": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "credits"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checkout payload for the client SDK."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Buy a credit top-up pack",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/subscription": {
+      "get": {
+        "operationId": "getSubscription",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The subscription, or null with no plan on file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "planKey": {
+                      "type": "string",
+                      "enum": [
+                        "free",
+                        "starter",
+                        "creator",
+                        "studio",
+                        "agency"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "interval": {
+                      "type": "string",
+                      "enum": [
+                        "month",
+                        "year",
+                        "halfyear",
+                        "once"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "listPriceMinor": {
+                      "type": "number"
+                    },
+                    "currentPeriodStart": {
+                      "type": "string"
+                    },
+                    "currentPeriodEnd": {
+                      "type": "string"
+                    },
+                    "renewalInitiateAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "graceUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "cancelAtPeriodEnd": {
+                      "type": "boolean"
+                    },
+                    "pausedUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "seats": {
+                      "type": "number"
+                    },
+                    "mandateId": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "planKey",
+                    "status",
+                    "interval",
+                    "currency",
+                    "listPriceMinor",
+                    "currentPeriodStart",
+                    "currentPeriodEnd",
+                    "renewalInitiateAt",
+                    "graceUntil",
+                    "cancelAtPeriodEnd",
+                    "pausedUntil",
+                    "seats",
+                    "mandateId"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The workspace's current subscription",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/subscription/cancel": {
+      "post": {
+        "operationId": "cancelSubscription",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The subscription, set to cancel at period end.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "planKey": {
+                      "type": "string",
+                      "enum": [
+                        "free",
+                        "starter",
+                        "creator",
+                        "studio",
+                        "agency"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "interval": {
+                      "type": "string",
+                      "enum": [
+                        "month",
+                        "year",
+                        "halfyear",
+                        "once"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "listPriceMinor": {
+                      "type": "number"
+                    },
+                    "currentPeriodStart": {
+                      "type": "string"
+                    },
+                    "currentPeriodEnd": {
+                      "type": "string"
+                    },
+                    "renewalInitiateAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "graceUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "cancelAtPeriodEnd": {
+                      "type": "boolean"
+                    },
+                    "pausedUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "seats": {
+                      "type": "number"
+                    },
+                    "mandateId": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "planKey",
+                    "status",
+                    "interval",
+                    "currency",
+                    "listPriceMinor",
+                    "currentPeriodStart",
+                    "currentPeriodEnd",
+                    "renewalInitiateAt",
+                    "graceUntil",
+                    "cancelAtPeriodEnd",
+                    "pausedUntil",
+                    "seats",
+                    "mandateId"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`billing/subscription_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Cancel at period end",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/subscription/resume": {
+      "post": {
+        "operationId": "resumeSubscription",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The resumed subscription.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "planKey": {
+                      "type": "string",
+                      "enum": [
+                        "free",
+                        "starter",
+                        "creator",
+                        "studio",
+                        "agency"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "interval": {
+                      "type": "string",
+                      "enum": [
+                        "month",
+                        "year",
+                        "halfyear",
+                        "once"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "listPriceMinor": {
+                      "type": "number"
+                    },
+                    "currentPeriodStart": {
+                      "type": "string"
+                    },
+                    "currentPeriodEnd": {
+                      "type": "string"
+                    },
+                    "renewalInitiateAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "graceUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "cancelAtPeriodEnd": {
+                      "type": "boolean"
+                    },
+                    "pausedUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "seats": {
+                      "type": "number"
+                    },
+                    "mandateId": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "planKey",
+                    "status",
+                    "interval",
+                    "currency",
+                    "listPriceMinor",
+                    "currentPeriodStart",
+                    "currentPeriodEnd",
+                    "renewalInitiateAt",
+                    "graceUntil",
+                    "cancelAtPeriodEnd",
+                    "pausedUntil",
+                    "seats",
+                    "mandateId"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Undo a pending cancellation, or unpause",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/subscription/pause": {
+      "post": {
+        "operationId": "pauseSubscription",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The paused subscription.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "planKey": {
+                      "type": "string",
+                      "enum": [
+                        "free",
+                        "starter",
+                        "creator",
+                        "studio",
+                        "agency"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "interval": {
+                      "type": "string",
+                      "enum": [
+                        "month",
+                        "year",
+                        "halfyear",
+                        "once"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "listPriceMinor": {
+                      "type": "number"
+                    },
+                    "currentPeriodStart": {
+                      "type": "string"
+                    },
+                    "currentPeriodEnd": {
+                      "type": "string"
+                    },
+                    "renewalInitiateAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "graceUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "cancelAtPeriodEnd": {
+                      "type": "boolean"
+                    },
+                    "pausedUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "seats": {
+                      "type": "number"
+                    },
+                    "mandateId": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "planKey",
+                    "status",
+                    "interval",
+                    "currency",
+                    "listPriceMinor",
+                    "currentPeriodStart",
+                    "currentPeriodEnd",
+                    "renewalInitiateAt",
+                    "graceUntil",
+                    "cancelAtPeriodEnd",
+                    "pausedUntil",
+                    "seats",
+                    "mandateId"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`billing/pause_limit_reached` or `billing/already_paused`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Skip one billing cycle (once per 12 months)",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/subscription/change-preview": {
+      "get": {
+        "operationId": "previewChangePlan",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Proration figures for the requested change."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Proration preview for a plan/interval/seat change",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/subscription/change-plan": {
+      "post": {
+        "description": "Re-registers the mandate with fresh authentication when the new cap exceeds the current one (D40).",
+        "operationId": "changePlan",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "planKey": {
+                    "type": "string",
+                    "enum": [
+                      "free",
+                      "starter",
+                      "creator",
+                      "studio",
+                      "agency"
+                    ]
+                  },
+                  "interval": {
+                    "type": "string",
+                    "enum": [
+                      "month",
+                      "year",
+                      "halfyear",
+                      "once"
+                    ]
+                  },
+                  "seats": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 500
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "upi_autopay",
+                      "card",
+                      "enach"
+                    ]
+                  }
+                },
+                "required": [
+                  "planKey",
+                  "interval"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated subscription, or a checkout payload when re-authentication is needed."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Apply a plan/interval/seat change",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/mandates": {
+      "get": {
+        "operationId": "listMandates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Mandates, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "method": {
+                        "type": "string",
+                        "enum": [
+                          "upi_autopay",
+                          "card",
+                          "enach"
+                        ]
+                      },
+                      "maxAmountMinor": {
+                        "type": "number"
+                      },
+                      "currency": {
+                        "type": "string",
+                        "enum": [
+                          "INR",
+                          "USD"
+                        ]
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "afaRequiredPerDebit": {
+                        "type": "boolean"
+                      },
+                      "validFrom": {
+                        "type": "string"
+                      },
+                      "validUntil": {
+                        "nullable": true,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "method",
+                      "maxAmountMinor",
+                      "currency",
+                      "status",
+                      "afaRequiredPerDebit",
+                      "validFrom",
+                      "validUntil"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every mandate this workspace has registered",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/mandates/{mandateId}/revoke": {
+      "post": {
+        "operationId": "revokeMandate",
+        "parameters": [
+          {
+            "name": "mandateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The revoked mandate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "method": {
+                      "type": "string",
+                      "enum": [
+                        "upi_autopay",
+                        "card",
+                        "enach"
+                      ]
+                    },
+                    "maxAmountMinor": {
+                      "type": "number"
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "afaRequiredPerDebit": {
+                      "type": "boolean"
+                    },
+                    "validFrom": {
+                      "type": "string"
+                    },
+                    "validUntil": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "method",
+                    "maxAmountMinor",
+                    "currency",
+                    "status",
+                    "afaRequiredPerDebit",
+                    "validFrom",
+                    "validUntil"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`billing/mandate_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke a mandate (cancels its subscription)",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/payment-methods": {
+      "get": {
+        "operationId": "listPaymentMethods",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Payment methods, most recently used first."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Payment methods on file with the provider",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/webhooks/razorpay": {
+      "post": {
+        "description": "Signature-verified, idempotent by event id. A bad signature is 401, never 200 (a 200 tells Razorpay to stop retrying).",
+        "operationId": "handleRazorpayWebhook",
+        "parameters": [
+          {
+            "name": "x-razorpay-signature",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Always 200 once the signature verifies, even on a replay."
+          },
+          "403": {
+            "description": "Not used; a bad signature is 401."
+          }
+        },
+        "summary": "Razorpay webhook (THREAT-MODEL T16)",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/invoices": {
+      "get": {
+        "operationId": "InvoicesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List the caller's workspace's invoices, most recent first.",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/invoices/{invoiceId}/download": {
+      "get": {
+        "operationId": "InvoicesController_download",
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "A short-lived signed URL for the invoice PDF.",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/admin/tax-registrations": {
+      "get": {
+        "operationId": "TaxRegistrationsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List every tax registration (GSTIN, LUT) on file.",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "TaxRegistrationsController_upsert",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create or update a tax registration (upsert on jurisdiction+taxIdType+taxId).",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/tax-registrations/{id}": {
+      "delete": {
+        "operationId": "TaxRegistrationsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove a tax registration row.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/firc-records": {
+      "get": {
+        "operationId": "FircController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List FIRC records, most recent settlement first.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/firc-records/csv": {
+      "get": {
+        "operationId": "FircController_csv",
+        "parameters": [
+          {
+            "name": "month",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Monthly export-filing CSV for a given `month` (YYYY-MM).",
+        "tags": [
+          "admin"
+        ]
+      }
     }
   },
   "info": {
@@ -9666,6 +11621,156 @@
       }
     },
     "schemas": {
+      "LotDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "grant",
+              "topup",
+              "pass",
+              "referral",
+              "adjust",
+              "reversal"
+            ]
+          },
+          "grantedTenths": {
+            "type": "number"
+          },
+          "remainingTenths": {
+            "type": "number"
+          },
+          "expiresAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "grantedTenths",
+          "remainingTenths",
+          "createdAt"
+        ]
+      },
+      "CreditsSummaryDto": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "balanceTenths": {
+            "type": "number",
+            "description": "Cached balance in tenths of a credit (CONTRACTS §0)."
+          },
+          "monthlyGrantTenths": {
+            "type": "number"
+          },
+          "grantResetAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "lots": {
+            "description": "Live lots, soonest-expiring first then FIFO.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LotDto"
+            }
+          }
+        },
+        "required": [
+          "workspaceId",
+          "balanceTenths",
+          "monthlyGrantTenths",
+          "lots"
+        ]
+      },
+      "UsageEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "deltaTenths": {
+            "type": "number",
+            "description": "Positive credits a workspace, negative credits spent."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "grant",
+              "purchase",
+              "hold",
+              "settle",
+              "release",
+              "reversal",
+              "refund",
+              "adjust",
+              "expire",
+              "referral_bonus"
+            ]
+          },
+          "refType": {
+            "type": "string"
+          },
+          "refId": {
+            "type": "object",
+            "nullable": true
+          },
+          "lotId": {
+            "type": "object",
+            "nullable": true
+          },
+          "balanceAfterTenths": {
+            "type": "number"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "jobType": {
+            "type": "object",
+            "nullable": true,
+            "description": "The job's queue, when refType is \"job\"."
+          }
+        },
+        "required": [
+          "id",
+          "deltaTenths",
+          "kind",
+          "refType",
+          "balanceAfterTenths",
+          "at"
+        ]
+      },
+      "UsagePageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageEntryDto"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
       "JobDto": {
         "type": "object",
         "properties": {
@@ -10296,6 +12401,118 @@
           "holdReleased"
         ]
       },
+      "OrphanedHoldDto": {
+        "type": "object",
+        "properties": {
+          "holdId": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "queue": {
+            "type": "string"
+          },
+          "jobStatus": {
+            "type": "string"
+          },
+          "amountTenths": {
+            "type": "number"
+          },
+          "heldSince": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "holdId",
+          "jobId",
+          "workspaceId",
+          "queue",
+          "jobStatus",
+          "amountTenths",
+          "heldSince"
+        ]
+      },
+      "ResolveOrphanedHoldsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "OrphanedHoldResolutionDto": {
+        "type": "object",
+        "properties": {
+          "holdId": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "queue": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "released",
+              "settled",
+              "would_release",
+              "would_settle",
+              "failed"
+            ]
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "holdId",
+          "jobId",
+          "queue",
+          "action"
+        ]
+      },
+      "AccountReconciliationDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "balanceTenths": {
+            "type": "number"
+          },
+          "lotsSumTenths": {
+            "type": "number"
+          },
+          "ledgerSumTenths": {
+            "type": "number"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "lotsDriftTenths": {
+            "type": "number"
+          },
+          "ledgerDriftTenths": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "accountId",
+          "workspaceId",
+          "balanceTenths",
+          "lotsSumTenths",
+          "ledgerSumTenths",
+          "ok",
+          "lotsDriftTenths",
+          "ledgerDriftTenths"
+        ]
+      },
       "EdgDocumentDto": {
         "type": "object",
         "properties": {
@@ -10844,6 +13061,429 @@
           "transcript",
           "chunks",
           "nextCursor"
+        ]
+      },
+      "TransliterateRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "TransliterateAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
+          },
+          "targetScript": {
+            "type": "string",
+            "enum": [
+              "roman",
+              "native"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when a transliteration to this script was already running."
+          }
+        },
+        "required": [
+          "jobId",
+          "targetScript",
+          "status",
+          "deduplicated"
+        ]
+      },
+      "TranslateRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "TranslationQuoteDto": {
+        "type": "object",
+        "properties": {
+          "tenths": {
+            "type": "number",
+            "description": "Credits held for this job, in tenths."
+          },
+          "credits": {
+            "type": "string",
+            "description": "\"1.5\" — for display only, never for arithmetic."
+          }
+        },
+        "required": [
+          "tenths",
+          "credits"
+        ]
+      },
+      "TranslateTargetAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "targetLanguage": {
+            "type": "string",
+            "description": "BCP-47 tag this job translates to."
+          },
+          "status": {
+            "type": "string"
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when a translation to this language was already running."
+          },
+          "quote": {
+            "$ref": "#/components/schemas/TranslationQuoteDto"
+          }
+        },
+        "required": [
+          "jobId",
+          "targetLanguage",
+          "status",
+          "deduplicated",
+          "quote"
+        ]
+      },
+      "TranslateAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "targets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranslateTargetAcceptedDto"
+            }
+          },
+          "quote": {
+            "description": "Sum across every target.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TranslationQuoteDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "targets",
+          "quote"
+        ]
+      },
+      "ScriptAvailabilityDto": {
+        "type": "object",
+        "properties": {
+          "script": {
+            "type": "string",
+            "enum": [
+              "roman",
+              "native",
+              "en",
+              "translated"
+            ]
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "transcription",
+              "transliteration",
+              "translation"
+            ]
+          },
+          "provider": {
+            "type": "object",
+            "nullable": true
+          },
+          "language": {
+            "type": "string",
+            "description": "For `translated`: the BCP-47 target it currently holds."
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "script",
+          "available"
+        ]
+      },
+      "AvailableScriptsDto": {
+        "type": "object",
+        "properties": {
+          "scripts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScriptAvailabilityDto"
+            }
+          }
+        },
+        "required": [
+          "scripts"
+        ]
+      },
+      "ExportRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ExportQuoteDto": {
+        "type": "object",
+        "properties": {
+          "tenths": {
+            "type": "number",
+            "description": "Credits held, in tenths. 0 for browser and subtitle exports."
+          },
+          "credits": {
+            "type": "string",
+            "description": "\"0.5\" — for display only, never for arithmetic."
+          }
+        },
+        "required": [
+          "tenths",
+          "credits"
+        ]
+      },
+      "ExportJobDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
+          },
+          "status": {
+            "type": "string",
+            "description": "`queued`, or the live job's status when deduplicated."
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when an identical job was already running."
+          }
+        },
+        "required": [
+          "jobId",
+          "status",
+          "deduplicated"
+        ]
+      },
+      "ExportDecisionResponseDto": {
+        "type": "object",
+        "properties": {
+          "exportId": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "enum": [
+              "browser",
+              "cloud"
+            ]
+          },
+          "reasons": {
+            "description": "Human-readable, UI-safe (`08 §Export dialog`).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "watermarked": {
+            "type": "boolean"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/ExportQuoteDto"
+          },
+          "manifest": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The signed `RenderManifest` (`@montaj/render-manifest`), present on the browser path only — the browser renders locally and never uploads. Verify it before drawing a frame."
+          },
+          "job": {
+            "description": "Present on the cloud path only.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ExportJobDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "exportId",
+          "path",
+          "reasons",
+          "watermarked",
+          "quote"
+        ]
+      },
+      "ManifestCompleteRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ManifestCompleteResponseDto": {
+        "type": "object",
+        "properties": {
+          "exportId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded"
+            ]
+          },
+          "downloadAvailable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "exportId",
+          "status",
+          "downloadAvailable"
+        ]
+      },
+      "ExportDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_browser",
+              "succeeded",
+              "failed"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "preset": {
+            "type": "object",
+            "nullable": true
+          },
+          "watermarked": {
+            "type": "boolean"
+          },
+          "resolution": {
+            "type": "object",
+            "nullable": true
+          },
+          "durationMs": {
+            "type": "object",
+            "nullable": true
+          },
+          "sizeBytes": {
+            "type": "object",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "downloads": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "status",
+          "kind",
+          "watermarked",
+          "downloads",
+          "createdAt"
+        ]
+      },
+      "ExportListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "ExportDownloadDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Short-lived R2 signed URL."
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expiresAt"
+        ]
+      },
+      "BrandAssetCreateRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "BrandAssetUploadDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "description": "Single-shot presigned PUT URL for the PNG bytes."
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "uploadUrl",
+          "expiresAt"
+        ]
+      },
+      "BrandAssetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "contentType",
+          "createdAt"
         ]
       },
       "HealthResponseDto": {

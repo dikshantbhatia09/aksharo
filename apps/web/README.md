@@ -5,8 +5,9 @@ the marketing site and the studio, split by route group.
 
 **Status:** A13 — the app shell, the auth screens, onboarding, settings and the
 client layer; A16's caption canvas and right panel at `/studio/styles`; A15's
-editor at `/p/{id}`. A14, A17 fill in Home/Projects and the timeline; A24 the
-marketing site.
+editor at `/p/{id}`; A24's marketing site (home, features, styles gallery,
+pricing, plugins, download, comparison pages and legal scaffolds). A14, A17
+fill in Home/Projects and the timeline.
 
 ## Route groups
 
@@ -39,6 +40,31 @@ each surface can own its layout and auth boundary.
 | `/studio/styles`                         | A16's style harness: the caption canvas and the right panel                      |
 | `/p/{id}`                                | A15's editor: transcript, caption preview, style panel, in one store             |
 | `/api/session`, `/api/session/refresh`   | the only code that may touch the refresh token                                   |
+
+## Routes A24 owns
+
+Everything under `(site)/(marketing)` — a nested route group inside `(site)`,
+so its `layout.tsx` (header, skip link, footer) wraps only these pages and
+leaves A13's auth pages (`login`, `signup`, `device`, `magic`, `verify`,
+`auth/*`) with their own minimal chrome.
+
+| Route                         | What it is                                                                    |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| `/`                           | home: hero (English/Hindi toggle), the live browser caption demo, value props |
+| `/features`                   | every value proposition, plus the accuracy (WER) section                      |
+| `/styles`                     | all 30 caption styles, hover-to-animate, filterable by category and script    |
+| `/pricing`                    | plan ladder, INR/USD toggle, offers, credits-to-outcomes, burn rates, FAQ     |
+| `/plugins`                    | D65-compliant plugin naming, the three-step activation card                   |
+| `/download`                   | desktop platform detection, first-run notes, publisher name                   |
+| `/vs/[slug]`                  | `kalakar`, `captik`, `submagic`, `autocut` — dated, sourced comparison facts  |
+| `/legal`, `/legal/[slug]`     | privacy, terms, aup, refunds, dpa — draft scaffolds pending counsel (A00-13)  |
+| `/legal/grievance`            | grievance officer contact and published response-time targets                 |
+| `/changelog`                  | reads `content/site/changelog.json`; empty until launch on purpose            |
+| `/sitemap.xml`, `/robots.txt` | generated from the same route list                                            |
+
+Content lives in `content/site/**` (plan prices, comparison facts, legal
+scaffolds, the demo transcript, nav) rather than inline in the pages, each file
+documenting where its numbers came from — nothing on this site is invented.
 
 ## Sessions
 
@@ -214,6 +240,13 @@ Hinglish fixture or, for the performance test, an 18-chunk, ~54,000-word one.
 `editor-performance.spec.ts` scrolls the transcript list programmatically for
 2 s on chromium and asserts ≥ 55 fps (acceptance criterion 1), logging the
 measured number.
+A24's marketing specs (`marketing-smoke`, `marketing-a11y`, `marketing-seo`,
+`codename-guard`, `pricing`, `styles-gallery`, `live-caption-demo`,
+`plugins-legal`) need no signed-in fixture — every marketing page is reachable
+signed out — so they run without the shared-account or outbox machinery above.
+`codename-guard.spec.ts` extends A13's own codename check in `smoke.spec.ts`
+(which only covers `/`, `/login`, `/signup`, `/ui-kit`) to every page this WP
+adds.
 
 ## Notes
 

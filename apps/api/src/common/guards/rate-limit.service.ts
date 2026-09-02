@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 
+import { redisKeyPrefix } from "../redis/redis-keys.js";
 import { RedisService } from "../redis/redis.service.js";
 
 /** One bucket's shape: `capacity` tokens, refilled at `refillPerSec`. */
@@ -63,8 +64,20 @@ end
 return { allowed, math.floor(tokens), retry }
 `;
 
-/** Namespace for every rate-limit key, so a FLUSHDB in dev is obvious about what it drops. */
-export const RATE_LIMIT_PREFIX = "montaj:rl";
+/**
+ * Namespace for every rate-limit key, so a FLUSHDB in dev is obvious about what
+ * it drops.
+ *
+ * A function since A23b, for the reason {@link redisKeyPrefix} explains.
+ */
+export function rateLimitPrefix(): string {
+  return `${redisKeyPrefix()}:rl`;
+}
+
+/** The key one bucket lives at. Exported because the e2e harnesses clear buckets. */
+export function rateLimitKey(bucketName: string, subject: string): string {
+  return `${rateLimitPrefix()}:${bucketName}:${subject}`;
+}
 
 @Injectable()
 export class RateLimitService {
@@ -81,7 +94,7 @@ export class RateLimitService {
    * while it is down.
    */
   async consume(spec: BucketSpec, subject: string, nowMs = Date.now()): Promise<BucketVerdict> {
-    const key = `${RATE_LIMIT_PREFIX}:${spec.name}:${subject}`;
+    const key = rateLimitKey(spec.name, subject);
     const cost = spec.cost ?? 1;
     try {
       const raw = (await this.redis.client.eval(
@@ -107,7 +120,7 @@ export class RateLimitService {
   /** Drop a bucket, e.g. after a successful login clears the failure counter. */
   async reset(spec: BucketSpec, subject: string): Promise<void> {
     try {
-      await this.redis.client.del(`${RATE_LIMIT_PREFIX}:${spec.name}:${subject}`);
+      await this.redis.client.del(rateLimitKey(spec.name, subject));
     } catch (error) {
       this.logger.warn({ err: error, bucket: spec.name }, "could not reset a rate-limit bucket");
     }

@@ -7,6 +7,7 @@ import {
   creditCostTenths,
   deciMinutes,
   formatCredits,
+  quote,
   worstCaseHoldTenths,
 } from "./credits.js";
 
@@ -105,6 +106,42 @@ describe("BURN_RATES", () => {
     for (const operation of CREDIT_OPERATIONS) {
       expect(BURN_RATES[operation].operation).toBe(operation);
     }
+  });
+});
+
+describe("quote", () => {
+  it("matches creditCostTenths/worstCaseHoldTenths for a simple operation", () => {
+    const result = quote("transcription", 5);
+    expect(result).toEqual({
+      operation: "transcription",
+      costTenths: creditCostTenths({ operation: "transcription", durationMs: 5 * MINUTE }),
+      holdTenths: worstCaseHoldTenths({ operation: "transcription", durationMs: 5 * MINUTE }),
+    });
+    expect(result.costTenths).toBe(50);
+    expect(result.holdTenths).toBe(50);
+  });
+
+  it("holds more than it settles for promptedEdit, from source minutes", () => {
+    const result = quote("promptedEdit", 2, { sourceMediaMinutes: 20 });
+    expect(result.costTenths).toBe(60);
+    expect(result.holdTenths).toBe(600);
+    expect(result.holdTenths).toBeGreaterThan(result.costTenths);
+  });
+
+  it("defaults sourceMediaMinutes to mediaMinutes when omitted", () => {
+    const result = quote("promptedEdit", 5);
+    expect(result.holdTenths).toBe(result.costTenths);
+  });
+
+  it("passes tier, targetLanguages and local through", () => {
+    expect(quote("autocutPass", 10, { tier: "pro" }).costTenths).toBe(200);
+    expect(quote("translation", 1, { targetLanguages: 3 }).costTenths).toBe(15);
+    expect(quote("transcription", 100, { local: true }).costTenths).toBe(0);
+  });
+
+  it("rejects a negative or non-finite mediaMinutes", () => {
+    expect(() => quote("transcription", -1)).toThrow(RangeError);
+    expect(() => quote("transcription", Number.NaN)).toThrow(RangeError);
   });
 });
 
