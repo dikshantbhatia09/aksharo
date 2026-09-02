@@ -7,8 +7,11 @@ import { MediaProbeCompletionHandler } from "./probe.handler.js";
 import { MediaProxyCompletionHandler } from "./proxy.handler.js";
 import { RetentionService } from "./retention.service.js";
 import { SampleProjectController } from "./sample-project.controller.js";
+import { EdgModule } from "../edg/edg.module.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { ProjectsModule } from "../projects/projects.module.js";
+import { AlignCompletionHandler } from "../replace-media/align-completion.handler.js";
+import { ReplaceMediaAlignTrigger } from "../replace-media/replace-media-align.trigger.js";
 import { WorkspacesModule } from "../workspaces/workspaces.module.js";
 
 /**
@@ -29,9 +32,17 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
  * `MediaProbeCompletionHandler` starts: it independently flips the asset to
  * `ready`/`failed` off the job's own completion, alongside (never instead of)
  * the worker's `PATCH /internal/media/{id}` write-back.
+ *
+ * `EdgModule` (B15 §5): `ReplaceMediaAlignTrigger` reads the current EDG
+ * document to build the `ai.align` payload when a replaced media item's
+ * `needs_realign` flag is set, and `AlignCompletionHandler` writes the
+ * aligned timings back through `EdgService.applyWorkerOps` — both live in
+ * `replace-media/` rather than forking `probe.handler.ts`'s own module, but
+ * they are registered here because `MediaProbeCompletionHandler` is the only
+ * caller of the trigger and this is where its own completion handler lives.
  */
 @Module({
-  imports: [ProjectsModule, WorkspacesModule, JobsModule],
+  imports: [ProjectsModule, WorkspacesModule, JobsModule, EdgModule],
   controllers: [MediaController, MediaUploadsController, SampleProjectController],
   providers: [
     MediaService,
@@ -39,6 +50,8 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     RetentionService,
     MediaProbeCompletionHandler,
     MediaProxyCompletionHandler,
+    ReplaceMediaAlignTrigger,
+    AlignCompletionHandler,
   ],
   exports: [MediaService, SubtitleImportService, RetentionService],
 })
