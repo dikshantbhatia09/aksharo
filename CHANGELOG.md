@@ -52,6 +52,96 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A11c — api: unify A11's and A07's completion-handler registries; bind
+  `CAPTION_RENDER_CONTEXT` (D78) to the bundled font pack.**
+  - A07 (`media.probe`) independently converged on the same `JobCompletionRegistry`
+    design as A11 — same interfaces, same "runs before the status flip" contract,
+    same `actualTenths` override. Merging `main` kept A07's `completion-handlers.ts`,
+    `jobs.service.ts`, `jobs.module.ts` and `job-events.service.ts` as the one
+    registry both `TranscribeCompletionHandler` and `MediaProbeCompletionHandler`
+    register against; `JOB_EVENT_NAMES` keeps both producers' domain events
+    (`job.completion_handler_failed` from A07, `transcript.postprocessed` from A11)
+    under the file's existing `job.*` lifecycle / `<domain>.<verb>` fact convention.
+  - **The fit half of D78 is live.** `apps/api/src/edg/init/caption-render-context.ts`
+    builds the `CaptionRenderContext` `TranscriptsModule` provides for
+    `CAPTION_RENDER_CONTEXT` from `@montaj/fonts/node`'s `loadPack()` (the bundled
+    open-licence pack, now that A18b is on `main`) and `@montaj/render-core`'s
+    `createHarfBuzzShaper`, built once per process and reused. `resolveBudgets()`
+    now measures the real Inter/Noto Sans faces and reports `source: "fit"` rather
+    than falling back to the readability cap.
+
+- **A11 — api: transcripts, post-processing, segmentation and the EDG hand-off.**
+  - **The worker stays stateless.** `ai.transcribe` completions carry
+    `result.chunks` already shaped like `transcript_chunks` (A09's
+    `processors/transcribe.py::_result`), and everything that turns them into a
+    project happens in one place: `TranscribeCompletionHandler`.
+  - **A per-job-type completion handler registry** in `apps/api/src/jobs/completion-handlers.ts`.
+    A08 owns the state machine — the conditional `UPDATE`, the settlement, the
+    dead letter, the realtime echo — and it is the same for every queue; what a
+    completion _means_ is not, so a queue's owner registers a handler at boot and
+    `jobs` never learns what a transcript is. Exactly one handler per queue; a
+    second is a boot-time error.
+  - **The handler runs before the status flip**, so a throw leaves the job
+    `running` and the worker's at-least-once retry re-drives it. The alternative
+    would make the first transient database error permanent, because the replay
+    would be answered `already_completed` before the handler was reached. Every
+    write is therefore idempotent: an upsert on the **producer-minted**
+    `transcriptId` that travels in the job payload, a delete-and-rewrite of the
+    revision's chunks and of the job's provider submissions, and A12's
+    `EdgService.initialise`, which is idempotent by project.
+  - **One transaction** for `transcripts` + `transcript_chunks` +
+    `provider_submissions` + the project's language and scripts. The EDG document
+    is deliberately outside it — A12's repository opens its own and Prisma cannot
+    nest one — in the safe order: the transcript exists before anything points at
+    it, and both halves converge on a retry.
+  - **Post-processing (`09 §3`)**, pure and table-tested across Roman Hinglish,
+    Devanagari and Tamil: ASR timings rounded to **integer milliseconds** at the
+    trust boundary and clamped into their chunk; speaker labels renumbered `s1…`
+    by first appearance in the media; **two-signal LID** (D14) combining the
+    provider's answer with the script the words are actually written in, so
+    Hindi in Roman letters is `hi-Latn` and both signals are stored;
+    punctuation from pauses ≥ 600 ms with a danda for Devanagari and capitals
+    only where a script has them; Indian numeral grouping (`ek lakh bees hazaar`
+    → `1,20,000`, `rupaye pachaas` → `₹50`) that refuses any run which does not
+    read as a number; glossary and remembered-spelling correction on a phonetic
+    key plus edit distance ≤ 2; and filler tagging from `fillers.json`, where a
+    contextual entry such as `toh` is tagged only when a pause brackets it.
+  - **The consent gate is the query.** `MemoryGlossarySource` reads
+    `memory_entries` only while the memory consent record is granted and
+    un-withdrawn and the entry is unexpired — there is no boolean a caller can
+    forget to pass. B09 writes those entries; A11 reads them.
+  - **Every change is logged.** Each step reports `{step, wordId, before, after,
+reason}`; the log is written to `job_events` as `transcript.postprocessed`
+    and returned by `GET /projects/{id}/transcript` as `postProcessing`.
+  - **Caption budgets (D78).** `maxChars = min(readability cap, fit cap,
+workspace preference)`, resolved per script from the project's canvas in
+    `src/edg/init/caption-budgets.ts` and recorded on
+    `EdgHot.meta.engineVersions.captionBudgets` so A15 can offer "Reflow
+    captions". The fit half calls A16d's `fitBudget` for real; it needs a font
+    registry and a shaper, which **A18b** registers, so until something binds
+    `CAPTION_RENDER_CONTEXT` the budget is the readability cap and says so
+    (`source: "readability"`). The call is covered through
+    `@montaj/render-core/testing`'s fixture renderer, so binding a registry is
+    the only change left. Landscape footage overrides an _untouched_ 9:16
+    default; a chosen aspect is never second-guessed.
+  - **Endpoints**, all behind `WorkspaceMemberGuard` with roles, and a project in
+    another workspace is a 404 (THREAT-MODEL T4, T5):
+    `POST /projects/{id}/transcribe` (quotes from the probed duration at 1 credit
+    a media minute, reserves, enqueues), `GET /projects/{id}/transcript` (paged
+    chunks), `GET /projects/{id}/transcript/export?format=json|srt|vtt|txt`
+    (**source time**; output-time exports are A21's), and
+    `POST /projects/{id}/transcript/retranscribe`, refused with
+    `transcript/has_edits` once the captions have been edited unless `force`.
+  - **The `/internal` JSON body limit is 32 MB** (`internal-body-limit.ts`),
+    because a 60-minute transcript is megabytes of words — with a test that posts
+    one. `/internal` only: that surface needs `INTERNAL_CALLBACK_SECRET`, and
+    raising the limit globally would let any anonymous request tie up 32 MB.
+  - **Widow rebalancing in `@montaj/edg`'s segmenter.** A forced break must not
+    leave one word alone in a caption when the caption before it can give up its
+    last word and both halves still fit; a speaker change and a full stop are
+    left alone, because a one-word caption after a full stop is the speaker's.
+    Goldens regenerated (`pnpm --filter @montaj/edg golden:build`).
+
 - **A18b — `@montaj/fonts`: the bundled open-licence catalogue, upload with licence
   attestation, validation/subsetting/WOFF2, and the `RENDER_FONT_DIR` v1 pack.**
   - **The catalogue.** 21 families (Inter, Montserrat, Poppins, Playfair Display,
