@@ -135,9 +135,9 @@ C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machine
 | C09 | Resolve Studio Workflow Integration panel over aksharo_core's loopback server | C08, C08b | briefed |
 | D05 | Music pass: sections/mood/BPM, beat-aligned cuts, loops/fades, ducking; owned pack only | D04a | briefed |
 | C05b | After Effects CEP panel over a mocked AeHost; ZXP dry run | C05a, C06b, C00 | briefed |
-| C03a | `apps/engine` local sidecar supervisor: whisper.cpp/Silero/deep-filter/ffmpeg via a signed manifest, model manager, backend detection, FakeBackend | C02, A00-10 | running |
+| C03a | `apps/engine` local sidecar supervisor: whisper.cpp/Silero/deep-filter/ffmpeg via a signed manifest, model manager, backend detection, FakeBackend | C02, A00-10 | done pending verification (c12df56: /health /models /transcribe(+WS) /align /clean /render, manifest + resumable SHA-256 model manager, tier table, FakeBackend; the A01 scaffold engine/montaj-engine is deleted by C03b) |
 | C03b | Local quality gate + tiered latency harness (real-hardware run at Gate C) | C03a, D08 | briefed |
-| C04 | Local mode: SQLite + files, local export, upload-to-cloud as a new project, Starter+ gate | C03a | briefed |
+| C04 | Local mode: SQLite + files, local export, upload-to-cloud as a new project, Starter+ gate | C03a | running |
 | D09 | Apply passes inside Premiere/Resolve: audio tracks from owned assets, titles, ripple/keyframes via a shared apply-plan | C06, C08b, D04a, D06 | briefed |
 | X01 | Security review: threat-model audit with evidence, dependency/secret/header checks, negative tests, pen-test scope (H-26) | — | running |
 
