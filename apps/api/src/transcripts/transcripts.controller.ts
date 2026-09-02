@@ -146,6 +146,7 @@ export class TranscriptsController {
       ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
       ...(query.limit === undefined ? {} : { limit: query.limit }),
       ...(query.revision === undefined ? {} : { revision: query.revision }),
+      ...(query.script === undefined ? {} : { script: query.script }),
     });
     return {
       transcript: page.transcript as TranscriptChunkPageDto["transcript"],
@@ -179,6 +180,7 @@ export class TranscriptsController {
       format: query.format,
       ...(query.revision === undefined ? {} : { revision: query.revision }),
       ...(query.dropFillers === undefined ? {} : { dropFillers: query.dropFillers }),
+      ...(query.script === undefined ? {} : { script: query.script }),
     });
 
     response

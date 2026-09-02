@@ -376,6 +376,13 @@ export const API_OPERATIONS = [
     summary: "The transcript manifest and one page of chunks",
   },
   {
+    operationId: "getProjectTranscriptScripts",
+    method: "GET",
+    path: "/projects/{projectId}/transcript/scripts",
+    tags: ["transcripts"],
+    summary: "Which scripts this transcript has, and where they came from",
+  },
+  {
     operationId: "getReadiness",
     method: "GET",
     path: "/health/ready",
@@ -675,6 +682,20 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/transcribe",
     tags: ["transcripts"],
     summary: "Transcribe the project's primary media",
+  },
+  {
+    operationId: "translateProjectTranscript",
+    method: "POST",
+    path: "/projects/{projectId}/transcript/translate",
+    tags: ["transcripts"],
+    summary: "Translate the transcript's captions",
+  },
+  {
+    operationId: "transliterateProjectTranscript",
+    method: "POST",
+    path: "/projects/{projectId}/transcript/transliterate",
+    tags: ["transcripts"],
+    summary: "Transliterate the transcript into a script",
   },
   {
     operationId: "updateFolder",

@@ -59,6 +59,24 @@ export interface ExportInput {
   readonly segments?: readonly Segment[];
   /** Leave tagged fillers out of the cues, as the captions do. */
   readonly dropFillers?: boolean;
+  /**
+   * Export a specific script (A22): `roman` | `native` | `en` | `translated`.
+   * A segment's own `textOverrides[script]` wins where the user (or a
+   * translation job) set one; otherwise every word's `scripts[script]` is used,
+   * falling back to the word's primary text `t` when that word carries no
+   * variant for this script (an English token inside a transliterated Hinglish
+   * segment, say). Omitted keeps the pre-A22 default (`roman` then `native`
+   * text-override, then the primary words) so every existing caller is
+   * unaffected.
+   */
+  readonly script?: string;
+}
+
+/** One word's text in `script`, falling back to its primary text `t`. */
+function wordText(word: Word, script: string | undefined): string {
+  if (script === undefined || script === "translated") return word.t;
+  const variant = word.scripts?.[script as "roman" | "native" | "en"];
+  return variant ?? word.t;
 }
 
 /** A live word: not tombstoned, and not a filler when fillers are dropped. */
@@ -89,7 +107,7 @@ export function toCues(input: ExportInput): Cue[] {
   if (words.length === 0) return [];
 
   const segments = input.segments ?? [];
-  if (segments.length === 0) return groupByPause(words);
+  if (segments.length === 0) return groupByPause(words, input.script);
 
   const positions = new Map<string, number>();
   for (const [index, word] of words.entries()) positions.set(word.wid, index);
@@ -102,8 +120,14 @@ export function toCues(input: ExportInput): Cue[] {
     if (from === undefined || to === undefined || to < from) continue;
 
     const run = words.slice(from, to + 1);
-    const override = segment.textOverrides?.["roman"] ?? segment.textOverrides?.["native"];
-    const text = override ?? run.map((word) => word.t).join(" ");
+    // A specific script asked for that script's own override, and nothing
+    // else's — `roman ?? native` is the pre-A22 default kept for callers that
+    // pass no script at all.
+    const override =
+      input.script === undefined
+        ? (segment.textOverrides?.["roman"] ?? segment.textOverrides?.["native"])
+        : segment.textOverrides?.[input.script];
+    const text = override ?? run.map((word) => wordText(word, input.script)).join(" ");
     if (text.trim() === "") continue;
 
     const speaker = run[0]?.sp;
@@ -117,8 +141,51 @@ export function toCues(input: ExportInput): Cue[] {
   return cues;
 }
 
+/** One segment's plain source text, for a producer that needs `segmentId` too. */
+export interface SegmentSourceText {
+  readonly segmentId: string;
+  readonly text: string;
+}
+
+/**
+ * `{segmentId, text}` for every live segment, in the transcript's **primary**
+ * script — never a `textOverrides` value, script or otherwise.
+ *
+ * A22's translation producer uses this to read what a segment currently says
+ * before asking a provider to translate it: translating a segment's own
+ * `translated` override (a stale earlier translation) or a transliterated
+ * variant would compound errors across regenerations instead of always
+ * translating from the one text every script is derived from.
+ */
+export function segmentSourceTexts(input: ExportInput): SegmentSourceText[] {
+  const words = liveWords(input);
+  if (words.length === 0) return [];
+  const segments = input.segments ?? [];
+  if (segments.length === 0) return [];
+
+  const positions = new Map<string, number>();
+  for (const [index, word] of words.entries()) positions.set(word.wid, index);
+
+  const out: SegmentSourceText[] = [];
+  for (const segment of segments) {
+    if (segment.hidden === true) continue;
+    const from = positions.get(segment.startWordId);
+    const to = positions.get(segment.endWordId);
+    if (from === undefined || to === undefined || to < from) continue;
+
+    const text = words
+      .slice(from, to + 1)
+      .map((word) => word.t)
+      .join(" ")
+      .trim();
+    if (text === "") continue;
+    out.push({ segmentId: segment.id, text });
+  }
+  return out;
+}
+
 /** Pause and line-length grouping for a transcript with no document yet. */
-function groupByPause(words: readonly Word[], gapMs = 700, maxChars = 42): Cue[] {
+function groupByPause(words: readonly Word[], script?: string, gapMs = 700, maxChars = 42): Cue[] {
   const cues: Cue[] = [];
   let run: Word[] = [];
 
@@ -129,7 +196,7 @@ function groupByPause(words: readonly Word[], gapMs = 700, maxChars = 42): Cue[]
     cues.push({
       startMs: first.s,
       endMs: Math.max(last.e, first.s + 1),
-      text: run.map((word) => word.t).join(" "),
+      text: run.map((word) => wordText(word, script)).join(" "),
       ...(first.sp === undefined ? {} : { speaker: first.sp }),
     });
     run = [];
@@ -137,10 +204,11 @@ function groupByPause(words: readonly Word[], gapMs = 700, maxChars = 42): Cue[]
 
   for (const word of words) {
     const previous = run[run.length - 1];
-    const chars = run.reduce((total, entry) => total + entry.t.length + 1, 0);
+    const chars = run.reduce((total, entry) => total + wordText(entry, script).length + 1, 0);
+    const wordLength = wordText(word, script).length;
     const breaks =
       previous !== undefined &&
-      (word.s - previous.e >= gapMs || chars + word.t.length > maxChars || word.sp !== previous.sp);
+      (word.s - previous.e >= gapMs || chars + wordLength > maxChars || word.sp !== previous.sp);
     if (breaks) flush();
     run.push(word);
   }

@@ -52,6 +52,85 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A22 — scripts and translation: transliteration (`ai.transliterate`), translation
+  (`ai.translate`), the producers, and the editor's script tabs.**
+  - **Transliteration writes per word, translation writes per segment, and each
+    gets the write path that shape actually needs.** `word.scripts` can carry
+    thousands of values per job and CONTRACTS §2's `EdgOp` union has no bulk op for
+    it, so the worker writes those through a new signed surface,
+    `POST /internal/transcripts/{id}/scripts` (`apps/api/src/transcripts/scripts/
+scripts-internal.controller.ts`), which patches only the `transcript_chunks`
+    rows a job actually touched. Translation is a few hundred segments at most and
+    CONTRACTS §2 already has `SetSegmentText{segmentId, script, text}`, so it
+    reuses A12's **existing** `POST /internal/projects/{id}/edg/ops` unchanged —
+    landing as `textOverrides.translated`, revisioned, rebased and undoable exactly
+    like an interactive edit, with a genuine conflict coming back as the same 409 a
+    concurrent human edit would.
+  - **Transliteration is free** (`04-pricing-and-monetization.md` has no burn-rate
+    row for it); the job is still admitted through `JobsService.enqueue` with a
+    zero-tenths hold, so CONTRACTS §4's "every producer reserves" rule holds even
+    when the reservation is for nothing. **Translation reuses the existing
+    `translation` burn rate** (0.5 credit / media minute / target language) and
+    adds the plan gate `04 §Plans` describes: refused outright below Starter,
+    refused for anything but English below Creator (`transcript/plan_required`).
+  - **IndicXlit, without a vendor key.** No AI4Bharat model weight exists in this
+    environment (A00-06), so `RuleTableTransliterationProvider`
+    (`apps/worker-ai/worker_ai/transliterate/`) is a deterministic dictionary +
+    syllable-table transliterator for Hindi/Devanagari and Tamil, plus numeral and
+    punctuation rules that apply to every supported language. The Hinglish rule —
+    English words stay Roman — is a curated dictionary and a morphology check
+    (`-ing`, `-tion`, …), checked before any script mapping runs.
+    `IndicXlitHttpProvider` is the seam for a served model; **no `apps/model-server`
+    route was added**, because there is nothing to serve yet (decision recorded in
+    `apps/worker-ai/worker_ai/transliterate/provider.py`).
+  - **The translation provider chain** — `SarvamMayuraProvider` →
+    `IndicTrans2Provider` (self-hosted, only when `WORKER_AI_INDICTRANS2_URL` is
+    set) → `LLMTranslateProvider` (`LLM_PROVIDER=anthropic|openai|mock`) — tries
+    each in order until one succeeds. **Glossary terms are masked to opaque
+    placeholders before any provider sees the text** (`translate/glossary.py`), so
+    every adapter gets verbatim preservation for free rather than depending on a
+    provider-specific instruction. A segment still over the **1.3x length budget**
+    after one "shorter, please" retry is hard-truncated on a word boundary
+    (`translate/length.py`), so the budget holds unconditionally, not just usually.
+  - **A pre-existing gap between A11's chunk-read contract and A12's word-patch
+    contract, found and routed around, not fixed.** `TranscriptsRepository.
+chunkPage`/`allChunks` (`GET /projects/{id}/transcript`, the exporters) select
+    `transcript_chunks` by an exact `revision` match; `EdgRepository.persistWords`
+    (`EditWord`) bumps `transcripts.currentRevision` without changing the row's own
+    `revision` at all, so a client reading the default revision after any word edit
+    gets an empty page. Reachable today through an ordinary `EditWord` op — this
+    work package's own write avoids adding a second way to hit it by never bumping
+    `currentRevision` for a transliteration, but the underlying gap is unresolved
+    and is reported to the orchestrator (`apps/api/src/transcripts/scripts/
+scripts.repository.ts`'s class doc) rather than patched here.
+  - **`?script=` on `GET /projects/{id}/transcript` and the transcript export**
+    (`roman | native | en | translated`): the manifest projects each word's `t`
+    onto `scripts[script]`, falling back to the word's own primary text; export
+    threads the same choice through `transcript-export.ts`'s `toCues`, preferring a
+    segment's own `textOverrides[script]` first. Omitted, both keep their exact
+    pre-A22 behaviour.
+  - **`GET /projects/{id}/transcript/scripts`** reports availability and provenance
+    per script — `roman`/`native`/`en` from a scan of the transcript's own words,
+    `translated` from the EDG segments plus the `transcript.scripts_updated` /
+    `transcript.translated` job events this work package's two completion handlers
+    log, so the editor's tabs and the "regenerate" confirmation know what is
+    already there and who made it.
+  - **`ScriptTabs`/`RegenerateTranslationDialog`**
+    (`apps/web/components/editor/transcript/scripts/`) and three new
+    `@montaj/api-client` hooks (`useTranscriptScripts`, `useTransliterateTranscript`,
+    `useTranslateTranscript`) — self-contained and tested against a mocked `fetch`,
+    because **A15 (the transcript editor) and A19 (the export dialog) are not yet
+    on `main`** to wire into; the integration note each leaves behind names exactly
+    what dropping them in involves once those work packages land.
+  - Golden transliteration tests (Hinglish sentence → Devanagari with English words
+    preserved; a Tamil sentence) in `apps/worker-ai/tests/test_transliterate.py`;
+    provider-chain, length-aware-retry and glossary-preservation tests plus fixture
+    tests for all three translation adapters in `test_translate.py`; a real-database
+    e2e (`apps/api/test/transcripts-scripts.e2e-spec.ts`) that runs a transliteration
+    and a translation through the real signed write paths against a seeded Hinglish
+    transcript and asserts the per-word scripts, the segment override, the
+    provenance read and the export in each script.
+
 - **A11c — api: unify A11's and A07's completion-handler registries; bind
   `CAPTION_RENDER_CONTEXT` (D78) to the bundled font pack.**
   - A07 (`media.probe`) independently converged on the same `JobCompletionRegistry`

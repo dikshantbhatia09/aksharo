@@ -14,6 +14,7 @@
 import { defineEndpoint } from "./http.js";
 
 import type {
+  AvailableScripts,
   ConsentState,
   CurrentUser,
   DeviceApproveRequest,
@@ -29,6 +30,10 @@ import type {
   SignUpRequest,
   SignUpResponse,
   TokenResponse,
+  TranslateAccepted,
+  TranslateRequest,
+  TransliterateAccepted,
+  TransliterateRequest,
   UpdateMeRequest,
   UsageSummary,
   WorkspaceSummary,
@@ -195,6 +200,28 @@ export const jobEndpoints = {
   }),
 } as const;
 
+/** Scripts and translation (A22): `apps/api/src/transcripts/scripts`. */
+export const transcriptScriptsEndpoints = {
+  transliterate: defineEndpoint<TransliterateRequest, TransliterateAccepted>({
+    method: "POST",
+    path: "/projects/{projectId}/transcript/transliterate",
+    auth: "bearer",
+    operationId: "transliterateProjectTranscript",
+  }),
+  translate: defineEndpoint<TranslateRequest, TranslateAccepted>({
+    method: "POST",
+    path: "/projects/{projectId}/transcript/translate",
+    auth: "bearer",
+    operationId: "translateProjectTranscript",
+  }),
+  scripts: defineEndpoint<void, AvailableScripts>({
+    method: "GET",
+    path: "/projects/{projectId}/transcript/scripts",
+    auth: "bearer",
+    operationId: "getProjectTranscriptScripts",
+  }),
+} as const;
+
 /**
  * Routes `07-api-and-contracts.md` specifies whose work package has not landed.
  *
@@ -228,6 +255,7 @@ export const endpoints = {
   device: deviceEndpoints,
   account: accountEndpoints,
   jobs: jobEndpoints,
+  transcriptScripts: transcriptScriptsEndpoints,
   pending: pendingEndpoints,
 } as const;
 
@@ -237,5 +265,6 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(deviceEndpoints),
   ...Object.entries(accountEndpoints),
   ...Object.entries(jobEndpoints),
+  ...Object.entries(transcriptScriptsEndpoints),
   ...Object.entries(pendingEndpoints),
 ] as const;
