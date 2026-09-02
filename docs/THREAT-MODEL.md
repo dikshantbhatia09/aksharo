@@ -36,6 +36,7 @@ Anonymous web visitor; authenticated user; workspace member with lower role; mal
 | T22 | Local engine sidecar tampering | Signed binaries, version pinning, hash check on launch, localhost-only IPC with token | C03a |
 | T23 | Denial of wallet (mass jobs) | Per-workspace enqueued-credit cap, max queue wait, 429 admission control, free-tier daily caps | A08 |
 | T24 | Data residency violation | Raw media + DB in ap-south-1; derived objects on R2 APAC hint; sub-processor list; region pinned per workspace | A06, X05 |
+| T25 | Desktop shell abuse (hostile page navigating or opening popups inside the Electron window, renderer reaching Node, tampered update feed) | contextIsolation + sandbox + nodeIntegration off; top-level navigation allowlist (hosted app origins + OAuth); popups routed to a controlled child window or the OS browser; `shell.openExternal` allowlist; offline page CSP `default-src none`; Electron fuses (RunAsNode off, ASAR integrity, cookie encryption); updater over HTTPS with signed artefacts and channel manifests (C00) | C02, C00 | Playwright-Electron smoke + allowlist unit tests; unsigned builds never leave CI |
 
 ## Checklists consumed by work packages
 - **A04:** T1–T4. **A06/A07:** T5–T7, T24. **A08:** T8, T9, T23. **A19/A21:** T10. **B01/B02:** T9, T16. **B07:** T17. **B08/C11:** T15. **C01:** T11–T14. **C03a:** T22. **B11/D07:** T19. **B13:** T20. **A01/A03/X05:** T21, T24.
