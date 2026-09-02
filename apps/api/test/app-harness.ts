@@ -19,6 +19,7 @@ import { AppModule } from "../src/app.module.js";
 import { HttpExceptionFilter } from "../src/common/errors/http-exception.filter.js";
 import { PrismaService } from "../src/common/prisma/prisma.service.js";
 import { RedisService } from "../src/common/redis/redis.service.js";
+import { applyInternalBodyLimit } from "../src/internal/internal-body-limit.js";
 import { setupOpenApi } from "../src/openapi.js";
 import {
   InMemoryRealtimeBroker,
@@ -81,6 +82,9 @@ export async function createTestApp(fakes: FakeDependencies = {}): Promise<INest
   const app = moduleRef.createNestApplication({ logger: false, rawBody: true });
   // Same registration as `main.ts`, so the suite tests the shipped wiring.
   app.useGlobalFilters(new HttpExceptionFilter());
+  // A11: the raised `/internal` body limit is part of the shipped wiring, and it
+  // has to be registered before `init()` puts the adapter's own parser on the stack.
+  applyInternalBodyLimit(app);
   setupOpenApi(app);
   await app.init();
   return app;

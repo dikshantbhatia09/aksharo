@@ -59,6 +59,9 @@ importers:
       '@montaj/fonts':
         specifier: workspace:*
         version: link:../../packages/fonts
+      '@montaj/render-core':
+        specifier: workspace:*
+        version: link:../../packages/render-core
       '@nestjs/common':
         specifier: ^11.2.3
         version: 11.2.3(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -101,6 +104,9 @@ importers:
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
       intl-messageformat:
         specifier: ^10.7.18
         version: 10.7.18

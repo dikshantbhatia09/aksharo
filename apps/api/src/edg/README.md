@@ -215,8 +215,9 @@ await edg.initialise(projectId, {
   scripts: ["roman", "native"],
   chunks, // as written to transcript_chunks
   speakers,
-  segmenter: { maxLines: 2 }, // 09 §3 defaults otherwise
+  segmenter: { maxChars: 24, maxLines: 2 }, // 09 §3 defaults otherwise
   dropFillers: true,
+  engineVersions: { segmenter: "fit@1", captionBudgets: "{…}" }, // A11, D78
   author: null,
   source: "worker",
 });
@@ -230,6 +231,13 @@ Re-segmenting a live document is a `Resegment` op, not a creation.
 
 `apps/api/src/edg/init/` is A11's to create; `EdgService` and its input types are
 exported from `src/edg/index.ts` for it.
+
+`engineVersions` (A11) is copied straight into `EdgHot.meta.engineVersions`, which
+CONTRACTS §2 types as a free-form `Record<string, string>`. A11 records the caption
+budgets it segmented with there — `min(readability cap, fit cap)` per decision D78,
+resolved in `edg/init/caption-budgets.ts` — so A15 can offer "Reflow captions" when
+the style changes and know what the previous budget was. It is the document's
+record of _what produced it_, and nothing here interprets it.
 
 ## Schema additions
 

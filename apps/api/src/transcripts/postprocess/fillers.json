@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "note": "Filler lexicon of 09-ai-pipeline.md section 3, as data rather than code. `contextual` entries are only tagged when a pause brackets them, because they are ordinary words in ordinary sentences ('toh main gaya' is not a hesitation).",
+  "contextualPauseMs": 200,
+  "languages": {
+    "en": {
+      "single": [
+        "um",
+        "umm",
+        "uh",
+        "uhh",
+        "er",
+        "erm",
+        "hmm",
+        "mmm",
+        "ah",
+        "basically",
+        "actually",
+        "literally",
+        "obviously"
+      ],
+      "phrases": ["you know", "i mean", "sort of", "kind of", "you see"],
+      "contextual": ["like", "right", "so", "well", "okay"]
+    },
+    "hi": {
+      "single": ["matlab", "yaani", "yani", "arre", "arey", "achha", "accha", "vo", "woh"],
+      "phrases": ["kya bolte hain", "matlab ki", "aisa hai ki", "kya kehte hain"],
+      "contextual": ["toh", "to", "haan", "haa", "na", "bas", "kya", "aur"]
+    },
+    "hi-Deva": {
+      "single": ["मतलब", "यानी", "यानि", "अरे", "अच्छा", "हम्म"],
+      "phrases": ["क्या बोलते हैं", "मतलब कि", "क्या कहते हैं"],
+      "contextual": ["तो", "हाँ", "हां", "ना", "बस", "क्या", "और"]
+    },
+    "ta": {
+      "single": ["அப்புறம்", "அது", "என்னன்னா"],
+      "phrases": ["என்ன சொல்றது", "அப்படின்னா"],
+      "contextual": ["சரி", "ஆமா", "ம்"]
+    },
+    "bn": {
+      "single": ["mane", "মানে", "আচ্ছা"],
+      "phrases": ["ki bolte"],
+      "contextual": ["তো", "না", "হ্যাঁ"]
+    },
+    "te": {
+      "single": ["అంటే", "ante"],
+      "phrases": ["ఏమంటే"],
+      "contextual": ["సరే", "అవును"]
+    },
+    "mr": {
+      "single": ["म्हणजे", "mhanje"],
+      "phrases": ["काय म्हणतात"],
+      "contextual": ["तर", "हो", "ना"]
+    }
+  }
+}
