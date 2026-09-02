@@ -132,8 +132,8 @@ export class InvoicesService {
       tax.supplyType === "export" || tax.supplyType === "sez" ? "export_invoice" : "tax_invoice";
     const series = INVOICE_SERIES[docType];
     const fiscalYear = fiscalYearFor(issuedAt);
-    const number = await this.numbering.nextNumber(series, fiscalYear);
-    const displayNumber = formatInvoiceNumber(series, fiscalYear, number);
+    const sequenceNo = await this.numbering.nextNumber(series, fiscalYear);
+    const displayNumber = formatInvoiceNumber(series, fiscalYear, sequenceNo);
     const invoiceId = ulid();
 
     const supplierConfig = resolveSupplierConfig();
@@ -238,7 +238,8 @@ export class InvoicesService {
         passPurchaseId: input.passPurchaseId ?? null,
         docType,
         series,
-        number,
+        number: displayNumber,
+        sequenceNo,
         fiscalYear,
         issuedAt,
         supplierLegalName: supplierConfig.legalName,
@@ -310,13 +311,10 @@ export class InvoicesService {
     const docType: $Enums.InvoiceDocType = "credit_note";
     const series = INVOICE_SERIES[docType];
     const fiscalYear = fiscalYearFor(issuedAt);
-    const number = await this.numbering.nextNumber(series, fiscalYear);
-    const displayNumber = formatInvoiceNumber(series, fiscalYear, number);
-    const originalDisplayNumber = formatInvoiceNumber(
-      original.series,
-      original.fiscalYear,
-      original.number,
-    );
+    const sequenceNo = await this.numbering.nextNumber(series, fiscalYear);
+    const displayNumber = formatInvoiceNumber(series, fiscalYear, sequenceNo);
+    // original.number already IS the full Rule 46(b) identifier (B05b) — no reformatting needed.
+    const originalDisplayNumber = original.number;
     const invoiceId = ulid();
 
     const supplierAddress = parsePostalAddress(original.supplierAddress) ?? {
@@ -396,7 +394,8 @@ export class InvoicesService {
         passPurchaseId: original.passPurchaseId,
         docType,
         series,
-        number,
+        number: displayNumber,
+        sequenceNo,
         fiscalYear,
         issuedAt,
         supplierLegalName: original.supplierLegalName,
