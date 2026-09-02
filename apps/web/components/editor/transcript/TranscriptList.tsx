@@ -16,7 +16,7 @@ import type { Segment, Word } from "@montaj/edg";
 
 import { SegmentCard } from "./SegmentCard";
 
-import { VirtualList } from "@/lib/edg/virtual-list";
+import { estimateSegmentHeight, VirtualList } from "@/lib/edg/virtual-list";
 import { cn } from "@/lib/utils";
 
 export interface SpeakerInfo {
@@ -49,7 +49,10 @@ export interface TranscriptListProps {
 }
 
 const DEFAULT_ROW_HEIGHT = 64;
-const OVERSCAN = 8;
+// The brief caps overscan at 6 rows: each extra row is another subtree the
+// adversarial "jump the whole list every frame" perf test forces to
+// mount/unmount every frame (acceptance criterion 1).
+const OVERSCAN = 6;
 
 export function TranscriptList({
   segments,
@@ -132,6 +135,31 @@ export function TranscriptList({
     [segments, range.startIndex, range.endIndex],
   );
 
+  // `wordsOf` recomputes a fresh `Word[]` on every call (it slices the word
+  // index between two ids) — calling it straight from the render map below
+  // would hand `SegmentCard`/`WordChip` a new `words` array reference every
+  // render, defeating `React.memo` on both for any row that re-renders
+  // without actually changing (the overlap between one scroll frame's window
+  // and the next, which is most of it outside the adversarial perf test).
+  // Caching by segment id keeps the reference stable across renders and is
+  // invalidated wholesale only when `wordsOf` itself changes identity (i.e.
+  // the underlying word index changed — an edit, not a scroll).
+  const wordsCacheRef = useRef<{ wordsOf: typeof wordsOf; cache: Map<string, readonly Word[]> }>({
+    wordsOf,
+    cache: new Map(),
+  });
+  if (wordsCacheRef.current.wordsOf !== wordsOf) {
+    wordsCacheRef.current = { wordsOf, cache: new Map() };
+  }
+  function getWords(segment: Segment): readonly Word[] {
+    const { cache } = wordsCacheRef.current;
+    const cached = cache.get(segment.id);
+    if (cached !== undefined) return cached;
+    const words = wordsOf(segment);
+    cache.set(segment.id, words);
+    return words;
+  }
+
   return (
     <div
       ref={scrollRef}
@@ -146,16 +174,18 @@ export function TranscriptList({
         >
           {visible.map((segment, offset) => {
             const index = range.startIndex + offset;
+            const words = getWords(segment);
             return (
               <MeasuredRow
                 key={segment.id}
+                estimatedHeight={estimateSegmentHeight(words.length)}
                 onHeight={(height) => {
                   listRef.current.setHeight(index, height);
                 }}
               >
                 <SegmentCard
                   segment={segment}
-                  words={wordsOf(segment)}
+                  words={words}
                   script={script}
                   selected={segment.id === selectedSegmentId}
                   isLast={index === segments.length - 1}
@@ -227,9 +257,11 @@ function sharedObserver(): ResizeObserver {
 /** Reports its own rendered height, so the virtualiser can use a real number instead of an estimate. */
 function MeasuredRow({
   children,
+  estimatedHeight,
   onHeight,
 }: {
   children: React.ReactNode;
+  estimatedHeight: number;
   onHeight: (height: number) => void;
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -239,15 +271,24 @@ function MeasuredRow({
   // re-render of an already-visible row.
   const onHeightRef = useRef(onHeight);
   onHeightRef.current = onHeight;
+  const estimatedHeightRef = useRef(estimatedHeight);
+  estimatedHeightRef.current = estimatedHeight;
 
   useLayoutEffect(() => {
     const element = ref.current;
     if (element === null) return;
-    // The spacing between rows lives *inside* the measured element (padding,
-    // not a flex `gap`), so the height fed to `VirtualList` already accounts
-    // for it — a `gap` on the scrolling container would drift the prefix sums
-    // by one gap per row over a long list.
-    onHeightRef.current(element.getBoundingClientRect().height);
+    // Seed the virtualiser with the content-based estimate rather than
+    // calling `element.getBoundingClientRect()` here: that read forces a
+    // synchronous layout before the browser would otherwise compute one, and
+    // the adversarial scroll test mounts ~2x overscan rows fresh every
+    // single frame — one forced reflow per row per frame measured as a real
+    // contributor to the pre-A15c 13-18 fps result. The shared
+    // `ResizeObserver`'s own first callback (already async, batched by the
+    // browser after layout) reports the real height a frame or two later and
+    // corrects any drift; the spacing between rows lives *inside* the
+    // measured element (padding, not a flex `gap`), so that correction still
+    // keeps the prefix sums exact.
+    onHeightRef.current(estimatedHeightRef.current);
     const observer = sharedObserver();
     rowObserverCallbacks.set(element, (height) => {
       onHeightRef.current(height);

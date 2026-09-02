@@ -27,6 +27,21 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `packages/caption-styles/src/registry.test.ts`'s "has parity flags written by
   the A18a gate for every shipped style (D33)", referenced in the new test rather
   than duplicated.
+- **A15c — editor transcript scroll performance.** `TranscriptList`'s `MeasuredRow` no
+  longer calls `getBoundingClientRect()` synchronously on every newly-mounted row (a
+  forced layout, ~20-30 times a frame during the adversarial "jump the whole list every
+  frame" scroll pattern); rows now seed the virtualiser with a content-based estimate
+  (`estimateSegmentHeight()`, `lib/edg/virtual-list.ts`, from word count alone — no DOM
+  read) and let the already-shared `ResizeObserver` correct it asynchronously.
+  `SegmentCard` and `WordChip` are now `React.memo`'d, and `TranscriptList` caches each
+  visible segment's `wordsOf()` result by segment id so re-renders that do not actually
+  change a row's content (most of a natural wheel scroll, and the overlap between
+  overscan windows) get a stable `words` array reference instead of a fresh one every
+  render — both were previously defeated by `wordsOf()` recomputing on every call.
+  `SegmentCard`'s per-word `onSelect` closure is now `useCallback`-memoised so it does
+  not itself break `WordChip.memo`. Overscan reduced from 8 to 6 rows per the brief.
+
+### Fixed
 
 - **B03b — unified the two `apps/web/lib/billing/razorpay.ts` modules B03 and B04 each
   wrote (add/add conflict merging main).** One module now backs both: the checkout
