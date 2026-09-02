@@ -46,10 +46,14 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `WIN_SIGN_PROVIDER=digicert-key-locker` is the practical default until
   that changes or the entity structure does; `AzureTrustedSigningProvider`
   still ships per the brief with the same fail-closed secret gate.
-  **CONTRACTS §1 note:** this WP adds ~20 release-pipeline secret names to
-  `.env.example` (Apple notarisation, Azure/DigiCert signing, ZXP, R2
-  publish, checksum-manifest signing) that are not yet in `docs/CONTRACTS.md`
-  §1 — flagged for the orchestrator rather than edited here.
+  **CONTRACTS §1 ruling (2026-09-03):** the ~20 release-pipeline secret names
+  (Apple notarisation, Azure/DigiCert signing, ZXP, R2 publish,
+  checksum-manifest signing) are CI/GitHub-environment secrets, not
+  application runtime config, so they do **not** go into CONTRACTS §1 or the
+  root `.env.example` (that would fail `packages/config`'s one-key-per-contract-
+  variable parity test). They live in `tools/release/.env.example` instead;
+  the CLI loads `tools/release/.env` itself (`src/env.ts::loadReleaseDotEnv`).
+  `docs/RELEASE.md` lists them as the GitHub-environment secrets to set.
 
 - **B14b — Webhook events: real event emits replace the poller.**
   `transcript.completed` (`transcripts/transcribe.handler.ts`), `job.failed`

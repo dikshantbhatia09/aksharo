@@ -1,13 +1,19 @@
 /**
- * Release-pipeline environment variables. NOT part of `docs/CONTRACTS.md` §1 yet — this
- * package adds new secret names (signing/notarisation/publish) that CONTRACTS does not
- * list. Report to the orchestrator: CONTRACTS §1 needs a C00 addition; do not edit it here.
+ * Release-pipeline environment variables.
+ *
+ * These are CI / GitHub-environment secrets (signing, notarisation, publish), not
+ * application runtime configuration, so they deliberately live in `tools/release/.env.example`
+ * (loaded by `loadReleaseDotEnv` below) rather than the root `.env.example` / CONTRACTS §1
+ * (ruling 2026-09-03): `packages/config`'s parity test asserts exactly one schema key per
+ * CONTRACTS §1 variable, and these are not app config a running service reads.
  *
  * `RELEASE_MODE` gates everything: `dry-run` (default) never touches a real signer,
  * notarisation service or object store. `signed` requires every secret the selected
  * provider needs, checked eagerly and fails closed (`ReleaseFailClosedError`) instead of
  * silently falling back to dry-run.
  */
+import { readFileSync } from "node:fs";
+
 import { ReleaseFailClosedError } from "./types.js";
 
 export type WinSignProviderName = "azure-trusted-signing" | "digicert-key-locker";
@@ -88,5 +94,57 @@ export function requireSecretsIfSigned(
         `Set them (see .env.example) or run with --dry-run / RELEASE_MODE=dry-run.`,
       missing,
     );
+  }
+}
+
+// --- Loading tools/release/.env (this package's own dotenv file) -----------------------
+
+/**
+ * Parses a `.env`-style file (`KEY=value` lines, `#` comments, optional quotes) without a
+ * dependency. Used only to load `tools/release/.env` — never the repo root `.env`, which
+ * covers application runtime config (CONTRACTS §1), not CI/GitHub-environment release
+ * secrets (2026-09-03 ruling: release secrets are CI-only and must not sit in the root
+ * `.env.example` / CONTRACTS §1, since `packages/config`'s parity test asserts exactly one
+ * schema key per contract variable).
+ */
+export function parseDotEnv(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq === -1) continue;
+    const key = line.slice(0, eq).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"') && value.length >= 2) ||
+      (value.startsWith("'") && value.endsWith("'") && value.length >= 2)
+    ) {
+      value = value.slice(1, -1);
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+/**
+ * Loads `tools/release/.env` (if present) into `process.env`, filling in only the keys not
+ * already set — a real environment variable (a GitHub Actions secret, a shell export) always
+ * wins over the local file. Safe to call multiple times; missing file is a silent no-op
+ * (most contributors never need a local `.env` here since dry-run needs no secret at all).
+ */
+export function loadReleaseDotEnv(dotEnvPath: string, env: NodeJS.ProcessEnv = process.env): void {
+  let text: string;
+  try {
+    text = readFileSync(dotEnvPath, "utf8");
+  } catch {
+    return;
+  }
+  const parsed = parseDotEnv(text);
+  for (const [key, value] of Object.entries(parsed)) {
+    if (env[key] === undefined || env[key] === "") {
+      env[key] = value;
+    }
   }
 }

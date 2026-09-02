@@ -23,7 +23,13 @@ import {
   renderChangelogSection,
 } from "./commands/version.js";
 import { createContext, loadReleaseConfig } from "./config.js";
+import { loadReleaseDotEnv } from "./env.js";
 import { ReleaseFailClosedError } from "./types.js";
+
+// Loads tools/release/.env (CI/GitHub-environment secrets; never the repo root .env — see
+// src/env.ts) before any command reads process.env. A real environment variable already set
+// (a GitHub Actions secret, a shell export) always wins over this file.
+loadReleaseDotEnv(path.join(__dirname, "..", ".env"));
 
 const program = new Command();
 program

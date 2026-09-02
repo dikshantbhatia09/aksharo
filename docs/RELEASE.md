@@ -4,6 +4,16 @@ Owner: C00. Everything in this document runs in **dry-run mode by default**. No 
 credential exists yet (A00-03 is not landed) — do not attempt to flip `RELEASE_MODE=signed`
 outside a properly gated CI environment with real secrets.
 
+**Where the secrets live (ruling 2026-09-03):** every variable below is a CI /
+GitHub-environment secret, not application runtime configuration — it is consumed only by
+`tools/release`'s CLI, normally injected by GitHub Actions into the `release-mac` /
+`release-win` / `release-publish` environments referenced in the workflows. These do
+**not** live in the root `.env.example` or `docs/CONTRACTS.md` §1 (that parity test in
+`packages/config` asserts exactly one Zod schema key per contract variable and has no slot
+for CI-only secrets); they live in `tools/release/.env.example`, and the release CLI loads
+`tools/release/.env` itself (see `src/env.ts::loadReleaseDotEnv`, called from `src/cli.ts`)
+in addition to `process.env`, so a local copy is enough to exercise signed mode by hand.
+
 ## 0. Known gap — read this before touching Windows signing
 
 `RR-07-desktop-local-engine.md` §P0 (and `12-redesign-decisions.md` D69): **Azure Trusted
@@ -106,6 +116,7 @@ If a shipped build must be pulled (e.g. a broken auto-update or a compromised si
 - [ ] `RELEASE_CHECKSUM_SIGNING_KEY_BASE64` generated and stored.
 - [ ] A dry run of the entire pipeline (this doc, §4, with `RELEASE_MODE=dry-run`) has been
       exercised against a real `apps/desktop` build (not the placeholder tree) at least once.
-- [ ] `docs/CONTRACTS.md` §1 updated with the new secret names (a C00 follow-up ADR, not done
-      by this work package — see the CHANGELOG entry).
+- [ ] Every secret above is set in the correct GitHub environment (`release-mac`,
+      `release-win`, `release-publish`) — these are CI secrets, not CONTRACTS §1 config
+      (ruling 2026-09-03); nothing here needs a CONTRACTS.md change.
 - [ ] Gate C (installs on real Windows and macOS machines by a human — `12-redesign-decisions.md` D50) signed off.
