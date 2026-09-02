@@ -5,6 +5,10 @@ on:
     branches: ["main", "wave/**", "wp/**"]
   pull_request:
     branches: ["main", "wave/**"]
+  # C01b: lets a maintainer re-run the whole matrix (including `bridge-sea`,
+  # which otherwise only runs on a push) from the Actions UI/`gh workflow run`
+  # without needing an empty commit, e.g. to dry-run a workflow-file change.
+  workflow_dispatch: {}
 
 # One run per ref: a new push cancels the previous run, except on main where
 # every commit must be proven green.

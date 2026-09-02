@@ -91,7 +91,7 @@ export class BridgeCore extends EventEmitter {
   /** Starts the loopback server, writes the discovery file, and opens the relay tunnel. */
   async start(): Promise<void> {
     this.setStatus("starting");
-    this.cert = loadOrCreateCertificate();
+    this.cert = await loadOrCreateCertificate();
 
     this.server = await startLoopbackServer({
       bearer: this.bearer,
@@ -198,6 +198,7 @@ export class BridgeCore extends EventEmitter {
 export * from "./protocol.js";
 export * from "./security.js";
 export * from "./discovery.js";
+export * from "./keystore.js";
 export * from "./cert.js";
 export * from "./pairing.js";
 export * from "./server.js";
