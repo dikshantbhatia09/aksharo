@@ -68,6 +68,31 @@ commands/packageResolve.ts` now stages and zips the real `aksharo_core.py` +
   the exact `SetProperty` keys Dynamic Zoom keyframes, and the absence of a
   scriptable undo-transaction API) are called out there and in
   `plugins/resolve/README.md` as unverified pending that spike.
+- **C05a — Premiere Pro UXP plugin foundation.** New workspace
+  `plugins/premiere-uxp` (`@montaj/premiere-uxp`): UXP manifest v5
+  (`ai.aksharo.panel`, host `PPRO` min `25.6`, minimal `requiredPermissions`
+  — no clipboard, no `launchProcess`, network limited to the API origin and
+  the loopback bridge ports 47831–47833); every UXP/Premiere-specific call is
+  isolated behind `src/host/premiere.ts`'s `PremiereHost` interface, with
+  `MockPremiereHost` exercised by every test and `createRealPremiereHost()`
+  written (typechecks) but throwing on `requestMixdown`/`readFile` until the
+  A00-03 human spike confirms the underlying EncoderManager/file-system calls
+  (`docs/GATE-C-CHECKLIST.md`). Bridge sign-in: a typed JSON-RPC caller over
+  `@montaj/bridge-core`'s protocol (`src/bridge/client.ts`) plus a `fetch`-based
+  production transport (`src/bridge/httpTransport.ts`); `src/auth/session.ts`
+  is a device-code/tray-gesture pairing state machine that holds the session
+  **in memory only** (THREAT-MODEL T13 / D25 — a deliberate deviation from the
+  WP brief's "UXP secure storage" line, documented in the plugin README).
+  Sequence/in-out/selection reads, an audio-mixdown-to-transcribe pipeline
+  (`src/upload/mixdown.ts`: mixdown → `media.uploadTicket` → presigned PUT →
+  `POST /transcribe`), a `/plugins/manifest` min/max-version update banner
+  (`src/version/manifestCheck.ts`), and a React panel UI (sign-in, source +
+  "Transcribe this sequence", status/progress, open-in-web-editor link,
+  footer version line with the D65 non-affiliation copy) round out the
+  foundation. `src/i18n/strings.ts` is this package's own English/Hindi
+  string table (no shared `packages/i18n` exists yet). Coverage gate 60/50
+  lines/branches (CONTRACTS §9's `apps/web` UI tier) added via
+  `coverageThresholds()` in the package's own `vitest.config.ts`.
 
 - **B10b — Audio clean wiring: `SetAudio.clean.cleanId`, Audio panel mounted,
   audio parity gate, API e2e, RSS bound.** `packages/edg`: `AudioCleanSchema`
@@ -102,6 +127,7 @@ commands/packageResolve.ts` now stages and zips the real `aksharo_core.py` +
   bounded 30 s windows with boundary carry-over, and a new `slow`
   (`RUN_SLOW=1`) test asserts < 2 GB peak RSS over baseline on a synthetic
   60-minute file (`psutil`, added to worker-ai's dev deps).
+
 - **B19b — Reframe/zoom wiring: one keyframe codec, keyframe storage, `zoom`
   pass type, word-timed emphasis cues, frame/RMS sampling from the proxy.**
   `packages/edg`: `src/keyframes.ts` (`MKF1`) is deleted — `src/passes/
