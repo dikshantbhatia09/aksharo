@@ -159,6 +159,14 @@
                         {
                           "type": "string",
                           "maxLength": 200
+                        },
+                        {
+                          "maxItems": 32,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
                         }
                       ]
                     }
@@ -8010,6 +8018,222 @@
         ]
       }
     },
+    "/projects/{projectId}/transcribe": {
+      "post": {
+        "description": "Quotes the job from the probed media duration (1 credit a minute, rounded up to 0.1 of a minute), holds the credits and enqueues `ai.transcribe`. The transcript and the editing document are written when the worker's completion arrives; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`. Diarisation is free — the transcription rate includes it.",
+        "operationId": "transcribeProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscribeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscribeAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          },
+          "409": {
+            "description": "`transcript/media_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Transcribe the project's primary media",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript/retranscribe": {
+      "post": {
+        "description": "Refused with `transcript/has_edits` when the editing document has moved past the revision the first transcription created: a new transcription mints new word ids, and edited captions are addressed by the old ones. Send `force: true` to proceed.",
+        "operationId": "retranscribeProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetranscribeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscribeAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          },
+          "409": {
+            "description": "`transcript/has_edits` or `transcript/media_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Transcribe the media again",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript": {
+      "get": {
+        "description": "Chunks are paged because one 10-minute chunk is roughly 1 500 words: a long recording is megabytes and an editor opens on the first screenful. The cursor is the previous page's last `chunkIdx`.",
+        "operationId": "getProjectTranscript",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptChunkPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The transcript manifest and one page of chunks",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript/export": {
+      "get": {
+        "description": "**Source time**: cues are where the words were spoken in the uploaded media. Once a project has cuts that is no longer the finished video's clock — output-time exports are A21's. Cues come from the editing document's captions when it has them, so an export reflects what the user edited.",
+        "operationId": "exportProjectTranscript",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The transcript file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/x-subrip": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/vtt": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Download the transcript",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
     "/fonts/manifest": {
       "get": {
         "description": "Every open-licence face that ships with the product: family, weight, the scripts it covers, its licence, its SHA-256 and the URLs its bytes are at. The renderer registers these into `FontRegistry`; the same document is baked into the cloud render image as `fonts.json`.",
@@ -11427,6 +11651,260 @@
         "required": [
           "revision",
           "segments"
+        ]
+      },
+      "TranscribeRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "TranscriptionQuoteDto": {
+        "type": "object",
+        "properties": {
+          "tenths": {
+            "type": "number",
+            "description": "Credits held before the job was enqueued, in tenths."
+          },
+          "credits": {
+            "type": "string",
+            "description": "\"1.2\" — for display only, never for arithmetic."
+          },
+          "durationMs": {
+            "type": "number",
+            "description": "Media duration the quote was computed from."
+          }
+        },
+        "required": [
+          "tenths",
+          "credits",
+          "durationMs"
+        ]
+      },
+      "TranscribeAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
+          },
+          "transcriptId": {
+            "type": "string",
+            "description": "The transcript the completion will write."
+          },
+          "status": {
+            "type": "string",
+            "description": "`queued`, or the live job's status when deduplicated."
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when a transcription was already running and none was enqueued."
+          },
+          "quote": {
+            "$ref": "#/components/schemas/TranscriptionQuoteDto"
+          }
+        },
+        "required": [
+          "jobId",
+          "transcriptId",
+          "status",
+          "deduplicated",
+          "quote"
+        ]
+      },
+      "RetranscribeRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "DetectedLanguageDto": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "description": "BCP-47 tag."
+          },
+          "confidence": {
+            "type": "number",
+            "description": "0–1."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "script"
+            ],
+            "description": "Which of the two LID signals (D14)."
+          }
+        },
+        "required": [
+          "language",
+          "confidence",
+          "source"
+        ]
+      },
+      "CorrectionDto": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "string",
+            "enum": [
+              "punctuation",
+              "numerals",
+              "glossary",
+              "spelling",
+              "fillers",
+              "speakers"
+            ]
+          },
+          "wordId": {
+            "type": "string",
+            "description": "Word id, `\"<chunkIdx>:<n>\"`."
+          },
+          "before": {
+            "type": "string",
+            "description": "The text as the provider sent it."
+          },
+          "after": {
+            "type": "string",
+            "description": "The text as it was stored."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why, in a form a human can review."
+          }
+        },
+        "required": [
+          "step",
+          "wordId",
+          "before",
+          "after"
+        ]
+      },
+      "PostProcessingDto": {
+        "type": "object",
+        "properties": {
+          "steps": {
+            "description": "Steps that actually changed something.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "correctionCount": {
+            "type": "number",
+            "description": "Total corrections, including any not listed."
+          },
+          "corrections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CorrectionDto"
+            }
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when `corrections` is a prefix of the full log."
+          },
+          "languageDisagreement": {
+            "type": "boolean",
+            "description": "True when the acoustic and orthographic LID signals disagreed."
+          }
+        },
+        "required": [
+          "steps",
+          "correctionCount",
+          "corrections",
+          "truncated",
+          "languageDisagreement"
+        ]
+      },
+      "TranscriptDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "number",
+            "description": "Transcript revision these chunks belong to."
+          },
+          "language": {
+            "type": "string",
+            "description": "Resolved BCP-47 tag; Hinglish is `hi-Latn`."
+          },
+          "detectedLanguages": {
+            "description": "Both LID signals (D14).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DetectedLanguageDto"
+            }
+          },
+          "provider": {
+            "type": "object",
+            "nullable": true
+          },
+          "model": {
+            "type": "object",
+            "nullable": true
+          },
+          "alignerModel": {
+            "type": "object",
+            "nullable": true
+          },
+          "diariser": {
+            "type": "object",
+            "nullable": true
+          },
+          "chunkCount": {
+            "type": "number",
+            "description": "Chunks in this revision."
+          },
+          "durationMs": {
+            "type": "number",
+            "description": "End of the last chunk, in media ms."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "postProcessing": {
+            "$ref": "#/components/schemas/PostProcessingDto"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "revision",
+          "language",
+          "detectedLanguages",
+          "chunkCount",
+          "durationMs",
+          "createdAt"
+        ]
+      },
+      "TranscriptChunkPageDto": {
+        "type": "object",
+        "properties": {
+          "transcript": {
+            "$ref": "#/components/schemas/TranscriptDto"
+          },
+          "chunks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "description": "`TranscriptChunk` from `@montaj/edg` (CONTRACTS §2): `{chunkIdx, startMs, endMs, words[]}`."
+          },
+          "nextCursor": {
+            "type": "number",
+            "nullable": true,
+            "description": "Last `chunkIdx` returned; pass as `cursor`. `null` at the end."
+          }
+        },
+        "required": [
+          "transcript",
+          "chunks",
+          "nextCursor"
         ]
       },
       "HealthResponseDto": {

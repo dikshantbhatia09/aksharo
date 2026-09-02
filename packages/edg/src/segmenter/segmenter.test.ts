@@ -189,10 +189,12 @@ describe("segmentWords", () => {
   });
 
   it("breaks before a word that would run past maxMs", () => {
+    // `cc` is long enough that no rebalancing can pair it with `bb` either — the
+    // break is the maxMs limit and nothing else.
     const input = words([
       { t: "aa", s: 0, e: 1000 },
       { t: "bb", s: 1040, e: 2000 },
-      { t: "cc", s: 2040, e: 3200 },
+      { t: "cc", s: 2040, e: 3600 },
     ]);
     const segments = segmentWords(input, { maxMs: 2500 }, { newId: ids() });
     expect(segments.map((segment) => segment.endWordId)).toEqual(["0:1", "0:2"]);
@@ -245,6 +247,89 @@ describe("segmentWords", () => {
     expect(from).toBe("0:0");
     expect(dropped.map((segment) => segment.endWordId)).toEqual(["0:3"]);
     expect(segmentWords([{ ...input[2] } as Word], {}, { newId: ids() })).toEqual([]);
+  });
+
+  it("hands a forced break's single-word caption a word from the caption before it", () => {
+    // Four words of eleven characters at maxChars 12: the greedy pass fills three
+    // lines' worth into one caption and leaves the fourth word on its own.
+    const input = words([
+      { t: "aaaaaaaaaaa", s: 0, e: 800 },
+      { t: "bbbbbbbbbbb", s: 840, e: 1640 },
+      { t: "ccccccccccc", s: 1680, e: 2480 },
+      { t: "ddddddddddd", s: 2520, e: 3320 },
+    ]);
+    const plain = segmentWords(input, { maxChars: 12, maxLines: 2 }, { newId: ids() });
+    expect(plain.map((segment) => [segment.startWordId, segment.endWordId])).toEqual([
+      ["0:0", "0:1"],
+      ["0:2", "0:3"],
+    ]);
+
+    // Three words: the third would need a third line, so it is orphaned — and the
+    // caption before it can spare its last word.
+    const three = segmentWords(input.slice(0, 3), { maxChars: 12, maxLines: 2 }, { newId: ids() });
+    expect(three.map((segment) => [segment.startWordId, segment.endWordId])).toEqual([
+      ["0:0", "0:0"],
+      ["0:1", "0:2"],
+    ]);
+  });
+
+  it("leaves a one-word caption alone when the donation would break a limit", () => {
+    // Donating `bb` would put a 2 600 ms caption on screen, past maxMs.
+    const input = words([
+      { t: "aa", s: 0, e: 1000 },
+      { t: "bb", s: 1040, e: 2000 },
+      { t: "cc", s: 2040, e: 3600 },
+    ]);
+    expect(segmentWords(input, { maxMs: 2500 }, { newId: ids() }).map((s) => s.endWordId)).toEqual([
+      "0:1",
+      "0:2",
+    ]);
+  });
+
+  it("leaves a one-word caption alone when the donor would fall below minMs", () => {
+    const input = words([
+      { t: "aaaaaaaaaaa", s: 0, e: 400 },
+      { t: "bbbbbbbbbbb", s: 440, e: 840 },
+      { t: "ccccccccccc", s: 880, e: 1600 },
+    ]);
+    // Handing `bb` down would leave `aa` as a 400 ms caption.
+    const segments = segmentWords(
+      input,
+      { maxChars: 12, maxLines: 2, mergeGapMs: 1_000 },
+      { newId: ids() },
+    );
+    expect(segments.map((segment) => [segment.startWordId, segment.endWordId])).toEqual([
+      ["0:0", "0:1"],
+      ["0:2", "0:2"],
+    ]);
+  });
+
+  it("never rebalances across a speaker change or a preferred break", () => {
+    const speakers = words([
+      { t: "aaaaaaaaaaa", sp: "a", s: 0, e: 800 },
+      { t: "bbbbbbbbbbb", sp: "a", s: 840, e: 1640 },
+      { t: "ccccccccccc", sp: "b", s: 1680, e: 2480 },
+    ]);
+    expect(
+      segmentWords(speakers, { maxChars: 12, maxLines: 2 }, { newId: ids() }).map((segment) => [
+        segment.startWordId,
+        segment.endWordId,
+      ]),
+    ).toEqual([
+      ["0:0", "0:1"],
+      ["0:2", "0:2"],
+    ]);
+
+    // A full stop is the speaker's own boundary, so "Bilkul." stays a caption.
+    const sentence = words([
+      { t: "chalo", s: 0, e: 800 },
+      { t: "shuru", s: 840, e: 1640 },
+      { t: "karte.", s: 1680, e: 2480 },
+      { t: "Bilkul", s: 2520, e: 3320 },
+    ]);
+    expect(
+      segmentWords(sentence, {}, { newId: ids() }).map((segment) => segment.endWordId),
+    ).toEqual(["0:2", "0:3"]);
   });
 
   it("stamps a styleRef when one is supplied", () => {

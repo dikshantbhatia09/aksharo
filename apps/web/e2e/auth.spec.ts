@@ -17,6 +17,9 @@ import {
  */
 
 test("sign up, confirm the address, finish onboarding and land in the shell", async ({ page }) => {
+  // Sign-up, an argon2id hash, a mail round trip through Redis, sign-in and
+  // three onboarding steps: the longest journey in the suite.
+  test.slow();
   await signUpAndVerify(page, "journey");
 
   // Onboarding steps 1–3. Step 0 was part of sign-up, because D60 makes date of
@@ -33,36 +36,13 @@ test("sign up, confirm the address, finish onboarding and land in the shell", as
 
   await expect(page.getByRole("heading", { name: /How did you find us/ })).toBeVisible();
   await page.getByTestId("choice-YouTube").click();
-
-  /*
-   * Known bug, found here, owned by A05 (outside `apps/web/**`, so reported
-   * rather than fixed here): `PATCH /me` rejects this save.
-   *
-   * `apps/api/src/users/users.dto.ts`'s `onboardingSchema` accepts only
-   * `boolean | number | string` per value
-   * (`z.union([z.boolean(), z.number(), z.string().max(200)])`) — no array
-   * branch. This screen's first two questions are multi-select
-   * (`OnboardingProfile.makes`/`.languages` are `string[]`, and 08 §Onboarding
-   * calls step 2 "multi-select" outright), so the moment either question has an
-   * answer the save carries a `string[]` value no branch of that union accepts.
-   * Isolated directly against the API: `{onboarding:{source:"..."}}` (scalars
-   * only) answers 200; adding `{makes:["reels"]}` alone reproduces
-   * `400 common/validation_failed`, `{path:"onboarding.makes",
-   * code:"invalid_union"}` — every time, both browsers, both attempts. Not a
-   * flake: the stored shape `GET /me` promises back and this screen's UI have
-   * agreed on an array since A13 shipped; `onboardingSchema` is the one link
-   * that was never widened to match.
-   *
-   * The client side of this is real and tested here: the shell turns the
-   * rejection into an honest toast rather than a silent hang, and the answers
-   * already chosen are not lost — they stay in the draft and on screen. Once
-   * `onboardingSchema` gains an array branch, restore the original assertions
-   * below (`page.waitForURL(/\/studio/)` through the shell checks).
-   */
   await page.getByTestId("onboarding-next").click();
-  await expect(page.getByText("We could not save that")).toBeVisible();
-  await expect(page.getByTestId("onboarding-next")).toHaveText("Finish");
-  await expect(page.getByTestId("onboarding")).toBeVisible();
+
+  await page.waitForURL(/\/studio/);
+  await expect(page.getByTestId("studio-heading")).toBeVisible();
+  await expect(page.getByTestId("sidebar")).toBeVisible();
+  await expect(page.getByTestId("nav-home")).toBeVisible();
+  await expect(page.getByTestId("credit-meter")).toBeVisible();
 });
 
 test("sign-up answers the same way whether or not the address is taken", async ({ page }) => {

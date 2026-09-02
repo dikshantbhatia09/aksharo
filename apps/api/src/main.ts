@@ -10,6 +10,7 @@ import { AppModule } from "./app.module.js";
 import { HttpExceptionFilter } from "./common/errors/http-exception.filter.js";
 import { startTelemetry } from "./common/telemetry/otel.js";
 import { ENV } from "./config/config.module.js";
+import { applyInternalBodyLimit } from "./internal/internal-body-limit.js";
 import { setupOpenApi } from "./openapi.js";
 import { APP_VERSION } from "./version.js";
 
@@ -26,6 +27,10 @@ export async function bootstrap(): Promise<INestApplication> {
   // body would not reproduce the signature a Python worker computed.
   const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
   app.useLogger(app.get(PinoLogger));
+
+  // Before the adapter registers its own 100 kB parser (`app.listen()` → `init()`):
+  // an `ai.transcribe` completion carries a whole transcript. A11.
+  applyInternalBodyLimit(app);
 
   const env = app.get<Env>(ENV);
 
