@@ -2,10 +2,12 @@ import { Module } from "@nestjs/common";
 
 import { AdminModule } from "./admin/admin.module.js";
 import { AuthModule } from "./auth/auth.module.js";
+import { BillingModule } from "./billing/billing.module.js";
 import { CommonModule } from "./common/common.module.js";
 import { ConsentsModule } from "./consents/consents.module.js";
 import { CreditsModule } from "./credits/credits.module.js";
 import { EdgModule } from "./edg/edg.module.js";
+import { ExportsModule } from "./exports/exports.module.js";
 import { FontsModule } from "./fonts/fonts.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { InternalModule } from "./internal/internal.module.js";
@@ -38,8 +40,9 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
  * `fonts`, the bundled open-licence catalogue and a workspace's own uploads
  * with their licence warranty; A22 adds `transcripts/scripts` — the
  * `ai.transliterate`/`ai.translate` producers, their completion handlers and
- * the internal write path transliteration needed of its own. Later work
- * packages append to `imports`.
+ * the internal write path transliteration needed of its own; B01 adds
+ * `billing`: the `BillingProvider` port, checkout, webhooks and subscription
+ * management. Later work packages append to `imports`.
  *
  * `NotifyModule` sits after `JobsModule` because it takes the `notify` queue from
  * that module's registry, and it is `@Global()` because `AuthModule` — declared
@@ -73,7 +76,9 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     TranscriptsModule,
     ScriptsModule,
     FontsModule,
+    ExportsModule,
     HealthModule,
+    BillingModule,
   ],
 })
 export class AppModule {}

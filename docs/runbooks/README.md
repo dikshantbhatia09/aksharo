@@ -4,15 +4,17 @@ Operational procedures for the Aksharo platform (engineering codename `montaj`).
 Authored by **X05**; every alert rule in `infra/observability/alerts/` links to
 one of these.
 
-| Runbook                                      | When you reach for it                                                       |
-| -------------------------------------------- | --------------------------------------------------------------------------- |
-| [deploy.md](deploy.md)                       | Shipping a release to staging or production.                                |
-| [rollback.md](rollback.md)                   | The release is bad. Get back to the last good one.                          |
-| [rotate-secrets.md](rotate-secrets.md)       | Planned rotation, or a credential you believe is exposed.                   |
-| [restore-from-pitr.md](restore-from-pitr.md) | Data was destroyed or corrupted and you need a point in time back.          |
-| [scale-gpu.md](scale-gpu.md)                 | Transcripts are queueing, or GPU spend is out of line.                      |
-| [dlq-replay.md](dlq-replay.md)               | Jobs have exhausted their retries and are sitting in the dead-letter queue. |
-| [breach-first-hour.md](breach-first-hour.md) | Suspected compromise or personal-data exposure. Read this one first.        |
+| Runbook                                                | When you reach for it                                                          |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| [deploy.md](deploy.md)                                 | Shipping a release to staging or production.                                   |
+| [rollback.md](rollback.md)                             | The release is bad. Get back to the last good one.                             |
+| [rotate-secrets.md](rotate-secrets.md)                 | Planned rotation, or a credential you believe is exposed.                      |
+| [restore-from-pitr.md](restore-from-pitr.md)           | Data was destroyed or corrupted and you need a point in time back.             |
+| [scale-gpu.md](scale-gpu.md)                           | Transcripts are queueing, or GPU spend is out of line.                         |
+| [dlq-replay.md](dlq-replay.md)                         | Jobs have exhausted their retries and are sitting in the dead-letter queue.    |
+| [credits-orphaned-holds.md](credits-orphaned-holds.md) | A credit hold is stuck `held` for a job that already finished.                 |
+| [billing-reconcile.md](billing-reconcile.md)           | A workspace's credit balance looks wrong, or the nightly reconciliation paged. |
+| [breach-first-hour.md](breach-first-hour.md)           | Suspected compromise or personal-data exposure. Read this one first.           |
 
 ## Conventions used throughout
 

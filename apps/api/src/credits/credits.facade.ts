@@ -85,6 +85,17 @@ export interface GrantLotInput {
   readonly reason: string;
   /** Invoice, payment or referral this lot was created for. */
   readonly refId?: string;
+  /**
+   * What was paid for this lot, when it came from money rather than a grant or a
+   * referral bonus — B01's passes and top-ups (`credit_lots.currency`/
+   * `amountMinor` in 06). `B02`'s real facade writes these straight onto the
+   * lot; the no-op only logs them (signature extension only — see
+   * `apps/api/src/billing/README.md` "grantLot extension").
+   */
+  readonly currency?: "INR" | "USD";
+  readonly amountMinor?: number;
+  /** The `invoices` row this lot is billed against, once B05 exists. */
+  readonly invoiceId?: string;
 }
 
 export interface GrantLotResult {
