@@ -950,6 +950,13 @@ export const API_OPERATIONS = [
     summary: "The project's media, oldest first",
   },
   {
+    operationId: "listProjectPasses",
+    method: "GET",
+    path: "/projects/{projectId}/passes",
+    tags: ["passes"],
+    summary: "Every pass this project has landed, with items",
+  },
+  {
     operationId: "listProjects",
     method: "GET",
     path: "/projects",
@@ -1284,6 +1291,13 @@ export const API_OPERATIONS = [
     path: "/offers/dev/simulate-nine-pass-payment",
     tags: ["offers"],
     summary: "Dev/test only: simulate a ₹9 pass payment landing (FakeProvider environments)",
+  },
+  {
+    operationId: "startAutocutPass",
+    method: "POST",
+    path: "/projects/{projectId}/passes/autocut",
+    tags: ["passes"],
+    summary: "Start an autocut pass",
   },
   {
     operationId: "streakTestHooks",

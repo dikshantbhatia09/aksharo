@@ -1,0 +1,16 @@
+{
+  "language": "pa",
+  "version": 1,
+  "description": "Punjabi filler lexicon (minimal seed set, B18) for the autocut pass.",
+  "entries": [
+    {
+      "token": "ਮਤਲਬ",
+      "scripts": { "native": "ਮਤਲਬ", "roman": "matlab" },
+      "contextRule": "isolated_only",
+      "weight": 0.58
+    },
+    { "token": "ਤਾਂ", "scripts": { "native": "ਤਾਂ", "roman": "taan" }, "contextRule": "isolated_only", "weight": 0.45 },
+    { "token": "um", "scripts": { "roman": "um" }, "contextRule": "always", "weight": 0.9 },
+    { "token": "hmm", "scripts": { "roman": "hmm" }, "contextRule": "always", "weight": 0.88 }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "language": "ml",
+  "version": 1,
+  "description": "Malayalam filler lexicon (minimal seed set, B18) for the autocut pass.",
+  "entries": [
+    {
+      "token": "അപ്പോൾ",
+      "scripts": { "native": "അപ്പോൾ", "roman": "appol" },
+      "contextRule": "isolated_only",
+      "weight": 0.5
+    },
+    {
+      "token": "അതായത്",
+      "scripts": { "native": "അതായത്", "roman": "athaayath" },
+      "contextRule": "isolated_only",
+      "weight": 0.55
+    },
+    { "token": "um", "scripts": { "roman": "um" }, "contextRule": "always", "weight": 0.9 },
+    { "token": "hmm", "scripts": { "roman": "hmm" }, "contextRule": "always", "weight": 0.88 }
+  ]
+}

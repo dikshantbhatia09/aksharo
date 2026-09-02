@@ -1,0 +1,17 @@
+{
+  "language": "mr",
+  "version": 1,
+  "description": "Marathi filler lexicon (minimal seed set, B18) for the autocut pass.",
+  "entries": [
+    {
+      "token": "म्हणजे",
+      "scripts": { "native": "म्हणजे", "roman": "mhanje" },
+      "contextRule": "isolated_only",
+      "weight": 0.58
+    },
+    { "token": "तर", "scripts": { "native": "तर", "roman": "tar" }, "contextRule": "isolated_only", "weight": 0.45 },
+    { "token": "हा", "scripts": { "native": "हा", "roman": "haa" }, "contextRule": "isolated_only", "weight": 0.42 },
+    { "token": "um", "scripts": { "roman": "um" }, "contextRule": "always", "weight": 0.9 },
+    { "token": "hmm", "scripts": { "roman": "hmm" }, "contextRule": "always", "weight": 0.88 }
+  ]
+}

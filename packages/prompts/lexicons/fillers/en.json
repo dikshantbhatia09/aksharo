@@ -1,0 +1,27 @@
+{
+  "language": "en",
+  "version": 1,
+  "description": "English filler lexicon for the autocut pass (B18). `contextRule: isolated_only` entries are cut only when flanked by pauses >= 120ms or sit at a clause start; `always` entries are cut wherever they occur.",
+  "entries": [
+    { "token": "um", "scripts": { "roman": "um" }, "contextRule": "always", "weight": 0.97 },
+    { "token": "umm", "scripts": { "roman": "umm" }, "contextRule": "always", "weight": 0.97 },
+    { "token": "uh", "scripts": { "roman": "uh" }, "contextRule": "always", "weight": 0.96 },
+    { "token": "uhh", "scripts": { "roman": "uhh" }, "contextRule": "always", "weight": 0.96 },
+    { "token": "erm", "scripts": { "roman": "erm" }, "contextRule": "always", "weight": 0.95 },
+    { "token": "hmm", "scripts": { "roman": "hmm" }, "contextRule": "always", "weight": 0.9 },
+    { "token": "huh", "scripts": { "roman": "huh" }, "contextRule": "isolated_only", "weight": 0.55 },
+    { "token": "like", "scripts": { "roman": "like" }, "contextRule": "isolated_only", "weight": 0.6 },
+    { "token": "basically", "scripts": { "roman": "basically" }, "contextRule": "isolated_only", "weight": 0.6 },
+    { "token": "actually", "scripts": { "roman": "actually" }, "contextRule": "isolated_only", "weight": 0.55 },
+    { "token": "literally", "scripts": { "roman": "literally" }, "contextRule": "isolated_only", "weight": 0.55 },
+    { "token": "so", "scripts": { "roman": "so" }, "contextRule": "isolated_only", "weight": 0.5 },
+    { "token": "well", "scripts": { "roman": "well" }, "contextRule": "isolated_only", "weight": 0.5 },
+    { "token": "right", "scripts": { "roman": "right" }, "contextRule": "isolated_only", "weight": 0.5 },
+    { "token": "okay", "scripts": { "roman": "okay" }, "contextRule": "isolated_only", "weight": 0.5 },
+    { "token": "ok", "scripts": { "roman": "ok" }, "contextRule": "isolated_only", "weight": 0.5 },
+    { "token": "i mean", "scripts": { "roman": "i mean" }, "contextRule": "isolated_only", "weight": 0.6 },
+    { "token": "you know", "scripts": { "roman": "you know" }, "contextRule": "isolated_only", "weight": 0.6 },
+    { "token": "kind of", "scripts": { "roman": "kind of" }, "contextRule": "isolated_only", "weight": 0.55 },
+    { "token": "sort of", "scripts": { "roman": "sort of" }, "contextRule": "isolated_only", "weight": 0.55 }
+  ]
+}
