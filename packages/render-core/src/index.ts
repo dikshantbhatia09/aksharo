@@ -153,14 +153,23 @@ export {
 } from "./frame/resolve.js";
 export {
   type EdgProjection,
-  layoutFrame,
   type ProjectedSegment,
+  visibleSegments,
+  wordsBetween,
+} from "./frame/projection.js";
+export {
+  layoutFrame,
   renderFrame,
   type RenderFrameOptions,
-  visibleSegments,
   watermarkFor,
-  wordsBetween,
 } from "./frame/render-frame.js";
+export {
+  computeTrackShrink,
+  type ComputeTrackShrinkOptions,
+  type TrackShrink,
+  trackShrinkFor,
+  trackShrinkKey,
+} from "./frame/track-shrink.js";
 
 export { itemise, type ItemisedRun, type ItemiseOptions, splitByScript } from "./layout/itemise.js";
 export {
@@ -197,6 +206,8 @@ export {
   limitsFor,
   openTypeScriptTag,
   SCRIPT_LIMITS,
+  scriptScaleFor,
+  scriptScaleKey,
   type ScriptLimits,
   type WordScript,
 } from "./script.js";
@@ -208,6 +219,20 @@ export {
   type StyleCapabilities,
   stylesWithCapabilities,
 } from "./styles/capabilities.js";
+export {
+  budgetFillingWords,
+  budgetProbes,
+  type FitContext,
+  type FitProbe,
+  type FitResult,
+  LANDSCAPE_CANVAS,
+  LANDSCAPE_MIN_SHRINK,
+  PORTRAIT_CANVAS,
+  PORTRAIT_MIN_SHRINK,
+  sweep,
+  worstFit,
+  worstFitForScript,
+} from "./styles/fit.js";
 export {
   PREVIEW_DURATION_MS,
   PREVIEW_SCRIPTS,

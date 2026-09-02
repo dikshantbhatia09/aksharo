@@ -13,57 +13,16 @@
 import { type StyleDoc } from "@montaj/caption-styles";
 import { type TimeQuery } from "@montaj/timemap";
 
-import {
-  type DisplayScript,
-  resolveStyle,
-  resolveWords,
-  type StyleOverrides,
-  type TranscriptWord,
-} from "./resolve.js";
+import { type EdgProjection, visibleSegments, wordsBetween } from "./projection.js";
+import { type DisplayScript, resolveStyle, resolveWords } from "./resolve.js";
+import { type TrackShrink, trackShrinkFor } from "./track-shrink.js";
 import { animate } from "../animate/animate.js";
 import { type DrawCommand } from "../commands/types.js";
 import { type Shaper } from "../fonts/shaper.js";
 import { type FontRegistry } from "../fonts/types.js";
 import { layoutSegment } from "../layout/layout.js";
-import { type Layout, type RenderSegment } from "../layout/types.js";
+import { type Layout } from "../layout/types.js";
 import { type CanvasSize, assertCanvas } from "../units.js";
-
-/** A segment as the projection hands it over (CONTRACTS §2 plus the ordering key). */
-export interface ProjectedSegment extends RenderSegment {
-  /** Fractional index; segments are drawn in this order. */
-  readonly seq: string;
-  readonly startWordId: string;
-  readonly endWordId: string;
-  readonly styleRef?: string;
-  readonly overrides?: StyleOverrides;
-  readonly textOverrides?: Record<string, string>;
-  readonly emphasis?: readonly { readonly wordId: string; readonly presetId: string }[];
-}
-
-/**
- * The read model `renderFrame` needs: the hot document's style and canvas
- * fields, the segment rows and the transcript words in reading order. It is
- * deliberately not `EdgHot` — the renderer must run in a worker that was handed
- * a projection, not a database.
- */
-export interface EdgProjection {
-  readonly canvas: CanvasSize;
-  readonly styles: {
-    readonly defaultStyleId: string;
-    /** Document-level `SetStyle` overrides live at `styles.inline.doc`. */
-    readonly inline?: { readonly doc?: StyleOverrides } & Record<string, unknown>;
-  };
-  readonly render?: {
-    /** Asset id of the watermark to burn in; absent means no watermark. */
-    readonly watermarkAssetId?: string;
-    readonly [key: string]: unknown;
-  };
-  readonly segments: readonly ProjectedSegment[];
-  /** Every live word, in reading order. */
-  readonly words: readonly TranscriptWord[];
-  /** Per-speaker caption colours, for the podcast styles. */
-  readonly speakerColours?: Readonly<Record<string, string>>;
-}
 
 export interface RenderFrameOptions {
   readonly projection: EdgProjection;
@@ -80,31 +39,13 @@ export interface RenderFrameOptions {
   readonly dropFillers?: boolean;
   /** Re-used across frames so style merging is not redone thirty times a second. */
   readonly styleCache?: Map<string, StyleDoc>;
-}
-
-/** The slice of the word list a segment covers, inclusive of both ends. */
-export function wordsBetween(
-  words: readonly TranscriptWord[],
-  startWordId: string,
-  endWordId: string,
-): TranscriptWord[] {
-  const start = words.findIndex((word) => word.wid === startWordId);
-  if (start < 0) return [];
-  const end = words.findIndex((word, index) => index >= start && word.wid === endWordId);
-  return words.slice(start, end < 0 ? words.length : end + 1);
-}
-
-/** Segments on screen at `sourceMs`, in `seq` order, hidden ones dropped. */
-export function visibleSegments(
-  segments: readonly ProjectedSegment[],
-  sourceMs: number,
-): ProjectedSegment[] {
-  return segments
-    .filter(
-      (segment) =>
-        segment.hidden !== true && sourceMs >= segment.startMs && sourceMs < segment.endMs,
-    )
-    .sort((a, b) => (a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : a.id.localeCompare(b.id)));
+  /**
+   * One shrink per (style, script) for the whole caption track, from
+   * `computeTrackShrink`. With it, every caption in a style is drawn at the same
+   * size for the whole video; without it, each caption shrinks on its own.
+   * Compute it once per session and cache it — it costs one layout per caption.
+   */
+  readonly trackShrink?: TrackShrink;
 }
 
 /** The layouts that make up one frame; `renderFrame` is this plus `animate`. */
@@ -132,7 +73,18 @@ export function layoutFrame(options: RenderFrameOptions): { layout: Layout; styl
     if (words.length === 0) continue;
     results.push({
       style,
-      layout: layoutSegment({ style, segment, words, canvas, registry, shaper, tMs: sourceMs }),
+      layout: layoutSegment({
+        style,
+        segment,
+        words,
+        canvas,
+        registry,
+        shaper,
+        tMs: sourceMs,
+        // Resolved after the layout knows which script it is drawing, because
+        // the track keeps a separate size per script.
+        shrinkOverride: (script) => trackShrinkFor(options.trackShrink, style.id, script),
+      }),
     });
   }
   return results;

@@ -29,6 +29,7 @@ import {
   type CommitOutcome,
   EdgNotFoundError,
   EdgRepository,
+  RestoreInvalidError,
   SnapshotNotFoundError,
 } from "./edg.repository.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
@@ -352,6 +353,10 @@ export class EdgService {
    * happened in between, so "restore" is itself undoable by restoring a later
    * snapshot. The new revision carries no ops, which tells a client rebasing
    * across it to reload rather than replay.
+   *
+   * The transcript is **not** rolled back, so a snapshot can outlive the words it
+   * names. One that does is refused with `edg/restore_invalid` and the list of
+   * dangling word ids, rather than written as a caption nothing can render.
    */
   async restore(input: {
     projectId: string;
@@ -583,6 +588,17 @@ export class EdgService {
         EDG_ERROR_CODES.snapshotNotFound,
         "No snapshot was taken at that revision.",
         HttpStatus.NOT_FOUND,
+      );
+    }
+    if (error instanceof RestoreInvalidError) {
+      // 409, not 404 or 422: the snapshot is real and well-formed, and so is the
+      // document — they simply cannot both be true of the transcript as it now
+      // stands, which is what a conflict is.
+      return new AppException(
+        EDG_ERROR_CODES.restoreInvalid,
+        "That snapshot addresses words the transcript no longer has; it cannot be restored.",
+        HttpStatus.CONFLICT,
+        { danglingWordIds: error.danglingWordIds, issues: error.issues.slice(0, 50) },
       );
     }
     return error;

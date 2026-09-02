@@ -184,7 +184,13 @@ beforeAll(async () => {
     },
   });
   await prisma.membership.create({
-    data: { id: id("MBR1"), workspaceId: WORKSPACE, userId: ADMIN, role: "owner", status: "active" },
+    data: {
+      id: id("MBR1"),
+      workspaceId: WORKSPACE,
+      userId: ADMIN,
+      role: "owner",
+      status: "active",
+    },
   });
   await prisma.project.create({
     data: { id: PROJECT, workspaceId: WORKSPACE, title: "A08b fixture" },
@@ -415,7 +421,9 @@ describe.skipIf(!CAN_RUN)("admin authorisation (THREAT-MODEL T20)", () => {
       const call =
         method === "get"
           ? request(app.getHttpServer()).get(path)
-          : request(app.getHttpServer()).post(path).send(body ?? {});
+          : request(app.getHttpServer())
+              .post(path)
+              .send(body ?? {});
       const response = await call.set("Authorization", asUser());
       expect(response.status, path).toBe(403);
       expect((response.body as { error: { code: string } }).error.code).toBe("common/forbidden");

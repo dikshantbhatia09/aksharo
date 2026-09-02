@@ -36,7 +36,9 @@
     "test:coverage": "vitest run --coverage",
     "bench": "vitest bench --run",
     "golden:build": "tsx scripts/build-goldens.ts",
-    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "styles:tune": "tsx scripts/tune-style-sizes.ts",
+    "styles:fit": "tsx scripts/measure-fit.ts"
   },
   "dependencies": {
     "@montaj/caption-styles": "workspace:*",

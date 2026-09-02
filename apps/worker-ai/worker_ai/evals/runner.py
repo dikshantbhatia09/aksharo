@@ -79,7 +79,15 @@ async def transcribe_item(
             options=options,
         )
     )
-    return " ".join(word.t for word in result.words), [word.s for word in result.words]
+    if result.words:
+        return " ".join(word.t for word in result.words), [word.s for word in result.words]
+    # A provider with no word timings — Sarvam — returns chunk-level segments and
+    # the aligner is a separate stage (D13). WER is a property of the *text*, so
+    # it is measured here on the text the provider actually returned; onset error
+    # is the aligner's metric and is measured against `ai.align`, not here.
+    return " ".join(segment[2] for segment in result.segments), [
+        segment[0] for segment in result.segments
+    ]
 
 
 async def run_eval_set(eval_set: EvalSet, provider: Provider) -> EvalReport:

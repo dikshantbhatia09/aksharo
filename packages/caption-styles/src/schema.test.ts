@@ -102,3 +102,50 @@ describe("StyleDoc v2", () => {
     ).toBe(false);
   });
 });
+
+describe("typography.scriptScale", () => {
+  const base = draft() as StyleDocInput;
+
+  it("is optional, so a document written before the field still parses", () => {
+    const { scriptScale: _dropped, ...typography } = base.typography;
+    const older = { ...base, typography };
+    expect(StyleDocSchema.safeParse(older).success).toBe(true);
+    expect(StyleDocSchema.parse(older).typography.scriptScale).toBeUndefined();
+  });
+
+  it("accepts lowercase four-letter OpenType tags", () => {
+    const parsed = StyleDocSchema.parse({
+      ...base,
+      typography: { ...base.typography, scriptScale: { deva: 0.8, taml: 0.62, latn: 1 } },
+    });
+    expect(parsed.typography.scriptScale).toEqual({ deva: 0.8, taml: 0.62, latn: 1 });
+  });
+
+  it("rejects a key that is not a script tag", () => {
+    const parsed = StyleDocSchema.safeParse({
+      ...base,
+      typography: { ...base.typography, scriptScale: { Devanagari: 0.8 } },
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects a multiplier that is zero, negative or absurd", () => {
+    for (const value of [0, -1, 3]) {
+      const parsed = StyleDocSchema.safeParse({
+        ...base,
+        typography: { ...base.typography, scriptScale: { deva: value } },
+      });
+      expect(parsed.success, `scriptScale.deva = ${String(value)} should be rejected`).toBe(false);
+    }
+  });
+
+  it("keeps the schema at generation 2 — the field is additive, not a migration", () => {
+    expect(STYLE_DOC_VERSION).toBe(2);
+    expect(
+      StyleDocSchema.parse({
+        ...base,
+        typography: { ...base.typography, scriptScale: { taml: 0.6 } },
+      }).version,
+    ).toBe(2);
+  });
+});

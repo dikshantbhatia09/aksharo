@@ -399,18 +399,16 @@ export class DlqService {
     });
 
     try {
-      await this.queues
-        .queue(queueForJobType(job.type))
-        .add(
-          job.type,
-          envelope,
-          this.queues.optionsFor({
-            queueName: job.type,
-            jobId: job.id,
-            attemptId,
-            priority: job.priority,
-          }),
-        );
+      await this.queues.queue(queueForJobType(job.type)).add(
+        job.type,
+        envelope,
+        this.queues.optionsFor({
+          queueName: job.type,
+          jobId: job.id,
+          attemptId,
+          priority: job.priority,
+        }),
+      );
     } catch (error) {
       await this.credits.release({ holdId });
       await this.prisma.job.update({
@@ -446,7 +444,14 @@ export class DlqService {
       name: "job.replayed",
       level: "warn",
       message: `replayed as attempt ${String(attemptNo)}`,
-      data: { dlqEntryId: claimed.id, attemptId, attemptNo, holdId, worstCaseTenths, actor: actor.userId },
+      data: {
+        dlqEntryId: claimed.id,
+        attemptId,
+        attemptNo,
+        holdId,
+        worstCaseTenths,
+        actor: actor.userId,
+      },
     });
     await this.audit(actor, "dlq.replay", claimed, {
       attemptId,

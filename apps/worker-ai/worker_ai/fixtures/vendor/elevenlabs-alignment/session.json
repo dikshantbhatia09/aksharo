@@ -1,0 +1,46 @@
+{
+  "provider": "elevenlabs",
+  "baseUrl": "https://api.elevenlabs.test",
+  "exchanges": [
+    {
+      "method": "POST",
+      "path": "/v1/forced-alignment",
+      "status": 200,
+      "json": {
+        "words": [
+          {
+            "text": "toh",
+            "start": 0.12,
+            "end": 0.44,
+            "loss": 0.12
+          },
+          {
+            "text": "aaj",
+            "start": 0.48,
+            "end": 0.8,
+            "loss": 0.12
+          },
+          {
+            "text": "hum",
+            "start": 0.84,
+            "end": 1.12,
+            "loss": 0.12
+          },
+          {
+            "text": "baat",
+            "start": 1.16,
+            "end": 1.52,
+            "loss": 0.12
+          },
+          {
+            "text": "karenge",
+            "start": 1.56,
+            "end": 2.1,
+            "loss": 0.12
+          }
+        ]
+      },
+      "repeat": 4
+    }
+  ]
+}

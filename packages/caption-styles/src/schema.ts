@@ -69,6 +69,32 @@ export const WordHighlightTypeSchema = z.enum([
   "glow",
 ]);
 
+/**
+ * Per-script multipliers on `sizePct`, keyed by the lowercase OpenType script
+ * tag (`latn`, `deva`, `taml`, …). Absent, or an absent key, means 1.
+ *
+ * It exists because the segmenter's line budgets are counted in **base
+ * characters** — combining marks are excluded, because they occupy no width of
+ * their own in the reading-speed sense (`09 §3`). Width is a different
+ * question: a 22-character Tamil line is around 37 code points and roughly
+ * twice as wide as 32 characters of Latin. Without a per-script multiplier the
+ * only way to make a full-budget Indic line fit is to shrink every style for
+ * every script, which turns a creator caption into a subtitle. This keeps Latin
+ * at the size the style was drawn for and lets Indic take the size it needs.
+ *
+ * `render-core` multiplies the type size by the entry for the script it is
+ * actually laying out — the script of the words on screen, not the project's
+ * language, so a Hinglish caption picks the right one line by line.
+ */
+export const ScriptScaleSchema = z
+  .record(
+    z
+      .string()
+      .regex(/^[a-z]{4}$/, "script keys are lowercase four-letter OpenType tags, e.g. deva"),
+    z.number().gt(0).max(2),
+  )
+  .describe("per-script multiplier on sizePct, keyed by lowercase OpenType script tag");
+
 export const TypographySchema = z.object({
   /** Family name; must resolve to a bundled or workspace font (A18b). */
   fontFamily: z.string().min(1).max(120),
@@ -85,6 +111,11 @@ export const TypographySchema = z.object({
   /** Tracking, in em. */
   letterSpacingEm: z.number().min(-0.5).max(1),
   textTransform: z.enum(["none", "uppercase", "lowercase", "capitalize"]),
+  /**
+   * Optional per-script size multipliers. Additive in StyleDoc v2: a document
+   * without it renders exactly as before, so no migration is needed.
+   */
+  scriptScale: ScriptScaleSchema.optional(),
 });
 
 export const ColorsSchema = z.object({
@@ -238,6 +269,7 @@ export const StyleDocSchema = z
 export type StyleId = z.infer<typeof StyleIdSchema>;
 export type StyleCategory = z.infer<typeof StyleCategorySchema>;
 export type MinPlan = z.infer<typeof MinPlanSchema>;
+export type ScriptScale = z.infer<typeof ScriptScaleSchema>;
 export type Typography = z.infer<typeof TypographySchema>;
 export type Colors = z.infer<typeof ColorsSchema>;
 export type Box = z.infer<typeof BoxSchema>;

@@ -130,6 +130,9 @@ class JobUsage:
     cost_minor: int | None = None
     egress_bytes: int | None = None
     actual_tenths: int | None = None
+    #: True when at least one chunk was served from the `09 §1` result cache, so
+    #: the API knows not to count this job as a fresh vendor charge.
+    cached: bool | None = None
 
     def to_wire(self) -> dict[str, Any]:
         """Camel-case JSON with every unset field omitted."""
@@ -148,6 +151,8 @@ class JobUsage:
             wire["egressBytes"] = int(self.egress_bytes)
         if self.actual_tenths is not None:
             wire["actualTenths"] = int(self.actual_tenths)
+        if self.cached is not None:
+            wire["cached"] = bool(self.cached)
         return wire
 
 

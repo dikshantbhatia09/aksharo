@@ -88,8 +88,7 @@ lanes:
 
   - id: indic-scribe
     label: Indic languages Scribe covers
-    languages:
-      ["ta", "te", "kn", "ml", "bn", "mr", "gu", "or", "ne", "as", "pa"]
+    languages: ["ta", "te", "kn", "ml", "bn", "mr", "gu", "or", "ne", "as", "pa"]
     candidates:
       - provider: elevenlabs
         model: scribe-v2

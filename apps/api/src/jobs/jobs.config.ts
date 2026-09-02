@@ -230,12 +230,14 @@ export const QUEUE_POLICY_BY_FAMILY: Readonly<Record<string, QueuePolicy>> = Obj
  * brief number and comes from the worst realistic case: a two-hour recording on a
  * cold GPU. `render.video` gets the same, for the same reason.
  */
-export const QUEUE_POLICY_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy>>> = Object.freeze({
-  "ai.transcribe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
-  "ai.diarise": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
-  "ai.align": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },
-  "render.video": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
-});
+export const QUEUE_POLICY_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy>>> = Object.freeze(
+  {
+    "ai.transcribe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "ai.diarise": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "ai.align": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },
+    "render.video": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+  },
+);
 
 /** The policy for a queue: its family defaults, with any per-queue override. */
 export function queuePolicyFor(queueName: string): QueuePolicy {
