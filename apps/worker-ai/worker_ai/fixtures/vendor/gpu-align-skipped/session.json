@@ -32,9 +32,7 @@
             "probability": 1.0
           }
         ],
-        "skipped": [
-          "aaj"
-        ],
+        "skipped": ["aaj"],
         "engineVersions": {
           "asr": "large-v3-turbo",
           "asr.licence": "MIT",

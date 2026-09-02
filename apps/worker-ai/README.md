@@ -487,11 +487,11 @@ two files describing one image is how they drift.
 Four routes on it are called from here, each with a client and a recorded
 response in `fixtures/vendor/gpu-whisper/session.json`:
 
-| Route | Client |
-| --- | --- |
-| `POST /transcribe` | `providers/serverless_whisper.py` |
-| `POST /align` | `alignment/gpu.py` |
-| `POST /diarise` | `diarisation/pyannote.py` |
+| Route                   | Client                             |
+| ----------------------- | ---------------------------------- |
+| `POST /transcribe`      | `providers/serverless_whisper.py`  |
+| `POST /align`           | `alignment/gpu.py`                 |
+| `POST /diarise`         | `diarisation/pyannote.py`          |
 | `POST /detect-language` | `lid.py` (`GpuLanguageIdentifier`) |
 
 That recording is the contract in both directions: A26's
