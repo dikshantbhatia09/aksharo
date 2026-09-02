@@ -84,6 +84,16 @@ describe("queuePolicyFor", () => {
     expect(queuePolicyFor("ai.clean").lockDurationMs).toBe(120_000);
   });
 
+  it("gives the media queues a ten-minute lock too (A07)", () => {
+    // A 4K sixty-minute upload spends longer than two minutes in one ffmpeg run,
+    // and a lock that expires mid-encode hands the job to a second worker while
+    // the first is still writing the same derived keys.
+    expect(queuePolicyFor("media.probe").lockDurationMs).toBe(600_000);
+    expect(queuePolicyFor("media.proxy").lockDurationMs).toBe(600_000);
+    // The retry budget is still the media family's three.
+    expect(queuePolicyFor("media.proxy").attempts).toBe(3);
+  });
+
   it("never lets the stall check run less often than the lock it guards", () => {
     for (const queue of QUEUE_NAMES) {
       const policy = queuePolicyFor(queue);

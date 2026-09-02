@@ -21,6 +21,8 @@ export const JOB_EVENT_NAMES = [
   "job.replayed",
   /** An admin gave up on a dead letter and released its hold (A08b). */
   "job.dlq_discarded",
+  /** The job type's completion handler threw; the job stays open for a retry (A07). */
+  "job.completion_handler_failed",
 ] as const;
 
 export type JobEventName = (typeof JOB_EVENT_NAMES)[number];

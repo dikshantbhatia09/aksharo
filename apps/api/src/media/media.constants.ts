@@ -34,3 +34,31 @@ export const MEDIA_JOB_QUOTES = {
    */
   alignTenths: 0,
 } as const;
+
+/**
+ * Why a media asset is `failed`, in the user's words (CONTRACTS §8: `namespace/slug`).
+ *
+ * A **closed set**, not free text. `media_assets.failure_reason` is rendered in
+ * the studio, and the only thing that ever writes it is a worker reporting through
+ * the signed patch — so an open string would be a worker-controlled sentence on a
+ * user's screen. The studio maps each code to translated copy; anything not on
+ * this list is refused by `MediaPatchSchema` and the asset simply reads "failed".
+ *
+ * `media/too_long` is the one the API writes itself: the plan's duration cap is
+ * policy, and the probe completion handler applies it (A07).
+ */
+export const MEDIA_FAILURE_REASONS = [
+  /** ffprobe read the file and found nothing it can decode. */
+  "media/unsupported",
+  /** The bytes are truncated or damaged — a half-finished upload, usually. */
+  "media/corrupt",
+  /** A readable container with neither an audio nor a video stream. */
+  "media/no_streams",
+  /** Longer than the plan allows; the probe succeeded and the pipeline stopped. */
+  "media/too_long",
+  /** Terminal, and none of the above. The job event carries the detail. */
+  "media/probe_failed",
+] as const;
+
+export type MediaFailureReason = (typeof MEDIA_FAILURE_REASONS)[number];
+

@@ -1009,6 +1009,14 @@ model MediaAsset {
   width           Int?
   height          Int?
   audioChannels   Int?          @map("audio_channels")
+  /// Video codec `ffprobe` reported (`h264`, `hevc`, `vp9`, ...); null for audio-only (A07).
+  codec           String?
+  /// Whether the container carries a usable audio stream; the ASR path branches on it (A07).
+  hasAudio        Boolean?      @map("has_audio")
+  /// PQ or HLG source: the proxy is tone-mapped to BT.709 and the editor labels it (A07).
+  hdr             Boolean?
+  /// User-facing `media/*` code when `status` is `failed`, e.g. `media/unsupported` (A07).
+  failureReason   String?       @map("failure_reason")
   proxyKey        String?       @map("proxy_key")
   audio16kKey     String?       @map("audio16k_key")
   audio48kKey     String?       @map("audio48k_key")

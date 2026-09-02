@@ -1,6 +1,7 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 
 import { AdmissionService, IN_FLIGHT_STATUSES } from "./admission.service.js";
+import { JobCompletionRegistry } from "./completion-handlers.js";
 import { RealtimePublisher } from "../realtime/realtime.publisher.js";
 import { buildJobEnvelope } from "./contracts/job-envelope.js";
 import { isQueueName, queueForJobType } from "./contracts/queue-names.js";
@@ -15,6 +16,7 @@ import { MetricsService } from "../common/metrics/metrics.service.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { CREDITS_FACADE } from "../credits/credits.facade.js";
 
+import type { JobCompletionOutcome } from "./completion-handlers.js";
 import type { CreditsFacade } from "../credits/credits.facade.js";
 import type { CallbackAck, JobCompletion, JobProgress, JobUsage } from "./contracts/completion.js";
 import type { JobEnvelope } from "./contracts/job-envelope.js";
@@ -35,6 +37,15 @@ export interface EnqueueJobInput {
   readonly worstCaseTenths: number;
   /** Credit audit trail, e.g. `"ai.transcribe · 12.4 media minutes"`. */
   readonly reason?: string;
+  /**
+   * Take the plan's priority and queue-wait budget but check neither cap.
+   *
+   * Only for the second half of a piece of work the workspace was already
+   * admitted for — `media.probe` asking for its `media.proxy` (A07). It is
+   * deliberately absent from `EnqueueChildSchema`, so nothing a worker can send
+   * reaches it (THREAT-MODEL T23).
+   */
+  readonly skipAdmission?: boolean;
 }
 
 export interface EnqueueResult {
@@ -97,6 +108,7 @@ export class JobsService {
     private readonly realtime: RealtimePublisher,
     private readonly dlq: DlqService,
     private readonly metrics: MetricsService,
+    private readonly completionHandlers: JobCompletionRegistry,
     @Inject(CREDITS_FACADE) private readonly credits: CreditsFacade,
   ) {}
 
@@ -118,11 +130,16 @@ export class JobsService {
     const existing = await this.findLiveByKey(input.workspaceId, input.jobKey);
     if (existing !== null) return { job: existing, deduplicated: true };
 
-    const decision = await this.admission.admit({
-      workspaceId: input.workspaceId,
-      worstCaseTenths: input.worstCaseTenths,
-    });
-    const priority = input.priority ?? decision.limits.priority;
+    const limits =
+      input.skipAdmission === true
+        ? await this.admission.limitsFor(input.workspaceId)
+        : (
+            await this.admission.admit({
+              workspaceId: input.workspaceId,
+              worstCaseTenths: input.worstCaseTenths,
+            })
+          ).limits;
+    const priority = input.priority ?? limits.priority;
 
     const jobId = jobUlid();
     const attemptId = jobUlid();
@@ -142,7 +159,7 @@ export class JobsService {
           jobKey: input.jobKey,
           attemptId,
           attemptNo: 1,
-          maxQueueWaitMs: decision.limits.maxQueueWaitMs,
+          maxQueueWaitMs: limits.maxQueueWaitMs,
           // The worst-case hold, which the completion path overwrites with the
           // settled amount. Admission control sums this column.
           creditsChargedTenths: input.worstCaseTenths,
@@ -228,8 +245,8 @@ export class JobsService {
         attemptId,
         holdId,
         worstCaseTenths: input.worstCaseTenths,
-        maxQueueWaitMs: decision.limits.maxQueueWaitMs,
-        plan: decision.limits.plan,
+        maxQueueWaitMs: limits.maxQueueWaitMs,
+        plan: limits.plan,
       },
     });
 
@@ -417,7 +434,13 @@ export class JobsService {
 
     const succeeded = body.status === "succeeded";
     const usage = body.usage;
-    const actualTenths = succeeded ? settlementTenths(job, usage) : 0;
+
+    // The job type's own handler runs BEFORE the status flip, so a failure leaves
+    // the job `running` and the worker's retry re-drives it. Handlers are
+    // idempotent by contract (`completion-handlers.ts`), which is what makes
+    // re-driving safe.
+    const outcome = succeeded ? await this.runCompletionHandler(job, attemptId, body) : undefined;
+    const actualTenths = succeeded ? settlementTenths(job, usage, outcome?.actualTenths) : 0;
 
     const { count } = await this.prisma.job.updateMany({
       where: { id: jobId, status: { in: [...IN_FLIGHT_STATUSES] } },
@@ -456,6 +479,7 @@ export class JobsService {
         settledTenths: actualTenths,
         ...(usage === undefined ? {} : { usage }),
         ...(body.error === undefined ? {} : { error: body.error }),
+        ...(outcome?.data === undefined ? {} : outcome.data),
       },
     });
 
@@ -538,6 +562,8 @@ export class JobsService {
       readonly worstCaseTenths: number;
       readonly jobKey?: string;
       readonly reason?: string;
+      /** API-side callers only; see {@link EnqueueJobInput.skipAdmission}. */
+      readonly skipAdmission?: boolean;
     },
   ): Promise<EnqueueResult> {
     const jobKey = input.jobKey ?? `${parent.jobKey}:${input.type}`;
@@ -550,6 +576,7 @@ export class JobsService {
       jobKey,
       worstCaseTenths: input.worstCaseTenths,
       reason: input.reason ?? `child of ${parent.id}`,
+      ...(input.skipAdmission === undefined ? {} : { skipAdmission: input.skipAdmission }),
     });
 
     await this.events.append({
@@ -581,6 +608,51 @@ export class JobsService {
     if (job.attemptId !== null && job.attemptId !== attemptId) return "stale_attempt";
     if (TERMINAL_STATUSES.includes(job.status)) return "already_completed";
     return undefined;
+  }
+
+  /**
+   * Hand the payload to whichever module owns this queue's completions.
+   *
+   * Called before the conditional `UPDATE`, so it is the handler — not the state
+   * machine — that decides whether the job may be called done. A throw is
+   * deliberately not swallowed: the callback answers 5xx, the job stays
+   * `running`, and the worker's next delivery runs the handler again against a
+   * job that is still open. The alternative (flip first, persist after) turns the
+   * first transient database error into permanent data loss, because the replay
+   * would be answered `already_completed` before the handler was ever reached.
+   */
+  private async runCompletionHandler(
+    job: Job,
+    attemptId: string,
+    body: JobCompletion,
+  ): Promise<JobCompletionOutcome | undefined> {
+    const handler = this.completionHandlers.handlerFor(job.type);
+    if (handler === undefined) return undefined;
+
+    try {
+      return await handler.handle({
+        job,
+        attemptId,
+        result: (body.result ?? {}) as Record<string, unknown>,
+        usage: body.usage,
+        completion: body,
+      });
+    } catch (error) {
+      this.logger.error(
+        { jobId: job.id, queue: job.type, err: describe(error) },
+        "completion handler failed; the job stays open for the worker to retry",
+      );
+      await this.events
+        .append({
+          jobId: job.id,
+          name: "job.completion_handler_failed",
+          level: "error",
+          message: describe(error),
+          data: { type: job.type },
+        })
+        .catch(() => undefined);
+      throw error;
+    }
   }
 
   /**
@@ -629,10 +701,17 @@ export class JobsService {
  * hold. Never more than was held — an over-run is B02's delta-hold problem, and
  * charging beyond a hold from here would bypass the reservation entirely.
  */
-function settlementTenths(job: Job, usage: JobUsage | undefined): number {
+function settlementTenths(
+  job: Job,
+  usage: JobUsage | undefined,
+  fromHandler: number | undefined,
+): number {
   const held = job.creditsChargedTenths;
-  if (usage?.actualTenths === undefined) return held;
-  return Math.max(0, Math.min(held, Math.round(usage.actualTenths)));
+  // The handler's figure wins over the worker's: it was computed from the rows
+  // that actually landed, not from what the worker believed it produced.
+  const reported = fromHandler ?? usage?.actualTenths;
+  if (reported === undefined) return held;
+  return Math.max(0, Math.min(held, Math.round(reported)));
 }
 
 function clampLimit(limit: number | undefined): number {

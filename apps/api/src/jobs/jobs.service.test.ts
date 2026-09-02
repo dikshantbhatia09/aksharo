@@ -2,6 +2,7 @@ import { HttpStatus } from "@nestjs/common";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AdmissionService } from "./admission.service.js";
+import { JobCompletionRegistry } from "./completion-handlers.js";
 import { createFakePrisma, FakeDb, FakeQueueRegistry } from "../../test/fakes.js";
 import { AppException } from "../common/errors/error-codes.js";
 import { MetricsService } from "../common/metrics/metrics.service.js";
@@ -22,6 +23,7 @@ const PROJECT = "01JCPROJECT000000000000000";
 
 interface Harness {
   jobs: JobsService;
+  completionHandlers: JobCompletionRegistry;
   dlq: DlqService;
   metrics: MetricsService;
   db: FakeDb;
@@ -63,6 +65,7 @@ function harness(): Harness {
     realtime as unknown as RealtimePublisher,
     credits as unknown as CreditsFacade,
   );
+  const completionHandlers = new JobCompletionRegistry();
   const jobs = new JobsService(
     prisma,
     queues as unknown as QueueRegistry,
@@ -71,10 +74,11 @@ function harness(): Harness {
     realtime as unknown as RealtimePublisher,
     dlq,
     metrics,
+    completionHandlers,
     credits as unknown as CreditsFacade,
   );
 
-  return { jobs, dlq, metrics, db, queues, credits, realtime };
+  return { jobs, completionHandlers, dlq, metrics, db, queues, credits, realtime };
 }
 
 const ENQUEUE = {
@@ -547,6 +551,119 @@ describe("enqueueChild", () => {
     });
     expect(second.deduplicated).toBe(true);
     expect(second.job.id).toBe(first.job.id);
+  });
+});
+
+describe("enqueueChild — the admission bypass (A07)", () => {
+  it("takes no admission slot when the caller asks for none", async () => {
+    // A Free workspace's lane is two jobs, and its `media.probe` is still holding
+    // one of them while its completion handler asks for the proxy. Going through
+    // admission here would 429 the pipeline on a file that was already admitted.
+    h.db.plans.set(WS, "free");
+    const parent = (await h.jobs.enqueue({ ...ENQUEUE, type: "media.probe" })).job;
+    await h.jobs.enqueue({
+      ...ENQUEUE,
+      type: "ai.vad",
+      jobKey: "vad:filling-the-lane",
+      worstCaseTenths: 0,
+    });
+
+    // The lane is now full: an ordinary child would be refused.
+    await expect(
+      h.jobs.enqueueChild(parent, { type: "media.proxy", payload: {}, worstCaseTenths: 0 }),
+    ).rejects.toThrow(/in flight/);
+
+    const child = await h.jobs.enqueueChild(parent, {
+      type: "media.proxy",
+      payload: {},
+      worstCaseTenths: 0,
+      jobKey: "media.proxy:bypassed",
+      skipAdmission: true,
+    });
+    expect(child.deduplicated).toBe(false);
+    expect(child.job.type).toBe("media.proxy");
+  });
+
+  it("still takes the plan's priority and queue-wait budget", async () => {
+    // The bypass is about rationing, not about scheduling.
+    h.db.plans.set(WS, "free");
+    const parent = (await h.jobs.enqueue({ ...ENQUEUE, type: "media.probe" })).job;
+    const child = await h.jobs.enqueueChild(parent, {
+      type: "media.proxy",
+      payload: {},
+      worstCaseTenths: 0,
+      skipAdmission: true,
+    });
+    expect(child.job.maxQueueWaitMs).toBe(30 * 60_000);
+    // Children inherit the parent's priority explicitly.
+    expect(child.job.priority).toBe(parent.priority);
+  });
+});
+
+describe("completion handlers (A07)", () => {
+  it("runs the job type's handler before the status flip", async () => {
+    const seen: string[] = [];
+    h.completionHandlers.register({
+      jobType: "ai.transcribe",
+      handle: async (context) => {
+        // The row is still open, which is what lets a handler enqueue a child off
+        // it and what lets a throw leave the job for the worker to retry.
+        seen.push(context.job.status);
+        return undefined;
+      },
+    });
+    const { job } = await h.jobs.enqueue(ENQUEUE);
+    await h.jobs.complete(job.id, job.attemptId ?? "", { status: "succeeded" });
+    expect(seen).toEqual(["queued"]);
+    expect(h.db.jobs.get(job.id)?.status).toBe("succeeded");
+  });
+
+  it("leaves the job running when the handler throws, so the worker retries", async () => {
+    h.completionHandlers.register({
+      jobType: "ai.transcribe",
+      handle: async () => {
+        throw new Error("the database was down");
+      },
+    });
+    const { job } = await h.jobs.enqueue(ENQUEUE);
+    await expect(
+      h.jobs.complete(job.id, job.attemptId ?? "", { status: "succeeded" }),
+    ).rejects.toThrow("the database was down");
+
+    // Not terminal: a replay must be able to reach the handler again.
+    expect(h.db.jobs.get(job.id)?.status).toBe("queued");
+    expect(h.db.eventNames(job.id)).toContain("job.completion_handler_failed");
+  });
+
+  it("does not run a handler for a FAILED completion", async () => {
+    const handle = vi.fn(async () => undefined);
+    h.completionHandlers.register({ jobType: "ai.transcribe", handle });
+    const { job } = await h.jobs.enqueue(ENQUEUE);
+    await h.jobs.complete(job.id, job.attemptId ?? "", {
+      status: "failed",
+      error: { code: "x/y", message: "no", retryable: false },
+    });
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  it("lets the handler's own figure win the settlement", async () => {
+    h.completionHandlers.register({
+      jobType: "ai.transcribe",
+      handle: async () => ({ actualTenths: 5, data: { landed: true } }),
+    });
+    const { job } = await h.jobs.enqueue(ENQUEUE);
+    await h.jobs.complete(job.id, job.attemptId ?? "", {
+      status: "succeeded",
+      usage: { actualTenths: 100 },
+    });
+    expect(h.db.jobs.get(job.id)?.creditsChargedTenths).toBe(5);
+    expect(h.credits.settle).toHaveBeenCalledWith({ holdId: "hold-1", actualTenths: 5 });
+  });
+
+  it("completes normally for a queue that has no handler at all", async () => {
+    const { job } = await h.jobs.enqueue(ENQUEUE);
+    const ack = await h.jobs.complete(job.id, job.attemptId ?? "", { status: "succeeded" });
+    expect(ack.applied).toBe(true);
   });
 });
 

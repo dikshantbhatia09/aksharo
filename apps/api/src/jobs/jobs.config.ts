@@ -229,9 +229,18 @@ export const QUEUE_POLICY_BY_FAMILY: Readonly<Record<string, QueuePolicy>> = Obj
  * Only the fields that differ are listed. Ten minutes on the ASR queues is the
  * brief number and comes from the worst realistic case: a two-hour recording on a
  * cold GPU. `render.video` gets the same, for the same reason.
+ *
+ * The two `media.*` queues get it too (A07). The family default of two minutes
+ * was sized for "run ffprobe on a short clip"; the real worst case is a 4K
+ * sixty-minute upload, where the loudness pass alone reads the whole audio track
+ * and the proxy transcode reads and re-encodes every frame. A two-minute lock
+ * there means the job is declared stalled and handed to a second worker while the
+ * first is still encoding — two ffmpeg processes writing the same derived keys.
  */
 export const QUEUE_POLICY_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy>>> = Object.freeze(
   {
+    "media.probe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "media.proxy": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.transcribe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.diarise": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.align": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },

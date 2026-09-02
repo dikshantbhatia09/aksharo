@@ -2,6 +2,7 @@ import { HttpStatus } from "@nestjs/common";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AdmissionService } from "./admission.service.js";
+import { JobCompletionRegistry } from "./completion-handlers.js";
 import { DlqService } from "./dlq.service.js";
 import { JobEventsService } from "./job-events.service.js";
 import { JOB_ERROR_CODES } from "./jobs.errors.js";
@@ -57,6 +58,7 @@ function harness(): Harness {
     realtime,
     credits as unknown as CreditsFacade,
   );
+  const completionHandlers = new JobCompletionRegistry();
   const jobs = new JobsService(
     prisma,
     queues as unknown as QueueRegistry,
@@ -65,6 +67,7 @@ function harness(): Harness {
     realtime,
     dlq,
     metrics,
+    completionHandlers,
     credits as unknown as CreditsFacade,
   );
   return { jobs, dlq, metrics, db, queues, credits };

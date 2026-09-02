@@ -295,6 +295,12 @@ importers:
 
   apps/worker-media:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.980.0
+        version: 3.1124.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.980.0
+        version: 3.1124.0
       '@montaj/config':
         specifier: workspace:*
         version: link:../../packages/config
