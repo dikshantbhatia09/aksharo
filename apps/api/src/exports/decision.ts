@@ -74,6 +74,15 @@ export interface ExportDecisionInput {
   readonly capabilities?: ExportCapabilities;
   /** HDR source; browser export tone-maps it and shows a notice (D34). Informational only. */
   readonly isHdrSource?: boolean;
+  /**
+   * Whether every `StyleDoc` the project's captions actually use carries
+   * `assRenderable: true` — the flag only `@montaj/ass-exporter`'s parity gate
+   * writes (D33). The caller (`ExportsService`) resolves the project's style
+   * snapshot and reduces it to this one boolean so the decision stays pure
+   * and synchronous; omitted (or `false`) refuses an `ass` subtitle request,
+   * exactly as it did before A18a landed.
+   */
+  readonly assStylesRenderable?: boolean;
 }
 
 export type ExportPath = "browser" | "cloud";
@@ -327,10 +336,11 @@ function assertSubtitleFormatsAllowed(input: ExportDecisionInput): void {
       : ["srt", "vtt", "txt"],
   );
   for (const format of formats) {
-    // ASS waits on A18a's parity flags; DOCX is not generated anywhere yet
-    // (orchestrator addendum, after A20). Both are refused here rather than
-    // enqueued to fail deep inside the render worker.
-    if (format === "ass") {
+    // ASS is refused unless every style the project's captions use has
+    // passed A18a's parity gate (`assRenderable: true`, D33); DOCX is not
+    // generated anywhere yet (orchestrator addendum, after A20). Both are
+    // refused here rather than enqueued to fail deep inside the render worker.
+    if (format === "ass" && input.assStylesRenderable !== true) {
       throw new AppException(
         EXPORT_ERROR_CODES.formatUnavailable,
         "ASS subtitle export is not available yet.",

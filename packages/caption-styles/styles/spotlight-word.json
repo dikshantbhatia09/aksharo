@@ -6,14 +6,21 @@
   "minPlan": "starter",
   "typography": {
     "fontFamily": "Poppins",
-    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
     "weight": 800,
     "italic": false,
     "sizePct": 5.8,
     "lineHeight": 1.16,
     "letterSpacingEm": -0.01,
     "textTransform": "none",
-    "scriptScale": { "deva": 0.69, "taml": 0.41 }
+    "scriptScale": {
+      "deva": 0.69,
+      "taml": 0.41
+    }
   },
   "colors": {
     "text": "#ffffff59",
@@ -81,8 +88,9 @@
       "effect": "glow"
     }
   ],
-  "assRenderable": false,
-  "assExportable": false,
+  "assRenderable": true,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/spotlight-word.mp4"
+  "previewKey": "system/style-previews/spotlight-word.mp4",
+  "parityScore": 0.9413
 }

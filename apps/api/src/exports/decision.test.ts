@@ -373,7 +373,21 @@ describe("decideExport — subtitles", () => {
     expect(decision.path).toBe("cloud");
   });
 
-  it("ass -> always refused regardless of plan (A18a parity gate not landed)", () => {
+  it("ass -> refused when the project's styles have not passed the A18a parity gate", () => {
+    expect(() =>
+      decideExport(
+        base({
+          kind: "subtitle",
+          subtitleFormats: ["ass"],
+          entitlements: CREATOR_ENTITLEMENTS,
+          plan: "creator",
+          assStylesRenderable: false,
+        }),
+      ),
+    ).toThrow(AppException);
+  });
+
+  it("ass -> refused by default, when the caller says nothing about renderability", () => {
     expect(() =>
       decideExport(
         base({
@@ -384,6 +398,19 @@ describe("decideExport — subtitles", () => {
         }),
       ),
     ).toThrow(AppException);
+  });
+
+  it("ass -> allowed once every referenced style is assRenderable and the plan lists ass", () => {
+    const decision = decideExport(
+      base({
+        kind: "subtitle",
+        subtitleFormats: ["ass"],
+        entitlements: CREATOR_ENTITLEMENTS,
+        plan: "creator",
+        assStylesRenderable: true,
+      }),
+    );
+    expect(decision.path).toBe("cloud");
   });
 
   it("explicit browser mode for subtitles is coerced to cloud with a reason, not an error", () => {

@@ -10,6 +10,7 @@ import {
   FEATURE_FLAG_SEEDS,
   loadSystemStyles,
   operationsFor,
+  parityOf,
   PLAN_LADDER,
   PLAN_SEEDS,
   planMeets,
@@ -161,6 +162,24 @@ describe("loadSystemStyles", () => {
     expect(styles.map((style) => style.key)).not.toContain("registry");
     // The whole StyleDoc lands in `style_presets.doc`.
     expect(styles[0]?.doc).toMatchObject({ version: 2 });
+  });
+
+  it("reads the A18a parity gate's flags off each style document (D33)", () => {
+    // This checkout's `packages/caption-styles/styles/*.json` has already had
+    // `pnpm --filter @montaj/ass-exporter parity` run against it, so every
+    // style carries a real measured `parity` row, not the pre-gate defaults.
+    const { styles } = loadSystemStyles();
+    for (const style of styles) {
+      expect(style.parity, style.key).toBeDefined();
+      expect(style.parity?.assExportable, style.key).toBe(true);
+      expect(typeof style.parity?.assRenderable, style.key).toBe("boolean");
+      expect(style.parity?.parityScore, style.key).toBeGreaterThanOrEqual(0);
+      expect(style.parity?.parityScore, style.key).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("parityOf returns undefined for a document with no parity fields at all", () => {
+    expect(parityOf({ id: "no-flags" })).toBeUndefined();
   });
 
   it("falls back to the placeholders when the package cannot be resolved", () => {

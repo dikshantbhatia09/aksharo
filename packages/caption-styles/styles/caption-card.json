@@ -6,14 +6,21 @@
   "minPlan": "starter",
   "typography": {
     "fontFamily": "Inter",
-    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
     "weight": 600,
     "italic": false,
     "sizePct": 4.2,
     "lineHeight": 1.32,
     "letterSpacingEm": 0,
     "textTransform": "none",
-    "scriptScale": { "deva": 0.81, "taml": 0.49 }
+    "scriptScale": {
+      "deva": 0.81,
+      "taml": 0.49
+    }
   },
   "colors": {
     "text": "#12131a",
@@ -73,7 +80,8 @@
     }
   ],
   "assRenderable": false,
-  "assExportable": false,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/caption-card.mp4"
+  "previewKey": "system/style-previews/caption-card.mp4",
+  "parityScore": 0.8629
 }
