@@ -1,0 +1,80 @@
+{
+  "name": "@montaj/fonts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The bundled open-licence font catalogue, font validation and subsetting, and the FontRegistry loaders for the browser and the cloud renderer.",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "pack"
+  ],
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./browser": {
+      "import": {
+        "types": "./dist/esm/browser.d.ts",
+        "default": "./dist/esm/browser.js"
+      },
+      "require": {
+        "types": "./dist/browser.d.ts",
+        "default": "./dist/browser.js"
+      }
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    },
+    "./pack/*": "./pack/*",
+    "./package.json": "./package.json",
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "default": "./dist/testing.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.esm.json && node scripts/finalise-esm-build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium",
+    "pack:build": "tsx scripts/build-pack.ts",
+    "pack:report": "tsx scripts/report-pack.ts",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "@montaj/render-core": "workspace:*",
+    "fontkit": "2.0.4",
+    "subset-font": "2.7.0",
+    "woff2-encoder": "2.0.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@montaj/caption-styles": "workspace:*",
+    "@montaj/config": "workspace:*",
+    "@montaj/render-canvaskit": "workspace:*",
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^22.19.2",
+    "@vitest/coverage-v8": "^3.2.7",
+    "canvaskit-wasm": "0.42.0",
+    "esbuild": "^0.25.12",
+    "eslint": "^9.39.5",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  },
+  "module": "./dist/esm/index.js"
+}

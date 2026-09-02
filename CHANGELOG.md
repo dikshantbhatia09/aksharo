@@ -10,6 +10,74 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A18b — `@montaj/fonts`: the bundled open-licence catalogue, upload with licence
+  attestation, validation/subsetting/WOFF2, and the `RENDER_FONT_DIR` v1 pack.**
+  - **The catalogue.** 21 families (Inter, Montserrat, Poppins, Playfair Display,
+    Roboto Mono, Anton, Bricolage Grotesque, JetBrains Mono, plus a Noto Sans per
+    script) at 400/700 or the weights the 30 system styles actually name — OFL-1.1
+    or Apache-2.0 only, licence text committed beside the bytes in `pack/licences/`,
+    every upstream file pinned to one `google/fonts` commit and checked against
+    `sources.lock.json`. No system fonts, ever (D33): nothing is fetched at
+    runtime. `SCHEDULED_LANGUAGES`/`REQUIRED_SCRIPTS` name the 22 Eighth-Schedule
+    languages' scripts plus Latin, and `catalogue.test.ts` checks the shipped
+    faces' own character maps cover every one — not a claim in a table.
+  - **Validation (T7, `validateFont`).** Cheapest-first refusals, each a `fonts/*`
+    code: size, empty, unknown format, unparsable, `.ttc` collections, no outlines,
+    `OS/2.fsType` embedding restrictions (checked **before** the licence attestation
+    is even recorded — the file itself says the uploader lacks the right the
+    attestation would warrant), too many glyphs, a script claim under 90% of its
+    required repertoire, no supported script at all, and metrics outside a sane
+    `unitsPerEm`.
+  - **Subsetting and WOFF2** (`hb-subset` via `subset-font`, both formats from two
+    independent runs over the same character set, never by compressing the first
+    result). A variable source is **instanced** — every axis pinned before the
+    static face is written, so nothing ships variable and the browser and the
+    cloud cannot disagree about a default. `subset.test.ts` shapes Devanagari,
+    Tamil and Latin samples through the real HarfBuzz shaper on the original and
+    the subset face and asserts identical clusters, advances and offsets (glyph
+    ids alone differ — `hb-subset` renumbers them).
+  - **Upload API**: `POST /workspaces/{id}/fonts/init` (plan limit 0/5/15/50/50,
+    presigned PUT, the exact attestation text to show) → `POST /fonts/{id}/complete
+{licenceAttested: true, licenceNote?}` (refused without the warranty; records
+    `licenceAttestedBy`/`attestedAt`/the attestation text version; validates,
+    subsets and writes the WOFF2 inline — CONTRACTS §3's queue list is frozen and
+    has none for fonts, so this follows A05's precedent for the same wall) →
+    `GET /workspaces/{id}/fonts/{fontId}/url` and `GET /workspaces/{id}/fonts/manifest`
+    for signed, workspace-scoped URLs (five minutes; another workspace's font id is
+    a 404, T5). `FontsService.purgeWorkspace` deletes every font object a
+    workspace owns, for B16's erasure cascade (D70).
+  - **Serving**: `GET /fonts/manifest` and `GET /styles/fonts/catalog` (session
+    required — product surface) and public, year-cached `GET /fonts/pack/{file}`
+    (OFL/Apache bytes, identical for every tenant, so no signature and no tenant
+    scope apply).
+  - **`FontManifest`** (`fonts.json`, `v: 1`) is a superset of `apps/render`'s own
+    `FontPackSchema` — same `{id, family, weight, italic, file, scripts}` in the
+    same order, plus `scriptTags` (ISO 15924, the catalogue/coverage truth),
+    `woff2`, sizes, `sha256`, licence and provenance. One file, so `apps/render`
+    parses a manifest written here without a second schema that can drift.
+  - **Loaders**: `@montaj/fonts/node`'s `loadPack()`/`registerManifestFonts()` for
+    the cloud (bundled pack off disk, or a fetched manifest's faces into an
+    existing `FontRegistry`, warning rather than throwing on one unreachable
+    custom font); `@montaj/fonts/browser`'s `loadFontsInBrowser()` (fetch, decode
+    WOFF2 with an **injected** decompressor since `woff2-encoder` is ESM-only,
+    register the sfnt) and `installCssFontFaces()` for the picker's own-typeface
+    preview.
+  - **`pack/`** is committed: `fonts.json` plus a `.ttf` and a `.woff2` per face
+    and `licences/*.txt`, built by `scripts/build-pack.ts` (`pnpm --filter
+@montaj/fonts pack:build`) and reported by the new `pack:report` script.
+    `apps/render/src/render/fonts.ts`'s `RENDER_FONT_DIR` reads this exact layout
+    (its `FontPackSchema` is the v1 subset of this manifest by design); the render
+    image bakes the directory in. `apps/render/src/render/font-pack.test.ts` loads
+    the real committed pack and shapes Devanagari, Tamil and Latin samples with the
+    fixture-fallback warning asserted **absent**.
+  - `apps/render/package.json` gained the `@montaj/fonts` devDependency the new
+    test needed; `.gitignore` gained `packages/fonts/.cache/` (the pack build's
+    gitignored download cache).
+  - Coverage (CONTRACTS §9, `packages/fonts` = 90/85): 97.3% lines, 85.6% branches,
+    150 tests across 8 files, plus a Playwright suite that fetches the pack's own
+    WOFF2 files over a static server, decompresses and draws a Latin, a Devanagari
+    and a Tamil caption in Chromium.
+
 - **A06 — api: projects, folders, media ingest, derived URLs, subtitle import and
   retention.**
   - `apps/api/src/common/storage/`: an `ObjectStore` port with two instances —

@@ -1,0 +1,222 @@
+{
+  "anton/Anton-Regular.ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/anton/Anton-Regular.ttf",
+    "sha256": "a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab",
+    "sizeBytes": 170812
+  },
+  "anton/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/anton/OFL.txt",
+    "sha256": "ee67e6ee22790b7929f1a3769ca2801d565c64b5a9096942c1adf5596de9c9e4",
+    "sizeBytes": 4484
+  },
+  "bricolagegrotesque/BricolageGrotesque[opsz,wdth,wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/bricolagegrotesque/BricolageGrotesque%5Bopsz%2Cwdth%2Cwght%5D.ttf",
+    "sha256": "413e7357809ddd12fd80a96a8a396de0e401638d4acd3cb3e37532f0472ac682",
+    "sizeBytes": 408496
+  },
+  "bricolagegrotesque/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/bricolagegrotesque/OFL.txt",
+    "sha256": "4b5a7d8f37f5602621c8a8d7358a6a2e71317e6c231c661e15aef0275d3e07ba",
+    "sizeBytes": 4403
+  },
+  "inter/Inter[opsz,wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf",
+    "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+    "sizeBytes": 876576
+  },
+  "inter/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/inter/OFL.txt",
+    "sha256": "5b9321a4298cfeb6b34354164a1c3afc3db114569984c502b9b35d988fd58c57",
+    "sizeBytes": 4377
+  },
+  "jetbrainsmono/JetBrainsMono[wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf",
+    "sha256": "48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda",
+    "sizeBytes": 187208
+  },
+  "jetbrainsmono/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/jetbrainsmono/OFL.txt",
+    "sha256": "b2fe5e8987594e9ffd1d2ca52a2f5d73eb8335243893c5d6254b5ad69269591d",
+    "sizeBytes": 4399
+  },
+  "montserrat/Montserrat[wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/montserrat/Montserrat%5Bwght%5D.ttf",
+    "sha256": "0f7b311b2f3279e4eef9b2f968bcdbab6e28f4daeb1f049f4f278a902bcd82f7",
+    "sizeBytes": 744936
+  },
+  "montserrat/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/montserrat/OFL.txt",
+    "sha256": "8b7141c03fa4f8d44e6345d5d4931709290f0f67875e452e95ac1fd3a027802e",
+    "sizeBytes": 4400
+  },
+  "notosans/NotoSans[wdth,wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf",
+    "sha256": "bfb7bb691513f12e734dc346c03a03f784912432d7e3fa8e56efcf906fe86b3d",
+    "sizeBytes": 2049096
+  },
+  "notosans/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosans/OFL.txt",
+    "sha256": "cee9892f9f0cc8fe882c9e9537ee6a89621d86ee7ceaf70b02e2b2b1c25c061a",
+    "sizeBytes": 4396
+  },
+  "notosansarabic/NotoSansArabic[wdth,wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansarabic/NotoSansArabic%5Bwdth%2Cwght%5D.ttf",
+    "sha256": "63111b5b2e074dd48cc67692e0a2726d86ee94c1c37fe8598257b7b4e87e869e",
+    "sizeBytes": 844676
+  },
+  "notosansarabic/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansarabic/OFL.txt",
+    "sha256": "07fc70bfeb985cc1a87a8587d0a0c80bab11c86c9dc3fd95b6f0cb332f983e96",
+    "sizeBytes": 4382
+  },
+  "notosansbengali/NotoSansBengali[wdth,wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansbengali/NotoSansBengali%5Bwdth%2Cwght%5D.ttf",
+    "sha256": "dcd42978094e584a849c84a51450eeac40c8826057d566ea6d4b9627a403a05a",
+    "sizeBytes": 463668
+  },
+  "notosansbengali/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansbengali/OFL.txt",
+    "sha256": "754f0e221aa7d5a915489f3bf1f20fe53ddc35ab2834a4d91656d78f9622de70",
+    "sizeBytes": 4383
+  },
+  "notosansdevanagari/NotoSansDevanagari[wdth,wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansdevanagari/NotoSansDevanagari%5Bwdth%2Cwght%5D.ttf",
+    "sha256": "9ce7b04f60e363d8870e5997744cf85cf69d38a4d7d129d364d92a3b14b461d7",
+    "sizeBytes": 647144
+  },
+  "notosansdevanagari/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansdevanagari/OFL.txt",
+    "sha256": "a216f6f8d85c7228093e0ee5e258d9d377e6671f68acb4db1930b29583d0f331",
+    "sizeBytes": 4386
+  },
+  "notosansgujarati/NotoSansGujarati[wdth,wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansgujarati/NotoSansGujarati%5Bwdth%2Cwght%5D.ttf",
+    "sha256": "9901d8552f1dd5d2c50dbd4caa6f6e174e74e8264f06594ab259ae6e7b1ac428",
+    "sizeBytes": 672904
+  },
+  "notosansgujarati/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansgujarati/OFL.txt",
+    "sha256": "c0b88977aa18b5e4fd05d646d560da89fde61b6581fa4507cb00dd90bd1bf7d4",
+    "sizeBytes": 4384
+  },
+  "notosansgurmukhi/NotoSansGurmukhi[wdth,wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansgurmukhi/NotoSansGurmukhi%5Bwdth%2Cwght%5D.ttf",
+    "sha256": "1e6f728fa620e566f842d81e220265813faa12771214765d289c98e035adc5f2",
+    "sizeBytes": 268608
+  },
+  "notosansgurmukhi/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansgurmukhi/OFL.txt",
+    "sha256": "3f7451b7e2c8381be0c5712f7b0dd5c2d75fe787ae16a99f18b7fa45627a0fde",
+    "sizeBytes": 4384
+  },
+  "notosanskannada/NotoSansKannada[wdth,wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosanskannada/NotoSansKannada%5Bwdth%2Cwght%5D.ttf",
+    "sha256": "cca4f3b3a8cb12fb261f1b43baf5d2f7f59d90fe123d41f0065ed3a183997ec9",
+    "sizeBytes": 641372
+  },
+  "notosanskannada/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosanskannada/OFL.txt",
+    "sha256": "9d49a4e56df9b36403b139f48bf07fd87cc5e716cb3203c54b04b674adb16238",
+    "sizeBytes": 4383
+  },
+  "notosansmalayalam/NotoSansMalayalam[wdth,wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansmalayalam/NotoSansMalayalam%5Bwdth%2Cwght%5D.ttf",
+    "sha256": "312e0e7c3cc15fa09eb42a8f749eeb246b593ed420e3c81aafe8d910c3a6fb56",
+    "sizeBytes": 504204
+  },
+  "notosansmalayalam/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansmalayalam/OFL.txt",
+    "sha256": "1df18163a0bf60f02131401ba1609df90051f40c4047684dda1c8a2e9586f7f2",
+    "sizeBytes": 4385
+  },
+  "notosansmeeteimayek/NotoSansMeeteiMayek[wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansmeeteimayek/NotoSansMeeteiMayek%5Bwght%5D.ttf",
+    "sha256": "d56eb6d54ad8aad3570b7ee07f64866832a04f29bce6e5f183918c9eaf008fac",
+    "sizeBytes": 95616
+  },
+  "notosansmeeteimayek/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansmeeteimayek/OFL.txt",
+    "sha256": "5dbbaac416c9c5021f3409d1157419c0bfe5089ef39a373c49a632eefdc639d8",
+    "sizeBytes": 4388
+  },
+  "notosansolchiki/NotoSansOlChiki[wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansolchiki/NotoSansOlChiki%5Bwght%5D.ttf",
+    "sha256": "c9c31988656f49eccec9588825ab3b5045099c2f850ef98f356f976e8a596b4d",
+    "sizeBytes": 91152
+  },
+  "notosansolchiki/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansolchiki/OFL.txt",
+    "sha256": "b30754bbe6bea30b666a60d513ae80435a197979c9500e8380f83acd99dc763b",
+    "sizeBytes": 4384
+  },
+  "notosansoriya/NotoSansOriya[wdth,wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansoriya/NotoSansOriya%5Bwdth%2Cwght%5D.ttf",
+    "sha256": "910342275d619081b896b4ed25fd9ad6ff320c25591b810de1fcc4beb153ba82",
+    "sizeBytes": 613116
+  },
+  "notosansoriya/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosansoriya/OFL.txt",
+    "sha256": "c90ff15ade263a49148e35af34e9c177c6d56881e81260b29f10123e9e227eca",
+    "sizeBytes": 4381
+  },
+  "notosanstamil/NotoSansTamil[wdth,wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosanstamil/NotoSansTamil%5Bwdth%2Cwght%5D.ttf",
+    "sha256": "aa3a9b321f4b0bb2c40203ffbde9af89713227866e0e13f76e5b9eeea727cf88",
+    "sizeBytes": 340668
+  },
+  "notosanstamil/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosanstamil/OFL.txt",
+    "sha256": "f8ff8ce7d0a81bf8d5e121c635ef027250c531f2fd37d5988b8dd6e45f19d7f1",
+    "sizeBytes": 4381
+  },
+  "notosanstelugu/NotoSansTelugu[wdth,wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosanstelugu/NotoSansTelugu%5Bwdth%2Cwght%5D.ttf",
+    "sha256": "e618af7bf999df192ed4f388eba2e563f2b5015034e9cbb317b5bd793bd7334d",
+    "sizeBytes": 888808
+  },
+  "notosanstelugu/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/notosanstelugu/OFL.txt",
+    "sha256": "481c72a8f1b4f645a7e6b10326be41b2da2c15cb470ff48a07fab773eed00102",
+    "sizeBytes": 4382
+  },
+  "playfairdisplay/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/playfairdisplay/OFL.txt",
+    "sha256": "566be814f8e96e93dfa16101331557eb6b5467e9e03f627c0910fe93ca12300e",
+    "sizeBytes": 4449
+  },
+  "playfairdisplay/PlayfairDisplay[wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf",
+    "sha256": "c40f2293766a503bc70cce9e512ef844a4ccb7cbcde792fe2ea31d191917d8d6",
+    "sizeBytes": 300724
+  },
+  "poppins/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/poppins/OFL.txt",
+    "sha256": "6be04893d770899a015649c7aa3b582f871b272f8747a92b78b17c3e5c8b2573",
+    "sizeBytes": 4385
+  },
+  "poppins/Poppins-Bold.ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/poppins/Poppins-Bold.ttf",
+    "sha256": "983676516167748b74de6f4771fb384c664fd913acb8b471122ecacf5da5ea6c",
+    "sizeBytes": 155996
+  },
+  "poppins/Poppins-ExtraBold.ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/poppins/Poppins-ExtraBold.ttf",
+    "sha256": "f2ab17c1a63a0ecc12c2461848fc8a469395e3cd2d641803e889c643d9f958e1",
+    "sizeBytes": 154836
+  },
+  "poppins/Poppins-Regular.ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/poppins/Poppins-Regular.ttf",
+    "sha256": "7e65201e9b79159e2300267cc885e16c8dcef2424cdfa09a29bfb0980a94a7ba",
+    "sizeBytes": 160316
+  },
+  "robotomono/OFL.txt": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/robotomono/OFL.txt",
+    "sha256": "50ab8dd54680d3473f649c9db86fece88434d097c7834475c1c72d2f8c429215",
+    "sizeBytes": 4395
+  },
+  "robotomono/RobotoMono[wght].ttf": {
+    "url": "https://raw.githubusercontent.com/google/fonts/45b0855d499c093e4d1bd08926fec4e1a582e225/ofl/robotomono/RobotoMono%5Bwght%5D.ttf",
+    "sha256": "66a80e79d17e4c7cabd162e2916578a4cc08fd19eef6e2a643305eae9c567b2b",
+    "sizeBytes": 183700
+  }
+}
