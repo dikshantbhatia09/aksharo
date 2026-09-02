@@ -39,7 +39,7 @@ Roles: **Fable 5.1** designs, decides, writes briefs, verifies gates. **Opus 5 a
 | A04 | api: auth (families, device code, token exchange) | A03, X06 | Opus | done |
 | A05 | api: users, workspaces (tax profile), memberships | A04 | Opus | done |
 | A06 | api: projects + media (S3 raw, R2 derived) | A05 | Opus | done |
-| A07 | worker-media: probe, 16k/48k audio, proxy, waveform, thumbs | A03, A06 | Opus | briefed |
+| A07 | worker-media: probe, 16k/48k audio, proxy, waveform, thumbs | A03, A06 | Opus | in-progress |
 | A08 | api: jobs, WS gateway, idempotent completion, CreditsFacade (no-op), admission control | A03 | Opus | done |
 | A08b | DLQ + admin replay | A08 | Opus | done |
 | A08c | api: Redis realtime bus connects lazily-created clients before subscribe/publish; gateway join rollback; real-Redis two-instance e2e (defect found by A12) | A08, A12 | Opus | done |
@@ -59,7 +59,7 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A16 | render-core + render-canvaskit + 30 styles + panels | A02, A02c | done |
 | A17 | web Timeline | A15, A16 | briefed |
 | A18a | ass-exporter + parity gate | A16, A20 | briefed |
-| A18b | fonts pipeline | A06, A07 | briefed |
+| A18b | fonts pipeline | A06, A07 | in-progress |
 | A19 | web browser export + export dialog | A16, A21, A02c | briefed |
 | A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | in-progress |
 | A21 | api exports module (manifests, cloud jobs) | A08, A20 | briefed |
