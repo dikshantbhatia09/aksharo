@@ -227,13 +227,47 @@ export interface RightsRequest {
 }
 
 /** D62: learned memory is opt-in, erasable and carries a rolling TTL. */
+export type MemoryKind = "spelling" | "glossary" | "timingNudge" | "stylePref";
+
 export interface MemoryEntry {
   id: string;
-  kind: "spelling" | "glossary" | "timing" | "style";
+  kind: MemoryKind;
   key: string;
   value: string;
-  updatedAt: string;
+  aliases?: string[];
+  source: string;
+  deviceOnly: boolean;
+  /** Times this entry has been applied. */
+  hits: number;
   expiresAt: string;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+export interface CreateMemoryEntryRequest {
+  kind: MemoryKind;
+  key: string;
+  value: string;
+  aliases?: string[];
+  source?: string;
+  deviceOnly?: boolean;
+}
+
+export interface UpdateMemoryEntryRequest {
+  value?: string;
+  aliases?: string[];
+  deviceOnly?: boolean;
+}
+
+export interface ImportGlossaryRequest {
+  /** `term` or `term,alias1;alias2` per line. */
+  csv: string;
+}
+
+export interface ImportGlossaryResult {
+  imported: number;
+  updated: number;
+  skipped: number;
 }
 
 // --- Projects, folders and media (A06, A14) ---------------------------------
