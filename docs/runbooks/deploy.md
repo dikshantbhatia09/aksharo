@@ -177,6 +177,7 @@ Rules that are not negotiable:
   real user.
 
 ## Email (SES) setup — manual steps (added 2026-09-02 after A25)
+
 1. Verify the sending domain and `MAIL_FROM` identity in SES (ap-south-1); request production access (out of sandbox) before launch.
 2. Create the SNS topic for bounces/complaints/deliveries and subscribe `https://<API_ORIGIN>/internal/mail/events` (HTTPS). The API verifies the SNS signature but **does not auto-confirm** subscriptions: read the `SubscriptionConfirmation` log line and confirm the subscription from the AWS console (or curl the `SubscribeURL` from an operator machine).
 3. Set `MAIL_SNS_TOPIC_ARN` to that topic's ARN so notifications from any other topic are rejected.

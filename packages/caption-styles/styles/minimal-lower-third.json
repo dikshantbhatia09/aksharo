@@ -9,7 +9,7 @@
     "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
     "weight": 500,
     "italic": false,
-    "sizePct": 1.83,
+    "sizePct": 3.2,
     "lineHeight": 1.35,
     "letterSpacingEm": 0.01,
     "textTransform": "none"
