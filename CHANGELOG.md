@@ -1799,6 +1799,42 @@ sarvam` replays the recorded session, `--live` calls the configured vendor.
 
 ### Changed
 
+- **A23b — Redis test isolation is a key prefix, not a logical database.**
+  - A23a gave every e2e suite a logical Redis database of its own. Redis ships
+    with sixteen and `apps/api` now has twenty-two e2e suites, so from the
+    seventeenth onwards two suites shared one — and a `KEYS montaj:* / DEL` sweep
+    between tests took the sibling's keys with it. A21 watched
+    `auth.e2e-spec.ts` lose its dev-outbox messages exactly that way.
+  - `apps/api/src/common/redis/redis-keys.ts` (new) exports `redisKeyPrefix()`:
+    `MONTAJ_REDIS_PREFIX` when set, `montaj` otherwise. Unset — which is every
+    deployment — every key keeps the name it has always had.
+  - The five modules that hard-coded `montaj:` now build their namespace from it:
+    `authRedisPrefix()` (`auth.constants.ts`, which carries the development mail
+    outbox), `rateLimitPrefix()` and the new `rateLimitKey()`
+    (`rate-limit.service.ts`), `notifyRedisPrefix()` (the suppression list and the
+    delivery receipts), `accountRedisPrefix()` (the data-export bundles) and
+    `workspacesRedisPrefix()` (the entitlement cache). `exports/daily-cap.ts`
+    wrote `exports:daily-browser-manifests:…` outside the `montaj:` namespace
+    altogether; it is prefixed now too. All six are the same shape as
+    `queuePrefix()` — a function reading `process.env`, because CONTRACTS section
+    1 is the frozen list of _product_ configuration and this is naming.
+  - BullMQ structures and realtime pub/sub channels are deliberately NOT moved.
+    They are named by `MONTAJ_QUEUE_PREFIX`, which `apps/worker-media`,
+    `apps/render` and `apps/worker-ai` have to agree with the API on, and which
+    the test harness already sets per suite.
+  - `test/suite-context.ts` sets `MONTAJ_REDIS_PREFIX` alongside
+    `MONTAJ_QUEUE_PREFIX`, so a suite's keys are its own before its module graph
+    is loaded. `auth-harness.reset()` sweeps `${redisKeyPrefix()}:*` rather than
+    `montaj:*` — the sweep that used to reach across.
+  - Logical databases are now a **second** separator, taken when the run has more
+    of them than suites. A logical database named in `TEST_REDIS_URL` is an
+    instruction rather than a starting point: `redis://localhost:6379/0` puts the
+    whole suite in database 0, which is how this is verified.
+  - `test/isolation-probe.ts` grew the proof: both halves pin the SAME logical
+    database, write `redisKeys.devOutbox()`, and one of them runs the between-tests
+    sweep — the other's key has to survive it. It also writes the product's real
+    key builder now rather than a hard-coded literal.
+
 - **A23a — the API test suite starts two containers per run instead of one pair
   per suite, and isolates the suites from each other properly.**
   - Every Docker-backed suite used to start its own PostgreSQL and Redis through

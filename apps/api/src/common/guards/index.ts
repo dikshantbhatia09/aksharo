@@ -31,6 +31,11 @@ export type {
 export { IS_PUBLIC_KEY, Public } from "./public.decorator.js";
 export { RATE_LIMIT_KEY, RateLimit, RateLimitGuard } from "./rate-limit.guard.js";
 export type { RateLimitRule, RateLimitSubject } from "./rate-limit.guard.js";
-export { RATE_LIMIT_PREFIX, RateLimitService, TOKEN_BUCKET_LUA } from "./rate-limit.service.js";
+export {
+  RateLimitService,
+  TOKEN_BUCKET_LUA,
+  rateLimitKey,
+  rateLimitPrefix,
+} from "./rate-limit.service.js";
 export type { BucketSpec, BucketVerdict } from "./rate-limit.service.js";
 export { Roles, ROLES_KEY, RolesGuard } from "./roles.guard.js";

@@ -45,7 +45,30 @@ const POSTGRES_IMAGE = "pgvector/pgvector:pg16";
 const REDIS_IMAGE = "redis:7-alpine";
 
 /** Migrated once per run; every suite database is a copy of it. */
-const TEMPLATE_DATABASE = "montaj_test_template";
+const TEMPLATE_PREFIX = "montaj_test_tpl";
+
+/**
+ * The template for one schema: `montaj_test_tpl_<first 12 hex of fingerprint>`.
+ *
+ * The name carries the schema because the server may not be ours. A23a used one
+ * fixed `montaj_test_template` and rebuilt it — DROP, then CREATE — whenever the
+ * fingerprint it found was not the one it wanted. On a laptop that is fine; on the
+ * shared compose PostgreSQL, where several agents run this suite from different
+ * branches, it meant one agent dropping the template another agent's suites were
+ * still cloning from. The symptom is memorable: suites come up with an EMPTY
+ * database and fail with "the table public.users does not exist", or with
+ * "template database montaj_test_template does not exist" outright.
+ *
+ * Keyed by fingerprint, two branches with different migrations simply use
+ * different templates, and a template is never dropped while anybody could want
+ * it: a run either finds its own, stamped, and clones it, or builds it.
+ */
+function templateNameFor(fingerprint: string): string {
+  return `${TEMPLATE_PREFIX}_${fingerprint.slice(0, 12)}`;
+}
+
+/** Templates older than this, with nothing connected, are swept. */
+const STALE_TEMPLATE_AGE_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Logical databases the run's own Redis container is started with.
@@ -205,35 +228,89 @@ async function databaseExists(client: Client, name: string): Promise<boolean> {
  * before any suite runs, because `CREATE DATABASE … TEMPLATE` refuses while
  * another session is connected to the source.
  */
-async function ensureTemplate(apiDir: string, adminUrl: string): Promise<void> {
+async function ensureTemplate(apiDir: string, adminUrl: string): Promise<string> {
   const fingerprint = schemaFingerprint(apiDir);
-  const templateUrl = databaseUrlFor(adminUrl, TEMPLATE_DATABASE);
+  const template = templateNameFor(fingerprint);
+  const templateUrl = databaseUrlFor(adminUrl, template);
 
   await withAdminClient(adminUrl, async (admin) => {
     // The lock wait is where a second agent sits while the first one migrates, so
     // it needs a ceiling: a lock nobody will ever release must fail the run rather
     // than hang it. `statement_timeout` covers lock waits as well as queries.
     await admin.query(`SET statement_timeout = ${String(TEMPLATE_LOCK_TIMEOUT_MS)}`);
-    await admin.query("SELECT pg_advisory_lock($1)", [advisoryKey(TEMPLATE_DATABASE)]);
+    await admin.query("SELECT pg_advisory_lock($1)", [advisoryKey(template)]);
     try {
-      if (await databaseExists(admin, TEMPLATE_DATABASE)) {
+      if (await databaseExists(admin, template)) {
         if (await templateMatches(templateUrl, fingerprint)) {
-          console.warn(`[test-run] reusing ${TEMPLATE_DATABASE} (schema unchanged)`);
+          console.warn(`[test-run] reusing ${template}`);
           return;
         }
-        console.warn(`[test-run] ${TEMPLATE_DATABASE} is out of date — rebuilding`);
-        await admin.query(`DROP DATABASE IF EXISTS "${TEMPLATE_DATABASE}" WITH (FORCE)`);
+        // Same fingerprint, no stamp: a build that died half way. Nobody can be
+        // cloning it — a stamped template is never dropped — so finish the job.
+        console.warn(`[test-run] ${template} was left half-built — rebuilding`);
+        await admin.query(`DROP DATABASE IF EXISTS "${template}" WITH (FORCE)`);
       }
 
-      await admin.query(`CREATE DATABASE "${TEMPLATE_DATABASE}"`);
+      await admin.query(`CREATE DATABASE "${template}"`);
       migrate(apiDir, templateUrl);
       await applySql(templateUrl, resolve(apiDir, "prisma", "sql"));
       await stampTemplate(templateUrl, fingerprint);
-      console.warn(`[test-run] built ${TEMPLATE_DATABASE} (migrations + prisma/sql)`);
+      console.warn(`[test-run] built ${template} (migrations + prisma/sql)`);
     } finally {
-      await admin.query("SELECT pg_advisory_unlock($1)", [advisoryKey(TEMPLATE_DATABASE)]);
+      await admin.query("SELECT pg_advisory_unlock($1)", [advisoryKey(template)]);
     }
   });
+
+  return template;
+}
+
+/**
+ * Drop templates for schemas nobody is using any more.
+ *
+ * A template per schema fingerprint means one more each time the migrations
+ * change. They are small and cheap, but not free, so a run drops the ones that
+ * are a day old, have nothing connected, and are not the one it just used.
+ */
+async function sweepStaleTemplates(adminUrl: string, keep: string): Promise<number> {
+  return withAdminClient(adminUrl, async (admin) => {
+    const rows = await admin.query<{ datname: string }>(
+      `SELECT d.datname FROM pg_database d
+        WHERE d.datname LIKE '${TEMPLATE_PREFIX}\\_%'
+          AND d.datname <> $1
+          AND NOT EXISTS (SELECT 1 FROM pg_stat_activity a WHERE a.datname = d.datname)`,
+      [keep],
+    );
+    const cutoff = Date.now() - STALE_TEMPLATE_AGE_MS;
+    let dropped = 0;
+    for (const { datname } of rows.rows) {
+      const builtAt = await templateBuiltAt(databaseUrlFor(adminUrl, datname));
+      if (builtAt === null || builtAt.getTime() > cutoff) continue;
+      try {
+        await admin.query(`SET statement_timeout = ${String(SWEEP_DROP_TIMEOUT_MS)}`);
+        await admin.query(`DROP DATABASE IF EXISTS "${datname}" WITH (FORCE)`);
+        dropped += 1;
+      } catch {
+        // Somebody connected between the query and the drop. Next run gets it.
+      }
+    }
+    return dropped;
+  });
+}
+
+/** When a template was stamped, or `null` when it carries no stamp. */
+async function templateBuiltAt(templateUrl: string): Promise<Date | null> {
+  const client = new Client({ connectionString: templateUrl });
+  try {
+    await client.connect();
+    const rows = await client.query<{ built_at: Date }>(
+      "SELECT built_at FROM _montaj_test_template LIMIT 1",
+    );
+    return rows.rows[0]?.built_at ?? null;
+  } catch {
+    return null;
+  } finally {
+    await client.end().catch(() => undefined);
+  }
 }
 
 async function templateMatches(templateUrl: string, fingerprint: string): Promise<boolean> {
@@ -355,16 +432,18 @@ async function resolvePostgres(
   // reason to skip; "there is a PostgreSQL and the schema would not build on it"
   // is a broken run, and a silently skipped integration suite is the worst
   // possible way to report that.
-  await ensureTemplate(apiDir, adminUrl);
+  const template = await ensureTemplate(apiDir, adminUrl);
 
   try {
     const swept = await sweepStaleDatabases(adminUrl);
     if (swept > 0) console.warn(`[test-run] swept ${String(swept)} stale suite database(s)`);
+    const templates = await sweepStaleTemplates(adminUrl, template);
+    if (templates > 0) console.warn(`[test-run] swept ${String(templates)} stale template(s)`);
   } catch (error) {
     console.warn(`[test-run] stale-database sweep skipped: ${String(error)}`);
   }
 
-  return { database: { adminUrl, template: TEMPLATE_DATABASE, source }, reason: "", containers };
+  return { database: { adminUrl, template, source }, reason: "", containers };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -421,32 +500,21 @@ function splitRedisUrl(url: string): { baseUrl: string; firstDb: number; pinned:
 /**
  * The lowest logical database the run will claim.
  *
- * Leaving database 0 alone is a courtesy to whatever the developer has running on
- * the same Redis; giving every suite one of its own is a correctness requirement,
- * because two suites in one logical database sweep each other's `montaj:*` keys.
- * When the two conflict, correctness wins and the run takes database 0 as well —
- * loudly. A pinned index in the URL is an instruction and is never overridden.
+ * Since A23b this is only ever a courtesy. Isolation is the per-suite key prefix
+ * (`MONTAJ_REDIS_PREFIX` and `MONTAJ_QUEUE_PREFIX`), which holds however few
+ * logical databases there are; spreading the suites over the databases as well is
+ * a second separator taken when it happens to be free, and leaving database 0
+ * alone costs nothing now that sharing one is harmless. A pinned index in the URL
+ * is an instruction and is never overridden.
  */
-function chooseFirstDb(
-  databases: number,
-  firstDb: number,
-  pinned: boolean,
-  suiteCount: number,
-): number {
-  if (pinned || firstDb === 0) return firstDb;
-  if (databases - firstDb >= suiteCount) return firstDb;
-  console.warn(
-    `[test-run] ${String(databases)} logical Redis databases for ${String(suiteCount)} e2e ` +
-      "suites: claiming database 0 as well, so no two suites have to share one. Pin a database " +
-      "in TEST_REDIS_URL (…/1) to forbid that, at the cost of two suites sharing.",
-  );
-  return 0;
+function chooseFirstDb(databases: number, firstDb: number, pinned: boolean): number {
+  return pinned ? firstDb : Math.min(firstDb, Math.max(databases - 1, 0));
 }
 
-async function resolveRedis(
-  docker: { available: boolean; reason: string },
-  suiteCount: number,
-): Promise<{ redis: TestRunRedis | null; reason: string; containers: number }> {
+async function resolveRedis(docker: {
+  available: boolean;
+  reason: string;
+}): Promise<{ redis: TestRunRedis | null; reason: string; containers: number }> {
   if (process.env["MONTAJ_SKIP_REDIS_TESTS"] === "1") {
     return { redis: null, reason: "MONTAJ_SKIP_REDIS_TESTS=1", containers: 0 };
   }
@@ -461,7 +529,8 @@ async function resolveRedis(
     return {
       redis: {
         baseUrl,
-        firstDb: chooseFirstDb(databases, firstDb, pinned, suiteCount),
+        firstDb: chooseFirstDb(databases, firstDb, pinned),
+        pinned,
         databases,
         source: "env",
       },
@@ -495,6 +564,7 @@ async function resolveRedis(
         redis: {
           baseUrl: `redis://${container.getHost()}:${String(container.getMappedPort(6379))}`,
           firstDb: FIRST_REDIS_DB,
+          pinned: false,
           databases: REDIS_DATABASES,
           source: "testcontainers",
         },
@@ -519,7 +589,8 @@ async function resolveRedis(
     return {
       redis: {
         baseUrl,
-        firstDb: chooseFirstDb(databases, firstDb, pinned, suiteCount),
+        firstDb: chooseFirstDb(databases, firstDb, pinned),
+        pinned,
         databases,
         source: "env",
       },
@@ -610,16 +681,17 @@ export default async function setup(project: TestProject): Promise<() => Promise
   const suiteCount = Object.keys(slots).length;
   const docker = probeDocker();
   const postgres = await resolvePostgres(apiDir, docker);
-  const redis = await resolveRedis(docker, suiteCount);
+  const redis = await resolveRedis(docker);
   const containersStarted = postgres.containers + redis.containers;
 
+  // Not a warning any more. Since A23b the suites are separated by their key
+  // prefixes, so sharing a logical database costs nothing but a shared `KEYS`
+  // scan; the databases are a second separator taken when there are enough.
   const redisPool = redis.redis === null ? 0 : redisDbPool(redis.redis).length;
   if (redis.redis !== null && redisPool < suiteCount) {
     console.warn(
-      `[test-run] WARNING: ${String(suiteCount)} e2e suites but only ${String(redisPool)} ` +
-        "logical Redis databases to hand out — some suites will share one, and a suite that " +
-        "sweeps `montaj:*` will sweep its neighbour's keys too. Point TEST_REDIS_URL at a " +
-        "lower database, or start Redis with a larger `--databases`.",
+      `[test-run] ${String(suiteCount)} e2e suites over ${String(redisPool)} logical Redis ` +
+        "database(s): some share one, and are kept apart by their key prefixes.",
     );
   }
 
