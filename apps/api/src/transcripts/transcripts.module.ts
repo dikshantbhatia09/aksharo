@@ -8,6 +8,7 @@ import { TranscriptsService } from "./transcripts.service.js";
 import { EdgModule } from "../edg/index.js";
 import { CAPTION_RENDER_CONTEXT, captionRenderContext } from "../edg/init/index.js";
 import { JobsModule } from "../jobs/jobs.module.js";
+import { MemoryModule } from "../memory/memory.module.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
 /**
@@ -28,9 +29,13 @@ import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
  * `@montaj/render-core`'s `createHarfBuzzShaper`), now that A18b has landed it on
  * `main`. The factory is async and memoised process-wide — Nest awaits it once at
  * boot, which is the one place HarfBuzz's wasm instantiation cost belongs.
+ *
+ * `MemoryModule` for `MemoryService.glossaryTermsFor()` — B09b wires the
+ * workspace's consented glossary/spelling terms into `params.hints` at
+ * enqueue, alongside request-time hints (`transcripts.service.ts`).
  */
 @Module({
-  imports: [JobsModule, EdgModule],
+  imports: [JobsModule, EdgModule, MemoryModule],
   controllers: [TranscriptsController],
   providers: [
     TranscriptsService,

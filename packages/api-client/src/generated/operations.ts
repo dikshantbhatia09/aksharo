@@ -243,6 +243,13 @@ export const API_OPERATIONS = [
     summary: "Finish an upload (project-scoped form)",
   },
   {
+    operationId: "createApiKey",
+    method: "POST",
+    path: "/workspaces/{id}/api-keys",
+    tags: ["developers"],
+    summary: "Mint a new API key",
+  },
+  {
     operationId: "createBrandAsset",
     method: "POST",
     path: "/workspaces/{id}/brand-assets",
@@ -320,6 +327,13 @@ export const API_OPERATIONS = [
     summary: "Buy a credit top-up pack",
   },
   {
+    operationId: "createWebhookEndpoint",
+    method: "POST",
+    path: "/workspaces/{id}/webhooks",
+    tags: ["webhooks"],
+    summary: "Register a webhook endpoint",
+  },
+  {
     operationId: "createWorkspace",
     method: "POST",
     path: "/workspaces",
@@ -374,6 +388,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/style-presets/{presetId}",
     tags: ["styles"],
     summary: "Delete a custom style preset",
+  },
+  {
+    operationId: "deleteWebhookEndpoint",
+    method: "DELETE",
+    path: "/workspaces/{id}/webhooks/{endpointId}",
+    tags: ["webhooks"],
+    summary: "Remove a webhook endpoint",
   },
   {
     operationId: "deleteWorkspace",
@@ -458,6 +479,13 @@ export const API_OPERATIONS = [
     path: "/admin/firc-records",
     tags: ["admin"],
     summary: "List FIRC records, most recent settlement first.",
+  },
+  {
+    operationId: "getAcquisitionMetrics",
+    method: "GET",
+    path: "/admin/metrics/acquisition",
+    tags: ["admin"],
+    summary: "Onboarding completions by source and code type",
   },
   {
     operationId: "getBreachIncidentTemplates",
@@ -598,6 +626,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/edg",
     tags: ["edg"],
     summary: "The hot document, its revision and the first page of segments",
+  },
+  {
+    operationId: "getProjectInsights",
+    method: "GET",
+    path: "/projects/{projectId}/insights",
+    tags: ["insights"],
+    summary: "The most recent chapters/summary/hooks result per kind",
   },
   {
     operationId: "getProjectTranscript",
@@ -766,6 +801,13 @@ export const API_OPERATIONS = [
     path: "/invoices",
     tags: ["invoices"],
     summary: "List the caller's workspace's invoices, most recent first.",
+  },
+  {
+    operationId: "listApiKeys",
+    method: "GET",
+    path: "/workspaces/{id}/api-keys",
+    tags: ["developers"],
+    summary: "List a workspace's API keys (never the secret)",
   },
   {
     operationId: "listBrandAssets",
@@ -950,6 +992,13 @@ export const API_OPERATIONS = [
     summary: "The project's media, oldest first",
   },
   {
+    operationId: "listProjectPasses",
+    method: "GET",
+    path: "/projects/{projectId}/passes",
+    tags: ["passes"],
+    summary: "Every pass this project has landed, with items",
+  },
+  {
     operationId: "listProjects",
     method: "GET",
     path: "/projects",
@@ -976,6 +1025,20 @@ export const API_OPERATIONS = [
     path: "/styles",
     tags: ["styles"],
     summary: "The style catalogue: system styles plus this workspace's presets",
+  },
+  {
+    operationId: "listWebhookDeliveries",
+    method: "GET",
+    path: "/workspaces/{id}/webhooks/{endpointId}/deliveries",
+    tags: ["webhooks"],
+    summary: "This endpoint's recent delivery log",
+  },
+  {
+    operationId: "listWebhookEndpoints",
+    method: "GET",
+    path: "/workspaces/{id}/webhooks",
+    tags: ["webhooks"],
+    summary: "List a workspace's webhook endpoints",
   },
   {
     operationId: "listWorkspaceFonts",
@@ -1104,6 +1167,13 @@ export const API_OPERATIONS = [
     summary: "A17/A02d timing-nudge sink feed",
   },
   {
+    operationId: "redeliverWebhookDelivery",
+    method: "POST",
+    path: "/workspaces/{id}/webhooks/deliveries/{deliveryId}/redeliver",
+    tags: ["webhooks"],
+    summary: "Manually redeliver an exhausted delivery",
+  },
+  {
     operationId: "refreshExportManifestSources",
     method: "GET",
     path: "/exports/manifests/{manifestId}/sources",
@@ -1181,6 +1251,13 @@ export const API_OPERATIONS = [
     summary: "Export everything the account holds about you",
   },
   {
+    operationId: "requestProjectInsights",
+    method: "POST",
+    path: "/projects/{projectId}/insights",
+    tags: ["insights"],
+    summary: "Generate chapters, summary and/or hooks from the project's transcript",
+  },
+  {
     operationId: "resegmentEdg",
     method: "POST",
     path: "/projects/{projectId}/edg/resegment",
@@ -1216,6 +1293,13 @@ export const API_OPERATIONS = [
     summary: "Transcribe the media again",
   },
   {
+    operationId: "revokeApiKey",
+    method: "DELETE",
+    path: "/workspaces/{id}/api-keys/{keyId}",
+    tags: ["developers"],
+    summary: "Revoke an API key immediately",
+  },
+  {
     operationId: "revokeDevice",
     method: "DELETE",
     path: "/devices/{deviceId}",
@@ -1237,6 +1321,13 @@ export const API_OPERATIONS = [
     summary: "Revoke a mandate (cancels its subscription)",
   },
   {
+    operationId: "rotateApiKey",
+    method: "POST",
+    path: "/workspaces/{id}/api-keys/{keyId}/rotate",
+    tags: ["developers"],
+    summary: "Rotate a key: mint a replacement, give the old one a 24h overlap window",
+  },
+  {
     operationId: "runErasureCascade",
     method: "POST",
     path: "/admin/privacy/erasure/{dsrRequestId}/run",
@@ -1249,6 +1340,13 @@ export const API_OPERATIONS = [
     path: "/admin/scheduler/tasks/{name}/run",
     tags: ["admin"],
     summary: "Run one scheduled task now, out of band",
+  },
+  {
+    operationId: "sendWebhookTestEvent",
+    method: "POST",
+    path: "/workspaces/{id}/webhooks/{endpointId}/test",
+    tags: ["webhooks"],
+    summary: "Send a synthetic `ping` event to this endpoint",
   },
   {
     operationId: "setConsent",
@@ -1284,6 +1382,13 @@ export const API_OPERATIONS = [
     path: "/offers/dev/simulate-nine-pass-payment",
     tags: ["offers"],
     summary: "Dev/test only: simulate a ₹9 pass payment landing (FakeProvider environments)",
+  },
+  {
+    operationId: "startAutocutPass",
+    method: "POST",
+    path: "/projects/{projectId}/passes/autocut",
+    tags: ["passes"],
+    summary: "Start an autocut pass",
   },
   {
     operationId: "streakTestHooks",
@@ -1384,11 +1489,67 @@ export const API_OPERATIONS = [
     summary: "Update a custom style preset",
   },
   {
+    operationId: "updateWebhookEndpoint",
+    method: "PATCH",
+    path: "/workspaces/{id}/webhooks/{endpointId}",
+    tags: ["webhooks"],
+    summary: "Update a webhook endpoint's URL, events or active state",
+  },
+  {
     operationId: "updateWorkspace",
     method: "PATCH",
     path: "/workspaces/{id}",
     tags: ["workspaces"],
     summary: "Rename a workspace or change its settings",
+  },
+  {
+    operationId: "v1CreateExport",
+    method: "POST",
+    path: "/v1/projects/{projectId}/exports",
+    tags: ["public"],
+    summary: "Request an export (cloud path)",
+  },
+  {
+    operationId: "v1CreateProject",
+    method: "POST",
+    path: "/v1/projects",
+    tags: ["public"],
+    summary: "Create a project, optionally from a sourceUrl",
+  },
+  {
+    operationId: "v1GetExport",
+    method: "GET",
+    path: "/v1/exports/{exportId}",
+    tags: ["public"],
+    summary: "Fetch an export's status and (once ready) its download URL",
+  },
+  {
+    operationId: "v1GetJob",
+    method: "GET",
+    path: "/v1/jobs/{id}",
+    tags: ["public"],
+    summary: "Poll a job's status",
+  },
+  {
+    operationId: "v1GetProject",
+    method: "GET",
+    path: "/v1/projects/{id}",
+    tags: ["public"],
+    summary: "Fetch a project",
+  },
+  {
+    operationId: "v1GetTranscript",
+    method: "GET",
+    path: "/v1/projects/{projectId}/transcript",
+    tags: ["public"],
+    summary: "Download the transcript as json, srt or vtt",
+  },
+  {
+    operationId: "v1Transcribe",
+    method: "POST",
+    path: "/v1/projects/{projectId}/transcribe",
+    tags: ["public"],
+    summary: "Start transcription",
   },
 ] as const satisfies readonly ApiOperation[];
 

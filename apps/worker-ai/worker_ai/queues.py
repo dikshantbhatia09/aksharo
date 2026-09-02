@@ -49,10 +49,12 @@ QUEUE_NAMES: Final[tuple[str, ...]] = (
 #: Node workers, so a job on one of them never reaches this process.
 AI_QUEUES: Final[tuple[str, ...]] = tuple(name for name in QUEUE_NAMES if name.startswith("ai."))
 
-#: The six this worker implements (four from A09/A10, `ai.translate` and
-#: `ai.transliterate` from A22); the rest are registered and answer
-#: `not_implemented` so a producer gets a clear failure instead of a job that
-#: sits in Redis forever.
+#: The eight this worker implements (four from A09/A10, `ai.translate` and
+#: `ai.transliterate` from A22, `ai.llm` from B11, `ai.pass` from B18); the
+#: rest are registered and answer `not_implemented` so a producer gets a clear
+#: failure instead of a job that sits in Redis forever. `ai.pass` itself still
+#: answers `worker/not_implemented` for any `passType` other than `"autocut"`
+#: (`processors/autocut_pass.py`) — B19 adds `"reframe"`/`"zoom"` there.
 IMPLEMENTED_AI_QUEUES: Final[tuple[str, ...]] = (
     "ai.vad",
     "ai.transcribe",
@@ -60,6 +62,8 @@ IMPLEMENTED_AI_QUEUES: Final[tuple[str, ...]] = (
     "ai.diarise",
     "ai.translate",
     "ai.transliterate",
+    "ai.llm",
+    "ai.pass",
 )
 
 AI_TRANSCRIBE_QUEUE: Final[str] = "ai.transcribe"

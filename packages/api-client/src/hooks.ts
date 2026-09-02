@@ -24,8 +24,18 @@ import type { ApiClient } from "./http.js";
 import type {
   AffiliateProfile,
   AffiliateStats,
+  ApiKeyView,
   ApplyAffiliateRequest,
+  AttachAffiliateAttributionRequest,
+  AttachAffiliateAttributionResult,
   AvailableScripts,
+  CreateApiKeyRequest,
+  CreatedWebhookEndpointView,
+  CreateWebhookRequest,
+  MintedApiKeyView,
+  UpdateWebhookRequest,
+  WebhookDeliveryView,
+  WebhookEndpointView,
   BatchCreateProjectsRequest,
   ClaimReferralRequest,
   ClaimReferralResult,
@@ -33,6 +43,9 @@ import type {
   CompletedUpload,
   ConsentPurpose,
   ConsentState,
+  InsightsAccepted,
+  InsightsRequest,
+  InsightsResponse,
   CreateFolderRequest,
   CreateMemoryEntryRequest,
   CreateProjectRequest,
@@ -59,6 +72,9 @@ import type {
   PendingApproval,
   Project,
   ProjectPage,
+  RecordSpellingFixRequest,
+  RecordStylePrefRequest,
+  RecordTimingNudgeRequest,
   ReferralStats,
   RightsRequest,
   SessionSummary,
@@ -310,6 +326,64 @@ export function useImportMemoryGlossary(): UseMutationResult<
   return useMutation({
     mutationFn: (body: ImportGlossaryRequest) =>
       client.call(endpoints.memory.importGlossary, { body }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
+  });
+}
+
+// --- Learning hooks (B09b) --------------------------------------------------
+
+/**
+ * A15's "Fix spelling everywhere" → `POST /memory/hooks/spelling-fix`. The
+ * caller is responsible for the consent gate (`readPrivacy().memory`) and for
+ * calling this only after the correction's own op batch has been
+ * acknowledged (`editor-client.tsx`) — a memory write is a side effect of a
+ * successful edit, never a precondition for one.
+ */
+export function useRecordSpellingFixMemory(): UseMutationResult<
+  MemoryEntry | undefined,
+  Error,
+  RecordSpellingFixRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RecordSpellingFixRequest) =>
+      client.call(endpoints.memory.recordSpellingFix, { body }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
+  });
+}
+
+/**
+ * A17/A02d's timing-nudge sink → `POST /memory/hooks/timing-nudge`. Callers
+ * debounce per drag and are consent-gated the same way
+ * (`useRecordSpellingFixMemory`'s doc-comment); this hook itself fires
+ * unconditionally, exactly once per `mutate()` call.
+ */
+export function useRecordTimingNudgeMemory(): UseMutationResult<
+  MemoryEntry,
+  Error,
+  RecordTimingNudgeRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RecordTimingNudgeRequest) =>
+      client.call(endpoints.memory.recordTimingNudge, { body }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
+  });
+}
+
+/** Last style/template used per aspect ratio → `POST /memory/hooks/style-pref`. */
+export function useRecordStylePrefMemory(): UseMutationResult<
+  MemoryEntry,
+  Error,
+  RecordStylePrefRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RecordStylePrefRequest) =>
+      client.call(endpoints.memory.recordStylePref, { body }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
   });
 }
@@ -896,6 +970,50 @@ export function useTranscriptScripts(projectId: string | null): UseQueryResult<A
       }),
   });
 }
+
+// --- Insights (B11) ----------------------------------------------------------
+
+/**
+ * `GET /projects/{id}/insights` — the most recent chapters/summary/hooks
+ * result per kind, plus the ASCI-friendly disclosure line to render next to
+ * whichever kind is shown.
+ */
+export function useProjectInsights(projectId: string | null): UseQueryResult<InsightsResponse> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.insights(workspaceId ?? "none", projectId ?? "none"),
+    enabled: workspaceId !== null && projectId !== null && projectId !== "",
+    retry: retryPolicy,
+    queryFn: () =>
+      client.call(endpoints.insights.list, {
+        params: { projectId: projectId ?? "" },
+      }),
+  });
+}
+
+/**
+ * `POST /projects/{id}/insights` — request (or regenerate) chapters, summary
+ * and/or hooks. Invalidates the read on success so a poller (`job.completed`)
+ * picking up the worker's completion is not required for the UI to refetch.
+ */
+export function useRequestInsights(
+  projectId: string,
+): UseMutationResult<InsightsAccepted, Error, InsightsRequest> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) => client.call(endpoints.insights.request, { params: { projectId }, body }),
+    onSuccess: () => {
+      if (workspaceId !== null) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.insights(workspaceId, projectId),
+        });
+      }
+    },
+  });
+}
 /**
  * What this workspace may buy right now, and why not otherwise (B04): the
  * signup gift, the ₹9 clean export, the week pass, the ₹149 Free top-up.
@@ -988,6 +1106,24 @@ export function useClaimReferral(): UseMutationResult<
       if (workspaceId === null) return;
       void queryClient.invalidateQueries({ queryKey: queryKeys.referrals(workspaceId) });
     },
+  });
+}
+
+/**
+ * Attaches affiliate attribution for a code typed at onboarding that is not
+ * `AK-`-shaped (B17). Public: it is the same route the sign-up cookie flow
+ * (`/r/<code>`) resolves through, so it needs no bearer token, but the
+ * workspace/user ids are still required — the onboarding caller already has
+ * both from `useCurrentUser()`.
+ */
+export function useAttachAffiliateAttribution(): UseMutationResult<
+  AttachAffiliateAttributionResult,
+  Error,
+  AttachAffiliateAttributionRequest
+> {
+  const client = useApiClient();
+  return useMutation({
+    mutationFn: (body) => client.call(endpoints.affiliate.attach, { body }),
   });
 }
 
@@ -1334,5 +1470,164 @@ export function useSetProjectClientTag(): UseMutationResult<
       if (workspaceId === null) return;
       void queryClient.invalidateQueries({ queryKey: queryKeys.clientTags(workspaceId) });
     },
+  });
+}
+
+// --- B14: API keys and webhooks (Settings → Developers) --------------------
+
+export function useApiKeys(): UseQueryResult<ApiKeyView[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.apiKeys(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.apiKeys.list, { params: { id: workspaceId ?? "" } }),
+  });
+}
+
+export function useCreateApiKey(): UseMutationResult<MintedApiKeyView, Error, CreateApiKeyRequest> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) =>
+      client.call(endpoints.apiKeys.create, { params: { id: workspaceId ?? "" }, body }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys(workspaceId) });
+    },
+  });
+}
+
+export function useRotateApiKey(): UseMutationResult<MintedApiKeyView, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (keyId) =>
+      client.call(endpoints.apiKeys.rotate, { params: { id: workspaceId ?? "", keyId } }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys(workspaceId) });
+    },
+  });
+}
+
+export function useRevokeApiKey(): UseMutationResult<ApiKeyView, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (keyId) =>
+      client.call(endpoints.apiKeys.revoke, { params: { id: workspaceId ?? "", keyId } }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys(workspaceId) });
+    },
+  });
+}
+
+export function useWebhookEndpoints(): UseQueryResult<WebhookEndpointView[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.webhooks(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.webhooks.list, { params: { id: workspaceId ?? "" } }),
+  });
+}
+
+export function useCreateWebhookEndpoint(): UseMutationResult<
+  CreatedWebhookEndpointView,
+  Error,
+  CreateWebhookRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) =>
+      client.call(endpoints.webhooks.create, { params: { id: workspaceId ?? "" }, body }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.webhooks(workspaceId) });
+    },
+  });
+}
+
+export function useUpdateWebhookEndpoint(): UseMutationResult<
+  WebhookEndpointView,
+  Error,
+  { endpointId: string; body: UpdateWebhookRequest }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: ({ endpointId, body }) =>
+      client.call(endpoints.webhooks.update, {
+        params: { id: workspaceId ?? "", endpointId },
+        body,
+      }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.webhooks(workspaceId) });
+    },
+  });
+}
+
+export function useDeleteWebhookEndpoint(): UseMutationResult<{ id: string }, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (endpointId) =>
+      client.call(endpoints.webhooks.remove, { params: { id: workspaceId ?? "", endpointId } }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.webhooks(workspaceId) });
+    },
+  });
+}
+
+export function useSendWebhookTestEvent(): UseMutationResult<
+  { deliveryId: string },
+  Error,
+  string
+> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (endpointId) =>
+      client.call(endpoints.webhooks.test, { params: { id: workspaceId ?? "", endpointId } }),
+  });
+}
+
+export function useWebhookDeliveries(
+  endpointId: string | null,
+): UseQueryResult<WebhookDeliveryView[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.webhookDeliveries(workspaceId ?? "none", endpointId ?? "none"),
+    enabled: workspaceId !== null && endpointId !== null,
+    retry: retryPolicy,
+    queryFn: () =>
+      client.call(endpoints.webhooks.deliveries, {
+        params: { id: workspaceId ?? "", endpointId: endpointId ?? "" },
+      }),
+  });
+}
+
+export function useRedeliverWebhookDelivery(): UseMutationResult<{ id: string }, Error, string> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (deliveryId) =>
+      client.call(endpoints.webhooks.redeliver, {
+        params: { id: workspaceId ?? "", deliveryId },
+      }),
   });
 }

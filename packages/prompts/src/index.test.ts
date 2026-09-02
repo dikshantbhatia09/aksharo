@@ -8,7 +8,7 @@ describe("@montaj/prompts", () => {
     expect(PACKAGE_INFO.implementedBy).toBe("B11 (prompts), D08 (eval harness)");
   });
 
-  it("is still a skeleton until B11 lands", () => {
-    expect(PACKAGE_INFO.implemented).toBe(false);
+  it("is implemented as of B11", () => {
+    expect(PACKAGE_INFO.implemented).toBe(true);
   });
 });

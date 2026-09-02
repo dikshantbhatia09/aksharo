@@ -1,0 +1,21 @@
+{
+  "language": "kn",
+  "version": 1,
+  "description": "Kannada filler lexicon (minimal seed set, B18) for the autocut pass.",
+  "entries": [
+    {
+      "token": "ಅಂದ್ರೆ",
+      "scripts": { "native": "ಅಂದ್ರೆ", "roman": "andre" },
+      "contextRule": "isolated_only",
+      "weight": 0.58
+    },
+    {
+      "token": "ಹಾಗಾದ್ರೆ",
+      "scripts": { "native": "ಹಾಗಾದ್ರೆ", "roman": "haagadre" },
+      "contextRule": "isolated_only",
+      "weight": 0.5
+    },
+    { "token": "um", "scripts": { "roman": "um" }, "contextRule": "always", "weight": 0.9 },
+    { "token": "hmm", "scripts": { "roman": "hmm" }, "contextRule": "always", "weight": 0.88 }
+  ]
+}

@@ -43,6 +43,16 @@ export function hashApiKeySecret(secret: string): string {
   return createHash("sha256").update(secret, "utf8").digest("hex");
 }
 
+/**
+ * Scopes B14 mints that let a key mutate something. Any one of them caps the
+ * derived role at `editor`; a key with only read scopes stays `viewer`.
+ */
+const WRITE_SCOPES: readonly $Enums.ApiKeyScope[] = [
+  "projects_write",
+  "exports_write",
+  "webhooks_manage",
+];
+
 /** Compared against when the prefix is unknown, so both paths cost the same. */
 const ABSENT_KEY_HASH = createHash("sha256").update("absent", "utf8").digest("hex");
 
@@ -94,6 +104,7 @@ export class ApiKeyGuard implements CanActivate {
         hash: true,
         scopes: true,
         revokedAt: true,
+        expiresAt: true,
         workspaceId: true,
         workspace: { select: { ownerId: true, deletedAt: true } },
       },
@@ -107,6 +118,12 @@ export class ApiKeyGuard implements CanActivate {
 
     if (record === null || !matches) throw unauthorizedKey();
     if (record.revokedAt !== null || record.workspace.deletedAt !== null) throw unauthorizedKey();
+    // B14: a rotated-out key is given a 24h overlap window via `expiresAt`
+    // rather than being revoked outright; past that instant it is refused
+    // exactly like a revoked one.
+    if (record.expiresAt !== null && record.expiresAt.getTime() <= Date.now()) {
+      throw unauthorizedKey();
+    }
 
     const requiredScopes = this.reflector.getAllAndOverride<$Enums.ApiKeyScope[] | undefined>(
       API_SCOPES_KEY,
@@ -125,8 +142,8 @@ export class ApiKeyGuard implements CanActivate {
     request.principal = {
       userId: record.workspace.ownerId,
       workspaceId: record.workspaceId,
-      // D27: a customer key is never `admin`; `jobs` is the only scope that writes.
-      role: granted.has("jobs") ? "editor" : "viewer",
+      // D27: a customer key is never `admin`; a write scope caps it at `editor`.
+      role: WRITE_SCOPES.some((scope) => granted.has(scope)) ? "editor" : "viewer",
       kind: "api",
       jti: record.id,
       apiKeyId: record.id,

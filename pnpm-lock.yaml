@@ -59,6 +59,9 @@ importers:
       '@montaj/fonts':
         specifier: workspace:*
         version: link:../../packages/fonts
+      '@montaj/prompts':
+        specifier: workspace:*
+        version: link:../../packages/prompts
       '@montaj/render-core':
         specifier: workspace:*
         version: link:../../packages/render-core
@@ -342,6 +345,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      intl-messageformat:
+        specifier: 10.7.18
+        version: 10.7.18
       lucide-react:
         specifier: ^1.39.0
         version: 1.39.0(react@19.2.8)
@@ -710,6 +716,10 @@ importers:
         version: 3.2.7(@types/node@22.20.1)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0)
 
   packages/prompts:
+    dependencies:
+      zod:
+        specifier: ^4.5.4
+        version: 4.5.4
     devDependencies:
       '@montaj/config':
         specifier: workspace:*
@@ -720,6 +730,9 @@ importers:
       eslint:
         specifier: ^9.39.5
         version: 9.39.5(jiti@2.7.0)
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

@@ -10,8 +10,9 @@
  * pages (`StyleGallery`, `/studio/styles`) use.
  */
 import Link from "next/link";
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
+import { useRecordSpellingFixMemory } from "@montaj/api-client";
 import { newId, orderedSegments, wordsBetween } from "@montaj/edg";
 import type { Segment } from "@montaj/edg";
 import { resolveStyle } from "@montaj/render-core";
@@ -23,6 +24,7 @@ import type { EditorSnapshot, EditorStore } from "@/lib/edg/store";
 
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
 import { useRenderer } from "@/components/editor/canvas/use-canvaskit";
+import { FirstRunCoachMarks } from "@/components/editor/coach-marks/FirstRunCoachMarks";
 import { ExportButton } from "@/components/editor/export/ExportButton";
 import { type PanelOp, type PanelScope } from "@/components/editor/panels/ops";
 import { RightPanel } from "@/components/editor/panels/RightPanel";
@@ -60,12 +62,29 @@ import {
 import { PlayheadStore } from "@/lib/edg/playhead";
 import { toRenderProjection } from "@/lib/edg/render-projection";
 import { useEdgRealtime, useEditorStore } from "@/lib/edg/use-editor-store";
+import { readPrivacy, subscribePrivacy } from "@/lib/privacy/consent";
 import { noopNudgeSink } from "@/lib/timeline/nudge";
 import { type TimeDisplayMode } from "@/lib/timeline/output-clock";
 import { useTimelineMedia } from "@/lib/timeline/use-timeline-media";
 
 export interface EditorClientProps {
   readonly projectId: string;
+}
+
+/**
+ * B09b: whether `onFixSpellingEverywhere` should post
+ * `POST /memory/hooks/spelling-fix` — consent-gated, and only for an actual
+ * change of spelling (a no-op "fix" that leaves the text unchanged is not a
+ * correction worth remembering, `MemoryService.recordSpellingFix`'s own rule
+ * on the server side). Exported as a pure predicate so it is unit-testable
+ * without mounting the editor's canvas-heavy component tree.
+ */
+export function shouldRecordSpellingFix(
+  memoryConsent: boolean,
+  wrong: string | undefined,
+  right: string,
+): wrong is string {
+  return memoryConsent && wrong !== undefined && wrong.trim() !== "" && wrong !== right;
 }
 
 const DEFAULT_RESEGMENT_PARAMS: ResegmentParams = {
@@ -204,6 +223,16 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   // is defensive, never actually exercised by the UI.
   const wordScript = isWordDisplayScript(script) ? script : "roman";
 
+  // B09b: the memory consent gate (`lib/privacy/consent.ts`'s browser mirror,
+  // the same source `settings/memory` reads) for `onFixSpellingEverywhere`'s
+  // learning-hook post below.
+  const [privacy, setPrivacy] = useState(() => readPrivacy());
+  useEffect(() => {
+    setPrivacy(readPrivacy());
+    return subscribePrivacy(setPrivacy);
+  }, []);
+  const recordSpellingFix = useRecordSpellingFixMemory();
+
   const { state } = snapshot;
   const segments = useMemo(() => orderedSegments(state), [state]);
   const wordsOf = useCallback(
@@ -283,6 +312,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   }
 
   function onFixSpellingEverywhere(wordId: string, text: string): void {
+    const wrong = allLiveWords.find((word) => word.wid === wordId)?.t;
     const matches = findSameSpelling(allLiveWords, text, wordScript).filter(
       (match) => match.wordId !== wordId,
     );
@@ -291,9 +321,17 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
       matches.map((match) => editWord(match.wordId, text, wordScript, newId)),
       { label: "Fix spelling everywhere" },
     );
-    // Memory consent hook (D62/B09): recording the correction is deferred —
-    // `patchTranscriptSpeakers`-style `pending` endpoint, not built yet. See
-    // `lib/edg/client.ts`'s note on `A15-1`/B09.
+
+    // B09b: `POST /memory/hooks/spelling-fix`, consent-gated the same way
+    // `useMemoryNudgeSink` gates the timing nudge, and only after the batch
+    // above has actually landed — `store.flush()` (`lib/edg/store.ts`)
+    // bypasses the debounce and resolves once the round trip completes, so
+    // this never records a correction the server went on to reject.
+    if (shouldRecordSpellingFix(privacy.memory, wrong, text)) {
+      void store.flush().then(() => {
+        recordSpellingFix.mutate({ wrong, right: text, script: wordScript });
+      });
+    }
   }
 
   function onSplit(): void {
@@ -478,14 +516,16 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           Follow playhead
         </label>
         <div className="ml-auto flex items-center gap-2">
-          <ExportButton
-            projectId={projectId}
-            primaryMediaId={state.hot.media.find((media) => media.role === "primary")?.mediaId}
-            projection={toRenderProjection(state)}
-            catalogue={SYSTEM_STYLE_MAP}
-            registry={registry}
-            shaper={shaper}
-          />
+          <span data-coach-mark="export" className="inline-flex">
+            <ExportButton
+              projectId={projectId}
+              primaryMediaId={state.hot.media.find((media) => media.role === "primary")?.mediaId}
+              projection={toRenderProjection(state)}
+              catalogue={SYSTEM_STYLE_MAP}
+              registry={registry}
+              shaper={shaper}
+            />
+          </span>
           <button
             type="button"
             data-testid="editor-undo"
@@ -557,7 +597,10 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
       ) : null}
 
       <div className="flex min-h-0 flex-1">
-        <div className="flex w-[420px] shrink-0 flex-col gap-2 border-r border-white/10 p-3">
+        <div
+          className="flex w-[420px] shrink-0 flex-col gap-2 border-r border-white/10 p-3"
+          data-coach-mark="transcript"
+        >
           <BulkActionsBar
             onMergeShort={onMergeShort}
             onSplitLong={onSplitLong}
@@ -605,7 +648,10 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           />
         </div>
 
-        <div className="flex w-80 shrink-0 flex-col gap-2 border-l border-white/10 p-3">
+        <div
+          className="flex w-80 shrink-0 flex-col gap-2 border-l border-white/10 p-3"
+          data-coach-mark="style"
+        >
           {reflow?.current.belowComfortableMinimum === true ? (
             <p
               data-testid="below-comfortable-minimum-hint"
@@ -670,6 +716,8 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         onResolve={(opId, choice) => store.resolveConflict(opId, choice)}
         onDismiss={(opId) => store.dismissConflict(opId)}
       />
+
+      <FirstRunCoachMarks />
     </div>
   );
 }

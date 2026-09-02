@@ -1,0 +1,22 @@
+{
+  "language": "bn",
+  "version": 1,
+  "description": "Bengali filler lexicon (minimal seed set, B18) for the autocut pass.",
+  "entries": [
+    {
+      "token": "মানে",
+      "scripts": { "native": "মানে", "roman": "mane" },
+      "contextRule": "isolated_only",
+      "weight": 0.58
+    },
+    {
+      "token": "মানে যে",
+      "scripts": { "native": "মানে যে", "roman": "mane je" },
+      "contextRule": "isolated_only",
+      "weight": 0.55
+    },
+    { "token": "তো", "scripts": { "native": "তো", "roman": "toh" }, "contextRule": "isolated_only", "weight": 0.45 },
+    { "token": "um", "scripts": { "roman": "um" }, "contextRule": "always", "weight": 0.9 },
+    { "token": "hmm", "scripts": { "roman": "hmm" }, "contextRule": "always", "weight": 0.88 }
+  ]
+}

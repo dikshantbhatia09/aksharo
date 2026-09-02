@@ -1,0 +1,43 @@
+{
+  "language": "hi",
+  "version": 1,
+  "description": "Hindi filler lexicon (Devanagari primary, roman transliteration secondary) for the autocut pass (B18).",
+  "entries": [
+    { "token": "अं", "scripts": { "native": "अं", "roman": "an" }, "contextRule": "always", "weight": 0.96 },
+    { "token": "उं", "scripts": { "native": "उं", "roman": "un" }, "contextRule": "always", "weight": 0.95 },
+    { "token": "हम्म", "scripts": { "native": "हम्म", "roman": "hmm" }, "contextRule": "always", "weight": 0.9 },
+    {
+      "token": "मतलब",
+      "scripts": { "native": "मतलब", "roman": "matlab" },
+      "contextRule": "isolated_only",
+      "weight": 0.6
+    },
+    {
+      "token": "यानी",
+      "scripts": { "native": "यानी", "roman": "yaani" },
+      "contextRule": "isolated_only",
+      "weight": 0.58
+    },
+    { "token": "तो", "scripts": { "native": "तो", "roman": "toh" }, "contextRule": "isolated_only", "weight": 0.5 },
+    { "token": "वो", "scripts": { "native": "वो", "roman": "voh" }, "contextRule": "isolated_only", "weight": 0.45 },
+    { "token": "हां", "scripts": { "native": "हां", "roman": "haan" }, "contextRule": "isolated_only", "weight": 0.5 },
+    {
+      "token": "अच्छा",
+      "scripts": { "native": "अच्छा", "roman": "accha" },
+      "contextRule": "isolated_only",
+      "weight": 0.5
+    },
+    {
+      "token": "क्या",
+      "scripts": { "native": "क्या", "roman": "kya" },
+      "contextRule": "isolated_only",
+      "weight": 0.45
+    },
+    {
+      "token": "वगैरह",
+      "scripts": { "native": "वगैरह", "roman": "vagairah" },
+      "contextRule": "isolated_only",
+      "weight": 0.55
+    }
+  ]
+}

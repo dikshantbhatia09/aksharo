@@ -32,6 +32,8 @@ from worker_ai.cache import NullResultCache, ResultCache, content_hash
 from worker_ai.callbacks import CallbackClient, JobUsage
 from worker_ai.diarisation import DiariserRegistry
 from worker_ai.lid import LanguageIdentifier, TextClassifier
+from worker_ai.llm.providers.base import LlmProvider
+from worker_ai.llm.providers.mock import MockLlmProvider
 from worker_ai.logging_setup import get_logger
 from worker_ai.policies import heartbeat_interval_ms, queue_policy_for
 from worker_ai.providers.base import ProviderSubmission
@@ -112,6 +114,11 @@ class Services:
     #: LLM adapter (`mock` needs no credential), so this default only matters
     #: for a `Services` built directly in a unit test.
     translation_providers: tuple[TranslationProvider, ...] = ()
+    #: The B11 `ai.llm` provider chain (primary, then fallback), tried in
+    #: order and filtered by region compliance (`worker_ai.llm.region`).
+    #: Defaults to the mock so a `Services` built directly in a unit test still
+    #: runs the queue.
+    llm_providers: tuple[LlmProvider, ...] = (MockLlmProvider(),)
 
 
 @dataclass(slots=True)

@@ -18,11 +18,11 @@ import {
 
 test("sign up, confirm the address, finish onboarding and land in the shell", async ({ page }) => {
   // Sign-up, an argon2id hash, a mail round trip through Redis, sign-in and
-  // three onboarding steps: the longest journey in the suite.
+  // four onboarding steps: the longest journey in the suite.
   test.slow();
   await signUpAndVerify(page, "journey");
 
-  // Onboarding steps 1–3. Step 0 was part of sign-up, because D60 makes date of
+  // Onboarding steps 1–4. Step 0 was part of sign-up, because D60 makes date of
   // birth and consent part of creating the account.
   await expect(page.getByTestId("onboarding")).toBeVisible();
   await expect(page.getByRole("heading", { name: "What do you make?" })).toBeVisible();
@@ -35,13 +35,17 @@ test("sign up, confirm the address, finish onboarding and land in the shell", as
   await page.getByTestId("onboarding-next").click();
 
   await expect(page.getByRole("heading", { name: /How did you find us/ })).toBeVisible();
-  await page.getByTestId("choice-YouTube").click();
+  await page.getByTestId("choice-youtube").click();
   await page.getByTestId("onboarding-next").click();
 
-  // `onboarding-flow.tsx`'s `router.replace("/")` runs on both the skip and
-  // the completed-wizard path — since A14, "/" rewrites invisibly to
-  // `/home` for a signed-in visitor, so this never becomes "/studio" either.
-  await page.waitForURL(/\/studio|\/$/);
+  // Step 4 (B17): "you're set" — a sample project offer, no further answers.
+  await expect(page.getByRole("heading", { name: "You're set" })).toBeVisible();
+  await expect(page.getByTestId("try-with-sample")).toBeVisible();
+  await page.getByTestId("onboarding-done").click();
+
+  // "/" rewrites invisibly to `(app)/home` for a signed-in request
+  // (`middleware.ts`) — the address bar stays "/", so the shell rendering is
+  // what proves the redirect landed, not the URL.
   await expect(page.getByTestId("home-view")).toBeVisible();
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("nav-home")).toBeVisible();

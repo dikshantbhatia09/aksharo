@@ -3,6 +3,8 @@ import { ulid } from "ulid";
 
 import { ACCOUNT_ERRORS, DSR_DUE_DAYS } from "./account.constants.js";
 import { A05_AUDIT_ACTIONS, AuditService } from "./audit.service.js";
+import { classifyOnboardingCode } from "./onboarding/code-classifier.js";
+import { ProductEventsService } from "./onboarding/product-events.service.js";
 import { PRIVACY_NOTICE_VERSION } from "./users.service.js";
 import { AppException, ERROR_CODES, PrismaService } from "../common/index.js";
 
@@ -56,6 +58,13 @@ export interface ErasureResult {
   readonly sessionsRevoked: number;
 }
 
+/** Reads a string key out of a JSONB column value that is not guaranteed to be an object. */
+function stringField(value: unknown, key: string): string | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === "string" ? field : undefined;
+}
+
 /** `receivedAt` plus the DPDP Rule 14 answer period. */
 export function dsrDueAt(from: Date): Date {
   return new Date(from.getTime() + DSR_DUE_DAYS * 24 * 60 * 60 * 1_000);
@@ -87,6 +96,7 @@ export class ProfileService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly productEvents: ProductEventsService,
   ) {}
 
   async view(
@@ -171,6 +181,27 @@ export class ProfileService {
       ...(context.ip === undefined ? {} : { ip: context.ip }),
       data: { fields: Object.keys(data).sort() },
     });
+
+    // Attribution instrumentation (B17 brief §2): fires exactly once, the
+    // moment `onboarding.completedAt` first appears on the row — never on a
+    // later, unrelated `PATCH /me` that happens to still carry it along.
+    const wasCompleted = stringField(before.onboarding, "completedAt") !== undefined;
+    const nowCompleted =
+      patch.onboarding !== undefined && stringField(patch.onboarding, "completedAt") !== undefined;
+    if (!wasCompleted && nowCompleted) {
+      const onboarding = patch.onboarding as Record<string, unknown>;
+      const source = stringField(onboarding, "source");
+      const referralCode = stringField(onboarding, "referralCode") ?? "";
+      const codeType = referralCode === "" ? undefined : classifyOnboardingCode(referralCode);
+      await this.productEvents.record({
+        kind: "onboarding_completed",
+        workspaceId: workspace.id,
+        userId,
+        ...(source === undefined ? {} : { source }),
+        ...(codeType === undefined || codeType === "invalid" ? {} : { codeType }),
+        props: { makes: onboarding["makes"] ?? [], languages: onboarding["languages"] ?? [] },
+      });
+    }
 
     return toProfileView(updated, workspace);
   }

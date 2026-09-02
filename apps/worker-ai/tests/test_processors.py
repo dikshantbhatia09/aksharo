@@ -460,8 +460,6 @@ async def test_diarise_ignores_a_nonsense_speaker_count(wav_file: Path) -> None:
     ("queue", "owner"),
     [
         ("ai.clean", "B10"),
-        ("ai.pass", "B18"),
-        ("ai.llm", "B11"),
     ],
 )
 async def test_an_unimplemented_queue_fails_fast_and_names_its_owner(

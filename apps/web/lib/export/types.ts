@@ -61,6 +61,14 @@ export interface ExportCapabilityProbe {
   readonly throughput: ThroughputSample | null;
   /** Track ids Mediabunny's own pre-flight says it cannot place in the target container. */
   readonly discardedTracks: readonly string[];
+  /**
+   * A19c: `VideoEncoder.isConfigSupported` for the probe's best H.264 rung with
+   * `hardwareAcceleration: "prefer-hardware"` reporting `supported: true` — a real
+   * hardware encoder, not just a software one this browser happens to expose. `null`
+   * when there is no WebCodecs at all (nothing to probe); `false` covers both "no
+   * hardware encoder exists" and "the probe threw" (see `probe.ts`).
+   */
+  readonly hardwareEncoder: boolean | null;
 }
 
 /** The subset of the probe `POST /exports` reads, per `exports.dto.ts`'s `CapabilitiesRequest`. */
@@ -72,6 +80,8 @@ export interface ExportCapabilitiesRequest {
   readonly isDesktopChromium?: boolean;
   readonly isMobile?: boolean;
   readonly throughputMbps?: number;
+  /** A19c ruling (2): mirrors `ExportCapabilityProbe.hardwareEncoder`. */
+  readonly hardwareEncoder?: boolean;
 }
 
 export type AudioStrategyDecision =
@@ -100,6 +110,14 @@ export interface EngineResult {
   readonly usedFileSystemAccess: boolean;
   /** Wall-clock encode time / output duration; ≥1 means at-or-faster-than realtime (A19b target: ≥1 at 1080p on chromium). */
   readonly realtimeMultiplier: number;
+  /**
+   * A19c: which surface `createExportSurface` allocated for the caption
+   * layer — `"webgl"` when the OffscreenCanvas GPU path worked, `"cpu"` when
+   * it fell back (no `OffscreenCanvas`, a blocked WebGL context, or a
+   * software-rendering VM). Surfaced so the e2e throughput annotation and the
+   * final report can say which surface a measured multiplier came from.
+   */
+  readonly captionSurfaceBackend: "webgl" | "cpu";
 }
 
 export interface EngineOptions {
