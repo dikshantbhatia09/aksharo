@@ -131,13 +131,18 @@ const TABLES = [
   "audit_log",
   "access_logs",
   "consent_records",
+  "dsr_requests",
   "device_codes",
   "sessions",
   "identities",
   "memberships",
   "api_keys",
+  "subscriptions",
   "workspaces",
   "users",
+  // A05: the parental waiting list is not a child of `users` (the entries exist
+  // precisely because no account was created), so `CASCADE` never reaches it.
+  "parental_waitlist",
 ];
 
 export async function createAuthTestContext(): Promise<AuthTestContext | null> {

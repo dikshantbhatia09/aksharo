@@ -258,7 +258,7 @@ export class AuthController {
   })
   @ApiBody(zodBody(parentalWaitlistSchema))
   async joinWaitlist(@Body() body: ParentalWaitlistDto, @Req() request: Request) {
-    await this.auth.joinParentalWaitlist(body.email, context(request));
+    await this.auth.joinParentalWaitlist(body.email, context(request), body.jurisdiction);
     return { status: "joined" as const };
   }
 }

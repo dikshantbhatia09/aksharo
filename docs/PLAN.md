@@ -37,8 +37,8 @@ Roles: **Fable 5.1** designs, decides, writes briefs, verifies gates. **Opus 5 a
 | X05 | infra: Terraform, staging env, dashboards | A01 | Opus | done |
 | X06 | Threat model → checklist (docs/THREAT-MODEL.md) | — | Fable | done |
 | A04 | api: auth (families, device code, token exchange) | A03, X06 | Opus | done |
-| A05 | api: users, workspaces (tax profile), memberships | A04 | Opus | in-progress |
-| A06 | api: projects + media (S3 raw, R2 derived) | A05 | Opus | briefed |
+| A05 | api: users, workspaces (tax profile), memberships | A04 | Opus | done |
+| A06 | api: projects + media (S3 raw, R2 derived) | A05 | Opus | in-progress |
 | A07 | worker-media: probe, 16k/48k audio, proxy, waveform, thumbs | A03, A06 | Opus | briefed |
 | A08 | api: jobs, WS gateway, idempotent completion, CreditsFacade (no-op), admission control | A03 | Opus | done |
 | A08b | DLQ + admin replay | A08 | Opus | done |
@@ -110,6 +110,9 @@ C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machine
 
 ## Wave 7 — Remaining
 D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for prod — chart variant exists from X05; prod-hardening item before Gate C). **Gate D**.
+
+## Gate log
+- **2026-09-02 — Wave 1 interim gate (A01, A02, A02b, A02c, A03, A03b, A03c, A04, A05, A08, A08b, A09, X05) PASSED** from a fresh clone at `cf18498`: frozen install, build 15/15, migrations + 5 SQL guard files on a new database, seed (5 plans, 7 system styles from the package, 4 flags), tests — api 673, edg 253, timemap 149, caption-styles 34, worker-ai 321 (+5 skipped), web Playwright smoke 10. A06 and A07 remain; the final Wave 1 gate re-runs after they merge.
 
 ## Gate definitions
 - **Gate A:** new user captions a Hinglish sample end to end in the browser; cloud render works; parity gate green; X02 passes.

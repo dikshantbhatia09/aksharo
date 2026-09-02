@@ -1,6 +1,419 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/me": {
+      "get": {
+        "operationId": "getMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The caller's profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "emailVerified": {
+                      "type": "boolean"
+                    },
+                    "name": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "avatarUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "locale": {
+                      "type": "string"
+                    },
+                    "jurisdiction": {
+                      "type": "string",
+                      "enum": [
+                        "IN",
+                        "EU",
+                        "OTHER"
+                      ]
+                    },
+                    "ageBracket": {
+                      "type": "string",
+                      "enum": [
+                        "adult",
+                        "minor"
+                      ]
+                    },
+                    "marketingOptIn": {
+                      "type": "boolean"
+                    },
+                    "onboarding": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "lastSeenAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "workspace": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "role"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "email",
+                    "emailVerified",
+                    "name",
+                    "avatarUrl",
+                    "locale",
+                    "jurisdiction",
+                    "ageBracket",
+                    "marketingOptIn",
+                    "onboarding",
+                    "createdAt",
+                    "lastSeenAt",
+                    "deletedAt",
+                    "workspace"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The signed-in person's profile",
+        "tags": [
+          "me"
+        ]
+      },
+      "patch": {
+        "description": "A change to `marketingOptIn` also writes a `consent_records` row, because the DPDP notice-and-choice record has to say when and from where the choice was made (D61).",
+        "operationId": "updateMe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "avatarUrl": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 2048
+                  },
+                  "locale": {
+                    "type": "string",
+                    "maxLength": 16,
+                    "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$"
+                  },
+                  "marketingOptIn": {
+                    "type": "boolean"
+                  },
+                  "onboarding": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "maxLength": 200
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "emailVerified": {
+                      "type": "boolean"
+                    },
+                    "name": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "avatarUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "locale": {
+                      "type": "string"
+                    },
+                    "jurisdiction": {
+                      "type": "string",
+                      "enum": [
+                        "IN",
+                        "EU",
+                        "OTHER"
+                      ]
+                    },
+                    "ageBracket": {
+                      "type": "string",
+                      "enum": [
+                        "adult",
+                        "minor"
+                      ]
+                    },
+                    "marketingOptIn": {
+                      "type": "boolean"
+                    },
+                    "onboarding": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "lastSeenAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "workspace": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "role"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "email",
+                    "emailVerified",
+                    "name",
+                    "avatarUrl",
+                    "locale",
+                    "jurisdiction",
+                    "ageBracket",
+                    "marketingOptIn",
+                    "onboarding",
+                    "createdAt",
+                    "lastSeenAt",
+                    "deletedAt",
+                    "workspace"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Update name, avatar, locale, onboarding state or marketing opt-in",
+        "tags": [
+          "me"
+        ]
+      },
+      "delete": {
+        "description": "Records a `dsr_requests` row of kind `erasure`, marks the account deleted, anonymises the address and revokes every session immediately. The cascade over media, transcripts and derived objects is B16 and has 30 days to run.",
+        "operationId": "deleteMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The erasure request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "received",
+                        "verifying",
+                        "in_progress",
+                        "completed",
+                        "rejected"
+                      ]
+                    },
+                    "requestedAt": {
+                      "type": "string"
+                    },
+                    "dueAt": {
+                      "type": "string"
+                    },
+                    "sessionsRevoked": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "requestId",
+                    "status",
+                    "requestedAt",
+                    "dueAt",
+                    "sessionsRevoked"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Erase the account",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/me/data": {
+      "get": {
+        "description": "Records a `dsr_requests` row of kind `export` (DPDP Rule 14: answered within 30 days) and returns a single-use download link that expires in an hour. B16 adds media, transcripts and exports to the bundle.",
+        "operationId": "requestMyData",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The rights request and its download link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "received",
+                        "verifying",
+                        "in_progress",
+                        "completed",
+                        "rejected"
+                      ]
+                    },
+                    "requestedAt": {
+                      "type": "string"
+                    },
+                    "dueAt": {
+                      "type": "string"
+                    },
+                    "downloadUrl": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "sizeBytes": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "requestId",
+                    "status",
+                    "requestedAt",
+                    "dueAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "429": {
+            "description": "`common/rate_limited`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Export everything the account holds about you",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/auth/signup": {
       "post": {
         "description": "Always answers the same way, whether or not the address is already registered: a registration form that says 'already taken' is a free account checker. Blocked by the age gate (403 auth/age_restricted) for India under 18 and the EU under 16.",
@@ -782,6 +1195,14 @@
                     "maxLength": 254,
                     "format": "email",
                     "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "jurisdiction": {
+                    "type": "string",
+                    "enum": [
+                      "IN",
+                      "EU",
+                      "OTHER"
+                    ]
                   }
                 },
                 "required": [
@@ -1351,6 +1772,1984 @@
         ]
       }
     },
+    "/workspaces": {
+      "get": {
+        "description": "Not scoped to the token's `ws` claim: this is the list a workspace switcher renders, and switching goes through `POST /auth/token/exchange`.",
+        "operationId": "listWorkspaces",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The caller's workspaces, oldest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "slug": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "personal",
+                          "team",
+                          "agency"
+                        ]
+                      },
+                      "ownerId": {
+                        "type": "string"
+                      },
+                      "region": {
+                        "type": "string",
+                        "enum": [
+                          "in",
+                          "eu",
+                          "us"
+                        ]
+                      },
+                      "currency": {
+                        "type": "string",
+                        "enum": [
+                          "INR",
+                          "USD"
+                        ]
+                      },
+                      "billingCountry": {
+                        "type": "string"
+                      },
+                      "billingCountryConfirmedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "billingStateCode": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "gstin": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "gstinVerifiedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "legalName": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "settings": {
+                        "type": "object",
+                        "properties": {
+                          "defaultAspect": {
+                            "type": "string",
+                            "enum": [
+                              "9:16",
+                              "16:9",
+                              "1:1",
+                              "4:5"
+                            ]
+                          },
+                          "defaultLanguage": {
+                            "type": "string",
+                            "maxLength": 16
+                          },
+                          "timezone": {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          "notifyOnJobComplete": {
+                            "type": "boolean"
+                          },
+                          "membersCanInvite": {
+                            "type": "boolean"
+                          }
+                        }
+                      },
+                      "retentionDays": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "role": {
+                        "type": "string",
+                        "enum": [
+                          "owner",
+                          "admin",
+                          "editor",
+                          "viewer"
+                        ]
+                      },
+                      "memberCount": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "currencyLocked": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "name",
+                      "type",
+                      "ownerId",
+                      "region",
+                      "currency",
+                      "billingCountry",
+                      "billingCountryConfirmedAt",
+                      "billingStateCode",
+                      "gstin",
+                      "gstinVerifiedAt",
+                      "legalName",
+                      "settings",
+                      "retentionDays",
+                      "createdAt",
+                      "role",
+                      "memberCount",
+                      "currencyLocked"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The workspaces the caller belongs to",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "post": {
+        "description": "The caller becomes its owner. Region and currency follow their declared jurisdiction and the billing country starts **unconfirmed** — a guess until somebody sets a tax profile on it.",
+        "operationId": "createWorkspace",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "slug": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 48,
+                    "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "team",
+                      "agency"
+                    ]
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "slug": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "personal",
+                        "team",
+                        "agency"
+                      ]
+                    },
+                    "ownerId": {
+                      "type": "string"
+                    },
+                    "region": {
+                      "type": "string",
+                      "enum": [
+                        "in",
+                        "eu",
+                        "us"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "billingCountry": {
+                      "type": "string"
+                    },
+                    "billingCountryConfirmedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "billingStateCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstin": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstinVerifiedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "legalName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "defaultAspect": {
+                          "type": "string",
+                          "enum": [
+                            "9:16",
+                            "16:9",
+                            "1:1",
+                            "4:5"
+                          ]
+                        },
+                        "defaultLanguage": {
+                          "type": "string",
+                          "maxLength": 16
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "notifyOnJobComplete": {
+                          "type": "boolean"
+                        },
+                        "membersCanInvite": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "retentionDays": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
+                    },
+                    "memberCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "currencyLocked": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "slug",
+                    "name",
+                    "type",
+                    "ownerId",
+                    "region",
+                    "currency",
+                    "billingCountry",
+                    "billingCountryConfirmedAt",
+                    "billingStateCode",
+                    "gstin",
+                    "gstinVerifiedAt",
+                    "legalName",
+                    "settings",
+                    "retentionDays",
+                    "createdAt",
+                    "role",
+                    "memberCount",
+                    "currencyLocked"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "409": {
+            "description": "`workspace/slug_taken`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a team or agency workspace",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}": {
+      "get": {
+        "operationId": "getWorkspace",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "slug": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "personal",
+                        "team",
+                        "agency"
+                      ]
+                    },
+                    "ownerId": {
+                      "type": "string"
+                    },
+                    "region": {
+                      "type": "string",
+                      "enum": [
+                        "in",
+                        "eu",
+                        "us"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "billingCountry": {
+                      "type": "string"
+                    },
+                    "billingCountryConfirmedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "billingStateCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstin": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstinVerifiedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "legalName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "defaultAspect": {
+                          "type": "string",
+                          "enum": [
+                            "9:16",
+                            "16:9",
+                            "1:1",
+                            "4:5"
+                          ]
+                        },
+                        "defaultLanguage": {
+                          "type": "string",
+                          "maxLength": 16
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "notifyOnJobComplete": {
+                          "type": "boolean"
+                        },
+                        "membersCanInvite": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "retentionDays": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
+                    },
+                    "memberCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "currencyLocked": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "slug",
+                    "name",
+                    "type",
+                    "ownerId",
+                    "region",
+                    "currency",
+                    "billingCountry",
+                    "billingCountryConfirmedAt",
+                    "billingStateCode",
+                    "gstin",
+                    "gstinVerifiedAt",
+                    "legalName",
+                    "settings",
+                    "retentionDays",
+                    "createdAt",
+                    "role",
+                    "memberCount",
+                    "currencyLocked"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One workspace",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "patch": {
+        "description": "`settings` is merged, not replaced, so a partial patch keeps the rest.",
+        "operationId": "updateWorkspace",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "slug": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 48,
+                    "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+                  },
+                  "settings": {
+                    "type": "object",
+                    "properties": {
+                      "defaultAspect": {
+                        "type": "string",
+                        "enum": [
+                          "9:16",
+                          "16:9",
+                          "1:1",
+                          "4:5"
+                        ]
+                      },
+                      "defaultLanguage": {
+                        "type": "string",
+                        "maxLength": 16
+                      },
+                      "timezone": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "notifyOnJobComplete": {
+                        "type": "boolean"
+                      },
+                      "membersCanInvite": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "slug": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "personal",
+                        "team",
+                        "agency"
+                      ]
+                    },
+                    "ownerId": {
+                      "type": "string"
+                    },
+                    "region": {
+                      "type": "string",
+                      "enum": [
+                        "in",
+                        "eu",
+                        "us"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "billingCountry": {
+                      "type": "string"
+                    },
+                    "billingCountryConfirmedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "billingStateCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstin": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstinVerifiedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "legalName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "defaultAspect": {
+                          "type": "string",
+                          "enum": [
+                            "9:16",
+                            "16:9",
+                            "1:1",
+                            "4:5"
+                          ]
+                        },
+                        "defaultLanguage": {
+                          "type": "string",
+                          "maxLength": 16
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "notifyOnJobComplete": {
+                          "type": "boolean"
+                        },
+                        "membersCanInvite": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "retentionDays": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
+                    },
+                    "memberCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "currencyLocked": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "slug",
+                    "name",
+                    "type",
+                    "ownerId",
+                    "region",
+                    "currency",
+                    "billingCountry",
+                    "billingCountryConfirmedAt",
+                    "billingStateCode",
+                    "gstin",
+                    "gstinVerifiedAt",
+                    "legalName",
+                    "settings",
+                    "retentionDays",
+                    "createdAt",
+                    "role",
+                    "memberCount",
+                    "currencyLocked"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "409": {
+            "description": "`workspace/slug_taken`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Rename a workspace or change its settings",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "delete": {
+        "description": "Soft delete; every session scoped to it is revoked. Refused when it is the caller's only workspace — `DELETE /me` is how a person leaves altogether.",
+        "operationId": "deleteWorkspace",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace was deleted."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "409": {
+            "description": "`workspace/last_remaining`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete a workspace",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}/tax-profile": {
+      "put": {
+        "description": "India requires a validated GST State code (D41, Circular 242/36/2024-GST); a GSTIN is optional but is checked against its base-36 check digit and must name the same State. Currency follows the country (IN → INR, otherwise USD) and is locked once a subscription exists. Confirming a profile stamps `billingCountryConfirmedAt`, which is what B01 requires before a checkout.",
+        "operationId": "setWorkspaceTaxProfile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "billingCountry": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{2}$"
+                  },
+                  "billingStateCode": {
+                    "type": "string",
+                    "pattern": "^[0-9]{2}$"
+                  },
+                  "gstin": {
+                    "type": "string",
+                    "minLength": 15,
+                    "maxLength": 15
+                  },
+                  "legalName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "billingCountry"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The workspace with its tax profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "slug": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "personal",
+                        "team",
+                        "agency"
+                      ]
+                    },
+                    "ownerId": {
+                      "type": "string"
+                    },
+                    "region": {
+                      "type": "string",
+                      "enum": [
+                        "in",
+                        "eu",
+                        "us"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
+                    },
+                    "billingCountry": {
+                      "type": "string"
+                    },
+                    "billingCountryConfirmedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "billingStateCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstin": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstinVerifiedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "legalName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "defaultAspect": {
+                          "type": "string",
+                          "enum": [
+                            "9:16",
+                            "16:9",
+                            "1:1",
+                            "4:5"
+                          ]
+                        },
+                        "defaultLanguage": {
+                          "type": "string",
+                          "maxLength": 16
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "notifyOnJobComplete": {
+                          "type": "boolean"
+                        },
+                        "membersCanInvite": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "retentionDays": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
+                    },
+                    "memberCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "currencyLocked": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "slug",
+                    "name",
+                    "type",
+                    "ownerId",
+                    "region",
+                    "currency",
+                    "billingCountry",
+                    "billingCountryConfirmedAt",
+                    "billingStateCode",
+                    "gstin",
+                    "gstinVerifiedAt",
+                    "legalName",
+                    "settings",
+                    "retentionDays",
+                    "createdAt",
+                    "role",
+                    "memberCount",
+                    "currencyLocked"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "409": {
+            "description": "`workspace/tax_profile_locked`."
+          },
+          "422": {
+            "description": "`workspace/tax_profile_invalid`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Set the billing country, State and GSTIN",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}/entitlement": {
+      "get": {
+        "description": "Cached 60 seconds (07 §Workspaces). **Stub:** the Free plan's entitlements for every workspace; B02 computes plan + seats + passes + flags.",
+        "operationId": "getWorkspaceEntitlement",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace's entitlement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "planKey": {
+                      "type": "string",
+                      "enum": [
+                        "free",
+                        "starter",
+                        "creator",
+                        "studio",
+                        "agency"
+                      ]
+                    },
+                    "planName": {
+                      "type": "string"
+                    },
+                    "creditsPerMonthTenths": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "seatsIncluded": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "seatsUsed": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "entitlements": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "computedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "workspaceId",
+                    "planKey",
+                    "planName",
+                    "creditsPerMonthTenths",
+                    "seatsIncluded",
+                    "seatsUsed",
+                    "entitlements",
+                    "computedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "What this workspace may do",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}/members": {
+      "get": {
+        "operationId": "listWorkspaceMembers",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Members, the owner first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "email": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "name": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "avatarUrl": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "role": {
+                        "type": "string",
+                        "enum": [
+                          "owner",
+                          "admin",
+                          "editor",
+                          "viewer"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "invited",
+                          "active",
+                          "suspended",
+                          "removed"
+                        ]
+                      },
+                      "seatBilled": {
+                        "type": "boolean"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "email",
+                      "name",
+                      "avatarUrl",
+                      "role",
+                      "status",
+                      "seatBilled",
+                      "createdAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The workspace's members and outstanding invitations",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "post": {
+        "description": "Creates a pending `memberships` row and sends the invitation. The row becomes a membership only when that person accepts it themselves, from a verified address.",
+        "operationId": "inviteWorkspaceMember",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 254,
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "editor",
+                      "viewer"
+                    ]
+                  }
+                },
+                "required": [
+                  "email",
+                  "role"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The pending invitation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "email": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "name": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "avatarUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "invited",
+                        "active",
+                        "suspended",
+                        "removed"
+                      ]
+                    },
+                    "seatBilled": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "email",
+                    "name",
+                    "avatarUrl",
+                    "role",
+                    "status",
+                    "seatBilled",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "409": {
+            "description": "`workspace/member_already_present`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Invite an address to the workspace",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/workspaces/{id}/members/{membershipId}": {
+      "patch": {
+        "description": "The owner's role is immutable, and nobody may grant a role above their own.",
+        "operationId": "changeWorkspaceMemberRole",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "membershipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "editor",
+                      "viewer"
+                    ]
+                  }
+                },
+                "required": [
+                  "role"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated member.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "email": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "name": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "avatarUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "invited",
+                        "active",
+                        "suspended",
+                        "removed"
+                      ]
+                    },
+                    "seatBilled": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "email",
+                    "name",
+                    "avatarUrl",
+                    "role",
+                    "status",
+                    "seatBilled",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`workspace/member_not_found`."
+          },
+          "409": {
+            "description": "`workspace/owner_immutable`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Change a member's role",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "delete": {
+        "description": "Every session that member holds in this workspace is revoked at once.",
+        "operationId": "removeWorkspaceMember",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "membershipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The member was removed."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`workspace/member_not_found`."
+          },
+          "409": {
+            "description": "`workspace/owner_immutable`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove a member or withdraw an invitation",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/invitations": {
+      "get": {
+        "description": "Empty until the address is verified: an invitation is an authorisation grant.",
+        "operationId": "listInvitations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Pending invitations, oldest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": "string"
+                      },
+                      "workspaceName": {
+                        "type": "string"
+                      },
+                      "role": {
+                        "type": "string",
+                        "enum": [
+                          "owner",
+                          "admin",
+                          "editor",
+                          "viewer"
+                        ]
+                      },
+                      "invitedEmail": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "workspaceId",
+                      "workspaceName",
+                      "role",
+                      "invitedEmail",
+                      "createdAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Invitations waiting for the caller's address",
+        "tags": [
+          "invitations"
+        ]
+      }
+    },
+    "/invitations/{id}/accept": {
+      "post": {
+        "description": "Joins the workspace. The caller's session is untouched — exchange a token for the returned `workspaceId` to start working in it.",
+        "operationId": "acceptInvitation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace joined.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
+                    },
+                    "next": {
+                      "type": "string",
+                      "enum": [
+                        "POST /auth/token/exchange"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "workspaceId",
+                    "role",
+                    "next"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`workspace/invitation_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Accept an invitation",
+        "tags": [
+          "invitations"
+        ]
+      }
+    },
+    "/invitations/{id}": {
+      "delete": {
+        "operationId": "declineInvitation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The invitation was declined."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`workspace/invitation_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Decline an invitation",
+        "tags": [
+          "invitations"
+        ]
+      }
+    },
+    "/consents": {
+      "get": {
+        "description": "`reconsentRequired` is true when a purpose was last answered against an older privacy notice — the choice has to be asked again (D61, Rule 3).",
+        "operationId": "getConsents",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current consent state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "noticeVersion": {
+                      "type": "string"
+                    },
+                    "reconsentRequired": {
+                      "type": "boolean"
+                    },
+                    "purposes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "purpose": {
+                            "type": "string",
+                            "enum": [
+                              "analytics",
+                              "memory",
+                              "marketing",
+                              "share_upload",
+                              "affiliate"
+                            ]
+                          },
+                          "granted": {
+                            "type": "boolean"
+                          },
+                          "version": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "decidedAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "withdrawnAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "recorded": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "purpose",
+                          "granted",
+                          "version",
+                          "decidedAt",
+                          "withdrawnAt",
+                          "recorded"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "noticeVersion",
+                    "reconsentRequired",
+                    "purposes"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The caller's current answer for every purpose",
+        "tags": [
+          "consents"
+        ]
+      },
+      "post": {
+        "description": "Appends a `consent_records` row with the caller's address, user agent and the current notice version. A refusal is recorded as a row, not as an absent row: the record has to show what was asked as well as what was agreed.",
+        "operationId": "setConsent",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "purpose": {
+                    "type": "string",
+                    "enum": [
+                      "analytics",
+                      "memory",
+                      "marketing",
+                      "share_upload",
+                      "affiliate"
+                    ]
+                  },
+                  "granted": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "purpose",
+                  "granted"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Consent state after the change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "noticeVersion": {
+                      "type": "string"
+                    },
+                    "reconsentRequired": {
+                      "type": "boolean"
+                    },
+                    "purposes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "purpose": {
+                            "type": "string",
+                            "enum": [
+                              "analytics",
+                              "memory",
+                              "marketing",
+                              "share_upload",
+                              "affiliate"
+                            ]
+                          },
+                          "granted": {
+                            "type": "boolean"
+                          },
+                          "version": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "decidedAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "withdrawnAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "recorded": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "purpose",
+                          "granted",
+                          "version",
+                          "decidedAt",
+                          "withdrawnAt",
+                          "recorded"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "noticeVersion",
+                    "reconsentRequired",
+                    "purposes"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "429": {
+            "description": "`common/rate_limited`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Grant or withdraw one purpose",
+        "tags": [
+          "consents"
+        ]
+      }
+    },
+    "/privacy/notice": {
+      "get": {
+        "description": "Version metadata and the purpose list a consent form renders (DPDP Rule 3). `version` is the string stamped onto every `consent_records` row; the prose moves to the content module when it ships.",
+        "operationId": "getPrivacyNotice",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The current notice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "string"
+                    },
+                    "effectiveFrom": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "contactEmail": {
+                      "type": "string"
+                    },
+                    "responseDays": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "rights": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "purposes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "purpose": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "summary": {
+                            "type": "string"
+                          },
+                          "essential": {
+                            "type": "boolean"
+                          },
+                          "defaultGranted": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "purpose",
+                          "title",
+                          "summary",
+                          "essential",
+                          "defaultGranted"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "effectiveFrom",
+                    "url",
+                    "contactEmail",
+                    "responseDays",
+                    "rights",
+                    "purposes"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "The current itemised privacy notice",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
     "/jobs": {
       "get": {
         "description": "Cursor pagination: pass the previous page's `nextCursor` as `cursor`. Ids are ULIDs, so the cursor is stable and ordered by creation time.",
@@ -1891,6 +4290,100 @@
           }
         ],
         "summary": "Discard one dead letter",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/parental-waitlist": {
+      "get": {
+        "description": "Addresses are stored only as a SHA-256 digest, so this reports how many people are waiting and since when, never who they are. Cursor pagination: pass the previous page's `nextCursor`.",
+        "operationId": "listParentalWaitlist",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "One page of the waiting list, oldest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "emailHash": {
+                            "type": "string"
+                          },
+                          "jurisdiction": {
+                            "type": "string",
+                            "enum": [
+                              "IN",
+                              "EU",
+                              "OTHER"
+                            ]
+                          },
+                          "ageBracket": {
+                            "type": "string",
+                            "enum": [
+                              "adult",
+                              "minor"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "notifiedAt": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "emailHash",
+                          "jurisdiction",
+                          "ageBracket",
+                          "createdAt",
+                          "notifiedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "nextCursor",
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The parental-consent waiting list, oldest first",
         "tags": [
           "admin"
         ]

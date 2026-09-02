@@ -74,7 +74,15 @@ export const logoutSchema = z.object({ refreshToken: z.string().min(16).max(256)
 
 export const tokenExchangeSchema = z.object({ workspaceId: ulidSchema });
 
-export const parentalWaitlistSchema = z.object({ email: emailSchema });
+/**
+ * A05 added the optional `jurisdiction`: the waiting list is a table now
+ * (`parental_waitlist`), and the sign-up form the age gate refused already knows
+ * the answer, so carrying it over costs nothing and makes the list actionable.
+ */
+export const parentalWaitlistSchema = z.object({
+  email: emailSchema,
+  jurisdiction: jurisdictionSchema.optional(),
+});
 
 export const oauthCompleteSchema = z.object({
   code: z.string().min(16).max(256),
