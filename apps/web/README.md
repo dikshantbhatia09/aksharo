@@ -88,6 +88,30 @@ Content lives in `content/site/**` (plan prices, comparison facts, legal
 scaffolds, the demo transcript, nav) rather than inline in the pages, each file
 documenting where its numbers came from — nothing on this site is invented.
 
+## Routes C11 owns
+
+| Route                  | What it is                                                                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/plugins` (signed in) | the activation card v2 (08 §4): one card per D65 product name, device list, activation-limit + upgrade link, licence-key management (B08) merged onto the same page |
+| `/plugins/keys`        | B08's licence-key create/revoke screen, unchanged                                                                                                                   |
+| `/settings/devices`    | B08's registered-devices section, unchanged                                                                                                                         |
+
+`/plugins` is two different screens depending on who is looking, the same
+way `/` is (see "Sessions" note on the Home rewrite below): A24's
+`(site)/(marketing)/plugins/page.tsx` answers it for a signed-out visitor,
+and Next.js refuses two page files that resolve the same path, so the
+signed-in screen actually lives at the internal route `app/(app)/
+plugins-app/page.tsx` and `middleware.ts` rewrites `/plugins` -> `/plugins-app`
+for an authenticated request — the address bar never changes. `/plugins/keys`
+has no marketing counterpart, so it needed no such trick.
+
+`components/plugins/plugin-status.ts` derives "installed and signed in / not
+installed / device limit reached" from `useDevices()` + `useEntitlement()`;
+both the Plugins page's activation cards and the Passes tab's licensing cue
+(`components/editor/passes/PluginActivationCue.tsx`, not wired into
+`PassesTab.tsx` — outside this WP's boundary) read the same helper so they
+cannot disagree.
+
 ## Sessions
 
 The **refresh token** lives in an httpOnly, SameSite=Lax cookie that only the

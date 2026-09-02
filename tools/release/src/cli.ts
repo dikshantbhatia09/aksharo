@@ -87,6 +87,11 @@ program
     "--no-dry-run",
     "sign for real if RELEASE_MODE=signed and secrets are set (fails closed otherwise)",
   )
+  .option(
+    "--placeholder",
+    "force the synthesized placeholder app tree even if a real electron-builder --dir output exists (CI dry runs without Electron)",
+    false,
+  )
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
     const config = await loadReleaseConfig(ctx.repoRoot);
@@ -94,6 +99,7 @@ program
       platform: opts.platform,
       channel: opts.channel,
       dryRun: opts.dryRun !== false,
+      placeholder: Boolean(opts.placeholder),
     });
     if (result.placeholderApp) {
       console.warn(

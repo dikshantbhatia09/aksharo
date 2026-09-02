@@ -11,12 +11,32 @@ copyright: "Aksharo"
 directories:
   output: release
   buildResources: build
+  # C00b: `dist/` is esbuild-bundled (scripts/bundle.mjs) and carries its own
+  # minimal, dependency-free `package.json` — pointing electron-builder's app
+  # directory here (instead of the repo-managed apps/desktop/package.json,
+  # which lists `workspace:*` deps that resolve to pnpm symlinks outside this
+  # app dir) means its production-dependency walk finds nothing to resolve,
+  # so it never touches the symlinked `@montaj/{bridge-core,config}` that
+  # used to throw "<file> must be under <appDir>" (see README's former "Known
+  # blocker" note, now fixed).
+  app: dist
+# Relative to `directories.app` (dist/), not the repo-managed package.json
+# above it — everything under dist/ is already packaging-ready output.
 files:
-  - dist/**/*
-  - package.json
+  - "**/*"
+# Everything is esbuild-bundled (scripts/bundle.mjs) into dist/, so dist/package.json
+# has no `dependencies` at all — there is nothing to install or rebuild, and skipping
+# this step avoids electron-builder unconditionally shelling out to npm against a
+# package.json with no node_modules of its own.
+npmRebuild: false
 asarUnpack:
-  - dist/main/offline.html
-  - dist/main/pairing-approval.html
+  - main/offline.html
+  - main/pairing-approval.html
+# `extraMetadata` (version/productName from packages/config's BRAND + this
+# package's own version) is passed at invocation time via
+# `-c.extraMetadata.*` CLI overrides by `scripts/pack.mjs` rather than
+# hardcoded here, so it can never drift from `@montaj/config/brand`
+# (docs/CONTRACTS.md §0 — the one place brand strings are allowed to live).
 afterPack: ./scripts/after-pack.cjs
 protocols:
   - name: Aksharo deep link
@@ -29,6 +49,10 @@ mac:
   gatekeeperAssess: false
 win:
   target: [dir]
+  # Unsigned dry-run builds only (C00's real signing pipeline lives in
+  # tools/release, not here) — skips electron-builder's own rcedit/signtool
+  # pass entirely, so it never needs to fetch the winCodeSign vendor tools.
+  signAndEditExecutable: false
 linux:
   target: [dir]
   category: AudioVideo
