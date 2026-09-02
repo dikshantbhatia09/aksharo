@@ -10,6 +10,65 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A12 — api: the EDG module (hot document, `/edg/ops` with server-side rebase
+  and compare-and-swap, revisions, snapshots and restore, realtime `edg.ops`).**
+  - `apps/api/src/edg/edg.repository.ts`: A02b's `EdgRepository` over Prisma. One
+    batch is one transaction — `SELECT … FOR UPDATE` on the document row,
+    `rebaseOps` against the ops since the client's base, `applyOps` on a partial
+    state, row-level writes, then
+    `UPDATE edg_documents SET revision = revision + 1 … WHERE revision = $observed
+    RETURNING revision`. The lock makes read-decide-write atomic; the CAS is the
+    same invariant written into the statement rather than into a convention, so
+    `edg_documents.revision` rises by exactly one per accepted batch (06
+    invariant 3) even if a later caller forgets the lock.
+  - **The working set** (`edg.working-set.ts`). A batch reads the rows its ops
+    name plus exactly the neighbours `@montaj/edg/ops` reaches for — the segment
+    after the last one addressed (a split mints a `seq` between them), everything
+    between the addressed ones (a merge checks contiguity), the segments a deleted
+    word bounds, and one transcript chunk either side of each one named. Most
+    edits read no words at all: setting text, style, position or `hidden` never
+    asks the engine about a word. Measured on the compose Postgres, a single-op
+    batch is **median 33 ms, p95 67 ms on a 9,000-segment document** — no slower
+    than on a twelve-segment one, which is the claim the design makes.
+    `Resegment` is the one op with no bounded form and says so rather than
+    guessing.
+  - **Rebase, or 409.** A client that is behind is rebased server-side and
+    applied (`OpBatchResponse.rebased`). Two things the server may not decide for
+    the user come back as `409`: a `conflict` verdict — two writers typing
+    different text into the same caption or correcting the same word — carrying
+    `{latestRevision, opsSince, conflicts}` with **both texts** and never the
+    document (D29); and `edg/too_stale` past 200 revisions or across a state
+    replacement.
+  - **Word edits touch one row.** `EditWord`, `DeleteWord` and `InsertWordAfter`
+    patch only the `transcript_chunks` row the word lives in, raise its
+    `next_word_seq` (ids are never reused, 06 invariant 4), and move
+    `transcripts.current_revision` only when a word actually changed.
+  - **Snapshots** every 100 revisions (`SNAPSHOT_EVERY`, D28) plus one at
+    creation, stored without the transcript chunks — they live in their own
+    table. `POST /edg/snapshots/{n}/restore` **appends** a revision that replaces
+    the state; history is never rewritten, so restoring a later snapshot undoes
+    it. A revision with no ops is the log's way of saying "the state was
+    replaced", and anybody rebasing across one is told to reload.
+  - **Idempotency** on `edg_revisions.client_op_ids` with a GIN index
+    (`prisma/sql/0006-a12-edg.sql`): a retry after a dropped response returns the
+    revision the first attempt produced instead of applying the edit twice.
+  - **Rate limiting** per workspace — 20 batches of burst refilling at 5/s —
+    because one seat with twenty tabs is one document being edited. Exhaustion is
+    `429 common/rate_limited` whose `details.rejected` marks every op
+    `rate-limited`, the one reason in `packages/edg`'s closed enum the API raises
+    and the engine never does. Fails open on a Redis outage.
+  - **`MergePass` is worker-only.** "worker" is never a claim in a user's token;
+    the only route that submits ops as one is
+    `POST /internal/projects/{id}/edg/ops`, behind the CONTRACTS §3 HMAC.
+  - `EdgService.initialise(projectId, transcript)` — the entry point A11 calls
+    once a transcript is segmented. Idempotent by project.
+  - Realtime `edg.ops {revision, ops, source}` to `project:{id}` after the commit
+    (CONTRACTS §7); the envelope's `at` is the server time.
+  - Schema: `edg_pass_items.keyframes_ref` (CONTRACTS §2 freezes
+    `PassItem.keyframesRef`; the table had only the bytes column) and
+    `edg_segments (edg_id, start_word_id)` / `(edg_id, end_word_id)`, which is how
+    a word delete finds the segments it bounds.
+
 - **A09 — worker-ai: the BullMQ Python worker, provider interface, VAD and
   chunking, alignment and diarisation registries, evals.**
   - `apps/worker-ai/worker_ai/runtime.py`: one `bullmq.Worker` per `ai.*` queue.

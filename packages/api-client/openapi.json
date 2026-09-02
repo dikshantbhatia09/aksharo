@@ -1513,6 +1513,747 @@
         ]
       }
     },
+    "/admin/dlq": {
+      "get": {
+        "description": "Filter by `queue`, `status`, `workspaceId`, a `reason` substring of the last error's code or message, and a `since`/`until` window. Cursor pagination: pass the previous page's `nextCursor`.",
+        "operationId": "listDeadLetters",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DlqPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List dead-lettered jobs, newest first",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/dlq/stats": {
+      "get": {
+        "description": "How many, since when, and how many distinct error messages — the three numbers `docs/runbooks/dlq-replay.md` asks for before anything is replayed.",
+        "operationId": "getDeadLetterStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DlqStatsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Per-queue dead-letter counts",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/dlq/replay": {
+      "post": {
+        "description": "By explicit `ids` (entry ids or job ids) or by filter. `dryRun` defaults to true: it reports what would be enqueued and reserves nothing. Capped at 100 entries a call, because a full-throttle replay competes with live traffic for the same workers.",
+        "operationId": "replayDeadLetters",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkReplayDlqDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkOutcomeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Replay many dead letters",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/dlq/discard": {
+      "post": {
+        "description": "`discardReason` is mandatory and is recorded on every row.",
+        "operationId": "discardDeadLetters",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDiscardDlqDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkOutcomeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Discard many dead letters",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/dlq/{id}": {
+      "get": {
+        "operationId": "getDeadLetter",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DlqEntryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          },
+          "404": {
+            "description": "`jobs/dlq_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One dead letter, by entry id or by job id",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/dlq/{id}/replay": {
+      "post": {
+        "description": "Re-enqueues the same job row with a fresh `attemptId` and the next `attemptNo`, preserving `jobKey`, and reserves the original hold again through the credits facade.",
+        "operationId": "replayDeadLetter",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          },
+          "404": {
+            "description": "`jobs/dlq_not_found`."
+          },
+          "409": {
+            "description": "`jobs/dlq_already_resolved` or `jobs/dlq_job_not_failed`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Replay one dead letter",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/dlq/{id}/discard": {
+      "post": {
+        "description": "Releases the credit hold and records the reason. `reason` is mandatory.",
+        "operationId": "discardDeadLetter",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscardDlqDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscardResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          },
+          "404": {
+            "description": "`jobs/dlq_not_found`."
+          },
+          "409": {
+            "description": "`jobs/dlq_already_resolved`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Discard one dead letter",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg": {
+      "get": {
+        "description": "The hot state is under 64 KB. Segments are paged — `nextCursor` continues at `/edg/segments` — because a long-form project has thousands and an editor opens on the first screenful.",
+        "operationId": "getProjectEdg",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EdgDocumentDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The hot document, its revision and the first page of segments",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/segments": {
+      "get": {
+        "description": "The cursor is the previous page's last `seq`, so an edit three pages back cannot make a later page skip a caption.",
+        "operationId": "listEdgSegments",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One page of segments, ordered by `seq`",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/passes": {
+      "get": {
+        "operationId": "listEdgPasses",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every AI pass on the document, with its items",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/passes/{passId}/items": {
+      "get": {
+        "operationId": "listEdgPassItems",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "passId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassItemListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One pass's proposals, optionally filtered by review state",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/revisions": {
+      "get": {
+        "description": "A revision with no ops replaced the state wholesale (a snapshot restore); a client that finds one between its base and now must reload rather than replay.",
+        "operationId": "listEdgRevisions",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The op log from `from` onwards",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/snapshots": {
+      "get": {
+        "operationId": "listEdgSnapshots",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revisions a snapshot was taken at, newest first",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/ops": {
+      "post": {
+        "description": "A batch written against an older revision is rebased server-side and applied; the ops that had to be rewritten come back under `rebased`. Two writers who typed different text into the same caption cannot be reconciled by the server, so that is a 409 `edg/conflict` carrying `{latestRevision, opsSince, conflicts}` — never the document. More than 200 revisions behind is `edg/too_stale`: reload.",
+        "operationId": "applyEdgOps",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpBatchRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpBatchResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — a viewer may not write."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          },
+          "409": {
+            "description": "`edg/conflict` or `edg/too_stale`."
+          },
+          "429": {
+            "description": "`common/rate_limited` — the workspace op budget."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Apply a batch of ops (CONTRACTS §2)",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/resegment": {
+      "post": {
+        "description": "The server mints the `Resegment` op, so the audited record of what happened carries an id this API can vouch for. Every previous segment id is tombstoned; style, position and `hidden` are inherited by whichever new segment overlaps.",
+        "operationId": "resegmentEdg",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResegmentRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpBatchResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          },
+          "409": {
+            "description": "`edg/conflict` or `edg/too_stale`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Re-run segmentation over the whole document",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/snapshots/{revision}/restore": {
+      "post": {
+        "description": "History is never rewritten: the restore is appended, so restoring a later snapshot undoes it. The transcript is not rolled back — words live in their own table and a spelling fixed after the snapshot stays fixed.",
+        "operationId": "restoreEdgSnapshot",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revision",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`edg/snapshot_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Restore a snapshot as a new revision",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "getHealth",
@@ -1776,6 +2517,670 @@
         },
         "required": [
           "items"
+        ]
+      },
+      "DlqEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "ULID of the dead-letter entry."
+          },
+          "jobId": {
+            "type": "string",
+            "description": "The job that failed."
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "object",
+            "nullable": true
+          },
+          "queue": {
+            "type": "string",
+            "enum": [
+              "media.probe",
+              "media.proxy",
+              "ai.vad",
+              "ai.transcribe",
+              "ai.align",
+              "ai.diarise",
+              "ai.translate",
+              "ai.transliterate",
+              "ai.clean",
+              "ai.pass",
+              "ai.llm",
+              "render.video",
+              "render.subtitle",
+              "notify"
+            ]
+          },
+          "jobKey": {
+            "type": "string",
+            "description": "Deduplication key of the failed job."
+          },
+          "attemptId": {
+            "type": "string",
+            "description": "The attempt that gave up."
+          },
+          "attemptNo": {
+            "type": "number",
+            "description": "1-based ordinal of that attempt."
+          },
+          "attempts": {
+            "type": "number",
+            "description": "Attempts made in total."
+          },
+          "payload": {
+            "type": "object",
+            "nullable": true,
+            "description": "The queue payload."
+          },
+          "lastError": {
+            "type": "object",
+            "nullable": true,
+            "description": "`{code, message, retryable}` of the final attempt."
+          },
+          "worstCaseTenths": {
+            "type": "number",
+            "description": "Credits held in tenths; a replay reserves this again."
+          },
+          "failedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "replayed",
+              "discarded"
+            ]
+          },
+          "resolvedBy": {
+            "type": "object",
+            "nullable": true
+          },
+          "resolvedAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "resolution": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "jobId",
+          "workspaceId",
+          "queue",
+          "jobKey",
+          "attemptId",
+          "attemptNo",
+          "attempts",
+          "worstCaseTenths",
+          "failedAt",
+          "status"
+        ]
+      },
+      "DlqPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DlqEntryDto"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "DlqQueueStatsDto": {
+        "type": "object",
+        "properties": {
+          "queue": {
+            "type": "string",
+            "enum": [
+              "media.probe",
+              "media.proxy",
+              "ai.vad",
+              "ai.transcribe",
+              "ai.align",
+              "ai.diarise",
+              "ai.translate",
+              "ai.transliterate",
+              "ai.clean",
+              "ai.pass",
+              "ai.llm",
+              "render.video",
+              "render.subtitle",
+              "notify"
+            ]
+          },
+          "pending": {
+            "type": "number"
+          },
+          "replayed": {
+            "type": "number"
+          },
+          "discarded": {
+            "type": "number"
+          },
+          "oldestFailedAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "newestFailedAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "distinctErrors": {
+            "type": "number",
+            "description": "Distinct error codes among the pending rows."
+          }
+        },
+        "required": [
+          "queue",
+          "pending",
+          "replayed",
+          "discarded",
+          "distinctErrors"
+        ]
+      },
+      "DlqStatsDto": {
+        "type": "object",
+        "properties": {
+          "queues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DlqQueueStatsDto"
+            }
+          },
+          "pending": {
+            "type": "number",
+            "description": "Pending entries across every queue."
+          }
+        },
+        "required": [
+          "queues",
+          "pending"
+        ]
+      },
+      "BulkReplayDlqDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "BulkEntryOutcomeDto": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "queue": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "replayed",
+              "discarded",
+              "would_replay",
+              "would_discard",
+              "failed"
+            ]
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entryId",
+          "jobId",
+          "queue",
+          "outcome"
+        ]
+      },
+      "BulkOutcomeDto": {
+        "type": "object",
+        "properties": {
+          "selected": {
+            "type": "number",
+            "description": "Entries the filter selected."
+          },
+          "replayed": {
+            "type": "number"
+          },
+          "discarded": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "number"
+          },
+          "dryRun": {
+            "type": "boolean",
+            "description": "Nothing changed; the counts are a projection."
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BulkEntryOutcomeDto"
+            }
+          }
+        },
+        "required": [
+          "selected",
+          "replayed",
+          "discarded",
+          "failed",
+          "dryRun",
+          "entries"
+        ]
+      },
+      "BulkDiscardDlqDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReplayResultDto": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "attemptId": {
+            "type": "string",
+            "description": "The ULID minted for the replay."
+          },
+          "attemptNo": {
+            "type": "number",
+            "description": "1-based: three failures then a replay is 4."
+          },
+          "queue": {
+            "type": "string",
+            "enum": [
+              "media.probe",
+              "media.proxy",
+              "ai.vad",
+              "ai.transcribe",
+              "ai.align",
+              "ai.diarise",
+              "ai.translate",
+              "ai.transliterate",
+              "ai.clean",
+              "ai.pass",
+              "ai.llm",
+              "render.video",
+              "render.subtitle",
+              "notify"
+            ]
+          }
+        },
+        "required": [
+          "entryId",
+          "jobId",
+          "attemptId",
+          "attemptNo",
+          "queue"
+        ]
+      },
+      "DiscardDlqDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "DiscardResultDto": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "queue": {
+            "type": "string",
+            "enum": [
+              "media.probe",
+              "media.proxy",
+              "ai.vad",
+              "ai.transcribe",
+              "ai.align",
+              "ai.diarise",
+              "ai.translate",
+              "ai.transliterate",
+              "ai.clean",
+              "ai.pass",
+              "ai.llm",
+              "render.video",
+              "render.subtitle",
+              "notify"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "holdReleased": {
+            "type": "boolean",
+            "description": "Whether a credit hold was actually released."
+          }
+        },
+        "required": [
+          "entryId",
+          "jobId",
+          "queue",
+          "reason",
+          "holdReleased"
+        ]
+      },
+      "EdgDocumentDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number",
+            "description": "Compare-and-swap counter; one accepted batch raises it by 1."
+          },
+          "schemaVersion": {
+            "type": "number",
+            "description": "EDG schema generation (D28). Always 2 in this wave."
+          },
+          "hot": {
+            "type": "object",
+            "description": "`EdgHot` from `@montaj/edg` (CONTRACTS §2): meta, media, transcript, canvas, styles."
+          },
+          "segments": {
+            "description": "First page of segments, in `seq` order.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true,
+            "description": "Pass as `cursor` to `/edg/segments` for the next page."
+          },
+          "passes": {
+            "description": "Passes with their items.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "revision",
+          "schemaVersion",
+          "hot",
+          "segments",
+          "passes",
+          "updatedAt"
+        ]
+      },
+      "SegmentPageDto": {
+        "type": "object",
+        "properties": {
+          "segments": {
+            "description": "`Segment[]` from `@montaj/edg`, in `seq` order.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true
+          },
+          "revision": {
+            "type": "number",
+            "description": "Revision the page was read at."
+          }
+        },
+        "required": [
+          "segments",
+          "revision"
+        ]
+      },
+      "PassListDto": {
+        "type": "object",
+        "properties": {
+          "passes": {
+            "description": "`Pass[]` from `@montaj/edg`.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "passes"
+        ]
+      },
+      "PassItemListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "`PassItem[]` from `@montaj/edg`.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "RevisionDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number"
+          },
+          "ops": {
+            "description": "The ops as applied. Empty means the state was replaced (a snapshot restore).",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "clientOpIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "author": {
+            "type": "object",
+            "nullable": true,
+            "description": "User id, or null for a worker."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "web",
+              "desktop",
+              "premiere",
+              "ae",
+              "resolve",
+              "worker"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "revision",
+          "ops",
+          "clientOpIds",
+          "source",
+          "at"
+        ]
+      },
+      "RevisionPageDto": {
+        "type": "object",
+        "properties": {
+          "revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RevisionDto"
+            }
+          },
+          "latestRevision": {
+            "type": "number"
+          },
+          "nextFrom": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "revisions",
+          "latestRevision"
+        ]
+      },
+      "SnapshotDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "revision",
+          "createdAt"
+        ]
+      },
+      "SnapshotListDto": {
+        "type": "object",
+        "properties": {
+          "snapshots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SnapshotDto"
+            }
+          }
+        },
+        "required": [
+          "snapshots"
+        ]
+      },
+      "OpBatchRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "OpRejectionDto": {
+        "type": "object",
+        "properties": {
+          "opId": {
+            "type": "string",
+            "description": "The client op id that did not land."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "stale",
+              "conflict",
+              "invalid",
+              "invalid-range",
+              "not-contiguous",
+              "unknown-id",
+              "invariant",
+              "rebased-away",
+              "stale-after-resegment",
+              "forbidden",
+              "rate-limited"
+            ],
+            "description": "Closed enum (`packages/edg` README). Never free text."
+          },
+          "message": {
+            "type": "string",
+            "description": "Operator-facing detail; not for end users."
+          }
+        },
+        "required": [
+          "opId",
+          "reason"
+        ]
+      },
+      "OpBatchResponseDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number",
+            "description": "The revision after the batch; unchanged when nothing applied."
+          },
+          "applied": {
+            "description": "Op ids applied as written.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rebased": {
+            "description": "Op ids applied after a server-side rebase.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rejected": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpRejectionDto"
+            }
+          }
+        },
+        "required": [
+          "revision",
+          "applied",
+          "rebased",
+          "rejected"
+        ]
+      },
+      "ResegmentRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RestoreResultDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number",
+            "description": "The new revision the restore appended."
+          },
+          "segments": {
+            "type": "number",
+            "description": "Live segments after the restore."
+          }
+        },
+        "required": [
+          "revision",
+          "segments"
         ]
       },
       "HealthResponseDto": {
