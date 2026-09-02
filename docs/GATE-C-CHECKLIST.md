@@ -89,6 +89,40 @@ promoting this work package past Gate C.
 - [ ] Deleting a segment upstream removes its clip and marker on the next
       re-sync.
 
+## 8. Fusion Text+ macro (C08b)
+
+Nothing below has been run against a real Fusion — `macro.py` generates and
+parses a deliberately self-defined text subset (documented in
+`plugins/resolve/aksharo_core_app/fusion/macro.py`'s module docstring), not
+Fusion's real `.setting` serialisation. This section is the actual proof.
+
+- [ ] Copy `plugins/resolve/aksharo_core_app/fusion/AksharoCaption.setting`
+      into Fusion's `Macros` folder (paths in
+      `plugins/resolve/installer/manifest.json`) and confirm it appears in
+      Fusion's **Effects Library ▸ Macros** and loads onto a clip as a single
+      Text+-based tool with no load error.
+- [ ] Confirm all 11 published inputs
+      (`Text`, `Font`, `Size`, `Colour`, `StrokeColour`, `StrokeWidth`,
+      `ShadowOpacity`, `PositionY`, `HighlightColour`, `HighlightStart`,
+      `HighlightEnd`) actually surface on the tool's Inspector, in that order,
+      and that setting each one visibly changes the rendered text.
+- [ ] Confirm `HighlightStart`/`HighlightEnd` keyframed 0→1 ramps actually
+      drive a per-character/per-word colour or scale change on the underlying
+      Text+ (this macro assumes Fusion's character-range styling can be
+      expression-linked to a scalar input; that link has not been built or
+      tested against real Fusion).
+- [ ] Re-run `plugins/resolve/aksharo_core_app/captions.py`'s macro branch
+      (`fusion_macro_available()` true) against a real timeline and confirm
+      `host.append_text_plus`'s `fusion_macro`/`highlight_color`/
+      `highlight_keyframes` params actually reach the dropped macro instance
+      (this repo's `FakeResolveHost` only records them; `RealResolveHost`
+      does not implement `append_text_plus` yet — A00-04).
+- [ ] Cross-check 3 styles from each status in
+      `plugins/resolve/docs/RESOLVE-STYLE-COVERAGE.md` (Supported/
+      Approximate/Unsupported) by eye against the real Text+ result; file a
+      follow-up against `classification_rules.json` for any row that looks
+      wrong once verified.
+
 ## Sign-off
 
 | Item             | Free | Studio | Notes |
@@ -100,6 +134,7 @@ promoting this work package past Gate C.
 | Cuts             |      |        |       |
 | Zooms            |      |        |       |
 | Re-sync          |      |        |       |
+| Fusion macro     |      |        |       |
 
 Record the Resolve build number tested and file follow-up issues for any
 `host/resolve.py` assumption that turned out wrong — that file is the single

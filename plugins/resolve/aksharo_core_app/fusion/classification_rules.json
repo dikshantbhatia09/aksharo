@@ -1,0 +1,69 @@
+{
+  "$comment": "Explicit Resolve Fusion Text+ capability rules for classifying a @montaj/caption-styles StyleDoc (v2). C06b (Premiere MOGRT authoring) mirrors these same predicates against Adobe's equivalent primitives (character styling, source-text animators, no native karaoke/glow/underline either) so the two hosts' coverage reports stay comparable. Each rule below fires against one StyleDoc field path; 'status' is the classification it forces (a style's final status is the worst of every rule that fires: unsupported > approximate > supported), and 'reason' is the human-readable sentence that goes in the coverage report row. Order does not matter; classify_style() evaluates every rule.",
+  "version": 1,
+  "rules": [
+    {
+      "id": "highlight-karaoke-fill",
+      "field": "animation.wordHighlight.type",
+      "equals": "karaoke-fill",
+      "status": "unsupported",
+      "reason": "word highlight is a progressive left-to-right fill wipe; Text+ has no per-glyph masked reveal control to build it from."
+    },
+    {
+      "id": "highlight-glow",
+      "field": "animation.wordHighlight.type",
+      "equals": "glow",
+      "status": "unsupported",
+      "reason": "word highlight is a glow; Text+ has no glow control and the macro does not stack a separate Glow tool per word."
+    },
+    {
+      "id": "highlight-underline",
+      "field": "animation.wordHighlight.type",
+      "equals": "underline",
+      "status": "unsupported",
+      "reason": "word highlight is an underline; Text+ has no per-character text-decoration control."
+    },
+    {
+      "id": "highlight-box",
+      "field": "animation.wordHighlight.type",
+      "equals": "box",
+      "status": "approximate",
+      "reason": "word highlight is a per-word background box; Text+ has one whole-text Background, so the macro approximates it with the HighlightStart/HighlightEnd character-range colour input instead of a real drawn box."
+    },
+    {
+      "id": "box-word-mode",
+      "field": "box.mode",
+      "equals": "word",
+      "when": { "field": "box.enabled", "equals": true },
+      "status": "unsupported",
+      "reason": "the background box wraps one word at a time; Text+ has a single whole-text background, not independent per-word rectangles."
+    },
+    {
+      "id": "box-translucent-glass",
+      "field": "box.opacity",
+      "lt": 0.5,
+      "when": { "field": "box.enabled", "equals": true },
+      "status": "unsupported",
+      "reason": "the background is a translucent/blurred (glass) fill; Text+'s Background control is a flat opaque colour with no backdrop blur."
+    },
+    {
+      "id": "highlight-per-word-paging",
+      "field": "animation.perWord",
+      "equals": true,
+      "status": "approximate",
+      "reason": "one word is shown on screen at a time; the macro approximates this by keyframing the Text field to swap per word at HighlightStart/HighlightEnd boundaries rather than natively paging words like the web renderer."
+    },
+    {
+      "id": "italic-no-bundled-italic-font",
+      "field": "typography.italic",
+      "equals": true,
+      "status": "approximate",
+      "reason": "the style asks for italic but no italic OFL variant of the mapped font is bundled; the macro falls back to Text+'s synthetic Italic (skew) toggle on the upright weight-matched font."
+    }
+  ],
+  "fallback": {
+    "supported_status": "supported",
+    "fallback_media": "alpha overlay",
+    "note": "A style classified unsupported or approximate still renders correctly in the final export: C08's caption_builder.build_segment_item() uses the pre-rendered alpha overlay path (A20) whenever assRenderable/Text+ coverage is not exact. The Fusion macro path is an editing-time convenience (native, re-timeable Text+ clips in the Resolve timeline), never the only way a style reaches picture."
+  }
+}

@@ -28,6 +28,7 @@ import type {
   ListSupportTicketsResponse,
   MarkStepDoneResult,
   SupportTicketView,
+  ConfirmDiagnosticsBundleResponse,
   AffiliateProfile,
   AffiliateStats,
   ApiKeyView,
@@ -1247,6 +1248,36 @@ export function useCreateSupportTicket(): UseMutationResult<
     onSuccess: () => {
       if (workspaceId === null) return;
       void queryClient.invalidateQueries({ queryKey: queryKeys.supportTickets(workspaceId) });
+    },
+  });
+}
+
+/**
+ * Attach a diagnostics bundle (a zip built elsewhere, e.g. by the desktop
+ * app) to a ticket the caller already filed (C12): presign, `PUT` the bytes
+ * straight to R2, then confirm. Requires the `telemetry` consent — the API
+ * rejects the presign step with `telemetry/consent_required` otherwise.
+ */
+export function useAttachDiagnosticsBundle(): UseMutationResult<
+  ConfirmDiagnosticsBundleResponse,
+  Error,
+  { ticketId: string; file: Blob }
+> {
+  const client = useApiClient();
+  return useMutation({
+    mutationFn: async ({ ticketId, file }) => {
+      const presigned = await client.call(endpoints.telemetry.presignDiagnosticsBundle, {
+        body: { ticketId },
+      });
+      const response = await fetch(presigned.uploadUrl, {
+        method: "PUT",
+        headers: { "content-type": "application/zip" },
+        body: file,
+      });
+      if (!response.ok) {
+        throw new Error(`Uploading the diagnostics bundle failed (${String(response.status)}).`);
+      }
+      return client.call(endpoints.telemetry.confirmDiagnosticsBundle, { body: { ticketId } });
     },
   });
 }

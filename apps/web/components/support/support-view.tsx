@@ -4,6 +4,8 @@ import * as React from "react";
 
 import {
   useApiClient,
+  useAttachDiagnosticsBundle,
+  useConsents,
   useCreateSupportTicket,
   useSupportTickets,
   useWorkspaceId,
@@ -51,11 +53,18 @@ export function SupportView(): React.JSX.Element {
   const workspaceId = useWorkspaceId();
   const tickets = useSupportTickets();
   const createTicket = useCreateSupportTicket();
+  const consents = useConsents();
+  const attachBundle = useAttachDiagnosticsBundle();
 
   const [subject, setSubject] = React.useState("");
   const [body, setBody] = React.useState("");
   const [category, setCategory] = React.useState<SupportCategory>("bug");
   const [includeDiagnostics, setIncludeDiagnostics] = React.useState(true);
+  const [bundleFile, setBundleFile] = React.useState<File | null>(null);
+
+  const telemetryGranted =
+    consents.data?.purposes.find((row) => row.purpose === "telemetry")?.granted ?? false;
+  const MAX_BUNDLE_BYTES = 10 * 1024 * 1024;
 
   async function handleSubmit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -84,11 +93,29 @@ export function SupportView(): React.JSX.Element {
     createTicket.mutate(
       { subject: subject.trim(), body: body.trim(), category, diagnostics },
       {
-        onSuccess: () => {
+        onSuccess: (ticket) => {
           toast.success("Ticket sent", { description: "We'll get back to you by email." });
           setSubject("");
           setBody("");
           setCategory("bug");
+
+          const file = bundleFile;
+          setBundleFile(null);
+          if (file !== null) {
+            attachBundle.mutate(
+              { ticketId: ticket.id, file },
+              {
+                onSuccess: () => {
+                  toast.success("Diagnostics bundle attached");
+                },
+                onError: (error) => {
+                  toast.error("Could not attach the diagnostics bundle", {
+                    description: messageForError(error),
+                  });
+                },
+              },
+            );
+          }
         },
         onError: (error) => {
           toast.error("Could not send that ticket", { description: messageForError(error) });
@@ -161,8 +188,42 @@ export function SupportView(): React.JSX.Element {
             </span>
           </label>
 
-          <Button type="submit" disabled={createTicket.isPending} data-testid="support-submit">
-            {createTicket.isPending ? "Sending…" : "Send"}
+          {telemetryGranted ? (
+            <Field label="Diagnostics bundle (optional)" htmlFor="support-bundle">
+              <input
+                id="support-bundle"
+                type="file"
+                accept=".zip,application/zip"
+                data-testid="support-bundle-input"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  if (file !== null && file.size > MAX_BUNDLE_BYTES) {
+                    toast.error("That bundle is too large", { description: "Limit is 10 MB." });
+                    event.target.value = "";
+                    setBundleFile(null);
+                    return;
+                  }
+                  setBundleFile(file);
+                }}
+              />
+              <p className="text-fg-2 text-xs">
+                A zip built by the desktop app's "Attach diagnostics" action — redacted logs, config
+                without secrets, versions. Up to 10 MB.
+              </p>
+            </Field>
+          ) : (
+            <p className="text-fg-2 text-xs">
+              Turn on desktop/plugin telemetry in Settings → Privacy to attach a diagnostics bundle
+              from the desktop app.
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            disabled={createTicket.isPending || attachBundle.isPending}
+            data-testid="support-submit"
+          >
+            {createTicket.isPending || attachBundle.isPending ? "Sending…" : "Send"}
           </Button>
         </form>
       </Card>

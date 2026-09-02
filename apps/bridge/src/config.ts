@@ -27,6 +27,14 @@ export interface BridgeAppConfig {
   sessionRefreshToken?: string;
   /** Epoch ms `deviceToken` expires at (CONTRACTS §5: 15 minutes from mint). */
   deviceTokenExpiresAt?: number;
+  /**
+   * C12: local mirror of the `telemetry` consent, same reasoning as the
+   * desktop shell's `telemetry/consent-store.ts` — off until the server row
+   * says otherwise. Not yet synced from `GET /consents` (no consent-read
+   * call exists in this process today); flagged in the WP report as a
+   * follow-up for whichever WP wires the bridge's own consent sync.
+   */
+  telemetryConsent?: boolean;
 }
 
 function configPath(): string {
