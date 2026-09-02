@@ -128,6 +128,12 @@ C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 ## Wave 6 — AE, local engine, library
 C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machines).
 
+| ID | Package | Deps | Status |
+|---|---|---|---|
+| D06 | Text FX pass: key phrases → titles, layout solver never overlapping captions, 6 motion presets, exports + parity | B11, B20b | briefed |
+| D04a | Owned audio pack ingestion (licence columns, CLAP, loudness) + SFX pass + ducking, on a fixture pack until A00-07 | B19b, B20b, A00-07 | briefed |
+| C09 | Resolve Studio Workflow Integration panel over aksharo_core's loopback server | C08, C08b | briefed |
+
 ## Wave 7 — Remaining
 D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for prod — chart variant exists from X05; prod-hardening item before Gate C), X07 hardening also includes: split `packages/api-client`'s hand-written `endpoints/hooks/index/query-keys/types` into per-module files with a generated barrel (three WPs in a row — A22, A14, B04 — conflicted on those five files; B07 found a second latent defect there: Nest controllers returning bare `null` send an empty body which `readJson` turns into `undefined` — `GET /billing/subscription` still does this; wrap nullable responses in an object), D81 schema migration (invoice/ledger/commission foreign keys to workspaces → Restrict; workspaces soft-delete only), the web e2e fixture's hard-coded `montaj:auth:dev-outbox` key (A23 addendum), a browser-safe subpath export for `packages/bridge-core` (C05a vendored the protocol schemas because the barrel pulls Node-only modules), and under D08: extend A22's rule-table transliteration (Hindi + Tamil today) to the remaining AI4Bharat languages as table data once A00-05 eval sets exist. **Gate D**.
 
