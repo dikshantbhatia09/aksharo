@@ -20,9 +20,20 @@ const withSettings = mergeConfig(
       root: "./",
       include: ["src/**/*.test.ts", "prisma/**/*.test.ts", "test/**/*.e2e-spec.ts"],
       setupFiles: ["./test/setup-env.ts"],
-      // The integration suites start testcontainers at collection time.
+      // A23a: one PostgreSQL and one Redis for the WHOLE run (or the servers
+      // `TEST_DATABASE_URL` / `TEST_REDIS_URL` point at), plus a template database
+      // migrated once. Each suite then clones the template and takes a logical
+      // Redis database of its own, so file parallelism stays on and Docker is
+      // asked for two containers instead of one per suite.
+      globalSetup: ["./test/global-setup.ts"],
       testTimeout: 30_000,
+      // Generous, but no longer because a hook might be pulling an image: a suite
+      // hook now clones a database (a file copy) and boots Nest.
       hookTimeout: 180_000,
+      // The run teardown drops whatever a suite's `afterAll` could not: one
+      // `DROP DATABASE` per suite, sequentially, each forcing a checkpoint. The
+      // 10s default is a fraction of what that needs on a busy machine.
+      teardownTimeout: 180_000,
     },
   }),
 );

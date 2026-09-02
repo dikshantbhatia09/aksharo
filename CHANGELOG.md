@@ -907,6 +907,66 @@ sarvam` replays the recorded session, `--live` calls the configured vendor.
 
 ### Changed
 
+- **A23a — the API test suite starts two containers per run instead of one pair
+  per suite, and isolates the suites from each other properly.**
+  - Every Docker-backed suite used to start its own PostgreSQL and Redis through
+    testcontainers. One run asked Docker for eight containers; a machine running
+    several agents at once asked for thirty or forty, and the daemon answered with
+    HTTP 500s and `beforeAll` timeouts — failures that had nothing to do with the
+    code under test and cost every agent a re-run.
+  - `apps/api/test/global-setup.ts` (new, wired in as Vitest's `globalSetup`)
+    resolves **one** `pgvector/pgvector:pg16` and **one** `redis:7-alpine` for the
+    whole run, or reuses the servers `TEST_DATABASE_URL` / `TEST_REDIS_URL` point
+    at and starts nothing. It builds `montaj_test_template` once with
+    `prisma migrate deploy` followed by `prisma/sql/` — the same code path
+    `pnpm db:migrate` uses — under a PostgreSQL advisory lock, and stamps it with a
+    fingerprint of the migrations and the hand SQL, so a second run (or a second
+    agent on the same server) reuses it instead of re-migrating.
+  - Each suite then gets a database of its own,
+    `CREATE DATABASE montaj_t_<runId>_<suite> TEMPLATE montaj_test_template`,
+    dropped in `afterAll`. A clone is a file copy, so it costs a fraction of a
+    second where a migration run costs twenty — and a suite may now `TRUNCATE` any
+    table it likes while a dozen others do the same. A05 and A12 both reported the
+    opposite: setting `TEST_DATABASE_URL` made the suites truncate each other.
+  - Each suite also gets its own **logical Redis database**, which is what isolates
+    the keys the product hard-codes (`montaj:auth:*`, `montaj:rl:*`) with no
+    product change, and its own **`MONTAJ_QUEUE_PREFIX`**, which is what isolates
+    BullMQ structures and realtime channels — Redis pub/sub ignores the logical
+    database, so the prefix is the only isolation there. A run never claims logical
+    database 0 unless it is told to; that is where a developer's own compose stack
+    lives.
+  - `apps/api/test/test-run.ts` and `apps/api/test/suite-context.ts` are the new
+    contract and the worker-side accessors. Slots are assigned from the sorted list
+    of every `*.e2e-spec.ts` in the package rather than the subset being run, so a
+    suite keeps the same database name, logical Redis database and queue prefix
+    whether it runs alone or with all the others — which is what makes a parallel
+    failure reproducible with one `vitest run test/<file>`.
+  - **The public harness API did not change.** `createTestDatabase()`,
+    `createAuthTestContext()`, `createEdgTestContext()`, `isDatabaseAvailable()`,
+    `isRedisAvailable()` and `testRedisUrl()` keep their signatures; no spec was
+    edited. The `docker info` probe that gated the skip path still exists, moved
+    into the global setup, where it runs once per run instead of once per suite on
+    the very daemon the suites were about to overload.
+  - `apps/api/test/isolation-alpha.e2e-spec.ts` and `-beta` are the deliberate
+    collision test. They rendezvous through the filesystem so their writes really
+    do overlap, then insert the same primary key into the same table from both
+    sides, truncate that table from one side, and write the same hard-coded Redis
+    key from both — each of which fails loudly if the isolation regresses.
+  - `DROP DATABASE` forces an immediate checkpoint and waits for it: measured at
+    eleven seconds with two suites dropping at once on a laptop already running
+    thirty containers. `afterAll` therefore bounds the drop with a
+    `statement_timeout` and hands anything slower to the run teardown, which sweeps
+    sequentially; a crashed run's databases are swept by the next one. The
+    cancellation is safe — PostgreSQL removes the files only after the checkpoint
+    it is waiting on.
+  - `.github/workflows/ci.yml` gains an `api` job with PostgreSQL and Redis service
+    containers and the `TEST_*` URLs pointed at them, so the suite runs with no
+    Docker-in-Docker at all; a step asserts that nothing labelled
+    `org.testcontainers` was started. `@montaj/api` is excluded from the
+    `typescript` job's unit-test step so the suite does not run twice.
+  - `apps/api/README.md` §Tests rewritten: how the isolation works, how to point a
+    run at the compose stack, how to debug one suite. The `TEST_DATABASE_URL`
+    hazard note is gone, because the hazard is.
 - **A25** — `.env.example`, `packages/config/src/env.ts`, the Terraform secrets
   contract and the Helm chart all gained `MAIL_PROVIDER`, `MAIL_FROM` and
   `SMTP_URL`, the three variables CONTRACTS section 1 added after A04, and

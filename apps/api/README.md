@@ -436,16 +436,114 @@ Vitest runs through `unplugin-swc` because NestJS DI needs `emitDecoratorMetadat
 which esbuild cannot produce. `test/setup-env.ts` seeds a complete valid
 environment so tests never depend on a developer's `.env`.
 
-`test/auth.e2e-spec.ts`, `test/users-workspaces.e2e-spec.ts` and
-`test/workspace-guard.e2e-spec.ts` need a PostgreSQL **and** a Redis; each starts
-its own pair through testcontainers, which is what keeps them isolated when Vitest
-runs the files in parallel. They reuse `TEST_DATABASE_URL` / `TEST_REDIS_URL` when
-those are set — useful for one suite at a time, but the three of them share and
-truncate whatever they are pointed at, so do not set those variables for a whole
-run. These modules cannot be tested against substituted infrastructure: a refresh
-family is a database invariant, the rotation grace is a Redis entry, an
-append-only consent log is an ordering property, and the entitlement cache is a
-TTL.
+### How a run is isolated (A23a)
+
+**Infrastructure is started once per run; isolation is per suite.** A run asks
+Docker for at most two containers no matter how many suites need real services,
+and the suites still run in parallel.
+
+`test/global-setup.ts` runs before any worker starts and does four things:
+
+1. resolves a PostgreSQL — `TEST_DATABASE_URL` when one is provided, otherwise a
+   single `pgvector/pgvector:pg16` container. The image matters: the schema has a
+   `vector(512)` column, so stock `postgres:16` cannot run the first migration;
+2. builds `montaj_test_template` on it with `prisma migrate deploy` followed by
+   `prisma/sql/` — the same code path `pnpm db:migrate` uses, so the suites run
+   against the schema the command operators run actually produces. The build is
+   guarded by an advisory lock and stamped with a fingerprint of the migrations
+   and the hand SQL, so a second run on the same server reuses it and several
+   agents can share one PostgreSQL;
+3. resolves a Redis the same way (`TEST_REDIS_URL`, else one `redis:7-alpine`),
+   and asks it how many logical databases it has;
+4. publishes all of that to the workers through Vitest's `provide()`.
+
+Each suite then takes a slice of it, from `test/suite-context.ts`:
+
+| What              | How it is isolated                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| PostgreSQL        | `CREATE DATABASE montaj_t_<run>_<suite> TEMPLATE montaj_test_template`, dropped in `afterAll` |
+| Redis keys        | one **logical database** per suite (`redis://…/7`)                                            |
+| BullMQ + realtime | one **`MONTAJ_QUEUE_PREFIX`** per suite (`montaj-test-<run>-<slot>`)                          |
+
+The database clone is a file copy, so it costs a fraction of a second rather than
+the twenty seconds a migration run costs — and it means a suite may `TRUNCATE` any
+table it likes while a dozen other suites do the same. The logical database is
+what isolates the keys the product hard-codes (`montaj:auth:*`, `montaj:rl:*`);
+the prefix is what isolates BullMQ and the realtime channels, because Redis
+pub/sub ignores the logical database entirely. A run never claims logical database
+0 unless it is told to: that is where a developer's own `docker compose` stack
+keeps its keys.
+
+`test/isolation-alpha.e2e-spec.ts` and `test/isolation-beta.e2e-spec.ts` are the
+proof. They rendezvous through the filesystem so their writes genuinely overlap,
+then insert the same primary key into the same table, truncate that table from one
+side, and write the same hard-coded Redis key from both. Every one of those fails
+loudly if the isolation ever regresses.
+
+Dropping a database forces a checkpoint, which is slow on a busy machine, so
+`afterAll` gives it fifteen seconds and then hands it to the run teardown, which
+sweeps sequentially. Anything a crash leaves behind is dropped by the next run.
+
+### Pointing a run at the compose stack
+
+```bash
+docker compose up -d
+TEST_DATABASE_URL=postgresql://montaj:montaj@localhost:5432/postgres \
+TEST_REDIS_URL=redis://localhost:6379 \
+  pnpm --filter @montaj/api test
+```
+
+Zero containers are started; the template and the per-suite copies are made on the
+compose PostgreSQL. The database named in `TEST_DATABASE_URL` is only used to
+connect — nothing is written to it, and `montaj_test_template` plus one
+`montaj_t_…` database per suite are created alongside it.
+
+Setting these variables used to be a hazard, because the suites shared and
+truncated whatever they were pointed at. It is now the recommended way to run the
+suite on a machine where Docker is busy.
+
+Two things to know about `TEST_REDIS_URL`. Suites take logical databases from the
+one in the URL upwards, so `redis://localhost:6379` leaves database 0 alone and
+uses 1 upwards, while `redis://localhost:6379/0` claims all sixteen (which is what
+CI does, where the Redis is the job's own). And the run needs one logical database
+per e2e suite: `global-setup.ts` prints a warning when there are not enough,
+because two suites sharing one can sweep each other's keys.
+
+### Debugging one suite
+
+```bash
+pnpm --filter @montaj/api exec vitest run test/auth.e2e-spec.ts
+```
+
+A suite keeps the same slot — and therefore the same database name, logical Redis
+database and queue prefix — whether it runs alone or with all the others, so a
+parallel failure reproduces on its own. The `[test-run]` line at the top of a run
+names the run id; the suite databases are `montaj_t_<runId>_<suite>` and they live
+until the run's teardown, so a failing run can be inspected while it is still
+going.
+
+A run that selects no e2e spec (`vitest run src/jobs/jobs.config.test.ts`) starts
+nothing at all.
+
+### Suites that need real infrastructure
+
+`test/auth.e2e-spec.ts`, `test/users-workspaces.e2e-spec.ts`,
+`test/workspace-guard.e2e-spec.ts`, `test/notify-locale.e2e-spec.ts` and
+`test/edg.e2e-spec.ts` need a PostgreSQL **and** a Redis. These modules cannot be
+tested against substituted infrastructure: a refresh family is a database
+invariant, the rotation grace is a Redis entry, an append-only consent log is an
+ordering property, the entitlement cache is a TTL, and the EDG compare-and-swap,
+segment ordering and rate limiter are all the database's behaviour rather than
+ours.
+
+`test/database.e2e-spec.ts` needs a PostgreSQL **with pgvector**.
+`test/jobs.e2e-spec.ts` and `test/dlq.e2e-spec.ts` need that database **and** a
+Redis, because their whole point is that real BullMQ can read the envelope a real
+producer wrote — including the one an admin replay writes under a fresh attempt
+id. `test/realtime-redis.e2e-spec.ts` needs only a Redis.
+
+All of them skip with a loud reason rather than failing when nothing can be
+reached, so a laptop with Docker stopped still runs the unit tests.
 
 `test/workspace-guard.e2e-spec.ts` is the THREAT-MODEL T4 contract test. It reads
 the shipped route table out of the Express router, filters it to the
@@ -456,26 +554,22 @@ added without `WorkspaceMemberGuard` fails without anybody editing the test.
 build the throwaway X.509 certificate the SNS signature cases sign against; the
 cases that need it skip with a reason when it is absent.
 
-`test/database.e2e-spec.ts` needs a PostgreSQL **with pgvector**. It uses
-`TEST_DATABASE_URL` if set, otherwise starts `pgvector/pgvector:pg16` through
-testcontainers, and skips with an explanation when Docker is unavailable
-(`MONTAJ_SKIP_DB_TESTS=1` skips it deliberately). `test/jobs.e2e-spec.ts` and
-`test/dlq.e2e-spec.ts` need that database **and** a Redis, because their whole
-point is that real BullMQ can read the envelope a real producer wrote — including
-the one an admin replay writes under a fresh attempt id;
-`MONTAJ_SKIP_REDIS_TESTS=1` skips them. Every
-other suite runs with no infrastructure at all: `test/app-harness.ts` substitutes
-Prisma, Redis and the realtime bus, and `test/fakes.ts` holds the in-memory Prisma
-and queue stubs the unit suites share.
+Every other suite runs with no infrastructure at all: `test/app-harness.ts`
+substitutes Prisma, Redis and the realtime bus, and `test/fakes.ts` holds the
+in-memory Prisma and queue stubs the unit suites share.
 
-Two variables shape a test run:
+### Variables that shape a test run
 
-| Variable                    | Effect                                                                                                                                                                              |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MONTAJ_QUEUE_PREFIX`       | Redis key prefix for BullMQ and realtime. `setup-env.ts` sets a per-process value so two runs never share keys; a deployment leaves it at `bull`, which is what the workers expect. |
-| `MONTAJ_SCHEDULER_DISABLED` | `1` stops this process running the scheduler worker. Set in tests, which call `ScheduledTasksService.runNow(name)` instead.                                                         |
-| `MONTAJ_METRICS_TOKEN`      | When set, `GET /internal/metrics` requires `Authorization: Bearer <token>`. Unset, the endpoint is open (A08b).                                                                     |
-| `NOTIFY_WORKER_ENABLED`     | `0` stops this process draining the `notify` queue. `setup-env.ts` sets it; `test/auth-harness.ts` turns it back on, because that suite delivers to the outbox and reads it.        |
+| Variable                    | Effect                                                                                                                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TEST_DATABASE_URL`         | Use this PostgreSQL **server** instead of starting a container. Only the server matters: the template and every suite database are created on it.                            |
+| `TEST_REDIS_URL`            | Use this Redis instead of starting a container. A logical database in the path is the lowest one the run will claim.                                                         |
+| `MONTAJ_SKIP_DB_TESTS`      | `1` skips every suite that needs PostgreSQL, and starts no container for it.                                                                                                 |
+| `MONTAJ_SKIP_REDIS_TESTS`   | `1` skips every suite that needs Redis, and starts no container for it.                                                                                                      |
+| `MONTAJ_QUEUE_PREFIX`       | Redis key prefix for BullMQ and realtime. `test/suite-context.ts` sets a per-suite value; a deployment leaves it at `bull`, which is what the workers expect.                |
+| `MONTAJ_SCHEDULER_DISABLED` | `1` stops this process running the scheduler worker. Set in tests, which call `ScheduledTasksService.runNow(name)` instead.                                                  |
+| `MONTAJ_METRICS_TOKEN`      | When set, `GET /internal/metrics` requires `Authorization: Bearer <token>`. Unset, the endpoint is open (A08b).                                                              |
+| `NOTIFY_WORKER_ENABLED`     | `0` stops this process draining the `notify` queue. `setup-env.ts` sets it; `test/auth-harness.ts` turns it back on, because that suite delivers to the outbox and reads it. |
 
 ## Adding a module
 

@@ -6,10 +6,13 @@
  * anything: the compare-and-swap is a `SELECT … FOR UPDATE` plus a conditional
  * `UPDATE`, the segment order is a `text COLLATE "C"` index, the idempotency
  * check is a GIN array overlap and the rate limiter is a Lua script. Every one of
- * those is the database's behaviour, not ours. So this harness starts both
- * services (testcontainers, or `TEST_DATABASE_URL` / `TEST_REDIS_URL` when they
- * are already provided) and the suite skips loudly when Docker is unavailable,
- * exactly as `database.e2e-spec.ts` and `auth-harness.ts` do.
+ * those is the database's behaviour, not ours.
+ *
+ * A23a: the services are the run's, not this suite's. `test/global-setup.ts`
+ * starts one PostgreSQL and one Redis for the whole run; this harness clones the
+ * migrated template into a database of its own and uses the logical Redis database
+ * this suite owns, and the suite skips loudly when neither Docker nor
+ * `TEST_DATABASE_URL` is available, exactly as `database.e2e-spec.ts` does.
  */
 import { generateKeyPairSync } from "node:crypto";
 
@@ -22,6 +25,7 @@ import { type Segment, type TranscriptChunk, type Word } from "@montaj/edg/schem
 import { seqBetween } from "@montaj/edg/seq";
 
 import { createTestDatabase, type TestDatabase } from "./db-harness.js";
+import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness.js";
 import { AppModule } from "../src/app.module.js";
 import { TokenService } from "../src/auth/token.service.js";
 import { HttpExceptionFilter } from "../src/common/errors/http-exception.filter.js";
@@ -73,31 +77,6 @@ export interface EdgTestContext {
 
 /** Why the suite was skipped, for the console message. */
 export let edgSkipReason = "";
-
-const REDIS_IMAGE = "redis:7-alpine";
-
-interface RedisHandle {
-  url: string;
-  stop(): Promise<void>;
-}
-
-async function startRedis(): Promise<RedisHandle> {
-  const fromEnv = process.env["TEST_REDIS_URL"] ?? process.env["REDIS_URL"];
-  if (fromEnv !== undefined && fromEnv !== "") {
-    return { url: fromEnv, stop: async () => undefined };
-  }
-  const { GenericContainer } = await import("testcontainers");
-  const container = await new GenericContainer(REDIS_IMAGE)
-    .withExposedPorts(6379)
-    .withStartupTimeout(120_000)
-    .start();
-  return {
-    url: `redis://${container.getHost()}:${String(container.getMappedPort(6379))}`,
-    stop: async () => {
-      await container.stop();
-    },
-  };
-}
 
 /** A throwaway RS256 pair; `setup-env.ts` ships placeholder PEM text on purpose. */
 function generateJwtKeys(): { privateKey: string; publicKey: string } {
@@ -151,8 +130,13 @@ export function seqKeys(count: number): string[] {
 }
 
 export async function createEdgTestContext(): Promise<EdgTestContext | null> {
+  if (!isRedisAvailable()) {
+    edgSkipReason = redisSkipReason;
+    return null;
+  }
+
   let database: TestDatabase | null = null;
-  let redisHandle: RedisHandle | undefined;
+  let redisUrl: string;
 
   try {
     database = await createTestDatabase();
@@ -160,7 +144,7 @@ export async function createEdgTestContext(): Promise<EdgTestContext | null> {
       edgSkipReason = "no test database";
       return null;
     }
-    redisHandle = await startRedis();
+    redisUrl = testRedisUrl();
   } catch (error) {
     edgSkipReason = error instanceof Error ? error.message : String(error);
     if (database !== null) await database.stop();
@@ -169,7 +153,7 @@ export async function createEdgTestContext(): Promise<EdgTestContext | null> {
 
   const keys = generateJwtKeys();
   process.env["DATABASE_URL"] = database.url;
-  process.env["REDIS_URL"] = redisHandle.url;
+  process.env["REDIS_URL"] = redisUrl;
   process.env["JWT_PRIVATE_KEY"] = keys.privateKey;
   process.env["JWT_PUBLIC_KEY"] = keys.publicKey;
   resetEnvCache();
@@ -197,7 +181,7 @@ export async function createEdgTestContext(): Promise<EdgTestContext | null> {
 
   const address = app.getHttpServer().address() as { port: number };
   const prisma = new PrismaClient({ datasources: { db: { url: database.url } } });
-  const redis = new Redis(redisHandle.url, { maxRetriesPerRequest: null });
+  const redis = new Redis(redisUrl, { maxRetriesPerRequest: null });
   const tokens = app.get(TokenService);
   const edg = app.get(EdgService);
 
@@ -205,7 +189,6 @@ export async function createEdgTestContext(): Promise<EdgTestContext | null> {
   const otherWorkspaceId = newId();
   const userId = newId();
   const db = database;
-  const redisRef = redisHandle;
 
   async function seedTenant(): Promise<void> {
     await prisma.user.create({
@@ -332,7 +315,6 @@ export async function createEdgTestContext(): Promise<EdgTestContext | null> {
       await app.close();
       await prisma.$disconnect();
       redis.disconnect();
-      await redisRef.stop();
       await db.stop();
     },
   };
