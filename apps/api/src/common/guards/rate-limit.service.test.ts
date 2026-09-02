@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { RateLimitService, RATE_LIMIT_PREFIX, TOKEN_BUCKET_LUA } from "./rate-limit.service.js";
+import { RateLimitService, TOKEN_BUCKET_LUA, rateLimitPrefix } from "./rate-limit.service.js";
 
 import type { RedisService } from "../redis/redis.service.js";
 
@@ -22,7 +22,7 @@ describe("RateLimitService", () => {
     expect(evalSpy).toHaveBeenCalledWith(
       TOKEN_BUCKET_LUA,
       1,
-      `${RATE_LIMIT_PREFIX}:test:subject-1`,
+      `${rateLimitPrefix()}:test:subject-1`,
       "5",
       "1",
       "1",
@@ -54,7 +54,7 @@ describe("RateLimitService", () => {
     const del = vi.fn().mockResolvedValue(1);
     const { service } = serviceWith(vi.fn(), del);
     await service.reset(SPEC, "subject-1");
-    expect(del).toHaveBeenCalledWith(`${RATE_LIMIT_PREFIX}:test:subject-1`);
+    expect(del).toHaveBeenCalledWith(`${rateLimitPrefix()}:test:subject-1`);
 
     const failing = serviceWith(vi.fn(), vi.fn().mockRejectedValue(new Error("nope")));
     await expect(failing.service.reset(SPEC, "subject-1")).resolves.toBeUndefined();

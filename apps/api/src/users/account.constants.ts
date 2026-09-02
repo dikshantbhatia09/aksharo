@@ -1,3 +1,5 @@
+import { redisKeyPrefix } from "../common/redis/redis-keys.js";
+
 import type { RateLimitRule } from "../common/guards/index.js";
 
 /**
@@ -45,10 +47,16 @@ export const DATA_EXPORT_TTL_SEC = 60 * 60;
 /** Bytes of entropy in the export download token. 32 bytes = 256 bits. */
 export const DATA_EXPORT_TOKEN_BYTES = 32;
 
-/** Redis keys the account modules write. */
-export const ACCOUNT_REDIS_PREFIX = "montaj:account";
+/**
+ * Redis keys the account modules write.
+ *
+ * A function since A23b, for the reason {@link redisKeyPrefix} explains.
+ */
+export function accountRedisPrefix(): string {
+  return `${redisKeyPrefix()}:account`;
+}
 
 export const accountRedisKeys = {
   /** A built `GET /me/data` bundle, addressed by the SHA-256 of its download token. */
-  dataExport: (tokenHash: string) => `${ACCOUNT_REDIS_PREFIX}:export:${tokenHash}`,
+  dataExport: (tokenHash: string) => `${accountRedisPrefix()}:export:${tokenHash}`,
 } as const;

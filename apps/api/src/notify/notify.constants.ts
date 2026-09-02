@@ -1,3 +1,5 @@
+import { redisKeyPrefix } from "../common/redis/redis-keys.js";
+
 import type { BucketSpec } from "../common/guards/rate-limit.service.js";
 
 /**
@@ -10,17 +12,23 @@ import type { BucketSpec } from "../common/guards/rate-limit.service.js";
  * they do not tune it.
  */
 
-/** Redis namespace, so a `KEYS montaj:notify:*` in development shows the lot. */
-export const NOTIFY_REDIS_PREFIX = "montaj:notify";
+/**
+ * Redis namespace, so a `KEYS montaj:notify:*` in development shows the lot.
+ *
+ * A function since A23b, for the reason {@link redisKeyPrefix} explains.
+ */
+export function notifyRedisPrefix(): string {
+  return `${redisKeyPrefix()}:notify`;
+}
 
 export const notifyRedisKeys = {
   /**
    * Suppression entry for one address, keyed by its SHA-256 so that a Redis dump
    * is not a mailing list (05 section 8: no personal data outside the database).
    */
-  suppression: (emailHash: string) => `${NOTIFY_REDIS_PREFIX}:suppressed:${emailHash}`,
+  suppression: (emailHash: string) => `${notifyRedisPrefix()}:suppressed:${emailHash}`,
   /** The `MAIL_PROVIDER=smtp|ses` delivery receipt, for at-most-once resends. */
-  delivered: (idempotencyKey: string) => `${NOTIFY_REDIS_PREFIX}:sent:${idempotencyKey}`,
+  delivered: (idempotencyKey: string) => `${notifyRedisPrefix()}:sent:${idempotencyKey}`,
 } as const;
 
 /**

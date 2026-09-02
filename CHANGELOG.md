@@ -118,6 +118,85 @@ retention.service.ts`'s `purgeDueMedia` only ever queries `media_assets`,
     `notify.kinds.test.ts`'s hard-pinned ten-value list; the closest existing
     kind's copy — "kept for N days, then deleted" — is false for a document
     retained 72 months).
+- **A22 — scripts and translation: transliteration (`ai.transliterate`), translation
+  (`ai.translate`), the producers, and the editor's script tabs.**
+  - **Transliteration writes per word, translation writes per segment, and each
+    gets the write path that shape actually needs.** `word.scripts` can carry
+    thousands of values per job and CONTRACTS §2's `EdgOp` union has no bulk op for
+    it, so the worker writes those through a new signed surface,
+    `POST /internal/transcripts/{id}/scripts` (`apps/api/src/transcripts/scripts/
+scripts-internal.controller.ts`), which patches only the `transcript_chunks`
+    rows a job actually touched. Translation is a few hundred segments at most and
+    CONTRACTS §2 already has `SetSegmentText{segmentId, script, text}`, so it
+    reuses A12's **existing** `POST /internal/projects/{id}/edg/ops` unchanged —
+    landing as `textOverrides.translated`, revisioned, rebased and undoable exactly
+    like an interactive edit, with a genuine conflict coming back as the same 409 a
+    concurrent human edit would.
+  - **Transliteration is free** (`04-pricing-and-monetization.md` has no burn-rate
+    row for it); the job is still admitted through `JobsService.enqueue` with a
+    zero-tenths hold, so CONTRACTS §4's "every producer reserves" rule holds even
+    when the reservation is for nothing. **Translation reuses the existing
+    `translation` burn rate** (0.5 credit / media minute / target language) and
+    adds the plan gate `04 §Plans` describes: refused outright below Starter,
+    refused for anything but English below Creator (`transcript/plan_required`).
+  - **IndicXlit, without a vendor key.** No AI4Bharat model weight exists in this
+    environment (A00-06), so `RuleTableTransliterationProvider`
+    (`apps/worker-ai/worker_ai/transliterate/`) is a deterministic dictionary +
+    syllable-table transliterator for Hindi/Devanagari and Tamil, plus numeral and
+    punctuation rules that apply to every supported language. The Hinglish rule —
+    English words stay Roman — is a curated dictionary and a morphology check
+    (`-ing`, `-tion`, …), checked before any script mapping runs.
+    `IndicXlitHttpProvider` is the seam for a served model; **no `apps/model-server`
+    route was added**, because there is nothing to serve yet (decision recorded in
+    `apps/worker-ai/worker_ai/transliterate/provider.py`).
+  - **The translation provider chain** — `SarvamMayuraProvider` →
+    `IndicTrans2Provider` (self-hosted, only when `WORKER_AI_INDICTRANS2_URL` is
+    set) → `LLMTranslateProvider` (`LLM_PROVIDER=anthropic|openai|mock`) — tries
+    each in order until one succeeds. **Glossary terms are masked to opaque
+    placeholders before any provider sees the text** (`translate/glossary.py`), so
+    every adapter gets verbatim preservation for free rather than depending on a
+    provider-specific instruction. A segment still over the **1.3x length budget**
+    after one "shorter, please" retry is hard-truncated on a word boundary
+    (`translate/length.py`), so the budget holds unconditionally, not just usually.
+  - **A pre-existing gap between A11's chunk-read contract and A12's word-patch
+    contract, found and routed around, not fixed.** `TranscriptsRepository.
+chunkPage`/`allChunks` (`GET /projects/{id}/transcript`, the exporters) select
+    `transcript_chunks` by an exact `revision` match; `EdgRepository.persistWords`
+    (`EditWord`) bumps `transcripts.currentRevision` without changing the row's own
+    `revision` at all, so a client reading the default revision after any word edit
+    gets an empty page. Reachable today through an ordinary `EditWord` op — this
+    work package's own write avoids adding a second way to hit it by never bumping
+    `currentRevision` for a transliteration, but the underlying gap is unresolved
+    and is reported to the orchestrator (`apps/api/src/transcripts/scripts/
+scripts.repository.ts`'s class doc) rather than patched here.
+  - **`?script=` on `GET /projects/{id}/transcript` and the transcript export**
+    (`roman | native | en | translated`): the manifest projects each word's `t`
+    onto `scripts[script]`, falling back to the word's own primary text; export
+    threads the same choice through `transcript-export.ts`'s `toCues`, preferring a
+    segment's own `textOverrides[script]` first. Omitted, both keep their exact
+    pre-A22 behaviour.
+  - **`GET /projects/{id}/transcript/scripts`** reports availability and provenance
+    per script — `roman`/`native`/`en` from a scan of the transcript's own words,
+    `translated` from the EDG segments plus the `transcript.scripts_updated` /
+    `transcript.translated` job events this work package's two completion handlers
+    log, so the editor's tabs and the "regenerate" confirmation know what is
+    already there and who made it.
+  - **`ScriptTabs`/`RegenerateTranslationDialog`**
+    (`apps/web/components/editor/transcript/scripts/`) and three new
+    `@montaj/api-client` hooks (`useTranscriptScripts`, `useTransliterateTranscript`,
+    `useTranslateTranscript`) — self-contained and tested against a mocked `fetch`,
+    because **A15 (the transcript editor) and A19 (the export dialog) are not yet
+    on `main`** to wire into; the integration note each leaves behind names exactly
+    what dropping them in involves once those work packages land.
+  - Golden transliteration tests (Hinglish sentence → Devanagari with English words
+    preserved; a Tamil sentence) in `apps/worker-ai/tests/test_transliterate.py`;
+    provider-chain, length-aware-retry and glossary-preservation tests plus fixture
+    tests for all three translation adapters in `test_translate.py`; a real-database
+    e2e (`apps/api/test/transcripts-scripts.e2e-spec.ts`) that runs a transliteration
+    and a translation through the real signed write paths against a seeded Hinglish
+    transcript and asserts the per-word scripts, the segment override, the
+    provenance read and the export in each script.
+
 - **A21 — api: the exports module (decision engine, signed render manifests, cloud render/subtitle jobs, downloads, brand assets).**
   - **`POST /projects/{id}/exports`** runs the decision engine (`src/exports/decision.ts`,
     ≥25 table tests): browser vs. cloud per D34's technical caps (1080p ≤ 20 min on
@@ -1914,6 +1993,42 @@ sarvam` replays the recorded session, `--live` calls the configured vendor.
   microsecond later, so the index is the actual guarantee.
 
 ### Changed
+
+- **A23b — Redis test isolation is a key prefix, not a logical database.**
+  - A23a gave every e2e suite a logical Redis database of its own. Redis ships
+    with sixteen and `apps/api` now has twenty-two e2e suites, so from the
+    seventeenth onwards two suites shared one — and a `KEYS montaj:* / DEL` sweep
+    between tests took the sibling's keys with it. A21 watched
+    `auth.e2e-spec.ts` lose its dev-outbox messages exactly that way.
+  - `apps/api/src/common/redis/redis-keys.ts` (new) exports `redisKeyPrefix()`:
+    `MONTAJ_REDIS_PREFIX` when set, `montaj` otherwise. Unset — which is every
+    deployment — every key keeps the name it has always had.
+  - The five modules that hard-coded `montaj:` now build their namespace from it:
+    `authRedisPrefix()` (`auth.constants.ts`, which carries the development mail
+    outbox), `rateLimitPrefix()` and the new `rateLimitKey()`
+    (`rate-limit.service.ts`), `notifyRedisPrefix()` (the suppression list and the
+    delivery receipts), `accountRedisPrefix()` (the data-export bundles) and
+    `workspacesRedisPrefix()` (the entitlement cache). `exports/daily-cap.ts`
+    wrote `exports:daily-browser-manifests:…` outside the `montaj:` namespace
+    altogether; it is prefixed now too. All six are the same shape as
+    `queuePrefix()` — a function reading `process.env`, because CONTRACTS section
+    1 is the frozen list of _product_ configuration and this is naming.
+  - BullMQ structures and realtime pub/sub channels are deliberately NOT moved.
+    They are named by `MONTAJ_QUEUE_PREFIX`, which `apps/worker-media`,
+    `apps/render` and `apps/worker-ai` have to agree with the API on, and which
+    the test harness already sets per suite.
+  - `test/suite-context.ts` sets `MONTAJ_REDIS_PREFIX` alongside
+    `MONTAJ_QUEUE_PREFIX`, so a suite's keys are its own before its module graph
+    is loaded. `auth-harness.reset()` sweeps `${redisKeyPrefix()}:*` rather than
+    `montaj:*` — the sweep that used to reach across.
+  - Logical databases are now a **second** separator, taken when the run has more
+    of them than suites. A logical database named in `TEST_REDIS_URL` is an
+    instruction rather than a starting point: `redis://localhost:6379/0` puts the
+    whole suite in database 0, which is how this is verified.
+  - `test/isolation-probe.ts` grew the proof: both halves pin the SAME logical
+    database, write `redisKeys.devOutbox()`, and one of them runs the between-tests
+    sweep — the other's key has to survive it. It also writes the product's real
+    key builder now rather than a hard-coded literal.
 
 - **A23a — the API test suite starts two containers per run instead of one pair
   per suite, and isolates the suites from each other properly.**
