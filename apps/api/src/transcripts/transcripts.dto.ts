@@ -59,11 +59,20 @@ const RetranscribeRequest = TranscribeRequest.extend({
 
 export class RetranscribeRequestDto extends zodDto(RetranscribeRequest) {}
 
+/**
+ * A22: which script's text to read. `roman` | `native` | `en` project a
+ * per-word variant (falling back to the word's primary text); `translated`
+ * reads the segment-level translation override. Omitted keeps the pre-A22
+ * default.
+ */
+const ScriptQuery = z.enum(["roman", "native", "en", "translated"]);
+
 const TranscriptQuery = z.object({
   /** The previous page's `nextCursor`: the last `chunkIdx` returned. */
   cursor: z.coerce.number().int().min(0).optional(),
   limit: z.coerce.number().int().min(1).max(MAX_TRANSCRIPT_CHUNK_PAGE_SIZE).optional(),
   revision: z.coerce.number().int().min(1).optional(),
+  script: ScriptQuery.optional(),
 });
 
 export class TranscriptQueryDto extends zodDto(TranscriptQuery) {}
@@ -76,6 +85,7 @@ const ExportQuery = z.object({
     .union([z.boolean(), z.enum(["true", "false"])])
     .transform((value) => value === true || value === "true")
     .optional(),
+  script: ScriptQuery.optional(),
 });
 
 export class ExportQueryDto extends zodDto(ExportQuery) {}

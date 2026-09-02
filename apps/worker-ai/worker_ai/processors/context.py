@@ -40,6 +40,8 @@ from worker_ai.queues import JobEnvelope
 from worker_ai.routing import RoutingTable
 from worker_ai.settings import Settings
 from worker_ai.storage import ObjectStore
+from worker_ai.translate.providers.base import TranslationProvider
+from worker_ai.transliterate import RuleTableTransliterationProvider, TransliterationProvider
 from worker_ai.vad import VadBackend
 
 __all__ = ["JobContext", "JobFailureError", "ProcessorOutcome", "Services"]
@@ -99,6 +101,17 @@ class Services:
     language_id: LanguageIdentifier | None = None
     #: Signal 2: the local text classifier. ``None`` builds the default.
     text_lid: TextClassifier | None = None
+    #: The A22 transliteration provider (`ai.transliterate`). Defaults to the
+    #: dependency-free rule-table provider so a deployment with no
+    #: `WORKER_AI_INDICXLIT_URL` still runs the queue.
+    transliteration: TransliterationProvider = field(
+        default_factory=RuleTableTransliterationProvider
+    )
+    #: The A22 translation provider chain (`ai.translate`), tried in order.
+    #: Empty by default; `runtime.build_services` always supplies at least the
+    #: LLM adapter (`mock` needs no credential), so this default only matters
+    #: for a `Services` built directly in a unit test.
+    translation_providers: tuple[TranslationProvider, ...] = ()
 
 
 @dataclass(slots=True)

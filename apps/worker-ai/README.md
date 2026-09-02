@@ -379,6 +379,52 @@ providerSubmissions[] }` in the callback's `result`, which the API stores in
 `transcript_chunks` (`06`), including `nextWordSeq`, so wiring it up is one
 function — `_result` in `processors/transcribe.py`.
 
+## Scripts and translation (A22)
+
+`ai.translate` and `ai.transliterate` are no longer stubs — `worker_ai/transliterate/`
+and `worker_ai/translate/` implement them, registered in `runtime.PROCESSORS`
+alongside the four A09/A10 queues.
+
+**Transliteration** (`processors/transliterate.py`) is handed `(wid, text)`
+pairs directly in the job payload (the producer already read them from
+`transcript_chunks`) and a `targetScript` (`roman` or `native`). The default
+provider, `RuleTableTransliterationProvider`, is a deterministic dictionary +
+syllable-table transliterator (`transliterate/tables.py`) for Hindi/Devanagari
+and Tamil — **not** a call to a hosted IndicXlit model: no vendor key or model
+weight exists in this environment (A00-06), and IndicXlit is small enough to run
+worker-local rather than warranting an `apps/model-server` route with nothing to
+serve. `IndicXlitHttpProvider` is the seam for the day a served model exists
+(`WORKER_AI_INDICXLIT_URL`). The Hinglish rule — English words stay Roman —
+is `transliterate/english.py`: a curated dictionary plus a morphology check
+(`-ing`, `-tion`, …), checked before any script mapping runs. The result is
+written through `callbacks.write_transcript_scripts` to
+`POST /internal/transcripts/{id}/scripts` (A22's own signed surface, not the job
+completion payload — see `apps/api/src/transcripts/scripts/README.md`) _before_
+the job completes.
+
+**Translation** (`processors/translate.py`) is handed `{segmentId, text}` pairs
+and a `baseRevision`, and runs them through `translate/service.py`: glossary
+terms are masked to opaque placeholders before any provider sees the text
+(`translate/glossary.py` — provider-agnostic, so every adapter gets the
+guarantee for free), then the provider chain — `SarvamMayuraProvider` →
+`IndicTrans2Provider` (self-hosted, only when `WORKER_AI_INDICTRANS2_URL` is set)
+→ `LLMTranslateProvider` (`LLM_PROVIDER=anthropic|openai|mock`) — is tried in
+order until one succeeds, and any segment still over the 1.3x length budget
+after a "shorter, please" retry is hard-truncated on a word boundary
+(`translate/length.py`) so the budget holds unconditionally, not just usually.
+The result is submitted as one `SetSegmentText` op per segment (`script:
+"translated"`) to the **existing** `POST /internal/projects/{id}/edg/ops`
+surface, so a translation is revisioned and undoable exactly like an
+interactive edit, and a 409 from a conflicting concurrent edit surfaces as a
+clear, non-retryable `worker/translation_conflict` rather than a silent
+overwrite or a pointless retry.
+
+LLM prompts are versioned in `translate/providers/prompts.py`
+(`TRANSLATE_CAPTION_PROMPT_VERSION`), mirrored (same version string) in
+`packages/prompts/src/translate.ts` for the day a TypeScript caller or eval
+harness wants the same prompt — the Python copy is the one that actually runs,
+because `ai.translate` executes in this worker.
+
 ## Evals
 
 ```bash
@@ -436,6 +482,8 @@ deliberately _not_ in CONTRACTS §1 — the same precedent the API set for
 | `ELEVENLABS_ZERO_RETENTION`            | on                              | sends `enable_logging=false` on every request                                |
 | `SARVAM_BASE_URL`                      | `https://api.sarvam.ai`         | override for a private endpoint                                              |
 | `ASSEMBLYAI_BASE_URL`                  | `https://api.assemblyai.com`    | override for a private endpoint                                              |
+| `WORKER_AI_INDICXLIT_URL`              | —                               | A22: a served IndicXlit model; unset runs the rule-table transliterator      |
+| `WORKER_AI_INDICTRANS2_URL`            | —                               | A22: self-hosted IndicTrans2; unset skips it in the translation chain        |
 | `GPU_PROVIDER_URL`                     | —                               | serverless GPU endpoint (D15); also serves `/diarise` and `/detect-language` |
 | `GPU_PROVIDER_TOKEN`                   | —                               | bearer token for it                                                          |
 | `FFMPEG_BIN` `FFPROBE_BIN`             | on `PATH`                       | explicit binary paths                                                        |

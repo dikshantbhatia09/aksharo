@@ -1795,6 +1795,10 @@ model PassPurchase {
   creditsGrantedTenths Int              @default(0) @map("credits_granted_tenths")
   lotId                String?          @map("lot_id") @db.Char(26)
   consumedAt           DateTime?        @map("consumed_at") @db.Timestamptz(6)
+  /// B01b: CAS guard for the credits clawback — set once, the first time a
+  /// refund (webhook or admin/API) is processed for this purchase, so a
+  /// replayed webhook or a repeated admin call is a no-op.
+  refundedAt           DateTime?        @map("refunded_at") @db.Timestamptz(6)
   createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
 
   workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -1807,8 +1811,22 @@ model PassPurchase {
 }
 
 /// Rule 46 compliant (D41). Retained 72 months and exempt from every project or
-/// erasure purge. `(series, fiscal_year, number)` is unique; `number` is at most
-/// 16 characters. `prisma/sql/0004-checks.sql` requires a state code for India.
+/// erasure purge (B05: `media/retention.service.ts`'s `purgeDueMedia` only ever
+/// queries `media_assets`, never this table). `(series, fiscal_year, number)` is
+/// unique; `number` is at most 16 characters — and, per the B05b orchestrator
+/// ruling, `number` now holds the FULL printed Rule 46(b) serial number
+/// (`AK2627-IN-000123`, 16 chars exactly: see
+/// `invoices/invoices.constants.ts`'s `formatInvoiceNumber`), not just its
+/// sequential tail — the earlier `AKS/26-27/IN/000123` display format (19
+/// chars) was wrong against Rule 46(b)'s cap on the whole identifier.
+/// `prisma/sql/0003-checks.sql` requires a state code for India (fixed from a
+/// stray `0004-checks.sql` reference in this comment, which does not exist).
+/// B05: `sequenceNo` (the bare integer `formatInvoiceNumber` was built from) is
+/// allocated by `invoices/numbering.service.ts` from a real Postgres
+/// `SEQUENCE`, one per `(series, fiscalYear)`, named
+/// `invoice_seq_<series>_<fiscalYear>` and created lazily (advisory-lock
+/// guarded) the first time that pair is used — not a migration-managed object,
+/// since a future fiscal year cannot be enumerated up front.
 model Invoice {
   id                     String         @id @db.Char(26)
   workspaceId            String         @map("workspace_id") @db.Char(26)
@@ -1816,7 +1834,10 @@ model Invoice {
   passPurchaseId         String?        @map("pass_purchase_id") @db.Char(26)
   docType                InvoiceDocType @default(tax_invoice) @map("doc_type")
   series                 String         @db.VarChar(8)
+  /// B05b: the FULL Rule 46(b) serial number (`AK2627-IN-000123`), not just a tail.
   number                 String         @db.VarChar(16)
+  /// B05b: the bare per-`(series, fiscalYear)` sequence integer `number` was built from.
+  sequenceNo             Int            @default(0) @map("sequence_no")
   fiscalYear             String         @map("fiscal_year") @db.VarChar(9)
   issuedAt               DateTime       @default(now()) @map("issued_at") @db.Timestamptz(6)
   dueAt                  DateTime?      @map("due_at") @db.Timestamptz(6)
