@@ -1,5 +1,6 @@
-import { BRAND } from "@montaj/config";
 import { z } from "zod";
+
+import { BRAND } from "@montaj/config";
 
 import type { RateLimitRule } from "../common/guards/index.js";
 import type { EntitlementView } from "../workspaces/entitlement.service.js";
