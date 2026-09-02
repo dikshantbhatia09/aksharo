@@ -1,5 +1,7 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 
+import { TENTHS_PER_CREDIT } from "@montaj/config";
+
 import { AdmissionService, IN_FLIGHT_STATUSES } from "./admission.service.js";
 import { JobCompletionRegistry } from "./completion-handlers.js";
 import { RealtimePublisher } from "../realtime/realtime.publisher.js";
@@ -15,9 +17,10 @@ import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { MetricsService } from "../common/metrics/metrics.service.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { CREDITS_FACADE } from "../credits/credits.facade.js";
+import { NotifyService } from "../notify/notify.service.js";
 
 import type { JobCompletionOutcome } from "./completion-handlers.js";
-import type { CreditsFacade } from "../credits/credits.facade.js";
+import type { CreditsFacade, SettleResult } from "../credits/credits.facade.js";
 import type { CallbackAck, JobCompletion, JobProgress, JobUsage } from "./contracts/completion.js";
 import type { JobEnvelope } from "./contracts/job-envelope.js";
 import type { Job, JobStatus, Prisma } from "@prisma/client";
@@ -110,6 +113,7 @@ export class JobsService {
     private readonly metrics: MetricsService,
     private readonly completionHandlers: JobCompletionRegistry,
     @Inject(CREDITS_FACADE) private readonly credits: CreditsFacade,
+    private readonly notify: NotifyService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -440,7 +444,39 @@ export class JobsService {
     // idempotent by contract (`completion-handlers.ts`), which is what makes
     // re-driving safe.
     const outcome = succeeded ? await this.runCompletionHandler(job, attemptId, body) : undefined;
-    const actualTenths = succeeded ? settlementTenths(job, usage, outcome?.actualTenths) : 0;
+    const requestedTenths = succeeded ? settlementTenths(job, usage, outcome?.actualTenths) : 0;
+
+    // Settled BEFORE the job row's own status-flip CAS below, not after:
+    // `CreditsFacade.settle` is independently idempotent (a claim-first CAS on
+    // `credit_holds.status`), so a caller that goes on to lose the job-row race
+    // has done no harm, and the job row needs `settle`'s real answer to record a
+    // true `creditsChargedTenths` — B02b: that column is a denormalised display
+    // copy of what the ledger actually settled, never of what was merely asked
+    // for (the authoritative in-flight figure for admission control is the sum
+    // of open `credit_holds`, apps/api/src/credits/README.md).
+    let settleResult: SettleResult | undefined;
+    if (succeeded && job.creditHoldId !== null) {
+      settleResult = await this.credits.settle({
+        holdId: job.creditHoldId,
+        actualTenths: requestedTenths,
+      });
+    }
+    const settledTenths = settleResult?.settledTenths ?? requestedTenths;
+    // CONTRACTS §4's frozen `SettleResult` carries no explicit flag: a shortfall
+    // with no delta hold IS `needs_credits` (D32 — "settle what is held and
+    // return needs_credits").
+    const needsCredits =
+      settleResult !== undefined &&
+      settleResult.settledTenths < requestedTenths &&
+      settleResult.deltaHoldId === undefined;
+    const shortfallTenths = needsCredits ? requestedTenths - settledTenths : 0;
+
+    const resultPayload = needsCredits
+      ? {
+          ...((body.result as Record<string, unknown> | undefined) ?? {}),
+          creditsShortfallTenths: shortfallTenths,
+        }
+      : body.result;
 
     const { count } = await this.prisma.job.updateMany({
       where: { id: jobId, status: { in: [...IN_FLIGHT_STATUSES] } },
@@ -449,8 +485,8 @@ export class JobsService {
         finishedAt: new Date(),
         progress: succeeded ? 100 : job.progress,
         etaMs: null,
-        creditsChargedTenths: actualTenths,
-        ...(body.result === undefined ? {} : { result: body.result as Prisma.InputJsonValue }),
+        creditsChargedTenths: succeeded ? settledTenths : 0,
+        ...(resultPayload === undefined ? {} : { result: resultPayload as Prisma.InputJsonValue }),
         ...(body.error === undefined ? {} : { error: body.error as Prisma.InputJsonValue }),
         ...(usage?.provider === undefined ? {} : { provider: usage.provider }),
         ...(usage?.model === undefined ? {} : { model: usage.model }),
@@ -464,9 +500,8 @@ export class JobsService {
       return { applied: false, jobId, status: job.status, reason: "already_completed" };
     }
 
-    if (job.creditHoldId !== null) {
-      if (succeeded) await this.credits.settle({ holdId: job.creditHoldId, actualTenths });
-      else await this.credits.release({ holdId: job.creditHoldId });
+    if (!succeeded && job.creditHoldId !== null) {
+      await this.credits.release({ holdId: job.creditHoldId });
     }
 
     const status: "succeeded" | "failed" = succeeded ? "succeeded" : "failed";
@@ -476,12 +511,23 @@ export class JobsService {
       level: succeeded ? "info" : "error",
       message: succeeded ? "succeeded" : (body.error?.message ?? "failed"),
       data: {
-        settledTenths: actualTenths,
+        settledTenths,
         ...(usage === undefined ? {} : { usage }),
         ...(body.error === undefined ? {} : { error: body.error }),
         ...(outcome?.data === undefined ? {} : outcome.data),
       },
     });
+
+    if (needsCredits) {
+      await this.events.append({
+        jobId,
+        name: "job.needs_credits",
+        level: "warn",
+        message: `settled ${String(settledTenths)} of ${String(requestedTenths)} tenths; the workspace is short ${String(shortfallTenths)}`,
+        data: { requestedTenths, settledTenths, shortfallTenths },
+      });
+      await this.notifyCreditsShortfall(job, shortfallTenths);
+    }
 
     this.metrics.jobCompleted({
       queue: job.type,
@@ -683,6 +729,58 @@ export class JobsService {
     }
   }
 
+  /**
+   * `needs_credits` (B02b): the ledger could not fully settle this job. A
+   * notification is a side effect of an outcome that is already durable — the
+   * row and the `job.needs_credits` event are already written — so a Redis or
+   * `notify` outage here is logged and swallowed rather than failing the
+   * completion callback the worker is waiting on (mirrors
+   * `RealtimePublisher`/`WorkspaceNotifier`/`CreditsLowBalanceNotifier`, which
+   * make the same call for the same reason).
+   */
+  private async notifyCreditsShortfall(job: Job, shortfallTenths: number): Promise<void> {
+    try {
+      const [workspace, account] = await Promise.all([
+        this.prisma.workspace.findFirst({
+          where: { id: job.workspaceId, deletedAt: null },
+          select: { owner: { select: { id: true, email: true, name: true, locale: true } } },
+        }),
+        this.prisma.creditAccount.findUnique({
+          where: { workspaceId: job.workspaceId },
+          select: { balanceTenths: true },
+        }),
+      ]);
+      if (workspace === null) return;
+
+      await this.notify.enqueue({
+        kind: "low-credits",
+        to: workspace.owner.email,
+        locale: workspace.owner.locale,
+        userId: workspace.owner.id,
+        workspaceId: job.workspaceId,
+        data: {
+          name: workspace.owner.name ?? "there",
+          minutes: Math.max(0, Math.floor((account?.balanceTenths ?? 0) / TENTHS_PER_CREDIT)),
+          // Not read by the "low-credits" template's ICU vars (`name`,
+          // `minutes`) — carried anyway so the notification payload itself
+          // names what triggered it, for anything that later reads
+          // `notifications.data` (the admin console, a future template).
+          shortfallTenths,
+        },
+        // One notification per job's shortfall, not one per retried callback —
+        // a stale replay never reaches here at all (`staleReason` catches it
+        // before this method is in play), but the key still guards a genuine
+        // concurrent double-completion from paging a workspace twice.
+        idempotencyKey: `low-credits:job:${job.id}`,
+      });
+    } catch (error) {
+      this.logger.warn(
+        { err: describe(error), jobId: job.id, workspaceId: job.workspaceId },
+        "credits shortfall notification not sent",
+      );
+    }
+  }
+
   /** Best effort: a job already picked up, or already gone, is not an error. */
   private async removeFromQueue(job: Job): Promise<void> {
     if (!isQueueName(job.type) || job.attemptId === null) return;
@@ -697,9 +795,11 @@ export class JobsService {
 }
 
 /**
- * What to settle: the worker's own figure when it reported one, otherwise the full
- * hold. Never more than was held — an over-run is B02's delta-hold problem, and
- * charging beyond a hold from here would bypass the reservation entirely.
+ * What to settle: the worker's own figure when it reported one, otherwise the
+ * full hold. Deliberately NOT capped at the hold any more (B02b): an over-run is
+ * `CreditsFacade.settle`'s delta-hold problem now that the real ledger exists,
+ * and capping here would mean it never sees the true figure and never raises the
+ * delta charge — or the `needs_credits` shortfall — CONTRACTS §4 promises.
  */
 function settlementTenths(
   job: Job,
@@ -711,7 +811,7 @@ function settlementTenths(
   // that actually landed, not from what the worker believed it produced.
   const reported = fromHandler ?? usage?.actualTenths;
   if (reported === undefined) return held;
-  return Math.max(0, Math.min(held, Math.round(reported)));
+  return Math.max(0, Math.round(reported));
 }
 
 function clampLimit(limit: number | undefined): number {

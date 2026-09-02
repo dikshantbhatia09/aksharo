@@ -4,14 +4,11 @@ import { newId } from "@montaj/edg";
 import type { ScriptId, TranscriptChunk } from "@montaj/edg/schemas";
 
 import { PrismaService } from "../common/prisma/prisma.service.js";
+import { newestChunkRows } from "../edg/chunk-rows.js";
 
+import type { ChunkRow } from "../edg/edg.rows.js";
 import type { DetectedLanguage } from "./postprocess/index.js";
-import type {
-  Prisma,
-  RetentionClass,
-  Transcript,
-  TranscriptChunk as ChunkRow,
-} from "@prisma/client";
+import type { Prisma, RetentionClass, Transcript } from "@prisma/client";
 
 /**
  * A chunk on its way into the database.
@@ -193,13 +190,17 @@ export class TranscriptsRepository {
       orderBy: { createdAt: "desc" },
     });
   }
-
   /**
-   * One page of chunks, by `chunk_idx`.
+   * One page of chunks, by `chunk_idx`, as of `revision`.
    *
-   * Read newest-revision-first per `chunk_idx` is A12's rule for the *editor*;
-   * this reads one named revision, because an export or a client page must not
-   * mix generations halfway down a transcript.
+   * "As of `revision`" is never a plain `WHERE revision = $1` (A11d): a word
+   * edit patches a chunk's row in place and advances `transcripts.currentRevision`
+   * without touching that row's own `revision` column, so the chunk as of any
+   * revision at or after the one it was written at is that same row. Resolved by
+   * `newestChunkRows`, the same helper `EdgRepository` reads the live document
+   * through, bounded here so a page never mixes past and future generations —
+   * only a re-transcription (`persist`, a new `chunkIdx=0..N` generation) can
+   * make that bound matter.
    */
   async chunkPage(
     transcriptId: string,
@@ -207,38 +208,24 @@ export class TranscriptsRepository {
     after: number | undefined,
     limit: number,
   ): Promise<ChunkRow[]> {
-    return this.prisma.transcriptChunk.findMany({
-      where: {
-        transcriptId,
-        revision,
-        ...(after === undefined ? {} : { chunkIdx: { gt: after } }),
-      },
-      orderBy: { chunkIdx: "asc" },
-      take: limit,
-    });
+    const rows = await newestChunkRows(this.prisma, transcriptId, { maxRevision: revision });
+    const page = after === undefined ? rows : rows.filter((row) => row.chunkIdx > after);
+    return page.slice(0, limit);
   }
 
-  /** Every chunk of a revision, in order. Used by the exporters. */
+  /** Every chunk as of `revision`, in order. Used by the exporters. */
   async allChunks(transcriptId: string, revision: number): Promise<ChunkRow[]> {
-    return this.prisma.transcriptChunk.findMany({
-      where: { transcriptId, revision },
-      orderBy: { chunkIdx: "asc" },
-    });
+    return newestChunkRows(this.prisma, transcriptId, { maxRevision: revision });
   }
 
-  /** Chunk count and word total for a revision, for the manifest. */
+  /** Chunk count and word total as of `revision`, for the manifest. */
   async summarise(
     transcriptId: string,
     revision: number,
   ): Promise<{ chunks: number; durationMs: number }> {
-    const rows = await this.prisma.transcriptChunk.findMany({
-      where: { transcriptId, revision },
-      select: { endMs: true },
-      orderBy: { endMs: "desc" },
-      take: 1,
-    });
-    const count = await this.prisma.transcriptChunk.count({ where: { transcriptId, revision } });
-    return { chunks: count, durationMs: rows[0]?.endMs ?? 0 };
+    const rows = await newestChunkRows(this.prisma, transcriptId, { maxRevision: revision });
+    const durationMs = rows.reduce((latest, row) => Math.max(latest, row.endMs), 0);
+    return { chunks: rows.length, durationMs };
   }
 }
 

@@ -801,4 +801,144 @@ describe.skipIf(!available)("billing (e2e)", () => {
     expect(res.status).toBe(200);
     expect((res.body as { status: string }).status).toBe("ignored");
   });
+
+  // ---------------------------------------------------------------------
+  // B01b: credits clawback on a refunded pass/top-up purchase
+  // ---------------------------------------------------------------------
+
+  describe("B01b: credits clawback on refund", () => {
+    async function purchaseWeekPass(): Promise<{
+      passPurchaseId: string;
+      providerOrderId: string;
+    }> {
+      const token = ctx.token("admin");
+      const checkout = await request(server)
+        .post("/billing/passes/checkout")
+        .set("Authorization", auth(token))
+        .send({ kind: "week_pass" });
+      expect(checkout.status).toBe(201);
+      const body = checkout.body as { passPurchaseId: string; providerOrderId: string };
+
+      const emitted = ctx.provider.emitWebhook({
+        event: "order.paid",
+        providerOrderId: body.providerOrderId,
+        amountMinor: 5_900,
+        currency: "INR",
+        notes: {
+          workspaceId: ctx.workspaceId,
+          passPurchaseId: body.passPurchaseId,
+          kind: "week_pass",
+          amountMinor: "5900",
+          creditsGrantedTenths: "400",
+        },
+      });
+      const res = await postWebhook(emitted.rawBody, emitted.signature);
+      expect(res.status).toBe(200);
+      return body;
+    }
+
+    it("payment.refunded on a pass purchase records refundedAt and audits the clawback attempt (idempotent)", async () => {
+      const { passPurchaseId, providerOrderId } = await purchaseWeekPass();
+
+      const before = await ctx.prisma.passPurchase.findUniqueOrThrow({
+        where: { id: passPurchaseId },
+      });
+      expect(before.refundedAt).toBeNull();
+      // This suite binds `CREDITS_FACADE` to `NoopCreditsFacade` on purpose
+      // (billing-harness.ts) — its `grantLot` returns a synthetic id with no
+      // backing `credit_lots` row, and `grantPass` catches the resulting
+      // foreign-key violation rather than storing it (webhooks.service.ts), so
+      // `lotId` legitimately stays null here. `refunds.service.test.ts` covers
+      // the case where a real lot *is* on file (mocking `LedgerCreditsFacade`),
+      // which this e2e harness cannot produce without swapping in the real
+      // ledger — not this suite's job (it is about billing's own logic).
+      expect(before.lotId).toBeNull();
+
+      const emitted = ctx.provider.emitWebhook({
+        event: "payment.refunded",
+        providerOrderId,
+        paymentStatus: "refunded",
+        notes: { passPurchaseId },
+      });
+      const first = await postWebhook(emitted.rawBody, emitted.signature);
+      expect(first.status).toBe(200);
+      expect((first.body as { status: string }).status).toBe("processed");
+
+      const after = await ctx.prisma.passPurchase.findUniqueOrThrow({
+        where: { id: passPurchaseId },
+      });
+      expect(after.refundedAt).not.toBeNull();
+
+      const audited = await ctx.prisma.auditLog.findFirst({
+        where: { action: "billing.credits.clawback_unavailable", resourceId: passPurchaseId },
+      });
+      expect(audited).not.toBeNull();
+      expect((audited?.data as { reason?: string } | null)?.reason).toBe("no_lot_on_file");
+
+      // Replaying the webhook (a different delivery, same purchase) must not
+      // attempt the clawback a second time.
+      const secondEmitted = ctx.provider.emitWebhook({
+        event: "payment.refunded",
+        providerOrderId,
+        paymentStatus: "refunded",
+        notes: { passPurchaseId },
+        createdAt: Math.floor(Date.now() / 1000) + 1,
+      });
+      await postWebhook(secondEmitted.rawBody, secondEmitted.signature);
+      const clawbackAudits = await ctx.prisma.auditLog.findMany({
+        where: { action: "billing.credits.clawback_unavailable", resourceId: passPurchaseId },
+      });
+      expect(clawbackAudits).toHaveLength(1);
+    });
+
+    it("POST /billing/passes/{id}/refund (admin path): calls the provider, attempts the clawback, is idempotent", async () => {
+      const { passPurchaseId } = await purchaseWeekPass();
+      const token = ctx.token("admin");
+
+      const refund = await request(server)
+        .post(`/billing/passes/${passPurchaseId}/refund`)
+        .set("Authorization", auth(token))
+        .send({
+          providerPaymentId: "pay_manual_1",
+          amountMinor: 5_900,
+          reason: "customer request",
+        });
+      expect(refund.status).toBe(201);
+      const body = refund.body as { outcome: string; providerRefundId: string };
+      // See the previous test: this harness's no-op credits facade means no
+      // real lot is ever on file, so the outcome is "nothing_to_claw_back",
+      // not "manual_action_required" (that branch is unit-tested instead).
+      expect(body.outcome).toBe("nothing_to_claw_back");
+      expect(ctx.provider.refunds).toContainEqual({
+        providerPaymentId: "pay_manual_1",
+        amountMinor: 5_900,
+      });
+
+      const issued = await ctx.prisma.auditLog.findFirst({
+        where: { action: "billing.refund.issued" },
+      });
+      expect(issued).not.toBeNull();
+
+      const again = await request(server)
+        .post(`/billing/passes/${passPurchaseId}/refund`)
+        .set("Authorization", auth(token))
+        .send({ providerPaymentId: "pay_manual_1", amountMinor: 5_900 });
+      expect(again.status).toBe(409);
+      expect((again.body as { error: { code: string } }).error.code).toBe(
+        "billing/already_refunded",
+      );
+    });
+
+    it("refunding an unknown pass purchase is a clean 404", async () => {
+      const token = ctx.token("admin");
+      const res = await request(server)
+        .post("/billing/passes/01JNOSUCHPASS000000000000/refund")
+        .set("Authorization", auth(token))
+        .send({ providerPaymentId: "pay_x", amountMinor: 100 });
+      expect(res.status).toBe(404);
+      expect((res.body as { error: { code: string } }).error.code).toBe(
+        "billing/pass_purchase_not_found",
+      );
+    });
+  });
 });

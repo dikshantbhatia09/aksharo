@@ -97,6 +97,12 @@ export function suiteRedisDb(): number | null {
  */
 export function applySuiteEnvironment(): void {
   process.env["MONTAJ_QUEUE_PREFIX"] = suiteQueuePrefix();
+  // A23b: the same name for the keys the product writes under `montaj:` — the
+  // dev outbox, the rate-limit buckets, the entitlement cache, the suppression
+  // list, the export bundles. Redis ships with sixteen logical databases and this
+  // package has more e2e suites than that, so the prefix — not the database — is
+  // what keeps two suites out of each other's keys.
+  process.env["MONTAJ_REDIS_PREFIX"] = suiteQueuePrefix();
   const redisUrl = suiteRedisUrl();
   if (redisUrl !== null) process.env["REDIS_URL"] = redisUrl;
 }

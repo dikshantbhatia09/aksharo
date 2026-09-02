@@ -43,6 +43,21 @@ export interface CreditsFacade {
    * against the final shape. B02 implements it against `credit_lots`.
    */
   grantLot(input: GrantLotInput): Promise<GrantLotResult>;
+
+  /**
+   * Claw back an unspent lot before a payment refund (B02b, B01's refunds
+   * service): a top-up, pass or grant lot that was never (fully) spent, refunded
+   * in money and so owed back in credits too. Distinct from {@link reverse} on
+   * {@link LedgerCreditsFacade}, which is keyed on a settled JOB and inherits
+   * that job's lot's expiry — `revokeLot` is keyed on the LOT itself and has no
+   * job in the picture at all.
+   *
+   * Idempotent per `refundId`: a retried refund revokes once, not twice.
+   * Never takes more than the lot still has remaining — credits already spent
+   * are not recoverable, which is what {@link RevokeLotResult.shortfallTenths}
+   * reports.
+   */
+  revokeLot(input: RevokeLotInput): Promise<RevokeLotResult>;
 }
 
 export interface ReserveInput {
@@ -100,6 +115,22 @@ export interface GrantLotInput {
 
 export interface GrantLotResult {
   readonly lotId: string;
+}
+
+export interface RevokeLotInput {
+  readonly lotId: string;
+  /** Omit to revoke everything the lot still has remaining. */
+  readonly tenths?: number;
+  readonly reason: string;
+  /** The refund (or other event) this revoke is for; makes the call idempotent. */
+  readonly refundId: string;
+}
+
+export interface RevokeLotResult {
+  /** What actually came off the lot and the account balance. */
+  readonly revokedTenths: number;
+  /** `requested − revokedTenths`: already spent, so not recoverable this way. */
+  readonly shortfallTenths: number;
 }
 
 /**

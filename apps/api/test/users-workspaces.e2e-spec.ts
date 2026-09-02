@@ -18,6 +18,7 @@ import { isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { redisKeys } from "../src/auth/auth.constants.js";
 import { hashEmail } from "../src/privacy/parental-waitlist.js";
 import { PRIVACY_NOTICE_VERSION } from "../src/users/users.service.js";
+import { workspacesRedisKeys } from "../src/workspaces/workspaces.constants.js";
 
 import type { AuthTestContext } from "./auth-harness.js";
 import type { Server } from "node:http";
@@ -772,7 +773,7 @@ describe.skipIf(!available)("users, workspaces, consents and privacy (e2e)", () 
         .expect((res) => expect(res.body.error.details.problem).toBe("state_not_applicable"));
     });
 
-    it("locks the currency once a subscription exists", async () => {
+    it("locks the currency once a non-zero-priced subscription exists (B01b: not for Free)", async () => {
       const user = await newUser("tax-locked");
       await request(server)
         .put(`/workspaces/${user.workspaceId}/tax-profile`)
@@ -780,7 +781,18 @@ describe.skipIf(!available)("users, workspaces, consents and privacy (e2e)", () 
         .send({ billingCountry: "IN", billingStateCode: "27" })
         .expect(200);
 
-      const plan = await ctx.prisma.plan.findUniqueOrThrow({ where: { key: "free" } });
+      const plan = await ctx.prisma.plan.upsert({
+        where: { key: "creator" },
+        create: {
+          id: "01JPLANCREATOR00000000000",
+          key: "creator",
+          name: "Creator",
+          prices: { INR: { month: 69_900 }, USD: { month: 1_900 } },
+          creditsPerMonthTenths: 5_000,
+          entitlements: {},
+        },
+        update: {},
+      });
       await ctx.prisma.subscription.create({
         data: {
           id: "01JSUB00000000000000000000",
@@ -788,6 +800,7 @@ describe.skipIf(!available)("users, workspaces, consents and privacy (e2e)", () 
           planId: plan.id,
           status: "active",
           currency: "INR",
+          listPriceMinor: 69_900,
           currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000),
         },
       });
@@ -806,6 +819,73 @@ describe.skipIf(!available)("users, workspaces, consents and privacy (e2e)", () 
         .send({ billingCountry: "IN", billingStateCode: "29", legalName: "Renamed LLP" })
         .expect(200);
       expect(response.body).toMatchObject({ billingStateCode: "29", currencyLocked: true });
+    });
+
+    it("does NOT lock the currency for a zero-priced (Free) subscription (B01b, orchestrator addendum after A05)", async () => {
+      const user = await newUser("tax-free-unlocked");
+      await request(server)
+        .put(`/workspaces/${user.workspaceId}/tax-profile`)
+        .set("Authorization", auth(user))
+        .send({ billingCountry: "IN", billingStateCode: "27" })
+        .expect(200);
+
+      const plan = await ctx.prisma.plan.findUniqueOrThrow({ where: { key: "free" } });
+      await ctx.prisma.subscription.create({
+        data: {
+          id: "01JSUBFREE0000000000000000",
+          workspaceId: user.workspaceId,
+          planId: plan.id,
+          status: "active",
+          currency: "INR",
+          listPriceMinor: 0,
+          currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000),
+        },
+      });
+
+      const response = await request(server)
+        .put(`/workspaces/${user.workspaceId}/tax-profile`)
+        .set("Authorization", auth(user))
+        .send({ billingCountry: "US" })
+        .expect(200);
+      expect(response.body).toMatchObject({ currency: "USD", currencyLocked: false });
+    });
+
+    it("locks the currency when a paid invoice exists, even with no live subscription", async () => {
+      const user = await newUser("tax-invoice-locked");
+      await request(server)
+        .put(`/workspaces/${user.workspaceId}/tax-profile`)
+        .set("Authorization", auth(user))
+        .send({ billingCountry: "IN", billingStateCode: "27" })
+        .expect(200);
+
+      await ctx.prisma.invoice.create({
+        data: {
+          id: "01JINVOICEPAID000000000000",
+          workspaceId: user.workspaceId,
+          docType: "tax_invoice",
+          series: "MTJ",
+          number: "1",
+          fiscalYear: "2026-27",
+          supplierLegalName: "Aksharo",
+          recipientLegalName: "Test Recipient",
+          recipientCountry: "IN",
+          recipientStateCode: "27",
+          placeOfSupplyCountry: "IN",
+          placeOfSupplyStateCode: "27",
+          supplyType: "intra_state",
+          sacCode: "998314",
+          itemDescription: "Subscription",
+          currency: "INR",
+          status: "paid",
+        },
+      });
+
+      await request(server)
+        .put(`/workspaces/${user.workspaceId}/tax-profile`)
+        .set("Authorization", auth(user))
+        .send({ billingCountry: "US" })
+        .expect(409)
+        .expect((res) => expect(res.body.error.code).toBe("workspace/tax_profile_locked"));
     });
   });
 
@@ -827,7 +907,9 @@ describe.skipIf(!available)("users, workspaces, consents and privacy (e2e)", () 
         seatsUsed: 1,
       });
 
-      const key = `montaj:workspaces:entitlement:${user.workspaceId}`;
+      // The product's own builder, not a literal: A23b makes the namespace
+      // per-suite so twenty-two e2e suites can share one logical Redis database.
+      const key = workspacesRedisKeys.entitlement(user.workspaceId);
       expect(await ctx.redis.ttl(key)).toBeGreaterThan(0);
       expect(await ctx.redis.ttl(key)).toBeLessThanOrEqual(60);
 

@@ -13,6 +13,8 @@ import type {
   ReleaseInput,
   ReserveInput,
   ReserveResult,
+  RevokeLotInput,
+  RevokeLotResult,
   SettleInput,
   SettleResult,
 } from "./credits.facade.js";
@@ -125,6 +127,20 @@ export class NoopCreditsFacade implements CreditsFacade {
       "credits granted (no-op)",
     );
     return { lotId };
+  }
+
+  async revokeLot(input: RevokeLotInput): Promise<RevokeLotResult> {
+    if (input.tenths !== undefined) assertNonNegativeInteger(input.tenths, "tenths");
+    // No lot table in Wave 1 either: nothing to actually claw back, so this
+    // reports full success — the shape a caller (B01's refunds service) can be
+    // written against now and get real, ledger-checked idempotency from once
+    // B02 swaps this class out for `LedgerCreditsFacade`.
+    const revokedTenths = input.tenths ?? 0;
+    this.logger.debug(
+      { lotId: input.lotId, refundId: input.refundId, revokedTenths },
+      "credits revoked (no-op)",
+    );
+    return { revokedTenths, shortfallTenths: 0 };
   }
 
   /** Test and diagnostic hook: the recorded state of a hold. */

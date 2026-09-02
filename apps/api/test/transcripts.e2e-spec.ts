@@ -26,10 +26,11 @@ import IORedis from "ioredis";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { buildWordIndex, validateProjection } from "@montaj/edg";
+import { buildWordIndex, newId, validateProjection } from "@montaj/edg";
 import { type Segment, type TranscriptChunk, type Word } from "@montaj/edg/schemas";
 import { limitsFor, segmentScript, wrapLines } from "@montaj/edg/segmenter";
 
+import { AMPLE_TEST_CREDIT_TENTHS, fundWorkspaceCredits } from "./credits-fixture.js";
 import { createTestDatabase, isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness.js";
 import { TokenService } from "../src/auth/token.service.js";
@@ -296,45 +297,6 @@ async function seed(): Promise<void> {
       currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000),
     },
   });
-
-  // B02's real ledger enforces an actual balance: a subscription alone is a
-  // plan, not credits. Fund the account directly (as `prisma/seed.ts` funds
-  // the demo workspace) so `reserve()` has something to hold against — this
-  // suite is about transcription mechanics, not the ledger, which has its own
-  // `test/credits-ledger.e2e-spec.ts`.
-  const accountId = id("CACC");
-  await prisma.creditAccount.create({
-    data: {
-      id: accountId,
-      workspaceId: WORKSPACE,
-      balanceTenths: plan.creditsPerMonthTenths,
-      monthlyGrantTenths: plan.creditsPerMonthTenths,
-      grantResetAt: new Date(Date.now() + 30 * 86_400_000),
-    },
-  });
-  const lotId = id("CLOT");
-  await prisma.creditLot.create({
-    data: {
-      id: lotId,
-      accountId,
-      source: "grant",
-      grantedTenths: plan.creditsPerMonthTenths,
-      remainingTenths: plan.creditsPerMonthTenths,
-      expiresAt: new Date(Date.now() + 30 * 86_400_000),
-    },
-  });
-  await prisma.creditLedger.create({
-    data: {
-      id: id("CLED"),
-      accountId,
-      deltaTenths: plan.creditsPerMonthTenths,
-      kind: "grant",
-      refType: "plan",
-      refId: plan.id,
-      lotId,
-      balanceAfterTenths: plan.creditsPerMonthTenths,
-    },
-  });
 }
 
 async function cleanup(): Promise<void> {
@@ -409,6 +371,13 @@ beforeAll(async () => {
   applyInternalBodyLimit(app);
   setupOpenApi(app);
   await app.init();
+
+  // B02's real ledger enforces an actual balance: a subscription alone is a
+  // plan, not credits. Fund it through the app's own CreditsFacade (needs the
+  // app, so this runs after `app.init()` rather than inside `seed()`) — this
+  // suite is about transcription mechanics, not the ledger, which has its own
+  // `test/credits-ledger.e2e-spec.ts`.
+  await fundWorkspaceCredits(app, WORKSPACE, AMPLE_TEST_CREDIT_TENTHS);
 
   tokens = app.get(TokenService);
 }, 180_000);
@@ -1014,5 +983,90 @@ describe.skipIf(!CAN_RUN)("the /internal body limit", () => {
     // this assertion fails the moment somebody fixes it, which is when the 500
     // should come out of the list.
     expect([413, 500]).toContain(response.status);
+  });
+});
+
+/**
+ * A11d: `EditWord` patches a chunk's row in place and advances
+ * `transcripts.currentRevision` without touching that row's own `revision`
+ * column (`EdgRepository.persistWords`) — so a transcript read pinned to no
+ * particular revision, which resolves at `transcript.currentRevision`, used to
+ * find zero `transcript_chunks` rows at the new number and return an empty
+ * page. `newestChunkRows` (shared by `TranscriptsRepository` and
+ * `EdgRepository`) fixes that by resolving "as of revision N" as the newest
+ * row at or before N, not an exact match.
+ */
+describe.skipIf(!CAN_RUN)("word edits and the transcript read (A11d)", () => {
+  it("transcribe → EditWord → GET /transcript still returns every chunk", async () => {
+    const projectId = id("PRWE");
+    const mediaId = id("MDWE");
+    await prisma.project.create({
+      data: { id: projectId, workspaceId: WORKSPACE, title: `A11d ${projectId}`, aspect: "r9x16" },
+    });
+    await prisma.mediaAsset.create({
+      data: {
+        id: mediaId,
+        projectId,
+        role: "primary",
+        storageKey: `ws/${WORKSPACE}/p/${projectId}/media/${mediaId}/raw.mp4`,
+        audio16kKey: `ws/${WORKSPACE}/p/${projectId}/media/${mediaId}/audio16k.wav`,
+        durationMs: DURATION_MS,
+        fps: 30,
+        width: 1080,
+        height: 1920,
+        status: "ready",
+      },
+    });
+
+    const started = await request(app.getHttpServer())
+      .post(`/projects/${projectId}/transcribe`)
+      .set("Authorization", `Bearer ${accessToken()}`)
+      .send({ languages: ["hi-Latn"] })
+      .expect(202);
+    const jobId = started.body.jobId as string;
+    const transcriptId = started.body.transcriptId as string;
+    const job = await prisma.job.findUniqueOrThrow({ where: { id: jobId } });
+
+    const body = completionBody();
+    (body["result"] as Record<string, unknown>)["transcriptId"] = transcriptId;
+    (body["result"] as Record<string, unknown>)["mediaId"] = mediaId;
+    await callback(`/internal/jobs/${jobId}/complete`, body, job.attemptId ?? "").expect(200);
+
+    const before = await request(app.getHttpServer())
+      .get(`/projects/${projectId}/transcript`)
+      .set("Authorization", `Bearer ${accessToken()}`)
+      .expect(200);
+    const chunksBefore = before.body.chunks as { chunkIdx: number; words: Word[] }[];
+    expect(chunksBefore.length).toBeGreaterThan(0);
+    const totalWordsBefore = chunksBefore.reduce((total, chunk) => total + chunk.words.length, 0);
+
+    const editedText = `badla-${RUN}`;
+    const opId = newId();
+    const editResponse = await request(app.getHttpServer())
+      .post(`/projects/${projectId}/edg/ops`)
+      .set("Authorization", `Bearer ${accessToken()}`)
+      .send({
+        baseRevision: 1,
+        ops: [{ opId, type: "EditWord", wordId: "0:0", text: editedText }],
+        clientOpIds: [opId],
+      })
+      .expect(200);
+    expect(editResponse.body.applied.length + editResponse.body.rebased.length).toBeGreaterThan(0);
+
+    const after = await request(app.getHttpServer())
+      .get(`/projects/${projectId}/transcript`)
+      .set("Authorization", `Bearer ${accessToken()}`)
+      .expect(200);
+    const chunksAfter = after.body.chunks as { chunkIdx: number; words: Word[] }[];
+
+    // The defect: before this fix, an edit bumped `transcripts.currentRevision`
+    // past every `transcript_chunks` row's own `revision`, and an unpinned read
+    // (which resolves at `currentRevision`) found nothing.
+    expect(chunksAfter.length).toBe(chunksBefore.length);
+    const totalWordsAfter = chunksAfter.reduce((total, chunk) => total + chunk.words.length, 0);
+    expect(totalWordsAfter).toBe(totalWordsBefore);
+
+    const edited = chunksAfter.flatMap((chunk) => chunk.words).find((word) => word.wid === "0:0");
+    expect(edited?.t).toBe(editedText);
   });
 });

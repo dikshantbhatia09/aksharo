@@ -22,6 +22,7 @@ import { queryKeys } from "./query-keys.js";
 
 import type { ApiClient } from "./http.js";
 import type {
+  AvailableScripts,
   ConsentPurpose,
   ConsentState,
   CurrentUser,
@@ -36,6 +37,10 @@ import type {
   SignUpRequest,
   SignUpResponse,
   TokenResponse,
+  TranslateAccepted,
+  TranslateRequest,
+  TransliterateAccepted,
+  TransliterateRequest,
   UpdateMeRequest,
   UsageSummary,
   WorkspaceSummary,
@@ -370,6 +375,72 @@ export function useDecideDeviceApproval(): UseMutationResult<
   const client = useApiClient();
   return useMutation({
     mutationFn: (body) => client.call(endpoints.device.decide, { body }),
+  });
+}
+
+// --- Scripts and translation (A22) ------------------------------------------
+
+/**
+ * `GET /projects/{id}/transcript/scripts` — which scripts this transcript has,
+ * and where they came from. Drives the editor's script tabs (Roman / Native /
+ * EN / +Add translation…).
+ */
+export function useTranscriptScripts(projectId: string | null): UseQueryResult<AvailableScripts> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.transcriptScripts(workspaceId ?? "none", projectId ?? "none"),
+    enabled: workspaceId !== null && projectId !== null && projectId !== "",
+    retry: retryPolicy,
+    queryFn: () =>
+      client.call(endpoints.transcriptScripts.scripts, {
+        params: { projectId: projectId ?? "" },
+      }),
+  });
+}
+
+/**
+ * `POST /projects/{id}/transcript/transliterate` — free. On success, refetches
+ * the scripts list so a new tab appears without a manual reload.
+ */
+export function useTransliterateTranscript(
+  projectId: string,
+): UseMutationResult<TransliterateAccepted, Error, TransliterateRequest> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) =>
+      client.call(endpoints.transcriptScripts.transliterate, { params: { projectId }, body }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.transcriptScripts(workspaceId, projectId),
+      });
+    },
+  });
+}
+
+/**
+ * `POST /projects/{id}/transcript/translate` — 0.5 credit / media minute /
+ * target (English on Starter+, every language on Creator+; a refused plan
+ * comes back as `transcript/plan_required`, CONTRACTS §8).
+ */
+export function useTranslateTranscript(
+  projectId: string,
+): UseMutationResult<TranslateAccepted, Error, TranslateRequest> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) =>
+      client.call(endpoints.transcriptScripts.translate, { params: { projectId }, body }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.transcriptScripts(workspaceId, projectId),
+      });
+    },
   });
 }
 

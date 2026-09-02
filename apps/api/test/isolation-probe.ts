@@ -11,10 +11,17 @@
  *   2. one of them `TRUNCATE`s that table while the other holds a row in it. On a
  *      shared database the other's row disappears — the exact failure the
  *      `TEST_DATABASE_URL` hazard note used to warn about.
- *   3. write the SAME hard-coded Redis key (`montaj:auth:…`, the shape the product
- *      really uses) with different values, and read their own value back. On a
- *      shared logical database the last writer wins and one of them reads the
- *      other's.
+ *   3. write the SAME product Redis key — `redisKeys.devOutbox()`, the one A21
+ *      watched `auth.e2e-spec.ts` lose messages from — with different values, and
+ *      read their own back.
+ *
+ * A23b added a fourth, and it is the one that matters now that the package has
+ * more e2e suites than Redis has logical databases:
+ *
+ *   4. do (3) again with both halves pinned to the SAME logical Redis database,
+ *      then have one of them run the `KEYS <prefix>:*` + `DEL` sweep a suite does
+ *      between tests, and prove the other's key is still there. Nothing but the
+ *      per-suite key prefix separates them, which is exactly the claim.
  *
  * The rendezvous in `isolation-barrier.ts` is what makes the overlap real rather
  * than hoped for.
@@ -25,16 +32,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDatabase, isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { rendezvous } from "./isolation-barrier.js";
 import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness.js";
-import { suiteQueuePrefix, suiteRedisDb, testRun } from "./suite-context.js";
+import { suiteQueuePrefix, testRun } from "./suite-context.js";
+import { redisKeys } from "../src/auth/auth.constants.js";
+import { redisKeyPrefix } from "../src/common/redis/redis-keys.js";
 
 import type { TestDatabase } from "./db-harness.js";
 
 /** Deliberately identical in both halves: the collision is the point. */
 const SHARED_USER_ID = "01JISOLATION0000000000000A";
 const SHARED_EMAIL = "isolation-probe@example.test";
-/** A key the product itself would write, prefix and all (`auth.constants.ts`). */
-const SHARED_REDIS_KEY = "montaj:auth:isolation-probe";
-
 /** The half that truncates. The other half proves its rows survived. */
 const TRUNCATING_PARTY = "alpha";
 
@@ -48,6 +54,8 @@ export function isolationProbe(party: string): void {
   describe.skipIf(!dbReady)(`suite isolation (${party})`, () => {
     let db: TestDatabase;
     let redis: IORedis | undefined;
+    /** Pinned to a logical database both halves share; see the last test. */
+    let sharedDbRedis: IORedis | undefined;
     let runId = "";
 
     beforeAll(async () => {
@@ -60,6 +68,7 @@ export function isolationProbe(party: string): void {
 
     afterAll(async () => {
       redis?.disconnect();
+      sharedDbRedis?.disconnect();
       await db?.stop();
     }, 60_000);
 
@@ -113,23 +122,26 @@ export function isolationProbe(party: string): void {
     // Two sequential rendezvous calls, so the worst case (neither arrives at
     // either barrier) is up to twice the single-barrier budget.
     it.skipIf(!redisReady)(
-      "owns its logical Redis database and its queue prefix",
+      "writes the product's own Redis keys under a namespace of its own",
       async () => {
         const client = redis;
         if (client === undefined) throw new Error("redis client missing");
 
-        const logicalDb = String(suiteRedisDb() ?? -1);
-        await client.set(SHARED_REDIS_KEY, party);
-        const met = await rendezvous(runId, "redis-written", party, logicalDb);
+        // The real key, from the real builder. Before A23b this evaluated to the
+        // literal `montaj:auth:dev-outbox` for every suite in the run.
+        const key = redisKeys.devOutbox();
+        expect(key).toContain(redisKeyPrefix());
+        await client.set(key, party);
+        const met = await rendezvous(runId, "redis-written", party, key);
 
-        expect(await client.get(SHARED_REDIS_KEY)).toBe(party);
-        for (const [other, otherDb] of Object.entries(met.parties)) {
+        expect(await client.get(key)).toBe(party);
+        for (const [other, otherKey] of Object.entries(met.parties)) {
           if (other === party) continue;
-          expect(otherDb).not.toBe(logicalDb);
+          expect(otherKey).not.toBe(key);
         }
 
-        // BullMQ keys and realtime channels are separated by the prefix instead:
-        // Redis pub/sub ignores the logical database entirely.
+        // BullMQ keys and realtime channels are separated by their own prefix,
+        // because Redis pub/sub ignores the logical database entirely.
         expect(process.env["MONTAJ_QUEUE_PREFIX"]).toBe(suiteQueuePrefix());
         const prefixes = await rendezvous(runId, "queue-prefix", party, suiteQueuePrefix());
         for (const [other, otherPrefix] of Object.entries(prefixes.parties)) {
@@ -138,6 +150,58 @@ export function isolationProbe(party: string): void {
         }
       },
       70_000,
+    );
+
+    /**
+     * The A23b claim, tested head on.
+     *
+     * Both halves pin the SAME logical Redis database — the run's lowest, chosen
+     * because both can compute it without talking to each other — so the logical
+     * database provides no separation here at all. That is the situation a
+     * twenty-two-suite package is permanently in against a Redis with sixteen
+     * databases, and it is the situation A21 hit: `auth.e2e-spec.ts` lost its
+     * dev-outbox messages to a sibling suite's between-tests sweep.
+     */
+    it.skipIf(!redisReady)(
+      "keeps its keys when a suite on the SAME logical database sweeps its own",
+      async () => {
+        const info = testRun()?.redis;
+        if (info == null) throw new Error("no redis in the run description");
+
+        const url = new URL(info.baseUrl);
+        url.pathname = `/${String(info.firstDb)}`;
+        const shared = new IORedis(url.toString(), { maxRetriesPerRequest: null });
+        sharedDbRedis = shared;
+
+        const key = redisKeys.devOutbox();
+        await shared.del(key);
+        await shared.rpush(key, `${party}-message`);
+
+        // The note carries the logical database as well as the key, so the
+        // assertions can prove the two halves really are in the same one.
+        const note = `${String(info.firstDb)}|${key}`;
+        const met = await rendezvous(runId, "shared-db-written", party, note);
+        for (const [other, otherNote] of Object.entries(met.parties)) {
+          if (other === party) continue;
+          const [otherDb, otherKey] = otherNote.split("|");
+          expect(otherDb).toBe(String(info.firstDb));
+          expect(otherKey).not.toBe(key);
+        }
+
+        // One half runs the sweep `auth-harness.reset()` runs between tests.
+        if (party === TRUNCATING_PARTY) {
+          const mine = await shared.keys(`${redisKeyPrefix()}:*`);
+          expect(mine).toContain(key);
+          if (mine.length > 0) await shared.del(...mine);
+        }
+        await rendezvous(runId, "shared-db-swept", party);
+
+        // The sweeper lost its own message and nobody else's.
+        expect(await shared.lrange(key, 0, -1)).toEqual(
+          party === TRUNCATING_PARTY ? [] : [`${party}-message`],
+        );
+      },
+      90_000,
     );
   });
 }

@@ -21,6 +21,9 @@ export const JOB_EVENT_NAMES = [
   "job.started",
   "job.progress",
   "job.succeeded",
+  /** Settled less than the worker's real figure and no delta hold covered the
+   *  rest — the workspace is short (D32 "needs_credits", B02b). */
+  "job.needs_credits",
   "job.failed",
   "job.cancelled",
   "job.timed_out",
@@ -34,6 +37,10 @@ export const JOB_EVENT_NAMES = [
   "job.completion_handler_failed",
   /** What post-processing changed on a transcript — the corrections log (A11). */
   "transcript.postprocessed",
+  /** A transliteration wrote `word.scripts` for a script slot (A22). */
+  "transcript.scripts_updated",
+  /** A translation wrote segment `textOverrides.translated` (A22). */
+  "transcript.translated",
 ] as const;
 
 export type JobEventName = (typeof JOB_EVENT_NAMES)[number];

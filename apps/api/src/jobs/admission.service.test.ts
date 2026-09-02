@@ -21,8 +21,12 @@ beforeEach(() => {
 describe("admit", () => {
   it("returns the plan's limits and the current occupancy", async () => {
     db.plans.set(WS, "creator");
-    db.job({ workspaceId: WS, status: "running", creditsChargedTenths: 120 });
-    db.job({ workspaceId: WS, status: "queued", creditsChargedTenths: 80 });
+    // The concurrency count still comes from `jobs`; the credit sum comes from
+    // `credit_holds` (B02b) — the two are independent fixtures now.
+    db.job({ workspaceId: WS, status: "running" });
+    db.job({ workspaceId: WS, status: "queued" });
+    db.creditHold({ workspaceId: WS, status: "held", amountTenths: 120 });
+    db.creditHold({ workspaceId: WS, status: "held", amountTenths: 80 });
 
     const decision = await admission.admit({ workspaceId: WS, worstCaseTenths: 10 });
 
@@ -36,15 +40,19 @@ describe("admit", () => {
     expect(decision.limits.plan).toBe("free");
   });
 
-  it("ignores finished jobs and other workspaces", async () => {
+  it("ignores finished jobs, settled/released holds and other workspaces", async () => {
     db.plans.set(WS, "creator");
-    db.job({ workspaceId: WS, status: "succeeded", creditsChargedTenths: 1_000 });
-    db.job({ workspaceId: WS, status: "failed", creditsChargedTenths: 1_000 });
-    db.job({ workspaceId: WS, status: "cancelled", creditsChargedTenths: 1_000 });
-    db.job({
+    db.job({ workspaceId: WS, status: "succeeded" });
+    db.job({ workspaceId: WS, status: "failed" });
+    db.job({ workspaceId: WS, status: "cancelled" });
+    db.job({ workspaceId: "01JCWS0000000000000000000B", status: "queued" });
+    db.creditHold({ workspaceId: WS, status: "settled", amountTenths: 1_000 });
+    db.creditHold({ workspaceId: WS, status: "released", amountTenths: 1_000 });
+    db.creditHold({ workspaceId: WS, status: "partially_settled", amountTenths: 1_000 });
+    db.creditHold({
       workspaceId: "01JCWS0000000000000000000B",
-      status: "queued",
-      creditsChargedTenths: 1_000,
+      status: "held",
+      amountTenths: 1_000,
     });
 
     const decision = await admission.admit({ workspaceId: WS, worstCaseTenths: 10 });
@@ -54,10 +62,11 @@ describe("admit", () => {
 
   it("refuses when the enqueued-credit cap would be crossed (T23)", async () => {
     db.plans.set(WS, "creator");
-    db.job({
+    db.job({ workspaceId: WS, status: "queued" });
+    db.creditHold({
       workspaceId: WS,
-      status: "queued",
-      creditsChargedTenths: PLAN_ENQUEUED_CAP_TENTHS.creator - 5,
+      status: "held",
+      amountTenths: PLAN_ENQUEUED_CAP_TENTHS.creator - 5,
     });
 
     const failure = await admission
@@ -77,10 +86,11 @@ describe("admit", () => {
 
   it("admits a job that lands exactly on the cap", async () => {
     db.plans.set(WS, "creator");
-    db.job({
+    db.job({ workspaceId: WS, status: "queued" });
+    db.creditHold({
       workspaceId: WS,
-      status: "queued",
-      creditsChargedTenths: PLAN_ENQUEUED_CAP_TENTHS.creator - 10,
+      status: "held",
+      amountTenths: PLAN_ENQUEUED_CAP_TENTHS.creator - 10,
     });
     await expect(admission.admit({ workspaceId: WS, worstCaseTenths: 10 })).resolves.toBeDefined();
   });
@@ -88,7 +98,7 @@ describe("admit", () => {
   it("refuses when the concurrency lane is full", async () => {
     db.plans.set(WS, "starter");
     for (let index = 0; index < PLAN_CONCURRENCY_LANE.starter; index += 1) {
-      db.job({ workspaceId: WS, status: "queued", creditsChargedTenths: 1 });
+      db.job({ workspaceId: WS, status: "queued" });
     }
 
     const failure = await admission
@@ -105,12 +115,9 @@ describe("admit", () => {
   it("checks the lane before the credit cap, so the cheaper answer wins", async () => {
     db.plans.set(WS, "free");
     for (let index = 0; index < PLAN_CONCURRENCY_LANE.free; index += 1) {
-      db.job({
-        workspaceId: WS,
-        status: "queued",
-        creditsChargedTenths: PLAN_ENQUEUED_CAP_TENTHS.free,
-      });
+      db.job({ workspaceId: WS, status: "queued" });
     }
+    db.creditHold({ workspaceId: WS, status: "held", amountTenths: PLAN_ENQUEUED_CAP_TENTHS.free });
     const failure = await admission
       .admit({ workspaceId: WS, worstCaseTenths: 10 })
       .catch((error: unknown) => error);

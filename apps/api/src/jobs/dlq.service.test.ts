@@ -14,6 +14,7 @@ import { METRIC, MetricsService } from "../common/metrics/metrics.service.js";
 import type { QueueRegistry } from "./queue.registry.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { CreditsFacade } from "../credits/credits.facade.js";
+import type { NotifyService } from "../notify/notify.service.js";
 import type { RealtimePublisher } from "../realtime/realtime.publisher.js";
 
 const WS = "01JCWS0000000000000000000A";
@@ -59,6 +60,7 @@ function harness(): Harness {
     credits as unknown as CreditsFacade,
   );
   const completionHandlers = new JobCompletionRegistry();
+  const notify = { enqueue: vi.fn(async () => ({ idempotencyKey: "x", enqueued: true })) };
   const jobs = new JobsService(
     prisma,
     queues as unknown as QueueRegistry,
@@ -69,6 +71,7 @@ function harness(): Harness {
     metrics,
     completionHandlers,
     credits as unknown as CreditsFacade,
+    notify as unknown as NotifyService,
   );
   return { jobs, dlq, metrics, db, queues, credits };
 }
