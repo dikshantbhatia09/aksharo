@@ -460,8 +460,19 @@ docker build -f apps/worker-ai/Dockerfile apps/worker-ai
 ```
 
 The CPU image carries ffmpeg, onnxruntime, faster-whisper and the Silero model.
-`Dockerfile.gpu` documents the serverless-GPU image contract (D15) and is a
-placeholder until A10 builds it.
+That is the image this work package's code runs in: A10 is the *client* of the
+GPU model server, never the server.
+
+`Dockerfile.gpu` still documents the D15 model-server contract, and X05 has since
+written the real image at `infra/gpu/runpod/Dockerfile` with `infra/gpu/modal/app.py`
+alongside it. **Neither builds today**: both reference
+`apps/worker-ai/requirements-gpu.lock` and a `montaj_worker_ai.gpu` package that
+do not exist, and neither this brief nor X05's built them. The three routes the
+CPU worker calls — `POST /transcribe`, `/align`, `/diarise`, plus
+`/detect-language` for LID signal 1 — are specified in `Dockerfile.gpu`,
+`providers/serverless_whisper.py`, `diarisation/pyannote.py` and `lid.py`, and
+are replayed in `fixtures/vendor/gpu-whisper/session.json`, so whoever builds the
+image has a contract and a fixture to build against. Raised for the orchestrator.
 
 ## Quality gates
 
