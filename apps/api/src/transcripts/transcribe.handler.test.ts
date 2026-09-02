@@ -182,6 +182,9 @@ describe("TranscribeCompletionHandler", () => {
     }
     // 320.4 → 320, 768.6 → 769.
     expect(written.chunks[0]?.words[0]).toMatchObject({ wid: "0:0", s: 320, e: 769 });
+    // The worker's own allocation counter survives the round trip: ids are never
+    // reused, so a chunk that issued more ids than it kept words must say so.
+    expect(written.chunks.map((entry) => entry.nextWordSeq)).toEqual([3, 2]);
   });
 
   it("records the two-signal language verdict rather than the provider's alone", async () => {
