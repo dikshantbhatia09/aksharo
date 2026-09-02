@@ -302,7 +302,8 @@
             },
             "scaleFrom": 1,
             "scaleTo": 1.35,
-            "easing": "velocity"
+            "easing": "velocity",
+            "keyframesRef": "ws/ws1/passes/01KF0FV45NTJM0PP0MJTC8EYRW/01KF0FV5MRKBDSFFSDBK517QHN.mkf"
           },
           "confidence": 0.71,
           "reason": "energy peak on the advice line",

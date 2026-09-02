@@ -68,12 +68,21 @@ class Cue:
 
 @dataclass(frozen=True, slots=True)
 class ZoomKeyframeRow:
-    """One packed-keyframe row, time relative to the event's `start_ms`."""
+    """One packed-keyframe row, time relative to the event's `start_ms`.
+
+    `ease` names the interpolation *arriving at* this row, matching
+    `@montaj/edg`'s MKF2 `Keyframe.ease` (B19b: `"linear"|"inOut"`). The
+    punch-in ramp itself is an ease-out cubic (`ease_out_cubic`, module
+    docstring); MKF2 only distinguishes two curve families, so the ramp
+    in/out edges are packed as `"inOut"` (nearer the cubic's shape than a
+    straight line) and the flat hold endpoints as `"linear"`.
+    """
 
     t_ms: int
     cx: float
     cy: float
     scale: float
+    ease: str = "linear"
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,15 +215,18 @@ def build_zoom_events(
 
         cx, cy = _subject_at(subject_track, start_ms)
         keyframes = (
-            ZoomKeyframeRow(t_ms=0, cx=cx, cy=cy, scale=1.0),
+            ZoomKeyframeRow(t_ms=0, cx=cx, cy=cy, scale=1.0, ease="linear"),
             ZoomKeyframeRow(
                 t_ms=RAMP_IN_MS,
                 cx=cx,
                 cy=cy,
                 scale=1.0 + (scale_to - 1.0) * ease_out_cubic(1.0),
+                ease="inOut",
             ),
-            ZoomKeyframeRow(t_ms=RAMP_IN_MS + HOLD_MS, cx=cx, cy=cy, scale=scale_to),
-            ZoomKeyframeRow(t_ms=RAMP_IN_MS + HOLD_MS + RAMP_OUT_MS, cx=cx, cy=cy, scale=1.0),
+            ZoomKeyframeRow(t_ms=RAMP_IN_MS + HOLD_MS, cx=cx, cy=cy, scale=scale_to, ease="linear"),
+            ZoomKeyframeRow(
+                t_ms=RAMP_IN_MS + HOLD_MS + RAMP_OUT_MS, cx=cx, cy=cy, scale=1.0, ease="inOut"
+            ),
         )
         events.append(
             ZoomEvent(
