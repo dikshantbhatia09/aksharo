@@ -1,6 +1,5 @@
 import { Injectable } from "@nestjs/common";
 
-import { padSequence } from "./invoices.constants.js";
 import { PrismaService } from "../common/index.js";
 
 /**
@@ -26,8 +25,12 @@ import { PrismaService } from "../common/index.js";
 export class NumberingService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** The zero-padded sequential part only — see `formatInvoiceNumber` for the full display string. */
-  async nextNumber(series: string, fiscalYear: string): Promise<string> {
+  /**
+   * The raw sequence integer (B05b: `invoices.sequence_no`) — pass it to
+   * `formatInvoiceNumber` (`invoices.constants.ts`) to build the full,
+   * Rule-46-compliant `invoices.number` string.
+   */
+  async nextNumber(series: string, fiscalYear: string): Promise<number> {
     const seqName = sequenceName(series, fiscalYear);
 
     // Idempotent: cheap once the sequence already exists (the overwhelming
@@ -46,7 +49,7 @@ export class NumberingService {
     if (value === undefined) {
       throw new Error(`invoice sequence "${seqName}" did not return a value`);
     }
-    return padSequence(value);
+    return Number(value);
   }
 }
 

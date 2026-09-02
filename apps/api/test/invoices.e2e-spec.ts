@@ -108,8 +108,9 @@ describe.skipIf(!DB_READY)("invoices — B05 acceptance", () => {
     expect(invoice.recipientStateCode).toBe("27");
     expect(invoice.pdfKey).not.toBeNull();
     expect(invoice.signatureKey).not.toBeNull();
-    expect(invoice.number).toHaveLength(6);
+    expect(invoice.number).toMatch(/^AK\d{4}-IN-\d{6}$/); // Rule 46(b): full identifier, 16 chars
     expect(invoice.number.length).toBeLessThanOrEqual(16);
+    expect(invoice.sequenceNo).toBeGreaterThan(0);
 
     const url = await invoices.getDownloadUrl(invoice.id, ctx.workspaceId);
     expect(url).toMatch(/^https?:\/\//);

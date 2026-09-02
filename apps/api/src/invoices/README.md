@@ -42,7 +42,7 @@ interface.
 ## Numbering (`numbering.service.ts`, `invoices.constants.ts`)
 
 One Postgres **`SEQUENCE`** per `(series, fiscalYear)` — `INVOICE_SERIES` maps
-each `docType` to an ≤8-character series code (`IN`, `EX`, `BOS`, `CR`, `DR`,
+each `docType` to a 2-character series code (`IN`, `EX`, `BS`, `CR`, `DR`,
 `SI`). A sequence is created lazily, the first time its pair is asked for, under
 `pg_advisory_xact_lock(hashtext(seqName))` so two concurrent "first ever"
 callers cannot race the `CREATE SEQUENCE`; `nextval()` itself is then called
@@ -50,12 +50,20 @@ with **no lock at all** — the entire reason to use a database sequence.
 Proven by `test/invoices.e2e-spec.ts`'s 200-parallel test: unique, gap-free,
 1..200.
 
-`invoices.number` (the schema column `prisma/sql/0003-checks.sql`'s
-`invoices_number_length_check` bounds to 16 characters) holds only the
-zero-padded sequential part (`"000123"`); `formatInvoiceNumber(series,
-fiscalYear, number)` composes the human/GSTR-1-facing display string
-(`AKS/26-27/IN/000123`, the brief's own example — 19 characters, see
-"Deviations" below). Fiscal year is April–March (`fiscal-year.ts`).
+**Format (orchestrator ruling, B05b).** The brief's own `AKS/26-27/IN/000123`
+example was 19 characters against Rule 46(b)'s cap on the _whole_ printed
+serial number, so `invoices.number` now stores the FULL composed identifier —
+`formatInvoiceNumber(series, fiscalYear, sequenceNo)` builds
+`AK2627-IN-000123`: brand prefix (2) + fiscal year with no separator (4) + `-`
+
+- series (2) + `-` + zero-padded sequence (6) = 16 characters exactly, which
+  is what `prisma/sql/0003-checks.sql`'s `invoices_number_length_check` was
+  always meant to bind. The bare integer the string was built from is kept
+  separately in `invoices.sequenceNo` (added by migration
+  `20260902080000_b05b_invoice_number_format`) for GSTR-1 tooling and the
+  concurrency test. `bill_of_supply`'s series is `BS`, not the more obvious
+  `BOS` — three characters would make the composed number 17. Fiscal year is
+  April–March (`fiscal-year.ts`).
 
 ## PDF (`pdf/`)
 
@@ -139,12 +147,12 @@ listeners, do not fork the state machine"). Every `billing.e2e-spec.ts` test
 
 ## Deviations and open questions (report these, don't hide them)
 
-1. **The brief's own numbering example exceeds its own "(≤ 16 chars)"
-   annotation.** `AKS/26-27/IN/000123` is 19 characters. Implemented against
-   the schema's actual, shipped constraint — `invoices.number` (the sequential
-   part) ≤ 16 — and composed the full string only for display/GSTR-1. **[CA]**
-   confirm whether Rule 46's cap is meant to bind the whole printed identifier
-   or just the sequential part before the first real invoice ships.
+1. **Resolved by orchestrator ruling (B05b).** The brief's own numbering
+   example, `AKS/26-27/IN/000123`, was 19 characters against Rule 46(b)'s cap
+   on the whole printed serial number. `invoices.number` now stores the full
+   `AK2627-IN-000123` (16 chars exactly); the bare sequence integer moved to
+   its own `sequenceNo` column. See "Numbering" above. Accountant sign-off on
+   the final format is tracked as **HUMAN-ACTIONS H-18**.
 2. **Default SAC code (`998316`) is a placeholder.** RR-05 open question 2:
    the exact SAC for this supply was never confirmed. **[CA]** required.
 3. **Supplier legal name/address/PAN are optional, non-contract environment

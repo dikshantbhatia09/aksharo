@@ -35,7 +35,7 @@ export interface InvoicePdfParty {
 
 export interface InvoicePdfInput {
   readonly docType: $Enums.InvoiceDocType;
-  /** The formatted, human-readable number: `AKS/26-27/IN/000123`. */
+  /** The formatted, human-readable number: `AK2627-IN-000123`. */
   readonly displayNumber: string;
   readonly issuedAt: Date;
   readonly supplier: InvoicePdfParty;

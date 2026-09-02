@@ -24,7 +24,7 @@ const SUPPLIER = {
 function baseInput(overrides: Partial<InvoicePdfInput>): InvoicePdfInput {
   return {
     docType: "tax_invoice",
-    displayNumber: "AKS/26-27/IN/000123",
+    displayNumber: "AK2627-IN-000123",
     issuedAt: new Date("2026-09-02T00:00:00.000Z"),
     supplier: SUPPLIER,
     recipient: {
@@ -69,7 +69,7 @@ describe("golden PDF — India B2C intra-state", () => {
     const text = await extractText(baseInput({}));
 
     expect(text).toContain("TAX INVOICE");
-    expect(text).toContain("Invoice No: AKS/26-27/IN/000123");
+    expect(text).toContain("Invoice No: AK2627-IN-000123");
     expect(text).toContain("Date of Issue: 2026-09-02");
     expect(text).toContain(SUPPLIER.legalName);
     expect(text).toContain(`GSTIN: ${SUPPLIER.gstin}`);
@@ -168,13 +168,13 @@ describe("golden PDF — credit note", () => {
     const text = await extractText(
       baseInput({
         docType: "credit_note",
-        relatedInvoiceDisplayNumber: "AKS/26-27/IN/000123",
+        relatedInvoiceDisplayNumber: "AK2627-IN-000123",
         reasonCode: "subscription_refund",
       }),
     );
 
     expect(text).toContain("CREDIT NOTE");
-    expect(text).toContain("Original Invoice No: AKS/26-27/IN/000123");
+    expect(text).toContain("Original Invoice No: AK2627-IN-000123");
     expect(text).toContain("Reason: subscription_refund");
     expect(text).toContain("Total (incl. GST): Rs 699.00");
   });

@@ -3,7 +3,7 @@
  * is `VarChar(9)` in the schema, wide enough for either the compact `26-27`
  * form the numbering scheme uses or a full `2026-2027` — this work package
  * always writes the compact form, matching the brief's own example
- * (`AKS/26-27/IN/000123`).
+ * (`AK2627-IN-000123`).
  */
 
 /** `"26-27"` for any date in FY 2026-27 (1 Apr 2026 – 31 Mar 2027). */
