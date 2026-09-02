@@ -114,15 +114,15 @@ C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 
 | ID | Package | Deps | Status |
 |---|---|---|---|
-| C11 | Plugin licensing & devices UI (activation limits, revoke, offline lease, activation card) | B08, B08b, C01 | running |
-| C12 | Desktop/plugin telemetry (consent), crash reporting, diagnostics bundle | C02, A05, B12, B16 | running |
+| C11 | Plugin licensing & devices UI (activation limits, revoke, offline lease, activation card) | B08, B08b, C01 | done pending merge (8c196c4: activation card v2 at /plugins→/plugins-app, GET /plugins/manifest stub, middleware prefix bug fixed; cue mounted by B20b) |
+| C12 | Desktop/plugin telemetry (consent), crash reporting, diagnostics bundle | C02, A05, B12, B16 | done (merged + verified; a296f94: telemetry consent, events/crash endpoints, 30-day retention, shared redaction, diagnostics bundle → ticket; bridge consent sync is a follow-up) |
 | C05a | Premiere UXP plugin foundation over a mocked host adapter (Gate C runs it on a real machine) | C01, C00, A00-03 | done (merged: manifest v5 ai.aksharo.panel, PremiereHost + mock, in-memory session per T13, .ccx packaged; C06/C06b running) |
 | C08 | Resolve `aksharo_core` over a FakeResolve adapter | C01, A00-04 | done (merged + verified 58 tests; DynamicZoom property keys flagged for Gate C; C08b running) |
-| C08b | Fusion Text+ macro generator + style coverage report | C08 | done pending merge (704c92b: 19/6/5 of 30 styles; rules JSON is the reference for C06b) |
-| C00b | Real desktop packaging: esbuild-bundled main/preload, electron-builder over dist, CI e2e runnable | C02b | briefed |
+| C08b | Fusion Text+ macro generator + style coverage report | C08 | done (merged + verified: 19 supported / 6 approximate / 5 unsupported of 30; classification_rules.json is the reference; real-Fusion check at Gate C) |
+| C00b | Real desktop packaging: esbuild-bundled main/preload, electron-builder over dist, CI e2e runnable | C02b | done pending merge (10447bf: pack:dry produces Aksharo.exe, 270 MB unpacked; C10 measures the installer) |
 | C10 | Installers (NSIS/pkg/Resolve/.ccx), `/plugins/manifest`, plugins + download pages | C00, C02, C05a, C08 | briefed |
 | D08 | Eval harness & quality gates on fixture datasets, shadow routing, routing freeze, admin leaderboard | A10, B13, B16 | briefed |
-| C06 | Premiere apply modes (transcript injection, MOGRT captions, overlay, SRT, cuts/zooms/audio, transactions, marker map, re-sync) over the mocked host | C05a, C06b | done pending verification (b1f59e1, 99 tests) |
+| C06 | Premiere apply modes (transcript injection, MOGRT captions, overlay, SRT, cuts/zooms/audio, transactions, marker map, re-sync) over the mocked host | C05a, C06b | done (merged + verified, 99 tests; MOGRT param addressing + per-word keyframing flagged for Gate C) |
 | C06b | MOGRT authoring: definition.json generator, verifier, style coverage; the .aep itself is human (H-25) | C05a | briefed |
 
 ## Wave 6 — AE, local engine, library

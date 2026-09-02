@@ -20,6 +20,7 @@ describe("the privacy mirror", () => {
       analytics: false,
       memory: false,
       marketing: false,
+      telemetry: false,
       minor: false,
     });
   });
@@ -67,16 +68,34 @@ describe("the privacy mirror", () => {
 describe("analyticsAllowed", () => {
   it("needs consent", () => {
     expect(
-      analyticsAllowed({ analytics: false, memory: false, marketing: false, minor: false }),
+      analyticsAllowed({
+        analytics: false,
+        memory: false,
+        marketing: false,
+        telemetry: false,
+        minor: false,
+      }),
     ).toBe(false);
     expect(
-      analyticsAllowed({ analytics: true, memory: false, marketing: false, minor: false }),
+      analyticsAllowed({
+        analytics: true,
+        memory: false,
+        marketing: false,
+        telemetry: false,
+        minor: false,
+      }),
     ).toBe(true);
   });
 
   it("is off for a declared minor whatever the toggle says (D60)", () => {
     expect(
-      analyticsAllowed({ analytics: true, memory: false, marketing: false, minor: true }),
+      analyticsAllowed({
+        analytics: true,
+        memory: false,
+        marketing: false,
+        telemetry: false,
+        minor: true,
+      }),
     ).toBe(false);
   });
 });

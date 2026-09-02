@@ -309,4 +309,16 @@ describe.skipIf(!available)("B08: devices and licence keys", () => {
     expect(stored.workspaceId).toBe(c.teamWorkspaceId);
     expect(stored.userId).toBe(c.ownerId);
   });
+
+  it("C11: GET /plugins/manifest is public and reports every channel unavailable until C10 lands", async () => {
+    const res = await request(server).get("/plugins/manifest");
+    expect(res.status).toBe(200);
+    const body = res.body as {
+      channels: Record<string, { available: boolean; downloadUrl: string | null }>;
+    };
+    for (const channel of ["premiere-uxp", "ae-cep", "resolve-script"] as const) {
+      expect(body.channels[channel]?.available).toBe(false);
+      expect(body.channels[channel]?.downloadUrl).toBeNull();
+    }
+  });
 });

@@ -19,6 +19,8 @@ export interface PrivacySnapshot {
   analytics: boolean;
   memory: boolean;
   marketing: boolean;
+  /** C12: desktop/plugin telemetry and crash reporting. Off until granted. */
+  telemetry: boolean;
   /**
    * D60: for a declared minor, product analytics, streaks, referral and
    * affiliate targeting are off regardless of what any toggle says.
@@ -30,6 +32,7 @@ export const DEFAULT_PRIVACY: PrivacySnapshot = {
   analytics: false,
   memory: false,
   marketing: false,
+  telemetry: false,
   minor: false,
 };
 
@@ -47,6 +50,7 @@ function parse(raw: string | null): PrivacySnapshot {
       analytics: parsed.analytics === true,
       memory: parsed.memory === true,
       marketing: parsed.marketing === true,
+      telemetry: parsed.telemetry === true,
       minor: parsed.minor === true,
     };
   } catch {
