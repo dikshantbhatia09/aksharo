@@ -3750,6 +3750,92 @@
         ]
       }
     },
+    "/workspaces/{id}/credits": {
+      "get": {
+        "description": "Lots are listed in consumption order: soonest-expiring first, then FIFO (D32) — the same order `reserve` draws from them.",
+        "operationId": "getWorkspaceCredits",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditsSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Balance, next grant reset, and live lots",
+        "tags": [
+          "credits"
+        ]
+      }
+    },
+    "/workspaces/{id}/usage": {
+      "get": {
+        "description": "Every balance move this workspace's account has ever recorded, with per-job attribution where `refType` is `\"job\"`. Cursor pagination: pass the previous page's `nextCursor`.",
+        "operationId": "getWorkspaceUsage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsagePageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Ledger history, newest first",
+        "tags": [
+          "credits"
+        ]
+      }
+    },
     "/jobs": {
       "get": {
         "description": "Cursor pagination: pass the previous page's `nextCursor` as `cursor`. Ids are ULIDs, so the cursor is stable and ordered by creation time.",
@@ -7575,6 +7661,169 @@
         ]
       }
     },
+    "/admin/credits/orphaned-holds": {
+      "get": {
+        "description": "`docs/runbooks/credits-orphaned-holds.md` §1.",
+        "operationId": "listOrphanedCreditHolds",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrphanedHoldDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Holds still `held` whose job has already reached a terminal status",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/credits/orphaned-holds/resolve": {
+      "post": {
+        "description": "A succeeded job settles for `jobs.credits_charged_tenths`; every other terminal status releases in full. `dryRun` defaults to true.",
+        "operationId": "resolveOrphanedCreditHolds",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveOrphanedHoldsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrphanedHoldResolutionDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Settle or release orphaned holds per their job's outcome",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/credits/reconcile": {
+      "get": {
+        "description": "`docs/runbooks/billing-reconcile.md`. Detection only — never corrects drift.",
+        "operationId": "reconcileAllCreditAccounts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountReconciliationDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reconcile every credit account (06 invariant 1)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/credits/reconcile/{accountId}": {
+      "get": {
+        "operationId": "reconcileCreditAccount",
+        "parameters": [
+          {
+            "name": "accountId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountReconciliationDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reconcile one credit account",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/projects/{projectId}/edg": {
       "get": {
         "description": "The hot state is under 64 KB. Segments are paged — `nextCursor` continues at `/edg/segments` — because a long-form project has thousands and an editor opens on the first screenful.",
@@ -9442,6 +9691,156 @@
       }
     },
     "schemas": {
+      "LotDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "grant",
+              "topup",
+              "pass",
+              "referral",
+              "adjust",
+              "reversal"
+            ]
+          },
+          "grantedTenths": {
+            "type": "number"
+          },
+          "remainingTenths": {
+            "type": "number"
+          },
+          "expiresAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "grantedTenths",
+          "remainingTenths",
+          "createdAt"
+        ]
+      },
+      "CreditsSummaryDto": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "balanceTenths": {
+            "type": "number",
+            "description": "Cached balance in tenths of a credit (CONTRACTS §0)."
+          },
+          "monthlyGrantTenths": {
+            "type": "number"
+          },
+          "grantResetAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "lots": {
+            "description": "Live lots, soonest-expiring first then FIFO.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LotDto"
+            }
+          }
+        },
+        "required": [
+          "workspaceId",
+          "balanceTenths",
+          "monthlyGrantTenths",
+          "lots"
+        ]
+      },
+      "UsageEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "deltaTenths": {
+            "type": "number",
+            "description": "Positive credits a workspace, negative credits spent."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "grant",
+              "purchase",
+              "hold",
+              "settle",
+              "release",
+              "reversal",
+              "refund",
+              "adjust",
+              "expire",
+              "referral_bonus"
+            ]
+          },
+          "refType": {
+            "type": "string"
+          },
+          "refId": {
+            "type": "object",
+            "nullable": true
+          },
+          "lotId": {
+            "type": "object",
+            "nullable": true
+          },
+          "balanceAfterTenths": {
+            "type": "number"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "jobType": {
+            "type": "object",
+            "nullable": true,
+            "description": "The job's queue, when refType is \"job\"."
+          }
+        },
+        "required": [
+          "id",
+          "deltaTenths",
+          "kind",
+          "refType",
+          "balanceAfterTenths",
+          "at"
+        ]
+      },
+      "UsagePageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageEntryDto"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
       "JobDto": {
         "type": "object",
         "properties": {
@@ -10070,6 +10469,118 @@
           "queue",
           "reason",
           "holdReleased"
+        ]
+      },
+      "OrphanedHoldDto": {
+        "type": "object",
+        "properties": {
+          "holdId": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "queue": {
+            "type": "string"
+          },
+          "jobStatus": {
+            "type": "string"
+          },
+          "amountTenths": {
+            "type": "number"
+          },
+          "heldSince": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "holdId",
+          "jobId",
+          "workspaceId",
+          "queue",
+          "jobStatus",
+          "amountTenths",
+          "heldSince"
+        ]
+      },
+      "ResolveOrphanedHoldsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "OrphanedHoldResolutionDto": {
+        "type": "object",
+        "properties": {
+          "holdId": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "queue": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "released",
+              "settled",
+              "would_release",
+              "would_settle",
+              "failed"
+            ]
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "holdId",
+          "jobId",
+          "queue",
+          "action"
+        ]
+      },
+      "AccountReconciliationDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "balanceTenths": {
+            "type": "number"
+          },
+          "lotsSumTenths": {
+            "type": "number"
+          },
+          "ledgerSumTenths": {
+            "type": "number"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "lotsDriftTenths": {
+            "type": "number"
+          },
+          "ledgerDriftTenths": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "accountId",
+          "workspaceId",
+          "balanceTenths",
+          "lotsSumTenths",
+          "ledgerSumTenths",
+          "ok",
+          "lotsDriftTenths",
+          "ledgerDriftTenths"
         ]
       },
       "EdgDocumentDto": {

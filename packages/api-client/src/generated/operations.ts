@@ -376,6 +376,13 @@ export const API_OPERATIONS = [
     summary: "One workspace",
   },
   {
+    operationId: "getWorkspaceCredits",
+    method: "GET",
+    path: "/workspaces/{id}/credits",
+    tags: ["credits"],
+    summary: "Balance, next grant reset, and live lots",
+  },
+  {
     operationId: "getWorkspaceEntitlement",
     method: "GET",
     path: "/workspaces/{id}/entitlement",
@@ -402,6 +409,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/fonts/{fontId}/url",
     tags: ["fonts"],
     summary: "Signed URLs for one font's bytes",
+  },
+  {
+    operationId: "getWorkspaceUsage",
+    method: "GET",
+    path: "/workspaces/{id}/usage",
+    tags: ["credits"],
+    summary: "Ledger history, newest first",
   },
   {
     operationId: "importSubtitles",
@@ -516,6 +530,13 @@ export const API_OPERATIONS = [
     summary: "List your notifications, newest first",
   },
   {
+    operationId: "listOrphanedCreditHolds",
+    method: "GET",
+    path: "/admin/credits/orphaned-holds",
+    tags: ["admin"],
+    summary: "Holds still `held` whose job has already reached a terminal status",
+  },
+  {
     operationId: "listParentalWaitlist",
     method: "GET",
     path: "/admin/parental-waitlist",
@@ -586,6 +607,20 @@ export const API_OPERATIONS = [
     summary: "Begin Google sign-in",
   },
   {
+    operationId: "reconcileAllCreditAccounts",
+    method: "GET",
+    path: "/admin/credits/reconcile",
+    tags: ["admin"],
+    summary: "Reconcile every credit account (06 invariant 1)",
+  },
+  {
+    operationId: "reconcileCreditAccount",
+    method: "GET",
+    path: "/admin/credits/reconcile/{accountId}",
+    tags: ["admin"],
+    summary: "Reconcile one credit account",
+  },
+  {
     operationId: "removeWorkspaceMember",
     method: "DELETE",
     path: "/workspaces/{id}/members/{membershipId}",
@@ -626,6 +661,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/edg/resegment",
     tags: ["edg"],
     summary: "Re-run segmentation over the whole document",
+  },
+  {
+    operationId: "resolveOrphanedCreditHolds",
+    method: "POST",
+    path: "/admin/credits/orphaned-holds/resolve",
+    tags: ["admin"],
+    summary: "Settle or release orphaned holds per their job's outcome",
   },
   {
     operationId: "restoreEdgSnapshot",
