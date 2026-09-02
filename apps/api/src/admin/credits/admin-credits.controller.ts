@@ -20,9 +20,13 @@ import {
 
 import {
   AccountReconciliationDto,
+  AdjustCreditsDto,
+  AdjustCreditsResultDto,
   OrphanedHoldDto,
   OrphanedHoldResolutionDto,
   ResolveOrphanedHoldsDto,
+  ReverseCreditsDto,
+  ReverseCreditsResultDto,
   toAccountReconciliationDto,
   toOrphanedHoldDto,
   toOrphanedHoldResolutionDto,
@@ -30,6 +34,8 @@ import {
 import { CommonAuditService } from "../../common/audit/audit.service.js";
 import { CreditOrphanedHoldsService } from "../../credits/credit-orphaned-holds.service.js";
 import { CreditReconcileService } from "../../credits/credit-reconcile.service.js";
+import { LedgerCreditsFacade } from "../../credits/ledger-credits.facade.js";
+import { AdminRoles } from "../admin-roles.decorator.js";
 import { AdminGuard, adminOf } from "../admin.guard.js";
 
 import type { AuthenticatedRequest } from "../../common/guards/principal.js";
@@ -51,8 +57,87 @@ export class AdminCreditsController {
   constructor(
     private readonly orphanedHolds: CreditOrphanedHoldsService,
     private readonly reconcile: CreditReconcileService,
+    private readonly ledger: LedgerCreditsFacade,
     private readonly audit: CommonAuditService,
   ) {}
+
+  @Post("adjust")
+  @HttpCode(HttpStatus.OK)
+  @AdminRoles("finance", "superadmin")
+  @ApiOperation({
+    summary: "Grant a manual credit adjustment to a workspace (finance/superadmin only)",
+    description:
+      'Wraps CreditsFacade.grantLot(source: "adjust") — the same primitive B01 top-ups and ' +
+      "B04 passes use, so the adjustment lot behaves identically in expiry and reconciliation. " +
+      "Positive only: this grants, it does not debit (B02 has no cross-lot admin debit primitive " +
+      "— see admin.guard.test.ts / this WP's final report for why that is out of scope here). " +
+      "Reason is mandatory (min 10 chars) — every money/credit admin action is (B13 scope §1).",
+    operationId: "adminAdjustCredits",
+  })
+  @ApiOkResponse({ type: AdjustCreditsResultDto })
+  @ApiForbiddenResponse({ description: "Requires the finance or superadmin role." })
+  async adjust(
+    @Body() body: AdjustCreditsDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<AdjustCreditsResultDto> {
+    const admin = adminOf(request);
+    const { lotId } = await this.ledger.grantLot({
+      workspaceId: body.workspaceId,
+      source: "adjust",
+      tenths: body.tenths,
+      reason: body.reason,
+    });
+    await this.audit.record({
+      action: "admin.credits.adjusted",
+      resource: "credit_account",
+      resourceId: body.workspaceId,
+      workspaceId: body.workspaceId,
+      actorId: admin.userId,
+      actorKind: "admin",
+      ...(admin.ip === undefined ? {} : { ip: admin.ip }),
+      data: { tenths: body.tenths, reason: body.reason, lotId },
+    });
+    return { lotId };
+  }
+
+  @Post("reverse")
+  @HttpCode(HttpStatus.OK)
+  @AdminRoles("finance", "superadmin")
+  @ApiOperation({
+    summary:
+      "Reverse a settled job's credit charge back onto the workspace (finance/superadmin only)",
+    description:
+      "Wraps CreditsFacade.reverse() (the concrete LedgerCreditsFacade — 'beyond the frozen " +
+      "interface' per that file's own doc comment, which names this WP as one of its two " +
+      "intended callers alongside B01 payment refunds). Requires a prior credit_holds row for " +
+      "the job. Reason is mandatory.",
+    operationId: "adminReverseCredits",
+  })
+  @ApiOkResponse({ type: ReverseCreditsResultDto })
+  @ApiForbiddenResponse({ description: "Requires the finance or superadmin role." })
+  async reverse(
+    @Body() body: ReverseCreditsDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<ReverseCreditsResultDto> {
+    const admin = adminOf(request);
+    const { lotIds } = await this.ledger.reverse({
+      workspaceId: body.workspaceId,
+      jobId: body.jobId,
+      tenths: body.tenths,
+      reason: body.reason,
+    });
+    await this.audit.record({
+      action: "admin.credits.reversed",
+      resource: "job",
+      resourceId: body.jobId,
+      workspaceId: body.workspaceId,
+      actorId: admin.userId,
+      actorKind: "admin",
+      ...(admin.ip === undefined ? {} : { ip: admin.ip }),
+      data: { tenths: body.tenths, reason: body.reason, lotIds },
+    });
+    return { lotIds: [...lotIds] };
+  }
 
   @Get("orphaned-holds")
   @ApiOperation({

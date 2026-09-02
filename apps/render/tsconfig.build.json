@@ -1,7 +1,9 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
     "tsBuildInfoFile": "./dist/.tsbuildinfo.build"
   },
-  "exclude": ["node_modules", "dist", ".turbo", "src/**/*.test.ts"]
+  "exclude": ["node_modules", "dist", ".turbo", "src/**/*.test.ts", "parity/**/*.ts"]
 }

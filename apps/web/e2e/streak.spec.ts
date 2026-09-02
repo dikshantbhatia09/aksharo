@@ -99,6 +99,33 @@ async function setStreakState(
   });
 }
 
+/**
+ * `StreakService#syncCreditsOnly` (B06b) re-derives `creditsOnly` from the
+ * workspace's *actual current subscription* on every read — a plan the
+ * fixture's own `INSERT ... credits_only = false` claims does not survive a
+ * `GET /streak` for a genuinely free-plan workspace, because there is no
+ * such thing as a free workspace with the L{level}/freezes reward copy in
+ * this product (D52). `freshAccount` signs up onto the free plan with no
+ * subscription row at all, so the level/freezes half of the chip's copy can
+ * only ever be exercised by giving the workspace a real paid subscription
+ * first, matching what actually earns that copy.
+ */
+async function givePaidSubscription(workspaceId: string): Promise<void> {
+  await withDb(async (client) => {
+    const plan = await client.query(`SELECT id FROM plans WHERE key = 'creator' LIMIT 1`);
+    const planId = (plan.rows[0] as { id: string } | undefined)?.id;
+    if (planId === undefined) throw new Error("creator plan seed missing");
+    const now = new Date();
+    const periodEnd = new Date(now.getTime() + 30 * 86_400_000);
+    await client.query(
+      `INSERT INTO subscriptions
+         (id, workspace_id, plan_id, status, interval, current_period_start, current_period_end)
+       VALUES ($1, $2, $3, 'active', 'month', $4, $5)`,
+      [testUlid(), workspaceId, planId, now.toISOString(), periodEnd.toISOString()],
+    );
+  });
+}
+
 async function disableStreakFlag(): Promise<void> {
   await withDb(async (client) => {
     await client.query(`UPDATE feature_flags SET enabled = false WHERE key = 'streak_experiment'`);
@@ -124,6 +151,12 @@ test.describe("streak widget and sidebar chip (B06)", () => {
 
     const workspaceId = await currentWorkspaceId(page);
     test.skip(workspaceId === "", "could not resolve the signed-in workspace id");
+
+    // The L{level}/freezes half of the copy only ever shows for a paid,
+    // non-creditsOnly workspace (B06b) — give this one a real subscription
+    // before the read model gets a chance to re-derive `creditsOnly` back to
+    // `true` for what would otherwise still be a free-plan workspace.
+    await givePaidSubscription(workspaceId);
 
     await setStreakState(workspaceId, {
       level: 2,
@@ -167,7 +200,13 @@ test.describe("streak widget and sidebar chip (B06)", () => {
     const chip = page.getByTestId("streak-chip-paused");
     await expect(chip).toBeVisible();
     await expect(chip).toContainText("streak paused — one export restores it");
-    await expect(page.getByText(/reset/i)).toHaveCount(0);
+    // Scoped to the chip itself, not the whole page: the sidebar's credit
+    // meter legitimately shows "Resets {date}" (packages/ui's CreditMeter,
+    // unrelated to the streak experiment) right alongside it, which a
+    // page-wide `getByText(/reset/i)` also matches. What B06 acceptance
+    // criterion actually guards is the streak copy itself never claiming a
+    // "reset" — a freeze/pause recovers the streak, it never zeroes it.
+    await expect(chip.getByText(/reset/i)).toHaveCount(0);
   });
 
   test("a holdout workspace never sees the chip or the widget", async ({ page }) => {

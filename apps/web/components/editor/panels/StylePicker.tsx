@@ -65,7 +65,7 @@ export function StylePicker({
   );
 
   return (
-    <div className={cn("flex h-full flex-col gap-3", className)} data-testid="style-picker">
+    <div className={cn("flex h-full min-h-0 flex-col gap-3", className)} data-testid="style-picker">
       <input
         type="search"
         value={query}
@@ -99,7 +99,10 @@ export function StylePicker({
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 overflow-y-auto" data-testid="style-picker-grid">
+      <div
+        className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto content-start"
+        data-testid="style-picker-grid"
+      >
         {visible.map((style) => (
           <button
             key={style.id}
