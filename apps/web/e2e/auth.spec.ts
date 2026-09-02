@@ -123,7 +123,10 @@ test("sign in with a password, then sign out", async ({ page }) => {
   const { email, password } = await signUpAndVerify(page, "login");
 
   await page.getByTestId("onboarding-skip").click();
-  await page.waitForURL(/\/studio/);
+  // Since A14, "/" rewrites invisibly to the authenticated `/home` for a
+  // signed-in visitor — the address bar never becomes "/studio" for the
+  // onboarding-skip path (only completing the wizard lands there).
+  await page.waitForURL(/\/studio|\/$/);
 
   await page.getByTestId("profile-menu").click();
   await page.getByTestId("sign-out").click();
@@ -134,7 +137,7 @@ test("sign in with a password, then sign out", async ({ page }) => {
   await page.getByTestId("login-submit").click();
 
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
-  await expect(page.getByTestId("home-heading")).toBeVisible();
+  await expect(page.getByTestId("home-view")).toBeVisible();
 });
 
 test("a wrong password says the same thing as an unknown address", async ({ page }) => {
@@ -154,7 +157,9 @@ test("a wrong password says the same thing as an unknown address", async ({ page
 test("a magic link signs the user in", async ({ page }) => {
   const { email } = await signUpAndVerify(page, "magic");
   await page.getByTestId("onboarding-skip").click();
-  await page.waitForURL(/\/studio/);
+  // See the sign-in test above: onboarding-skip lands on "/" (rewritten to
+  // `/home`), not "/studio".
+  await page.waitForURL(/\/studio|\/$/);
   await page.getByTestId("profile-menu").click();
   await page.getByTestId("sign-out").click();
   await page.waitForURL(/\/login/);
@@ -167,7 +172,7 @@ test("a magic link signs the user in", async ({ page }) => {
   const token = await waitForToken(email, "magic_link");
   await gotoHydrated(page, `/magic?token=${encodeURIComponent(token)}`);
   await page.waitForURL((url) => !url.pathname.startsWith("/magic"));
-  await expect(page.getByTestId("home-heading")).toBeVisible();
+  await expect(page.getByTestId("home-view")).toBeVisible();
 });
 
 test("a magic link for an unknown address still says check your inbox", async ({ page }) => {

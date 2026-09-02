@@ -32,7 +32,7 @@ export function StreakChip(): React.JSX.Element | null {
     >
       {streak.data.paused ? (
         <Badge tone="neutral" data-testid="streak-chip-paused">
-          Streak paused — one export restores it
+          streak paused — one export restores it
         </Badge>
       ) : (
         <span>{streakSummary(streak.data)}</span>

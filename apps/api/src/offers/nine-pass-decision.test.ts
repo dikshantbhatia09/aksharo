@@ -69,6 +69,7 @@ describe("₹9 pass never clears a watermark on the cloud path", () => {
         requestedMode: "browser",
         sourceDurationMs: 5 * 60_000,
         outputDurationMs: 5 * 60_000,
+        capabilities: { codecs: ["avc1.42001f"], audioEncoder: true },
       }),
     );
     expect(decision.path).toBe("browser");
@@ -83,6 +84,7 @@ describe("₹9 pass never clears a watermark on the cloud path", () => {
         requestedMode: "browser",
         sourceDurationMs: 11 * 60_000,
         outputDurationMs: 11 * 60_000,
+        capabilities: { codecs: ["avc1.42001f"], audioEncoder: true },
       }),
     );
     expect(decision.path).toBe("browser");

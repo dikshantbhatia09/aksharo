@@ -86,6 +86,13 @@ export const DocStylesSchema = z
 export const AudioCleanSchema = z
   .object({
     enabled: z.boolean(),
+    /**
+     * Names the `audio_cleans` row whose 48 kHz track replaces the source
+     * audio in exports. `null` clears a previously set clean. First-class as
+     * of B10b (CONTRACTS §2, amended 2026-09-03); replaces B10's interim
+     * `preset: "b10:<cleanId>"` encoding.
+     */
+    cleanId: UlidSchema.nullable().optional(),
     preset: z.string().min(1).max(64).optional(),
     /** Integrated loudness target, e.g. -14 LUFS for social (F-308). */
     targetLufs: z.number().min(-40).max(0).optional(),

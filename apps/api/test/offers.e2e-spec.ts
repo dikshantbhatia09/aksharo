@@ -243,8 +243,6 @@ describe.skipIf(!available)("offers — eligibility, week pass, top-up, metrics 
       .set("Authorization", auth(token));
     expect(forbidden.status).toBe(403);
 
-    await ctx.prisma.user.update({ where: { id: ctx.userId }, data: { isAdmin: true } });
-
     const checkout = await request(server)
       .post("/billing/passes/checkout")
       .set("Authorization", auth(token))
@@ -274,9 +272,10 @@ describe.skipIf(!available)("offers — eligibility, week pass, top-up, metrics 
       },
     });
 
+    const adminToken = await ctx.adminToken();
     const metrics = await request(server)
       .get("/admin/metrics/offers")
-      .set("Authorization", auth(token));
+      .set("Authorization", auth(adminToken));
     expect(metrics.status).toBe(200);
     const body = metrics.body as {
       ninePass: { totalPurchases: number; upgradedWithinWindow: number; recommendation: string };

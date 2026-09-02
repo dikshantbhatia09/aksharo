@@ -16,6 +16,7 @@ released before the next is decoded.
 
 from __future__ import annotations
 
+import gc
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -150,6 +151,12 @@ def run_clean_chain(
         cursor += window_samples
 
     processed = crossfade_concat(processed_chunks, crossfade_ms=crossfade_ms)
+    # `processed_chunks` (every window's blended output, kept alive since the
+    # loop above started) is done its job; dropping it before the whole-signal
+    # gain/limiter pass below (B10b) keeps two copies of the reassembled
+    # signal from ever being live at once on a long file.
+    del processed_chunks
+    gc.collect()
     normalized, output_lufs = normalize_loudness(
         processed, target_lufs=target_lufs, true_peak_ceiling_dbtp=TRUE_PEAK_CEILING_DBTP
     )

@@ -198,10 +198,22 @@ export class EntitlementService {
     return result;
   }
 
-  /** `true` when `targets` is empty (no restriction) or names this workspace/plan. */
+  /**
+   * `true` when `targets` is empty (no restriction) or names this
+   * workspace/plan. `excludeWorkspaceIds` (B13's admin flags CRUD,
+   * "holdouts") always wins, checked first — a workspace held out of an
+   * experiment must stay out even if it also matches the allow-list or a
+   * targeted plan.
+   */
   private flagTargets(targets: unknown, workspaceId: string, planKey: $Enums.PlanKey): boolean {
     if (typeof targets !== "object" || targets === null) return true;
-    const t = targets as { workspaceIds?: unknown; planKeys?: unknown };
+    const t = targets as {
+      workspaceIds?: unknown;
+      planKeys?: unknown;
+      excludeWorkspaceIds?: unknown;
+    };
+    const excludeWorkspaceIds = Array.isArray(t.excludeWorkspaceIds) ? t.excludeWorkspaceIds : [];
+    if (excludeWorkspaceIds.includes(workspaceId)) return false;
     const workspaceIds = Array.isArray(t.workspaceIds) ? t.workspaceIds : [];
     const planKeys = Array.isArray(t.planKeys) ? t.planKeys : [];
     if (workspaceIds.length === 0 && planKeys.length === 0) return true;
