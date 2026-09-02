@@ -444,6 +444,8 @@ enum AffiliateStatus {
   approved
   suspended
   rejected
+  /// Automated fraud flag pending manual review (THREAT-MODEL T17, B07 brief §7).
+  suspended_review
 }
 
 /// Not enumerated in 06 (`referrals.status`).
@@ -2140,8 +2142,16 @@ model Coupon {
   validFrom      DateTime  @default(now()) @map("valid_from") @db.Timestamptz(6)
   validUntil     DateTime? @map("valid_until") @db.Timestamptz(6)
   active         Boolean   @default(true)
+  /// Links a discount coupon code to the affiliate it also attributes to
+  /// (brief §2: "`coupons.affiliateId` links codes") — a coupon an affiliate
+  /// hands out doubles as their attribution code, distinct from their own
+  /// `affiliates.code`.
+  affiliateId    String?   @map("affiliate_id") @db.Char(26)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  affiliate Affiliate? @relation(fields: [affiliateId], references: [id], onDelete: SetNull)
+
+  @@index([affiliateId])
   @@map("coupons")
 }
 
@@ -2162,12 +2172,18 @@ model Affiliate {
   balanceMinor  Int             @default(0) @map("balance_minor")
   currency      Currency        @default(INR)
   approvedAt    DateTime?       @map("approved_at") @db.Timestamptz(6)
+  /// Set once the affiliate crosses 10 active paying referrals (brief §3: `while_subscribed_30`).
+  tier          String          @default("standard")
+  /// Automated-flag reason when status is `suspended_review` (THREAT-MODEL T17).
+  fraudFlag     String?         @map("fraud_flag")
   createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
 
   user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   referrals Referral[]
   payouts   Payout[]
   fyTotals  AffiliateFyTotal[]
+  clicks    AffiliateClick[]
+  coupons   Coupon[]
 
   @@map("affiliates")
 }
@@ -2180,7 +2196,22 @@ model Referral {
   source              String         @default("code")
   firstPaidAt         DateTime?      @map("first_paid_at") @db.Timestamptz(6)
   status              ReferralStatus @default(pending)
+  /// Count of monthly-interval paid invoices commissioned so far (drives the
+  /// months 1-3 / 4-12 schedule, brief §3). Yearly invoices do not increment this.
+  monthlyPaidCount    Int            @default(0) @map("monthly_paid_count")
+  /// The once-only 20% yearly commission has already been paid for this referral.
+  yearlyCommissionPaid Boolean       @default(false) @map("yearly_commission_paid")
+  /// True once this referral has an active paid subscription counted toward the
+  /// affiliate's 10-active-referral tier threshold (brief §3).
+  countsTowardTier    Boolean        @default(false) @map("counts_toward_tier")
   createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  /// SHA-256 hash of the signing-up user's IP at attribution time (fraud checks, B07 brief §7).
+  ipHash              String?        @map("ip_hash")
+  /// SHA-256 hash of a device fingerprint at attribution time.
+  deviceHash          String?        @map("device_hash")
+  /// Hash of the payment instrument fingerprint once the referral first pays (self-referral detection).
+  paymentFingerprint  String?        @map("payment_fingerprint")
 
   affiliate         Affiliate    @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
   referredWorkspace Workspace    @relation(fields: [referredWorkspaceId], references: [id], onDelete: Cascade)
@@ -2188,6 +2219,24 @@ model Referral {
 
   @@index([affiliateId])
   @@map("referrals")
+}
+
+/// One `/r/<code>` visit (B07 brief §2): sets the 60-day last-click cookie and
+/// is the audit trail for attribution precedence (code beats cookie).
+model AffiliateClick {
+  id                  String    @id @db.Char(26)
+  affiliateId         String    @map("affiliate_id") @db.Char(26)
+  code                String
+  clickedAt           DateTime  @default(now()) @map("clicked_at") @db.Timestamptz(6)
+  attributionExpiresAt DateTime @map("attribution_expires_at") @db.Timestamptz(6)
+  ipHash              String?   @map("ip_hash")
+  deviceHash          String?   @map("device_hash")
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId])
+  @@index([code])
+  @@map("affiliate_clicks")
 }
 
 model Commission {

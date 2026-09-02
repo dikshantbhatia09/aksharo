@@ -83,6 +83,10 @@ export type {
 
 export { CONSENT_PURPOSES } from "./types.js";
 export type {
+  AffiliatePayoutMethod,
+  AffiliateProfile,
+  AffiliateStats,
+  ApplyAffiliateRequest,
   AvailableScripts,
   BatchCreateProjectsRequest,
   ClientKind,

@@ -22,6 +22,9 @@ import { queryKeys } from "./query-keys.js";
 
 import type { ApiClient } from "./http.js";
 import type {
+  AffiliateProfile,
+  AffiliateStats,
+  ApplyAffiliateRequest,
   AvailableScripts,
   BatchCreateProjectsRequest,
   CompleteUploadRequest,
@@ -815,6 +818,44 @@ export function useTranslateTranscript(
       void queryClient.invalidateQueries({
         queryKey: queryKeys.transcriptScripts(workspaceId, projectId),
       });
+    },
+  });
+}
+
+// --- Affiliate (B07) -----------------------------------------------------------
+
+export function useMyAffiliate(): UseQueryResult<AffiliateProfile | null> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.affiliate(),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.affiliate.me),
+  });
+}
+
+export function useMyAffiliateStats(enabled: boolean): UseQueryResult<AffiliateStats> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.affiliateStats(),
+    enabled,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.affiliate.stats),
+  });
+}
+
+export function useApplyAffiliate(): UseMutationResult<
+  AffiliateProfile,
+  Error,
+  ApplyAffiliateRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ApplyAffiliateRequest) => client.call(endpoints.affiliate.apply, { body }),
+    onSuccess: (affiliate) => {
+      queryClient.setQueryData(queryKeys.affiliate(), affiliate);
     },
   });
 }
