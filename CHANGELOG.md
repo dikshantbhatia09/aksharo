@@ -79,6 +79,119 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B14 — Public API v1, API keys, outgoing webhooks, `/developers` docs.**
+  API: `apps/api/src/public-api/**` — `ApiKeysService`/`ApiKeysController`
+  (`POST|GET /workspaces/{id}/api-keys`, `POST .../rotate`, `DELETE
+.../{keyId}`) mints `ak_live_<prefix>.<secret>` against A04's `ApiKeyGuard`
+  contract, gated on the `apiAccess` entitlement (Studio/Agency), with a 24h
+  rotation-overlap window via `expiresAt` (`ApiKeyGuard` now also refuses an
+  expired key). `ApiKeyScope` (schema) narrowed to exactly `projects_read`,
+  `projects_write`, `transcripts_read`, `exports_write`, `webhooks_manage` —
+  no admin/billing scope exists. `/v1` (`public-api/v1/**`): `POST|GET
+/v1/projects`, `POST /v1/projects/{id}/transcribe`, `GET
+/v1/projects/{id}/transcript?format=json|srt|vtt`, `POST
+/v1/projects/{id}/exports` (cloud path only), `GET /v1/exports/{id}`, `GET
+/v1/jobs/{id}` — `X-Api-Key` only, `ApiKeyRateLimitGuard` (`RateLimit-*`
+  headers, 60/120 default, 120/240 Agency), `IdempotencyService`
+  (`Idempotency-Key`, 24h, new `idempotency_records` table) wraps every
+  mutating route. `sourceUrl` project creation
+  (`SourceUrlIngestService`) reuses A06's `safeFetch` SSRF guard (https only,
+  every resolved address judged and the connection pinned, redirects
+  re-validated and capped, content-type allow-list) rather than a parallel
+  implementation. Webhooks: `apps/api/src/webhooks/**` — CRUD at
+  `/workspaces/{id}/webhooks` against the schema's existing (pre-B14)
+  `WebhookEndpoint`/`WebhookDelivery` tables, `X-Aksharo-Signature:
+t=<unix>,v1=hmac_sha256(secret, t + "." + body)`
+  (`webhook-signature.ts`; `webhook-signature.test.ts` executes the exact
+  Node verification snippet the docs page renders, proving they cannot
+  drift), delivery via `common/ssrf/webhook-fetch.ts` (POST analogue of
+  `safeFetch`, same resolve-judge-pin sequence, re-validated on every
+  attempt), retry schedule 1m/5m/30m/2h/12h then `dead`, auto-disable after
+  20 consecutive failures, manual redeliver, "send test event". Delivery is
+  a `common/scheduler` sweep (`WebhookDeliverySweepTask`), not a new BullMQ
+  contract queue. `export.completed` is wired via the existing `EventEmitter2`
+  event of that exact name (B07b); `transcript.completed`/`job.failed`/
+  `credits.low` have no existing event to subscribe to, so
+  `WebhookEventPollerService` polls the `jobs`/`notifications` tables with a
+  Redis cursor instead of editing `transcripts/`, `jobs/` or `credits/` —
+  flagged as a deviation in the WP's final report. Web:
+  `apps/web/app/(app)/settings/developers/**` (keys + webhooks CRUD, scope/
+  event pickers, reveal-once secret dialog, delivery log with redeliver) and
+  `apps/web/app/(site)/developers/**` (endpoint list read live from
+  `@montaj/api-client/openapi.json`, scopes, rate limits, SSRF rules, webhook
+  signature verification with curl/Node/Python tabs) — a small custom
+  renderer rather than Scalar/Redoc bundled locally (neither vendored in
+  this repo; flagged as a deviation). `@montaj/api-client` gained
+  `useApiKeys`/`useCreateApiKey`/`useRotateApiKey`/`useRevokeApiKey`/
+  `useWebhookEndpoints`/`useCreateWebhookEndpoint`/`useUpdateWebhookEndpoint`/
+  `useDeleteWebhookEndpoint`/`useSendWebhookTestEvent`/`useWebhookDeliveries`/
+  `useRedeliverWebhookDelivery` and the matching types, generated
+  `openapi.json` re-exported at `@montaj/api-client/openapi.json` for the
+  docs page. `apps/web/lib/nav.ts` gained one additive "Developers" entry
+  (outside this WP's stated file boundary; flagged as a deviation — the
+  settings page would otherwise be unreachable from the sidebar).
+- **B11 — LLM features: chapters, summary, hooks/titles/hashtags (F-206/F-207),
+  `@montaj/prompts` template registry, region-pinned providers, an Insights tab.**
+  `packages/prompts`: versioned template registry (`chapters@1`, `summary@1`,
+  `hooks@1`, `keyphrases@1`) with Zod input/output schemas, a shared
+  prompt-injection guardrail (transcript fenced as `<transcript>` DATA), a filler
+  lexicon (`en`/`hi`/`hi-Latn`/`ta`, shared with B18), a fake-provider generator
+  and an eval runner (`pnpm --filter @montaj/prompts eval`) over four fixture
+  transcripts (English, Hindi, Hinglish, Tamil) with five automatic checks
+  (schema validity, timestamp validity/ordering, hallucination guard, length
+  limits, language consistency), writing `eval-results/report.{json,md}`.
+  `apps/worker-ai/worker_ai/llm/`: a Python mirror of the same templates and
+  version strings (the `translate.ts`/`translate/providers/prompts.py` split),
+  `LlmProvider` adapters (`mock`, `anthropic`, `openai` — Claude Sonnet 5
+  primary, OpenAI fallback, config-selected via `LLM_PROVIDER`), region pinning
+  (`region.py`: an EU workspace never selects a non-EU-capable provider, fails
+  closed on an unknown/unsupported region) and `generate_insight()` (build →
+  call with retry → validate → one repair attempt); `processors/llm.py` wires
+  it to the now-implemented `ai.llm` queue. `apps/api/src/insights/`:
+  `POST /projects/{id}/insights {kinds, tone?, regenerate?}` quotes and holds
+  credits per kind (chapters 2, summary 1, hooks 2 — see the README note on the
+  conflict with `packages/config`'s flat `chaptersSummaryHook` rate), builds the
+  job's transcript payload from `TranscriptsService.chunks()` (language,
+  optional media title, segments only — no user identity, brief's PII
+  minimisation), and enqueues one `ai.llm` job per kind; `GET
+/projects/{id}/insights` reads the latest `llm_outputs` row per kind plus the
+  ASCI-friendly disclosure line. Migration adds `llm_outputs` (id, projectId,
+  workspaceId, jobId, kind, templateVersion, provider, region, output jsonb,
+  usage jsonb, createdAt). `apps/web/components/editor/insights/`: the Insights
+  tab — chapters list with "copy as YouTube description" and jump-to, summary
+  with a length switch, hooks/titles/hashtags with platform tabs and copy
+  buttons, regenerate, loading/empty/error states, the disclosure line
+  ("Generated by AI from your transcript"). `@montaj/api-client` gained
+  `useProjectInsights`/`useRequestInsights` and the `Insight*` types. See
+  `apps/api/src/insights/README.md` for the credits/region/PII notes and the
+  eval report format.
+
+- **B18 — autocut pass: VAD silences, filler lexicons, repeated takes, protection
+  rules, pacing presets → `edg_pass_items`.** Worker (`apps/worker-ai`):
+  `worker_ai/passes/autocut.py` — a pure, deterministic pipeline (silence gaps
+  between VAD speech regions, mid-sentence long pauses, per-language filler
+  lexicon with `always`/`isolated_only` context rules, adjacent-sentence retake
+  detection by n-gram similarity, protection/merge/removal-cap post-processing)
+  behind `run_autocut()`; `processors/autocut_pass.py` wires it to `ai.pass`
+  (`passType: "autocut"`; real VAD when `mediaId` is given, else a word-derived
+  approximation) — `ai.pass` moves from `not_implemented` to
+  `IMPLEMENTED_AI_QUEUES` (any other `passType`, e.g. B19's reframe/zoom, still
+  answers `worker/not_implemented` from inside the processor). Lexicons:
+  `packages/prompts/lexicons/fillers/{en,hi,hinglish,ta,te,bn,mr,gu,kn,ml,pa,ur}.json`
+  (en/hi/hinglish curated in depth; the other nine seeded and unit-tested, flagged
+  for follow-up linguistic review). API: `apps/api/src/passes/` —
+  `POST /projects/{id}/passes/autocut` (quotes `BURN_RATES.autocutPass`, holds
+  credits, enqueues `ai.pass` with the transcript's words, real VAD hint, and
+  guarded ranges from segments carrying `emphasis`/`textOverrides`),
+  `GET /projects/{id}/passes`, and `PassCompletionHandler`, which turns the
+  worker's proposed cuts into a `MergePass` op (A12) — idempotent per `passId`.
+  Pacing presets: gentle (1.0s/15%), standard (0.6s/30%), tight (0.4s/45%);
+  80ms padding; 350ms minimum kept segment; retake window 20s at similarity
+  ≥0.8. **CONTRACTS gap**: `EdgHot.protected[]` (user-marked protected ranges)
+  does not exist yet — `protectedRanges` is always sent empty; only the
+  `emphasis`/`textOverrides` guard is enforced today. See the B18 final report
+  for the full metrics/coverage summary.
+
 - **A19c — browser export throughput: offscreen WebGL CanvasKit surface,
   hardware-encoder capability probe, cloud-default policy above 1080p, 5ms
   splice fades.** `packages/render-canvaskit`: `createExportSurface(ck,

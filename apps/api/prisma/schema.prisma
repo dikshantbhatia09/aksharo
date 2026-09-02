@@ -132,10 +132,16 @@ enum HostApp {
   resolve
 }
 
+/// B14 §1: the only scopes a customer key can carry. `projects_write` covers
+/// creating/mutating projects and enqueuing jobs (`ApiKeyGuard` derives `editor`
+/// from it, per A04's D27); there is deliberately no `admin` or `billing` scope —
+/// the enum itself is the guarantee a key can never carry one.
 enum ApiKeyScope {
-  read
-  jobs
-  webhooks
+  projects_read
+  projects_write
+  transcripts_read
+  exports_write
+  webhooks_manage
 }
 
 /// Not enumerated in 06 (`status`); the device-code flow of 07 §Auth.
@@ -802,6 +808,7 @@ model Workspace {
   invoices            Invoice[]
   jobs                Job[]
   providerSubmissions ProviderSubmission[]
+  llmOutputs          LlmOutput[]
   exportManifests     ExportManifest[]
   exports             Export[]
   brandAssets         BrandAsset[]
@@ -896,18 +903,45 @@ model LicenseKey {
 model ApiKey {
   id          String        @id @db.Char(26)
   workspaceId String        @map("workspace_id") @db.Char(26)
+  /// Display name the workspace gave it ("CI pipeline", "Zapier").
+  name        String        @default("")
   prefix      String        @unique
   hash        String
   scopes      ApiKeyScope[]
   rateLimit   Int           @default(60) @map("rate_limit")
+  /// Burst above `rateLimit` a token bucket may absorb (B14 §1: 120 default).
+  burstLimit  Int           @default(120) @map("burst_limit")
   lastUsedAt  DateTime?     @map("last_used_at") @db.Timestamptz(6)
+  /// Optional caller-set expiry. `ApiKeyGuard` refuses a key past this instant.
+  expiresAt   DateTime?     @map("expires_at") @db.Timestamptz(6)
   revokedAt   DateTime?     @map("revoked_at") @db.Timestamptz(6)
+  createdBy   String?       @map("created_by") @db.Char(26)
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// Set on rotate: the key this one replaced, kept for the audit trail.
+  rotatedFrom String?       @map("rotated_from") @db.Char(26)
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
   @@map("api_keys")
+}
+
+/// `Idempotency-Key` replay store for `/v1/*` (B14 §2), 24h TTL enforced by
+/// `expiresAt` plus the retention sweep — never read past it.
+model IdempotencyRecord {
+  /// `sha256(workspaceId + ":" + route + ":" + key)`, hex — one row per caller/route/key.
+  id             String   @id
+  workspaceId    String   @map("workspace_id") @db.Char(26)
+  /// `sha256` of the request body, so the *same* key with a *different* body is a conflict.
+  requestHash    String   @map("request_hash")
+  responseStatus Int      @map("response_status")
+  /// Zod: opaque — whatever the wrapped handler answered, replayed verbatim.
+  responseBody   Json     @map("response_body") @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@index([expiresAt])
+  @@map("idempotency_records")
 }
 
 /// Device-code grant (07 §Auth, THREAT-MODEL T3). TTL at most 10 minutes.
@@ -1021,6 +1055,7 @@ model Project {
   comments            Comment[]
   assetUsages         AssetUsage[]
   publishEvents       PublishEvent[]
+  llmOutputs          LlmOutput[]
 
   @@index([workspaceId])
   @@index([lastActivityAt])
@@ -1500,6 +1535,7 @@ model Job {
   project             Project?             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   events              JobEvent[]
   providerSubmissions ProviderSubmission[]
+  llmOutputs          LlmOutput[]
   exports             Export[]
   passes              EdgPass[]
   creditHold          CreditHold?
@@ -1609,6 +1645,44 @@ model ProviderSubmission {
   @@index([workspaceId])
   @@index([provider])
   @@map("provider_submissions")
+}
+
+/// One `ai.llm` completion (B11): chapters, summary or hooks/titles/hashtags,
+/// generated from the project's transcript. `output` is the schema-validated
+/// JSON the template's Zod output schema describes
+/// (`@montaj/prompts`'s `ChaptersOutput`/`SummaryOutput`/`HooksOutput`) — never
+/// executed, only ever rendered (THREAT-MODEL T19). `templateVersion` is
+/// `"<id>@<n>"` (e.g. `"chapters@1"`) so a later prompt revision does not
+/// silently reinterpret an old row; `GET /projects/{id}/insights` always
+/// returns the most recent row per kind, older ones kept for audit/regenerate
+/// history. `region` is the workspace jurisdiction the call was pinned to
+/// (`worker_ai.llm.region`), recorded here rather than only on
+/// `provider_submissions` because a compliance reviewer reads insights output
+/// far more often than the submissions ledger.
+model LlmOutput {
+  id              String   @id @db.Char(26)
+  projectId       String   @map("project_id") @db.Char(26)
+  workspaceId     String   @map("workspace_id") @db.Char(26)
+  jobId           String?  @map("job_id") @db.Char(26)
+  kind            String
+  templateVersion String   @map("template_version")
+  provider        String
+  region          String
+  /// Zod: `ChaptersOutputSchema` | `SummaryOutputSchema` | `HooksOutputSchema`
+  /// (`@montaj/prompts`), keyed by `kind`.
+  output          Json     @db.JsonB
+  /// `{inputTokens, outputTokens, costMinor, currency}` — token/cost accounting
+  /// per call (brief section 2).
+  usage           Json     @default("{}") @db.JsonB
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  job       Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, kind, createdAt])
+  @@index([workspaceId])
+  @@map("llm_outputs")
 }
 
 /// Server-signed render manifest (THREAT-MODEL T10, A21). Single use: the nonce

@@ -1,0 +1,16 @@
+{
+  "language": "gu",
+  "version": 1,
+  "description": "Gujarati filler lexicon (minimal seed set, B18) for the autocut pass.",
+  "entries": [
+    {
+      "token": "એટલે",
+      "scripts": { "native": "એટલે", "roman": "etle" },
+      "contextRule": "isolated_only",
+      "weight": 0.58
+    },
+    { "token": "તો", "scripts": { "native": "તો", "roman": "to" }, "contextRule": "isolated_only", "weight": 0.45 },
+    { "token": "um", "scripts": { "roman": "um" }, "contextRule": "always", "weight": 0.9 },
+    { "token": "hmm", "scripts": { "roman": "hmm" }, "contextRule": "always", "weight": 0.88 }
+  ]
+}

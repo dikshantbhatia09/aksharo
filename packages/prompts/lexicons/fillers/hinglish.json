@@ -1,0 +1,34 @@
+{
+  "language": "hinglish",
+  "version": 1,
+  "description": "Code-mixed Hindi/English filler lexicon (roman script) for the autocut pass (B18).",
+  "entries": [
+    { "token": "um", "scripts": { "roman": "um" }, "contextRule": "always", "weight": 0.97 },
+    { "token": "uh", "scripts": { "roman": "uh" }, "contextRule": "always", "weight": 0.96 },
+    { "token": "hmm", "scripts": { "roman": "hmm" }, "contextRule": "always", "weight": 0.9 },
+    {
+      "token": "matlab",
+      "scripts": { "roman": "matlab", "native": "मतलब" },
+      "contextRule": "isolated_only",
+      "weight": 0.62
+    },
+    { "token": "toh", "scripts": { "roman": "toh", "native": "तो" }, "contextRule": "isolated_only", "weight": 0.5 },
+    { "token": "haan", "scripts": { "roman": "haan", "native": "हां" }, "contextRule": "isolated_only", "weight": 0.5 },
+    { "token": "yaar", "scripts": { "roman": "yaar", "native": "यार" }, "contextRule": "isolated_only", "weight": 0.5 },
+    {
+      "token": "accha",
+      "scripts": { "roman": "accha", "native": "अच्छा" },
+      "contextRule": "isolated_only",
+      "weight": 0.5
+    },
+    { "token": "basically", "scripts": { "roman": "basically" }, "contextRule": "isolated_only", "weight": 0.6 },
+    { "token": "like", "scripts": { "roman": "like" }, "contextRule": "isolated_only", "weight": 0.6 },
+    { "token": "you know", "scripts": { "roman": "you know" }, "contextRule": "isolated_only", "weight": 0.6 },
+    {
+      "token": "vagairah",
+      "scripts": { "roman": "vagairah", "native": "वगैरह" },
+      "contextRule": "isolated_only",
+      "weight": 0.55
+    }
+  ]
+}

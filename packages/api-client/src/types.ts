@@ -766,6 +766,45 @@ export interface AvailableScripts {
   scripts: ScriptAvailability[];
 }
 
+// --- Insights (B11) -------------------------------------------------------
+
+export type InsightKind = "chapters" | "summary" | "hooks";
+export type InsightTone = "energetic" | "calm" | "bold" | "informative";
+
+export interface InsightsRequest {
+  kinds: InsightKind[];
+  tone?: InsightTone;
+  regenerate?: boolean;
+}
+
+export interface InsightJob {
+  kind: InsightKind;
+  jobId: string;
+  deduplicated: boolean;
+  tenths: number;
+}
+
+export interface InsightsAccepted {
+  jobs: InsightJob[];
+  totalTenths: number;
+}
+
+export interface InsightRow {
+  id: string;
+  kind: InsightKind;
+  templateVersion: string;
+  provider: string;
+  region: string;
+  output: Record<string, unknown>;
+  usage: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface InsightsResponse {
+  items: InsightRow[];
+  disclosure: string;
+}
+
 // --- Billing (B01) ------------------------------------------------------------
 
 /**
@@ -959,4 +998,89 @@ export interface AffiliateStats {
   fyNetMinor: number;
   tier: string;
   activeReferralsForTierUpgrade: number;
+}
+
+// --- B14: API keys and webhooks (Settings → Developers) --------------------
+
+export type ApiKeyScope =
+  "projects_read" | "projects_write" | "transcripts_read" | "exports_write" | "webhooks_manage";
+
+export const API_KEY_SCOPES: readonly ApiKeyScope[] = [
+  "projects_read",
+  "projects_write",
+  "transcripts_read",
+  "exports_write",
+  "webhooks_manage",
+];
+
+export interface ApiKeyView {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: ApiKeyScope[];
+  rateLimit: number;
+  burstLimit: number;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+export interface MintedApiKeyView extends ApiKeyView {
+  /** `ak_live_<prefix>.<secret>` — shown once. */
+  key: string;
+}
+
+export interface CreateApiKeyRequest {
+  name: string;
+  scopes: ApiKeyScope[];
+  expiresAt?: string;
+}
+
+export type WebhookEventName =
+  "transcript.completed" | "export.completed" | "job.failed" | "credits.low";
+
+export const WEBHOOK_EVENT_NAMES: readonly WebhookEventName[] = [
+  "transcript.completed",
+  "export.completed",
+  "job.failed",
+  "credits.low",
+];
+
+export interface WebhookEndpointView {
+  id: string;
+  url: string;
+  events: string[];
+  active: boolean;
+  failures: number;
+  disabledAt: string | null;
+  createdAt: string;
+}
+
+export interface CreatedWebhookEndpointView extends WebhookEndpointView {
+  /** The signing secret — shown once. */
+  secret: string;
+}
+
+export interface CreateWebhookRequest {
+  url: string;
+  events: WebhookEventName[];
+}
+
+export interface UpdateWebhookRequest {
+  url?: string;
+  events?: WebhookEventName[];
+  active?: boolean;
+}
+
+export interface WebhookDeliveryView {
+  id: string;
+  event: string;
+  status: "pending" | "delivered" | "failed" | "dead";
+  attempt: number;
+  responseCode: number | null;
+  error: string | null;
+  nextRetryAt: string | null;
+  deliveredAt: string | null;
+  createdAt: string;
 }
