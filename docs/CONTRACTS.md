@@ -54,7 +54,7 @@ Every job producer must call `reserve` before enqueue and `settle`/`release` fro
 JWT (RS256) claims: `{ sub: userId, ws: workspaceId, role, kind: "web"|"desktop"|"bridge"|"premiere"|"ae"|"resolve"|"api", jti, iat, exp(15m) }`. Refresh: opaque token, family id, rotation with 60 s grace, reuse → family revoked. Endpoints per `03-architecture/07`. Device code: `{deviceCode, userCode (8 chars, no ambiguous glyphs), verificationUrl, interval, expiresIn ≤ 600}`.
 
 ## 6. Storage keys
-Raw (S3): `ws/{workspaceId}/p/{projectId}/media/{mediaId}/raw.{ext}`. Derived (R2): `ws/{workspaceId}/p/{projectId}/media/{mediaId}/{audio16k.wav|audio48k.wav|proxy540.mp4|waveform.json|thumb-{n}.jpg}`; exports `ws/{workspaceId}/p/{projectId}/exports/{exportId}.{ext}`; fonts `ws/{workspaceId}/fonts/{fontId}.{ttf|otf|woff2}`.
+Raw (S3): `ws/{workspaceId}/p/{projectId}/media/{mediaId}/raw.{ext}`. Derived (R2): `ws/{workspaceId}/p/{projectId}/media/{mediaId}/{audio16k.wav|audio48k.wav|proxy540.mp4|waveform.json|thumb-{n}.jpg, subtitle.json (imported subtitle sidecar as a cue list — added 2026-09-02 after A06)}`; exports `ws/{workspaceId}/p/{projectId}/exports/{exportId}.{ext}`; fonts `ws/{workspaceId}/fonts/{fontId}.{ttf|otf|woff2}`.
 
 ## 7. Realtime
 Rooms `project:{projectId}`, `workspace:{workspaceId}`; events `edg.ops {revision, ops, source}`, `job.progress {jobId, progress, etaMs}`, `job.completed {jobId, status}`, `comment.added`, `notification.created {notificationId, kind}` (added 2026-09-02 after A25; user-room delivery of in-app notifications). Bridge relay rooms `bridge:{workspaceId}` (Wave 4).

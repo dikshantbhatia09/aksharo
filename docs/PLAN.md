@@ -38,7 +38,7 @@ Roles: **Fable 5.1** designs, decides, writes briefs, verifies gates. **Opus 5 a
 | X06 | Threat model → checklist (docs/THREAT-MODEL.md) | — | Fable | done |
 | A04 | api: auth (families, device code, token exchange) | A03, X06 | Opus | done |
 | A05 | api: users, workspaces (tax profile), memberships | A04 | Opus | done |
-| A06 | api: projects + media (S3 raw, R2 derived) | A05 | Opus | in-progress |
+| A06 | api: projects + media (S3 raw, R2 derived) | A05 | Opus | done |
 | A07 | worker-media: probe, 16k/48k audio, proxy, waveform, thumbs | A03, A06 | Opus | briefed |
 | A08 | api: jobs, WS gateway, idempotent completion, CreditsFacade (no-op), admission control | A03 | Opus | done |
 | A08b | DLQ + admin replay | A08 | Opus | done |
