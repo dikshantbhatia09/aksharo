@@ -199,6 +199,7 @@ enum Aspect {
 enum PassType {
   autocut
   reframe
+  zoom
   sfx
   music
   textfx

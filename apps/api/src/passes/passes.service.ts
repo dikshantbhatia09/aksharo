@@ -165,25 +165,26 @@ export class PassesService {
   }
 
   /**
-   * `POST /projects/{id}/passes/zoom` (B19 §3).
+   * `POST /projects/{id}/passes/zoom` (B19 §3, frame/RMS sampling wired B19b).
    *
    * Emphasis-word cues come from the live document's segments (`Segment.
-   * emphasis`, CONTRACTS §2); a cue's timestamp is approximated as its
-   * segment's `startMs` rather than the emphasised word's own timing, since
-   * resolving a `wordId` back to milliseconds needs a transcript-chunk lookup
-   * this producer does not otherwise do (flagged in the final report).
+   * emphasis`, CONTRACTS §2), timestamped by the emphasised word's own `s`
+   * (word timing) — `emphasisCuesOf` resolves each `wordId` against the
+   * transcript's current revision (B19b ruling 5; B19 approximated this as
+   * the segment's `startMs`).
    *
-   * Real audio-energy cues and real subject detections need decoded audio
-   * and video frames respectively; neither is wired in this work package
-   * (`apps/worker-ai/worker_ai/passes/README.md`'s "Gap" note), so
-   * `rmsSamples`/`detections`/`sceneFrames` are sent empty. The worker still
-   * runs correctly on emphasis-only cues with a saliency-centre (0.5, 0.5)
-   * target; a follow-up work package that wires A07 frame extraction into
-   * this producer closes the gap without changing the worker.
+   * Real audio-energy cues and real subject detections need decoded video
+   * frames and audio; B19b wires this by having the worker sample the 540p
+   * proxy itself (`worker_ai.processors.reframe_zoom_pass._sample_from_proxy`)
+   * rather than this producer decoding media, so `rmsSamples`/`detections`/
+   * `sceneFrames` are sent empty here on purpose — an empty list is the
+   * worker's signal to sample (`_payload_needs_sampling`). `proxyRequired`
+   * below rejects the request outright when there is no proxy to sample.
    */
   async startZoom(request: StartZoomRequest): Promise<StartReframeZoomAccepted> {
     const project = await this.project(request.projectId, request.workspaceId);
     const media = await this.primaryMedia(project.id);
+    this.requireProxy(media);
 
     const quote = quoteReframeZoom("zoom", media.durationMs ?? 0);
     const passId = newId();
@@ -229,17 +230,16 @@ export class PassesService {
   }
 
   /**
-   * `POST /projects/{id}/passes/reframe` (B19 §4).
+   * `POST /projects/{id}/passes/reframe` (B19 §4, frame sampling wired B19b).
    *
-   * Same gap as `startZoom`: real subject detections need decoded video
-   * frames, not wired in this work package, so `detections` is sent empty
-   * and the worker fails the job non-retryably (`worker/invalid_payload`) —
-   * a documented limitation, not a silent no-op, until a follow-up work
-   * package wires A07 frame extraction into this producer.
+   * Same as `startZoom`: `detections`/`sceneFrames` are sent empty on
+   * purpose, so the worker samples the proxy itself; `requireProxy` rejects
+   * the request outright when the project has none to sample.
    */
   async startReframe(request: StartReframeRequest): Promise<StartReframeZoomAccepted> {
     const project = await this.project(request.projectId, request.workspaceId);
     const media = await this.primaryMedia(project.id);
+    this.requireProxy(media);
 
     const quote = quoteReframeZoom("reframe", media.durationMs ?? 0);
     const passId = newId();
@@ -391,11 +391,24 @@ export class PassesService {
   }
 
   /**
-   * Emphasis-word cues for the zoom pass, one per emphasised segment
-   * (`{tMs}`, the segment's own `startMs` — see `startZoom`'s docstring for
-   * why this is an approximation of the emphasised word's own timing).
+   * Emphasis-word cues for the zoom pass, one per emphasised word, timestamped
+   * by the word's own `s` (start, ms) — B19b ruling 5. `wordId`s are resolved
+   * against the project's transcript at its current revision; a segment whose
+   * `emphasis[].wordId` cannot be found (a stale reference after a delete)
+   * contributes no cue rather than failing the whole pass.
    */
   private async emphasisCuesOf(projectId: string, workspaceId: string): Promise<{ tMs: number }[]> {
+    let transcript: Transcript;
+    try {
+      transcript = await this.transcriptOf(projectId);
+    } catch {
+      return []; // no transcript yet: no words to resolve, no cues.
+    }
+    const wordStartByWid = new Map<string, number>();
+    for (const word of await this.wordsOf(transcript)) {
+      wordStartByWid.set(word.wid, word.s);
+    }
+
     const cues: { tMs: number }[] = [];
     let cursor: string | undefined;
     for (;;) {
@@ -406,12 +419,29 @@ export class PassesService {
         return []; // `edg/not_initialised`: no live document yet, no cues.
       }
       for (const segment of page.segments) {
-        if (Array.isArray(segment.emphasis) && segment.emphasis.length > 0) {
-          cues.push({ tMs: segment.startMs });
+        for (const emphasis of segment.emphasis ?? []) {
+          const startMs = wordStartByWid.get(emphasis.wordId);
+          if (startMs !== undefined) cues.push({ tMs: startMs });
         }
       }
       if (page.nextCursor === null) return cues;
       cursor = page.nextCursor;
+    }
+  }
+
+  /**
+   * `passes/proxy_required` (B19b ruling 2/4): `zoom`/`reframe` sample the
+   * 540p proxy for frames and audio, so a project whose primary media has no
+   * proxy yet cannot run either pass.
+   */
+  private requireProxy(media: MediaAsset): void {
+    if (media.proxyKey === null || media.proxyKey === "") {
+      throw new AppException(
+        PASS_ERROR_CODES.proxyRequired,
+        "This project's media has no proxy yet; zoom and reframe need one to sample frames from.",
+        HttpStatus.CONFLICT,
+        { mediaId: media.id },
+      );
     }
   }
 

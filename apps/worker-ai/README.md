@@ -463,31 +463,33 @@ These are **deployment naming**, read straight from the process environment and
 deliberately _not_ in CONTRACTS §1 — the same precedent the API set for
 `MONTAJ_QUEUE_PREFIX` and the OpenTelemetry variables:
 
-| Variable                               | Default                         | Meaning                                                                      |
-| -------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------- |
-| `MONTAJ_QUEUE_PREFIX`                  | `bull`                          | Redis key prefix; must match the API's                                       |
-| `WORKER_AI_CONCURRENCY`                | `4`                             | jobs in flight per queue                                                     |
-| `WORKER_AI_PORT`                       | `8091`                          | control app port (pod-internal)                                              |
-| `WORKER_AI_QUEUES`                     | every `ai.*`                    | pin a pool to a subset, e.g. a GPU pool                                      |
-| `WORKER_AI_ROUTING_FILE`               | packaged                        | override `routing.yaml`                                                      |
-| `WORKER_AI_VAD_MODEL`                  | —                               | path to `silero_vad.onnx`                                                    |
-| `WORKER_AI_WHISPER_MODEL`              | `small`                         | faster-whisper model for the local adapter                                   |
-| `WORKER_AI_ALLOW_MOCK`                 | auto                            | force the mock lane on or off                                                |
-| `WORKER_AI_ALIGN_MODEL_DIR`            | —                               | CTC checkpoints for the D13 aligners (layout below)                          |
-| `WORKER_AI_INDICLID_DIR`               | —                               | IndicLID heads; without them LID signal 2 is the built-in heuristic          |
-| `WORKER_AI_CACHE`                      | `redis` when `REDIS_URL` is set | `redis`, `memory` or `none`                                                  |
-| `WORKER_AI_CACHE_MAX_BYTES`            | `524288`                        | largest transcript the cache will store                                      |
-| `WORKER_AI_ROUTING_OVERRIDES_FROM_API` | off                             | fetch admin weights from `GET /internal/routing` (B13)                       |
-| `ROUTING_OVERRIDES_JSON`               | —                               | admin routing weights as JSON, laid over `routing.yaml`                      |
-| `ELEVENLABS_BASE_URL`                  | `https://api.elevenlabs.io`     | India residency: `https://api.in.residency.elevenlabs.io`                    |
-| `ELEVENLABS_ZERO_RETENTION`            | on                              | sends `enable_logging=false` on every request                                |
-| `SARVAM_BASE_URL`                      | `https://api.sarvam.ai`         | override for a private endpoint                                              |
-| `ASSEMBLYAI_BASE_URL`                  | `https://api.assemblyai.com`    | override for a private endpoint                                              |
-| `WORKER_AI_INDICXLIT_URL`              | —                               | A22: a served IndicXlit model; unset runs the rule-table transliterator      |
-| `WORKER_AI_INDICTRANS2_URL`            | —                               | A22: self-hosted IndicTrans2; unset skips it in the translation chain        |
-| `GPU_PROVIDER_URL`                     | —                               | serverless GPU endpoint (D15); also serves `/diarise` and `/detect-language` |
-| `GPU_PROVIDER_TOKEN`                   | —                               | bearer token for it                                                          |
-| `FFMPEG_BIN` `FFPROBE_BIN`             | on `PATH`                       | explicit binary paths                                                        |
+| Variable                               | Default                         | Meaning                                                                                                                                               |
+| -------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MONTAJ_QUEUE_PREFIX`                  | `bull`                          | Redis key prefix; must match the API's                                                                                                                |
+| `WORKER_AI_CONCURRENCY`                | `4`                             | jobs in flight per queue                                                                                                                              |
+| `WORKER_AI_PORT`                       | `8091`                          | control app port (pod-internal)                                                                                                                       |
+| `WORKER_AI_QUEUES`                     | every `ai.*`                    | pin a pool to a subset, e.g. a GPU pool                                                                                                               |
+| `WORKER_AI_ROUTING_FILE`               | packaged                        | override `routing.yaml`                                                                                                                               |
+| `WORKER_AI_VAD_MODEL`                  | —                               | path to `silero_vad.onnx`                                                                                                                             |
+| `WORKER_AI_WHISPER_MODEL`              | `small`                         | faster-whisper model for the local adapter                                                                                                            |
+| `WORKER_AI_ALLOW_MOCK`                 | auto                            | force the mock lane on or off                                                                                                                         |
+| `WORKER_AI_ALIGN_MODEL_DIR`            | —                               | CTC checkpoints for the D13 aligners (layout below)                                                                                                   |
+| `WORKER_AI_INDICLID_DIR`               | —                               | IndicLID heads; without them LID signal 2 is the built-in heuristic                                                                                   |
+| `WORKER_AI_CACHE`                      | `redis` when `REDIS_URL` is set | `redis`, `memory` or `none`                                                                                                                           |
+| `WORKER_AI_CACHE_MAX_BYTES`            | `524288`                        | largest transcript the cache will store                                                                                                               |
+| `WORKER_AI_ROUTING_OVERRIDES_FROM_API` | off                             | fetch admin weights from `GET /internal/routing` (B13)                                                                                                |
+| `ROUTING_OVERRIDES_JSON`               | —                               | admin routing weights as JSON, laid over `routing.yaml`                                                                                               |
+| `ELEVENLABS_BASE_URL`                  | `https://api.elevenlabs.io`     | India residency: `https://api.in.residency.elevenlabs.io`                                                                                             |
+| `ELEVENLABS_ZERO_RETENTION`            | on                              | sends `enable_logging=false` on every request                                                                                                         |
+| `SARVAM_BASE_URL`                      | `https://api.sarvam.ai`         | override for a private endpoint                                                                                                                       |
+| `ASSEMBLYAI_BASE_URL`                  | `https://api.assemblyai.com`    | override for a private endpoint                                                                                                                       |
+| `WORKER_AI_INDICXLIT_URL`              | —                               | A22: a served IndicXlit model; unset runs the rule-table transliterator                                                                               |
+| `WORKER_AI_INDICTRANS2_URL`            | —                               | A22: self-hosted IndicTrans2; unset skips it in the translation chain                                                                                 |
+| `GPU_PROVIDER_URL`                     | —                               | serverless GPU endpoint (D15); also serves `/diarise` and `/detect-language`                                                                          |
+| `GPU_PROVIDER_TOKEN`                   | —                               | bearer token for it                                                                                                                                   |
+| `FFMPEG_BIN` `FFPROBE_BIN`             | on `PATH`                       | explicit binary paths                                                                                                                                 |
+| `PASS_FACE_DETECTOR`                   | unset (`BrightBlobDetector`)    | B19b: `yunet` selects a real face detector for `zoom`/`reframe` frame sampling; unimplemented this WP (needs `PASS_FACE_DETECTOR_WEIGHTS` too — H-22) |
+| `PASS_FACE_DETECTOR_WEIGHTS`           | —                               | B19b: weights path for the above, provisioned at image build, not a repo checkout                                                                     |
 
 `GPU_PROVIDER_URL` is a **raise for the orchestrator**: CONTRACTS §1 freezes
 `GPU_PROVIDER` but not its endpoint, and A09 may not edit that file. It is

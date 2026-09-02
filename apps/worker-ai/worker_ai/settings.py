@@ -77,6 +77,12 @@ WORKER_ENV_VARS: tuple[str, ...] = (
     # configuration now and live in CONTRACT_ENV_VARS above.
     "FFMPEG_BIN",
     "FFPROBE_BIN",
+    # B19b: gates a real YuNet face detector in the zoom/reframe passes'
+    # frame sampling (`worker_ai.passes.frame_sampling`); unset (or any value
+    # other than "yunet") keeps the `BrightBlobDetector` stand-in, since the
+    # YuNet ONNX weights are not provisioned in this work package (H-22).
+    "PASS_FACE_DETECTOR",
+    "PASS_FACE_DETECTOR_WEIGHTS",
 )
 
 #: Every variable in CONTRACTS section 1, in contract order.

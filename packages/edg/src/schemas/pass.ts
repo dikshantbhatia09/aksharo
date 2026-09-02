@@ -6,6 +6,7 @@ import {
   GainDbSchema,
   IsoDateTimeSchema,
   JsonObjectSchema,
+  KeyframesInlineSchema,
   KeyframesRefSchema,
   MsSchema,
   OffsetMsSchema,
@@ -15,9 +16,9 @@ import {
 } from "./primitives.js";
 import { PositionSchema } from "./segment.js";
 
-/** Pass families (CONTRACTS §2). */
+/** Pass families (CONTRACTS §2; `"zoom"` added 2026-09-03 after B19b). */
 export const PassTypeSchema = z
-  .enum(["autocut", "reframe", "sfx", "music", "textfx", "prompted"])
+  .enum(["autocut", "reframe", "zoom", "sfx", "music", "textfx", "prompted"])
   .meta({ id: "PassType", title: "PassType" });
 
 /** Item kinds a pass can propose (CONTRACTS §2). */
@@ -56,6 +57,25 @@ export const RectSchema = z
 /** `cut` carries no payload: the item's `startMs`/`endMs` is the removed range. */
 export const CutPayloadSchema = z.object({}).meta({ id: "CutPayload", title: "CutPayload" });
 
+/**
+ * Keyframe payload rule (CONTRACTS §2, added 2026-09-03 after B19b): the packed
+ * MKF2 curve (`packages/edg/src/passes/keyframes.ts`) rides inline as base64 on
+ * `keyframes` when <= 64 KiB, else it is uploaded to derived storage and
+ * referenced by `keyframesRef` — readers accept either, so exactly one is
+ * required.
+ */
+const keyframeCarrier = {
+  keyframes: KeyframesInlineSchema.optional(),
+  keyframesRef: KeyframesRefSchema.optional(),
+};
+
+function hasExactlyOneKeyframeField(value: {
+  keyframes?: string | undefined;
+  keyframesRef?: string | undefined;
+}): boolean {
+  return (value.keyframes !== undefined) !== (value.keyframesRef !== undefined);
+}
+
 export const ZoomPayloadSchema = z
   .object({
     /** Where the zoom lands, normalised to the source frame. */
@@ -63,15 +83,20 @@ export const ZoomPayloadSchema = z
     scaleFrom: z.number().gt(0),
     scaleTo: z.number().gt(0),
     easing: EasingSchema,
-    keyframesRef: KeyframesRefSchema.optional(),
+    ...keyframeCarrier,
+  })
+  .refine(hasExactlyOneKeyframeField, {
+    message: "exactly one of `keyframes` (inline base64) or `keyframesRef` is required",
   })
   .meta({ id: "ZoomPayload", title: "ZoomPayload" });
 
 export const ReframePayloadSchema = z
   .object({
     aspect: AspectSchema,
-    /** Packed float32 `[tMs, x, y, w, h]` rows (07 §EDG JSON schema). */
-    keyframesRef: KeyframesRefSchema,
+    ...keyframeCarrier,
+  })
+  .refine(hasExactlyOneKeyframeField, {
+    message: "exactly one of `keyframes` (inline base64) or `keyframesRef` is required",
   })
   .meta({ id: "ReframePayload", title: "ReframePayload" });
 

@@ -602,7 +602,7 @@
     },
     "PassType": {
       "type": "string",
-      "enum": ["autocut", "reframe", "sfx", "music", "textfx", "prompted"],
+      "enum": ["autocut", "reframe", "zoom", "sfx", "music", "textfx", "prompted"],
       "title": "PassType"
     },
     "PassStatus": {
@@ -951,6 +951,9 @@
         "easing": {
           "$ref": "#/$defs/Easing"
         },
+        "keyframes": {
+          "$ref": "#/$defs/KeyframesInline"
+        },
         "keyframesRef": {
           "$ref": "#/$defs/KeyframesRef"
         }
@@ -992,17 +995,25 @@
       "enum": ["velocity", "easeInOut"],
       "title": "Easing"
     },
+    "KeyframesInline": {
+      "type": "string",
+      "minLength": 1,
+      "title": "KeyframesInline"
+    },
     "ReframePayload": {
       "type": "object",
       "properties": {
         "aspect": {
           "$ref": "#/$defs/Aspect"
         },
+        "keyframes": {
+          "$ref": "#/$defs/KeyframesInline"
+        },
         "keyframesRef": {
           "$ref": "#/$defs/KeyframesRef"
         }
       },
-      "required": ["aspect", "keyframesRef"],
+      "required": ["aspect"],
       "additionalProperties": false,
       "title": "ReframePayload"
     },
