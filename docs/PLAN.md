@@ -43,7 +43,7 @@ Fable 5.1 orchestrates, designs and decides; coding agents implement briefs. Cod
 | A04 | api: auth (families, device code, token exchange) | A03, X06 | Opus | done |
 | A05 | api: users, workspaces (tax profile), memberships | A04 | Opus | done |
 | A06 | api: projects + media (S3 raw, R2 derived) | A05 | Opus | done |
-| A07 | worker-media: probe, 16k/48k audio, proxy, waveform, thumbs | A03, A06 | Opus | done |
+| A07 | worker-media: probe, 16k/48k audio, proxy, waveform, thumbs | A03, A06 | Opus | done (A07 + A07b merged: media.proxy completion handler with failure hook; export dialog automatable) |
 | A08 | api: jobs, WS gateway, idempotent completion, CreditsFacade (no-op), admission control | A03 | Opus | done |
 | A08b | DLQ + admin replay | A08 | Opus | done |
 | A08c | api: Redis realtime bus connects lazily-created clients before subscribe/publish; gateway join rollback; real-Redis two-instance e2e (defect found by A12) | A08, A12 | Opus | done |
@@ -101,11 +101,11 @@ Sub-wave order: {B01, B02, B05, B09} → {B03, B04, B06, B07, B07b, B08} → {B1
 | B13 | Admin console: roles + step-up, users/credits/refunds, flags, styles/parity, routing weights, jobs/DLQ, mandates, TDS, affiliate review, DSR/breach, share reports, metrics | B01–B12, B16 | in-progress (increment a merged: admin_roles + TOTP step-up + AdminGuard(role) + role-matrix test; b–e running on wp/B13) |
 | B14 | Public API v1 + scoped API keys + signed webhooks + SSRF-guarded URL import + developer docs | B02, A21, A06 | done (B14 + B14b merged: keys, /v1, idempotency, SSRF ingest, signed webhooks with real event emits + fixture-server e2e, Developers docs) |
 | B15 | Share/review links (view/comment/approve, hygiene), comments, batch, replace media (re-align), import transcript & align | A12, A21, A10, B08 | in-progress (API half merged: share links scope ladder/password/expiry/view cap/auto-disable, comments, batch; web viewer + replace-media re-align + import-align running on wp/B15) |
-| B18 | Autocut pass (silences, filler lexicons, retakes, protection, pacing) → pass items | A10, A11, A02c | done (merged: autocut pass in worker + API over edg_passes, 12 filler lexicons (H-20 review), CONTRACTS protected ranges → B18b) |
+| B18 | Autocut pass (silences, filler lexicons, retakes, protection, pacing) → pass items | A10, A11, A02c | done (B18 + B18b merged: autocut pass, protected ranges op + timeline protect + passes payload) |
 | B19 | Reframe & zoom pass (scene detection, subject tracking, cues, packed keyframes) | A07, A11, B18 | done (merged: scene-cut metric, tracking, zoom/reframe on the B18 runner, MKF2 keyframes; B19b: proxy frame sampling, single codec, keyframe storage, zoom type; H-22 weights) |
-| B20 | Proposal review UI + exports apply cuts/zooms via `timemap` (browser + cloud) + parity fixtures | A17, A19, A20, B18, B19 | briefed |
-| C00 | Signing & release pipeline (notarytool + 24 h buffer, cloud-HSM Windows signing, `.ccx`, ZXP, Resolve bundle, channels, SBOM); dry-run until A00-03 | A01 | done pending fixup (dry-run release CLI + workflows, fail-closed signing, 24 h gate; release secrets → tools/release/.env.example; H-23) |
-| C01 | Local bridge v2: `bridge-core` + Node SEA app, relay-first WSS, loopback HTTPS + per-install cert, pairing, 12 h pair tokens, api relay module | A04, A08, B08 | briefed |
+| B20 | Proposal review UI + exports apply cuts/zooms via `timemap` (browser + cloud) + parity fixtures | A17, A19, A20, B18, B19 | done (merged: shared crop-window curve for browser + ffmpeg, Passes tab/ProposalCard/bulk accept, split lanes, output-length test, crop parity; B20b after B19b) |
+| C00 | Signing & release pipeline (notarytool + 24 h buffer, cloud-HSM Windows signing, `.ccx`, ZXP, Resolve bundle, channels, SBOM); dry-run until A00-03 | A01 | done (merged: dry-run release CLI + workflows, fail-closed signed mode, 24 h notarisation gate, SBOM/checksums/feeds; release secrets in tools/release/.env.example; H-23) |
+| C01 | Local bridge v2: `bridge-core` + Node SEA app, relay-first WSS, loopback HTTPS + per-install cert, pairing, 12 h pair tokens, api relay module | A04, A08, B08 | done (merged: bridge-core JSON-RPC over loopback TLS + relay, pairing, per-install cert, SEA build; C01b tray/keychain, B08b per-device credential) |
 | C02 | Desktop shell: Electron loading the hosted web app (decision D71), deep links, updater with channels, tray, embedded bridge, hardened defaults | A13, C00, C01 | done (merged: hardened Electron shell, allowlist, aksharo:// deep links, updater channels, fuses, BridgeAdapter stub; T25 added; C00 provides release scripts) |
 Sub-wave order: {B10, B11, B18, C00} → {B12, B14, B15, B19, C01} → {B13, B20, C02} → **Gate B**.
 
