@@ -27,10 +27,10 @@
     "gen:client": "pnpm --filter @montaj/api gen:client",
     "db:seed": "turbo run db:seed",
     "parity": "pnpm --filter @montaj/ass-exporter parity",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}\"",
-    "format:changed": "node scripts/format-changed.mjs",
-    "format:changed:check": "node scripts/format-changed.mjs --check",
+    "format": "node --max-old-space-size=6144 node_modules/prettier/bin/prettier.cjs --write \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}\"",
+    "format:check": "node --max-old-space-size=6144 node_modules/prettier/bin/prettier.cjs --check \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}\"",
+    "format:changed": "node --max-old-space-size=6144 scripts/format-changed.mjs",
+    "format:changed:check": "node --max-old-space-size=6144 scripts/format-changed.mjs --check",
     "clean": "turbo run clean && node scripts/clean.mjs"
   },
   "devDependencies": {

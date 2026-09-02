@@ -10,6 +10,49 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Fixed
 
+- **B03b — unified the two `apps/web/lib/billing/razorpay.ts` modules B03 and B04 each
+  wrote (add/add conflict merging main).** One module now backs both: the checkout
+  sheet's subscription/mandate flow and B04's one-time purchases (`ExportUpsellPanel`'s
+  ₹9 clean export and week pass, `TopupCard`'s top-ups). `loadRazorpayCheckout()` keeps
+  B03's non-throwing, typed-constructor return (`Promise<RazorpayConstructor | null>`);
+  `openRazorpayCheckout()` keeps B04's stricter contract — a typed `RazorpayOutcome`
+  (`success` with payment/order ids, or `dismissed`), rejecting rather than resolving
+  falsely when the widget cannot load or open. `checkout-sheet.tsx` and `plan-table.tsx`
+  (the offers-ladder purchases) were updated to the outcome/throwing contract; their
+  tests and `lib/billing/razorpay.test.ts` updated to match. Also: the sidebar
+  `CreditMeter` (`apps/web/components/shell/sidebar.tsx`) now reads B02's real
+  `GET /workspaces/{id}/credits` via `packages/api-client`'s `useWorkspaceCredits()`
+  instead of the wrong `pending.usage` path, so the meter shows a live balance and reset
+  date instead of an honest zero. `lib/nav.test.ts`'s `SETTINGS_NAV` assertion updated
+  to include B04's "subscription" settings section.
+
+### Added
+
+- **B03 — web Subscription pages, checkout sheet and `UpgradeGate` wiring.** `/billing`
+  (Overview: plan card with status/renewal/mandate cap, credits meter with lots and
+  expiries, pause/cancel/resume with confirmations, streak slot behind a flag),
+  `/billing/plans` (INR/USD from `GET /billing/plans`, monthly/yearly toggle, Agency
+  seat stepper, offers ladder, credits-to-outcomes table, pay-once vs Autopay
+  explainer, FAQ), `/billing/methods` (payment methods, mandates with the 24-hour
+  pre-debit notice, revoke with a consequence-explained confirmation),
+  `/billing/invoices` (GST break-up, credit-note linking, signed PDF download; built
+  against B05's `invoices` row shape and resilient to `GET /invoices` 404ing while
+  B05 is still landing), `/billing/usage` (ledger history, per-job attribution, lots,
+  CSV export). The shared `CheckoutSheet` (`apps/web/components/billing/`) drives tax
+  profile (State + optional GSTIN with checksum and state auto-fill for India,
+  country elsewhere) → method (UPI Autopay / Card / pay-once; Netbanking marked
+  unsupported by B01's checkout schema) → confirm (GST-inclusive break-up) → gateway
+  (Razorpay Checkout.js from its official script URL, webhook-driven status polling)
+  → success/failed, and handles the `409 billing/mandate_cap_exceeded` alternatives.
+  `BillingUpgradeGate` composes `packages/ui`'s `UpgradeGate` with the sheet so any
+  other work package can gate a control with one import. A typed client layer lives
+  in `apps/web/lib/billing/` (endpoints, hooks, money/GST/checkout-state pure logic)
+  rather than in `packages/api-client`, which is outside this work package's file
+  boundary — see the report's Deviations. `apps/web/lib/nav.ts` flips the sidebar's
+  "Subscription" item to `ready: true` and adds `BILLING_NAV`.
+
+### Fixed
+
 - **A05b — `onboardingSchema` rejected the multi-select onboarding answers.** Reported
   by A13. `apps/api/src/users/users.dto.ts`'s `onboardingSchema` accepted only
   `boolean | number | string` per `onboarding` value, so `PATCH /me` answered
@@ -377,6 +420,64 @@ retention.service.ts`'s `purgeDueMedia` only ever queries `media_assets`,
     `notify.kinds.test.ts`'s hard-pinned ten-value list; the closest existing
     kind's copy — "kept for N days, then deleted" — is false for a document
     retained 72 months).
+- **A17 — web: editor timeline (waveform, word/segment lanes, playhead, zoom,
+  lanes API, keyboard nudge, output-time mode).**
+  - **`Timeline.tsx` (`apps/web/components/editor/timeline/`)** draws the
+    whole row — A07's `waveform.json` peaks/RMS, a time ruler, the word and
+    segment lanes and three read-only pass-item lanes (cuts/zoom/audio) — on
+    one Canvas2D surface, the same "no DOM per row" precedent A16's
+    `CaptionStage` set for the preview canvas, and for the same reason: one
+    `<div>` per word in a multi-hour transcript is what the brief's own
+    55 fps floor rules out. All the maths lives in `apps/web/lib/timeline/*.ts`,
+    unit-tested without a browser (`coords.ts` time↔px and zoom,
+    `snapping.ts`, `output-clock.ts`, `lanes.ts`, `waveform-view.ts`,
+    `nudge.ts`) — 51 tests, including a `fast-check` property test that
+    dragging never produces an overlapping or inverted segment.
+  - **Segment-edge drag and the arrow-key nudge both resolve through
+    `resolveSegmentDrag`** (snap to the nearest word boundary within 40 ms,
+    then clamp to the bounds invariants) into one `SetSegmentBounds`
+    (CONTRACTS §2) on drop/keypress — never per pointer move, same discipline
+    `CaptionStage`'s own drag handle already uses for `SetSegmentPosition`.
+    Double-click splits at the nearest word; a button merges with the next
+    segment.
+  - **Output-time mode** (`lib/timeline/output-clock.ts`) maps the ruler and
+    playhead onto `@montaj/timemap`'s output clock once an accepted cut
+    exists; scrubbing always resolves back to source ms for the (still
+    source-time) proxy `<video>`, per the brief.
+  - **The lanes API** (`lib/timeline/lanes.ts`) turns a document's pass items
+    into three typed, coloured-by-state rows B20 can add accept/reject
+    affordances to without this module changing.
+  - **A timing-nudge interface** (`lib/timeline/nudge.ts`) — every resolved
+    drag/keyboard delta is emitted to a `TimingNudgeSink`; `noopNudgeSink` is
+    the only implementation until B09 exists, matching the brief's own
+    wording ("an interface with a no-op sink now").
+  - **Deviation, reported rather than resolved:** the brief's "word block
+    drag → `EditWord` op" has no backing op — `EditWordOpSchema` (CONTRACTS
+    §2) carries only `{wordId, text, script?}`, never `s`/`e`; word timing is
+    set once at transcription and is not client-editable through any op in
+    `packages/edg`. Word blocks are therefore read-only/selectable (click
+    seeks and selects, low-confidence tint, filler dim, tombstoned hidden);
+    all retiming happens on the segment lane, which matches
+    `SetSegmentBoundsOpSchema` exactly.
+  - **Integration outside the brief's literal file boundary:** wiring
+    `<Timeline>` into `apps/web/app/(app)/p/[id]/editor-client.tsx` (mount,
+    `SetSegmentBounds` submit path, `CaptionStage`'s `src` pointed at the
+    real proxy URL) required a small additive patch to that file, which A15's
+    own file-boundary note already anticipated for A16's `CaptionStage`. A
+    new `apps/web/lib/timeline/use-timeline-media.ts` fetches the proxy/
+    waveform signed URLs via `@montaj/api-client`'s documented
+    `defineEndpoint` + `useRawApiClient()` escape hatch — "for a call the
+    hooks do not cover yet" — rather than editing that package's curated
+    `endpoints.ts`.
+  - **e2e:** `apps/web/e2e/timeline.spec.ts` (6 tests: draw, segment-edge
+    drag lands the op, ruler scrub, zoom, keyboard nudge, axe) on chromium
+    and webkit; `timeline-performance.spec.ts` measures a 3-hour,
+    54,000-word timeline's scroll/zoom fps. A fresh e2e sign-up's workspace
+    has no credit grant (only `prisma/seed.ts`'s demo workspace does), so
+    `apps/web/e2e/timeline-credits.ts` grants one directly (same
+    `credit_accounts`/`credit_lots`/`credit_ledger` shape the seed script
+    writes), the same "one non-HTTP step" precedent as `editor-fixtures.ts`'s
+    `insertProbedMedia`.
 - **A22 — scripts and translation: transliteration (`ai.transliterate`), translation
   (`ai.translate`), the producers, and the editor's script tabs.**
   - **Transliteration writes per word, translation writes per segment, and each

@@ -13,48 +13,51 @@ import type { RequestContextInfo } from "../users/profile.service.js";
 export type ClawbackOutcome =
   | { readonly outcome: "already_processed" }
   | { readonly outcome: "nothing_to_claw_back" }
-  | { readonly outcome: "clawed_back"; readonly lotIds: readonly string[] }
-  | { readonly outcome: "manual_action_required" };
+  | { readonly outcome: "clawed_back"; readonly revokedTenths: number }
+  | {
+      readonly outcome: "manual_action_required";
+      readonly revokedTenths: number;
+      readonly shortfallTenths: number;
+    };
 
 /**
- * Credits clawback for a refunded pass/top-up purchase (B01b follow-up: "on
+ * Credits clawback for a refunded pass/top-up purchase (B01b: "on
  * `payment.refunded` and on refund via the admin/API path, claw back the
- * credits granted by that payment").
+ * credits granted by that payment"; B01d: switched onto B02b's
+ * `CreditsFacade.revokeLot`).
  *
- * **Read this before changing the call to `LedgerCreditsFacade.reverse()`
- * below.** `reverse()` (`apps/api/src/credits/ledger-credits.facade.ts`) is
- * built to refund a **settled job** — 04 §Refunds & cancellation's "a settled
- * job with a bad artefact gets a reversal lot with the original expiry" — and
- * its precondition is a `credit_holds` row keyed by `jobId` (a hard foreign
- * key to `jobs.id`) to inherit a lot's expiry from. A pass/top-up purchase's
- * credits are granted through `CreditsFacade.grantLot()`
- * (`webhooks.service.ts`'s `grantPass`), which creates **only** a
- * `credit_lots` row — no job, no hold, ever. Calling `reverse()` for a
- * grant-sourced lot therefore always throws
- * `credits/reversal_source_not_found` (`CREDIT_ERROR_CODES.
- * reversalSourceNotFound`); `reverse()` also **adds** tenths back to the
- * balance (compensating a customer for bad work), the opposite direction
- * from "claw back", which needs to **subtract** tenths a refunded payment
- * granted.
+ * B01b/B01c called `LedgerCreditsFacade.reverse()` here, which was the wrong
+ * primitive — built to refund a **settled job** (04 §Refunds & cancellation's
+ * "a settled job with a bad artefact gets a reversal lot"), keyed on a
+ * `credit_holds` row with a hard FK to `jobs.id`, and it **adds** tenths back
+ * rather than subtracting them. A pass/top-up purchase's credits are granted
+ * through `CreditsFacade.grantLot()` (`webhooks.service.ts`'s `grantPass`),
+ * which creates only a `credit_lots` row — no job, no hold, ever — so
+ * `reverse()` always threw `credits/reversal_source_not_found` here. See
+ * B02's `credits/README.md` for `revokeLot` itself and the history of this
+ * decision.
  *
- * There is no existing primitive on `CreditsFacade`/`LedgerCreditsFacade`
- * that subtracts a grant-sourced lot's tenths — `grantLot` only ever adds
- * (its `tenths` parameter is asserted non-negative), and `reserve()`/
- * `settle()` require a real `jobs.id` (same hard FK). This is reported as an
- * open conflict in `billing/README.md` "Credits clawback: an open primitive
- * gap" — the fix needs a new method on `LedgerCreditsFacade` (B02's file,
- * outside this work package's boundary), e.g. `revokeLot(lotId, tenths,
- * reason)` or a signed `adjust(workspaceId, deltaTenths, reason)`.
+ * `revokeLot({lotId, tenths?, reason, refundId})` is the right shape: keyed
+ * on the **lot**, not a job, and it **subtracts** — never more than the lot
+ * still has remaining, reporting the gap as `shortfallTenths` when a
+ * customer already spent some of what is being refunded (credits already
+ * spent are not recoverable this way; that gap is what needs a human, not a
+ * ledger correction). It is also idempotent per `refundId` on the ledger's
+ * own side (a partial unique index on `credit_ledger`), on top of this
+ * service's own `passes_purchased.refunded_at` compare-and-swap.
  *
- * Until then, this service does everything that IS correctly its own to do:
- * resolve exactly which lot a refunded purchase granted, guard the whole
- * operation so a replayed webhook or a repeated admin call is a no-op
- * (`passes_purchased.refunded_at`, set with a compare-and-swap `updateMany`),
- * attempt the call the B01b brief asks for, and — because that attempt is
- * expected to fail for every real pass/top-up refund in this codebase today
- * — catch exactly `credits/reversal_source_not_found` and turn it into a
- * clearly labelled, fully detailed `audit_log` row an operator can act on
- * manually, rather than silently doing nothing or crashing the webhook.
+ * `manual_action_required` now means exactly one thing: `shortfallTenths >
+ * 0` — some of what was refunded in money had already been spent in
+ * credits, and a human needs to see that gap. It no longer means "the
+ * primitive doesn't apply" (B01c's meaning), because now it does.
+ *
+ * Still calling {@link LedgerCreditsFacade} as a concrete class rather than
+ * through the frozen `CREDITS_FACADE` token — `webhooks.service.ts`'s
+ * `grantPass` and this file's admin path both need the real ledger
+ * regardless of which implementation a test harness binds the token to
+ * (`test/billing-harness.ts` binds it to `NoopCreditsFacade` for billing's
+ * *own* mechanics — checkout, mandates, dunning — which is unrelated to
+ * whether a clawback actually moves money).
  */
 @Injectable()
 export class RefundsService {
@@ -123,6 +126,7 @@ export class RefundsService {
         providerRefundId: refund.providerRefundId,
         amountMinor: body.amountMinor,
         clawback: clawback.outcome,
+        ...("shortfallTenths" in clawback ? { shortfallTenths: clawback.shortfallTenths } : {}),
       },
     });
 
@@ -133,7 +137,9 @@ export class RefundsService {
    * Claw back the credits one pass/top-up purchase granted. Idempotent per
    * `passPurchaseId`: a second call (webhook replay, or a repeated admin
    * action) is a no-op, proven by the `updateMany` compare-and-swap on
-   * `refunded_at` running before anything else.
+   * `refunded_at` running before anything else — and, on top of that,
+   * `revokeLot` itself is idempotent per `refundId` on the ledger side, so a
+   * process crash between the two writes still cannot double-revoke.
    */
   async clawbackPassPurchase(passPurchaseId: string, reason: string): Promise<ClawbackOutcome> {
     const claimed = await this.prisma.passPurchase.updateMany({
@@ -160,32 +166,24 @@ export class RefundsService {
     }
 
     try {
-      const result = await this.ledger.reverse({
-        workspaceId: pass.workspaceId,
-        // No job/hold will ever match a grant-sourced lot — see the class
-        // doc comment. Kept as `pass.id` (a ULID, the right shape) rather
-        // than a placeholder string, so the failure path below is exercised
-        // exactly the way a real call would hit it.
-        jobId: pass.id,
+      const { revokedTenths, shortfallTenths } = await this.ledger.revokeLot({
+        lotId: pass.lotId,
         tenths: pass.creditsGrantedTenths,
         reason,
+        // Makes the ledger's own idempotency keyed on this purchase, one
+        // refund per purchase — the same identity `passPurchaseId` already
+        // gives the compare-and-swap above.
+        refundId: pass.id,
       });
-      await this.audit.record({
-        action: B01_AUDIT_ACTIONS.creditsClawedBack,
-        resource: "pass_purchase",
-        resourceId: pass.id,
-        workspaceId: pass.workspaceId,
-        data: { tenths: pass.creditsGrantedTenths, lotIds: result.lotIds },
-      });
-      return { outcome: "clawed_back", lotIds: result.lotIds };
-    } catch (error) {
-      if (
-        error instanceof AppException &&
-        error.code === CREDIT_ERROR_CODES.reversalSourceNotFound
-      ) {
+
+      if (shortfallTenths > 0) {
+        // Some of what was refunded in money had already been spent in
+        // credits — not recoverable through the ledger, and a human needs
+        // to see it (04 §Refunds & cancellation has no "partial credit
+        // refund" concept; this is the operational escape hatch for it).
         this.logger.warn(
-          { passPurchaseId, lotId: pass.lotId, tenths: pass.creditsGrantedTenths },
-          "credits clawback not applicable: no job/hold behind this grant-sourced lot (see billing/README.md)",
+          { passPurchaseId, lotId: pass.lotId, revokedTenths, shortfallTenths },
+          "credits clawback partial: some tenths were already spent",
         );
         await this.audit.record({
           action: B01_AUDIT_ACTIONS.creditsClawbackUnavailable,
@@ -193,15 +191,46 @@ export class RefundsService {
           resourceId: pass.id,
           workspaceId: pass.workspaceId,
           data: {
-            reason: "reverse_requires_job_hold",
+            reason: "shortfall",
             lotId: pass.lotId,
-            tenthsOriginallyGranted: pass.creditsGrantedTenths,
-            note:
-              "CreditsFacade.reverse() requires a credit_holds row keyed by jobId; a grant-sourced " +
-              "lot has none. Manual credit_lots adjustment needed until B02 adds a deduct primitive.",
+            revokedTenths,
+            shortfallTenths,
+            note: "Some tenths were already spent and could not be revoked; needs manual review.",
           },
         });
-        return { outcome: "manual_action_required" };
+        return { outcome: "manual_action_required", revokedTenths, shortfallTenths };
+      }
+
+      await this.audit.record({
+        action: B01_AUDIT_ACTIONS.creditsClawedBack,
+        resource: "pass_purchase",
+        resourceId: pass.id,
+        workspaceId: pass.workspaceId,
+        data: { lotId: pass.lotId, revokedTenths },
+      });
+      return { outcome: "clawed_back", revokedTenths };
+    } catch (error) {
+      if (error instanceof AppException && error.code === CREDIT_ERROR_CODES.lotNotFound) {
+        // Defensive only: `grantPass` populates `passes_purchased.lot_id`
+        // from the very `grantLot()` call that created it, so this should
+        // not be reachable in practice. Treated the same as a shortfall —
+        // nothing to revoke, a human should look.
+        this.logger.warn(
+          { passPurchaseId, lotId: pass.lotId },
+          "credits clawback: the recorded lot no longer exists",
+        );
+        await this.audit.record({
+          action: B01_AUDIT_ACTIONS.creditsClawbackUnavailable,
+          resource: "pass_purchase",
+          resourceId: pass.id,
+          workspaceId: pass.workspaceId,
+          data: { reason: "lot_not_found", lotId: pass.lotId },
+        });
+        return {
+          outcome: "manual_action_required",
+          revokedTenths: 0,
+          shortfallTenths: pass.creditsGrantedTenths,
+        };
       }
       throw error;
     }
