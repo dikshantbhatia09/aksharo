@@ -306,6 +306,7 @@ and the chain falls through to something that needs neither.
 | Diarisation         | `pyannote/speaker-diarization-community-1`         | **CC-BY-4.0** — attribution required, shipped in `engineVersions` | `GPU_PROVIDER_URL` (D15 model server)            |
 | Alignment, Indic    | `ai4bharat/indicwav2vec` CTC heads                 | **MIT**                                                           | `WORKER_AI_ALIGN_MODEL_DIR/indicwav2vec/<lang>/` |
 | Alignment, global   | `jonatasgrosman/wav2vec2-large-xlsr-53-<language>` | **Apache-2.0**                                                    | `WORKER_AI_ALIGN_MODEL_DIR/xlsr53/<lang>/`       |
+| Alignment, remote   | `apps/model-server` `POST /align`                  | MIT / Apache-2.0, per checkpoint the server chose                 | `GPU_PROVIDER_URL` + flag `align.gpu`            |
 | Alignment, paid     | ElevenLabs Forced Alignment                        | vendor terms                                                      | `ELEVENLABS_API_KEY` + flag `align.elevenlabs`   |
 | Alignment, fallback | proportional + VAD                                 | none needed                                                       | always available                                 |
 | LID, acoustic       | faster-whisper                                     | MIT                                                               | optional extra `local-asr`                       |
@@ -474,19 +475,29 @@ docker build -f apps/worker-ai/Dockerfile apps/worker-ai
 ```
 
 The CPU image carries ffmpeg, onnxruntime, faster-whisper and the Silero model.
-That is the image this work package's code runs in: A10 is the _client_ of the
-GPU model server, never the server.
+That is the image this work package's code runs in: **this worker is the client
+of the GPU model server, never the server.**
 
-`Dockerfile.gpu` still documents the D15 model-server contract, and X05 has since
-written the real image at `infra/gpu/runpod/Dockerfile` with `infra/gpu/modal/app.py`
-alongside it. **Neither builds today**: both reference
-`apps/worker-ai/requirements-gpu.lock` and a `montaj_worker_ai.gpu` package that
-do not exist, and neither this brief nor X05's built them. The three routes the
-CPU worker calls — `POST /transcribe`, `/align`, `/diarise`, plus
-`/detect-language` for LID signal 1 — are specified in `Dockerfile.gpu`,
-`providers/serverless_whisper.py`, `diarisation/pyannote.py` and `lid.py`, and
-are replayed in `fixtures/vendor/gpu-whisper/session.json`, so whoever builds the
-image has a contract and a fixture to build against. Raised for the orchestrator.
+The server itself is **`apps/model-server`** (A26) — its own app, its own image
+(`apps/model-server/Dockerfile`), its own weight bake
+(`apps/model-server/scripts/bake_models.py`). `apps/worker-ai/Dockerfile.gpu` was
+a placeholder describing that image before it existed and has been **deleted**:
+two files describing one image is how they drift.
+
+Four routes on it are called from here, each with a client and a recorded
+response in `fixtures/vendor/gpu-whisper/session.json`:
+
+| Route                   | Client                             |
+| ----------------------- | ---------------------------------- |
+| `POST /transcribe`      | `providers/serverless_whisper.py`  |
+| `POST /align`           | `alignment/gpu.py`                 |
+| `POST /diarise`         | `diarisation/pyannote.py`          |
+| `POST /detect-language` | `lid.py` (`GpuLanguageIdentifier`) |
+
+That recording is the contract in both directions: A26's
+`tests/test_contract_fixtures.py` asserts its live responses are a superset of
+the same file, so neither app can change the shape without the other's tests
+failing.
 
 ## Quality gates
 

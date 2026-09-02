@@ -45,16 +45,16 @@ resolves each one's effective style and draws them in `seq` order.
 
 Ten kinds, all JSON-serialisable, all in absolute canvas pixels:
 
-| Kind                        | Carries                                                               |
-| --------------------------- | --------------------------------------------------------------------- |
-| `text`                      | a `GlyphRun` — glyph ids, paired positions, clusters, the source text |
-| `rect`, `roundRect`, `path` | geometry plus an optional fill and stroke                             |
-| `image`                     | an `assetId` the host resolves, and a destination rectangle           |
-| `group`                     | children composited at an opacity                                     |
-| `transform`                 | a 3×2 affine matrix applied to children                               |
-| `clip`                      | a rect, round-rect or path clip applied to children                   |
-| `shadow`                    | a Gaussian drop shadow layer around children                          |
-| `blur`                      | a Gaussian blur of children, or of the **backdrop** behind them       |
+| Kind                        | Carries                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------ |
+| `text`                      | a `GlyphRun` — glyph ids, paired positions, clusters, the source text                |
+| `rect`, `roundRect`, `path` | geometry plus an optional fill and stroke                                            |
+| `image`                     | an `assetId` the host resolves, and a destination rectangle                          |
+| `group`                     | children composited at an opacity                                                    |
+| `transform`                 | a 3×2 affine matrix applied to children                                              |
+| `clip`                      | a rect, round-rect or path clip applied to children                                  |
+| `shadow`                    | a Gaussian drop shadow layer around children                                         |
+| `blur`                      | a Gaussian blur of children, or of the **backdrop** behind them, clipped to `bounds` |
 
 Fills and strokes take a `Paint`: `solid`, `linear-gradient` or `radial-gradient`.
 A backend that cannot draw glyph ids (any Canvas2D surface) calls

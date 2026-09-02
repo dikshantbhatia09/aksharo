@@ -4,11 +4,17 @@
 
 ```
 provider word timestamps (Scribe, AssemblyAI, Whisper)
-  -> IndicWav2Vec CTC heads    (~11 Indic languages, MIT)
-  -> XLSR-53 CTC fine-tunes    (global languages, Apache-2.0)
+  -> IndicWav2Vec CTC heads    (~11 Indic languages, MIT)      local ONNX
+  -> XLSR-53 CTC fine-tunes    (global languages, Apache-2.0)  local ONNX
+  -> apps/model-server /align  (both families, no local weights)
   -> ElevenLabs Forced Alignment (paid)
   -> proportional distribution refined by VAD boundaries
 ```
+
+The two local rungs need checkpoints on the pod; the model-server rung needs only
+``GPU_PROVIDER_URL``, which the CPU pool already has for ASR and diarisation. So
+on a normal deployment the chain that actually runs is **model server, then paid,
+then proportional** — the local rungs are for a pod that carries weights.
 
 Rung 3 was Meta MMS until **D77**: its common export is CC-BY-NC-4.0, which is
 non-commercial, so it is excluded from the product entirely — not disabled, not
@@ -133,6 +139,7 @@ class AlignerRegistry:
         rather than pretending they do not exist.
         """
         from worker_ai.alignment.elevenlabs_fa import ElevenLabsForcedAligner
+        from worker_ai.alignment.gpu import GpuCtcAligner
         from worker_ai.alignment.indic_wav2vec import IndicWav2VecAligner
         from worker_ai.alignment.proportional import ProportionalAligner
         from worker_ai.alignment.xlsr import Xlsr53Aligner
@@ -141,6 +148,7 @@ class AlignerRegistry:
             aligners=(
                 IndicWav2VecAligner(),
                 Xlsr53Aligner(),
+                GpuCtcAligner(),
                 ElevenLabsForcedAligner(),
                 ProportionalAligner(),
             )
@@ -150,12 +158,14 @@ class AlignerRegistry:
     def from_settings(cls, settings: Any) -> AlignerRegistry:
         """The chain a deployment can actually run (`09 §2`, D13).
 
-        Model directories come from ``WORKER_AI_ALIGN_MODEL_DIR`` and the paid
-        rung from ``ELEVENLABS_API_KEY`` plus the ``align.elevenlabs`` flag, so a
-        pod with no models and no key still aligns — on the proportional rung,
-        which needs neither.
+        Model directories come from ``WORKER_AI_ALIGN_MODEL_DIR``, the model
+        server from ``GPU_PROVIDER_URL`` plus the ``align.gpu`` flag, and the paid
+        rung from ``ELEVENLABS_API_KEY`` plus ``align.elevenlabs`` — so a pod with
+        no models, no GPU endpoint and no key still aligns, on the proportional
+        rung, which needs none of them.
         """
         from worker_ai.alignment.elevenlabs_fa import ElevenLabsForcedAligner
+        from worker_ai.alignment.gpu import GpuCtcAligner
         from worker_ai.alignment.indic_wav2vec import IndicWav2VecAligner
         from worker_ai.alignment.proportional import ProportionalAligner
         from worker_ai.alignment.xlsr import Xlsr53Aligner
@@ -165,6 +175,11 @@ class AlignerRegistry:
             aligners=(
                 IndicWav2VecAligner(model_dir),
                 Xlsr53Aligner(model_dir),
+                GpuCtcAligner(
+                    str(getattr(settings, "gpu_provider_url", "") or ""),
+                    token=str(getattr(settings, "gpu_provider_token", "") or ""),
+                    enabled=bool(settings.flag("align.gpu", default=True)),
+                ),
                 ElevenLabsForcedAligner(
                     str(getattr(settings, "elevenlabs_api_key", "") or ""),
                     enabled=bool(settings.flag("align.elevenlabs", default=True)),

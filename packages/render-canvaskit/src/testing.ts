@@ -39,7 +39,7 @@ export async function buildBaselineCommands(): Promise<Record<string, DrawComman
       shaper,
       tMs: frame.tMs,
     });
-    built[frame.name] = animate({ layout, style, tMs: frame.tMs });
+    built[frame.name] = [...(frame.ground ?? []), ...animate({ layout, style, tMs: frame.tMs })];
   }
   return built;
 }

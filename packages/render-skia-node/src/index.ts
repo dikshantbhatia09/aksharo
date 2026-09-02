@@ -1,21 +1,60 @@
 /**
- * `@montaj/render-skia-node` — @napi-rs/canvas (Skia) backend for the cloud render service.
+ * `@montaj/render-skia-node` — the cloud backend.
  *
- * A01 ships the package skeleton only; the real implementation lands in A20.
- * See README.md for what belongs here and docs/PLAN.md for scheduling.
+ * It executes the `DrawCommand[]` that `@montaj/render-core` produced on Skia's
+ * native build (`@napi-rs/canvas`), and hands back straight RGBA frames for
+ * ffmpeg to composite over the decoded video (decision D33). It contains no
+ * layout of its own: every coordinate and every glyph position arrives
+ * finished, which is what makes the browser preview and the cloud render the
+ * same picture.
+ *
+ * ```ts
+ * const backend = await SkiaNodeBackend.create({ shaper });
+ * const batch = backend.createBatch({ width: 1080, height: 1920 });
+ * for (const commands of frames) pipe.write(batch.render(commands));
+ * ```
  */
 
-/** Build-time identity of this package, used by diagnostics bundles and the admin console. */
-export interface PackageInfo {
-  readonly name: `@montaj/${string}`;
-  /** Work package(s) that implement it. */
-  readonly implementedBy: string;
-  /** `false` until the owning work package lands. */
-  readonly implemented: boolean;
-}
+export {
+  BLUR_SIGMA_MARGIN,
+  type Box,
+  deviceBounds,
+  hasContainers,
+  IDENTITY,
+  inflate,
+  intersect,
+  multiply,
+  offset,
+  snapToSurface,
+  union,
+} from "./bounds.js";
 
-export const PACKAGE_INFO: PackageInfo = {
-  name: "@montaj/render-skia-node",
-  implementedBy: "A20",
-  implemented: false,
-};
+export {
+  type FrameBatch,
+  type FrameDiagnostics,
+  type FrameOptions,
+  SkiaNodeBackend,
+  type SkiaNodeBackendOptions,
+} from "./backend.js";
+
+export { isSkiaNodeError, SkiaNodeError, type SkiaNodeErrorCode } from "./errors.js";
+
+export {
+  type Approximation,
+  type CanvasFactory,
+  commandCount,
+  cssColour,
+  executeCommands,
+  type ExecutionContext,
+  type MissingResource,
+  parseColour,
+  SHADOW_BLUR_PER_SIGMA,
+  SKIA_MITER_LIMIT,
+  toTransformArgs,
+  tracePath,
+  traceRoundRect,
+} from "./executor.js";
+
+export { NAPI_CANVAS_VERSION } from "./version.js";
+
+export { type PackageInfo, PACKAGE_INFO } from "./package-info.js";

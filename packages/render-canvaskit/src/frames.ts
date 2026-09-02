@@ -7,7 +7,15 @@
  * backdrop blur, the raster copies, a shadow-only glow, and all three scripts.
  * If a command kind has no frame here, nothing catches a backend that draws it
  * wrong.
+ *
+ * A frame may also lay a **ground** down first. A flat ground hides anything a
+ * backend does wrong *outside* what it was asked to touch — which is exactly how
+ * a backdrop blur that fogged the whole frame passed this suite until A20 found
+ * it. `liquid-glass-hard-edge` puts a hard edge under the panel so that mistake
+ * moves pixels.
  */
+
+import type { DrawCommand } from "@montaj/render-core";
 
 /** Canvas the baselines are rendered at: the 540p proxy the editor previews on. */
 export const BASELINE_CANVAS = { width: 540, height: 960 } as const;
@@ -24,9 +32,49 @@ export interface BaselineFrame {
   readonly tMs: number;
   /** What this frame is here to catch. */
   readonly covers: string;
+  /**
+   * Commands drawn **before** the caption, standing in for the video frame a
+   * caption is composited over. Needed by anything that samples the surface: on
+   * a flat ground a backdrop blur that leaks outside its bounds is invisible.
+   */
+  readonly ground?: readonly DrawCommand[];
 }
 
+/**
+ * A hard horizontal edge across the whole frame, placed so it runs **through**
+ * the caption panel.
+ *
+ * That position is the point. Inside the panel the edge must be blurred, which
+ * proves the backdrop filter ran at all; outside it the edge must stay razor
+ * hard, which proves the filter was clipped. One frame therefore fails both
+ * ways — a backdrop that does nothing and a backdrop that fogs the frame — and a
+ * σ-wide band of pixels moves either way, so neither can hide.
+ */
+/** Chosen to fall inside `liquid-glass`'s panel at this canvas size. */
+export const HARD_EDGE_Y = 700;
+
+export const HARD_EDGE_GROUND: readonly DrawCommand[] = [
+  {
+    kind: "rect",
+    rect: [0, 0, BASELINE_CANVAS.width, HARD_EDGE_Y],
+    fill: { paint: { type: "solid", color: "#ff8800ff" } },
+  },
+  {
+    kind: "rect",
+    rect: [0, HARD_EDGE_Y, BASELINE_CANVAS.width, BASELINE_CANVAS.height],
+    fill: { paint: { type: "solid", color: "#0b3b6fff" } },
+  },
+];
+
 export const BASELINE_FRAMES: readonly BaselineFrame[] = [
+  {
+    name: "liquid-glass-hard-edge",
+    styleId: "liquid-glass",
+    fixture: "english",
+    tMs: 1500,
+    ground: HARD_EDGE_GROUND,
+    covers: "backdrop blur clipped to its bounds: the hard edge outside the panel must stay hard",
+  },
   {
     name: "punch-pop-hinglish",
     styleId: "punch-pop",

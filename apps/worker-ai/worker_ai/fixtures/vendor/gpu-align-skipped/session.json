@@ -1,0 +1,55 @@
+{
+  "provider": "serverless-whisper",
+  "baseUrl": "https://gpu.test",
+  "exchanges": [
+    {
+      "method": "POST",
+      "path": "/align",
+      "status": 200,
+      "json": {
+        "language": "hi",
+        "model": "ai4bharat/indicwav2vec/hi",
+        "licence": "MIT",
+        "durationS": 1.2,
+        "requestId": "01ALIGNFIXTURE0000000000B2",
+        "words": [
+          {
+            "start": 0.0,
+            "end": 0.4,
+            "word": "toh",
+            "probability": 1.0
+          },
+          {
+            "start": 0.4,
+            "end": 0.8,
+            "word": "aaj",
+            "probability": 0.0
+          },
+          {
+            "start": 0.8,
+            "end": 1.2,
+            "word": "hum",
+            "probability": 1.0
+          }
+        ],
+        "skipped": ["aaj"],
+        "engineVersions": {
+          "asr": "large-v3-turbo",
+          "asr.licence": "MIT",
+          "align": "ai4bharat/indicwav2vec/hi",
+          "align.licence": "MIT",
+          "diarise": "pyannote/speaker-diarization-community-1",
+          "diarise.licence": "CC-BY-4.0",
+          "diarise.attribution": "Speaker diarisation by pyannote speaker-diarization-community-1 (Herve Bredin et al., CC-BY-4.0)."
+        },
+        "usage": {
+          "gpuSeconds": 0.0012,
+          "audioSeconds": 1.2,
+          "model": "ai4bharat/indicwav2vec/hi",
+          "batchSize": 1
+        }
+      },
+      "repeat": 4
+    }
+  ]
+}

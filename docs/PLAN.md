@@ -4,6 +4,9 @@ Codename in code: `montaj` (package scope `@montaj/*`). Brand strings live only 
 
 Roles: **Fable 5.1** designs, decides, writes briefs, verifies gates. **Opus 5 agents** write code from briefs. **Dikshant** owns [H] human items and gates that need real machines, accounts or professionals.
 
+## Model roles
+Fable 5.1 orchestrates, designs and decides; coding agents implement briefs. Coding agents ran on Opus 5 until 2026-09-02, when the Opus session limit terminated seven running agents; per the user's instruction the same day, coding agents run on **Sonnet 5** from then on (the "Agent" column in the Wave 1 table is historical).
+
 ## Status legend
 `todo` · `briefed` · `in-progress` · `review` · `done` · `blocked(<reason>)`
 
@@ -39,7 +42,7 @@ Roles: **Fable 5.1** designs, decides, writes briefs, verifies gates. **Opus 5 a
 | A04 | api: auth (families, device code, token exchange) | A03, X06 | Opus | done |
 | A05 | api: users, workspaces (tax profile), memberships | A04 | Opus | done |
 | A06 | api: projects + media (S3 raw, R2 derived) | A05 | Opus | done |
-| A07 | worker-media: probe, 16k/48k audio, proxy, waveform, thumbs | A03, A06 | Opus | briefed |
+| A07 | worker-media: probe, 16k/48k audio, proxy, waveform, thumbs | A03, A06 | Opus | in-progress |
 | A08 | api: jobs, WS gateway, idempotent completion, CreditsFacade (no-op), admission control | A03 | Opus | done |
 | A08b | DLQ + admin replay | A08 | Opus | done |
 | A08c | api: Redis realtime bus connects lazily-created clients before subscribe/publish; gateway join rollback; real-Redis two-instance e2e (defect found by A12) | A08, A12 | Opus | done |
@@ -59,16 +62,16 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A16 | render-core + render-canvaskit + 30 styles + panels | A02, A02c | done |
 | A17 | web Timeline | A15, A16 | briefed |
 | A18a | ass-exporter + parity gate | A16, A20 | briefed |
-| A18b | fonts pipeline | A06, A07 | briefed |
+| A18b | fonts pipeline | A06, A07 | in-progress |
 | A19 | web browser export + export dialog | A16, A21, A02c | briefed |
-| A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | in-progress |
+| A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | done |
 | A21 | api exports module (manifests, cloud jobs) | A08, A20 | briefed |
 | A22 | scripts + translation | A10, A11, A12 | briefed |
 | A23 | e2e suite, seed sample, verify-wave script, X02 load harness | A13–A21 | briefed |
 | A23a | api test isolation: one Postgres + one Redis container per vitest run (or `TEST_*` URLs), database per suite from a migrated template, Redis prefix per suite; CI service containers | A05, A12, A25 | in-progress |
 | A24 | marketing site v1 | A16 | briefed |
 | A25 | notify consumer: transactional email (SES via IRSA / SMTP / dev outbox), templates en+hi, suppression, in-app notifications | A04, A08 | done |
-| A26 | GPU model server `apps/model-server` (/transcribe, /align, /diarise, /detect-language; batching; RunPod + Modal packaging replacing X05 placeholders) | A10, X05 | in-progress |
+| A26 | GPU model server `apps/model-server` (/transcribe, /align, /diarise, /detect-language; batching; RunPod + Modal packaging replacing X05 placeholders) | A10, X05 | done |
 Sub-wave order: {A10, A11, A12, A13, A16, A18b, A20, A25, A26} → {A14, A15, A21, A22, A24} → {A17, A18a, A19} → {A23 + Gate A}.
 
 ## Wave 3 — Monetisation (all briefs ready in `05-build/_orchestration/`)

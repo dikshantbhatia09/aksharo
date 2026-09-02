@@ -5,6 +5,7 @@ from __future__ import annotations
 from worker_ai.alignment.base import Aligner, AlignerRegistry, AlignmentUnavailableError
 from worker_ai.alignment.ctc import CtcAligner, TokenSpan, forced_align, word_spans
 from worker_ai.alignment.elevenlabs_fa import ElevenLabsForcedAligner
+from worker_ai.alignment.gpu import GpuCtcAligner
 from worker_ai.alignment.indic_wav2vec import IndicWav2VecAligner
 from worker_ai.alignment.proportional import ProportionalAligner, distribute
 from worker_ai.alignment.romanisation import to_devanagari
@@ -17,6 +18,7 @@ __all__ = [
     "AlignmentUnavailableError",
     "CtcAligner",
     "ElevenLabsForcedAligner",
+    "GpuCtcAligner",
     "IndicWav2VecAligner",
     "ProportionalAligner",
     "TokenSpan",
