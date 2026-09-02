@@ -25,6 +25,8 @@ export const BILLING_ERRORS = {
   /** Signature failed, or the body could not be parsed (THREAT-MODEL T16). */
   webhookSignatureInvalid: "billing/webhook_signature_invalid",
   providerRejected: "billing/provider_rejected",
+  passPurchaseNotFound: "billing/pass_purchase_not_found",
+  alreadyRefunded: "billing/already_refunded",
 } as const;
 
 export type BillingErrorCode = (typeof BILLING_ERRORS)[keyof typeof BILLING_ERRORS];
@@ -52,6 +54,10 @@ export const B01_AUDIT_ACTIONS = {
   mandateRevoked: "billing.mandate.revoked",
   renewalInitiated: "billing.renewal.initiated",
   dunningStepped: "billing.dunning.stepped",
+  refundIssued: "billing.refund.issued",
+  creditsClawedBack: "billing.credits.clawed_back",
+  /** `CreditsFacade.reverse()` could not apply — see billing/README.md "grant clawback". */
+  creditsClawbackUnavailable: "billing.credits.clawback_unavailable",
 } as const;
 
 /** UPI Autopay's AFA-free recurring ceiling (RBI, D05/D40): ₹15,000 in paise. */

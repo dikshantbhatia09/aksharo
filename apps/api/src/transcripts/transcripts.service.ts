@@ -215,13 +215,24 @@ export class TranscriptsService {
   // Reading
   // -------------------------------------------------------------------------
 
-  /** `GET /projects/{id}/transcript` — the manifest and one page of chunks. */
+  /**
+   * `GET /projects/{id}/transcript` — the manifest and one page of chunks.
+   *
+   * `script` (A22) projects each word's `t` onto that script's variant
+   * (`scripts[script]`, falling back to the word's own primary text for a word
+   * that carries none — an English token inside a transliterated Hinglish
+   * segment, say). `translated` is a segment-level override, not a per-word
+   * field, so it leaves `t` alone; the editor reads a translation from the EDG
+   * segments, not from here. Omitted keeps every word's own primary text, byte
+   * for byte, as A11 shipped it.
+   */
   async chunks(input: {
     readonly projectId: string;
     readonly workspaceId: string;
     readonly cursor?: number;
     readonly limit?: number;
     readonly revision?: number;
+    readonly script?: string;
   }): Promise<TranscriptChunkPage> {
     const transcript = await this.transcriptOf(input.projectId, input.workspaceId);
     const revision = input.revision ?? transcript.currentRevision;
@@ -233,7 +244,7 @@ export class TranscriptsService {
 
     return {
       transcript: await this.view(transcript, revision),
-      chunks: page.map(toChunk),
+      chunks: page.map((row) => toChunk(row, input.script)),
       nextCursor: rows.length > take && last !== undefined ? last.chunkIdx : null,
     };
   }
@@ -251,6 +262,8 @@ export class TranscriptsService {
     readonly format: TranscriptExportFormat;
     readonly revision?: number;
     readonly dropFillers?: boolean;
+    /** A22: `roman` | `native` | `en` | `translated`. Omitted keeps the primary script. */
+    readonly script?: string;
   }): Promise<{ body: string; filename: string }> {
     const transcript = await this.transcriptOf(input.projectId, input.workspaceId);
     const revision = input.revision ?? transcript.currentRevision;
@@ -260,9 +273,10 @@ export class TranscriptsService {
       transcriptId: transcript.id,
       revision,
       language: transcript.language,
-      chunks: rows.map(toChunk),
+      chunks: rows.map((row) => toChunk(row)),
       segments: await this.segmentsOf(input.projectId, input.workspaceId),
       dropFillers: input.dropFillers ?? false,
+      ...(input.script === undefined ? {} : { script: input.script }),
     });
 
     return { body, filename: `transcript-${transcript.id}.${input.format}` };
@@ -399,18 +413,40 @@ export class TranscriptsService {
 }
 
 /** `transcript_chunks` row → the frozen `TranscriptChunk` shape. */
-function toChunk(row: {
-  chunkIdx: number;
-  startMs: number;
-  endMs: number;
-  words: unknown;
-}): TranscriptChunk {
+/**
+ * `transcript_chunks` row -> the frozen `TranscriptChunk` shape.
+ *
+ * `script` (A22, `GET /projects/{id}/transcript` only — never for export, which
+ * reads `scripts` itself through `transcript-export.ts`) projects every word's
+ * `t` onto that script's variant, falling back to the word's own primary text.
+ * `translated` is segment-level, so it is not a projection this function makes;
+ * `t` is left as the transcript's primary text and a caller wanting the
+ * translation reads the EDG segment's `textOverrides.translated` instead.
+ */
+function toChunk(
+  row: { chunkIdx: number; startMs: number; endMs: number; words: unknown },
+  script?: string,
+): TranscriptChunk {
+  const words = (row.words ?? []) as TranscriptChunk["words"];
+  const projected =
+    script === undefined || script === "translated"
+      ? words
+      : words.map((word) => projectWord(word, script));
   return {
     chunkIdx: row.chunkIdx,
     startMs: row.startMs,
     endMs: row.endMs,
-    words: (row.words ?? []) as TranscriptChunk["words"],
+    words: projected,
   };
+}
+
+/** One word with `t` replaced by its `script` variant, when it carries one. */
+function projectWord(
+  word: TranscriptChunk["words"][number],
+  script: string,
+): TranscriptChunk["words"][number] {
+  const variant = word.scripts?.[script as "roman" | "native" | "en"];
+  return variant === undefined ? word : { ...word, t: variant };
 }
 
 /** Pull the corrections log out of the job event, when it is this transcript's. */

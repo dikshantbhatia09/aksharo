@@ -29,7 +29,7 @@ import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness
 import { AppModule } from "../src/app.module.js";
 import { TokenService } from "../src/auth/token.service.js";
 import { HttpExceptionFilter } from "../src/common/errors/http-exception.filter.js";
-import { RATE_LIMIT_PREFIX } from "../src/common/guards/index.js";
+import { rateLimitKey, rateLimitPrefix } from "../src/common/guards/index.js";
 import { resetEnvCache } from "../src/config/config.module.js";
 import { EDG_OPS_BUCKET } from "../src/edg/edg.rate-limit.js";
 import { EdgService } from "../src/edg/edg.service.js";
@@ -302,14 +302,14 @@ export async function createEdgTestContext(): Promise<EdgTestContext | null> {
     },
 
     async resetBudget(ws = workspaceId) {
-      await redis.del(`${RATE_LIMIT_PREFIX}:${EDG_OPS_BUCKET.name}:${ws}`);
+      await redis.del(rateLimitKey(EDG_OPS_BUCKET.name, ws));
     },
 
     async reset() {
       await prisma.$executeRawUnsafe(
         "TRUNCATE TABLE edg_snapshots, edg_revisions, edg_pass_items, edg_passes, edg_segments, edg_documents, transcript_chunks, transcripts, media_assets, projects CASCADE",
       );
-      const rateKeys = await redis.keys(`${RATE_LIMIT_PREFIX}:${EDG_OPS_BUCKET.name}:*`);
+      const rateKeys = await redis.keys(`${rateLimitPrefix()}:${EDG_OPS_BUCKET.name}:*`);
       if (rateKeys.length > 0) await redis.del(...rateKeys);
     },
 

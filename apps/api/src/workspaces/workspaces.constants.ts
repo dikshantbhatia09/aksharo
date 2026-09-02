@@ -1,3 +1,5 @@
+import { redisKeyPrefix } from "../common/redis/redis-keys.js";
+
 import type { RateLimitRule } from "../common/guards/index.js";
 
 /** Error codes, limits and Redis keys the workspaces module owns. */
@@ -35,8 +37,11 @@ export const ENTITLEMENT_CACHE_TTL_SEC = 60;
 /** How many members a workspace may hold before B08's seat billing exists. */
 export const MAX_MEMBERS_PER_WORKSPACE = 50;
 
-export const WORKSPACES_REDIS_PREFIX = "montaj:workspaces";
+/** A function since A23b, for the reason {@link redisKeyPrefix} explains. */
+export function workspacesRedisPrefix(): string {
+  return `${redisKeyPrefix()}:workspaces`;
+}
 
 export const workspacesRedisKeys = {
-  entitlement: (workspaceId: string) => `${WORKSPACES_REDIS_PREFIX}:entitlement:${workspaceId}`,
+  entitlement: (workspaceId: string) => `${workspacesRedisPrefix()}:entitlement:${workspaceId}`,
 } as const;

@@ -51,6 +51,7 @@ export {
   projectEndpoints,
   styleEndpoints,
   transcriptEndpoints,
+  transcriptScriptsEndpoints,
 } from "./endpoints.js";
 
 export { decodeAccessToken, REFRESH_SKEW_MS, SessionStore } from "./session.js";
@@ -82,6 +83,7 @@ export type {
 
 export { CONSENT_PURPOSES } from "./types.js";
 export type {
+  AvailableScripts,
   BatchCreateProjectsRequest,
   ClientKind,
   CompletedUpload,
@@ -119,6 +121,7 @@ export type {
   ProjectPage,
   ProjectStatus,
   RightsRequest,
+  ScriptAvailability,
   SessionSummary,
   SetConsentRequest,
   SignUpRequest,
@@ -129,6 +132,12 @@ export type {
   TranscribeAccepted,
   TranscribeRequest,
   TranscriptionQuote,
+  TranslateAccepted,
+  TranslateRequest,
+  TranslateTargetAccepted,
+  TranslationQuote,
+  TransliterateAccepted,
+  TransliterateRequest,
   UpdateFolderRequest,
   UpdateMeRequest,
   UpdateProjectRequest,

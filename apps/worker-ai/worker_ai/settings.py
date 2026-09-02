@@ -69,6 +69,9 @@ WORKER_ENV_VARS: tuple[str, ...] = (
     "ELEVENLABS_ZERO_RETENTION",
     "SARVAM_BASE_URL",
     "ASSEMBLYAI_BASE_URL",
+    # A22: transliteration and translation provider endpoints.
+    "WORKER_AI_INDICXLIT_URL",
+    "WORKER_AI_INDICTRANS2_URL",
     # GPU_PROVIDER_URL and GPU_PROVIDER_TOKEN started here and moved into
     # CONTRACTS section 1 (added 2026-09-02 after A09), so they are product
     # configuration now and live in CONTRACT_ENV_VARS above.
@@ -194,6 +197,12 @@ class Settings:
     elevenlabs_zero_retention: bool = True
     sarvam_base_url: str = ""
     assemblyai_base_url: str = ""
+    #: A22: a served IndicXlit model (`transliterate/provider.py`) and a
+    #: self-hosted IndicTrans2 server (`translate/providers/indictrans2.py`).
+    #: Both empty by default — transliteration falls back to the rule table and
+    #: IndicTrans2 is simply skipped in the translation provider chain.
+    indicxlit_base_url: str = ""
+    indictrans2_base_url: str = ""
     #: Model directories for the D13 aligners and the IndicLID classifier. Both
     #: fall back to a model-free path when unset, so CI never downloads weights.
     align_model_dir: str = ""
@@ -342,7 +351,13 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
     if cache_backend and cache_backend not in {"redis", "memory", "none"}:
         problems.append("WORKER_AI_CACHE: must be one of redis, memory, none")
 
-    for variable in ("ELEVENLABS_BASE_URL", "SARVAM_BASE_URL", "ASSEMBLYAI_BASE_URL"):
+    for variable in (
+        "ELEVENLABS_BASE_URL",
+        "SARVAM_BASE_URL",
+        "ASSEMBLYAI_BASE_URL",
+        "WORKER_AI_INDICXLIT_URL",
+        "WORKER_AI_INDICTRANS2_URL",
+    ):
         value = env.get(variable, "").strip()
         if value and not value.startswith(("http://", "https://")):
             problems.append(variable + ": must be an http(s) URL")
@@ -394,6 +409,8 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
         elevenlabs_zero_retention=_optional_bool(env.get("ELEVENLABS_ZERO_RETENTION")) is not False,
         sarvam_base_url=env.get("SARVAM_BASE_URL", "").strip().rstrip("/"),
         assemblyai_base_url=env.get("ASSEMBLYAI_BASE_URL", "").strip().rstrip("/"),
+        indicxlit_base_url=env.get("WORKER_AI_INDICXLIT_URL", "").strip().rstrip("/"),
+        indictrans2_base_url=env.get("WORKER_AI_INDICTRANS2_URL", "").strip().rstrip("/"),
         align_model_dir=env.get("WORKER_AI_ALIGN_MODEL_DIR", "").strip(),
         indiclid_dir=env.get("WORKER_AI_INDICLID_DIR", "").strip(),
         cache_backend=env.get("WORKER_AI_CACHE", "").strip(),

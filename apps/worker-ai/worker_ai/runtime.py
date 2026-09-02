@@ -59,6 +59,8 @@ from worker_ai.processors import (
     process_diarise,
     process_not_implemented,
     process_transcribe,
+    process_translate,
+    process_transliterate,
     process_vad,
 )
 from worker_ai.providers.registry import build_registry
@@ -66,6 +68,18 @@ from worker_ai.queues import AI_QUEUES, parse_envelope
 from worker_ai.routing import RoutingTable, load_overrides, load_routing_table
 from worker_ai.settings import Settings
 from worker_ai.storage import ObjectStore, StorageError
+from worker_ai.translate.providers.base import TranslationProvider
+from worker_ai.translate.providers.indictrans2 import IndicTrans2Provider
+from worker_ai.translate.providers.llm import LLMTranslateProvider
+from worker_ai.translate.providers.sarvam_mayura import (
+    SARVAM_TRANSLATE_DEFAULT_BASE_URL,
+    SarvamMayuraProvider,
+)
+from worker_ai.transliterate import (
+    IndicXlitHttpProvider,
+    RuleTableTransliterationProvider,
+    TransliterationProvider,
+)
 from worker_ai.vad import load_vad
 
 __all__ = [
@@ -91,6 +105,8 @@ PROCESSORS: dict[str, Processor] = {
     "ai.transcribe": process_transcribe,
     "ai.align": process_align,
     "ai.diarise": process_diarise,
+    "ai.translate": process_translate,
+    "ai.transliterate": process_transliterate,
 }
 
 
@@ -133,7 +149,51 @@ def build_services(settings: Settings, *, callbacks: CallbackClient | None = Non
         cache=build_cache(settings),
         language_id=build_language_identifier(settings),
         text_lid=IndicLidClassifier(settings.indiclid_dir),
+        transliteration=build_transliteration_provider(settings),
+        translation_providers=build_translation_providers(settings),
     )
+
+
+def build_transliteration_provider(settings: Settings) -> TransliterationProvider:
+    """`09 §4`: IndicXlit when `WORKER_AI_INDICXLIT_URL` names a served model,
+    the dependency-free rule table (``transliterate/tables.py``) otherwise.
+
+    No `apps/model-server` route exists yet for IndicXlit (A22's decision: see
+    ``transliterate/provider.py``), so the HTTP path is here for the day one is
+    added, and every deployment today runs on the rule table.
+    """
+    if settings.indicxlit_base_url:
+        return IndicXlitHttpProvider(base_url=settings.indicxlit_base_url)
+    return RuleTableTransliterationProvider()
+
+
+def build_translation_providers(settings: Settings) -> tuple[TranslationProvider, ...]:
+    """`09 §4`'s chain: Sarvam Mayura -> IndicTrans2 (optional) -> LLM.
+
+    Sarvam is skipped without `SARVAM_API_KEY`; IndicTrans2 is skipped without
+    `WORKER_AI_INDICTRANS2_URL` (self-host, no public default — the brief calls
+    it "optional, behind a flag" and the flag *is* the URL being set). The LLM
+    adapter is always present: `LLM_PROVIDER=mock` (the worker's own default)
+    needs no credential, so the chain is never empty.
+    """
+    providers: list[TranslationProvider] = []
+    if settings.sarvam_api_key:
+        providers.append(
+            SarvamMayuraProvider(
+                api_key=settings.sarvam_api_key,
+                base_url=settings.sarvam_base_url or SARVAM_TRANSLATE_DEFAULT_BASE_URL,
+            )
+        )
+    if settings.indictrans2_base_url:
+        providers.append(IndicTrans2Provider(base_url=settings.indictrans2_base_url))
+    providers.append(
+        LLMTranslateProvider(
+            provider=settings.llm_provider,
+            anthropic_api_key=settings.anthropic_api_key,
+            openai_api_key=settings.openai_api_key,
+        )
+    )
+    return tuple(providers)
 
 
 def build_routing_table(settings: Settings) -> RoutingTable:
@@ -324,6 +384,9 @@ async def close_services(services: Services) -> None:
     """Release everything :func:`build_services` created."""
     await services.providers.aclose()
     await services.callbacks.aclose()
+    await services.transliteration.aclose()
+    for provider in services.translation_providers:
+        await provider.aclose()
 
 
 async def drain(workers: list[Any], timeout_s: float = 30.0) -> None:

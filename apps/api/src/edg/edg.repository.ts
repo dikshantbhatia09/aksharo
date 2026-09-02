@@ -29,9 +29,9 @@ import {
   type TranscriptChunk,
 } from "@montaj/edg/schemas";
 
+import { newestChunkRows } from "./chunk-rows.js";
 import { EDG_ERROR_CODES, MAX_OPS_SINCE_REVISIONS, SEGMENT_PAGE_SIZE } from "./edg.errors.js";
 import {
-  CHUNK_SELECT,
   type ChunkRow,
   nextWordSeqOf,
   PASS_ITEM_SELECT,
@@ -843,29 +843,19 @@ export class EdgRepository implements EdgRepositoryContract {
   }
 
   /**
-   * Chunk rows, newest revision per `chunk_idx`.
+   * Chunk rows, newest revision per `chunk_idx` (unbounded — the live document
+   * always wants the truly newest, whatever revision it carries).
    *
-   * `transcript_chunks` is unique on `(transcript_id, revision, chunk_idx)`, so a
-   * re-transcription writes a second generation beside the first. The document
-   * always reads the newest row for each chunk, whatever revision it carries.
+   * Shared with `TranscriptsRepository` via `newestChunkRows` (A11d): both read
+   * `transcript_chunks` the same way, because a word edit here is exactly the
+   * event that used to leave a pinned transcript read looking at zero rows.
    */
   private async readChunkRows(
     client: PrismaTransaction,
     transcriptId: string,
     only?: readonly number[],
   ): Promise<ChunkRow[]> {
-    const rows = await client.transcriptChunk.findMany({
-      where: {
-        transcriptId,
-        ...(only === undefined ? {} : { chunkIdx: { in: [...only] } }),
-      },
-      orderBy: [{ chunkIdx: "asc" }, { revision: "desc" }],
-      select: CHUNK_SELECT,
-    });
-
-    const newest = new Map<number, ChunkRow>();
-    for (const row of rows) if (!newest.has(row.chunkIdx)) newest.set(row.chunkIdx, row);
-    return [...newest.values()];
+    return newestChunkRows(client, transcriptId, only === undefined ? {} : { only });
   }
 
   /** The engine state a working set stands for. */

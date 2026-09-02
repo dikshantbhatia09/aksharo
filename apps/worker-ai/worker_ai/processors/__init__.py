@@ -12,6 +12,8 @@ from worker_ai.processors.context import (
 from worker_ai.processors.diarise import process_diarise
 from worker_ai.processors.not_implemented import OWNERS, process_not_implemented
 from worker_ai.processors.transcribe import process_transcribe
+from worker_ai.processors.translate import process_translate
+from worker_ai.processors.transliterate import process_transliterate
 from worker_ai.processors.vad import process_vad
 
 __all__ = [
@@ -24,5 +26,7 @@ __all__ = [
     "process_diarise",
     "process_not_implemented",
     "process_transcribe",
+    "process_translate",
+    "process_transliterate",
     "process_vad",
 ]

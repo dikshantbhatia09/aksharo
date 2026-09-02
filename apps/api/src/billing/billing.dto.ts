@@ -66,6 +66,19 @@ export const topupCheckoutSchema = z.object({
 
 export class TopupCheckoutDto extends zodDto(topupCheckoutSchema) {}
 
+/**
+ * The admin/API refund path (B01b): a support agent (or a future automation)
+ * supplies the provider payment id from the Razorpay dashboard — this
+ * codebase never stores one for a pass/top-up order (see `refunds.service.ts`).
+ */
+export const refundPassSchema = z.object({
+  providerPaymentId: z.string().trim().min(1).max(64),
+  amountMinor: z.number().int().positive(),
+  reason: z.string().trim().min(1).max(500).optional(),
+});
+
+export class RefundPassDto extends zodDto(refundPassSchema) {}
+
 // ---------------------------------------------------------------------------
 // Response shapes (for the OpenAPI document; services return these directly)
 // ---------------------------------------------------------------------------

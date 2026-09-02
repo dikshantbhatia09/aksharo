@@ -40,6 +40,8 @@ export const queryKeys = {
     ["ws", workspaceId, "projects", projectId, "media"] as const,
   folders: (workspaceId: string) => ["ws", workspaceId, "folders"] as const,
   styles: (workspaceId: string) => ["ws", workspaceId, "styles"] as const,
+  transcriptScripts: (workspaceId: string, projectId: string) =>
+    ["ws", workspaceId, "projects", projectId, "transcript", "scripts"] as const,
 } as const;
 
 export type QueryKeys = typeof queryKeys;

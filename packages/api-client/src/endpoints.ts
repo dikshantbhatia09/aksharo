@@ -14,6 +14,7 @@
 import { defineEndpoint } from "./http.js";
 
 import type {
+  AvailableScripts,
   BatchCreateProjectsRequest,
   CompletedUpload,
   CompleteUploadRequest,
@@ -47,6 +48,10 @@ import type {
   TokenResponse,
   TranscribeAccepted,
   TranscribeRequest,
+  TranslateAccepted,
+  TranslateRequest,
+  TransliterateAccepted,
+  TransliterateRequest,
   UpdateFolderRequest,
   UpdateMeRequest,
   UpdateProjectRequest,
@@ -417,6 +422,28 @@ export const transcriptEndpoints = {
   }),
 } as const;
 
+/** Scripts and translation (A22): `apps/api/src/transcripts/scripts`. */
+export const transcriptScriptsEndpoints = {
+  transliterate: defineEndpoint<TransliterateRequest, TransliterateAccepted>({
+    method: "POST",
+    path: "/projects/{projectId}/transcript/transliterate",
+    auth: "bearer",
+    operationId: "transliterateProjectTranscript",
+  }),
+  translate: defineEndpoint<TranslateRequest, TranslateAccepted>({
+    method: "POST",
+    path: "/projects/{projectId}/transcript/translate",
+    auth: "bearer",
+    operationId: "translateProjectTranscript",
+  }),
+  scripts: defineEndpoint<void, AvailableScripts>({
+    method: "GET",
+    path: "/projects/{projectId}/transcript/scripts",
+    auth: "bearer",
+    operationId: "getProjectTranscriptScripts",
+  }),
+} as const;
+
 /**
  * Routes `07-api-and-contracts.md` specifies whose work package has not landed.
  *
@@ -454,6 +481,7 @@ export const endpoints = {
   media: mediaEndpoints,
   styles: styleEndpoints,
   transcripts: transcriptEndpoints,
+  transcriptScripts: transcriptScriptsEndpoints,
   billing: billingEndpoints,
   pending: pendingEndpoints,
 } as const;
@@ -469,6 +497,7 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(mediaEndpoints),
   ...Object.entries(styleEndpoints),
   ...Object.entries(transcriptEndpoints),
+  ...Object.entries(transcriptScriptsEndpoints),
   ...Object.entries(billingEndpoints),
   ...Object.entries(pendingEndpoints),
 ] as const;

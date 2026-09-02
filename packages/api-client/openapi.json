@@ -9984,6 +9984,158 @@
         ]
       }
     },
+    "/projects/{projectId}/transcript/transliterate": {
+      "post": {
+        "description": "Free (`04 §Credits`). Enqueues `ai.transliterate`, which writes per-word `scripts` variants — Hinglish stays Roman-first, English words are preserved — and never touches `t`, timings or a script the user has already edited via `textOverrides`.",
+        "operationId": "transliterateProjectTranscript",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransliterateRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransliterateAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Transliterate the transcript into a script",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript/translate": {
+      "post": {
+        "description": "0.5 credit per media minute per target language (`04 §Credits`); English on Starter+, every language on Creator+. One `ai.translate` job per target, each held and quoted on its own. The result lands as `textOverrides.translated` through the ordinary EDG op path, so it is revisioned and undoable, and a concurrent edit to the same segment's `translated` text comes back as a 409 the job reports as failed rather than a silent overwrite.",
+        "operationId": "translateProjectTranscript",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranslateRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslateAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`transcript/plan_required`."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Translate the transcript's captions",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript/scripts": {
+      "get": {
+        "description": "`roman` / `native` / `en` come from the words themselves; `translated` from the editing document's segment overrides. Each carries the job that produced it when one is known, for the editor's script tabs and the \"regenerate\" confirmation.",
+        "operationId": "getProjectTranscriptScripts",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableScriptsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Which scripts this transcript has, and where they came from",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
     "/fonts/manifest": {
       "get": {
         "description": "Every open-licence face that ships with the product: family, weight, the scripts it covers, its licence, its SHA-256 and the URLs its bytes are at. The renderer registers these into `FontRegistry`; the same document is baked into the cloud render image as `fonts.json`.",
@@ -12754,6 +12906,74 @@
         ]
       }
     },
+    "/billing/passes/{passPurchaseId}/refund": {
+      "post": {
+        "description": "Calls the provider's refund API and attempts to claw back the credits it granted. The credits clawback is best-effort -- see billing/README.md \"Credits clawback\" for why it cannot yet fully succeed against a grant-sourced lot.",
+        "operationId": "refundPassPurchase",
+        "parameters": [
+          {
+            "name": "passPurchaseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerPaymentId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "amountMinor": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 9007199254740991
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "providerPaymentId",
+                  "amountMinor"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The refund outcome, including the credits clawback outcome."
+          },
+          "404": {
+            "description": "`billing/pass_purchase_not_found`."
+          },
+          "409": {
+            "description": "`billing/already_refunded`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Refund a pass/top-up purchase (admin/API path)",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/billing/webhooks/razorpay": {
       "post": {
         "description": "Signature-verified, idempotent by event id. A bad signature is 401, never 200 (a 200 tells Razorpay to stop retrying).",
@@ -12779,6 +12999,171 @@
         "summary": "Razorpay webhook (THREAT-MODEL T16)",
         "tags": [
           "billing"
+        ]
+      }
+    },
+    "/invoices": {
+      "get": {
+        "operationId": "InvoicesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List the caller's workspace's invoices, most recent first.",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/invoices/{invoiceId}/download": {
+      "get": {
+        "operationId": "InvoicesController_download",
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "A short-lived signed URL for the invoice PDF.",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/admin/tax-registrations": {
+      "get": {
+        "operationId": "TaxRegistrationsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List every tax registration (GSTIN, LUT) on file.",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "TaxRegistrationsController_upsert",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create or update a tax registration (upsert on jurisdiction+taxIdType+taxId).",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/tax-registrations/{id}": {
+      "delete": {
+        "operationId": "TaxRegistrationsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove a tax registration row.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/firc-records": {
+      "get": {
+        "operationId": "FircController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List FIRC records, most recent settlement first.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/firc-records/csv": {
+      "get": {
+        "operationId": "FircController_csv",
+        "parameters": [
+          {
+            "name": "month",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Monthly export-filing CSV for a given `month` (YYYY-MM).",
+        "tags": [
+          "admin"
         ]
       }
     }
@@ -14245,6 +14630,166 @@
           "transcript",
           "chunks",
           "nextCursor"
+        ]
+      },
+      "TransliterateRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "TransliterateAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
+          },
+          "targetScript": {
+            "type": "string",
+            "enum": [
+              "roman",
+              "native"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when a transliteration to this script was already running."
+          }
+        },
+        "required": [
+          "jobId",
+          "targetScript",
+          "status",
+          "deduplicated"
+        ]
+      },
+      "TranslateRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "TranslationQuoteDto": {
+        "type": "object",
+        "properties": {
+          "tenths": {
+            "type": "number",
+            "description": "Credits held for this job, in tenths."
+          },
+          "credits": {
+            "type": "string",
+            "description": "\"1.5\" — for display only, never for arithmetic."
+          }
+        },
+        "required": [
+          "tenths",
+          "credits"
+        ]
+      },
+      "TranslateTargetAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "targetLanguage": {
+            "type": "string",
+            "description": "BCP-47 tag this job translates to."
+          },
+          "status": {
+            "type": "string"
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when a translation to this language was already running."
+          },
+          "quote": {
+            "$ref": "#/components/schemas/TranslationQuoteDto"
+          }
+        },
+        "required": [
+          "jobId",
+          "targetLanguage",
+          "status",
+          "deduplicated",
+          "quote"
+        ]
+      },
+      "TranslateAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "targets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranslateTargetAcceptedDto"
+            }
+          },
+          "quote": {
+            "description": "Sum across every target.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TranslationQuoteDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "targets",
+          "quote"
+        ]
+      },
+      "ScriptAvailabilityDto": {
+        "type": "object",
+        "properties": {
+          "script": {
+            "type": "string",
+            "enum": [
+              "roman",
+              "native",
+              "en",
+              "translated"
+            ]
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "transcription",
+              "transliteration",
+              "translation"
+            ]
+          },
+          "provider": {
+            "type": "object",
+            "nullable": true
+          },
+          "language": {
+            "type": "string",
+            "description": "For `translated`: the BCP-47 target it currently holds."
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "script",
+          "available"
+        ]
+      },
+      "AvailableScriptsDto": {
+        "type": "object",
+        "properties": {
+          "scripts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScriptAvailabilityDto"
+            }
+          }
+        },
+        "required": [
+          "scripts"
         ]
       },
       "ExportRequestDto": {

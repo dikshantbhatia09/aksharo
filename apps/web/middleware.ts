@@ -20,9 +20,12 @@ const SESSION_COOKIE = "aksharo_rt";
  * `/home` is the authenticated dashboard's real route (A14); it is never a
  * link anyone follows on purpose (see the "/" rewrite below), but it must
  * still refuse a signed-out visitor who types the URL directly, the same as
- * every other route here.
+ * every other route here. `/p` (A15's editor route, 08 §4) joined it so an
+ * unauthenticated request redirects before any HTML ships, matching every
+ * other route the shell protects — `AppShell` already refuses it
+ * client-side, but that alone flashes the shell first.
  */
-const PROTECTED = ["/studio", "/settings", "/onboarding", "/device", "/home", "/projects"];
+const PROTECTED = ["/studio", "/settings", "/onboarding", "/device", "/home", "/projects", "/p"];
 
 /** Signed-in users have no business on these. */
 const AUTH_ONLY = ["/login", "/signup", "/magic"];
@@ -79,6 +82,7 @@ export const config = {
     "/device",
     "/home/:path*",
     "/projects/:path*",
+    "/p/:path*",
     "/login",
     "/signup",
     "/magic",

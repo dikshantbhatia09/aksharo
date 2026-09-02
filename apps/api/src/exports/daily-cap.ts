@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 
 import { FREE_DAILY_BROWSER_MANIFEST_CAP } from "./exports.constants.js";
+import { redisKeyPrefix } from "../common/redis/redis-keys.js";
 import { RedisService } from "../common/redis/redis.service.js";
 
 /**
@@ -41,6 +42,8 @@ export class BrowserManifestDailyCap {
 
   private keyFor(workspaceId: string): string {
     const day = new Date().toISOString().slice(0, 10);
-    return `exports:daily-browser-manifests:${workspaceId}:${day}`;
+    // A23b: prefixed like every other key this API writes, so two e2e suites
+    // sharing one logical Redis database cannot count each other's manifests.
+    return `${redisKeyPrefix()}:exports:daily-browser-manifests:${workspaceId}:${day}`;
   }
 }
