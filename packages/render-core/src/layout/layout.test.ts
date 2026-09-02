@@ -232,12 +232,15 @@ describe("layoutSegment", () => {
   });
 
   it("keeps the segmenter's split when the metrics fit", () => {
+    // The wrap is at the budget `fitBudget` measured for this style and canvas
+    // (D78), not at the readability cap — so 17 characters take two lines here,
+    // and neither line has to shrink.
     const doc = style("vertical-clean");
     const list = words(["Bhai", "aaj", "hum", "baat"]);
     const layout = lay(doc, list);
     expect(layout.shrink).toBe(1);
-    expect(layout.lines).toHaveLength(1);
-    expect(layout.lines[0]?.text).toBe("Bhai aaj hum baat");
+    expect(layout.lines).toHaveLength(2);
+    expect(layout.lines.map((line) => line.text).join(" ")).toBe("Bhai aaj hum baat");
   });
 
   it("shrinks rather than re-wrapping when the metrics overflow", () => {

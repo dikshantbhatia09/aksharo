@@ -87,28 +87,51 @@ their left.
 **Anchoring** addresses the ink box, not the taller line-height block, so `box`,
 `paddedBox` and the safe-area clamp all talk about the same rectangle.
 
-### Type sizes: `scriptScale`, not a smaller style
+### Budgets come from the type (D78)
 
-The segmenter's budgets — 32 Latin, 24 Devanagari, 22 Tamil characters a line
-(`09 §3`) — are readability decisions and do not move. Neither does a style's
-`sizePct`: that is the size the style was drawn for.
+`09 §3` fixes 32/24/22 characters a line and two lines a caption. Those are
+**readability caps** — what a viewer can read in the time the caption is up — and
+they are maxima, not targets. Whether that many characters _fit_ is a different
+question, and `fitBudget` answers it:
 
-What moves is `typography.scriptScale`, an optional per-script multiplier keyed by the
-lowercase OpenType tag (`latn`, `deva`, `taml`). It exists because a budget is counted
-in **base characters**, with combining marks excluded — that is what reading speed
-depends on — while width is a different question entirely: a 22-character Tamil line is
-around 37 code points and about **21 em** wide, against 15.3 em for a full
-32-character Latin line. Without a per-script multiplier the only way to fit Tamil is to
-shrink every style for every script, which turns a creator caption into a subtitle.
+```ts
+const { maxChars, maxLines } = fitBudget({ style, script, canvas, registry, shaper });
+```
 
-`scripts/tune-style-sizes.ts` bisects each script's multiplier against
-`src/styles/fit.ts`, which measures the worst shrink over the four caption fixtures
-**and** a budget-filling caption in each script, at every instant a `wordsPerCue` style
-rotates through, on both canvases. `src/styles/fit.test.ts` holds the result: shrink
-≥ 0.95 at 1080×1920 and ≥ 0.9 at 1920×1080, per script, for all 30 styles.
+It measures the average advance per **base character** by running a fixed,
+committed per-script sample through the real shaper with the resolved font — the
+same metrics the layout will use, so the two cannot disagree — and divides the
+caption box (less padding, inside the safe area) by it. The answer is
+`min(readabilityCap, whatFits)`.
 
-`scriptScale` is additive — StyleDoc stays at generation 2, and a document without it
-renders exactly as before.
+`layoutSegment` wraps at that budget rather than at the table, because wrapping
+at the cap would re-join words the segmenter deliberately separated and the
+caption would overflow and shrink. `@montaj/edg/segmenter` takes the same numbers
+as `maxCharsByScript`; A11 computes them at EDG initialisation and A15 offers a
+reflow when a style change moves them.
+
+The arithmetic this replaces: a full 32-character Latin line is about 16 em, and
+16 em inside 78–90% of a 1080-wide portrait frame needs an em of ~2.8% of frame
+height. Shrinking every style to that turns a creator caption into a subtitle;
+cutting the caption shorter does not. At 16:9 the same style has room for the
+whole readability cap, and `limitedByFit` says which of the two decided.
+
+A budget below `MIN_BUDGET_CHARS` is reported through `belowComfortableMinimum`
+rather than inflated — a style that large genuinely shows one short word a line,
+and inflating the number would put the overflow back.
+
+### Per-script size, `typography.scriptScale`
+
+An optional multiplier on `sizePct`, keyed by lowercase OpenType tag (`latn`,
+`deva`, `taml`). Additive: StyleDoc stays at generation 2 and a document without
+it renders exactly as before.
+
+With budgets adaptive it is no longer needed to make Indic _fit_ — it earns its
+place on **readability**. Without it a Tamil budget collapses to five or six
+characters, one short word a line; a modest reduction roughly doubles it. The
+catalogue therefore ships `deva` and `taml` entries and no `latn` entry at all.
+`scripts/tune-style-sizes.ts` bisects them; `src/styles/fit.test.ts` holds the
+result at shrink ≥ 0.95 at 1080×1920 and ≥ 0.9 at 1920×1080, per script.
 
 ### Track-level shrink
 

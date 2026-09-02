@@ -143,6 +143,48 @@ RETURNING revision`. The lock makes read-decide-write atomic; the CAS is the
     tombstoned word is as good as a missing one here), and any issue refuses the
     whole restore with `409 edg/restore_invalid` — `details.danglingWordIds`
     names the words, `details.issues` carries the validator's findings.
+- **A16c/A16d — line budgets come from the type (decision D78), per-script sizes, and
+  track-level shrink.**
+  - **The problem.** `09 §3`'s 32/24/22 characters a line are readability caps, and were
+    being treated as caption lengths. A full 32-character Latin line is about 16 em; 16 em
+    inside 78–90% of a 1080-wide portrait frame needs an em of ~2.8% of frame height. Every
+    style was therefore overflowing and shrinking, so two captions in one video were two
+    different sizes and the picker's tile showed a size no real caption used.
+  - **`fitBudget({style, script, canvas, registry, shaper}) → {maxChars, maxLines}`** in
+    `@montaj/render-core`. It measures the average advance per **base character** by running
+    a fixed, committed per-script sample through the real shaper with the resolved font, then
+    divides the caption box — less box padding, inside the safe area — by it. The answer is
+    `min(readabilityCap, whatFits)`, with caps 32/24/22 and two lines. `limitedByFit` says
+    which of the two decided; `belowComfortableMinimum` flags a style so large that captions
+    are one short word a line, rather than inflating the number and putting the overflow back.
+  - `layoutSegment` now wraps at that budget instead of at the table. Wrapping at the cap
+    re-joined words the segmenter had deliberately separated, which is what made the caption
+    overflow in the first place. The segmenter and the layout now share one number.
+  - **`@montaj/edg/segmenter` takes `maxCharsByScript`**, the shape `fitBudget` produces —
+    per script, because the segmenter resolves its limit from the script of the run it is
+    closing and a Hinglish transcript needs Roman and Devanagari runs to differ. It falls
+    back to the flat `maxChars`, then to the table. `packages/edg/README.md` gains
+    "Budgets come from `fitBudget`; readability caps are maxima".
+  - **`typography.scriptScale`**, optional and additive (StyleDoc stays at generation 2): a
+    per-script multiplier on `sizePct`, keyed by lowercase OpenType tag. Every style keeps
+    the `sizePct` it was drawn for and **no style carries a `latn` entry**. The Indic entries
+    stay on readability grounds, not fit: at the same em a Tamil budget collapses to five or
+    six characters, and a modest reduction roughly doubles it.
+  - **`computeTrackShrink({projection, catalogue, registry, shaper, canvas, script})`** lays
+    every caption out once and returns the minimum shrink per (styleId, script);
+    `renderFrame` and `layoutFrame` apply it uniformly so a style is one size for the whole
+    video. Per-caption shrink stays the fallback. The value is floored to two decimals
+    rather than rounded, because a value a hair above one caption's true need would leave
+    that caption at its own size and show two sizes instead of one. It is pure and costs one
+    layout per caption, so exporters (A19, A20) and the preview stage compute it once per
+    session and cache it; nothing calls it per frame.
+  - Tests: `fitBudget` (17), the per-script fit suite driven by the measured budget for all
+    30 styles × 3 scripts × 2 canvases at shrink ≥ 0.95 (9:16) and ≥ 0.9 (16:9), track
+    shrink (12), and the segmenter's per-script budgets. Goldens, PNG baselines and the 30
+    catalogue previews regenerated; browser parity holds at 0 pixels differing.
+  - A11 calls `fitBudget` at EDG initialisation from the project aspect and default style;
+    A15 offers "Reflow captions" (a `Resegment` op) when a style change moves the budget.
+    Neither is implemented here.
 
 - **A16 — `@montaj/render-core`, `@montaj/render-canvaskit`, the 30 system styles and
   the editor's caption canvas.**

@@ -13,7 +13,7 @@
     "lineHeight": 1.34,
     "letterSpacingEm": 0.02,
     "textTransform": "none",
-    "scriptScale": { "latn": 0.74, "deva": 0.9, "taml": 0.55 }
+    "scriptScale": { "deva": 0.9, "taml": 0.55 }
   },
   "colors": {
     "text": "#eaffe6",
