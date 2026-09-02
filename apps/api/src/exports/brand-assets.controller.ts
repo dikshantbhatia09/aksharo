@@ -20,6 +20,7 @@ import {
 
 import { BrandAssetsService } from "./brand-assets.service.js";
 import { BrandAssetCreateRequestDto, BrandAssetDto, BrandAssetUploadDto } from "./exports.dto.js";
+import { CommonAuditService } from "../common/audit/audit.service.js";
 import { CurrentUser, JwtAuthGuard, Roles, RolesGuard } from "../common/guards/index.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
@@ -38,7 +39,10 @@ import type { BrandAsset } from "@prisma/client";
 @UseGuards(JwtAuthGuard, WorkspaceMemberGuard, RolesGuard)
 @Controller("workspaces/:id/brand-assets")
 export class BrandAssetsController {
-  constructor(private readonly brandAssets: BrandAssetsService) {}
+  constructor(
+    private readonly brandAssets: BrandAssetsService,
+    private readonly audit: CommonAuditService,
+  ) {}
 
   @Post()
   @Roles("editor")
@@ -74,8 +78,19 @@ export class BrandAssetsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Delete a brand asset", operationId: "deleteBrandAsset" })
   @ApiNotFoundResponse({ description: "`export/brand_asset_not_found`." })
-  async delete(@Param("id") workspaceId: string, @Param("assetId") assetId: string): Promise<void> {
+  async delete(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("id") workspaceId: string,
+    @Param("assetId") assetId: string,
+  ): Promise<void> {
     await this.brandAssets.delete(workspaceId, assetId);
+    await this.audit.record({
+      action: "workspace.brand_asset.deleted",
+      resource: "brand_asset",
+      resourceId: assetId,
+      actorId: principal.userId,
+      workspaceId,
+    });
   }
 }
 

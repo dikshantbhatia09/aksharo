@@ -17,6 +17,13 @@ export const ACCOUNT_ERRORS = {
   /** The download token is unknown, spent or expired. */
   exportNotReady: "privacy/export_not_ready",
   consentPurposeUnknown: "consent/unknown_purpose",
+  /**
+   * `DELETE /me` refused: the caller is the sole owner of a team or agency
+   * workspace (B16 addendum, after A05's open question 4). `details.workspaces`
+   * lists them; ownership must be transferred (B08) or the workspace deleted
+   * first. The personal workspace is exempt — it is deleted inside the cascade.
+   */
+  ownerOfWorkspaces: "me/owner_of_workspaces",
 } as const;
 
 export type AccountErrorCode = (typeof ACCOUNT_ERRORS)[keyof typeof ACCOUNT_ERRORS];
@@ -41,8 +48,15 @@ export const ACCOUNT_RATE_LIMITS = {
 /** DPDP Rule 14 (D61): a rights request is answered within 30 days. */
 export const DSR_DUE_DAYS = 30;
 
-/** How long a built export bundle stays downloadable. */
-export const DATA_EXPORT_TTL_SEC = 60 * 60;
+/**
+ * How long a built export bundle stays downloadable.
+ *
+ * 7 days (B16 brief §2: "GET /me/data data export bundle ... signed URL,
+ * 7-day expiry"), up from A05's original 1 hour — a bundle that includes a
+ * media manifest can be large enough on a slow connection that an hour is
+ * not generous, and DPDP Rule 14's answer window is 30 days regardless.
+ */
+export const DATA_EXPORT_TTL_SEC = 7 * 24 * 60 * 60;
 
 /** Bytes of entropy in the export download token. 32 bytes = 256 bits. */
 export const DATA_EXPORT_TOKEN_BYTES = 32;

@@ -34,6 +34,7 @@ import {
 } from "./exports.dto.js";
 import { ExportsService } from "./exports.service.js";
 import { CurrentUser, JwtAuthGuard, Roles, RolesGuard } from "../common/guards/index.js";
+import { LogAccess } from "../privacy/access-log.decorator.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
 import type { AuthPrincipal } from "../common/guards/index.js";
@@ -182,6 +183,7 @@ export class ExportsController {
   @Get("exports/:exportId/download")
   @Roles("viewer")
   @HttpCode(HttpStatus.OK)
+  @LogAccess("export")
   @ApiOperation({
     summary: "A short-lived signed download URL",
     description: "409 `export/not_ready` for a browser export — it never leaves the browser.",

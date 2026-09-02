@@ -28,6 +28,7 @@ import {
 } from "./fonts.dto.js";
 import { FontsService } from "./fonts.service.js";
 import { zodArrayResponse, zodBody, zodResponse } from "../auth/dto/openapi.js";
+import { CommonAuditService } from "../common/audit/audit.service.js";
 import {
   CurrentUser,
   CurrentWorkspace,
@@ -122,7 +123,10 @@ export class BundledFontsController {
 @UseGuards(JwtAuthGuard, WorkspaceMemberGuard, RolesGuard)
 @Controller("workspaces/:id/fonts")
 export class WorkspaceFontsController {
-  constructor(private readonly fonts: FontsService) {}
+  constructor(
+    private readonly fonts: FontsService,
+    private readonly audit: CommonAuditService,
+  ) {}
 
   @Get()
   @Roles("viewer")
@@ -242,9 +246,18 @@ export class WorkspaceFontsController {
   @ApiNotFoundResponse({ description: "`fonts/not_found`." })
   async remove(
     @CurrentWorkspace() workspaceId: string,
+    @CurrentUser("userId") userId: string,
     @Param("fontId") fontId: string,
   ): Promise<{ deleted: true }> {
-    return this.fonts.remove(workspaceId, fontId);
+    const result = await this.fonts.remove(workspaceId, fontId);
+    await this.audit.record({
+      action: "workspace.font.deleted",
+      resource: "font",
+      resourceId: fontId,
+      actorId: userId,
+      workspaceId,
+    });
+    return result;
   }
 }
 
