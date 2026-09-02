@@ -786,11 +786,28 @@ describe.skipIf(!CAN_RUN)("re-transcribing", () => {
   });
 
   it("refuses a viewer, and admits an editor", async () => {
-    await request(app.getHttpServer())
-      .post(`/projects/${PROJECT_B}/transcribe`)
-      .set("Authorization", `Bearer ${accessToken("viewer")}`)
-      .send({})
-      .expect(403);
+    // `WorkspaceMemberGuard` reads the LIVE membership row and replaces
+    // whatever role the token claims (`workspace-member.guard.ts`), so a
+    // `viewer` token only refuses this route if the membership itself is a
+    // viewer's — the seeded fixture is `owner`, which every other test in
+    // this file relies on, so it is lowered here and restored immediately
+    // after rather than for the rest of the suite.
+    await prisma.membership.update({
+      where: { workspaceId_userId: { workspaceId: WORKSPACE, userId: USER } },
+      data: { role: "viewer" },
+    });
+    try {
+      await request(app.getHttpServer())
+        .post(`/projects/${PROJECT_B}/transcribe`)
+        .set("Authorization", `Bearer ${accessToken("viewer")}`)
+        .send({})
+        .expect(403);
+    } finally {
+      await prisma.membership.update({
+        where: { workspaceId_userId: { workspaceId: WORKSPACE, userId: USER } },
+        data: { role: "owner" },
+      });
+    }
   });
 });
 
