@@ -64,7 +64,7 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A17 | web Timeline | A15, A16 | done (word retiming → A02d/A17b; perf spec → A15b) |
 | A18a | ass-exporter + parity gate | A16, A20 | done |
 | A18b | fonts pipeline | A06, A07 | done |
-| A19 | web browser export + export dialog | A16, A21, A02c | in-progress |
+| A19 | web browser export + export dialog | A16, A21, A02c | done (A21b sources + A19b throughput/parity pending) |
 | A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | done |
 | A21 | api exports module (manifests, cloud jobs) | A08, A20 | done |
 | A22 | scripts + translation | A10, A11, A12 | done |
