@@ -10,6 +10,7 @@ import type {
   EdgOpsEvent,
   JobCompletedEvent,
   JobProgressEvent,
+  NotificationCreatedEvent,
   RealtimeEvent,
   RealtimeEventPayloads,
   RoomMessage,
@@ -86,5 +87,20 @@ export class RealtimePublisher {
   /** Emitted by B15 when a review comment lands. */
   async commentAdded(data: CommentAddedEvent): Promise<void> {
     await this.publish(projectRoom(data.projectId), "comment.added", data);
+  }
+
+  /**
+   * Emitted by A25 when an in-app notification is written.
+   *
+   * It goes to the **workspace** room because those are the only rooms this
+   * server has (CONTRACTS §7: `project:` and `workspace:`). Every socket in the
+   * workspace therefore sees that *a* notification happened, which is why the
+   * payload carries an id and a kind and no content: the bell then calls
+   * `GET /me/notifications`, which is scoped to the caller. A notification with
+   * no workspace — the ones sent before a user has joined anything — has no room
+   * to go to and is not published at all.
+   */
+  async notificationCreated(workspaceId: string, data: NotificationCreatedEvent): Promise<void> {
+    await this.publish(workspaceRoom(workspaceId), "notification.created", data);
   }
 }

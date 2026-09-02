@@ -246,6 +246,14 @@ enum JobStatus {
   cancelled
 }
 
+/// Not enumerated in 06 (`dlq` is A08b's table). The operator's work queue: a row
+/// is `pending` until an admin replays or discards it.
+enum DlqStatus {
+  pending
+  replayed
+  discarded
+}
+
 /// Not enumerated in 06 (`job_events.level`).
 enum LogLevel {
   debug
@@ -545,6 +553,9 @@ model User {
   parentalConsentRef String?      @map("parental_consent_ref")
   ageAssuredAt       DateTime?    @map("age_assured_at") @db.Timestamptz(6)
   marketingOptIn     Boolean      @default(false) @map("marketing_opt_in")
+  /// Platform staff. Gates `/admin/**` (A08b `AdminGuard`, THREAT-MODEL T20); it is
+  /// NOT a workspace role — that is `memberships.role`.
+  isAdmin            Boolean      @default(false) @map("is_admin")
   analyticsConsentAt DateTime?    @map("analytics_consent_at") @db.Timestamptz(6)
   memoryConsentAt    DateTime?    @map("memory_consent_at") @db.Timestamptz(6)
   /// Zod: `OnboardingStateSchema` (users module, A05).
@@ -565,6 +576,7 @@ model User {
   lessonProgress  LessonProgress[]
   comments        Comment[]
   clearanceGrants AssetClearanceGrant[]
+  notifications   Notification[]
 
   @@index([deletedAt])
   @@map("users")
@@ -609,6 +621,28 @@ model DsrRequest {
   @@index([userId])
   @@index([receivedAt])
   @@map("dsr_requests")
+}
+
+/// The parental-consent waiting list (D60).
+///
+/// Not in `06-data-model.md`: A04 had to park these entries in a Redis hash
+/// (`montaj:auth:parental-waitlist`) because the schema was frozen outside A03,
+/// and A05 gives them the durable home the orchestrator asked for. Only a
+/// `sha256` of the address is stored — the row exists to say "somebody at this
+/// address asked to be told", and nothing here ever needs to read the address
+/// back. `notifiedAt` is stamped when the parental-consent flow ships and the
+/// list is worked through (before May 2027).
+model ParentalWaitlist {
+  id           String       @id @db.Char(26)
+  /// Lowercase hex `sha256(normalised email)`; unique, so a resubmission is idempotent.
+  emailHash    String       @unique @map("email_hash") @db.Char(64)
+  jurisdiction Jurisdiction @default(OTHER)
+  ageBracket   AgeBracket   @default(minor) @map("age_bracket")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  notifiedAt   DateTime?    @map("notified_at") @db.Timestamptz(6)
+
+  @@index([createdAt])
+  @@map("parental_waitlist")
 }
 
 model BreachIncident {
@@ -689,29 +723,32 @@ model Session {
 }
 
 model Workspace {
-  id               String        @id @db.Char(26)
-  slug             String        @unique
-  name             String
-  type             WorkspaceType @default(personal)
-  ownerId          String        @map("owner_id") @db.Char(26)
+  id                        String        @id @db.Char(26)
+  slug                      String        @unique
+  name                      String
+  type                      WorkspaceType @default(personal)
+  ownerId                   String        @map("owner_id") @db.Char(26)
   /// Data residency (THREAT-MODEL T24): raw media and DB pinned per workspace.
-  region           Region        @default(in)
+  region                    Region        @default(in)
   /// Derived from `billingCountry` and locked for the life of a subscription (04 §3).
-  currency         Currency      @default(INR)
-  billingCountry   String        @map("billing_country") @db.Char(2)
+  currency                  Currency      @default(INR)
+  billingCountry            String        @map("billing_country") @db.Char(2)
+  /// Null until the owner confirms the tax profile; sign-up only guesses it from
+  /// the declared jurisdiction (A05). B01 refuses to open a checkout while null.
+  billingCountryConfirmedAt DateTime?     @map("billing_country_confirmed_at") @db.Timestamptz(6)
   /// GST state code, mandatory for India (Circular 242/36/2024-GST, D41).
-  billingStateCode String?       @map("billing_state_code") @db.VarChar(2)
-  gstin            String?
-  gstinVerifiedAt  DateTime?     @map("gstin_verified_at") @db.Timestamptz(6)
-  legalName        String?       @map("legal_name")
+  billingStateCode          String?       @map("billing_state_code") @db.VarChar(2)
+  gstin                     String?
+  gstinVerifiedAt           DateTime?     @map("gstin_verified_at") @db.Timestamptz(6)
+  legalName                 String?       @map("legal_name")
   /// Zod: `PostalAddressSchema`.
-  billingAddress   Json          @default("{}") @map("billing_address") @db.JsonB
+  billingAddress            Json          @default("{}") @map("billing_address") @db.JsonB
   /// Zod: `WorkspaceSettingsSchema`.
-  settings         Json          @default("{}") @db.JsonB
+  settings                  Json          @default("{}") @db.JsonB
   /// Project retention in days, taken from the plan (04 §Plans).
-  retentionDays    Int           @default(7) @map("retention_days")
-  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  deletedAt        DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  retentionDays             Int           @default(7) @map("retention_days")
+  createdAt                 DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt                 DateTime?     @map("deleted_at") @db.Timestamptz(6)
 
   owner               User                  @relation("WorkspaceOwner", fields: [ownerId], references: [id])
   memberships         Membership[]
@@ -742,6 +779,8 @@ model Workspace {
   clearanceGrants     AssetClearanceGrant[]
   webhookEndpoints    WebhookEndpoint[]
   auditEntries        AuditLog[]
+  dlqEntries          DlqEntry[]
+  notifications       Notification[]
 
   @@index([ownerId])
   @@index([billingCountry])
@@ -1054,6 +1093,10 @@ model EdgSegment {
   @@index([edgId])
   @@index([edgId, seq])
   @@index([edgId, startMs])
+  /// A12: `DeleteWord` shrinks the segments a word bounds, wherever they sit in the
+  /// document, so the working-set read looks them up by word id rather than by `seq`.
+  @@index([edgId, startWordId])
+  @@index([edgId, endWordId])
   @@map("edg_segments")
 }
 
@@ -1088,6 +1131,10 @@ model EdgPassItem {
   payload         Json      @default("{}") @db.JsonB
   /// Packed float32 `[tMs, x, y, w, h]` keyframes.
   keyframes       Bytes?
+  /// Where the curve lives when it is not inline (`PassItem.keyframesRef`, CONTRACTS §2).
+  /// Added by A12: the frozen domain type carries the reference, the table only had
+  /// the bytes, so a `MergePass` could not round-trip an item that used one.
+  keyframesRef    String?   @map("keyframes_ref")
   confidence      Float?
   reason          String?
   state           ItemState @default(proposed)
@@ -1120,6 +1167,9 @@ model EdgRevision {
 
   edg EdgDocument @relation(fields: [edgId], references: [id], onDelete: Cascade)
 
+  /// GIN index `edg_revisions_client_op_ids_idx` on `client_op_ids`
+  /// (`prisma/sql/0006-a12-edg.sql`): the idempotency check is an array-overlap test
+  /// (`&&`), which Prisma has no `@@index` syntax for.
   @@unique([edgId, revision])
   @@index([edgId])
   @@map("edg_revisions")
@@ -1339,8 +1389,14 @@ model Job {
   /// Deduplication key: one live job per (workspace, unit of work).
   jobKey               String    @map("job_key")
   attemptId            String?   @map("attempt_id") @db.Char(26)
+  /// Ordinal of the live attempt, 1-based. `attemptId` identifies an attempt; this counts them.
+  attemptNo            Int       @default(1) @map("attempt_no")
   /// Admission control (THREAT-MODEL T23): exceeding it fails the job and releases the hold.
   maxQueueWaitMs       Int?      @map("max_queue_wait_ms")
+  /// Every attempt failed (A08b). A `dlq` row carries the payload and the last error.
+  dlq                  Boolean   @default(false)
+  dlqReason            String?   @map("dlq_reason")
+  dlqAt                DateTime? @map("dlq_at") @db.Timestamptz(6)
 
   workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project             Project?             @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1349,6 +1405,7 @@ model Job {
   exports             Export[]
   passes              EdgPass[]
   creditHold          CreditHold?
+  dlqEntries          DlqEntry[]
 
   @@index([workspaceId])
   @@index([projectId])
@@ -1356,6 +1413,8 @@ model Job {
   @@index([status])
   @@index([jobKey])
   @@index([workspaceId, status, queuedAt])
+  // Partial indexes Prisma cannot express live in `prisma/sql/0005-a08b-dlq.sql`:
+  // the pending-DLQ scan and the live `(workspace_id, job_key)` uniqueness.
   @@map("jobs")
 }
 
@@ -1374,6 +1433,54 @@ model JobEvent {
   @@index([jobId])
   @@index([at])
   @@map("job_events")
+}
+
+/// Dead-lettered jobs: one row per attempt that exhausted the queue's retry budget
+/// (A08b). Not in 06-data-model.md — D46 calls for "DLQ with admin replay" and this
+/// is that table. It is the operator's work queue (`docs/runbooks/dlq-replay.md`)
+/// and, once resolved, the record of what the system could not do: rows are never
+/// deleted by the retention sweep, unlike `job_events`.
+model DlqEntry {
+  id              String    @id @db.Char(26)
+  jobId           String    @map("job_id") @db.Char(26)
+  workspaceId     String    @map("workspace_id") @db.Char(26)
+  projectId       String?   @map("project_id") @db.Char(26)
+  /// The CONTRACTS section 3 queue the job ran on. Denormalised from `jobs.type`
+  /// so the admin list and the per-queue depth gauge never join.
+  queue           String
+  jobKey          String    @map("job_key")
+  /// The attempt that gave up. A replay mints a new one, so a job may dead-letter
+  /// more than once and each attempt gets its own row.
+  attemptId       String    @map("attempt_id") @db.Char(26)
+  /// 1-based ordinal of `attemptId`.
+  attemptNo       Int       @default(1) @map("attempt_no")
+  /// How many attempts the job had had in total when it gave up.
+  attempts        Int       @default(1)
+  /// Zod: the queue payload the failed attempt carried (CONTRACTS section 3 `payload`).
+  payload         Json      @default("{}") @db.JsonB
+  /// Zod: `JobErrorSchema` — the error of the final attempt.
+  lastError       Json?     @map("last_error") @db.JsonB
+  /// The hold the job carried, in tenths, so a replay can reserve the same again.
+  worstCaseTenths Int       @default(0) @map("worst_case_tenths")
+  failedAt        DateTime  @default(now()) @map("failed_at") @db.Timestamptz(6)
+  status          DlqStatus @default(pending)
+  /// Admin who replayed or discarded it (`users.id`); no FK, because the record
+  /// must outlive the account.
+  resolvedBy      String?   @map("resolved_by") @db.Char(26)
+  resolvedAt      DateTime? @map("resolved_at") @db.Timestamptz(6)
+  /// Why it was discarded, or the id of the replay attempt. Never blank on discard.
+  resolution      String?
+
+  job       Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  /// One row per attempt: recording a dead letter twice for the same attempt is a
+  /// replayed callback, not a second failure (THREAT-MODEL T8).
+  @@unique([jobId, attemptId])
+  @@index([queue, status, failedAt])
+  @@index([workspaceId, status])
+  @@index([status, failedAt])
+  @@map("dlq")
 }
 
 /// Which provider received which artefact, and whether deletion was requested and
@@ -2112,6 +2219,35 @@ model AuditLog {
   @@index([actorId, at])
   @@index([resourceId])
   @@map("audit_log")
+}
+
+/// In-app notifications: the bell in the app shell (A13), written by A25 for the
+/// kinds a signed-in user should see again after the email has been archived.
+///
+/// `kind` stays a free string for the same reason `jobs.type` does: the closed set
+/// is `NOTIFY_KINDS` in `src/notify/notify.kinds.ts`, and pinning it as a Postgres
+/// enum would fork that list and turn adding a template into a migration.
+///
+/// There is no `body` column. A notification is `(kind, data)` and the wording is
+/// rendered per locale at read time, so a user who switches to Hindi sees the bell
+/// in Hindi rather than in whatever language the email happened to be sent in.
+model Notification {
+  id          String    @id @db.Char(26)
+  userId      String    @map("user_id") @db.Char(26)
+  workspaceId String?   @map("workspace_id") @db.Char(26)
+  kind        String
+  /// Zod: `NotificationDataSchema` — the same variables the email template used.
+  data        Json      @default("{}") @db.JsonB
+  readAt      DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([workspaceId])
+  @@map("notifications")
 }
 
 model WebhookEndpoint {

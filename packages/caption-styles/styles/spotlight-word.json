@@ -1,0 +1,88 @@
+{
+  "id": "spotlight-word",
+  "name": "Spotlight Word",
+  "version": 2,
+  "category": "karaoke",
+  "minPlan": "starter",
+  "typography": {
+    "fontFamily": "Poppins",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 800,
+    "italic": false,
+    "sizePct": 5.8,
+    "lineHeight": 1.16,
+    "letterSpacingEm": -0.01,
+    "textTransform": "none",
+    "scriptScale": { "deva": 0.69, "taml": 0.41 }
+  },
+  "colors": {
+    "text": "#ffffff59",
+    "activeText": "#ffffff",
+    "upcomingText": "#ffffff59",
+    "accent": "#ffd400"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 20,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#0b0b0f",
+    "widthPct": 6
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 4,
+    "blurPct": 12,
+    "opacity": 0.5
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.74,
+    "align": "center",
+    "maxWidthPct": 86,
+    "maxLines": 2,
+    "safeAreaPct": 12
+  },
+  "animation": {
+    "in": {
+      "type": "fade",
+      "durationMs": 140
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 140
+    },
+    "wordHighlight": {
+      "type": "scale",
+      "durationMs": 150,
+      "scale": 1.22
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "pop",
+      "label": "Pop",
+      "color": "#ffd400",
+      "scale": 1.25,
+      "effect": "none"
+    },
+    {
+      "id": "glow",
+      "label": "Glow",
+      "color": "#ffd400",
+      "effect": "glow"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/spotlight-word.mp4"
+}

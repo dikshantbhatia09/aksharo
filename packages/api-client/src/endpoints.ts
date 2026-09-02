@@ -5,15 +5,16 @@
  * against it by `contract.test.ts`. Routes carrying `pending` are specified in
  * `07-api-and-contracts.md` but their work package has not landed; the client
  * raises `client/not_implemented` for them, and the same contract test asserts
- * they are still absent — so the day A05 merges, this file fails a test and gets
- * updated rather than silently continuing to guess.
+ * they are still absent — so the day the owning work package merges, this file
+ * fails a test and gets updated rather than silently continuing to guess. That
+ * is not hypothetical: A05 landed between A13's first commit and its merge, and
+ * this is how the seven routes below moved.
  */
 
 import { defineEndpoint } from "./http.js";
 
 import type {
-  Consents,
-  ConsentRecord,
+  ConsentState,
   CurrentUser,
   DeviceApproveRequest,
   Entitlement,
@@ -21,12 +22,14 @@ import type {
   MagicLinkResponse,
   MemoryEntry,
   OAuthCompleteRequest,
-  OnboardingProfile,
   PendingApproval,
+  RightsRequest,
   SessionSummary,
+  SetConsentRequest,
   SignUpRequest,
   SignUpResponse,
   TokenResponse,
+  UpdateMeRequest,
   UsageSummary,
   WorkspaceSummary,
 } from "./types.js";
@@ -123,6 +126,59 @@ export const deviceEndpoints = {
   }),
 } as const;
 
+/** The account, its workspaces and its rights (A05). */
+export const accountEndpoints = {
+  me: defineEndpoint<void, CurrentUser>({
+    method: "GET",
+    path: "/me",
+    auth: "bearer",
+    operationId: "getMe",
+  }),
+  updateMe: defineEndpoint<UpdateMeRequest, CurrentUser>({
+    method: "PATCH",
+    path: "/me",
+    auth: "bearer",
+    operationId: "updateMe",
+  }),
+  listWorkspaces: defineEndpoint<void, WorkspaceSummary[]>({
+    method: "GET",
+    path: "/workspaces",
+    auth: "bearer",
+    operationId: "listWorkspaces",
+  }),
+  entitlement: defineEndpoint<void, Entitlement>({
+    method: "GET",
+    path: "/workspaces/{id}/entitlement",
+    auth: "bearer",
+    operationId: "getWorkspaceEntitlement",
+  }),
+  listConsents: defineEndpoint<void, ConsentState>({
+    method: "GET",
+    path: "/consents",
+    auth: "bearer",
+    operationId: "getConsents",
+  }),
+  /** One purpose per call: a consent record is per purpose (D60). */
+  setConsent: defineEndpoint<SetConsentRequest, ConsentState>({
+    method: "POST",
+    path: "/consents",
+    auth: "bearer",
+    operationId: "setConsent",
+  }),
+  exportData: defineEndpoint<void, RightsRequest>({
+    method: "GET",
+    path: "/me/data",
+    auth: "bearer",
+    operationId: "requestMyData",
+  }),
+  deleteAccount: defineEndpoint<void, RightsRequest>({
+    method: "DELETE",
+    path: "/me",
+    auth: "bearer",
+    operationId: "deleteMe",
+  }),
+} as const;
+
 /** Jobs (A08) — the shell needs them for `JobProgress` and the realtime resync. */
 export const jobEndpoints = {
   get: defineEndpoint<void, { id: string; status: string; progress?: number; etaMs?: number }>({
@@ -140,88 +196,37 @@ export const jobEndpoints = {
 } as const;
 
 /**
- * A05 (users, workspaces, memberships) and the privacy routes of
- * `07-api-and-contracts.md §Privacy & rights`. `docs/PLAN.md` has A05
- * in-progress, so none of these are in `openapi.json` yet.
+ * Routes `07-api-and-contracts.md` specifies whose work package has not landed.
+ *
+ * `/usage` carries the credit balance and the burn rate, which belong to the
+ * ledger (B02); `/memory` is the learned-memory store of D62 (B09). Until they
+ * exist the meter shows the plan's allowance and the memory screen says so.
  */
 export const pendingEndpoints = {
-  me: defineEndpoint<void, CurrentUser>({
-    method: "GET",
-    path: "/me",
-    auth: "bearer",
-    pending: "A05",
-  }),
-  updateMe: defineEndpoint<Partial<Pick<CurrentUser, "name" | "locale">>, CurrentUser>({
-    method: "PATCH",
-    path: "/me",
-    auth: "bearer",
-    pending: "A05",
-  }),
-  saveOnboarding: defineEndpoint<OnboardingProfile, CurrentUser>({
-    method: "POST",
-    path: "/me/onboarding",
-    auth: "bearer",
-    pending: "A05",
-  }),
-  listWorkspaces: defineEndpoint<void, WorkspaceSummary[]>({
-    method: "GET",
-    path: "/workspaces",
-    auth: "bearer",
-    pending: "A05",
-  }),
-  entitlement: defineEndpoint<void, Entitlement>({
-    method: "GET",
-    path: "/entitlement",
-    auth: "bearer",
-    pending: "A05",
-  }),
   usage: defineEndpoint<void, UsageSummary>({
     method: "GET",
     path: "/usage",
     auth: "bearer",
-    pending: "A05",
-  }),
-  listConsents: defineEndpoint<void, ConsentRecord[]>({
-    method: "GET",
-    path: "/consents",
-    auth: "bearer",
-    pending: "A05",
-  }),
-  setConsents: defineEndpoint<Consents, ConsentRecord[]>({
-    method: "POST",
-    path: "/consents",
-    auth: "bearer",
-    pending: "A05",
+    pending: "B02",
   }),
   listMemory: defineEndpoint<void, MemoryEntry[]>({
     method: "GET",
     path: "/memory",
     auth: "bearer",
-    pending: "A05",
+    pending: "B09",
   }),
   clearMemory: defineEndpoint<void, void>({
     method: "DELETE",
     path: "/memory",
     auth: "bearer",
-    pending: "A05",
-  }),
-  exportData: defineEndpoint<void, { jobId: string }>({
-    method: "GET",
-    path: "/me/data",
-    auth: "bearer",
-    pending: "A05",
-  }),
-  deleteAccount: defineEndpoint<{ confirmation: string }, void>({
-    method: "DELETE",
-    path: "/me",
-    auth: "bearer",
-    pending: "A05",
+    pending: "B09",
   }),
 } as const;
 
 export const endpoints = {
   auth: authEndpoints,
   device: deviceEndpoints,
+  account: accountEndpoints,
   jobs: jobEndpoints,
   pending: pendingEndpoints,
 } as const;
@@ -230,6 +235,7 @@ export const endpoints = {
 export const ALL_ENDPOINTS = [
   ...Object.entries(authEndpoints),
   ...Object.entries(deviceEndpoints),
+  ...Object.entries(accountEndpoints),
   ...Object.entries(jobEndpoints),
   ...Object.entries(pendingEndpoints),
 ] as const;

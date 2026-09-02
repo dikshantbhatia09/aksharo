@@ -16,12 +16,16 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:install": "playwright install --with-deps chromium webkit",
-    "clean": "node -e \"require('node:fs').rmSync('.next',{recursive:true,force:true})\""
+    "clean": "node -e \"require('node:fs').rmSync('.next',{recursive:true,force:true})\"",
+    "assets:render": "node scripts/copy-render-assets.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
     "@montaj/api-client": "workspace:^",
+    "@montaj/caption-styles": "workspace:*",
     "@montaj/config": "workspace:*",
+    "@montaj/render-canvaskit": "workspace:*",
+    "@montaj/render-core": "workspace:*",
     "@montaj/ui": "workspace:^",
     "@sentry/browser": "^10.73.0",
     "@tanstack/react-query": "^5.102.8",

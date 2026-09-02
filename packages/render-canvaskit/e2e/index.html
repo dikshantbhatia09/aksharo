@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>render-canvaskit browser harness</title>
+    <style>
+      body {
+        margin: 0;
+        background: #1a1a20;
+        font: 13px system-ui, sans-serif;
+        color: #eee;
+      }
+      #stage {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="540" height="960"></canvas>
+    <p id="status" data-testid="status">loading</p>
+    <script src="/canvaskit.js"></script>
+    <script type="module" src="/executor.js"></script>
+  </body>
+</html>

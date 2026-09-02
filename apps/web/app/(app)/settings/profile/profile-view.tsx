@@ -3,7 +3,7 @@
 import Link from "next/link";
 import * as React from "react";
 
-import { endpoints, useApiClient, useCurrentUser, useSession } from "@montaj/api-client";
+import { useCurrentUser, useSession, useUpdateMe } from "@montaj/api-client";
 import { Badge, Button, Card, Field, Input, Skeleton, toast } from "@montaj/ui";
 
 import { SettingsSection } from "@/components/settings/section";
@@ -13,9 +13,8 @@ import { messageForError } from "@/lib/errors";
 export function ProfileView(): React.JSX.Element {
   const me = useCurrentUser();
   const session = useSession();
-  const client = useApiClient();
+  const updateMe = useUpdateMe();
   const [name, setName] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
 
   React.useEffect(() => {
@@ -26,18 +25,17 @@ export function ProfileView(): React.JSX.Element {
 
   const save = (event: React.FormEvent): void => {
     event.preventDefault();
-    setSaving(true);
-    void client
-      .call(endpoints.pending.updateMe, { body: { name } })
-      .then(() => {
-        toast.success("Saved");
-      })
-      .catch((error: unknown) => {
-        toast.error("Could not save that", { description: messageForError(error) });
-      })
-      .finally(() => {
-        setSaving(false);
-      });
+    updateMe.mutate(
+      { name: name.trim() === "" ? null : name.trim() },
+      {
+        onSuccess: () => {
+          toast.success("Saved");
+        },
+        onError: (error) => {
+          toast.error("Could not save that", { description: messageForError(error) });
+        },
+      },
+    );
   };
 
   return (
@@ -78,10 +76,10 @@ export function ProfileView(): React.JSX.Element {
               <Button
                 type="submit"
                 variant="secondary"
-                disabled={saving}
+                disabled={updateMe.isPending}
                 data-testid="save-profile"
               >
-                {saving ? "Saving…" : "Save"}
+                {updateMe.isPending ? "Saving…" : "Save"}
               </Button>
               {session === null ? null : <Badge tone="neutral">{session.role}</Badge>}
               {me.data?.emailVerified === false ? (

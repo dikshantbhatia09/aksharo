@@ -15,6 +15,7 @@ import { PasswordService } from "./password.service.js";
 import { SessionService } from "./session.service.js";
 import { randomToken, sha256Hex } from "./tokens.js";
 import { AppException, ERROR_CODES, PrismaService, RedisService } from "../common/index.js";
+import { parentalWaitlistRow } from "../privacy/parental-waitlist.js";
 import { normaliseEmail, UsersService } from "../users/users.service.js";
 
 import type { IssuedTokens } from "./session.service.js";
@@ -119,7 +120,9 @@ export class AuthService {
     const existing = await this.users.findByEmail(email);
     if (existing !== null && existing.deletedAt === null) {
       // Same response either way; only the mailbox owner learns the difference.
-      if (existing.emailVerifiedAt === null) await this.sendVerificationEmail(existing.id, email);
+      if (existing.emailVerifiedAt === null) {
+        await this.sendVerificationEmail(existing.id, email, existing);
+      }
       this.logger.log({ reason: "duplicate" }, "sign-up for an existing address");
       return { status: "verification_sent", email };
     }
@@ -138,7 +141,12 @@ export class AuthService {
       ...(input.ua === undefined ? {} : { ua: input.ua }),
     });
 
-    await this.sendVerificationEmail(created.userId, email);
+    // The row was written a line ago, so its locale and name are the input's —
+    // reading them back would be a query for values already in hand.
+    await this.sendVerificationEmail(created.userId, email, {
+      locale: input.locale ?? null,
+      name: input.name ?? null,
+    });
     await this.audit.record({
       action: AUTH_AUDIT_ACTIONS.signupStarted,
       resource: "user",
@@ -196,7 +204,7 @@ export class AuthService {
     }
 
     if (user.emailVerifiedAt === null) {
-      await this.sendVerificationEmail(user.id, email);
+      await this.sendVerificationEmail(user.id, email, user);
       throw new AppException(
         AUTH_ERRORS.emailNotVerified,
         "Confirm your email address first. We have sent you a new link.",
@@ -235,6 +243,7 @@ export class AuthService {
         template: "magic_link",
         token,
         link: this.mailer.webLink("/auth/magic-link", { token }),
+        ...mailRecipient(user),
       });
       await this.audit.record({
         action: AUTH_AUDIT_ACTIONS.magicLinkRequested,
@@ -321,23 +330,35 @@ export class AuthService {
   /**
    * Record a parental-consent waitlist entry (D60).
    *
-   * There is no table for this in `06-data-model.md`, and the Prisma schema is
-   * frozen outside A03, so the addresses live in a Redis hash keyed by
-   * `sha256(email)` -- which also makes a repeat submission idempotent. A durable
-   * table belongs with the parental-consent flow itself (due before May 2027);
-   * see the open question in `apps/api/src/auth/README.md`.
+   * A04 had to park these in the Redis hash `montaj:auth:parental-waitlist`
+   * because `06-data-model.md` has no table for them and the schema was frozen
+   * outside A03. A05 adds `parental_waitlist` and this writes there instead;
+   * `ParentalWaitlistService` drains whatever the hash still holds at boot.
+   *
+   * Only `sha256(address)` is stored, which is also what makes a resubmission
+   * idempotent — the unique index absorbs it, so `createdAt` is not reset either.
    */
-  async joinParentalWaitlist(email: string, context: RequestContextInfo): Promise<void> {
-    const normalised = normaliseEmail(email);
-    await this.redis.client.hset(
-      redisKeys.parentalWaitlist(),
-      sha256Hex(normalised),
-      JSON.stringify({ email: normalised, at: new Date().toISOString() }),
-    );
+  async joinParentalWaitlist(
+    email: string,
+    context: RequestContextInfo,
+    jurisdiction?: $Enums.Jurisdiction,
+  ): Promise<void> {
+    await this.prisma.parentalWaitlist.createMany({
+      data: parentalWaitlistRow({
+        email: normaliseEmail(email),
+        // The endpoint is only ever offered to a sign-up the age gate refused, so
+        // `minor` is what the entry means; the jurisdiction is whatever that form
+        // declared, and `OTHER` when the client did not carry it over.
+        ...(jurisdiction === undefined ? {} : { jurisdiction }),
+        ageBracket: "minor",
+      }),
+      skipDuplicates: true,
+    });
     await this.audit.record({
       action: AUTH_AUDIT_ACTIONS.parentalWaitlistJoined,
       resource: "parental_waitlist",
       ...(context.ip === undefined ? {} : { ip: context.ip }),
+      ...(jurisdiction === undefined ? {} : { data: { jurisdiction } }),
     });
   }
 
@@ -421,7 +442,18 @@ export class AuthService {
     return { workspaceId, role: membership.role };
   }
 
-  private async sendVerificationEmail(userId: string, email: string): Promise<void> {
+  /**
+   * `recipient` is what the message is rendered from: A25 writes in the
+   * recipient's own language and greets them by name, and `users.locale` is the
+   * only place either is recorded. It is optional because one caller — the
+   * sign-up that has just created the row — has the values in hand and should not
+   * read them back.
+   */
+  private async sendVerificationEmail(
+    userId: string,
+    email: string,
+    recipient: MailRecipient = {},
+  ): Promise<void> {
     const token = randomToken(URL_TOKEN_BYTES);
     await this.redis.client.set(
       redisKeys.emailVerification(sha256Hex(token)),
@@ -434,6 +466,7 @@ export class AuthService {
       template: "email_verification",
       token,
       link: this.mailer.webLink("/auth/verify-email", { token }),
+      ...mailRecipient(recipient),
     });
   }
 
@@ -470,4 +503,29 @@ function invalidCredentials(): AppException {
     "That email address and password do not match.",
     HttpStatus.UNAUTHORIZED,
   );
+}
+
+/**
+ * What A25's templates need about the person, from whatever row is already in
+ * hand: `users.locale` and `users.name`, both nullable.
+ */
+interface MailRecipient {
+  readonly locale?: string | null;
+  readonly name?: string | null;
+}
+
+/**
+ * The recipient's language and name, as `AuthMail` fields.
+ *
+ * Absent keys rather than `undefined` ones, because `AuthMail` is spread into the
+ * notify payload and an explicit `undefined` would override the template's own
+ * fallback ("Hi there" / "नमस्ते जी") with nothing at all.
+ */
+function mailRecipient(recipient: MailRecipient): { locale?: string; name?: string } {
+  return {
+    ...(recipient.locale === undefined || recipient.locale === null
+      ? {}
+      : { locale: recipient.locale }),
+    ...(recipient.name === undefined || recipient.name === null ? {} : { name: recipient.name }),
+  };
 }

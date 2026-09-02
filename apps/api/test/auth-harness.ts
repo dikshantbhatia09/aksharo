@@ -24,6 +24,7 @@ import { redisKeys } from "../src/auth/auth.constants.js";
 import { GOOGLE_OAUTH_PROVIDER } from "../src/auth/google-oauth.provider.js";
 import { HttpExceptionFilter } from "../src/common/errors/http-exception.filter.js";
 import { resetEnvCache } from "../src/config/config.module.js";
+import { NotifyConsumer } from "../src/notify/notify.consumer.js";
 import { setupOpenApi } from "../src/openapi.js";
 
 import type { TestDatabase } from "./db-harness.js";
@@ -59,6 +60,22 @@ export class FakeGoogleProvider implements GoogleOAuthProvider {
   }
 }
 
+/**
+ * One development-outbox entry. A04 wrote the first four fields and reads them to
+ * finish a flow; A25 added the rendered message, which is how a suite asserts the
+ * language a recipient was actually written to in.
+ */
+export interface OutboxEntry {
+  to: string;
+  template: string;
+  token?: string;
+  link: string;
+  kind?: string;
+  locale?: string;
+  subject?: string;
+  text?: string;
+}
+
 export interface AuthTestContext {
   readonly app: INestApplication;
   readonly prisma: PrismaClient;
@@ -66,8 +83,15 @@ export interface AuthTestContext {
   readonly google: FakeGoogleProvider;
   /** Empty every table auth touches and every auth key in Redis. */
   reset(): Promise<void>;
-  /** The development mail outbox, newest first. */
-  outbox(): Promise<{ to: string; template: string; token?: string; link: string }[]>;
+  /**
+   * The development mail outbox, newest first.
+   *
+   * Waits for the `notify` queue to drain first. A25 moved delivery onto that
+   * queue, so a message is no longer written inline by the request that caused
+   * it; draining is deterministic where a sleep would be a flake waiting to
+   * happen, and it costs nothing when there is nothing in flight.
+   */
+  outbox(): Promise<OutboxEntry[]>;
   stop(): Promise<void>;
 }
 
@@ -119,16 +143,22 @@ function generateJwtKeys(): { privateKey: string; publicKey: string } {
 
 /** Tables the suite empties between cases, children first. */
 const TABLES = [
+  "notifications",
   "audit_log",
   "access_logs",
   "consent_records",
+  "dsr_requests",
   "device_codes",
   "sessions",
   "identities",
   "memberships",
   "api_keys",
+  "subscriptions",
   "workspaces",
   "users",
+  // A05: the parental waiting list is not a child of `users` (the entries exist
+  // precisely because no account was created), so `CASCADE` never reaches it.
+  "parental_waitlist",
 ];
 
 export async function createAuthTestContext(): Promise<AuthTestContext | null> {
@@ -158,6 +188,11 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
   // The suite drives the per-IP buckets through `X-Forwarded-For`, which the API
   // only honours when an operator says a proxy rewrites it.
   process.env["TRUST_PROXY"] = "1";
+  // A25: this is the one suite that wants mail actually delivered, so it runs the
+  // real `notify` consumer against the real Redis started above and reads what it
+  // wrote. `setup-env.ts` turns the consumer off for every other suite.
+  process.env["NOTIFY_WORKER_ENABLED"] = "1";
+  process.env["MAIL_PROVIDER"] = "dev";
   resetEnvCache();
 
   const google = new FakeGoogleProvider();
@@ -184,6 +219,9 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
     redis,
     google,
     async reset() {
+      // Drain before truncating: a notification still in flight would otherwise
+      // write its outbox entry into the next test.
+      await app.get(NotifyConsumer).drain();
       await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${TABLES.join(", ")} CASCADE`);
       const authKeys = await redis.keys("montaj:*");
       if (authKeys.length > 0) await redis.del(...authKeys);
@@ -192,11 +230,9 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
       google.exchanges.length = 0;
     },
     async outbox() {
+      await app.get(NotifyConsumer).drain();
       const raw = await redis.lrange(redisKeys.devOutbox(), 0, -1);
-      return raw.map(
-        (entry) =>
-          JSON.parse(entry) as { to: string; template: string; token?: string; link: string },
-      );
+      return raw.map((entry) => JSON.parse(entry) as OutboxEntry);
     },
     async stop() {
       await app.close();

@@ -19,11 +19,10 @@ import { messageForError } from "@/lib/errors";
  * defaults: what you make, the languages you speak on camera, and how you found
  * us.
  *
- * The answers persist through `POST /me/onboarding`, which A05 owns. Until that
- * route exists the client resolves the call locally (`client/not_implemented`
- * becomes a `null` result) and the answers are kept in this browser, so the
- * flow is complete and honest today and starts persisting the day A05 merges.
- * B17 owns turning the answers into real defaults and attribution events.
+ * The answers persist into the user's free-form `onboarding` object through
+ * `PATCH /me` (A05). A draft is also kept in this browser, so closing the tab
+ * halfway through does not lose three answers; B17 turns the saved answers into
+ * real defaults and attribution events.
  */
 
 const MAKES = [

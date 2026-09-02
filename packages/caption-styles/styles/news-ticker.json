@@ -1,0 +1,77 @@
+{
+  "id": "news-ticker",
+  "name": "News Ticker",
+  "version": 2,
+  "category": "education",
+  "minPlan": "starter",
+  "typography": {
+    "fontFamily": "Inter",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 700,
+    "italic": false,
+    "sizePct": 3.4,
+    "lineHeight": 1.24,
+    "letterSpacingEm": 0.01,
+    "textTransform": "uppercase",
+    "scriptScale": { "taml": 0.71 }
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#ffd400"
+  },
+  "box": {
+    "enabled": true,
+    "mode": "block",
+    "fill": "#b3121f",
+    "paddingPct": 28,
+    "radiusPct": 4,
+    "opacity": 0.94
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": false,
+    "offsetXPct": 0,
+    "offsetYPct": 0,
+    "blurPct": 0,
+    "opacity": 0
+  },
+  "layout": {
+    "anchor": "bottom-left",
+    "x": 0.06,
+    "y": 0.9,
+    "align": "left",
+    "maxWidthPct": 88,
+    "maxLines": 2,
+    "safeAreaPct": 8
+  },
+  "animation": {
+    "in": {
+      "type": "slide-up",
+      "durationMs": 200
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 140
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 100
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "accent",
+      "label": "Accent",
+      "color": "#ffd400",
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/news-ticker.mp4"
+}

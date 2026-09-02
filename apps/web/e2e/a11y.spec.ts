@@ -1,10 +1,4 @@
-import {
-  expect,
-  expectNoSeriousA11yViolations,
-  signUpAndVerify,
-  test,
-  gotoHydrated,
-} from "./fixtures";
+import { expect, expectNoSeriousA11yViolations, gotoHydrated, signIn, test } from "./fixtures";
 
 /**
  * An axe pass on every screen A13 ships, signed out and signed in.
@@ -53,8 +47,8 @@ const SIGNED_IN_SCREENS = [
   { path: "/device", name: "device approval" },
 ] as const;
 
-test("axe: the shell, onboarding and every settings screen", async ({ page }) => {
-  await signUpAndVerify(page, "axe");
+test("axe: the shell, onboarding and every settings screen", async ({ page, sharedAccount }) => {
+  await signIn(page, sharedAccount, "/onboarding");
 
   await expect(page.getByTestId("onboarding")).toBeVisible();
   await expectNoSeriousA11yViolations(page, "onboarding");
@@ -69,20 +63,20 @@ test("axe: the shell, onboarding and every settings screen", async ({ page }) =>
   }
 });
 
-test("axe: the command palette", async ({ page }) => {
-  await signUpAndVerify(page, "axe-palette");
-  await page.getByTestId("onboarding-skip").click();
-  await page.waitForURL(/\/studio/);
+test("axe: the command palette", async ({ page, sharedAccount }) => {
+  await signIn(page, sharedAccount);
 
   await page.getByTestId("open-palette").click();
   await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
   await expectNoSeriousA11yViolations(page, "command palette");
 });
 
-test("the keyboard alone reaches the content and the navigation", async ({ page, browserName }) => {
-  await signUpAndVerify(page, "keyboard");
-  await page.getByTestId("onboarding-skip").click();
-  await page.waitForURL(/\/studio/);
+test("the keyboard alone reaches the content and the navigation", async ({
+  page,
+  browserName,
+  sharedAccount,
+}) => {
+  await signIn(page, sharedAccount);
 
   // A fresh navigation, so the tab order starts at the top of the document
   // rather than wherever the previous click left focus.

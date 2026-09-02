@@ -1,0 +1,79 @@
+{
+  "id": "tape-retro",
+  "name": "Tape Retro",
+  "version": 2,
+  "category": "retro",
+  "minPlan": "creator",
+  "typography": {
+    "fontFamily": "Roboto Mono",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 700,
+    "italic": false,
+    "sizePct": 4.2,
+    "lineHeight": 1.26,
+    "letterSpacingEm": 0.04,
+    "textTransform": "uppercase",
+    "scriptScale": { "deva": 0.83, "taml": 0.51 }
+  },
+  "colors": {
+    "text": "#f7e7c6",
+    "activeText": "#ff8a3d",
+    "accent": "#ff8a3d"
+  },
+  "box": {
+    "enabled": true,
+    "mode": "line",
+    "fill": "#241a12",
+    "paddingPct": 20,
+    "radiusPct": 2,
+    "opacity": 0.78
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#0d0906",
+    "offsetXPct": 2,
+    "offsetYPct": 3,
+    "blurPct": 4,
+    "opacity": 0.6
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.82,
+    "align": "center",
+    "maxWidthPct": 80,
+    "maxLines": 2,
+    "safeAreaPct": 12
+  },
+  "animation": {
+    "in": {
+      "type": "fade",
+      "durationMs": 140
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 140
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 100
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "accent",
+      "label": "Accent",
+      "color": "#ff8a3d",
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/tape-retro.mp4"
+}

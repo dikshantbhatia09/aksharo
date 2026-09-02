@@ -64,17 +64,18 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
   // what the events would have changed, so a client that was offline converges
   // by re-reading rather than by replaying (realtime/README §Reconnection).
   /*
-   * The realtime channel is behind a flag until A08's Redis fan-out is fixed.
+   * The realtime channel, with a kill switch.
    *
-   * `RedisRealtimeBus` duplicates a connection created with `lazyConnect: true`
-   * and `enableOfflineQueue: false`, so the duplicate is never dialled and the
-   * first `SUBSCRIBE` rejects with "Stream isn't writeable" — which takes the
-   * whole API process down. A08's own suite only exercises the in-memory bus, so
-   * nothing caught it before a browser actually joined a room. Set
-   * `FEATURE_FLAGS_JSON={"realtime.enabled":true}` once that is fixed; the client
-   * itself is complete and covered by `packages/api-client` tests.
+   * A13 originally shipped this off: joining a room took the API process down,
+   * because `RedisRealtimeBus` duplicated a connection created with
+   * `lazyConnect: true` and `enableOfflineQueue: false`, so the duplicate was
+   * never dialled and the first `SUBSCRIBE` was rejected outright. A08c fixed
+   * that — the bus now connects before it subscribes and the gateway refuses a
+   * room rather than letting the rejection escape — so the channel is on, and
+   * `FEATURE_FLAGS_JSON={"realtime.enabled":false}` turns it off again without a
+   * rebuild if a deployment ever needs that.
    */
-  const realtimeEnabled = config.flags["realtime.enabled"] === true;
+  const realtimeEnabled = config.flags["realtime.enabled"] !== false;
 
   React.useEffect(() => {
     if (!bootstrapped || session === null || !realtimeEnabled) return;

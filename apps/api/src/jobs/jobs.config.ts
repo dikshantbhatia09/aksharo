@@ -85,8 +85,23 @@ export const QUEUE_TIMEOUT_INTERVAL_MS = 30_000;
 /** Rows the sweeper fails in one pass, so a backlog cannot hold a transaction open. */
 export const QUEUE_TIMEOUT_BATCH = 200;
 
-/** `job_events.data` carries this marker; the daily purge (B16) reads it. */
+/** `job_events.data` carries this marker; the A08b retention sweep reads it (D47). */
 export const JOB_EVENT_RETENTION_DAYS = 30;
+
+/** When the job-event retention sweep runs. Off-peak, and after the nightly rollups. */
+export const JOB_EVENT_RETENTION_CRON = "25 3 * * *";
+
+/**
+ * Rows the retention sweep deletes per statement.
+ *
+ * A single unbounded `DELETE` over a month of events would hold one transaction -
+ * and the locks under it - for as long as it takes; the sweep loops on this batch
+ * instead and stops as soon as a pass deletes fewer than a full batch.
+ */
+export const JOB_EVENT_RETENTION_BATCH = 5_000;
+
+/** Ceiling on batches per run, so one pathological night cannot run until morning. */
+export const JOB_EVENT_RETENTION_MAX_BATCHES = 200;
 
 /** Default page size for `GET /jobs` and `GET /jobs/{id}/events`. */
 export const JOBS_PAGE_SIZE = 25;
@@ -95,27 +110,155 @@ export const JOBS_PAGE_SIZE = 25;
 export const JOBS_MAX_PAGE_SIZE = 100;
 
 /**
- * BullMQ retry policy per queue family. A08 sets the shape and the defaults;
- * A08b tunes the numbers and adds the lock durations for long ASR jobs.
+ * Dead letters one bulk replay or discard may touch.
+ *
+ * A ceiling, not a page size: `docs/runbooks/dlq-replay.md` §4 tells an operator
+ * to replay in small batches and watch the first one land, because a full-throttle
+ * replay competes with live user traffic for the same workers. A cap makes that
+ * advice hard to ignore by accident.
  */
-export interface RetryPolicy {
+export const DLQ_MAX_BULK = 100;
+
+/** How often the dead-letter depth gauge is re-sampled from Postgres. */
+export const DLQ_DEPTH_INTERVAL_MS = 60_000;
+
+/**
+ * BullMQ retry and stall policy per queue. A08 set the shape and the attempt
+ * counts; A08b adds the jitter, the lock durations and the stall detection.
+ *
+ * Four numbers, and each is load-bearing in a different way:
+ *
+ * - **`attempts`** is the retry budget. When it is spent the job is dead-lettered
+ *   (`DlqService`) rather than retried forever, because a job that has failed
+ *   every attempt is a decision for a human (`docs/runbooks/dlq-replay.md`).
+ * - **`backoffMs` + `backoffJitter`** space the retries out. Jitter is not a
+ *   nicety: a provider outage fails every in-flight job at almost the same
+ *   instant, and an un-jittered exponential backoff retries them all at almost the
+ *   same instant too - a thundering herd onto a provider that is still down.
+ *   `jitter` is BullMQ own fraction (0-1) of the computed delay to randomise.
+ * - **`lockDurationMs`** is how long a worker may hold a job without renewing the
+ *   lock. Too short and a long job is declared stalled and handed to a second
+ *   worker *while the first is still running it*, which is a double charge; too
+ *   long and a worker that really did die takes that long to be noticed. A
+ *   transcription of a two-hour recording is the hard case, hence ten minutes on
+ *   `ai.transcribe`.
+ * - **`stalledIntervalMs`** is how often the stall check runs, and
+ *   **`maxStalledCount`** how many times a job may be recovered before it is
+ *   failed outright. One, everywhere except `notify`: a job that stalls twice is
+ *   not unlucky, it is killing its worker.
+ *
+ * `attempts` and `backoff` travel to the worker inside the BullMQ job options, so
+ * a worker needs no configuration to honour them. `lockDurationMs`,
+ * `stalledIntervalMs` and `maxStalledCount` are `Worker` constructor options and
+ * therefore have to be READ from here by each worker package - which is exactly
+ * the "worker-side changes beyond reading policies" the A08b brief puts out of
+ * scope. Until they do, this table is the specification they are measured against
+ * and {@link heartbeatIntervalMs} is the number a worker needs most.
+ */
+export interface QueuePolicy {
+  /** Total tries, not retries: `attempts: 3` means one run and two retries. */
   readonly attempts: number;
+  /** Base delay of the exponential backoff. */
   readonly backoffMs: number;
+  /** Fraction of the computed delay to randomise, 0-1 (BullMQ `backoff.jitter`). */
+  readonly backoffJitter: number;
+  /** How long a worker may hold the job without renewing its lock. */
+  readonly lockDurationMs: number;
+  /** How often the stalled-job check runs. */
+  readonly stalledIntervalMs: number;
+  /** How many times a job may be recovered from `stalled` before it is failed. */
+  readonly maxStalledCount: number;
 }
 
-export const DEFAULT_RETRY_POLICY: RetryPolicy = Object.freeze({ attempts: 2, backoffMs: 10_000 });
-
-export const RETRY_POLICY_BY_PREFIX: Readonly<Record<string, RetryPolicy>> = Object.freeze({
-  media: { attempts: 3, backoffMs: 5_000 },
-  ai: { attempts: 2, backoffMs: 15_000 },
-  render: { attempts: 2, backoffMs: 30_000 },
-  notify: { attempts: 5, backoffMs: 2_000 },
+/** Applied to any queue whose family is not in {@link QUEUE_POLICY_BY_FAMILY}. */
+export const DEFAULT_QUEUE_POLICY: QueuePolicy = Object.freeze({
+  attempts: 2,
+  backoffMs: 10_000,
+  backoffJitter: 0.3,
+  lockDurationMs: 60_000,
+  stalledIntervalMs: 30_000,
+  maxStalledCount: 1,
 });
 
-/** The retry policy for a queue, chosen by its `family.name` prefix. */
-export function retryPolicyFor(queueName: string): RetryPolicy {
+/**
+ * Per-family defaults, keyed on the part of the queue name before the dot.
+ *
+ * The attempt counts are the A08b brief numbers: media 3, ai 2, render 2,
+ * notify 5. `notify` retries most and backs off least because a notification is
+ * cheap, idempotent and worthless late; `render` retries least and backs off most
+ * because a re-render costs GPU minutes and a failing one usually fails again.
+ */
+export const QUEUE_POLICY_BY_FAMILY: Readonly<Record<string, QueuePolicy>> = Object.freeze({
+  media: {
+    attempts: 3,
+    backoffMs: 5_000,
+    backoffJitter: 0.2,
+    lockDurationMs: 120_000,
+    stalledIntervalMs: 30_000,
+    maxStalledCount: 1,
+  },
+  ai: {
+    attempts: 2,
+    backoffMs: 15_000,
+    backoffJitter: 0.3,
+    lockDurationMs: 120_000,
+    stalledIntervalMs: 30_000,
+    maxStalledCount: 1,
+  },
+  render: {
+    attempts: 2,
+    backoffMs: 30_000,
+    backoffJitter: 0.3,
+    lockDurationMs: 300_000,
+    stalledIntervalMs: 60_000,
+    maxStalledCount: 1,
+  },
+  notify: {
+    attempts: 5,
+    backoffMs: 2_000,
+    backoffJitter: 0.5,
+    lockDurationMs: 30_000,
+    stalledIntervalMs: 15_000,
+    maxStalledCount: 2,
+  },
+});
+
+/**
+ * Queues whose work is long enough that the family lock would expire mid-job.
+ *
+ * Only the fields that differ are listed. Ten minutes on the ASR queues is the
+ * brief number and comes from the worst realistic case: a two-hour recording on a
+ * cold GPU. `render.video` gets the same, for the same reason.
+ */
+export const QUEUE_POLICY_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy>>> = Object.freeze(
+  {
+    "ai.transcribe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "ai.diarise": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "ai.align": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },
+    "render.video": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+  },
+);
+
+/** The policy for a queue: its family defaults, with any per-queue override. */
+export function queuePolicyFor(queueName: string): QueuePolicy {
   const family = queueName.split(".")[0] ?? queueName;
-  return RETRY_POLICY_BY_PREFIX[family] ?? DEFAULT_RETRY_POLICY;
+  const base = QUEUE_POLICY_BY_FAMILY[family] ?? DEFAULT_QUEUE_POLICY;
+  const override = QUEUE_POLICY_OVERRIDES[queueName];
+  return override === undefined ? base : Object.freeze({ ...base, ...override });
+}
+
+/**
+ * How often a worker on this queue must call `POST /internal/jobs/{id}/progress`.
+ *
+ * A third of the lock, which is the standard heartbeat safety factor: two
+ * consecutive missed beats still leave the lock alive. The progress callback is
+ * the heartbeat - `JobsService.recordProgress` promotes a `queued` job to
+ * `running` precisely so that one call does both jobs - and a worker that renews
+ * its BullMQ lock on the same tick can never be declared stalled while it is
+ * genuinely working.
+ */
+export function heartbeatIntervalMs(queueName: string): number {
+  return Math.floor(queuePolicyFor(queueName).lockDurationMs / 3);
 }
 
 /**

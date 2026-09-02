@@ -1,4 +1,4 @@
-import { API_ORIGIN, expect, signUpAndVerify, test, gotoHydrated } from "./fixtures";
+import { API_ORIGIN, expect, gotoHydrated, signIn, test } from "./fixtures";
 
 /**
  * Device-code approval (THREAT-MODEL T3).
@@ -47,10 +47,9 @@ test("a signed-out visitor is sent to sign in before approving anything", async 
 test("the approval screen names the app, the device, the address and the location", async ({
   page,
   request,
+  sharedAccount,
 }) => {
-  await signUpAndVerify(page, "device");
-  await page.getByTestId("onboarding-skip").click();
-  await page.waitForURL(/\/studio/);
+  await signIn(page, sharedAccount);
 
   const code = await startDeviceFlow(request);
   // Eight characters, shown grouped as `BCDF-GHJK` for people to read out.
@@ -82,10 +81,8 @@ test("the approval screen names the app, the device, the address and the locatio
   expect(typeof tokens.accessToken).toBe("string");
 });
 
-test("declining approves nothing", async ({ page, request }) => {
-  await signUpAndVerify(page, "device-deny");
-  await page.getByTestId("onboarding-skip").click();
-  await page.waitForURL(/\/studio/);
+test("declining approves nothing", async ({ page, request, sharedAccount }) => {
+  await signIn(page, sharedAccount);
 
   const code = await startDeviceFlow(request);
   await gotoHydrated(page, `/device?user_code=${code.userCode}`);
@@ -100,10 +97,8 @@ test("declining approves nothing", async ({ page, request }) => {
   expect(poll.ok()).toBe(false);
 });
 
-test("an unknown code is rejected without saying whose it is", async ({ page }) => {
-  await signUpAndVerify(page, "device-unknown");
-  await page.getByTestId("onboarding-skip").click();
-  await page.waitForURL(/\/studio/);
+test("an unknown code is rejected without saying whose it is", async ({ page, sharedAccount }) => {
+  await signIn(page, sharedAccount);
 
   await gotoHydrated(page, "/device");
   await page.getByLabel("Device code").fill("ZZZZ9999");

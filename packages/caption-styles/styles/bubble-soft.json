@@ -1,0 +1,86 @@
+{
+  "id": "bubble-soft",
+  "name": "Bubble Soft",
+  "version": 2,
+  "category": "playful",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Poppins",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 700,
+    "italic": false,
+    "sizePct": 5,
+    "lineHeight": 1.24,
+    "letterSpacingEm": 0,
+    "textTransform": "none",
+    "scriptScale": { "deva": 0.71, "taml": 0.43 }
+  },
+  "colors": {
+    "text": "#20223a",
+    "activeText": "#ffffff",
+    "accent": "#ff6b9a"
+  },
+  "box": {
+    "enabled": true,
+    "mode": "line",
+    "fill": "#ffffff",
+    "paddingPct": 34,
+    "radiusPct": 50,
+    "opacity": 0.95
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#101018",
+    "offsetXPct": 0,
+    "offsetYPct": 5,
+    "blurPct": 18,
+    "opacity": 0.3
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.78,
+    "align": "center",
+    "maxWidthPct": 78,
+    "maxLines": 2,
+    "safeAreaPct": 12
+  },
+  "animation": {
+    "in": {
+      "type": "pop",
+      "durationMs": 180
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 140
+    },
+    "wordHighlight": {
+      "type": "box",
+      "durationMs": 140
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "pop",
+      "label": "Pop",
+      "color": "#ff6b9a",
+      "scale": 1.18,
+      "effect": "none"
+    },
+    {
+      "id": "mark",
+      "label": "Marker",
+      "color": "#ffd400",
+      "effect": "highlight"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/bubble-soft.mp4"
+}

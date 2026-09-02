@@ -4,12 +4,14 @@ import { AdmissionService, IN_FLIGHT_STATUSES } from "./admission.service.js";
 import { RealtimePublisher } from "../realtime/realtime.publisher.js";
 import { buildJobEnvelope } from "./contracts/job-envelope.js";
 import { isQueueName, queueForJobType } from "./contracts/queue-names.js";
+import { DlqService } from "./dlq.service.js";
 import { jobUlid } from "./ids.js";
 import { JobEventsService } from "./job-events.service.js";
 import { JOBS_MAX_PAGE_SIZE, JOBS_PAGE_SIZE } from "./jobs.config.js";
 import { JOB_ERROR_CODES } from "./jobs.errors.js";
 import { QueueRegistry, bullJobId } from "./queue.registry.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
+import { MetricsService } from "../common/metrics/metrics.service.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { CREDITS_FACADE } from "../credits/credits.facade.js";
 
@@ -78,6 +80,10 @@ const TERMINAL_STATUSES: readonly JobStatus[] = ["succeeded", "failed", "cancell
  * Completion is idempotent on `(jobId, attemptId)` (THREAT-MODEL T8) and settles
  * exactly once, because the settle is gated on a conditional `UPDATE ... WHERE
  * status IN ('queued','running')` that only one caller can win.
+ *
+ * A08b adds the far end of that path: when the failure is the *last* attempt, the
+ * job is copied into `dlq` and marked, and an admin can replay it with a fresh
+ * attempt or discard it and release the hold ({@link DlqService}).
  */
 @Injectable()
 export class JobsService {
@@ -89,6 +95,8 @@ export class JobsService {
     private readonly admission: AdmissionService,
     private readonly events: JobEventsService,
     private readonly realtime: RealtimePublisher,
+    private readonly dlq: DlqService,
+    private readonly metrics: MetricsService,
     @Inject(CREDITS_FACADE) private readonly credits: CreditsFacade,
   ) {}
 
@@ -120,23 +128,39 @@ export class JobsService {
     const attemptId = jobUlid();
     const params = input.params ?? {};
 
-    const job = await this.prisma.job.create({
-      data: {
-        id: jobId,
-        workspaceId: input.workspaceId,
-        projectId: input.projectId ?? null,
-        type,
-        status: "queued",
-        priority,
-        params: params as Prisma.InputJsonValue,
-        jobKey: input.jobKey,
-        attemptId,
-        maxQueueWaitMs: decision.limits.maxQueueWaitMs,
-        // The worst-case hold, which the completion path overwrites with the
-        // settled amount. Admission control sums this column.
-        creditsChargedTenths: input.worstCaseTenths,
-      },
-    });
+    let job: Job;
+    try {
+      job = await this.prisma.job.create({
+        data: {
+          id: jobId,
+          workspaceId: input.workspaceId,
+          projectId: input.projectId ?? null,
+          type,
+          status: "queued",
+          priority,
+          params: params as Prisma.InputJsonValue,
+          jobKey: input.jobKey,
+          attemptId,
+          attemptNo: 1,
+          maxQueueWaitMs: decision.limits.maxQueueWaitMs,
+          // The worst-case hold, which the completion path overwrites with the
+          // settled amount. Admission control sums this column.
+          creditsChargedTenths: input.worstCaseTenths,
+        },
+      });
+    } catch (error) {
+      // The `findLiveByKey` above is a read, and a read cannot exclude a writer
+      // that commits a microsecond later. `jobs_live_workspace_job_key_key`
+      // (prisma/sql/0005-a08b-dlq.sql) is the actual guarantee: UNIQUE
+      // (workspace_id, job_key) WHERE status IN ('queued','running'). Losing that
+      // race means the caller asked for a job that now exists, which is exactly
+      // what dedupe promises — so return the winner rather than a 500.
+      const existingNow = isUniqueViolation(error)
+        ? await this.findLiveByKey(input.workspaceId, input.jobKey)
+        : null;
+      if (existingNow !== null) return { job: existingNow, deduplicated: true };
+      throw error;
+    }
 
     let holdId: string;
     try {
@@ -311,6 +335,7 @@ export class JobsService {
     await this.removeFromQueue(job);
     if (job.creditHoldId !== null) await this.credits.release({ holdId: job.creditHoldId });
 
+    this.metrics.jobCompleted({ queue: job.type, status: "cancelled", attempt: job.attemptNo });
     await this.events.append({ jobId, name: "job.cancelled", message: "cancelled" });
     await this.realtime.jobCompleted(job, { jobId, status: "cancelled", type: job.type });
 
@@ -335,6 +360,12 @@ export class JobsService {
     if (stale !== undefined) return { applied: false, jobId, status: job.status, reason: stale };
 
     const starting = job.status === "queued";
+    if (starting) {
+      // First progress call IS first pickup: METRICS.md §2
+      // `montaj.queue.wait.duration` is "enqueue to first pickup", and this is the
+      // only moment the API learns a worker has the job.
+      this.metrics.queueWait(job.type, Date.now() - job.queuedAt.getTime());
+    }
     await this.prisma.job.updateMany({
       where: { id: jobId, status: { in: [...IN_FLIGHT_STATUSES] } },
       data: {
@@ -428,6 +459,11 @@ export class JobsService {
       },
     });
 
+    this.metrics.jobCompleted({
+      queue: job.type,
+      status,
+      attempt: job.attemptNo,
+    });
     if (!succeeded) await this.markDeadLetterIfFinal(job, body);
 
     await this.realtime.jobCompleted(job, {
@@ -466,6 +502,7 @@ export class JobsService {
     await this.removeFromQueue(job);
     if (job.creditHoldId !== null) await this.credits.release({ holdId: job.creditHoldId });
 
+    this.metrics.jobCompleted({ queue: job.type, status: "expired", attempt: job.attemptNo });
     await this.events.append({
       jobId: job.id,
       name: "job.timed_out",
@@ -547,26 +584,31 @@ export class JobsService {
   }
 
   /**
-   * A08 records the dead-letter decision as a `job.dead_lettered` event; A08b adds
-   * the `dlq` table, the `jobs.dlq` column and the replay endpoints, and reads
-   * these rows to backfill.
+   * The last attempt failed: copy the job into `dlq` and mark the row (A08b).
+   *
+   * "Final" is the worker's word for it — BullMQ sets `finalAttempt` when the
+   * retry budget is spent — or an error the worker has declared unretryable, which
+   * skips the remaining attempts because retrying a corrupt upload three times is
+   * three times the wait for the same answer.
+   *
+   * `job` is the row as it was BEFORE the completion update, which is what makes
+   * the copy useful: it still carries the credit hold a later replay reserves
+   * against.
    */
   private async markDeadLetterIfFinal(job: Job, body: JobCompletion): Promise<void> {
     const final = body.finalAttempt === true || body.error?.retryable === false;
     if (!final) return;
-    await this.events.append({
-      jobId: job.id,
-      name: "job.dead_lettered",
-      level: "error",
-      message: "no attempts left",
-      data: {
-        dlq: true,
-        queue: job.type,
-        attemptId: job.attemptId,
-        ...(body.error === undefined ? {} : { lastError: body.error }),
-      },
-    });
-    this.logger.error({ jobId: job.id, queue: job.type }, "job dead-lettered");
+    try {
+      await this.dlq.record(job, body);
+    } catch (error) {
+      // A dead letter that cannot be recorded must still be visible: the job is
+      // already `failed` and the credits are already released, so losing the row
+      // costs an operator the replay, not the user their money.
+      this.logger.error(
+        { jobId: job.id, queue: job.type, err: describe(error) },
+        "dead letter not recorded",
+      );
+    }
   }
 
   /** Best effort: a job already picked up, or already gone, is not an error. */
@@ -607,4 +649,21 @@ function page<T>(rows: T[], take: number, id: (row: T) => string): Page<T> {
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Is this Prisma's "unique constraint failed" (P2002)?
+ *
+ * Matched structurally rather than with `instanceof
+ * Prisma.PrismaClientKnownRequestError`, because the generated client is a runtime
+ * value and importing it for a type guard would drag the whole client into every
+ * unit test that stubs Prisma out.
+ */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "P2002"
+  );
 }

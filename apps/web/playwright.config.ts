@@ -37,13 +37,25 @@ const { NODE_ENV: _ignoredNodeEnv, ...webEnv } = env;
 
 export default defineConfig({
   testDir: "./e2e",
+  // The renderer's wasm and fonts are copies, written before the suite runs.
+  globalSetup: "./e2e/global-setup.ts",
   fullyParallel: true,
   forbidOnly: Boolean(process.env["CI"]),
-  retries: process.env["CI"] !== undefined ? 2 : 0,
+  /*
+   * One retry even locally.
+   *
+   * A04's development outbox is a 50-entry Redis list on the shared compose
+   * instance, which every work package's local API writes to. A test that
+   * signs up can lose its own confirmation email to somebody else's traffic —
+   * an artefact of the shared harness, not a defect in the product — and one
+   * retry with a fresh address clears it. Anything that fails twice is real.
+   */
+  retries: process.env["CI"] !== undefined ? 2 : 1,
   workers: process.env["CI"] !== undefined ? 1 : 2,
   reporter: process.env["CI"] !== undefined ? [["list"], ["html", { open: "never" }]] : [["list"]],
   // A journey test signs up, waits for the confirmation email to reach the Redis
-  // outbox, confirms and signs in; 60 s is tight for that under parallel load.
+  // outbox, confirms and signs in, and CanvasKit instantiates a 7 MB wasm module
+  // on the first paint; 60 s is tight for either under parallel load.
   timeout: 90_000,
   expect: { timeout: 15_000 },
   outputDir: "./test-results",

@@ -92,7 +92,22 @@ function nextTestAddress(workerIndex: number): string {
   return `198.51.${String(RUN_OFFSET + 1)}.${String(octet)}`;
 }
 
-export const test = base.extend<{ context: BrowserContext }>({
+export interface Account {
+  email: string;
+  password: string;
+}
+
+/**
+ * One confirmed account per worker.
+ *
+ * A test that only needs *a* session should not create an account: every sign-up
+ * puts a message in a 50-entry Redis list that every work package's local API
+ * shares, and eighteen of them in one run means a slow reader misses its own.
+ * Signing up once per worker and signing in per test is both faster and the
+ * reason the suite stopped being flaky. Tests that exercise sign-up itself, or
+ * that change a consent, still create their own.
+ */
+export const test = base.extend<{ context: BrowserContext }, { sharedAccount: Account }>({
   context: async ({ browser }, use, testInfo) => {
     const context = await browser.newContext({
       extraHTTPHeaders: { "X-Forwarded-For": nextTestAddress(testInfo.workerIndex) },
@@ -100,9 +115,31 @@ export const test = base.extend<{ context: BrowserContext }>({
     await use(context);
     await context.close();
   },
+
+  sharedAccount: [
+    async ({ browser }, use, workerInfo) => {
+      const context = await browser.newContext({
+        extraHTTPHeaders: { "X-Forwarded-For": nextTestAddress(workerInfo.workerIndex) },
+      });
+      const page = await context.newPage();
+      const account = await signUpAndVerify(page, `shared${String(workerInfo.workerIndex)}`);
+      await context.close();
+      await use(account);
+    },
+    { scope: "worker" },
+  ],
 });
 
 export { expect };
+
+/** Sign an existing account in and land wherever `next` says. */
+export async function signIn(page: Page, account: Account, next = "/studio"): Promise<void> {
+  await gotoHydrated(page, `/login?next=${encodeURIComponent(next)}`);
+  await page.getByLabel("Email").fill(account.email);
+  await page.getByLabel("Password").fill(account.password);
+  await page.getByTestId("login-submit").click();
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"));
+}
 
 /**
  * Navigate and wait until React has hydrated.

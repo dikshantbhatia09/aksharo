@@ -1,4 +1,4 @@
-import { expect, signUpAndVerify, test, gotoHydrated } from "./fixtures";
+import { expect, gotoHydrated, signIn, test } from "./fixtures";
 
 /**
  * Screenshots for review.
@@ -46,8 +46,8 @@ test("captures the auth screens", async ({ page }, testInfo) => {
   }
 });
 
-test("captures the shell, onboarding and settings", async ({ page }, testInfo) => {
-  await signUpAndVerify(page, "shots");
+test("captures onboarding, the shell and settings", async ({ page, sharedAccount }, testInfo) => {
+  await signIn(page, sharedAccount, "/onboarding");
 
   await expect(page.getByTestId("onboarding")).toBeVisible();
   await page.screenshot({
@@ -78,11 +78,12 @@ test("captures the shell, onboarding and settings", async ({ page }, testInfo) =
   });
 });
 
-test("captures the shell at a phone width, with the drawer open", async ({ page }, testInfo) => {
+test("captures the shell at a phone width, with the drawer open", async ({
+  page,
+  sharedAccount,
+}, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await signUpAndVerify(page, "shots-mobile");
-  await page.getByTestId("onboarding-skip").click();
-  await page.waitForURL(/\/studio/);
+  await signIn(page, sharedAccount);
 
   await expect(page.getByTestId("open-nav")).toBeVisible();
   await page.getByTestId("open-nav").click();

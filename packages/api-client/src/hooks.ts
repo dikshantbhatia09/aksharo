@@ -6,9 +6,9 @@
  * The rules that apply to all of them:
  *  - a query that needs a workspace is keyed by the workspace id, so switching
  *    workspaces cannot show the previous one's numbers;
- *  - `client/not_implemented` (an A05 route that has not landed) resolves to a
- *    fallback rather than an error toast, so the shell renders honestly today
- *    and lights up when the work package merges;
+ *  - `client/not_implemented` (a route whose work package has not landed)
+ *    resolves to a fallback rather than an error toast, so the shell renders
+ *    honestly today and lights up when the work package merges;
  *  - nothing retries a 4xx. Retrying an `auth/expired` is the client's job (the
  *    fetch layer already rotated), retrying a 403 is noise.
  */
@@ -22,8 +22,8 @@ import { queryKeys } from "./query-keys.js";
 
 import type { ApiClient } from "./http.js";
 import type {
-  ConsentRecord,
-  Consents,
+  ConsentPurpose,
+  ConsentState,
   CurrentUser,
   Entitlement,
   LoginRequest,
@@ -31,10 +31,12 @@ import type {
   OAuthCompleteRequest,
   OnboardingProfile,
   PendingApproval,
+  RightsRequest,
   SessionSummary,
   SignUpRequest,
   SignUpResponse,
   TokenResponse,
+  UpdateMeRequest,
   UsageSummary,
   WorkspaceSummary,
 } from "./types.js";
@@ -55,8 +57,8 @@ function retryPolicy(failureCount: number, error: Error): boolean {
  * Resolve a call on a route whose work package has not landed to `fallback`.
  *
  * The alternative — letting `client/not_implemented` reach the UI — would put an
- * error state on half the shell for the weeks between A13 and A05, and would
- * train everyone to ignore it.
+ * error state on part of the shell for the weeks between two work packages, and
+ * would train everyone to ignore it.
  */
 async function withPendingFallback<T>(run: () => Promise<T>, fallback: T): Promise<T> {
   try {
@@ -71,14 +73,25 @@ async function withPendingFallback<T>(run: () => Promise<T>, fallback: T): Promi
 
 // --- Session and account ----------------------------------------------------
 
-export function useCurrentUser(): UseQueryResult<CurrentUser | null> {
+export function useCurrentUser(): UseQueryResult<CurrentUser> {
   const client = useApiClient();
   const workspaceId = useWorkspaceId();
   return useQuery({
     queryKey: queryKeys.me(),
     enabled: workspaceId !== null,
     retry: retryPolicy,
-    queryFn: () => withPendingFallback(() => client.call(endpoints.pending.me), null),
+    queryFn: () => client.call(endpoints.account.me),
+  });
+}
+
+export function useUpdateMe(): UseMutationResult<CurrentUser, Error, UpdateMeRequest> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UpdateMeRequest) => client.call(endpoints.account.updateMe, { body }),
+    onSuccess: (user) => {
+      queryClient.setQueryData(queryKeys.me(), user);
+    },
   });
 }
 
@@ -89,11 +102,11 @@ export function useWorkspaces(): UseQueryResult<WorkspaceSummary[]> {
     queryKey: queryKeys.workspaces(),
     enabled: workspaceId !== null,
     retry: retryPolicy,
-    queryFn: () => withPendingFallback(() => client.call(endpoints.pending.listWorkspaces), []),
+    queryFn: () => client.call(endpoints.account.listWorkspaces),
   });
 }
 
-export function useEntitlement(): UseQueryResult<Entitlement | null> {
+export function useEntitlement(): UseQueryResult<Entitlement> {
   const client = useApiClient();
   const workspaceId = useWorkspaceId();
   return useQuery({
@@ -104,10 +117,12 @@ export function useEntitlement(): UseQueryResult<Entitlement | null> {
     // cannot have changed.
     staleTime: 60_000,
     retry: retryPolicy,
-    queryFn: () => withPendingFallback(() => client.call(endpoints.pending.entitlement), null),
+    queryFn: () =>
+      client.call(endpoints.account.entitlement, { params: { id: workspaceId ?? "" } }),
   });
 }
 
+/** The credit balance and burn rate. Empty until the ledger (B02) lands. */
 export function useUsage(): UseQueryResult<UsageSummary | null> {
   const client = useApiClient();
   const workspaceId = useWorkspaceId();
@@ -141,26 +156,32 @@ export function useRevokeSession(): UseMutationResult<void, Error, string> {
   });
 }
 
-// --- Consents and memory (D60, D62) ----------------------------------------
+// --- Consents, memory and rights (D60, D62) --------------------------------
 
-export function useConsents(): UseQueryResult<ConsentRecord[]> {
+export function useConsents(): UseQueryResult<ConsentState> {
   const client = useApiClient();
   const workspaceId = useWorkspaceId();
   return useQuery({
     queryKey: queryKeys.consents(),
     enabled: workspaceId !== null,
     retry: retryPolicy,
-    queryFn: () => withPendingFallback(() => client.call(endpoints.pending.listConsents), []),
+    queryFn: () => client.call(endpoints.account.listConsents),
   });
 }
 
-export function useSetConsents(): UseMutationResult<ConsentRecord[], Error, Consents> {
+/** One purpose per call: a consent record is per purpose, refusals included. */
+export function useSetConsent(): UseMutationResult<
+  ConsentState,
+  Error,
+  { purpose: ConsentPurpose; granted: boolean }
+> {
   const client = useApiClient();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: Consents) =>
-      withPendingFallback(() => client.call(endpoints.pending.setConsents, { body }), []),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.consents() }),
+    mutationFn: (body) => client.call(endpoints.account.setConsent, { body }),
+    onSuccess: (state) => {
+      queryClient.setQueryData(queryKeys.consents(), state);
+    },
   });
 }
 
@@ -184,6 +205,16 @@ export function useClearMemory(): UseMutationResult<void, Error, void> {
       withPendingFallback(() => client.call(endpoints.pending.clearMemory), undefined),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
   });
+}
+
+export function useExportMyData(): UseMutationResult<RightsRequest, Error, void> {
+  const client = useApiClient();
+  return useMutation({ mutationFn: () => client.call(endpoints.account.exportData) });
+}
+
+export function useDeleteAccount(): UseMutationResult<RightsRequest, Error, void> {
+  const client = useApiClient();
+  return useMutation({ mutationFn: () => client.call(endpoints.account.deleteAccount) });
 }
 
 // --- Auth flows -------------------------------------------------------------
@@ -232,8 +263,8 @@ export function useLogin(
 /**
  * Confirm an email address.
  *
- * This does **not** sign anyone in:  answers
- *  and nothing more, because a confirmation link arrives in a
+ * This does **not** sign anyone in: `POST /auth/verify-email` answers
+ * `{verified: true}` and nothing more, because a confirmation link arrives in a
  * mailbox and a link that both proves an address and hands out a session is a
  * session anyone with mailbox access inherits. The shell sends the user to sign
  * in afterwards.
@@ -298,23 +329,27 @@ export function useSwitchWorkspace(
   });
 }
 
-export function useSaveOnboarding(): UseMutationResult<
-  CurrentUser | null,
-  Error,
-  OnboardingProfile
-> {
+/**
+ * F-002 steps 1–3. The answers live in the user's free-form `onboarding` object
+ * (A05); B17 turns them into defaults and attribution events.
+ */
+export function useSaveOnboarding(): UseMutationResult<CurrentUser, Error, OnboardingProfile> {
   const client = useApiClient();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: OnboardingProfile) =>
-      withPendingFallback(() => client.call(endpoints.pending.saveOnboarding, { body }), null),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.me() }),
+    mutationFn: (profile: OnboardingProfile) =>
+      client.call(endpoints.account.updateMe, {
+        body: { onboarding: { ...profile, completedAt: new Date().toISOString() } },
+      }),
+    onSuccess: (user) => {
+      queryClient.setQueryData(queryKeys.me(), user);
+    },
   });
 }
 
 // --- Device grant (THREAT-MODEL T3) ----------------------------------------
 
-export function useDeviceApproval(userCode: string | null): UseQueryResult<PendingApproval | null> {
+export function useDeviceApproval(userCode: string | null): UseQueryResult<PendingApproval> {
   const client = useApiClient();
   return useQuery({
     queryKey: queryKeys.deviceApproval(userCode ?? "none"),

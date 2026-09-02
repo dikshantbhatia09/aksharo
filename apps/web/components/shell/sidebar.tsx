@@ -35,6 +35,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
   const config = useRuntimeConfig();
   const entitlement = useEntitlement();
   const usage = useUsage();
+  const included = entitlement.data?.creditsPerMonthTenths ?? 0;
 
   return (
     <div className="flex h-full flex-col gap-4 p-3">
@@ -107,10 +108,16 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
 
       <div className="border-border flex flex-col gap-3 border-t pt-3">
         <div className="px-2">
+          {/*
+            The entitlement carries the plan's monthly **allowance** (A05); the
+            balance, the burn rate and the reset date come from the credit
+            ledger, which is B02's. Until that lands the meter shows the
+            allowance as both numbers rather than inventing a balance.
+          */}
           <CreditMeter
-            remainingTenths={entitlement.data?.creditsRemainingTenths ?? 0}
-            includedTenths={entitlement.data?.creditsIncludedTenths ?? 0}
-            {...(entitlement.data?.resetsAt == null ? {} : { resetsAt: entitlement.data.resetsAt })}
+            remainingTenths={usage.data?.creditsRemainingTenths ?? included}
+            includedTenths={included}
+            {...(usage.data?.resetsAt == null ? {} : { resetsAt: usage.data.resetsAt })}
             {...(usage.data === null || usage.data === undefined
               ? {}
               : {
@@ -142,7 +149,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
 /** The "Upgrade" call to action, hidden on the top plan (08 §3). */
 export function UpgradeButton(): React.JSX.Element | null {
   const entitlement = useEntitlement();
-  const plan = entitlement.data?.plan;
+  const plan = entitlement.data?.planKey;
   if (plan === undefined || plan === "studio" || plan === "agency") return null;
   return (
     <Button variant="primary" size="sm" asChild data-testid="upgrade-cta">

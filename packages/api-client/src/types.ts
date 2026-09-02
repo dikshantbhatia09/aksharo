@@ -17,16 +17,23 @@ export type WorkspaceRole = "owner" | "admin" | "editor" | "viewer";
 /** D60: the jurisdictions with their own minimum age. */
 export type Jurisdiction = "IN" | "EU" | "OTHER";
 
-/** The consent purposes `consent_records` knows about. All default false. */
+/** The purposes `consent_records` knows about (A05). All default false. */
+export type ConsentPurpose = "analytics" | "memory" | "marketing" | "share_upload" | "affiliate";
+
+export const CONSENT_PURPOSES: readonly ConsentPurpose[] = [
+  "analytics",
+  "memory",
+  "marketing",
+  "share_upload",
+  "affiliate",
+];
+
+/** The three a sign-up form asks about. */
 export interface Consents {
   analytics?: boolean;
   memory?: boolean;
   marketing?: boolean;
 }
-
-export type ConsentPurpose = keyof Consents;
-
-export const CONSENT_PURPOSES: readonly ConsentPurpose[] = ["analytics", "memory", "marketing"];
 
 export interface TokenResponse {
   accessToken: string;
@@ -104,50 +111,119 @@ export interface DeviceApproveRequest {
   decision?: "approve" | "deny";
 }
 
-// --- A05 surface (users, workspaces, consents, memory) ----------------------
-// Declared here so the shell is written against the real contract of
-// `07-api-and-contracts.md`; `endpoints/pending.ts` records that the routes are
-// not in the generated index yet.
+// --- Users, workspaces, consents and rights (A05) ---------------------------
+
+/**
+ * `onboarding` is a free-form object on the user (A05), which is where F-002's
+ * answers live: what you make, the languages you speak on camera, how you found
+ * us. B17 turns them into defaults and attribution events.
+ */
+export interface OnboardingProfile {
+  makes?: string[];
+  languages?: string[];
+  source?: string;
+  referralCode?: string;
+  completedAt?: string;
+}
 
 export interface CurrentUser {
   id: string;
   email: string;
+  emailVerified: boolean;
   name: string | null;
-  locale: string | null;
+  avatarUrl: string | null;
+  locale: string;
+  jurisdiction: Jurisdiction;
   /** D60: `minor` switches analytics, streaks, referral and affiliate off. */
   ageBracket: "adult" | "minor";
-  emailVerified: boolean;
-  onboardingCompletedAt: string | null;
+  marketingOptIn: boolean;
+  onboarding: OnboardingProfile & Record<string, unknown>;
+  createdAt: string;
+  lastSeenAt: string | null;
+  deletedAt: string | null;
+  /** The workspace the calling token names, and the caller's role in it. */
+  workspace: { id: string; role: WorkspaceRole };
+}
+
+export interface UpdateMeRequest {
+  name?: string | null;
+  avatarUrl?: string | null;
+  locale?: string;
+  marketingOptIn?: boolean;
+  onboarding?: Record<string, boolean | number | string | string[]>;
 }
 
 export interface WorkspaceSummary {
   id: string;
-  name: string;
   slug: string;
+  name: string;
+  type: "personal" | "team" | "agency";
+  ownerId: string;
+  region: "in" | "eu" | "us";
+  currency: "INR" | "USD";
+  /** The caller's role in this workspace. */
   role: WorkspaceRole;
-  plan: string;
+  memberCount: number;
+  createdAt: string;
 }
 
+/**
+ * The computed entitlement (A05, cached 60 s server-side).
+ *
+ * It carries the **allowance**, not the balance: the credit ledger is B02's, so
+ * until that lands the meter shows the monthly allowance and no burn rate.
+ */
 export interface Entitlement {
-  plan: string;
-  /** Credits are integer tenths (CONTRACTS §0). */
-  creditsRemainingTenths: number;
-  creditsIncludedTenths: number;
-  resetsAt: string | null;
-  features: Record<string, boolean>;
+  workspaceId: string;
+  planKey: "free" | "starter" | "creator" | "studio" | "agency";
+  planName: string;
+  creditsPerMonthTenths: number;
+  seatsIncluded: number;
+  seatsUsed: number;
+  entitlements: Record<string, unknown>;
+  computedAt: string;
 }
 
+/** Trailing usage, for the burn-rate tooltip. Owned by B02. */
 export interface UsageSummary {
-  /** Tenths spent per day over the trailing week, for the burn-rate tooltip. */
   burnRateTenthsPerDay: number;
+  creditsRemainingTenths: number;
+  resetsAt: string | null;
   streakDays: number;
 }
 
 export interface ConsentRecord {
   purpose: ConsentPurpose;
   granted: boolean;
-  version: string;
-  decidedAt: string;
+  version: string | null;
+  decidedAt: string | null;
+  withdrawnAt: string | null;
+  /** `false` when the purpose has never been asked about. */
+  recorded: boolean;
+}
+
+export interface ConsentState {
+  noticeVersion: string;
+  /** The notice moved on and the user has to be asked again. */
+  reconsentRequired: boolean;
+  purposes: ConsentRecord[];
+}
+
+export interface SetConsentRequest {
+  purpose: ConsentPurpose;
+  granted: boolean;
+}
+
+/** `GET /me/data` and `DELETE /me` both answer with a rights request. */
+export interface RightsRequest {
+  requestId: string;
+  status: "received" | "verifying" | "in_progress" | "completed" | "rejected";
+  requestedAt: string;
+  dueAt: string;
+  downloadUrl?: string;
+  expiresAt?: string;
+  sizeBytes?: number;
+  sessionsRevoked?: number;
 }
 
 /** D62: learned memory is opt-in, erasable and carries a rolling TTL. */
@@ -158,14 +234,4 @@ export interface MemoryEntry {
   value: string;
   updatedAt: string;
   expiresAt: string;
-}
-
-export interface OnboardingProfile {
-  /** F-002 step 1 — "What do you make?" */
-  makes?: string[];
-  /** F-002 step 2 — languages spoken on camera; Hinglish first. */
-  languages?: string[];
-  /** F-002 step 3 — attribution. */
-  source?: string;
-  referralCode?: string;
 }

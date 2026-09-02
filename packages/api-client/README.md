@@ -85,13 +85,10 @@ client.subscribe(rooms.workspace(workspaceId));
 client.connect();
 ```
 
-> **Known blocker (found by A13, owned by A08).** The API's `RedisRealtimeBus`
-> duplicates a connection created with `lazyConnect: true` and
-> `enableOfflineQueue: false`, so the duplicate is never dialled and the first
-> `SUBSCRIBE` rejects with "Stream isn't writeable" — which takes the API process
-> down. The shell therefore keeps its WebSocket behind
-> `FEATURE_FLAGS_JSON={"realtime.enabled":true}` until that is fixed. The client
-> here is complete and tested.
+> The shell keeps a kill switch for this: `FEATURE_FLAGS_JSON={"realtime.enabled":false}`
+> stops it connecting without a rebuild. A13 shipped it defaulted **off** because
+> joining a room took the API process down (`RedisRealtimeBus` never dialled its
+> duplicated connection); A08c fixed that and the default is now on.
 
 ## Module format
 

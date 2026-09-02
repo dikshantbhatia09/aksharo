@@ -153,9 +153,9 @@ describe("ApiClient", () => {
   it("raises client/not_implemented for a route whose work package has not landed", async () => {
     const fetchMock = vi.fn();
     const client = createApiClient({ baseUrl: BASE, fetch: fetchMock });
-    const error = (await client.call(endpoints.pending.me).catch((c: unknown) => c)) as ApiError;
+    const error = (await client.call(endpoints.pending.usage).catch((c: unknown) => c)) as ApiError;
     expect(error.code).toBe(CLIENT_ERROR_CODES.notImplemented);
-    expect(error.message).toContain("A05");
+    expect(error.message).toContain("B02");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

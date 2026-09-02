@@ -4,8 +4,8 @@ Next.js 15 (App Router) + React 19 + TypeScript + Tailwind v4. One codebase for
 the marketing site and the studio, split by route group.
 
 **Status:** A13 — the app shell, the auth screens, onboarding, settings and the
-client layer. A14–A17 fill in Home, Projects and the editor; A24 the marketing
-site.
+client layer; plus A16's caption canvas and right panel at `/studio/styles`.
+A14–A17 fill in Home, Projects and the editor; A24 the marketing site.
 
 ## Route groups
 
@@ -35,6 +35,7 @@ each surface can own its layout and auth boundary.
 | `/onboarding`                            | steps 1–3: what you make, languages, how you found us                            |
 | `/settings/*`                            | profile, languages, what Aksharo learned, devices, privacy, notifications        |
 | `/ui-kit`                                | every component state, for screenshot review                                     |
+| `/studio/styles`                         | A16's style harness: the caption canvas and the right panel                      |
 | `/api/session`, `/api/session/refresh`   | the only code that may touch the refresh token                                   |
 
 ## Sessions
@@ -65,16 +66,10 @@ Read on the server at request time (`lib/runtime-config.ts`), not inlined as
 
 Feature flags this app reads from `FEATURE_FLAGS_JSON` (CONTRACTS §1):
 
-| Flag                  | Default | Effect                                                                               |
-| --------------------- | ------- | ------------------------------------------------------------------------------------ |
-| `growth.streakWidget` | off     | Shows the streak badge on the credit meter (B06's experiment).                       |
-| `realtime.enabled`    | off     | Opens the shell's WebSocket. **Off until A08's Redis fan-out is fixed** — see below. |
-
-> `RedisRealtimeBus` duplicates a connection created with `lazyConnect: true` and
-> `enableOfflineQueue: false`, so the duplicate is never dialled and the first
-> `SUBSCRIBE` rejects with "Stream isn't writeable", taking the API process down.
-> A08's suite only exercises the in-memory bus, so nothing caught it until a
-> browser actually joined a room.
+| Flag                  | Default | Effect                                                                                        |
+| --------------------- | ------- | --------------------------------------------------------------------------------------------- |
+| `growth.streakWidget` | off     | Shows the streak badge on the credit meter (B06's experiment).                                |
+| `realtime.enabled`    | on      | The shell's WebSocket. A kill switch: set it to `false` to stop connecting without a rebuild. |
 
 ## Privacy and analytics
 
@@ -94,6 +89,46 @@ and signed URL parameters are replaced before anything leaves the browser.
 ```bash
 pnpm --filter @montaj/web dev     # http://localhost:3000
 ```
+
+## The caption canvas and the right panel (A16)
+
+`components/editor/canvas/` and `components/editor/panels/` are the editor's
+rendering surface, mounted for real by A15.
+
+| Piece                | What it is                                                                     |
+| -------------------- | ------------------------------------------------------------------------------ |
+| `use-canvaskit.ts`   | loads CanvasKit and HarfBuzz **once per page** and shares them                 |
+| `StylePreviewCanvas` | one StyleDoc drawn live — a still, or its looping three-second preview         |
+| `CaptionStage`       | the proxy `<video>` with the CanvasKit overlay, safe zones and a draggable box |
+| `stage-geometry.ts`  | the letterbox fit, the drag maths and the safe-area clamp — pure, unit-tested  |
+| `panels/ops.ts`      | every control's change as one `EdgOp` — pure, unit-tested                      |
+| `RightPanel`         | the Style, Colors, Look and Anim tabs                                          |
+
+The overlay is drawn by `renderFrame` — the same function the cloud renderer calls —
+so what is on screen is what gets burned in. The clock is
+`requestVideoFrameCallback`, not `timeupdate`, so the caption drawn belongs to the
+frame actually presented; `timeupdate` would be up to 250 ms out and the karaoke
+fill would visibly lag. Dragging the caption box emits exactly one
+`SetSegmentPosition` per **drop**, never one per pointer move.
+
+`/studio/styles` mounts the panel against the 30 system styles. It is a working
+harness, not the editor: A15 replaces the catalogue with the workspace's own from
+the API and wires the ops into the real op queue.
+
+### Runtime assets
+
+CanvasKit's `.wasm` and the subset fonts must be served from the app's own origin —
+a cross-origin `.wasm` fetch fails under the app's CSP, and a font the layout engine
+cannot read is a caption that does not draw. They are **copies**, not committed
+files:
+
+```bash
+pnpm --filter @montaj/web assets:render   # writes public/canvaskit/ and public/fonts/
+```
+
+The Playwright global setup runs it, so the e2e suite fails on a real bug rather
+than on a missing 404. A18b replaces the three Noto subsets with the workspace's
+real faces served from R2; the URLs the components fetch do not change.
 
 ## Tests
 
@@ -116,7 +151,10 @@ and the compose Redis, which is where A04 writes auth emails in development —
 
 Each test gets its own `X-Forwarded-For`, because the API's rate limits are per
 address and a suite that signs up a dozen accounts from one address exhausts
-`auth:signup:ip` halfway through.
+`auth:signup:ip` halfway through. A test that only needs _a_ session takes the
+worker's `sharedAccount` fixture instead of creating another: the dev outbox is a
+50-entry Redis list shared with every other work package's local API, and a
+suite that pushes eighteen messages through it loses its own.
 
 `/ui-kit`, the auth screens, the shell, onboarding and every settings screen are
 screenshotted into `e2e/__screenshots__/` (gitignored — they are review

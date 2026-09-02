@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import {
-  endpoints,
-  useApiClient,
   useConsents,
   useCurrentUser,
-  useSetConsents,
+  useDeleteAccount,
+  useExportMyData,
+  useSetConsent,
 } from "@montaj/api-client";
 import { BRAND } from "@montaj/config";
 import {
@@ -49,10 +49,11 @@ import { clearSession } from "@/lib/session/client";
  */
 export function PrivacyView(): React.JSX.Element {
   const router = useRouter();
-  const client = useApiClient();
   const me = useCurrentUser();
   const consents = useConsents();
-  const setConsents = useSetConsents();
+  const exportRequest = useExportMyData();
+  const deleteRequest = useDeleteAccount();
+  const setConsent = useSetConsent();
 
   // The server render has no `localStorage`, so the first value is the safe
   // default; re-read after mount, and follow later changes from anywhere else in
@@ -69,23 +70,34 @@ export function PrivacyView(): React.JSX.Element {
   // The server is the record; the local mirror is what analytics reads before
   // any authenticated request can happen. Reconcile whenever the server answers.
   React.useEffect(() => {
-    if (consents.data === undefined || consents.data.length === 0) return;
-    const next = {
-      analytics: consents.data.find((row) => row.purpose === "analytics")?.granted ?? false,
-      memory: consents.data.find((row) => row.purpose === "memory")?.granted ?? false,
-      marketing: consents.data.find((row) => row.purpose === "marketing")?.granted ?? false,
-    };
-    setLocal(writePrivacy(next));
+    const purposes = consents.data?.purposes;
+    if (purposes === undefined) return;
+    const granted = (purpose: string): boolean =>
+      purposes.find((row) => row.purpose === purpose)?.granted ?? false;
+    setLocal(
+      writePrivacy({
+        analytics: granted("analytics"),
+        memory: granted("memory"),
+        marketing: granted("marketing"),
+      }),
+    );
   }, [consents.data]);
 
   const isMinor = me.data?.ageBracket === "minor";
 
-  const update = (patch: { analytics?: boolean; memory?: boolean; marketing?: boolean }): void => {
-    const next = writePrivacy(patch);
-    setLocal(next);
-    if (patch.analytics === false) resetAnalytics();
-    setConsents.mutate(
-      { analytics: next.analytics, memory: next.memory, marketing: next.marketing },
+  /**
+   * Record one decision.
+   *
+   * The browser's mirror is written first and analytics opted out immediately,
+   * because "we will stop once the server confirms" is not what a person means
+   * when they turn a switch off. The API takes one purpose per call: a consent
+   * record is per purpose, and a refusal is a row too.
+   */
+  const update = (purpose: "analytics" | "memory" | "marketing", granted: boolean): void => {
+    setLocal(writePrivacy({ [purpose]: granted }));
+    if (purpose === "analytics" && !granted) resetAnalytics();
+    setConsent.mutate(
+      { purpose, granted },
       {
         onError: (error) => {
           toast.error("We could not record that", { description: messageForError(error) });
@@ -95,31 +107,33 @@ export function PrivacyView(): React.JSX.Element {
   };
 
   const exportData = (): void => {
-    void client
-      .call(endpoints.pending.exportData)
-      .then(() => {
+    exportRequest.mutate(undefined, {
+      onSuccess: (request) => {
         toast.success("Export started", {
-          description: "We will email you a link when the bundle is ready.",
+          description: `We will email you a link by ${formatDueDate(request.dueAt)}.`,
         });
-      })
-      .catch((error: unknown) => {
+      },
+      onError: (error) => {
         toast.error("Could not start the export", { description: messageForError(error) });
-      });
+      },
+    });
   };
 
   const deleteAccount = (): void => {
     setDeleting(true);
-    void client
-      .call(endpoints.pending.deleteAccount, { body: { confirmation } })
-      .then(async () => {
-        await clearSession();
-        resetAnalytics();
-        router.replace("/login?reason=deleted");
-      })
-      .catch((error: unknown) => {
+    deleteRequest.mutate(undefined, {
+      onSuccess: () => {
+        void (async () => {
+          await clearSession();
+          resetAnalytics();
+          router.replace("/login?reason=deleted");
+        })();
+      },
+      onError: (error) => {
         setDeleting(false);
         toast.error("Could not delete the account", { description: messageForError(error) });
-      });
+      },
+    });
   };
 
   return (
@@ -144,8 +158,8 @@ export function PrivacyView(): React.JSX.Element {
           description="Anonymous usage events so we can see which features actually help."
           checked={local.analytics && !isMinor}
           disabled={isMinor}
-          onChange={(analytics) => {
-            update({ analytics });
+          onChange={(granted) => {
+            update("analytics", granted);
           }}
         />
 
@@ -154,8 +168,8 @@ export function PrivacyView(): React.JSX.Element {
           label="Remember my spellings and preferences"
           description={`We never train AI models on your footage. ${BRAND.name} remembers your spellings and preferences on your account — view, edit or clear them any time.`}
           checked={local.memory}
-          onChange={(memory) => {
-            update({ memory });
+          onChange={(granted) => {
+            update("memory", granted);
           }}
         />
 
@@ -165,8 +179,8 @@ export function PrivacyView(): React.JSX.Element {
           description="Occasional notes about new features. Never more than monthly."
           checked={local.marketing && !isMinor}
           disabled={isMinor}
-          onChange={(marketing) => {
-            update({ marketing });
+          onChange={(granted) => {
+            update("marketing", granted);
           }}
         />
 
@@ -257,4 +271,10 @@ export function PrivacyView(): React.JSX.Element {
       </Dialog>
     </SettingsSection>
   );
+}
+/** "by 2 October" — the statutory clock on a rights request, in words. */
+function formatDueDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "the due date";
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long" }).format(date);
 }

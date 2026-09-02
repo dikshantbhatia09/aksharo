@@ -23,6 +23,11 @@ export {
   pinoHttpOptions,
   requestContextMiddleware,
 } from "./logging/logging.module.js";
+export { MetricsController, metricsToken } from "./metrics/metrics.controller.js";
+export { MetricsModule } from "./metrics/metrics.module.js";
+export { MetricsRegistry } from "./metrics/metrics.registry.js";
+export type { Labels, MetricDefinition, MetricKind } from "./metrics/metrics.registry.js";
+export { METRIC, MetricsService } from "./metrics/metrics.service.js";
 export {
   maskEmail,
   REDACT_PATHS,

@@ -17,6 +17,9 @@ import {
  */
 
 test("sign up, confirm the address, finish onboarding and land in the shell", async ({ page }) => {
+  // Sign-up, an argon2id hash, a mail round trip through Redis, sign-in and
+  // three onboarding steps: the longest journey in the suite.
+  test.slow();
   await signUpAndVerify(page, "journey");
 
   // Onboarding steps 1–3. Step 0 was part of sign-up, because D60 makes date of

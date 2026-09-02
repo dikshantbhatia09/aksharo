@@ -1,4 +1,4 @@
-import { expect, signUpAndVerify, test, gotoHydrated } from "./fixtures";
+import { expect, gotoHydrated, signIn, signUpAndVerify, test } from "./fixtures";
 
 /**
  * Consent, and the promise that goes with it: nothing analytics-shaped loads
@@ -99,10 +99,8 @@ test("a declared minor cannot switch analytics on (D60)", async ({ page }) => {
   expect(JSON.parse(privacy ?? "{}")).toMatchObject({ minor: true, analytics: false });
 });
 
-test("settings offers export and a confirmed deletion", async ({ page }) => {
-  await signUpAndVerify(page, "rights");
-  await page.getByTestId("onboarding-skip").click();
-  await page.waitForURL(/\/studio/);
+test("settings offers export and a confirmed deletion", async ({ page, sharedAccount }) => {
+  await signIn(page, sharedAccount);
 
   await gotoHydrated(page, "/settings/privacy");
   await expect(page.getByTestId("export-data")).toBeVisible();
@@ -114,10 +112,8 @@ test("settings offers export and a confirmed deletion", async ({ page }) => {
   await expect(confirm).toBeEnabled();
 });
 
-test("devices and sessions lists the session you are using", async ({ page }) => {
-  await signUpAndVerify(page, "sessions");
-  await page.getByTestId("onboarding-skip").click();
-  await page.waitForURL(/\/studio/);
+test("devices and sessions lists the session you are using", async ({ page, sharedAccount }) => {
+  await signIn(page, sharedAccount);
 
   await gotoHydrated(page, "/settings/devices");
   await expect(page.getByTestId("session-list")).toBeVisible();
