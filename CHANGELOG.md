@@ -404,6 +404,64 @@ retention.service.ts`'s `purgeDueMedia` only ever queries `media_assets`,
     `notify.kinds.test.ts`'s hard-pinned ten-value list; the closest existing
     kind's copy — "kept for N days, then deleted" — is false for a document
     retained 72 months).
+- **A17 — web: editor timeline (waveform, word/segment lanes, playhead, zoom,
+  lanes API, keyboard nudge, output-time mode).**
+  - **`Timeline.tsx` (`apps/web/components/editor/timeline/`)** draws the
+    whole row — A07's `waveform.json` peaks/RMS, a time ruler, the word and
+    segment lanes and three read-only pass-item lanes (cuts/zoom/audio) — on
+    one Canvas2D surface, the same "no DOM per row" precedent A16's
+    `CaptionStage` set for the preview canvas, and for the same reason: one
+    `<div>` per word in a multi-hour transcript is what the brief's own
+    55 fps floor rules out. All the maths lives in `apps/web/lib/timeline/*.ts`,
+    unit-tested without a browser (`coords.ts` time↔px and zoom,
+    `snapping.ts`, `output-clock.ts`, `lanes.ts`, `waveform-view.ts`,
+    `nudge.ts`) — 51 tests, including a `fast-check` property test that
+    dragging never produces an overlapping or inverted segment.
+  - **Segment-edge drag and the arrow-key nudge both resolve through
+    `resolveSegmentDrag`** (snap to the nearest word boundary within 40 ms,
+    then clamp to the bounds invariants) into one `SetSegmentBounds`
+    (CONTRACTS §2) on drop/keypress — never per pointer move, same discipline
+    `CaptionStage`'s own drag handle already uses for `SetSegmentPosition`.
+    Double-click splits at the nearest word; a button merges with the next
+    segment.
+  - **Output-time mode** (`lib/timeline/output-clock.ts`) maps the ruler and
+    playhead onto `@montaj/timemap`'s output clock once an accepted cut
+    exists; scrubbing always resolves back to source ms for the (still
+    source-time) proxy `<video>`, per the brief.
+  - **The lanes API** (`lib/timeline/lanes.ts`) turns a document's pass items
+    into three typed, coloured-by-state rows B20 can add accept/reject
+    affordances to without this module changing.
+  - **A timing-nudge interface** (`lib/timeline/nudge.ts`) — every resolved
+    drag/keyboard delta is emitted to a `TimingNudgeSink`; `noopNudgeSink` is
+    the only implementation until B09 exists, matching the brief's own
+    wording ("an interface with a no-op sink now").
+  - **Deviation, reported rather than resolved:** the brief's "word block
+    drag → `EditWord` op" has no backing op — `EditWordOpSchema` (CONTRACTS
+    §2) carries only `{wordId, text, script?}`, never `s`/`e`; word timing is
+    set once at transcription and is not client-editable through any op in
+    `packages/edg`. Word blocks are therefore read-only/selectable (click
+    seeks and selects, low-confidence tint, filler dim, tombstoned hidden);
+    all retiming happens on the segment lane, which matches
+    `SetSegmentBoundsOpSchema` exactly.
+  - **Integration outside the brief's literal file boundary:** wiring
+    `<Timeline>` into `apps/web/app/(app)/p/[id]/editor-client.tsx` (mount,
+    `SetSegmentBounds` submit path, `CaptionStage`'s `src` pointed at the
+    real proxy URL) required a small additive patch to that file, which A15's
+    own file-boundary note already anticipated for A16's `CaptionStage`. A
+    new `apps/web/lib/timeline/use-timeline-media.ts` fetches the proxy/
+    waveform signed URLs via `@montaj/api-client`'s documented
+    `defineEndpoint` + `useRawApiClient()` escape hatch — "for a call the
+    hooks do not cover yet" — rather than editing that package's curated
+    `endpoints.ts`.
+  - **e2e:** `apps/web/e2e/timeline.spec.ts` (6 tests: draw, segment-edge
+    drag lands the op, ruler scrub, zoom, keyboard nudge, axe) on chromium
+    and webkit; `timeline-performance.spec.ts` measures a 3-hour,
+    54,000-word timeline's scroll/zoom fps. A fresh e2e sign-up's workspace
+    has no credit grant (only `prisma/seed.ts`'s demo workspace does), so
+    `apps/web/e2e/timeline-credits.ts` grants one directly (same
+    `credit_accounts`/`credit_lots`/`credit_ledger` shape the seed script
+    writes), the same "one non-HTTP step" precedent as `editor-fixtures.ts`'s
+    `insertProbedMedia`.
 - **A22 — scripts and translation: transliteration (`ai.transliterate`), translation
   (`ai.translate`), the producers, and the editor's script tabs.**
   - **Transliteration writes per word, translation writes per segment, and each
