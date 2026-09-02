@@ -7,8 +7,9 @@ import { charCount, dominantScript, limitsFor, type WordScript } from "./script.
 /**
  * Caption segmentation (09 §3). Deterministic by construction: one left-to-right
  * greedy pass over the live words, then one merge pass that absorbs runs below
- * the minimum duration. The same words and parameters always produce the same
- * segments — only the ids come from outside.
+ * the minimum duration, then one rebalancing pass that clears the widows a
+ * forced break leaves behind. The same words and parameters always produce the
+ * same segments — only the ids come from outside.
  *
  * A break is only ever placed **between** words. Where it may be placed:
  *
@@ -21,6 +22,12 @@ import { charCount, dominantScript, limitsFor, type WordScript } from "./script.
  *
  * Preferred breaks only fire once the pending segment has reached `minMs`, so the
  * segmenter never manufactures a caption too short to read.
+ *
+ * A **forced** break can still leave the next caption holding a single word. The
+ * last pass ({@link rebalanceOrphans}) hands that caption the previous one's last
+ * word wherever both halves still fit — a hard or preferred break is left alone,
+ * because a one-word caption after a full stop is the speaker's, not the
+ * arithmetic's.
  */
 
 /** Segmentation limits. `undefined` means "use the per-script table" (09 §3). */
@@ -73,6 +80,12 @@ interface Prepared {
 
 interface Pending {
   words: Prepared[];
+  /**
+   * The run was opened because the previous caption could not take the word —
+   * a line, duration or reading-speed limit, not a speaker change and not a
+   * preferred break. Only these runs are rebalanced ({@link rebalanceOrphans}).
+   */
+  forced: boolean;
   /** Rendered length including the spaces between words. */
   chars: number;
   /** Lines used by a greedy wrap at `maxCharsPerLine`. */
@@ -93,9 +106,10 @@ function prepare(words: readonly Word[], dropFillers: boolean): Prepared[] {
   return prepared;
 }
 
-function open(entry: Prepared): Pending {
+function open(entry: Prepared, forced: boolean): Pending {
   return {
     words: [entry],
+    forced,
     chars: entry.chars,
     lines: 1,
     lineChars: entry.chars,
@@ -187,6 +201,7 @@ function joinIfPossible(
   if (params.breakOnSpeakerChange && leftLast.word.sp !== rightFirst.word.sp) return undefined;
   const candidate: Pending = {
     words: [...left.words],
+    forced: left.forced,
     chars: left.chars,
     lines: left.lines,
     lineChars: left.lineChars,
@@ -229,6 +244,73 @@ function absorbShortRuns(runs: Pending[], params: SegmenterParams, limits: Resol
 }
 
 /**
+ * Rebuild a run from a word list, or `undefined` when the list does not fit the
+ * limits. The same {@link accepts} rule as the forward pass, so a rebuilt run is
+ * indistinguishable from one the greedy scan produced.
+ */
+function build(
+  entries: readonly Prepared[],
+  forced: boolean,
+  params: SegmenterParams,
+  limits: Resolved,
+): Pending | undefined {
+  const [head, ...rest] = entries;
+  if (head === undefined) return undefined;
+  const pending = open(head, forced);
+  for (const entry of rest) {
+    if (!accepts(pending, entry, params, limits)) return undefined;
+    push(pending, entry, limits.maxCharsPerLine);
+  }
+  return pending;
+}
+
+/**
+ * Widow and orphan rebalancing.
+ *
+ * A caption that had to break because one more word would not fit can leave the
+ * next caption holding a single word — a caption that flashes one word on screen
+ * and reads as a mistake rather than as a line. Where the caption before it can
+ * give up its last word and both halves still satisfy every limit, it does, so
+ * the pair reads as two lines rather than as a line and a stray.
+ *
+ * Only **forced** breaks are rebalanced. A speaker change is a hard boundary, and
+ * a preferred break after a full stop or a long pause is a deliberate one-word
+ * caption ("Bilkul.") that the speaker actually left alone.
+ *
+ * One left-to-right pass, one donated word per orphan, and every candidate is
+ * rebuilt through {@link accepts} — so the result is deterministic and no
+ * rebalanced caption can exceed a limit the greedy pass respected.
+ */
+function rebalanceOrphans(runs: Pending[], params: SegmenterParams, limits: Resolved): Pending[] {
+  const balanced = [...runs];
+  for (let index = 1; index < balanced.length; index += 1) {
+    const orphan = balanced[index];
+    const previous = balanced[index - 1];
+    if (orphan === undefined || previous === undefined) continue;
+    if (!orphan.forced || orphan.words.length !== 1) continue;
+    if (previous.words.length < 2) continue;
+
+    const donor = previous.words[previous.words.length - 1];
+    const receiver = orphan.words[0];
+    if (donor === undefined || receiver === undefined) continue;
+    // The donated word must not cross a boundary the forward pass would have
+    // broken on anyway: another speaker, or a sentence that ended on it.
+    if (params.breakOnSpeakerChange && donor.word.sp !== receiver.word.sp) continue;
+    if (params.breakOnSentenceEnd && donor.endsSentence) continue;
+
+    const shortened = build(previous.words.slice(0, -1), previous.forced, params, limits);
+    const widened = build([donor, receiver], orphan.forced, params, limits);
+    if (shortened === undefined || widened === undefined) continue;
+    // Donating must not manufacture the very thing `absorbShortRuns` removes.
+    if (shortened.endMs - shortened.startMs < params.minMs) continue;
+
+    balanced[index - 1] = shortened;
+    balanced[index] = widened;
+  }
+  return balanced;
+}
+
+/**
  * Splits `words` into caption segments. Tombstoned words are always skipped;
  * fillers stay unless `opts.dropFillers` is set. Segment ids come from
  * `opts.newId` and `seq` keys from `seqSequence`; everything else is a pure
@@ -250,7 +332,7 @@ export function segmentWords(
 
   for (const entry of entries) {
     if (pending === undefined || previous === undefined) {
-      pending = open(entry);
+      pending = open(entry, false);
       previous = entry;
       continue;
     }
@@ -261,13 +343,14 @@ export function segmentWords(
       pendingDuration >= resolvedParams.minMs &&
       ((resolvedParams.breakOnSentenceEnd && previous.endsSentence) ||
         gap >= resolvedParams.mergeGapMs);
-    const mustBreak =
-      (resolvedParams.breakOnSpeakerChange && speakerChanged) ||
-      !accepts(pending, entry, resolvedParams, limits);
+    const hardBreak = resolvedParams.breakOnSpeakerChange && speakerChanged;
+    // A limit the caption cannot stretch to hold: the only break the orphan pass
+    // is allowed to undo, because nothing but arithmetic put it there.
+    const forcedBreak = !hardBreak && !accepts(pending, entry, resolvedParams, limits);
 
-    if (mustBreak || preferred) {
+    if (hardBreak || forcedBreak || preferred) {
       runs.push(pending);
-      pending = open(entry);
+      pending = open(entry, forcedBreak && !preferred);
     } else {
       push(pending, entry, limits.maxCharsPerLine);
     }
@@ -275,7 +358,11 @@ export function segmentWords(
   }
   if (pending !== undefined) runs.push(pending);
 
-  const absorbed = absorbShortRuns(runs, resolvedParams, limits);
+  const absorbed = rebalanceOrphans(
+    absorbShortRuns(runs, resolvedParams, limits),
+    resolvedParams,
+    limits,
+  );
   const mint = opts.newId ?? defaultNewId;
   const keys = seqSequence(absorbed.length);
   return absorbed.map((run, index) => {

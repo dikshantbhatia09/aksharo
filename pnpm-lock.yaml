@@ -92,6 +92,9 @@ importers:
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
       intl-messageformat:
         specifier: ^10.7.18
         version: 10.7.18

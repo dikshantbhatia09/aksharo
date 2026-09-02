@@ -245,7 +245,8 @@ const segments = segmentWords(liveWords, { maxLines: 2 }, { dropFillers: true })
 ```
 
 One deterministic left-to-right pass, then one merge pass that absorbs runs shorter than
-`minMs`. A break only ever falls **between** words:
+`minMs`, then one rebalancing pass that clears widows. A break only ever falls **between**
+words:
 
 - **hard** — the speaker changed;
 - **forced** — one more word would need another line, run past `maxMs`, or push the
@@ -254,6 +255,13 @@ One deterministic left-to-right pass, then one merge pass that absorbs runs shor
   least `mergeGapMs` (150 ms); shorter gaps are never break points, which is what "merge
   gaps < 150 ms" in `09 §3` means. Preferred breaks wait until the caption has reached
   `minMs`, so the segmenter never manufactures a caption too short to read.
+
+**Widows.** A forced break can leave the next caption holding a single word. Where the
+caption before it can give up its last word and both halves still satisfy every limit
+— including `minMs` for the shortened one — it does, so the pair reads as two lines
+rather than as a line and a stray (A11). Only forced breaks are rebalanced: a speaker
+change is a hard boundary, and a one-word caption after a full stop ("Bilkul.") is the
+speaker's, not the arithmetic's.
 
 Limits come from the script the words are written in, detected per word by Unicode block
 (`09 §3`): Latin 32 characters a line at 20 CPS, Devanagari 24 at 15, Tamil 22 at 15,

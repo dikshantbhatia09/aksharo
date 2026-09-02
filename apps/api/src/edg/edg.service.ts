@@ -64,6 +64,14 @@ export interface EdgInitInput {
   readonly dropFillers?: boolean;
   /** Style every initial segment carries. */
   readonly styleRef?: string;
+  /**
+   * What produced this document, for `EdgHot.meta.engineVersions` (CONTRACTS §2).
+   *
+   * A11 records the caption budgets it segmented with here (decision D78), so A15
+   * can offer "Reflow captions" when the style changes and know what the old
+   * budget was. Free-form by contract: `Record<string, string>`.
+   */
+  readonly engineVersions?: Record<string, string>;
   readonly author?: string | null;
   readonly source?: EdgSource;
 }
@@ -425,7 +433,15 @@ export class EdgService {
     const aspect = ASPECTS[project.aspect];
     const canvas = CANVAS_SIZES[aspect];
     const hot: EdgHot = {
-      meta: { edgId, projectId, revision: 0, schemaVersion: 2 },
+      meta: {
+        edgId,
+        projectId,
+        revision: 0,
+        schemaVersion: 2,
+        ...(transcript.engineVersions === undefined
+          ? {}
+          : { engineVersions: transcript.engineVersions }),
+      },
       media: project.mediaAssets
         .filter((asset) => MEDIA_ROLES.has(asset.role))
         .map((asset) => ({

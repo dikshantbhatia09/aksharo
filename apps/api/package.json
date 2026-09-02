@@ -43,6 +43,7 @@
     "@prisma/client": "^6.19.3",
     "bullmq": "^5.81.4",
     "dotenv": "^17.4.2",
+    "express": "^5.2.1",
     "intl-messageformat": "^10.7.18",
     "ioredis": "^5.11.1",
     "nestjs-pino": "^5.1.0",

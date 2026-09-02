@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { AdmissionService } from "./admission.service.js";
+import { JobCompletionRegistry } from "./completion-handlers.js";
 import { DlqService } from "./dlq.service.js";
 import { JobEventsService } from "./job-events.service.js";
 import { JobsController } from "./jobs.controller.js";
@@ -20,11 +21,16 @@ import { QueueTimeoutTask } from "./tasks/queue-timeout.task.js";
  * `CREDITS_FACADE` all come from global modules. `JobsService` is exported because
  * every other feature module is a producer — A06/A07 media, A09/A11 ai, A20/A21
  * render and export — and `DlqService` because `AdminModule` drives it.
+ *
+ * `JobCompletionRegistry` is exported for the other half of that relationship: a
+ * producer also owns what its completions *mean*, and registers a handler here at
+ * boot (A11's `ai.transcribe` is the first).
  */
 @Module({
   controllers: [JobsController],
   providers: [
     JobsService,
+    JobCompletionRegistry,
     DlqService,
     QueueRegistry,
     AdmissionService,
@@ -35,6 +41,7 @@ import { QueueTimeoutTask } from "./tasks/queue-timeout.task.js";
   ],
   exports: [
     JobsService,
+    JobCompletionRegistry,
     DlqService,
     QueueRegistry,
     JobEventsService,

@@ -12,6 +12,7 @@ import { JobsModule } from "./jobs/jobs.module.js";
 import { NotifyModule } from "./notify/notify.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
+import { TranscriptsModule } from "./transcripts/transcripts.module.js";
 import { UsersModule } from "./users/users.module.js";
 import { WorkspacesModule } from "./workspaces/workspaces.module.js";
 
@@ -26,7 +27,9 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
  * adds `admin`, the platform-staff surface behind `AdminGuard`; A05 fills out
  * `users` and adds `workspaces`, `consents` and `privacy`; A25 adds `notify`
  * (mail delivery and the in-app bell); A12 adds `edg`, the editing document and
- * its op batches. Later work packages append to `imports`.
+ * its op batches; A11 adds `transcripts` — the `ai.transcribe` producer, the
+ * completion that writes the transcript and initialises the document, and the
+ * read and export surface. Later work packages append to `imports`.
  *
  * `NotifyModule` sits after `JobsModule` because it takes the `notify` queue from
  * that module's registry, and it is `@Global()` because `AuthModule` — declared
@@ -51,6 +54,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     InternalModule,
     AdminModule,
     EdgModule,
+    TranscriptsModule,
     HealthModule,
   ],
 })

@@ -194,6 +194,13 @@ export const API_OPERATIONS = [
     summary: "Discard many dead letters",
   },
   {
+    operationId: "exportProjectTranscript",
+    method: "GET",
+    path: "/projects/{projectId}/transcript/export",
+    tags: ["transcripts"],
+    summary: "Download the transcript",
+  },
+  {
     operationId: "getConsents",
     method: "GET",
     path: "/consents",
@@ -248,6 +255,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/edg",
     tags: ["edg"],
     summary: "The hot document, its revision and the first page of segments",
+  },
+  {
+    operationId: "getProjectTranscript",
+    method: "GET",
+    path: "/projects/{projectId}/transcript",
+    tags: ["transcripts"],
+    summary: "The transcript manifest and one page of chunks",
   },
   {
     operationId: "getReadiness",
@@ -439,6 +453,13 @@ export const API_OPERATIONS = [
     summary: "Restore a snapshot as a new revision",
   },
   {
+    operationId: "retranscribeProject",
+    method: "POST",
+    path: "/projects/{projectId}/transcript/retranscribe",
+    tags: ["transcripts"],
+    summary: "Transcribe the media again",
+  },
+  {
     operationId: "setConsent",
     method: "POST",
     path: "/consents",
@@ -451,6 +472,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/tax-profile",
     tags: ["workspaces"],
     summary: "Set the billing country, State and GSTIN",
+  },
+  {
+    operationId: "transcribeProject",
+    method: "POST",
+    path: "/projects/{projectId}/transcribe",
+    tags: ["transcripts"],
+    summary: "Transcribe the project's primary media",
   },
   {
     operationId: "updateMe",
