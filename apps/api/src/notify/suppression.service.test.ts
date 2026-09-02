@@ -57,8 +57,8 @@ describe("suppressing", () => {
     expect(await service.isSuppressed("ASHA@example.test")).toBe(true);
     expect(await service.isSuppressed("someone@example.test")).toBe(false);
 
-    expect(db.auditRows).toHaveLength(1);
-    const row = db.auditRows[0];
+    expect(db.audit).toHaveLength(1);
+    const row = db.audit[0];
     expect(row?.action).toBe("notify.address.suppressed");
     expect(row?.resource).toBe("email");
     expect(row?.actorKind).toBe("system");
@@ -146,7 +146,7 @@ describe("when Redis is unavailable", () => {
       reason: "abuse",
       source: "ses-complaint",
     });
-    expect(db.auditRows).toHaveLength(1);
+    expect(db.audit).toHaveLength(1);
   });
 });
 
@@ -158,7 +158,7 @@ describe("the skip audit row", () => {
       reason: "abuse",
       at: new Date().toISOString(),
     });
-    expect(db.auditRows[0]?.action).toBe("notify.send.skipped");
-    expect(db.auditRows[0]?.data).toMatchObject({ kind: "low-credits", reason: "abuse" });
+    expect(db.audit[0]?.action).toBe("notify.send.skipped");
+    expect(db.audit[0]?.data).toMatchObject({ kind: "low-credits", reason: "abuse" });
   });
 });

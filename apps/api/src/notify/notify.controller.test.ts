@@ -161,7 +161,7 @@ describe.skipIf(!snsFixture.available)("POST /internal/mail/events", () => {
     expect(ack).toEqual({ status: "ok", handled: "bounce", suppressed: 2, released: 0 });
     expect(await suppression.isSuppressed("one@b.test")).toBe(true);
     expect(await suppression.isSuppressed("two@b.test")).toBe(true);
-    expect(db.auditRows).toHaveLength(2);
+    expect(db.audit).toHaveLength(2);
   });
 
   it("suppresses a complaint permanently", async () => {

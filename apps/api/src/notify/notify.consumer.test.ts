@@ -175,15 +175,15 @@ describe("suppression", () => {
       reason: "Permanent/General",
       source: "ses-bounce",
     });
-    db.auditRows.length = 0;
+    db.audit.length = 0;
 
     const outcome = await consumer.deliver(payload());
 
     expect(outcome).toBe("suppressed");
     expect(mail.sent).toHaveLength(0);
-    expect(db.auditRows).toHaveLength(1);
-    expect(db.auditRows[0]).toMatchObject({ action: "notify.send.skipped" });
-    expect(db.auditRows[0]?.data).toMatchObject({
+    expect(db.audit).toHaveLength(1);
+    expect(db.audit[0]).toMatchObject({ action: "notify.send.skipped" });
+    expect(db.audit[0]?.data).toMatchObject({
       kind: "verify-email",
       email: "a***@example.test",
     });
