@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-import { ApiProvider, createApiClient, SessionStore } from "@montaj/api-client";
+import { ApiProvider, createApiClient, SessionStore, useCurrentUser } from "@montaj/api-client";
 import type { ApiContextValue } from "@montaj/api-client";
 import { Toaster, TooltipProvider } from "@montaj/ui";
 
@@ -15,8 +15,15 @@ import {
   initAnalyticsIfConsented,
   resetAnalytics,
 } from "@/lib/analytics/posthog";
+import { LocaleProvider } from "@/lib/i18n/locale-provider";
 import { initObservability } from "@/lib/observability/sentry";
 import { clearSession, refreshSession } from "@/lib/session/client";
+
+/** Reads `CurrentUser.locale` (once signed in) and feeds it to {@link LocaleProvider}. */
+function ConnectedLocaleProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const me = useCurrentUser();
+  return <LocaleProvider profileLocale={me.data?.locale}>{children}</LocaleProvider>;
+}
 
 /**
  * Everything the client half of the app needs, mounted once at the root.
@@ -122,10 +129,12 @@ export function Providers({
     <RuntimeConfigContext.Provider value={config}>
       <QueryClientProvider client={queryClient}>
         <ApiProvider value={api}>
-          <TooltipProvider delayDuration={200}>
-            {children}
-            <Toaster />
-          </TooltipProvider>
+          <ConnectedLocaleProvider>
+            <TooltipProvider delayDuration={200}>
+              {children}
+              <Toaster />
+            </TooltipProvider>
+          </ConnectedLocaleProvider>
         </ApiProvider>
       </QueryClientProvider>
     </RuntimeConfigContext.Provider>
