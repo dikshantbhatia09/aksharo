@@ -176,3 +176,50 @@ underscores, the unit is appended, and counters gain `_total`. So
 `montaj_job_completed_total`, and `http.server.request.duration` (histogram, `s`)
 as `http_server_request_duration_seconds_bucket`. The dashboards and alert rules
 in this folder use the Prometheus form throughout.
+
+## 11. Model server — the serverless GPU app (`apps/model-server`)
+
+Added by **A26**. These are the only names in this file that do **not** carry the
+`montaj.` prefix, and the exception is deliberate: the model server runs inside a
+RunPod/Modal sandbox with no OTel collector beside it, so it exposes
+`prometheus_client` metrics on its own `/metrics` route in **native Prometheus
+form**. What is written below is therefore the exact series name a scrape
+returns, not an OTel name to be rewritten by the rule in section 10. The `_total`
+suffix on counters and the `_seconds`/`_bytes` unit suffixes are already applied.
+
+`montaj.gpu.*` (section 5) stays the fleet-level view taken from the provider's
+metrics API; these are the in-process view from inside one worker. Both are
+needed: the provider knows how many workers are warm, only the app knows how many
+chunks went into one model call.
+
+**Labels.** `route` ∈ `/transcribe`, `/align`, `/diarise`, `/detect-language` —
+a fixed set of four, never a resolved path. `model` is the model id
+(`large-v3-turbo`, `ai4bharat/indicwav2vec`, `pyannote/speaker-diarization-community-1`).
+`device` ∈ `cuda`, `cpu`. The cardinality rules in "Conventions" hold unchanged:
+no workspace, project, job or media id appears on any series here.
+
+| Metric                                    | Type      | Unit  | Labels                     | Meaning                                                                                                                                                                    |
+| ----------------------------------------- | --------- | ----- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `model_server_requests_total`             | counter   | `1`   | `route`, `status`          | Requests served, by HTTP status. Auth failures and memory rejections appear here too, with their own counters below for the reason.                                         |
+| `model_server_request_duration_seconds`   | histogram | `s`   | `route`, `status`          | Wall-clock request duration inside the app, including time spent waiting in a batch window.                                                                                |
+| `model_server_audio_seconds_total`        | counter   | `s`   | `route`, `model`           | Media seconds decoded and processed. The denominator of every cost-per-media-minute figure in `infra/gpu/COST.md`.                                                          |
+| `model_server_compute_seconds_total`      | counter   | `s`   | `route`, `model`, `device` | Seconds of model compute attributed to this request — the `usage.gpuSeconds` in the response body. Numerator of the same cost figure, and the only series that can falsify D74. |
+| `model_server_realtime_factor`            | histogram | `1`   | `route`, `model`, `device` | Compute seconds ÷ audio seconds. RTF 0.055 is the D74 assumption; this is the measurement that replaces it.                                                                 |
+| `model_server_batch_size`                 | histogram | `1`   | `route`, `model`           | Requests coalesced into one model call. A p50 of 1 under load means dynamic batching is not working and the D74 cost band is out of reach.                                  |
+| `model_server_batch_wait_seconds`         | histogram | `s`   | `route`                    | Time a request waited in the batch window before its call started. Bounded by `MODEL_SERVER_BATCH_WINDOW_MS` (50 ms by default).                                            |
+| `model_server_inflight_requests`          | gauge     | `1`   | `route`                    | Requests admitted and not yet answered.                                                                                                                                    |
+| `model_server_rejected_total`             | counter   | `1`   | `reason`                   | Requests refused before any model ran. `reason` ∈ `auth`, `payload_too_large`, `memory_guard`, `draining`, `not_ready`, `audio_too_long`.                                   |
+| `model_server_memory_reserved_bytes`      | gauge     | `By`  | —                          | Bytes the memory guard currently holds against the budget. Compare with `montaj.gpu.memory.used` (section 5) to see how much of VRAM the guard is not modelling.            |
+| `model_server_memory_budget_bytes`        | gauge     | `By`  | —                          | The guard's ceiling, from `MODEL_SERVER_MEMORY_BUDGET_MB`. A gauge rather than a constant so a config change is visible on the dashboard.                                   |
+| `model_server_model_load_seconds`         | gauge     | `s`   | `model`, `device`          | How long each model took to load at startup. This is the model-load half of the cold-start budget in `infra/gpu/COST.md §4`.                                                |
+| `model_server_model_ready`                | gauge     | `1`   | `model`                    | 1 when the model is resident and serving, 0 while loading or after a load failure. `/readyz` is false while any required model reads 0.                                     |
+| `model_server_draining`                   | gauge     | `1`   | —                          | 1 once SIGTERM has been received and the app is finishing in-flight work. A worker that sits at 1 for longer than the drain timeout is a stuck request, not a slow one.     |
+
+Buckets for `model_server_request_duration_seconds`, in seconds:
+`0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300`. The long tail is real: a
+ten-minute chunk on a cold CPU worker takes minutes, and a histogram that stops
+at 10 s cannot tell a slow transcript from a hung one.
+
+Buckets for `model_server_batch_wait_seconds`: `0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25`.
+Buckets for `model_server_batch_size`: `1, 2, 3, 4, 6, 8, 12, 16`.
+Buckets for `model_server_realtime_factor`: `0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10`.
