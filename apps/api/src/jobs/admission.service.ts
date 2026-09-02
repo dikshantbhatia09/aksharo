@@ -23,19 +23,23 @@ export interface AdmissionDecision {
  *
  * Two independent caps, both per workspace, both checked before a job row exists:
  *
- * - **Enqueued credits.** The sum of the worst-case holds of every job in
- *   `queued` or `running` may not exceed the plan cap. This is the one that stops
- *   a runaway script from spending a year's credits in a minute.
+ * - **Enqueued credits.** The sum of every OPEN hold (`credit_holds.status =
+ *   'held'`) on the workspace's account may not exceed the plan cap. This is the
+ *   one that stops a runaway script from spending a year's credits in a minute.
  * - **Concurrency lane.** The *count* of in-flight jobs may not exceed the plan
  *   lane, so a workspace cannot fill a queue with free jobs and starve everybody
  *   else behind it.
  *
- * The credit sum comes from `jobs.credits_charged_tenths`, which the enqueue path
- * writes with the worst-case hold and the completion path overwrites with the
- * settled amount. For an in-flight job the two are the same number, so the column
- * is a faithful "what this job is currently costing" for exactly the rows this
- * query selects — and it needs no schema change, which matters because the credit
- * tables belong to B02.
+ * **B02b: the credit sum is `credit_holds`, not `jobs.credits_charged_tenths`.**
+ * Before B02 the ledger did not exist and that column was the only number there
+ * was; now it is a denormalised DISPLAY copy — the worst-case hold at enqueue,
+ * the settled amount after `complete()` — useful for `GET /jobs` and never read
+ * for a decision that gates spend. `credit_holds` is the ledger's own record of
+ * what is actually reserved right now (`LedgerCreditsFacade.reserve`/`settle`/
+ * `release` are what move a hold in and out of `held`), so it cannot drift from
+ * what `CreditsFacade` itself would report, and a hold this query does not see
+ * is not a hold that can still be spent. See `apps/api/src/credits/README.md`
+ * "Which number is authoritative".
  */
 @Injectable()
 export class AdmissionService {
@@ -72,11 +76,14 @@ export class AdmissionService {
       status: { in: [...IN_FLIGHT_STATUSES] },
     };
 
-    const [count, sum] = await Promise.all([
+    const [count, holdsSum] = await Promise.all([
       this.prisma.job.count({ where }),
-      this.prisma.job.aggregate({ where, _sum: { creditsChargedTenths: true } }),
+      this.prisma.creditHold.aggregate({
+        where: { status: "held", account: { workspaceId: input.workspaceId } },
+        _sum: { amountTenths: true },
+      }),
     ]);
-    const inFlightTenths = sum._sum?.creditsChargedTenths ?? 0;
+    const inFlightTenths = holdsSum._sum?.amountTenths ?? 0;
 
     if (count >= limits.concurrencyLane) {
       throw new AppException(

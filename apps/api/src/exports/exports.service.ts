@@ -1,7 +1,7 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 import { ulid } from "ulid";
 
-import { creditCostTenths, formatCredits } from "@montaj/config";
+import { formatCredits, quote } from "@montaj/config";
 import type {
   OutputKind,
   RenderPreset,
@@ -304,10 +304,13 @@ export class ExportsService {
     });
 
     const queue = input.kind === "subtitle" ? RENDER_SUBTITLE_QUEUE : RENDER_VIDEO_QUEUE;
+    // B02b: routed through `quote()` rather than `creditCostTenths` directly,
+    // so this reserve and `decision.ts`'s dialog estimate can never compute the
+    // 0.1-minute billing quantum two different ways.
     const worstCaseTenths =
       input.kind === "subtitle"
         ? 0
-        : creditCostTenths({ operation: "cloudRender", durationMs: media.durationMs ?? 0 });
+        : quote("cloudRender", (media.durationMs ?? 0) / 60_000).holdTenths;
 
     const enqueued = await this.jobs.enqueue({
       type: queue,

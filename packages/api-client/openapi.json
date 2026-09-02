@@ -11405,6 +11405,74 @@
         ]
       }
     },
+    "/billing/passes/{passPurchaseId}/refund": {
+      "post": {
+        "description": "Calls the provider's refund API and attempts to claw back the credits it granted. The credits clawback is best-effort -- see billing/README.md \"Credits clawback\" for why it cannot yet fully succeed against a grant-sourced lot.",
+        "operationId": "refundPassPurchase",
+        "parameters": [
+          {
+            "name": "passPurchaseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerPaymentId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "amountMinor": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 9007199254740991
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "providerPaymentId",
+                  "amountMinor"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The refund outcome, including the credits clawback outcome."
+          },
+          "404": {
+            "description": "`billing/pass_purchase_not_found`."
+          },
+          "409": {
+            "description": "`billing/already_refunded`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Refund a pass/top-up purchase (admin/API path)",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/billing/webhooks/razorpay": {
       "post": {
         "description": "Signature-verified, idempotent by event id. A bad signature is 401, never 200 (a 200 tells Razorpay to stop retrying).",

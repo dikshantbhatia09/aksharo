@@ -30,6 +30,7 @@ import { buildWordIndex, newId, validateProjection } from "@montaj/edg";
 import { type Segment, type TranscriptChunk, type Word } from "@montaj/edg/schemas";
 import { limitsFor, segmentScript, wrapLines } from "@montaj/edg/segmenter";
 
+import { AMPLE_TEST_CREDIT_TENTHS, fundWorkspaceCredits } from "./credits-fixture.js";
 import { createTestDatabase, isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness.js";
 import { TokenService } from "../src/auth/token.service.js";
@@ -296,45 +297,6 @@ async function seed(): Promise<void> {
       currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000),
     },
   });
-
-  // B02's real ledger enforces an actual balance: a subscription alone is a
-  // plan, not credits. Fund the account directly (as `prisma/seed.ts` funds
-  // the demo workspace) so `reserve()` has something to hold against — this
-  // suite is about transcription mechanics, not the ledger, which has its own
-  // `test/credits-ledger.e2e-spec.ts`.
-  const accountId = id("CACC");
-  await prisma.creditAccount.create({
-    data: {
-      id: accountId,
-      workspaceId: WORKSPACE,
-      balanceTenths: plan.creditsPerMonthTenths,
-      monthlyGrantTenths: plan.creditsPerMonthTenths,
-      grantResetAt: new Date(Date.now() + 30 * 86_400_000),
-    },
-  });
-  const lotId = id("CLOT");
-  await prisma.creditLot.create({
-    data: {
-      id: lotId,
-      accountId,
-      source: "grant",
-      grantedTenths: plan.creditsPerMonthTenths,
-      remainingTenths: plan.creditsPerMonthTenths,
-      expiresAt: new Date(Date.now() + 30 * 86_400_000),
-    },
-  });
-  await prisma.creditLedger.create({
-    data: {
-      id: id("CLED"),
-      accountId,
-      deltaTenths: plan.creditsPerMonthTenths,
-      kind: "grant",
-      refType: "plan",
-      refId: plan.id,
-      lotId,
-      balanceAfterTenths: plan.creditsPerMonthTenths,
-    },
-  });
 }
 
 async function cleanup(): Promise<void> {
@@ -409,6 +371,13 @@ beforeAll(async () => {
   applyInternalBodyLimit(app);
   setupOpenApi(app);
   await app.init();
+
+  // B02's real ledger enforces an actual balance: a subscription alone is a
+  // plan, not credits. Fund it through the app's own CreditsFacade (needs the
+  // app, so this runs after `app.init()` rather than inside `seed()`) — this
+  // suite is about transcription mechanics, not the ledger, which has its own
+  // `test/credits-ledger.e2e-spec.ts`.
+  await fundWorkspaceCredits(app, WORKSPACE, AMPLE_TEST_CREDIT_TENTHS);
 
   tokens = app.get(TokenService);
 }, 180_000);

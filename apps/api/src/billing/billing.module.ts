@@ -8,6 +8,7 @@ import { PassesService } from "./passes.service.js";
 import { PlansService } from "./plans.service.js";
 import { BILLING_PROVIDER } from "./provider.js";
 import { createBillingProvider } from "./providers/provider.factory.js";
+import { RefundsService } from "./refunds.service.js";
 import { RenewalService } from "./renewal.service.js";
 import { SubscriptionService } from "./subscription.service.js";
 import { WebhooksService } from "./webhooks.service.js";
@@ -38,6 +39,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     SubscriptionService,
     WebhooksService,
     RenewalService,
+    RefundsService,
     {
       provide: BILLING_PROVIDER,
       useFactory: (env: Env) => createBillingProvider(env),
@@ -50,6 +52,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     PassesService,
     SubscriptionService,
     RenewalService,
+    RefundsService,
     BILLING_PROVIDER,
   ],
 })

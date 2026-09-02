@@ -431,6 +431,11 @@ enum CreditLedgerKind {
   adjust
   expire
   referral_bonus
+  /// A lot clawed back before it was spent (B02b `revokeLot`) — B01's refunds
+  /// service uses this when a payment refund must take back an UNUSED grant/
+  /// pass/top-up lot, which `reverse()` cannot express (that method is keyed on
+  /// a settled job, not a lot).
+  revoke
 }
 
 /// Not enumerated in 06 (`affiliates.status`).
@@ -1790,6 +1795,10 @@ model PassPurchase {
   creditsGrantedTenths Int              @default(0) @map("credits_granted_tenths")
   lotId                String?          @map("lot_id") @db.Char(26)
   consumedAt           DateTime?        @map("consumed_at") @db.Timestamptz(6)
+  /// B01b: CAS guard for the credits clawback — set once, the first time a
+  /// refund (webhook or admin/API) is processed for this purchase, so a
+  /// replayed webhook or a repeated admin call is a no-op.
+  refundedAt           DateTime?        @map("refunded_at") @db.Timestamptz(6)
   createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
 
   workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

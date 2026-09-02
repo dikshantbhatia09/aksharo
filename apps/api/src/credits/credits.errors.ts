@@ -15,6 +15,8 @@ export const CREDIT_ERROR_CODES = {
   reversalSourceNotFound: "credits/reversal_source_not_found",
   /** A hold id that never existed and was never created by `reserve()`. */
   holdNotFound: "credits/hold_not_found",
+  /** `revokeLot()` was called for a lot id that does not exist (B02b). */
+  lotNotFound: "credits/lot_not_found",
 } as const;
 
 export type CreditErrorCode = (typeof CREDIT_ERROR_CODES)[keyof typeof CREDIT_ERROR_CODES];

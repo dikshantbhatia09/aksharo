@@ -25,6 +25,7 @@
 
 import { HttpStatus } from "@nestjs/common";
 
+import { quote } from "@montaj/config";
 import type { OutputKind, RenderPreset } from "@montaj/render-manifest";
 
 import { EXPORT_ERROR_CODES } from "./exports.errors.js";
@@ -110,7 +111,6 @@ const BROWSER_1080P_MAX_MS = 20 * 60_000;
 const BROWSER_4K_MAX_MS = 10 * 60_000;
 const SIGNUP_GIFT_MAX_MS = 10 * 60_000;
 const NINE_PASS_MAX_MS = 10 * 60_000;
-const CLOUD_RENDER_TENTHS_PER_MINUTE = 5; // `packages/config/src/credits.ts` BURN_RATES.cloudRender
 
 const FOUR_K_WIDTH = 2_560;
 const DEFAULT_MAX_FPS_BROWSER = 60;
@@ -138,9 +138,14 @@ function isFourK(width: number): boolean {
   return width >= FOUR_K_WIDTH;
 }
 
+/**
+ * B02b: routed through `@montaj/config`'s `quote()` rather than a local
+ * `CLOUD_RENDER_TENTHS_PER_MINUTE` constant and hand-rolled whole-minute
+ * rounding — both drift risks against `BURN_RATES.cloudRender`, which bills
+ * on the 0.1-minute billing quantum (`BILLING_QUANTUM_MS`), not a whole one.
+ */
 function creditsFor(outputDurationMs: number): number {
-  const minutes = Math.max(1, Math.ceil(outputDurationMs / 60_000));
-  return minutes * CLOUD_RENDER_TENTHS_PER_MINUTE;
+  return quote("cloudRender", outputDurationMs / 60_000).costTenths;
 }
 
 /**

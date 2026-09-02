@@ -682,7 +682,42 @@ describe.skipIf(!CAN_RUN)("the public jobs API", () => {
 
 describe.skipIf(!CAN_RUN)("admission control (THREAT-MODEL T23)", () => {
   it("refuses an enqueue that would cross the plan's enqueued-credit cap", async () => {
-    const filler = await enqueue({ worstCaseTenths: PLAN_ENQUEUED_CAP_TENTHS.creator - 10 });
+    // AdmissionService sums open `credit_holds` (B02b), the ledger's own live
+    // record — but this suite runs the no-op CreditsFacade for its own reasons
+    // (inspecting `holdStatus()`), which tracks holds in memory, never in
+    // `credit_holds`. The filler is a real ledger row for that reason, not a
+    // real `enqueue()` call — this test is about AdmissionService's own
+    // arithmetic, not about how a hold got there.
+    const fillerJobId = id("FILLERJOB");
+    const fillerHoldId = id("FILLERHOLD");
+    const account = await prisma.creditAccount.upsert({
+      where: { workspaceId: WORKSPACE },
+      create: {
+        id: id("FILLERACCT"),
+        workspaceId: WORKSPACE,
+        balanceTenths: 0,
+        monthlyGrantTenths: 0,
+      },
+      update: {},
+    });
+    await prisma.job.create({
+      data: {
+        id: fillerJobId,
+        workspaceId: WORKSPACE,
+        type: "ai.clean",
+        jobKey: `filler:${fillerJobId}`,
+        status: "queued",
+      },
+    });
+    await prisma.creditHold.create({
+      data: {
+        id: fillerHoldId,
+        accountId: account.id,
+        jobId: fillerJobId,
+        amountTenths: PLAN_ENQUEUED_CAP_TENTHS.creator - 10,
+        status: "held",
+      },
+    });
     try {
       const failure = await enqueue({ worstCaseTenths: 100 }).catch((error: unknown) => error);
       expect(failure).toMatchObject({
@@ -691,7 +726,8 @@ describe.skipIf(!CAN_RUN)("admission control (THREAT-MODEL T23)", () => {
         details: { plan: "creator", enqueuedCapTenths: PLAN_ENQUEUED_CAP_TENTHS.creator },
       });
     } finally {
-      await jobs.cancel(filler.job.id, WORKSPACE);
+      await prisma.creditHold.delete({ where: { id: fillerHoldId } }).catch(() => undefined);
+      await prisma.job.delete({ where: { id: fillerJobId } }).catch(() => undefined);
     }
   });
 
