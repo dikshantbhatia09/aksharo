@@ -11,24 +11,28 @@ no authentication, because inside the cluster the only caller is the kubelet.
 | ---------------- | ------------------------------------------------------------ |
 | `GET /health`    | liveness; deliberately touches neither Redis nor a model      |
 | `GET /providers` | every adapter with its enable flag, plus routing and aligners |
-| `POST /evals/run`| stub; the eval harness runs from the CLI in A09               |
+| `GET /metrics`   | Prometheus counters per provider, language and lane (`09 §1`) |
+| `POST /evals/run`| stub; the eval harness runs from the CLI                      |
 """
 
 from __future__ import annotations
 
 from typing import Any, Literal
 
-from fastapi import FastAPI, status
+from fastapi import FastAPI, Response, status
 from pydantic import BaseModel, Field
 
 from worker_ai import __version__
 from worker_ai.alignment import AlignerRegistry
+from worker_ai.cache import NullResultCache, ResultCache
 from worker_ai.diarisation import DiariserRegistry
 from worker_ai.evals.manifest import available_sets
+from worker_ai.lid import CODE_MIX_THRESHOLD, IndicLidClassifier
+from worker_ai.metrics import METRICS
 from worker_ai.providers.registry import ProviderRegistry, build_registry
 from worker_ai.queues import IMPLEMENTED_AI_QUEUES
 from worker_ai.routing import RoutingTable, load_routing_table
-from worker_ai.runtime import queues_for
+from worker_ai.runtime import build_cache, build_routing_table, queues_for
 from worker_ai.settings import Settings
 
 __all__ = [
@@ -54,9 +58,13 @@ class ProvidersResponse(BaseModel):
 
     providers: list[dict[str, Any]]
     routing: dict[str, Any]
+    #: The aligner chain for the requested language (``?language=``, default hi).
     aligners: list[dict[str, Any]]
     diarisers: list[dict[str, Any]]
     vad: dict[str, Any]
+    lid: dict[str, Any]
+    cache: dict[str, Any]
+    metrics: dict[str, Any]
 
 
 class EvalRunRequest(BaseModel):
@@ -80,6 +88,9 @@ def create_app(
     *,
     providers: ProviderRegistry | None = None,
     routing: RoutingTable | None = None,
+    aligners: AlignerRegistry | None = None,
+    diarisers: DiariserRegistry | None = None,
+    cache: ResultCache | None = None,
     vad_name: str = "unknown",
 ) -> FastAPI:
     """Build the control app.
@@ -99,13 +110,23 @@ def create_app(
         if providers is not None
         else (build_registry(settings) if settings is not None else None)
     )
-    table = (
-        routing
-        if routing is not None
-        else load_routing_table(settings.routing_file or None if settings is not None else None)
+    table = routing
+    if table is None:
+        table = build_routing_table(settings) if settings is not None else load_routing_table()
+    aligner_registry = aligners or (
+        AlignerRegistry.from_settings(settings)
+        if settings is not None
+        else AlignerRegistry.default()
     )
-    aligners = AlignerRegistry.default()
-    diarisers = DiariserRegistry.default()
+    diariser_registry = diarisers or (
+        DiariserRegistry.from_settings(settings)
+        if settings is not None
+        else DiariserRegistry.default()
+    )
+    result_cache = cache or (
+        build_cache(settings) if settings is not None else NullResultCache()
+    )
+    classifier = IndicLidClassifier(settings.indiclid_dir if settings is not None else "")
     consumed = list(queues_for(settings)) if settings is not None else list(IMPLEMENTED_AI_QUEUES)
 
     @app.get("/health", response_model=HealthResponse, tags=["health"])
@@ -119,15 +140,36 @@ def create_app(
         )
 
     @app.get("/providers", response_model=ProvidersResponse, tags=["control"])
-    async def list_providers() -> ProvidersResponse:
-        """Every adapter and why it is or is not enabled here."""
+    async def list_providers(language: str = "hi") -> ProvidersResponse:
+        """Every adapter and why it is or is not enabled here.
+
+        ``?language=`` selects the aligner chain shown: the D13 registry is
+        per-language, so "which aligner would a Tamil job get?" is a different
+        question from "which would an English one get?". The default is Hindi,
+        which is the product's main language.
+        """
         rows = [status_row.to_wire() for status_row in registry.describe()] if registry else []
         return ProvidersResponse(
             providers=rows,
             routing=table.to_wire(),
-            aligners=[dict(item) for item in aligners.describe()],
-            diarisers=[dict(item) for item in diarisers.describe()],
+            aligners=[dict(item) for item in aligner_registry.describe(language)],
+            diarisers=[dict(item) for item in diariser_registry.describe()],
             vad={"backend": vad_name},
+            lid={
+                "textClassifier": classifier.name,
+                "backend": classifier.backend,
+                "codeMixThreshold": CODE_MIX_THRESHOLD,
+            },
+            cache=result_cache.describe(),
+            metrics=METRICS.snapshot(),
+        )
+
+    @app.get("/metrics", tags=["control"], response_class=Response)
+    async def metrics() -> Response:
+        """Prometheus text exposition: per provider, language and lane (`09 §1`)."""
+        return Response(
+            content=METRICS.render(),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
         )
 
     @app.post(

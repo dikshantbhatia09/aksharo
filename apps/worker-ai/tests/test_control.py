@@ -57,12 +57,16 @@ def test_providers_lists_every_adapter_with_its_reason() -> None:
         "assemblyai",
     }
     assert rows["mock"]["enabled"] is True
-    assert rows["sarvam"]["implemented"] is False
-    assert "A10" in rows["sarvam"]["reason"]
+    # Implemented, but this environment has no key, so it is off *with a reason*.
+    assert rows["sarvam"]["implemented"] is True
+    assert rows["sarvam"]["enabled"] is False
+    assert "SARVAM_API_KEY" in rows["sarvam"]["reason"]
     assert rows["sarvam"]["flag"] == "asr.sarvam"
     assert rows["elevenlabs"]["capabilities"]["wordTimestamps"] is True
     assert rows["elevenlabs"]["costPerMinuteInr"] == 0.35
     assert body["vad"] == {"backend": "energy"}
+    assert body["lid"]["codeMixThreshold"] == 0.3
+    assert body["cache"]["backend"] in {"redis", "memory", "none"}
 
 
 def test_providers_carries_the_routing_table_and_the_registries() -> None:
@@ -74,6 +78,24 @@ def test_providers_carries_the_routing_table_and_the_registries() -> None:
     assert next(lane["id"] for lane in body["routing"]["lanes"]) == "hinglish"
     assert [row["name"] for row in body["aligners"]][-1] == "proportional-vad"
     assert [row["name"] for row in body["diarisers"]][-1] == "noop-single-speaker"
+
+
+def test_the_aligner_chain_shown_depends_on_the_language_asked_about() -> None:
+    """The D13 registry is per-language, so `/providers` has to be told which."""
+    settings = load_settings(VALID_ENV)
+    with TestClient(create_app(settings)) as client:
+        hindi = client.get("/providers", params={"language": "hi"}).json()["aligners"]
+        french = client.get("/providers", params={"language": "fr"}).json()["aligners"]
+
+    assert "indicwav2vec-ctc" in [row["name"] for row in hindi]
+    assert "indicwav2vec-ctc" not in [row["name"] for row in french]
+    assert [row["name"] for row in french][-1] == "proportional-vad"
+
+
+def test_providers_reports_the_cache_this_pod_would_use() -> None:
+    settings = load_settings({**VALID_ENV, "WORKER_AI_CACHE": "memory"})
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/providers").json()["cache"]["backend"] == "memory"
 
 
 def test_providers_reflects_an_injected_registry() -> None:
@@ -110,4 +132,35 @@ def test_evals_run_validates_its_body() -> None:
 def test_openapi_document_describes_every_route() -> None:
     with TestClient(create_app()) as client:
         document = client.get("/openapi.json").json()
-    assert set(document["paths"]) == {"/health", "/providers", "/evals/run"}
+    assert set(document["paths"]) == {"/health", "/providers", "/metrics", "/evals/run"}
+
+
+def test_metrics_are_prometheus_text() -> None:
+    """`09 §1`: latency, cost and quality tagged by provider and language."""
+    from worker_ai.metrics import METRICS, MetricKey
+
+    METRICS.reset()
+    METRICS.record_call(
+        MetricKey(provider="elevenlabs", language="hi", lane="hindi"),
+        outcome="ok",
+        media_seconds=12.5,
+        cost_minor=8,
+    )
+    METRICS.record_cache(hit=True)
+    METRICS.record_fallback(from_provider="sarvam", to_provider="elevenlabs")
+
+    with TestClient(create_app()) as client:
+        response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    body = response.text
+    expected = (
+        'montaj_asr_calls_total{lane="hindi",language="hi",'
+        'outcome="ok",provider="elevenlabs"} 1'
+    )
+    assert expected in body
+    assert "montaj_asr_media_seconds_total" in body
+    assert 'montaj_asr_cache_total{outcome="hit"} 1' in body
+    assert 'montaj_asr_fallbacks_total{from="sarvam",to="elevenlabs"} 1' in body
+    METRICS.reset()

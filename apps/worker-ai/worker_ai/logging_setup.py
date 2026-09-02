@@ -43,6 +43,17 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, default=str)
 
 
+#: Third-party loggers held at WARNING, whatever ``LOG_LEVEL`` says.
+#:
+#: ``httpx2`` logs every request at INFO as ``HTTP Request: POST <full url>``.
+#: Sarvam's Batch API hands back **Azure blob SAS URLs with the signature in the
+#: query string** (`providers/sarvam.py`), so that one line would write a live
+#: credential into the pod's logs on every job — exactly what THREAT-MODEL T21
+#: forbids. `providers/http.py` logs the path with the query string stripped
+#: instead, which is the information an operator actually needs.
+_QUIET_LOGGERS: tuple[str, ...] = ("httpx2", "httpcore2", "httpx", "httpcore")
+
+
 def configure_logging(service: str = "worker-ai") -> None:
     """Install the JSON formatter on the root logger, honouring ``LOG_LEVEL``."""
     level_name = os.environ.get("LOG_LEVEL", "info").upper()
@@ -55,6 +66,9 @@ def configure_logging(service: str = "worker-ai") -> None:
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(level)
+
+    for name in _QUIET_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 
 def get_logger(name: str = "worker_ai") -> logging.Logger:
