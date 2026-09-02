@@ -19,6 +19,8 @@ export const NOTIFY_KINDS = [
   "export-ready",
   "share-comment",
   "streak-nudge",
+  // B16: the -14d warning before a project's plan-retention purge deletes it.
+  "retention-warning",
 ] as const;
 
 export type NotifyKind = (typeof NOTIFY_KINDS)[number];
@@ -66,6 +68,7 @@ export const IN_APP_KINDS: readonly NotifyKind[] = [
   "export-ready",
   "share-comment",
   "streak-nudge",
+  "retention-warning",
 ];
 
 const IN_APP_SET: ReadonlySet<string> = new Set<string>(IN_APP_KINDS);

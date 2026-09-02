@@ -18,6 +18,7 @@ import {
 } from "./referrals.dto.js";
 import { ReferralsService } from "./referrals.service.js";
 import { zodResponse } from "../auth/dto/openapi.js";
+import { CommonAuditService } from "../common/audit/audit.service.js";
 import {
   CurrentUser,
   JwtAuthGuard,
@@ -43,7 +44,10 @@ import type { AuthPrincipal, AuthenticatedRequest } from "../common/guards/index
 @UseGuards(JwtAuthGuard, WorkspaceMemberGuard, RolesGuard)
 @Controller("referrals")
 export class ReferralsController {
-  constructor(private readonly referrals: ReferralsService) {}
+  constructor(
+    private readonly referrals: ReferralsService,
+    private readonly audit: CommonAuditService,
+  ) {}
 
   @Get("me")
   @Roles("viewer")
@@ -80,12 +84,21 @@ export class ReferralsController {
     @Body() body: ClaimReferralDto,
     @Req() request: AuthenticatedRequest,
   ): Promise<ClaimReferralResult> {
-    return this.referrals.claim({
+    const result = await this.referrals.claim({
       workspaceId: principal.workspaceId,
       code: body.code,
       ip: clientIp(request),
       userAgent: clientUserAgent(request),
     });
+    await this.audit.record({
+      action: "referral.claimed",
+      resource: "referral",
+      actorId: principal.userId,
+      workspaceId: principal.workspaceId,
+      ip: clientIp(request),
+      data: { claimed: result.claimed },
+    });
+    return result;
   }
 
   @Post("prompt/shown")

@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Req,
   UseGuards,
 } from "@nestjs/common";
 import {
@@ -26,9 +27,12 @@ import {
   toOrphanedHoldDto,
   toOrphanedHoldResolutionDto,
 } from "./admin-credits.dto.js";
+import { CommonAuditService } from "../../common/audit/audit.service.js";
 import { CreditOrphanedHoldsService } from "../../credits/credit-orphaned-holds.service.js";
 import { CreditReconcileService } from "../../credits/credit-reconcile.service.js";
-import { AdminGuard } from "../admin.guard.js";
+import { AdminGuard, adminOf } from "../admin.guard.js";
+
+import type { AuthenticatedRequest } from "../../common/guards/principal.js";
 
 /**
  * The platform-staff surface behind `tools/runbooks/credits-orphaned-holds.js`
@@ -47,6 +51,7 @@ export class AdminCreditsController {
   constructor(
     private readonly orphanedHolds: CreditOrphanedHoldsService,
     private readonly reconcile: CreditReconcileService,
+    private readonly audit: CommonAuditService,
   ) {}
 
   @Get("orphaned-holds")
@@ -72,8 +77,18 @@ export class AdminCreditsController {
   @ApiOkResponse({ type: [OrphanedHoldResolutionDto] })
   async resolveOrphanedHolds(
     @Body() body: ResolveOrphanedHoldsDto,
+    @Req() request: AuthenticatedRequest,
   ): Promise<OrphanedHoldResolutionDto[]> {
     const results = await this.orphanedHolds.resolveAll(body);
+    const admin = adminOf(request);
+    await this.audit.record({
+      action: "admin.credits.orphaned_holds_resolved",
+      resource: "credit_hold",
+      actorId: admin.userId,
+      actorKind: "admin",
+      ...(admin.ip === undefined ? {} : { ip: admin.ip }),
+      data: { dryRun: body.dryRun, count: results.length },
+    });
     return results.map(toOrphanedHoldResolutionDto);
   }
 

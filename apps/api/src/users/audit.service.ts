@@ -1,6 +1,6 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { ulid } from "ulid";
+import { Injectable } from "@nestjs/common";
 
+import { CommonAuditService } from "../common/audit/audit.service.js";
 import { PrismaService } from "../common/index.js";
 
 import type { Prisma } from "@prisma/client";
@@ -63,45 +63,21 @@ export interface AuditEvent {
  * A failure is logged at `error` and swallowed: an unavailable audit table must
  * not become a way to deny a member their own profile. X01 re-verifies that
  * trade-off before Gate C, exactly as it does for `auth`.
+ *
+ * **Implementation note (B16 addendum, after A05):** the actual write lives in
+ * `common/audit/audit.service.ts` (`CommonAuditService`), collapsed together
+ * with `auth/auth-audit.service.ts`'s `AuthAuditService` into one writer with an
+ * open action union. This class subclasses it and keeps its original name and
+ * `record(event: AuditEvent)` signature so the 21 existing call sites in this
+ * module tree, and their tests, do not change.
  */
 @Injectable()
-export class AuditService {
-  private readonly logger = new Logger(AuditService.name);
+export class AuditService extends CommonAuditService {
+  constructor(prisma: PrismaService) {
+    super(prisma);
+  }
 
-  constructor(private readonly prisma: PrismaService) {}
-
-  async record(event: AuditEvent): Promise<void> {
-    const at = new Date();
-    try {
-      await this.prisma.$transaction([
-        this.prisma.auditLog.create({
-          data: {
-            id: ulid(),
-            action: event.action,
-            resource: event.resource,
-            resourceId: event.resourceId ?? null,
-            actorId: event.actorId ?? null,
-            actorKind: "user",
-            workspaceId: event.workspaceId ?? null,
-            data: event.data ?? undefined,
-            ip: event.ip ?? null,
-            at,
-          },
-        }),
-        this.prisma.accessLog.create({
-          data: {
-            id: ulid(),
-            actorId: event.actorId ?? null,
-            workspaceId: event.workspaceId ?? null,
-            resource: event.resource,
-            action: event.action,
-            ip: event.ip ?? null,
-            at,
-          },
-        }),
-      ]);
-    } catch (error) {
-      this.logger.error({ err: error, action: event.action }, "could not write the audit trail");
-    }
+  override record(event: AuditEvent): Promise<void> {
+    return super.record(event);
   }
 }

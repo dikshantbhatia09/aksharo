@@ -46,6 +46,77 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B16 — scheduler tasks, audit log completion, and the privacy module
+  (erasure cascade, DSR tracking, data export, breach incidents, consent
+  completion, access logs, sub-processor list).**
+  - `apps/api/src/scheduler/tasks/`: the scheduler wiring several already-landed
+    services documented themselves as waiting on — `media-retention.task.ts`
+    (A06's `RetentionService.purgeDueMedia`) and `renewal-dunning.task.ts`
+    (B01's `RenewalService.initiateRenewal`/`graceExpiry`) — plus tasks B16
+    owns outright: `project-retention.task.ts` (−14 d `retention-warning`
+    email, then soft-delete + pulls media purge dates forward),
+    `export-retention.task.ts` (expires `exports`/`export_manifests`),
+    `device-code-expiry.task.ts`, `memory-entry-expiry.task.ts`,
+    `provider-deletion-followup.task.ts` (calls a provider deletion API where
+    one is registered, else logs one audit summary of the manual queue),
+    `access-log-purge.task.ts` (1-year retention), `share-report-sla.task.ts`,
+    `ledger-reconciliation.task.ts` (pages on a cache/ledger mismatch, never
+    repairs), `export-filing-report.task.ts` (monthly GSTR-1 aggregate,
+    idempotent via `invoices.gstr1Period`) and `usage-report.task.ts`
+    (explicitly a stub per the brief). Commission maturation, payout batching,
+    credit grant reset/lot expiry and streak rollover/nudge were already
+    registered by B07/B02/B06 against the same A08 primitive and are not
+    duplicated here. `admin/scheduler/admin-scheduler.controller.ts` is the
+    one manual-trigger surface for every registered task
+    (`POST /admin/scheduler/tasks/:name/run`).
+  - `apps/api/src/privacy/erasure-cascade.service.ts` + `.task.ts`: the
+    30-day cascade `DELETE /me` (A05) starts — object stores first, rows
+    second, per workspace the requester owns; billing documents (`invoices`)
+    are retained with `recipientEmail` minimised, never hard-deleted, because
+    `invoices.workspace_id` is `onDelete: Cascade` in this schema and a hard
+    workspace delete would take 72-month-retained billing records with it
+    (flagged as a seam for a future ADR, not changed here). Added the 409
+    `me/owner_of_workspaces` refusal (B16 addendum after A05) to
+    `ProfileService.requestErasure`.
+  - `apps/api/src/privacy/residue-check.service.ts`: reads the Prisma DMMF to
+    find every model with a `userId`/`workspaceId` column and count residue —
+    used by the erasure-sweep contract test, and by
+    `POST /admin/privacy/erasure/replay-tombstones` /
+    `tools/runbooks/privacy-replay-tombstones.js` (`docs/runbooks/
+breach-first-hour.md`'s "replay the tombstones" step after a PITR
+    restore).
+  - `apps/api/src/privacy/breach-incidents.service.ts` +
+    `breach-templates.ts`: `breach_incidents` CRUD, the 72-hour Board-notice
+    clock, and plain-string (no LLM) Board-report/user-notice drafts, behind
+    `admin/privacy/admin-privacy.controller.ts`.
+  - `apps/api/src/users/data-export.service.ts` (A05): extended the
+    `GET /me/data` bundle with a media manifest and moved the signed link's
+    TTL from 1 hour to 7 days, per the brief.
+  - `apps/api/src/notify/suppression.service.ts` (A25 addendum): a durable
+    `mail_suppressions` table the Redis live set is rebuilt from at boot and
+    kept in sync by `suppress`/`releaseTransient` — no change needed at the
+    SNS handler call sites.
+  - `apps/api/src/common/audit/audit.service.ts`: `CommonAuditService`, the
+    collapse of A04's `AuthAuditService` and A05's `AuditService` into one
+    writer with an open action union (B16 addendum after A05) — both original
+    classes now subclass it and keep their names, constants and call sites.
+  - `apps/api/src/audit/`: `@Audited`, and the audit-completeness contract
+    test (`audited-routes.scan.ts` + `audit-completeness.test.ts`) — every
+    controller with a mutating route must reference an audit writer somewhere
+    in its local dependency graph, or be in `EXEMPT_FILES` with why. Fixed
+    four routes it found with no audit trail at all
+    (`admin/credits/admin-credits.controller.ts`,
+    `fonts/fonts.controller.ts`, `exports/brand-assets.controller.ts`,
+    `referrals/referrals.controller.ts`).
+  - `apps/api/src/privacy/access-log.decorator.ts` +
+    `.interceptor.ts`: `@LogAccess(resource)` writes `access_logs` (not
+    `audit_log`) for a successful personal-data read, applied to
+    `GET /projects/:projectId`, `GET /media/:mediaId`,
+    `GET /projects/:projectId/transcript` and
+    `GET /exports/:exportId/download`.
+  - `apps/api/content/sub-processors.json` + `GET /privacy/sub-processors`.
+  - `tools/runbooks/privacy-replay-tombstones.js`.
+
 - **B06 — streak experiment: 3-day weekly bar, auto-freezes, pause-not-reset,
   level-ups, discounts/credit grants, holdout, and the widget.** `apps/api/src/streak/`:
   a pure state machine (`streak.engine.ts`, table-tested with fake clocks) —
