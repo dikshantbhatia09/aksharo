@@ -60,8 +60,8 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A14 | web Home + Projects + upload engine | A06, A08, A13 | in-progress |
 | A15 | web Editor transcript column + EDG client store | A12, A13 | done (A15b verification pending) |
 | A16 | render-core + render-canvaskit + 30 styles + panels | A02, A02c | done |
-| A17 | web Timeline | A15, A16 | briefed |
-| A18a | ass-exporter + parity gate | A16, A20 | briefed |
+| A17 | web Timeline | A15, A16 | in-progress |
+| A18a | ass-exporter + parity gate | A16, A20 | in-progress |
 | A18b | fonts pipeline | A06, A07 | done |
 | A19 | web browser export + export dialog | A16, A21, A02c | briefed |
 | A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | done |
