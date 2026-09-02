@@ -2,20 +2,25 @@
 
 import * as React from "react";
 
+import { ExportUpsellPanel } from "./upsell/ExportUpsellPanel";
+
 /**
  * The watermark notice (`08 §4 v2`). There is deliberately no toggle here —
  * the manifest carries the watermark decision (`RenderManifest.watermark`,
- * signed) and the client cannot remove it; this panel only explains why and
- * offers the upgrade paths (`UpgradeGate` slots: signup gift, ₹9 pass, plan).
- * `UpgradeGate` itself is B04's component and out of this work package's file
- * boundary — the slots below are placeholders for it.
+ * signed) and the client cannot remove it. B04's `ExportUpsellPanel`
+ * (signup gift → ₹9 clean export → week pass → "See plans") is mounted here,
+ * exactly at the mount point its own header documents: it drives its own
+ * eligibility and checkout, and calls back once a clean path is confirmed
+ * available so the dialog can re-issue the same export request.
  */
 export function WatermarkNotice({
   watermarked,
   reasons,
+  onCleanManifestReady,
 }: {
   readonly watermarked: boolean | undefined;
   readonly reasons: readonly string[] | undefined;
+  readonly onCleanManifestReady?: () => void;
 }): React.JSX.Element | null {
   if (watermarked !== true) return null;
   return (
@@ -29,9 +34,7 @@ export function WatermarkNotice({
           {reason}
         </p>
       ))}
-      <p className="text-fg-3 mt-2">
-        Remove it with your free signup gift, a ₹9 one-time pass, or a paid plan.
-      </p>
+      <ExportUpsellPanel className="mt-2" onCleanManifestReady={onCleanManifestReady} />
     </div>
   );
 }

@@ -153,5 +153,16 @@ export const EN_MESSAGES: MessageCatalogue = {
         "A freeze can cover a missed week automatically, but nothing beats a real export.",
       ],
     },
+
+    "retention-warning": {
+      subject: "“{projectTitle}” is deleted in {days, plural, one {# day} other {# days}}",
+      heading: "This project is due for deletion",
+      paragraphs: [
+        "Hi {name}, your plan keeps a project's media for a limited time, and “{projectTitle}” reaches that limit on {retentionUntil}.",
+        "Open the project before then to keep it — any activity resets the retention window. After the date, its media is permanently deleted and cannot be recovered.",
+      ],
+      cta: "Open the project",
+      footnotes: ["Upgrading your plan also extends how long projects are kept."],
+    },
   },
 };

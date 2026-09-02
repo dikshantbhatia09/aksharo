@@ -33,6 +33,7 @@ import {
 } from "./transcripts.dto.js";
 import { TranscriptsService } from "./transcripts.service.js";
 import { CurrentUser, JwtAuthGuard, Roles, RolesGuard } from "../common/guards/index.js";
+import { LogAccess } from "../privacy/access-log.decorator.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
 import type { AuthPrincipal } from "../common/guards/index.js";
@@ -126,6 +127,7 @@ export class TranscriptsController {
 
   @Get("transcript")
   @Roles("viewer")
+  @LogAccess("transcript")
   @ApiOperation({
     summary: "The transcript manifest and one page of chunks",
     description:

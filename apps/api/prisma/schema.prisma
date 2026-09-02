@@ -2519,6 +2519,34 @@ model Notification {
   @@map("notifications")
 }
 
+/// Bounce/complaint reason (SES `Permanent`/`Transient` events).
+enum MailSuppressionReason {
+  hard_bounce
+  complaint
+  transient
+}
+
+/// The durable twin of `notify.suppression.service.ts`'s Redis live set (B16
+/// addendum, after A25). Redis holds the hot-path check; this table is what the
+/// live set is rebuilt from at boot, and what the SNS handler
+/// (`notify/sns/mail-events.controller.ts`) keeps in sync — a Redis flush must
+/// never quietly re-enable mail to an address that complained. Admin read/clear
+/// is B13's.
+model MailSuppression {
+  id            String                @id @db.Char(26)
+  /// SHA-256 of the lower-cased address — same hash `SuppressionService.hash` uses.
+  addressHash   String                @unique @map("address_hash") @db.Char(64)
+  reason        MailSuppressionReason
+  /// Null for a permanent (`hard_bounce`, `complaint`) entry; set for `transient`.
+  until         DateTime?             @db.Timestamptz(6)
+  /// The SES/SNS message id the entry came from, for tracing a specific bounce.
+  sourceEventId String?               @map("source_event_id")
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([reason])
+  @@map("mail_suppressions")
+}
+
 model WebhookEndpoint {
   id           String    @id @db.Char(26)
   workspaceId  String    @map("workspace_id") @db.Char(26)

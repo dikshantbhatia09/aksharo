@@ -28,11 +28,13 @@ import {
   ExportListDto,
   ExportListQueryDto,
   ExportRequestDto,
+  ExportSourcesDto,
   ManifestCompleteRequestDto,
   ManifestCompleteResponseDto,
 } from "./exports.dto.js";
 import { ExportsService } from "./exports.service.js";
 import { CurrentUser, JwtAuthGuard, Roles, RolesGuard } from "../common/guards/index.js";
+import { LogAccess } from "../privacy/access-log.decorator.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
 import type { AuthPrincipal } from "../common/guards/index.js";
@@ -101,6 +103,7 @@ export class ExportsController {
       watermarked: result.watermarked,
       quote: result.quote,
       ...(result.manifest === undefined ? {} : { manifest: result.manifest }),
+      ...(result.sources === undefined ? {} : { sources: result.sources }),
       ...(result.job === undefined ? {} : { job: result.job }),
     };
   }
@@ -137,6 +140,28 @@ export class ExportsController {
     };
   }
 
+  @Get("exports/manifests/:manifestId/sources")
+  @Roles("editor")
+  @ApiOperation({
+    summary: "Reissue a browser manifest's source URLs once the originals expire",
+    description:
+      "Same ownership checks as the completion callback, minus the nonce claim: refreshing does " +
+      "not consume anything.",
+    operationId: "refreshExportManifestSources",
+  })
+  @ApiOkResponse({ type: ExportSourcesDto })
+  @ApiNotFoundResponse({ description: "`export/manifest_not_found`." })
+  @ApiConflictResponse({
+    description: "`export/manifest_invalid` or `export/manifest_already_consumed`.",
+  })
+  @ApiGoneResponse({ description: "`export/manifest_expired`." })
+  async refreshSources(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("manifestId") manifestId: string,
+  ): Promise<ExportSourcesDto> {
+    return this.exports.refreshSources(manifestId, principal.workspaceId);
+  }
+
   @Get("projects/:projectId/exports")
   @Roles("viewer")
   @ApiOperation({ summary: "List a project's exports", operationId: "listProjectExports" })
@@ -158,6 +183,7 @@ export class ExportsController {
   @Get("exports/:exportId/download")
   @Roles("viewer")
   @HttpCode(HttpStatus.OK)
+  @LogAccess("export")
   @ApiOperation({
     summary: "A short-lived signed download URL",
     description: "409 `export/not_ready` for a browser export — it never leaves the browser.",

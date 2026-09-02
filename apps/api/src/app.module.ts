@@ -18,12 +18,14 @@ import { InvoicesModule } from "./invoices/invoices.module.js";
 import { JobsModule } from "./jobs/jobs.module.js";
 import { LicensingModule } from "./licensing/licensing.module.js";
 import { MediaModule } from "./media/media.module.js";
+import { MemoryModule } from "./memory/memory.module.js";
 import { NotifyModule } from "./notify/notify.module.js";
 import { OffersModule } from "./offers/offers.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { ReferralsModule } from "./referrals/referrals.module.js";
+import { SchedulerTasksModule } from "./scheduler/scheduler-tasks.module.js";
 import { StreakModule } from "./streak/streak.module.js";
 import { StylesModule } from "./styles/styles.module.js";
 import { TaxModule } from "./tax/tax.module.js";
@@ -96,6 +98,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     NotifyModule,
     ProjectsModule,
     MediaModule,
+    MemoryModule,
     StylesModule,
     InternalModule,
     AdminModule,
@@ -120,6 +123,10 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     TeamsModule,
     LicensingModule,
     AffiliatesModule,
+    // B16: the scheduler wiring `media/retention.service.ts`, `billing/renewal.
+    // service.ts` and the rest documented as "B16's to schedule" — plus the
+    // sweeps and reports this work package owns outright.
+    SchedulerTasksModule,
   ],
 })
 export class AppModule {}

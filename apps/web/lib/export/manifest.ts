@@ -42,6 +42,7 @@ import {
 import {
   exportEndpoints,
   manifestFromResponse,
+  type ExportSources,
   type CreateExportRequest,
   type CreateExportResponse,
   type ManifestCompleteResponse,
@@ -116,4 +117,16 @@ export async function completeExportManifest(
     params: { manifestId },
     body: result,
   });
+}
+
+/**
+ * A21b: reissues `sources` once the 15-minute presigned GETs it was issued
+ * with expire mid-export. Same ownership checks as completion, minus the
+ * nonce claim.
+ */
+export async function refreshExportSources(
+  client: ApiClient,
+  manifestId: string,
+): Promise<ExportSources> {
+  return client.call(exportEndpoints.refreshSources, { params: { manifestId } });
 }

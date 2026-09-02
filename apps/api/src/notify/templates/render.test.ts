@@ -71,6 +71,13 @@ const DATA: Readonly<Record<NotifyKind, TemplateData>> = {
     level: 2,
     link: "https://app.example.test/billing",
   },
+  "retention-warning": {
+    name: "Asha",
+    projectTitle: "Diwali reel",
+    retentionUntil: "2026-10-01",
+    days: 14,
+    link: "https://app.example.test/projects/p1",
+  },
 };
 
 const UNSUBSCRIBE = "https://app.example.test/settings/notifications";

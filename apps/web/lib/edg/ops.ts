@@ -88,6 +88,11 @@ export function insertWordAfter(
   };
 }
 
+/** Retimes one word; segment bounds are unaffected (they are their own op). */
+export function setWordTiming(wordId: string, s: number, e: number, newOpId: OpIdFactory): EdgOp {
+  return { type: "SetWordTiming", opId: newOpId(), wordId: asWordId(wordId), s, e };
+}
+
 export function splitSegment(
   segmentId: string,
   atWordId: string,
@@ -332,6 +337,12 @@ export function computeInverseOps(
 
     case "InsertWordAfter":
       return [deleteWord(op.newWordId, newOpId)];
+
+    case "SetWordTiming": {
+      const word = state.words.get(op.wordId);
+      if (word === undefined) return [];
+      return [setWordTiming(op.wordId, word.s, word.e, newOpId)];
+    }
 
     case "SplitSegment":
       return [mergeSegments([op.segmentId, op.newSegmentId], op.segmentId, newOpId)];

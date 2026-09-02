@@ -38,7 +38,12 @@ import {
   type Viewport,
 } from "@/lib/timeline/coords";
 import { buildLanes, laneStateColor, type LaneRow } from "@/lib/timeline/lanes";
-import { noopNudgeSink, segmentEdgeNudge, type TimingNudgeSink } from "@/lib/timeline/nudge";
+import {
+  noopNudgeSink,
+  segmentEdgeNudge,
+  type TimingNudgeSink,
+  wordEdgeNudge,
+} from "@/lib/timeline/nudge";
 import {
   displayDurationMs,
   isCutAway,
@@ -47,7 +52,7 @@ import {
   toSourceMs,
   type TimeDisplayMode,
 } from "@/lib/timeline/output-clock";
-import { resolveSegmentDrag, type Neighbour } from "@/lib/timeline/snapping";
+import { resolveSegmentDrag, resolveWordEdgeDrag, type Neighbour } from "@/lib/timeline/snapping";
 import { reduceWaveform, type WaveformLike } from "@/lib/timeline/waveform-view";
 import { cn } from "@/lib/utils";
 
@@ -72,6 +77,13 @@ export interface SegmentBoundsOp {
   readonly endWordId?: string;
 }
 
+/** One resolved word-edge drag, ready for `SetWordTiming{wordId, s, e}` (A02d). */
+export interface WordTimingOp {
+  readonly wordId: string;
+  readonly s: number;
+  readonly e: number;
+}
+
 export interface TimelineProps {
   readonly words: readonly Word[];
   readonly segments: readonly Segment[];
@@ -87,6 +99,7 @@ export interface TimelineProps {
   readonly onSelectSegment?: (segmentId: string | undefined) => void;
   readonly onSelectWord?: (segmentId: string, wordId: string) => void;
   readonly onSetSegmentBounds: (op: SegmentBoundsOp) => void;
+  readonly onSetWordTiming?: (op: WordTimingOp) => void;
   readonly onSplitSegment?: (segmentId: string, atWordId: string) => void;
   readonly onMergeSegments?: (segmentIds: readonly [string, string]) => void;
   readonly timeMap?: TimeMap;
@@ -98,8 +111,9 @@ export interface TimelineProps {
 
 interface DragState {
   readonly pointerId: number;
-  readonly kind: "segment-edge" | "playhead";
+  readonly kind: "segment-edge" | "word-edge" | "playhead";
   readonly segmentId?: string;
+  readonly wordId?: string;
   readonly edge?: "start" | "end";
   readonly startMs?: number;
   readonly endMs?: number;
@@ -131,6 +145,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     onSelectSegment,
     onSelectWord,
     onSetSegmentBounds,
+    onSetWordTiming,
     onSplitSegment,
     onMergeSegments,
     timeMap,
@@ -149,6 +164,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   const [msPerPx, setMsPerPx] = useState(30);
   const [scrollMs, setScrollMs] = useState(0);
   const [selectedEdge, setSelectedEdge] = useState<"start" | "end" | undefined>(undefined);
+  const [selectedWordEdge, setSelectedWordEdge] = useState<"start" | "end" | undefined>(undefined);
   const [, forceRedraw] = useState(0);
 
   useLayoutEffect(() => {
@@ -263,9 +279,15 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
 
     // Word lane
     for (const word of liveWords) {
-      if (word.e < startMs || word.s > endMs) continue;
-      const x0 = msToPx(word.s, viewport);
-      const x1 = msToPx(word.e, viewport);
+      const preview =
+        dragRef.current?.kind === "word-edge" && dragRef.current.wordId === word.wid
+          ? dragPreviewRef.current
+          : undefined;
+      const wordStartMs = preview?.startMs ?? word.s;
+      const wordEndMs = preview?.endMs ?? word.e;
+      if (wordEndMs < startMs || wordStartMs > endMs) continue;
+      const x0 = msToPx(wordStartMs, viewport);
+      const x1 = msToPx(wordEndMs, viewport);
       const w = Math.max(1, x1 - x0);
       const selected = word.wid === selectedWordId;
       const lowConfidence = word.c !== undefined && word.c < 0.6;
@@ -278,6 +300,11 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       if (lowConfidence) {
         ctx.fillStyle = "#f59e0b";
         ctx.fillRect(x0, laneTops.wordTop + WORD_LANE_HEIGHT - 2, w, 2);
+      }
+      if (selected) {
+        ctx.fillStyle = "#7c8ff0";
+        ctx.fillRect(x0 - 1, laneTops.wordTop, 2, WORD_LANE_HEIGHT);
+        ctx.fillRect(x1 - 1, laneTops.wordTop, 2, WORD_LANE_HEIGHT);
       }
       if (w >= MIN_PX_PER_WORD_LABEL) {
         ctx.fillStyle = selected ? "#0b0b12" : "rgba(255,255,255,0.9)";
@@ -393,6 +420,34 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     [segments, viewport, laneTops.segmentTop],
   );
 
+  /** The live word immediately before/after `word` in document order (A02d). */
+  const wordNeighbours = useCallback(
+    (word: Word): { prev?: Neighbour; next?: Neighbour } => {
+      const index = liveWords.findIndex((w) => w.wid === word.wid);
+      const prev = index > 0 ? liveWords[index - 1] : undefined;
+      const next = index >= 0 && index < liveWords.length - 1 ? liveWords[index + 1] : undefined;
+      return {
+        ...(prev && { prev: { startMs: prev.s, endMs: prev.e } }),
+        ...(next && { next: { startMs: next.s, endMs: next.e } }),
+      };
+    },
+    [liveWords],
+  );
+
+  const hitTestWordEdge = useCallback(
+    (px: number, py: number): { word: Word; edge: "start" | "end" } | undefined => {
+      if (py < laneTops.wordTop || py > laneTops.wordTop + WORD_LANE_HEIGHT) return undefined;
+      for (const word of liveWords) {
+        const x0 = msToPx(word.s, viewport);
+        const x1 = msToPx(word.e, viewport);
+        if (Math.abs(px - x0) <= EDGE_HIT_PX) return { word, edge: "start" };
+        if (Math.abs(px - x1) <= EDGE_HIT_PX) return { word, edge: "end" };
+      }
+      return undefined;
+    },
+    [liveWords, viewport, laneTops.wordTop],
+  );
+
   const hitTestSegmentBody = useCallback(
     (px: number, py: number): Segment | undefined => {
       if (py < laneTops.segmentTop || py > laneTops.segmentTop + SEGMENT_LANE_HEIGHT)
@@ -450,6 +505,26 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         return;
       }
 
+      const wordEdgeHit = hitTestWordEdge(px, py);
+      if (wordEdgeHit !== undefined && onSetWordTiming !== undefined) {
+        dragRef.current = {
+          pointerId: event.pointerId,
+          kind: "word-edge",
+          wordId: wordEdgeHit.word.wid,
+          edge: wordEdgeHit.edge,
+          startMs: wordEdgeHit.word.s,
+          endMs: wordEdgeHit.word.e,
+        };
+        dragPreviewRef.current = { startMs: wordEdgeHit.word.s, endMs: wordEdgeHit.word.e };
+        setSelectedWordEdge(wordEdgeHit.edge);
+        const owner = segments.find((s) =>
+          wordIdWithin(wordEdgeHit.word.wid, s.startWordId, s.endWordId),
+        );
+        if (owner !== undefined) onSelectWord?.(owner.id, wordEdgeHit.word.wid);
+        event.currentTarget.setPointerCapture(event.pointerId);
+        return;
+      }
+
       const word = hitTestWord(px, py);
       if (word !== undefined) {
         const owner = segments.find((s) => wordIdWithin(word.wid, s.startWordId, s.endWordId));
@@ -468,11 +543,13 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     },
     [
       hitTestSegmentEdge,
+      hitTestWordEdge,
       hitTestWord,
       hitTestSegmentBody,
       onSeek,
       onSelectSegment,
       onSelectWord,
+      onSetWordTiming,
       segments,
       viewport,
       displayMode,
@@ -503,9 +580,29 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         });
         dragPreviewRef.current = resolved;
         forceRedraw((n) => n + 1);
+        return;
+      }
+
+      if (drag.kind === "word-edge" && drag.wordId !== undefined && drag.edge !== undefined) {
+        const word = liveWords.find((w) => w.wid === drag.wordId);
+        if (word === undefined) return;
+        const candidateMs = pxToMs(px, viewport);
+        const neighbours = wordNeighbours(word);
+        const boundaries = [
+          ...(neighbours.prev !== undefined ? [neighbours.prev.endMs] : []),
+          ...(neighbours.next !== undefined ? [neighbours.next.startMs] : []),
+        ];
+        const resolved = resolveWordEdgeDrag(
+          drag.edge,
+          candidateMs,
+          { startMs: word.s, endMs: word.e },
+          { wordBoundaries: boundaries, neighbours },
+        );
+        dragPreviewRef.current = resolved;
+        forceRedraw((n) => n + 1);
       }
     },
-    [segments, viewport, wordBoundariesOf, onSeek, displayMode, timeMap],
+    [segments, liveWords, viewport, wordBoundariesOf, wordNeighbours, onSeek, displayMode, timeMap],
   );
 
   const onPointerUp = useCallback(
@@ -540,11 +637,24 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         }
       }
 
+      if (drag.kind === "word-edge" && drag.wordId !== undefined && drag.edge !== undefined) {
+        const word = liveWords.find((w) => w.wid === drag.wordId);
+        const resolved = dragPreviewRef.current;
+        if (word !== undefined && resolved !== undefined && onSetWordTiming !== undefined) {
+          const fromMs = drag.edge === "start" ? word.s : word.e;
+          const toMs = drag.edge === "start" ? resolved.startMs : resolved.endMs;
+          if (fromMs !== toMs) {
+            onSetWordTiming({ wordId: word.wid, s: resolved.startMs, e: resolved.endMs });
+            nudgeSink.record(wordEdgeNudge(drag.edge, word.wid, fromMs, toMs));
+          }
+        }
+      }
+
       dragRef.current = undefined;
       dragPreviewRef.current = undefined;
       forceRedraw((n) => n + 1);
     },
-    [segments, wordBoundariesOf, liveWords, onSetSegmentBounds, nudgeSink],
+    [segments, wordBoundariesOf, liveWords, onSetSegmentBounds, onSetWordTiming, nudgeSink],
   );
 
   const onDoubleClick = useCallback(
@@ -603,6 +713,47 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   // ---------------------------------------------------------------------
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      // Alt+Arrow nudges the selected word's edge (A02d), independent of the
+      // plain-arrow segment nudge below — the two never fight over a keystroke
+      // because a word is only selected once a word (not a segment) was clicked.
+      if (
+        event.altKey &&
+        selectedWordId !== undefined &&
+        onSetWordTiming !== undefined &&
+        (event.key === "ArrowLeft" || event.key === "ArrowRight")
+      ) {
+        const word = liveWords.find((w) => w.wid === selectedWordId);
+        if (word === undefined) return;
+        event.preventDefault();
+        const step = event.shiftKey ? 100 : 10;
+        const edge = selectedWordEdge ?? "end";
+        const direction = event.key === "ArrowLeft" ? -1 : 1;
+        const current = edge === "start" ? word.s : word.e;
+        const candidateMs = current + direction * step;
+        const neighbours = wordNeighbours(word);
+        const boundaries = [
+          ...(neighbours.prev !== undefined ? [neighbours.prev.endMs] : []),
+          ...(neighbours.next !== undefined ? [neighbours.next.startMs] : []),
+        ];
+        const resolved = resolveWordEdgeDrag(
+          edge,
+          candidateMs,
+          { startMs: word.s, endMs: word.e },
+          { wordBoundaries: boundaries, neighbours },
+        );
+        const toMs = edge === "start" ? resolved.startMs : resolved.endMs;
+        if (toMs !== current) {
+          onSetWordTiming({ wordId: word.wid, s: resolved.startMs, e: resolved.endMs });
+          nudgeSink.record(wordEdgeNudge(edge, word.wid, current, toMs));
+        }
+        return;
+      }
+      if (event.altKey && event.key === "Tab" && !event.shiftKey && selectedWordId !== undefined) {
+        event.preventDefault();
+        setSelectedWordEdge((edge) => (edge === "start" ? "end" : "start"));
+        return;
+      }
+
       if (selectedSegmentId === undefined) return;
       const segment = segments.find((s) => s.id === selectedSegmentId);
       if (segment === undefined) return;
@@ -634,7 +785,19 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         setSelectedEdge(edge === "start" ? "end" : "start");
       }
     },
-    [selectedSegmentId, segments, selectedEdge, wordBoundariesOf, onSetSegmentBounds, nudgeSink],
+    [
+      selectedSegmentId,
+      selectedWordId,
+      selectedWordEdge,
+      segments,
+      liveWords,
+      selectedEdge,
+      wordBoundariesOf,
+      wordNeighbours,
+      onSetSegmentBounds,
+      onSetWordTiming,
+      nudgeSink,
+    ],
   );
 
   const ariaDescription = useMemo(() => {
@@ -651,11 +814,17 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     }
     if (selectedWordId !== undefined) {
       const word = liveWords.find((w) => w.wid === selectedWordId);
-      if (word !== undefined) parts.push(`Word selected: "${word.t}".`);
+      if (word !== undefined) {
+        parts.push(
+          `Word selected: "${word.t}"${
+            selectedWordEdge !== undefined ? `, ${selectedWordEdge} edge active` : ""
+          }.`,
+        );
+      }
     }
     if (parts.length === 0) parts.push("No selection.");
     return parts.join(" ");
-  }, [selectedSegmentId, selectedWordId, segments, liveWords, selectedEdge]);
+  }, [selectedSegmentId, selectedWordId, segments, liveWords, selectedEdge, selectedWordEdge]);
 
   return (
     <div

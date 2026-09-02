@@ -25,6 +25,30 @@
  * (and its complexity budget proven) without rendering anything.
  */
 
+/**
+ * A pre-measurement estimate for a caption row, from its word count alone —
+ * no DOM read required. `TranscriptList.tsx` seeds a newly-mounted row's
+ * height with this the moment it renders, instead of forcing a synchronous
+ * layout (`getBoundingClientRect`) before first paint; the shared
+ * `ResizeObserver` corrects it to the real measured height asynchronously
+ * once the browser has actually laid the row out.
+ *
+ * The constants approximate this app's caption row: a header line (speaker
+ * chip + timestamp), then wrapped word chips at roughly `WORDS_PER_LINE`
+ * words per line at the transcript column's default width. A rough estimate
+ * that avoids a forced reflow storm beats an exact one that causes it — the
+ * `ResizeObserver` fixes up any drift within a frame or two.
+ */
+const HEADER_HEIGHT = 28;
+const LINE_HEIGHT = 24;
+const ROW_VERTICAL_PADDING = 16;
+const WORDS_PER_LINE = 12;
+
+export function estimateSegmentHeight(wordCount: number): number {
+  const lines = Math.max(1, Math.ceil(wordCount / WORDS_PER_LINE));
+  return HEADER_HEIGHT + lines * LINE_HEIGHT + ROW_VERTICAL_PADDING;
+}
+
 export interface VisibleRange {
   readonly startIndex: number;
   readonly endIndex: number;

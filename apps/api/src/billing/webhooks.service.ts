@@ -382,10 +382,31 @@ export class WebhooksService {
     if (oneTimeSubscription !== null)
       return this.activateOneTimeSubscription(event, oneTimeSubscription);
 
+    // Prefer an unconsumed match, newest first. A payment webhook is about
+    // *one* order that has not been granted yet; scoping out already-consumed
+    // rows (rather than taking whichever `findFirst` returns with no order at
+    // all) matters because `FakeProvider` (dev/test only, never the live
+    // Razorpay integration) mints IDs like `order_fake_000001` from a counter
+    // that restarts at 1 with the process, so two *different* orders across two
+    // process lifetimes can share the same string in a database that persists
+    // across restarts -- a real Razorpay order id has no such collision. Without
+    // this, an older, already-granted row for a *different* workspace can match
+    // first and this call replays "processed" against it while the real target
+    // row is silently left ungranted.
     const passPurchase = await this.prisma.passPurchase.findFirst({
-      where: { providerOrderId: orderId },
+      where: { providerOrderId: orderId, consumedAt: null },
+      orderBy: { createdAt: "desc" },
     });
     if (passPurchase !== null) return this.grantPass(event, passPurchase);
+
+    // Every candidate for this order id was already consumed (a genuine
+    // replay of an event already applied) -- answer replay-safe rather than
+    // "ignored" so a retried delivery does not read as a dropped webhook.
+    const consumedMatch = await this.prisma.passPurchase.findFirst({
+      where: { providerOrderId: orderId },
+      orderBy: { createdAt: "desc" },
+    });
+    if (consumedMatch !== null) return "processed";
 
     return "ignored";
   }

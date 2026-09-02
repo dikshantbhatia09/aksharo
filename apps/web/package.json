@@ -51,6 +51,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
+    "@montaj/render-skia-node": "workspace:*",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",
@@ -60,6 +61,7 @@
     "@types/pg": "^8.15.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
+    "canvaskit-wasm": "0.42.0",
     "eslint": "^9.39.5",
     "fake-indexeddb": "^6.2.2",
     "fast-check": "^3.23.2",

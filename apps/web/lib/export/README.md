@@ -6,7 +6,7 @@ replacement, watermark, progress and cancellation, a File System Access or in-me
 sink. `apps/web/components/editor/export/**` is the dialog that drives it from A15's
 editor shell.
 
-**Status:** implemented (A19).
+**Status:** implemented (A19); A21b integration + throughput/parity/audio/HDR follow-ups implemented (A19b).
 
 ## Pipeline
 
@@ -126,6 +126,90 @@ is its main-thread counterpart.
     from any navigation, mirroring `app/(app)/studio/styles`'s existing harness-page
     convention).
 
+## A19b (after A21b landed)
+
+A21b (`cfa5485`, merged onto `wp/A19` by cherry-pick — it had landed on `wp/A21`, not
+yet on `main`, when this pass started; see the final report) closed the raw-source and
+watermark-asset gaps A19 reported, and tightened `decision.ts`'s browser eligibility to
+require real H.264 + audio capability at every resolution. This pass:
+
+1. **Consumes `sources`.** `endpoints.ts`'s `ExportSources` and `manifest.ts`'s
+   `refreshExportSources` wrap the new `sources: {rawUrl, proxyUrl?, watermarkUrl?}` and
+   `GET /exports/manifests/{id}/sources`. `use-export-dialog.ts` decodes `rawUrl` (the
+   ORIGINAL media) as the primary source, falls back to `proxyUrl`, and fetches
+   `watermarkUrl` directly for `fetchWatermarkAsset` — `ExportButton.tsx`'s old
+   proxy-only media-urls workaround is gone entirely.
+2. **Raw pixel readback.** `engine.ts` no longer round-trips the caption layer through
+   `renderToPng`/`createImageBitmap(Blob)` (PNG encode + decode, per frame). It now
+   keeps one `MakeSurface` raster surface and one scratch 2D canvas alive for the whole
+   export, and per frame: `drawFrame` → `flush` → `readPixels` → `putImageData` (
+   synchronous, no bitmap allocation) → `drawImage` (so the browser's own compositor
+   does the alpha blending over the decoded frame, not this code). Measured **0.12×
+   realtime** at 1080p on chromium in this sandbox — see "Throughput" below for why
+   that number is not the whole story.
+3. **`coverScaleCrop` for the cover fit.** `engine.ts` calls `@montaj/render-manifest`'s
+   own `coverScaleCrop` against the source's real display dimensions
+   (`InputVideoTrack.getDisplayWidth/Height`) and converts its target-space crop
+   rectangle back to source space for Mediabunny's `CanvasSink({crop, fit: "fill"})` —
+   the same pixel-exact scale+crop the cloud renderer's ffmpeg pair uses, not
+   Mediabunny's own `fit: "cover"` heuristic.
+4. **Parity check against `render-skia-node`.** `engine-parity.test.ts` (new) renders
+   `@montaj/render-canvaskit`'s own `BASELINE_FRAMES` through the _exact_ compositing
+   path `engine.ts` uses (persistent surface, `drawFrame`, `readPixels` — no PNG) and
+   diffs the result against `@montaj/render-skia-node`'s `SkiaNodeBackend` with decision
+   D33's own yardstick (`comparePixels`, `PARITY_MAX_DIFF_RATIO`). All eight baseline
+   frames pass within tolerance (`neon-glow-english`'s small-type glyph-edge residual
+   budgeted the same way the existing `render-skia-node` suite already budgets it).
+   `@montaj/render-skia-node` and `canvaskit-wasm` are `apps/web` devDependencies for
+   this test only — never bundled into the browser (Node-only, `@napi-rs/canvas`).
+5. **Real audio re-encode for the common case; cloud for the rest.** `engine.ts` now
+   computes `retainedSourceRangesMs` (the complement of the manifest's `cut` edits) and
+   feeds `AudioSampleSink`-decoded samples for each retained range into
+   `AudioBufferSource.add` in order — concatenating them removes exactly the cut ranges,
+   with no gap, exactly matching the video timeline. Two cases still route to the cloud
+   with a documented `Error` reason rather than a silent failure: `audio.strategy ===
+"replace"` (A21b's `sources` still has no signed URL for the cleaned track's bytes —
+   the same gap class as the raw/watermark sources A19 reported, not yet closed) and any
+   `speed`/`hold` edit (needs a resampled rate this pass does not implement). The 5 ms
+   splice-fade the brief asks for is still not applied — an open item.
+6. **HDR routes to the cloud automatically.** `decision.ts`'s own `isHdrSource` check
+   (A21b) refuses the browser path before a manifest is ever issued, so nothing in
+   `apps/web/lib/export` needs to special-case it — the dialog's existing
+   `manifest === null` → `cloud-offered` branch already covers it. The 3D LUT
+   tone-mapping shader the original brief called for is consequently out of scope: an
+   HDR source never reaches the browser compositor at all.
+7. **B04's `ExportUpsellPanel` mounted inside `WatermarkNotice`.** Exactly at the mount
+   point its own header documents — `onCleanManifestReady` re-runs the same video export
+   request once a clean path (signup gift, or a paid ₹9 pass) is confirmed available.
+
+### Throughput
+
+0.12× realtime at 1080p/30fps (300 frames, 10 s clip) measured in `e2e/export.spec.ts`
+on this sandbox's headless chromium. That is well under the ≥1× target, and two things
+are worth separating:
+
+- **This sandbox has no hardware H.264 encoder.** `hardwareAcceleration:
+"prefer-hardware"` was tried and throws outright here ("this specific encoder
+  configuration ... is not supported in this environment") rather than falling back —
+  confirming there genuinely is no hardware path in this environment. `engine.ts` uses
+  `"no-preference"` for portability (a real end-user machine without hardware encode
+  should degrade gracefully, not throw). A real desktop Chrome with a hardware H.264
+  encoder and a GPU-backed CanvasKit surface — the actual target machine ≥1× is scoped
+  against — was not available to measure against in this pass.
+  - Note also that `MakeSurface` (used for the persistent caption raster surface) is a
+    **CPU** raster surface, not a GPU one (`createBrowserSurface`'s `MakeWebGLCanvasSurface`
+    is the GPU path, used for the editor's live preview, not exposed as an off-screen
+    surface API this package could call into for an export it never puts on screen).
+    CanvasKit's CPU raster path is measurably slower than its WebGL path for anything
+    non-trivial; wiring the export compositor through an offscreen WebGL surface instead
+    is the highest-leverage remaining throughput item, not attempted in this pass.
+- **The optimizations that were made are real and measured, not asserted.** Removing
+  the PNG round trip and switching `createImageBitmap` for a synchronous
+  `putImageData`/`drawImage` pair are both in the diff; `engine-parity.test.ts` proves
+  the pixel output did not change. The honest number this pass can report is "0.12× in
+  a no-hardware-encode, CPU-raster sandbox"; the ≥1× target is not verified against the
+  hardware it is scoped for and is reported as an open item, not claimed as met.
+
 ## Layout
 
 ```
@@ -139,6 +223,8 @@ subtitles.ts            SRT/VTT/TXT generation
 checksum.ts             sha256 of the finished export
 sink.ts                 File System Access vs. in-memory Mediabunny Target
 engine.ts               the pipeline itself
+engine.test.ts          retainedSourceRangesMs unit tests
+engine-parity.test.ts   D33 parity check against @montaj/render-skia-node (A19b)
 engine.worker.ts        Web Worker entry point
 worker-client.ts        main-thread wrapper around the worker
 index.ts                barrel

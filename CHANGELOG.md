@@ -10,6 +10,24 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Fixed
 
+- **B06b — a Free downgrade now switches the streak row to credits-only
+  immediately, not just at assignment.** B06's `ensureAssigned` only set
+  `creditsOnly` on first insert, so a workspace that downgraded to Free
+  mid-streak kept its L2/L3 renewal discount and L4/L5 credit-lot
+  entitlement (04 §Streak: Free earns credits only). `StreakService` now
+  re-derives `creditsOnly` from the workspace's _current_ plan on every
+  `getView`/`getDiscountPercent` read and every `rolloverOne`, persisting
+  the flip; `streak.engine.ts#rolloverWeek` takes a `planIsFree` input and
+  resets the progression counter on a flip (the level-up track and the Free
+  2-week credit track count different things); a later upgrade flips
+  `creditsOnly` back and restores the discount at the next rollover. A
+  level never decreases either way. Also fixed two pre-existing gaps this
+  surfaced: `StreakService.getView`'s `discountPercent`/`creditGrantTenths`
+  did not check `creditsOnly`/`paused` (only `getDiscountPercent` did), and
+  the monthly L4/L5 credit grant in `rolloverOne` did not guard against a
+  workspace that leveled up pre-downgrade and is now credits-only. See
+  `apps/api/src/streak/README.md` §"Plan-derived `creditsOnly`".
+
 - **A18a-c — fixed the stale seed parity-flag assertion in
   `apps/api/test/database.e2e-spec.ts`.** The "leaves the parity flags at their
   pessimistic defaults" test predated A18a's change to `apps/api/prisma/seed.ts`,
@@ -27,6 +45,21 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `packages/caption-styles/src/registry.test.ts`'s "has parity flags written by
   the A18a gate for every shipped style (D33)", referenced in the new test rather
   than duplicated.
+- **A15c — editor transcript scroll performance.** `TranscriptList`'s `MeasuredRow` no
+  longer calls `getBoundingClientRect()` synchronously on every newly-mounted row (a
+  forced layout, ~20-30 times a frame during the adversarial "jump the whole list every
+  frame" scroll pattern); rows now seed the virtualiser with a content-based estimate
+  (`estimateSegmentHeight()`, `lib/edg/virtual-list.ts`, from word count alone — no DOM
+  read) and let the already-shared `ResizeObserver` correct it asynchronously.
+  `SegmentCard` and `WordChip` are now `React.memo`'d, and `TranscriptList` caches each
+  visible segment's `wordsOf()` result by segment id so re-renders that do not actually
+  change a row's content (most of a natural wheel scroll, and the overlap between
+  overscan windows) get a stable `words` array reference instead of a fresh one every
+  render — both were previously defeated by `wordsOf()` recomputing on every call.
+  `SegmentCard`'s per-word `onSelect` closure is now `useCallback`-memoised so it does
+  not itself break `WordChip.memo`. Overscan reduced from 8 to 6 rows per the brief.
+
+### Fixed
 
 - **B03b — unified the two `apps/web/lib/billing/razorpay.ts` modules B03 and B04 each
   wrote (add/add conflict merging main).** One module now backs both: the checkout
@@ -84,6 +117,136 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `defaultStyleId`, `defaultExportPreset`, `coachMarksShownAt`) fits its
   existing bounded schema — a parallel route would only duplicate that seam.
 
+- **B09 — learned memory (spellings, glossary, timing nudge, style prefs), opt-in
+  and erasable (F-204, D62).** `apps/api/src/memory/`: `MemoryService` — a
+  consent-gated CRUD/import/clear surface over `memory_entries` (the table and
+  its consent-filtered reader, `MemoryGlossarySource`, already existed from
+  A11). Every mutating call re-reads the caller's live, un-withdrawn `memory`
+  consent record rather than trusting a cached flag (the same shape as
+  `MemoryGlossarySource`'s own gate), so nothing is stored without consent and
+  a withdrawal is honoured on the very next write. `GET/POST/PATCH/DELETE
+/memory`, `DELETE /memory` (clear all), `POST /memory/import` (CSV bulk
+  glossary import: `term` or `term,alias1;alias2` per line), plus three
+  learning-hook routes other work packages call into: `POST
+/memory/hooks/spelling-fix` (A15's "Fix spelling everywhere" -> a `spelling`
+  entry, script-aware), `POST /memory/hooks/timing-nudge` (a drag delta ->
+  a rolling median per-workspace caption offset, `medianOf`), `POST
+/memory/hooks/style-pref` (last style/template used per aspect). Entries
+  carry a 12-month rolling expiry refreshed on every write, `hits`/`lastUsedAt`
+  usage counters, and a `deviceOnly` flag; withdrawing the `memory` consent
+  erases every entry for the user via a new `consent.withdrawn` event
+  (`memory/consent-events.ts`) emitted from `ConsentsService` — a small,
+  documented, additive edit outside this work package's file boundary (same
+  precedent as `invoices/billing-events.ts`). `apps/worker-ai/worker_ai/hints/`:
+  `prepare_hints()`, a pure dedupe/trim/cap step for glossary terms ahead of
+  the provider-specific shaping (`word_boost`, `vocabulary`, `keyterms`,
+  `initial_prompt`) A09/A11 already built per-provider. `packages/api-client`:
+  real `/memory` endpoints and hooks (`useMemoryEntries`, `useCreateMemoryEntry`,
+  `useUpdateMemoryEntry`, `useDeleteMemoryEntry`, `useClearMemory`,
+  `useImportMemoryGlossary`) replacing the B09 pending stubs. `apps/web/app/(app)/settings/memory/`:
+  edit/delete per entry, a glossary add-one-term control and CSV import, usage
+  counters and expiry display, alongside the existing consent-gated empty/disabled
+  states and clear-all confirmation.
+
+- **A02d — `SetWordTiming{wordId, s, e}` end to end.** CONTRACTS §2's new op lands in
+  `packages/edg`: `applyOps` writes `Word.s/e` (integer ms) after checking `s < e`, no
+  overlap with the previous/next **live** word in the same chunk, the range stays inside
+  that chunk's own bounds, and it stays inside the segment that currently contains the
+  word — segment bounds are never recomputed, that is `SetSegmentBounds`'s job, but
+  `validateProjection` still has to hold. Rebase field `timing:<wordId>` is last-write-
+  wins, `stale` after a `DeleteWord` of the same word, and — being word-level, not
+  segment-addressed — untouched by a `Resegment` in between. `edg-ops-v2.json`
+  regenerated; README's op list and rebase table updated; the property test now fires
+  random `SetWordTiming`s too. `apps/api/src/edg`: the op flows through the existing
+  batch endpoint and `persistWords`/`transcripts.currentRevision` unchanged; the working
+  set (`edg.working-set.ts`) gained `timingWordIds` and `edg.repository.ts`'s new
+  `resolveTimingSegments` reads a retimed word's own chunk first so the containing
+  segment (unlike every other word op, `SetWordTiming` carries no `segmentId`) is loaded
+  for the bounds check without loading the whole document; two new e2e cases prove
+  persistence through `GET /projects/{id}/transcript` and rejection on overlap.
+  `apps/web/lib/edg/ops.ts` gained the `setWordTiming` builder and its
+  `computeInverseOps` case (inverts to the word's prior `s/e`), picked up by A15's
+  existing generic op batching and undo stack with no further wiring. The timeline's
+  word lane (`apps/web/components/editor/timeline/Timeline.tsx`) is no longer read-only:
+  each word's edges are draggable with the same 40 ms neighbour-boundary snapping as a
+  segment edge (`lib/timeline/snapping.ts`'s new `resolveWordEdgeDrag`/`MIN_WORD_MS`,
+  proven by the same never-overlaps property test as segments), clamped so a drag can
+  never invert or overlap, emits one `SetWordTiming` on pointer-up, and Alt+Arrow nudges
+  the selected word's active edge (Alt+Tab toggles which edge) the same way plain Arrow
+  already nudges a selected segment. Drag/nudge deltas feed `lib/timeline/nudge.ts`'s
+  sink through two new kinds, `word-start`/`word-end`, alongside the existing
+  `segment-start`/`segment-end`.
+- **B16 — scheduler tasks, audit log completion, and the privacy module
+  (erasure cascade, DSR tracking, data export, breach incidents, consent
+  completion, access logs, sub-processor list).**
+  - `apps/api/src/scheduler/tasks/`: the scheduler wiring several already-landed
+    services documented themselves as waiting on — `media-retention.task.ts`
+    (A06's `RetentionService.purgeDueMedia`) and `renewal-dunning.task.ts`
+    (B01's `RenewalService.initiateRenewal`/`graceExpiry`) — plus tasks B16
+    owns outright: `project-retention.task.ts` (−14 d `retention-warning`
+    email, then soft-delete + pulls media purge dates forward),
+    `export-retention.task.ts` (expires `exports`/`export_manifests`),
+    `device-code-expiry.task.ts`, `memory-entry-expiry.task.ts`,
+    `provider-deletion-followup.task.ts` (calls a provider deletion API where
+    one is registered, else logs one audit summary of the manual queue),
+    `access-log-purge.task.ts` (1-year retention), `share-report-sla.task.ts`,
+    `ledger-reconciliation.task.ts` (pages on a cache/ledger mismatch, never
+    repairs), `export-filing-report.task.ts` (monthly GSTR-1 aggregate,
+    idempotent via `invoices.gstr1Period`) and `usage-report.task.ts`
+    (explicitly a stub per the brief). Commission maturation, payout batching,
+    credit grant reset/lot expiry and streak rollover/nudge were already
+    registered by B07/B02/B06 against the same A08 primitive and are not
+    duplicated here. `admin/scheduler/admin-scheduler.controller.ts` is the
+    one manual-trigger surface for every registered task
+    (`POST /admin/scheduler/tasks/:name/run`).
+  - `apps/api/src/privacy/erasure-cascade.service.ts` + `.task.ts`: the
+    30-day cascade `DELETE /me` (A05) starts — object stores first, rows
+    second, per workspace the requester owns; billing documents (`invoices`)
+    are retained with `recipientEmail` minimised, never hard-deleted, because
+    `invoices.workspace_id` is `onDelete: Cascade` in this schema and a hard
+    workspace delete would take 72-month-retained billing records with it
+    (flagged as a seam for a future ADR, not changed here). Added the 409
+    `me/owner_of_workspaces` refusal (B16 addendum after A05) to
+    `ProfileService.requestErasure`.
+  - `apps/api/src/privacy/residue-check.service.ts`: reads the Prisma DMMF to
+    find every model with a `userId`/`workspaceId` column and count residue —
+    used by the erasure-sweep contract test, and by
+    `POST /admin/privacy/erasure/replay-tombstones` /
+    `tools/runbooks/privacy-replay-tombstones.js` (`docs/runbooks/
+breach-first-hour.md`'s "replay the tombstones" step after a PITR
+    restore).
+  - `apps/api/src/privacy/breach-incidents.service.ts` +
+    `breach-templates.ts`: `breach_incidents` CRUD, the 72-hour Board-notice
+    clock, and plain-string (no LLM) Board-report/user-notice drafts, behind
+    `admin/privacy/admin-privacy.controller.ts`.
+  - `apps/api/src/users/data-export.service.ts` (A05): extended the
+    `GET /me/data` bundle with a media manifest and moved the signed link's
+    TTL from 1 hour to 7 days, per the brief.
+  - `apps/api/src/notify/suppression.service.ts` (A25 addendum): a durable
+    `mail_suppressions` table the Redis live set is rebuilt from at boot and
+    kept in sync by `suppress`/`releaseTransient` — no change needed at the
+    SNS handler call sites.
+  - `apps/api/src/common/audit/audit.service.ts`: `CommonAuditService`, the
+    collapse of A04's `AuthAuditService` and A05's `AuditService` into one
+    writer with an open action union (B16 addendum after A05) — both original
+    classes now subclass it and keep their names, constants and call sites.
+  - `apps/api/src/audit/`: `@Audited`, and the audit-completeness contract
+    test (`audited-routes.scan.ts` + `audit-completeness.test.ts`) — every
+    controller with a mutating route must reference an audit writer somewhere
+    in its local dependency graph, or be in `EXEMPT_FILES` with why. Fixed
+    four routes it found with no audit trail at all
+    (`admin/credits/admin-credits.controller.ts`,
+    `fonts/fonts.controller.ts`, `exports/brand-assets.controller.ts`,
+    `referrals/referrals.controller.ts`).
+  - `apps/api/src/privacy/access-log.decorator.ts` +
+    `.interceptor.ts`: `@LogAccess(resource)` writes `access_logs` (not
+    `audit_log`) for a successful personal-data read, applied to
+    `GET /projects/:projectId`, `GET /media/:mediaId`,
+    `GET /projects/:projectId/transcript` and
+    `GET /exports/:exportId/download`.
+  - `apps/api/content/sub-processors.json` + `GET /privacy/sub-processors`.
+  - `tools/runbooks/privacy-replay-tombstones.js`.
+
 - **B06 — streak experiment: 3-day weekly bar, auto-freezes, pause-not-reset,
   level-ups, discounts/credit grants, holdout, and the widget.** `apps/api/src/streak/`:
   a pure state machine (`streak.engine.ts`, table-tested with fake clocks) —
@@ -126,6 +289,36 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `creditsOnly`/`lastNudgeAt`/`createdAt` (migration `20260902122834_b06_streak_experiment`,
   additive only, a throwaway `freezes_month` default keeps it safe against a
   populated table).
+- **A21b — api: browser-path gaps A19 found (source URLs, H.264/audio eligibility, HDR).**
+  - **`sources: {rawUrl, proxyUrl?, watermarkUrl?}`** alongside a browser manifest
+    (never inside it — it is not signed, and is freely re-issuable): 15-minute
+    presigned GETs for the ORIGINAL media (S3, `RAW_STORE`) — a 540p proxy cannot
+    produce a clean 1080p export — the proxy when one exists, and the watermark
+    PNG (R2, `brandAssetKey`) when the manifest carries one. Built from the signed
+    manifest's own `source.mediaId`, never the project's current primary media, so
+    a refresh minutes later still points at exactly what was signed.
+  - **`GET /exports/manifests/{id}/sources`** reissues a fresh set once the
+    originals expire mid-export. Same ownership checks as
+    `POST .../complete` (workspace-owned, browser mode, not expired) minus the
+    nonce claim — refreshing does not consume anything, so a manifest already
+    completed has nothing left to refresh (`export/manifest_already_consumed`).
+  - **`decision.ts`: H.264 decode+encode and a usable audio path, at every
+    resolution.** Previously the capability gate only ran inside the 4K branch;
+    it now runs first, for 1080p too. `capabilities.codecs` is A19's own wire
+    shape (`VideoEncoder.isConfigSupported` results, gated on `VideoDecoder`
+    existing at all) rather than the brief's literal `capabilities.codecs.h264`
+    object — an avc1-prefixed entry is evidence of both decode and encode, so
+    the existing DTO did not need a breaking shape change; noted as an adapted
+    deviation, not a silent redesign. `capabilities.audioEncoder`, or the new
+    `audioCopyPossible` escape hatch (an audio strategy that needs no
+    re-encode — always `false` today; `ExportsService` does not yet probe the
+    source's audio codec, a documented simplification) must also hold.
+  - **HDR sources (`MediaAsset.hdr`) are cloud-only.** Wired into
+    `ExportDecisionInput.isHdrSource`; refused the browser path with a
+    tone-mapping reason, exactly like alpha/green-screen and mobile.
+  - 61 decision-table tests (up from 44), 6 new e2e cases for the sources
+    shape/TTL and the refresh route's ownership checks
+    (`test/exports.e2e-spec.ts`), against a real Postgres and Redis.
 
 - **B03 — web Subscription pages, checkout sheet and `UpgradeGate` wiring.** `/billing`
   (Overview: plan card with status/renewal/mandate cap, credits meter with lots and
@@ -261,6 +454,31 @@ status = 'pending'` idempotency trick `claimManifest` uses for a replayed
     not by calling the service directly); web component tests for both components;
     `apps/web/e2e/referral-prompt.spec.ts` (Playwright + axe: the sheet opens once,
     marks itself shown, does not reopen, no serious/critical a11y violations).
+- **A19b — web: A21b integration, raw pixel readback, coverScaleCrop parity, real
+  audio re-encode, HDR-to-cloud, the watermark upsell mount.** Follow-up after A21b
+  (`cfa5485`) closed the source-URL and eligibility gaps A19 reported. Consumes
+  `sources: {rawUrl, proxyUrl?, watermarkUrl?}` and `GET
+/exports/manifests/{id}/sources` (`endpoints.ts`, `manifest.ts`) — `ExportButton.tsx`'s
+  proxy-only workaround is gone. `engine.ts`'s frame loop no longer round-trips the
+  caption layer through a PNG encode/decode: a persistent `MakeSurface` raster surface
+  and scratch 2D canvas are reused for the whole export, with `readPixels` →
+  `putImageData` → `drawImage` per frame (measured 0.12× realtime at 1080p on this
+  sandbox's headless, no-hardware-encode chromium — see `apps/web/lib/export/README.md`'s
+  Throughput section for why that number is not the ≥1× target's last word). Uses
+  `@montaj/render-manifest`'s own `coverScaleCrop` for the cover fit instead of
+  Mediabunny's `fit: "cover"` heuristic, and adds a real D33 parity check
+  (`engine-parity.test.ts`) comparing `engine.ts`'s exact compositing path against
+  `@montaj/render-skia-node`'s cloud renderer on `@montaj/render-canvaskit`'s baseline
+  frames. Cut audio is now really re-encoded (retained source ranges fed through
+  `AudioSampleSink`/`AudioBufferSource`, concatenated with no gap); `"replace"` audio and
+  any `speed`/`hold` edit route to the cloud with a documented reason (no signed URL for
+  cleaned-track bytes yet; no resampled rate implemented). HDR sources route to the cloud
+  automatically via A21b's `decision.ts` — no client-side LUT work needed. B04's
+  `ExportUpsellPanel` is now mounted inside `WatermarkNotice`, exactly at its documented
+  mount point. `cfa5485` had landed on `wp/A21`, not yet `main`, when this pass started;
+  cherry-picked directly rather than waiting, since it is a small, self-contained
+  `apps/api`/`api-client`-only commit — see the final report.
+
 - **A19 — web: browser-native export (WebCodecs + Mediabunny + CanvasKit).**
   `apps/web/lib/export/**`: a capability probe (H.264 codec ladder, AAC/`AudioEncoder`,
   File System Access, a 2 s throughput sample), manifest handling (`RenderManifest`

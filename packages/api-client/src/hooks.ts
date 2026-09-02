@@ -36,12 +36,15 @@ import type {
   ConsentPurpose,
   ConsentState,
   CreateFolderRequest,
+  CreateMemoryEntryRequest,
   CreateProjectRequest,
   CreditsSummary,
   CurrentUser,
   DismissReferralPromptResult,
   Entitlement,
   Folder,
+  ImportGlossaryRequest,
+  ImportGlossaryResult,
   InitUploadRequest,
   JobPage,
   JobSummary,
@@ -77,6 +80,7 @@ import type {
   TransliterateRequest,
   UpdateFolderRequest,
   UpdateMeRequest,
+  UpdateMemoryEntryRequest,
   UpdateProjectRequest,
   UploadTicket,
   UsageSummary,
@@ -250,7 +254,42 @@ export function useMemoryEntries(enabled: boolean): UseQueryResult<MemoryEntry[]
     queryKey: queryKeys.memory(),
     enabled: enabled && workspaceId !== null,
     retry: retryPolicy,
-    queryFn: () => withPendingFallback(() => client.call(endpoints.pending.listMemory), []),
+    queryFn: () => client.call(endpoints.memory.list),
+  });
+}
+
+export function useCreateMemoryEntry(): UseMutationResult<
+  MemoryEntry,
+  Error,
+  CreateMemoryEntryRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateMemoryEntryRequest) => client.call(endpoints.memory.create, { body }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
+  });
+}
+
+export function useUpdateMemoryEntry(): UseMutationResult<
+  MemoryEntry,
+  Error,
+  { id: string; body: UpdateMemoryEntryRequest }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }) => client.call(endpoints.memory.update, { params: { id }, body }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
+  });
+}
+
+export function useDeleteMemoryEntry(): UseMutationResult<void, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => client.call(endpoints.memory.remove, { params: { id } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
   });
 }
 
@@ -258,8 +297,21 @@ export function useClearMemory(): UseMutationResult<void, Error, void> {
   const client = useApiClient();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () =>
-      withPendingFallback(() => client.call(endpoints.pending.clearMemory), undefined),
+    mutationFn: () => client.call(endpoints.memory.clear),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
+  });
+}
+
+export function useImportMemoryGlossary(): UseMutationResult<
+  ImportGlossaryResult,
+  Error,
+  ImportGlossaryRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ImportGlossaryRequest) =>
+      client.call(endpoints.memory.importGlossary, { body }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memory() }),
   });
 }

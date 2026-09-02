@@ -40,6 +40,13 @@ export interface WorkingSetRequest {
   readonly wordIds: readonly string[];
   /** Word ids whose bounding segments must be loaded, whatever their `seq` (`DeleteWord`). */
   readonly boundaryWordIds: readonly string[];
+  /**
+   * Word ids `SetWordTiming` retimes. Unlike every other word op, this one carries
+   * no `segmentId`, so the repository resolves the segment that currently
+   * *contains* each word (not merely bounds it) from the word's own timing before
+   * it loads segments — see `edg.repository.ts`'s `resolveTimingSegments`.
+   */
+  readonly timingWordIds: readonly string[];
   /** Pass item ids `DecideItems` names. */
   readonly itemIds: readonly string[];
   /** Passes named by a `MergePass`, whose existing items are replaced wholesale. */
@@ -69,6 +76,7 @@ export function analyseWorkingSet(ops: readonly EdgOp[]): WorkingSetRequest {
   const segmentIds = new Set<string>();
   const wordIds = new Set<string>();
   const boundaryWordIds = new Set<string>();
+  const timingWordIds = new Set<string>();
   const itemIds = new Set<string>();
   const passIds = new Set<string>();
   let wholeDocument = false;
@@ -123,6 +131,12 @@ export function analyseWorkingSet(ops: readonly EdgOp[]): WorkingSetRequest {
         touchesWords = true;
         needsWords = true;
         break;
+      case "SetWordTiming":
+        wordIds.add(op.wordId);
+        timingWordIds.add(op.wordId);
+        touchesWords = true;
+        needsWords = true;
+        break;
       case "Resegment":
         wholeDocument = true;
         break;
@@ -143,6 +157,7 @@ export function analyseWorkingSet(ops: readonly EdgOp[]): WorkingSetRequest {
     segmentIds: [...segmentIds],
     wordIds: [...wordIds],
     boundaryWordIds: [...boundaryWordIds],
+    timingWordIds: [...timingWordIds],
     itemIds: [...itemIds],
     passIds: [...passIds],
     touchesWords: touchesWords || wholeDocument,

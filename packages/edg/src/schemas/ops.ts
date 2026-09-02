@@ -120,6 +120,15 @@ export const InsertWordAfterOpSchema = op("InsertWordAfter", {
   e: MsSchema,
 });
 
+/** Retimes one word; segment bounds are unaffected (they are their own op). */
+export const SetWordTimingOpSchema = op("SetWordTiming", {
+  wordId: WordIdSchema,
+  /** Start, absolute media ms. */
+  s: MsSchema,
+  /** End, absolute media ms. */
+  e: MsSchema,
+});
+
 /** Re-runs segmentation over the whole document with new limits. */
 export const ResegmentOpSchema = op("Resegment", {
   maxChars: z.number().int().gt(0).max(200),
@@ -182,6 +191,7 @@ export const EdgOpSchema = z
     EditWordOpSchema,
     DeleteWordOpSchema,
     InsertWordAfterOpSchema,
+    SetWordTimingOpSchema,
     ResegmentOpSchema,
     DecideItemsOpSchema,
     MergePassOpSchema,
@@ -203,6 +213,7 @@ export const EDG_OP_TYPES = [
   "EditWord",
   "DeleteWord",
   "InsertWordAfter",
+  "SetWordTiming",
   "Resegment",
   "DecideItems",
   "MergePass",
@@ -315,6 +326,7 @@ export type SetStyleOp = z.infer<typeof SetStyleOpSchema>;
 export type EditWordOp = z.infer<typeof EditWordOpSchema>;
 export type DeleteWordOp = z.infer<typeof DeleteWordOpSchema>;
 export type InsertWordAfterOp = z.infer<typeof InsertWordAfterOpSchema>;
+export type SetWordTimingOp = z.infer<typeof SetWordTimingOpSchema>;
 export type ResegmentOp = z.infer<typeof ResegmentOpSchema>;
 export type DecideItemsOp = z.infer<typeof DecideItemsOpSchema>;
 export type MergePassOp = z.infer<typeof MergePassOpSchema>;

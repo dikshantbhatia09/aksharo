@@ -378,6 +378,48 @@ Aksharo की ओर से भेजा गया। कोई सवाल? �
 }
 `;
 
+exports[`rendering > renders retention-warning in English 1`] = `
+{
+  "subject": "“Diwali reel” is deleted in 14 days",
+  "text": "Aksharo
+
+This project is due for deletion
+
+Hi Asha, your plan keeps a project's media for a limited time, and “Diwali reel” reaches that limit on 2026-10-01.
+
+Open the project before then to keep it — any activity resets the retention window. After the date, its media is permanently deleted and cannot be recovered.
+
+Open the project:
+https://app.example.test/projects/p1
+
+Upgrading your plan also extends how long projects are kept.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders retention-warning in Hindi 1`] = `
+{
+  "subject": "“Diwali reel” 14 दिन में डिलीट हो जाएगा",
+  "text": "Aksharo
+
+यह प्रोजेक्ट डिलीट होने वाला है
+
+नमस्ते Asha, आपकी योजना में किसी प्रोजेक्ट का मीडिया एक तय समय तक ही रखा जाता है, और “Diwali reel” की यह सीमा 2026-10-01 को पूरी हो रही है।
+
+इसे बचाने के लिए तारीख़ से पहले प्रोजेक्ट खोलें — कोई भी गतिविधि रिटेंशन विंडो को रीसेट कर देती है। तारीख़ के बाद इसका मीडिया स्थायी रूप से डिलीट हो जाएगा और वापस नहीं मिलेगा।
+
+प्रोजेक्ट खोलें:
+https://app.example.test/projects/p1
+
+प्लान अपग्रेड करने से प्रोजेक्ट रखने की अवधि भी बढ़ जाती है।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
 exports[`rendering > renders share-comment in English 1`] = `
 {
   "subject": "3 new comments on Diwali promo",
