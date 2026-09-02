@@ -761,6 +761,9 @@ model Workspace {
   settings                  Json          @default("{}") @db.JsonB
   /// Project retention in days, taken from the plan (04 §Plans).
   retentionDays             Int           @default(7) @map("retention_days")
+  /// Set the first time this workspace spends its one watermark-free 1080p
+  /// browser export (D04). Null means the gift is still available.
+  signupGiftConsumedAt      DateTime?     @map("signup_gift_consumed_at") @db.Timestamptz(6)
   createdAt                 DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   deletedAt                 DateTime?     @map("deleted_at") @db.Timestamptz(6)
 
@@ -781,6 +784,8 @@ model Workspace {
   jobs                Job[]
   providerSubmissions ProviderSubmission[]
   exportManifests     ExportManifest[]
+  exports             Export[]
+  brandAssets         BrandAsset[]
   stylePresets        StylePreset[]
   brandKits           BrandKit[]
   fonts               Font[]
@@ -1579,23 +1584,28 @@ model ProviderSubmission {
   @@map("provider_submissions")
 }
 
-/// Server-signed browser-render manifest (THREAT-MODEL T10). Single use: the nonce
-/// is consumed by `POST /exports/manifests/{id}/complete`.
+/// Server-signed render manifest (THREAT-MODEL T10, A21). Single use: the nonce
+/// is consumed either by `POST /exports/manifests/{id}/complete` (browser) or by
+/// the `render.video`/`render.subtitle` completion handler (cloud).
 model ExportManifest {
   id          String     @id @db.Char(26)
   workspaceId String     @map("workspace_id") @db.Char(26)
   projectId   String     @map("project_id") @db.Char(26)
   nonce       String     @unique
   mode        RenderMode @default(browser)
-  watermark   Boolean    @default(true)
-  /// Zod: `ManifestCapsSchema` — `{maxRes, maxDurationMs}`.
-  caps        Json       @default("{}") @db.JsonB
-  /// Zod: `CodecLadderSchema` — ordered codec/container preferences.
-  codecLadder Json       @default("[]") @map("codec_ladder") @db.JsonB
+  /// The full signed `RenderManifest` v1 document (`@montaj/render-manifest`),
+  /// including its own `signature` — this column is the audit trail, never the
+  /// verification path (the worker and the browser verify the document they were
+  /// handed, not this row).
+  manifest    Json       @default("{}") @db.JsonB
   issuedAt    DateTime   @default(now()) @map("issued_at") @db.Timestamptz(6)
   expiresAt   DateTime   @map("expires_at") @db.Timestamptz(6)
   consumedAt  DateTime?  @map("consumed_at") @db.Timestamptz(6)
-  signature   String
+  /// Whether completing this manifest spends the Free workspace's one-time
+  /// signup gift (D04) or an unconsumed ₹9 pass — decided at issuance, spent at
+  /// completion, never re-derived from the signed document itself.
+  consumesSignupGift Boolean @default(false) @map("consumes_signup_gift")
+  consumesNinePass   Boolean @default(false) @map("consumes_nine_pass")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1607,16 +1617,31 @@ model ExportManifest {
   @@map("export_manifests")
 }
 
+/// Not enumerated in 06 (`exports.status`); A21's export lifecycle. A browser
+/// export's row exists from manifest issuance (`pending_browser`) until the
+/// completion callback; a cloud export's row is written once, by the job
+/// completion handler, already `succeeded` or `failed`.
+enum ExportStatus {
+  pending_browser
+  succeeded
+  failed
+}
+
 model Export {
   id          String        @id @db.Char(26)
+  workspaceId String        @map("workspace_id") @db.Char(26)
   projectId   String        @map("project_id") @db.Char(26)
   jobId       String?       @map("job_id") @db.Char(26)
   manifestId  String?       @map("manifest_id") @db.Char(26)
+  status      ExportStatus  @default(pending_browser)
   kind        ExportKind    @default(mp4)
   preset      String?
   bucket      StorageBucket @default(r2)
   storageKey  String?       @map("storage_key")
   sizeBytes   BigInt?       @map("size_bytes")
+  /// Client-reported checksum from `POST /exports/manifests/{id}/complete`; the
+  /// browser path never uploads bytes for the API to verify itself.
+  checksum    String?
   watermarked Boolean       @default(true)
   resolution  String?
   durationMs  Int?          @map("duration_ms")
@@ -1625,14 +1650,36 @@ model Export {
   downloads   Int           @default(0)
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   job         Job?            @relation(fields: [jobId], references: [id], onDelete: SetNull)
   manifest    ExportManifest? @relation(fields: [manifestId], references: [id], onDelete: SetNull)
   assetUsages AssetUsage[]
 
   @@index([projectId])
+  @@index([workspaceId])
   @@index([expiresAt])
   @@map("exports")
+}
+
+/// A watermark or logo image the workspace owns, used by the render manifest's
+/// `watermark.assetId` (A20/A21). Stored at `ws/{workspaceId}/brand/{assetId}.png`
+/// (CONTRACTS section 6).
+model BrandAsset {
+  id          String   @id @db.Char(26)
+  workspaceId String   @map("workspace_id") @db.Char(26)
+  /// `watermark` today; open for a future logo/brand-kit asset kind.
+  kind        String   @default("watermark")
+  storageKey  String   @map("storage_key")
+  contentType String   @map("content_type")
+  sizeBytes   Int?     @map("size_bytes")
+  createdBy   String?  @map("created_by") @db.Char(26)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("brand_assets")
 }
 
 // ===========================================================================

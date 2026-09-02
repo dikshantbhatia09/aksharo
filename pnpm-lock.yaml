@@ -62,6 +62,12 @@ importers:
       '@montaj/render-core':
         specifier: workspace:*
         version: link:../../packages/render-core
+      '@montaj/render-manifest':
+        specifier: workspace:*
+        version: link:../../packages/render-manifest
+      '@montaj/timemap':
+        specifier: workspace:*
+        version: link:../../packages/timemap
       '@nestjs/common':
         specifier: ^11.2.3
         version: 11.2.3(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -192,6 +198,9 @@ importers:
       eslint:
         specifier: ^9.39.5
         version: 9.39.5(jiti@2.7.0)
+      fast-check:
+        specifier: ^3.23.2
+        version: 3.23.2
       prisma:
         specifier: ^6.19.3
         version: 6.19.3(magicast@0.3.5)(typescript@5.9.3)

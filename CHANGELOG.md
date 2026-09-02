@@ -118,6 +118,135 @@ retention.service.ts`'s `purgeDueMedia` only ever queries `media_assets`,
     `notify.kinds.test.ts`'s hard-pinned ten-value list; the closest existing
     kind's copy — "kept for N days, then deleted" — is false for a document
     retained 72 months).
+- **A21 — api: the exports module (decision engine, signed render manifests, cloud render/subtitle jobs, downloads, brand assets).**
+  - **`POST /projects/{id}/exports`** runs the decision engine (`src/exports/decision.ts`,
+    ≥25 table tests): browser vs. cloud per D34's technical caps (1080p ≤ 20 min on
+    every plan; 4K only with `capabilities.isDesktopChromium && fileSink && ≤ 10 min`;
+    mobile and alpha/green-screen always cloud), the plan's resolution entitlement
+    checked _before_ the path is even chosen (`entitlement/upgrade_required` for a 4K
+    request on a 1080p plan), and the watermark decision (D04): Free carries one unless
+    the signup gift or an unconsumed ₹9 pass clears it, and only ever on the browser
+    path, ≤ 10 minutes. Every branch returns UI-safe `reasons[]` strings for the export
+    dialog. Subtitle requests always go to the cloud (`render.subtitle`, 0 credits);
+    `ass` is refused everywhere (A18a's parity gate has not landed) and `md`/`docx`
+    are plan-gated by `entitlements.subtitleFormats` (`docx` itself is not generated
+    anywhere yet and stays refused).
+  - **The server alone authors the manifest.** `manifest-builder.ts` snapshots the EDG
+    revision, the resolved `style_presets` docs (content-hashed into
+    `catalogueSnapshotIds`, `<key>@<sha256 prefix>`), the primary media's storage key,
+    a `@montaj/timemap` `fromAcceptedItems` timemap over every pass's accepted `cut`
+    items, and the decision's caps/watermark, then hands it to
+    `common/crypto/manifest-signer.ts` (the one place `INTERNAL_CALLBACK_SECRET` meets
+    `@montaj/render-manifest`) for the canonical-JSON HMAC signature A20 defined.
+    Browser mode writes `export_manifests` + an `exports` row (`pending_browser`) and
+    returns the signed document; cloud mode (video or subtitle) reserves credits and
+    enqueues through the existing `JobsService.enqueue` (0.5 credits/output-minute,
+    held on the _source_ duration) with the manifest embedded in the payload.
+  - **`POST /exports/manifests/{id}/complete`**: single-use nonce via a conditional
+    `UPDATE … WHERE consumed_at IS NULL` (409 `export/manifest_already_consumed` on
+    replay, 410 `export/manifest_expired` past `expiresAt`), marks the export
+    succeeded, spends the signup gift / ₹9 pass the decision flagged, and writes a
+    `publish_events` row. The ₹9 pass is `nine-pass-ledger.ts`, an interface with a
+    no-op implementation exactly as CONTRACTS §4 describes `CreditsFacade` — B04 backs
+    it with `passes_purchased`.
+  - **`RenderVideoCompletionHandler` / `RenderSubtitleCompletionHandler`**
+    (`render-completion.handler.ts`) register on `JobCompletionRegistry`: the manifest's
+    nonce is claimed as the _first_ write (idempotent on a handler retry after a
+    throw), then the `exports` row (video: one, upserted on the manifest's own
+    `exportId`; subtitle: one per sidecar) is written from the worker's real result,
+    a `publish_events` row follows, and credits settle at the cloud-render rate off the
+    _rendered_ `outputMs` — never more than the hold.
+  - **Downloads and retention.** `GET /exports/{id}/download` presigns a 5-minute R2
+    GET and 409s `export/not_ready` for a browser export, which never uploads
+    anything; `purgeExpiredExports()` deletes the R2 object and the row past its
+    7-day `expiresAt` (D47) — a method, not a schedule; B16 wires the call.
+  - **Brand assets** (`ws/{workspaceId}/brand/{assetId}.png`, CONTRACTS §6):
+    `POST/GET/DELETE /workspaces/{id}/brand-assets` for a workspace's own watermark or
+    logo, presigned straight to R2. A request's `options.brandAssetId` lets an
+    already-unwatermarked (paid) export deliberately overlay one anyway.
+  - **The default Free-tier mark is provisioned, not assumed.** Running the real
+    `apps/render` worker in `test/exports-render.e2e-spec.ts` proved that A20's own
+    `brandAssetKey` resolves _every_ `watermark.assetId` — including the platform's
+    own default — per workspace, with no bundled fallback anywhere in the render path;
+    a manifest naming it failed `storage/unreadable` before the object existed.
+    `default-watermark.service.ts` provisions a small synthesised placeholder PNG
+    (`default-watermark.ts`; real artwork is a design asset outside this work
+    package) at that key the first time a workspace needs it.
+  - **e2e proof, against real infrastructure.** `test/exports-render.e2e-spec.ts`
+    builds and spawns `apps/render` (`node dist/index.js`, the same binary a container
+    runs) against the shared Redis, uploads a real ffmpeg-generated clip to MinIO,
+    requests a cloud export, verifies the signed manifest's signature/caps/watermark,
+    waits for the real render, and asserts the `exports` row, the derived object at
+    its CONTRACTS §6 key in R2, a signed download URL that actually resolves, and
+    `jobs.credits_charged_tenths` settled at the real rendered length.
+    `test/exports.e2e-spec.ts` covers the browser path (signup-gift-clean first
+    export, watermarked second, nonce reuse, expiry, entitlement and format refusals)
+    against a real Postgres and Redis. `common/crypto/manifest-signer.test.ts` proves
+    a flipped signature byte, an edited watermark and a manifest signed under a
+    different key are all refused.
+  - **Deviation, reported per the brief.** The brief's original scope item 4
+    (`GET /.well-known/aksharo-manifest-keys.json`, an ES256/JWKS key set) predates
+    A20's landed design: `@montaj/render-manifest` signs with a canonical-JSON HMAC
+    over `INTERNAL_CALLBACK_SECRET` (with `_NEXT` rotation), not an asymmetric
+    keypair. Publishing verification material for an HMAC would let a client forge
+    manifests, so this work package does not implement the JWKS endpoint — every
+    manifest (browser and cloud alike) is issued and verified through
+    `@montaj/render-manifest` as A20 built it instead.
+  - New tables: `brand_assets`; `export_manifests.manifest` (the full signed
+    document, replacing the pre-A20 `watermark`/`caps`/`codec_ladder`/`signature`
+    columns) plus `consumes_signup_gift`/`consumes_nine_pass`; `exports.status`
+    (`pending_browser|succeeded|failed`), `workspace_id` and `checksum`;
+    `workspaces.signup_gift_consumed_at`.
+- **B02 — the credits ledger: lots, atomic reserve, holds/settle/release/reversal,
+  grants and expiry, the entitlements engine and the real `CreditsFacade`.**
+  - **`LedgerCreditsFacade`** replaces A08's `NoopCreditsFacade` behind `CREDITS_FACADE`
+    (CONTRACTS §4), unchanged interface. Every balance move is a single conditional
+    `UPDATE credit_accounts SET balance_tenths = balance_tenths ± $amt WHERE … RETURNING`
+    plus one `credit_ledger` row in the same transaction (06 invariant 1, D32). Lots
+    are consumed soonest-expiring first then FIFO (`apps/api/src/credits/lot-allocation.ts`,
+    pure and unit-tested); `settle` is idempotent via a claim-first CAS on
+    `credit_holds.status`; over-settlement attempts a delta charge folded into the
+    same hold (`credit_holds.job_id` is unique, so a delta is not a second hold row)
+    and settles only what is held — `needs_credits` — when it cannot be covered.
+  - **Reversal, expiry, monthly reset, reconcile** beyond the frozen interface: `reverse()`
+    creates a new lot inheriting the original lot's expiry (split proportionally when a
+    hold spanned more than one lot); `expireLots()` sweeps expired lots into an `expire`
+    ledger entry; `resetMonthlyGrants()` grants the anniversary allowance, idempotent
+    under an at-least-once scheduler; `CreditReconcileService` recomputes Σ lots and Σ
+    ledger against the cached balance (detection only).
+  - **Entitlements engine.** `EntitlementService.compute()` (A05's stub) now resolves
+    the workspace's live subscription plan (an active week pass raises it to at least
+    Starter) and merges the plan's seeded entitlement JSON with computed feature
+    flags; still a 60 s Redis cache with the existing invalidation hook.
+    `@RequiresEntitlement(check)` + `RequiresEntitlementGuard` (new `entitlements`
+    module) gate a route on it.
+  - **`quote(operation, mediaMinutes)`** in `@montaj/config`'s `credits.ts`: one call
+    for a producer's `{holdTenths, costTenths}`, replacing hand-rolled worst-case math.
+  - **Usage API**: `GET /workspaces/{id}/credits` (balance, next reset, live lots) and
+    `GET /workspaces/{id}/usage` (ledger history, per-job attribution, cursor paging).
+  - **Runbooks**: `tools/runbooks/credits-orphaned-holds.js` and `billing-reconcile.js`
+    (+ `docs/runbooks/*.md`), driving new `/admin/credits/*` routes.
+  - **Concurrency property test** (`test/credits-ledger.property.spec.ts`, fast-check,
+    `pnpm --filter @montaj/api test:property`): N=50 concurrent workers, 2,000 random
+    `reserve`/`settle`/`release`/`reverse`/`grantLot`/`expireLots` operations against one
+    account, asserting `balance = Σ lots = Σ ledger ≥ 0` after every batch.
+  - A11/A21/A22 (the intended `quote()` callers) had not landed when this WP was
+    written; nothing there to switch over yet.
+- **A24b — the pricing page now fetches B01's live `GET /billing/plans`.** Follow-up
+  to A24, once B01 shipped the endpoint. `content/site/pricing-live.ts` calls it through
+  `@montaj/api-client` (a plain `ApiClient` — the route is public, no session needed),
+  with Next.js ISR (`next: { revalidate: 300 }`) rather than a fetch on every request; the
+  server component (`pricing/page.tsx`) resolves the catalogue before rendering and hands
+  it to the client component as props. `content/site/pricing-data.ts`'s
+  `FALLBACK_PLAN_CATALOGUE` is kept as the fallback for when the API is unreachable — never
+  throws, logs a warning and serves the static mirror instead, exercised automatically by
+  any build that runs without the API up (a bare `pnpm --filter @montaj/web build`).
+  `packages/api-client` gained the one missing piece: a `billingEndpoints.listPlans`
+  descriptor and a `PlanCatalogueEntry` type (B01 had only regenerated the OpenAPI
+  operation index, not this hand-written layer) — outside A24's original file boundary,
+  touched here on the coordinator's explicit instruction. A new pricing e2e test fetches
+  `GET /billing/plans` from the suite's own API instance and asserts every rendered plan
+  card's price equals it exactly.
 
 - **B01 — api: billing core — `BillingProvider` (Razorpay + fake), plan
   catalogue, checkout with the ₹15,000 UPI mandate rule, passes/top-ups,
@@ -171,6 +300,77 @@ retention.service.ts`'s `purgeDueMedia` only ever queries `media_assets`,
     mandate rules as implemented, and open questions (Razorpay behaviours
     that could not be verified without live keys).
 
+- **A24 — the marketing site (`apps/web`'s `(site)` route group): home, features, styles
+  gallery, pricing, plugins, download, comparison and legal pages.**
+  - **Home.** A hero condensing the eight value propositions to three lines, with an
+    English/Hindi headline toggle (a small local ICU-syntax formatter — no `next-intl`
+    dependency, see `content/site/hero-copy.ts` for why), and a live browser demo:
+    a bundled 15-second Hinglish mock transcript rendered by the real
+    `@montaj/render-canvaskit` + `@montaj/render-core` pipeline (no ASR call) with a
+    `punch-pop`-first style switcher.
+  - **Features.** Every value proposition with its own section; the accuracy section
+    carries the target Hinglish/English/alignment numbers from
+    `02-product-vision.md §Success metrics` with the measured column left honestly
+    blank pending the public eval run (D08).
+  - **Styles gallery.** All 30 system styles, hover-to-animate (`StylePreviewCanvas`,
+    reused from the editor unmodified), filterable by category and by preview script
+    (Roman / Devanagari / Tamil).
+  - **Pricing.** The full plan ladder, an INR/USD toggle (always INR by default,
+    remembered per visitor), the offers ladder, a credits-to-outcomes table, the burn-rate
+    table sourced live from `@montaj/config`'s `BURN_RATES` (never duplicated), the full
+    plan comparison matrix transcribed from `04-pricing-and-monetization.md §Plans`, and
+    an FAQ answering both Pause's own FAQ questions and the India-payments objections
+    (mandates, refunds, GST-inclusive display, the ₹15,000 UPI mandate cap on Studio
+    yearly). Prices come from a static mirror of `apps/api/prisma/seed-data.ts`'s
+    `PLAN_SEEDS`, not a live `GET /billing/plans` — no billing module exists in
+    `apps/api/src` yet (Billing is Wave 2); `content/site/pricing-data.ts` documents the
+    swap-to-live-fetch seam.
+  - **Plugins.** D65-compliant naming throughout ("Aksharo Panel — works with Adobe
+    Premiere Pro and Adobe After Effects", "Aksharo — works with DaVinci Resolve"), the
+    three-step activation card, honest capability notes ("waiting on Adobe", "not
+    supported by Resolve's API"), and the Adobe/Blackmagic attribution line.
+  - **Download.** Platform detection (Windows/macOS/Linux from the user agent),
+    SmartScreen/Gatekeeper first-run notes, and the publisher name from `BRAND` — every
+    download link is a labelled placeholder pending C10's signed builds.
+  - **Comparison pages** (`/vs/kalakar`, `/vs/captik`, `/vs/submagic`, `/vs/autocut`),
+    every fact transcribed from `01-competitive-analysis.md` with a dated
+    "last verified" line and a source citation (the competitor's own site where the
+    research doc gives one; the research doc itself, dated, where it does not — no
+    external URL is guessed).
+  - **Legal & footer.** Privacy, Terms, AUP, Refunds and DPA scaffolds, each carrying a
+    "draft — pending counsel" banner (A00-13 is still `todo`); the privacy page also
+    renders the real, already-implemented itemised notice (`apps/api/src/privacy/
+privacy-notice.ts`, statically mirrored — see the file for why not a live build-time
+    fetch); a Grievance Officer page with the IT Rules response-time targets; the
+    Adobe/Blackmagic attribution line in the footer of every page.
+  - **SEO/perf.** `sitemap.xml`, `robots.txt`, per-page canonical/OpenGraph metadata,
+    build-time-generated OpenGraph images (home, pricing, features, plugins, styles, and
+    one per comparison slug).
+    `robots.ts` lives at the true `app/` root rather than under `(site)/` — a
+    `(site)/robots.ts` built silently to nothing (no `robots.txt` route, confirmed
+    against `.next/server/app` and a live 404), unlike `sitemap.ts`, which resolves
+    correctly from inside a route group; that one file is the sole exception to this
+    WP's `apps/web/app/(site)/**` file boundary.
+  - **Tests.** Playwright on chromium and webkit: smoke, axe, a dedicated codename-guard
+    spec (extends A13's own `smoke.spec.ts` check to every page this WP adds), SEO
+    metadata checks, the pricing currency/interval toggle, the styles gallery filters and
+    real-renderer pixel output, the live demo's real-renderer output and its "no ASR
+    request fires" assertion, plugin naming compliance, and the legal draft banners.
+    Vitest unit tests for the content-data layer (`app/(site)/(marketing)/_test/
+site-content.test.ts` — colocated under `app/` because `vitest.config.ts`'s coverage
+    scope, set by A13, does not include `content/**` or `app/**`, the same reason its own
+    route code is Playwright-covered rather than unit-covered).
+  - **Deviations reported in the WP's final message:** no live plan-catalogue endpoint
+    exists to fetch from; the task instructions' Hindi-copy request and the brief
+    document's own "out of scope: localisation" line disagree, and the instructions were
+    followed at the smallest defensible scope; no bundled sample video existed for the
+    live demo, so it draws over a placeholder frame; Lighthouse was run manually rather
+    than wired into CI (no `@lhci/cli` dependency added without discussion); a manual
+    Lighthouse pass found the live demo's CanvasKit bootstrap driving home's performance
+    score to 51 (throttled to 15 fps and deferred behind `requestIdleCallback` in
+    response — both real fixes, kept — but the score did not recover on this shared
+    sandboxed host, where the same page loads and the demo becomes interactive in
+    ~1.2 s under a plain automated run; see the final report for the full reasoning).
 - **A11c — api: unify A11's and A07's completion-handler registries; bind
   `CAPTION_RENDER_CONTEXT` (D78) to the bundled font pack.**
   - A07 (`media.probe`) independently converged on the same `JobCompletionRegistry`
