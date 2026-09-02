@@ -1265,6 +1265,13 @@ export const API_OPERATIONS = [
     summary: "Renew the 7-day entitlement lease",
   },
   {
+    operationId: "pluginManifest",
+    method: "GET",
+    path: "/plugins/manifest",
+    tags: ["plugins"],
+    summary: "Channel manifest for the plugins page and installer download links",
+  },
+  {
     operationId: "pluginRevocationSnapshot",
     method: "GET",
     path: "/plugins/revocation-snapshot",

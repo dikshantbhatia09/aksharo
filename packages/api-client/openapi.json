@@ -17174,6 +17174,137 @@
         ]
       }
     },
+    "/plugins/manifest": {
+      "get": {
+        "description": "Per host (premiere-uxp, ae-cep, resolve-script): version, min/max host version, download URL (D65). Every channel reports `available: false` until C10 (installer builds and hosting) lands.",
+        "operationId": "pluginManifest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The current channel manifest.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "channels": {
+                      "type": "object",
+                      "properties": {
+                        "premiere-uxp": {
+                          "type": "object",
+                          "properties": {
+                            "available": {
+                              "type": "boolean"
+                            },
+                            "version": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "minHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "maxHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "downloadUrl": {
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "available",
+                            "version",
+                            "minHostVersion",
+                            "maxHostVersion",
+                            "downloadUrl"
+                          ]
+                        },
+                        "ae-cep": {
+                          "type": "object",
+                          "properties": {
+                            "available": {
+                              "type": "boolean"
+                            },
+                            "version": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "minHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "maxHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "downloadUrl": {
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "available",
+                            "version",
+                            "minHostVersion",
+                            "maxHostVersion",
+                            "downloadUrl"
+                          ]
+                        },
+                        "resolve-script": {
+                          "type": "object",
+                          "properties": {
+                            "available": {
+                              "type": "boolean"
+                            },
+                            "version": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "minHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "maxHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "downloadUrl": {
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "available",
+                            "version",
+                            "minHostVersion",
+                            "maxHostVersion",
+                            "downloadUrl"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "premiere-uxp",
+                        "ae-cep",
+                        "resolve-script"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "channels"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "Channel manifest for the plugins page and installer download links",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
     "/affiliate/apply": {
       "post": {
         "operationId": "applyAffiliate",

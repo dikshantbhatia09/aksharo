@@ -63,6 +63,7 @@ import type {
   JobPage,
   JobSummary,
   LicenseKeyView,
+  PluginManifestResponse,
   LoginRequest,
   MagicLinkResponse,
   Media,
@@ -330,6 +331,17 @@ export const licensingEndpoints = {
     path: "/workspaces/{id}/license-keys/{keyId}",
     auth: "bearer",
     operationId: "revokeLicenseKey",
+  }),
+} as const;
+
+/** Plugins channel manifest (C11, D65). Public: the download links on the
+ * marketing plugins page and the panel's own update check need no session. */
+export const pluginEndpoints = {
+  manifest: defineEndpoint<void, PluginManifestResponse>({
+    method: "GET",
+    path: "/plugins/manifest",
+    auth: "public",
+    operationId: "pluginManifest",
   }),
 } as const;
 
@@ -939,6 +951,7 @@ export const endpoints = {
   offers: offersEndpoints,
   registeredDevices: registeredDeviceEndpoints,
   licensing: licensingEndpoints,
+  plugins: pluginEndpoints,
   clientTags: clientTagEndpoints,
   referrals: referralsEndpoints,
   academy: academyEndpoints,
