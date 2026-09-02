@@ -1,4 +1,4 @@
-import { expect, gotoHydrated, signIn, test } from "./fixtures";
+import { expect, signIn, test } from "./fixtures";
 
 /**
  * B08's own web surfaces: Team (members, invites, roles), Devices settings'

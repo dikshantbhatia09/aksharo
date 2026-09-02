@@ -39,7 +39,12 @@ export function planMergeShort(input: MergeShortInput): EdgOp[] {
     if (current === undefined || next === undefined) break;
     const duration = current.endMs - current.startMs;
     if (duration < threshold && current.hidden !== true && next.hidden !== true) {
-      ops.push(mergeSegments([current.id, next.id], current.id, input.newId));
+      // `MergeSegments.newSegmentId` must be a *free* id
+      // (`requireFreeSegmentId`, packages/edg/src/ops/apply.ts) — `current.id`
+      // is one of the segments this same op merges away, so it is still live
+      // when the op is checked and reusing it here gets the whole op
+      // rejected as not-free.
+      ops.push(mergeSegments([current.id, next.id], input.newId(), input.newId));
       index += 2;
     } else {
       index += 1;

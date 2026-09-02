@@ -1,4 +1,5 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ulid } from "ulid";
 
 import { formatCredits, quote } from "@montaj/config";
@@ -29,6 +30,7 @@ import {
 } from "../common/storage/index.js";
 import { EdgRepository } from "../edg/index.js";
 import { JobsService } from "../jobs/jobs.service.js";
+import { EXPORT_COMPLETED_EVENT } from "../referrals/export-completed.event.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
 import type { QueueName } from "../jobs/contracts/queue-names.js";
@@ -121,6 +123,7 @@ export class ExportsService {
     private readonly defaultWatermark: DefaultWatermarkService,
     @Inject(DERIVED_STORE) private readonly store: ObjectStore,
     @Inject(NINE_PASS_LEDGER) private readonly ninePass: NinePassLedger,
+    private readonly events: EventEmitter2,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -440,6 +443,12 @@ export class ExportsService {
         surface: "web",
         exportId: exportRow.id,
       },
+    });
+    // B07b: the give-get referral loop grants on a workspace's first
+    // completed export — see `referrals/export-completed.event.ts`.
+    this.events.emit(EXPORT_COMPLETED_EVENT, {
+      workspaceId: input.workspaceId,
+      exportId: exportRow.id,
     });
 
     return { exportId: exportRow.id, downloadAvailable: false };

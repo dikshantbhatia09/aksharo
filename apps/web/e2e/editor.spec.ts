@@ -47,48 +47,45 @@ test.describe("editor", () => {
     await expect(chip).toHaveText("namastey");
 
     // The op queue debounces 250 ms before it ever calls the API
-    // (`lib/edg/queue.ts`); reloading before that fires would tear down the
-    // pending op along with the rest of the page state, exactly as a real
-    // browser close would — this waits past the debounce so what is being
-    // tested is persistence, not a race with the queue's own timer.
-    await page.waitForTimeout(1_000);
+    // (`lib/edg/queue.ts`); reloading before that batch actually lands would
+    // tear the pending op down along with the rest of the page state, exactly
+    // as a real browser close would — so this waits for the deterministic
+    // signal that it landed (`editor-pending-count` reaching "0"), not a
+    // fixed sleep guessing how long the debounce plus one round trip takes.
+    await expect(page.getByTestId("editor-pending-count")).toHaveAttribute("data-pending", "0", {
+      timeout: 10_000,
+    });
     await page.reload();
     await expect(page.getByTestId("editor-root")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("word-chip-0:0")).toHaveText("namastey", { timeout: 30_000 });
+    await expect(page.getByTestId("word-chip-0:0")).toHaveText("namastey", { timeout: 15_000 });
   });
 
   test("split (S) breaks a segment in two, merge (M) joins them back", async ({ page }) => {
-    // The real segmenter (not a hardcoded assumption) decides the initial
-    // cut — this exercises the *mechanism* (a split adds one card, a merge
-    // removes one), not a specific segment count or pairing: the fixture's
-    // filler word and short lines mean the exact cut is the segmenter's own
-    // call, including cases this test does not try to predict.
+    // The segmenter's actual caption count for this fixture is driven by the
+    // project's caption budgets (D78's `min(readability, fit, preference)`,
+    // apps/api/src/edg/init/transcript-init.ts), which overrides whatever
+    // `maxChars`/`maxLines` this fixture's `captions` preferences ask for —
+    // so the count is deterministic (same seed, same style, same words) but
+    // not a number this test should hardcode. Read it instead.
     const segments = page.locator('[data-testid^="segment-card-"]');
-    const initialCount = await segments.count();
-    expect(initialCount).toBeGreaterThan(1);
+    const before = await segments.count();
 
-    // Split the second-to-last word of the *first* segment — guaranteed to
-    // have a live word before it in that same segment, so the split is
-    // always valid regardless of how finely the segmenter already cut things.
-    const firstSegmentWords = segments.first().locator('[data-testid^="word-chip-"]');
-    const wordCount = await firstSegmentWords.count();
-    test.skip(wordCount < 2, "the first segment has only one word; nothing to split before");
-    await firstSegmentWords.nth(wordCount - 1).click();
+    // Split before "editor" (0:5): the confirmed layout puts "hum"(0:4) and
+    // "editor"(0:5) in the same two-word segment, so splitting before the
+    // second word always leaves a live word ("hum") in the head segment.
+    const headSegment = page.locator('[data-testid^="segment-card-"]', {
+      has: page.getByTestId("word-chip-0:4"),
+    });
+    const headSegmentId = await headSegment.getAttribute("data-segment-id");
+    await page.getByTestId("word-chip-0:5").click();
     await page.keyboard.press("s");
-    await expect(segments).toHaveCount(initialCount + 1, { timeout: 10_000 });
+    await expect(segments).toHaveCount(before + 1, { timeout: 10_000 });
 
-    // Merge the (now-first) segment with its next neighbour — always the
-    // split's own head, since a split's head keeps the seq order. Asserted
-    // as "fewer than after the split", not "back to initialCount exactly":
-    // `Merge ↓` merges with whichever segment now sits next, which — for a
-    // fixture whose filler word (`dropFillers: false`, on purpose, for the
-    // hide-fillers test) segments on its own — is not always the split's own
-    // tail. The op itself is covered exactly by `ops.test.ts`'s
-    // `computeInverseOps` "MergeSegments" cases; this only proves the
-    // keyboard shortcut and the button reach it.
-    const firstSegmentId = await segments.first().getAttribute("data-segment-id");
-    await page.getByTestId(`segment-merge-next-${String(firstSegmentId)}`).click();
-    await expect.poll(() => segments.count(), { timeout: 10_000 }).toBeLessThan(initialCount + 1);
+    // `SplitSegment` keeps the head's id (`packages/edg` README), so the
+    // segment that owned "hum" *before* the split is still addressable by
+    // that same id afterwards, as the new segment's previous neighbour.
+    await page.getByTestId(`segment-merge-next-${String(headSegmentId)}`).click();
+    await expect(segments).toHaveCount(before, { timeout: 10_000 });
   });
 
   test("find & replace updates every match", async ({ page }) => {

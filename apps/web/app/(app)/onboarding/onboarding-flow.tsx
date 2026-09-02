@@ -4,7 +4,7 @@ import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-import { useSaveOnboarding } from "@montaj/api-client";
+import { useClaimReferral, useSaveOnboarding } from "@montaj/api-client";
 import { BRAND } from "@montaj/config";
 import { Button, Card, cn, Field, Input, ProgressBar, toast } from "@montaj/ui";
 
@@ -101,6 +101,7 @@ function writeDraft(draft: Draft): void {
 export function OnboardingFlow(): React.JSX.Element {
   const router = useRouter();
   const save = useSaveOnboarding();
+  const claimReferral = useClaimReferral();
   const [step, setStep] = React.useState(0);
   const [draft, setDraft] = React.useState<Draft>(EMPTY_DRAFT);
 
@@ -128,6 +129,13 @@ export function OnboardingFlow(): React.JSX.Element {
       },
       {
         onSuccess: () => {
+          // B07b: claim a referral code posted here — best-effort. A failed
+          // claim (an affiliate code, a typo, an already-claimed workspace)
+          // must never strand a new user on onboarding, so its result is
+          // never awaited or surfaced.
+          if (draft.referralCode !== "") {
+            claimReferral.mutate({ code: draft.referralCode });
+          }
           router.replace("/");
         },
         onError: (error) => {

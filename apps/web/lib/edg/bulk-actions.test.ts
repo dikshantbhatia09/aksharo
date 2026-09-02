@@ -36,8 +36,12 @@ describe("planMergeShort", () => {
     expect(ops[0]).toMatchObject({
       type: "MergeSegments",
       segmentIds: ["s1", "s2"],
-      newSegmentId: "s1",
     });
+    // `newSegmentId` must be a fresh id: `requireFreeSegmentId`
+    // (packages/edg/src/ops/apply.ts) rejects reusing either merged
+    // segment's own id, since both are still live when the op is checked.
+    expect((ops[0] as { newSegmentId: string }).newSegmentId).not.toBe("s1");
+    expect((ops[0] as { newSegmentId: string }).newSegmentId).not.toBe("s2");
   });
 
   it("does not merge a segment at or above the threshold", () => {

@@ -254,7 +254,7 @@ export async function seedEditorProject(
   options: SeedOptions = {},
 ): Promise<SeededProject> {
   await signIn(page, account, "/studio");
-  const { accessToken } = await accessTokenFor(page);
+  const { accessToken, workspaceId } = await accessTokenFor(page);
   const headers = authHeaders(accessToken);
 
   const projectResponse = await page.request.post(`${API_ORIGIN}/projects`, {
@@ -269,6 +269,16 @@ export async function seedEditorProject(
   const project = (await projectResponse.json()) as { id: string };
 
   await insertProbedMedia(project.id);
+  if (workspaceId) {
+    // A fresh signup's workspace starts with 0 credits (B01's billing
+    // ledger), but /transcribe quotes ~1.5 credits (15 tenths) for this
+    // fixture's 90s media and 402s with credits/insufficient otherwise.
+    // Grant a generous balance directly, mirroring the three-table pattern
+    // (account + lot + ledger) apps/api/prisma/seed.ts uses for the demo
+    // workspace, so the seeded state keeps invariant 1 (balance = Σ lot
+    // remainders = Σ ledger deltas).
+    await grantCredits(workspaceId);
+  }
 
   const transcribeResponse = await page.request.post(
     `${API_ORIGIN}/projects/${project.id}/transcribe`,
@@ -278,9 +288,16 @@ export async function seedEditorProject(
         languages: ["hi-Latn"],
         hints: [],
         diarise: true,
-        // dropFillers defaults to true (apps/api/src/edg/init/transcript-init.ts) — the
-        // hide-fillers e2e test needs the filler word IN a segment to hide.
-        captions: { dropFillers: false },
+        // Explicit, generous captions preferences (apps/api/src/edg/init/
+        // transcript-init.ts, CAPTION_BOUNDS): dropFillers false (the
+        // hide-fillers test needs the filler word IN a segment to hide), and
+        // a wide maxChars/maxMs so each speaker turn lands as exactly one
+        // caption instead of the segmenter forcing extra breaks to keep
+        // reading speed under the 20 CPS ceiling against this fixture's
+        // deliberately fast, constant per-word timing (a real transcript's
+        // timing would not hit that ceiling nearly this often). The
+        // split/merge test relies on this being deterministic.
+        captions: { dropFillers: false, maxChars: 60, maxLines: 1, minMs: 200, maxMs: 8000 },
       },
     },
   );
@@ -335,6 +352,49 @@ async function insertProbedMedia(projectId: string): Promise<void> {
          (id, project_id, role, bucket, storage_key, mime, duration_ms, fps, width, height, has_audio, status, uploaded_at, created_at)
        VALUES ($1, $2, 'primary', 's3', $3, 'video/mp4', $4, 30, 1080, 1920, true, 'ready', now(), now())`,
       [testUlid(), projectId, `ws/e2e/p/${projectId}/media/${testUlid()}/raw.mp4`, 90_000],
+    );
+  } finally {
+    await client.end();
+  }
+}
+
+/**
+ * Grants a fresh workspace enough credits to pass `/transcribe`'s balance
+ * check. Writes all three tables `apps/api/prisma/seed.ts` writes for the
+ * demo workspace's grant (account, lot, ledger) so invariant 1 (balance =
+ * Σ lot remainders = Σ ledger deltas) holds for the seeded rows.
+ */
+async function grantCredits(workspaceId: string): Promise<void> {
+  const client = new PgClient({ connectionString: DATABASE_URL });
+  await client.connect();
+  try {
+    const grantTenths = 2000; // 200 credits — comfortably above any single fixture's quote.
+    const accountId = testUlid();
+    const lotId = testUlid();
+    const ledgerId = testUlid();
+
+    await client.query(
+      `INSERT INTO credit_accounts (id, workspace_id, balance_tenths, monthly_grant_tenths, created_at)
+       VALUES ($1, $2, $3, $3, now())
+       ON CONFLICT (workspace_id) DO UPDATE SET balance_tenths = credit_accounts.balance_tenths + $3`,
+      [accountId, workspaceId, grantTenths],
+    );
+    const account = await client.query<{ id: string; balance_tenths: number }>(
+      `SELECT id, balance_tenths FROM credit_accounts WHERE workspace_id = $1`,
+      [workspaceId],
+    );
+    const resolvedAccountId = account.rows[0]?.id ?? accountId;
+    const balanceAfter = account.rows[0]?.balance_tenths ?? grantTenths;
+
+    await client.query(
+      `INSERT INTO credit_lots (id, account_id, source, granted_tenths, remaining_tenths, created_at)
+       VALUES ($1, $2, 'grant', $3, $3, now())`,
+      [lotId, resolvedAccountId, grantTenths],
+    );
+    await client.query(
+      `INSERT INTO credit_ledger (id, account_id, delta_tenths, kind, ref_type, lot_id, balance_after_tenths, at)
+       VALUES ($1, $2, $3, 'grant', 'e2e_fixture', $4, $5, now())`,
+      [ledgerId, resolvedAccountId, grantTenths, lotId, balanceAfter],
     );
   } finally {
     await client.end();

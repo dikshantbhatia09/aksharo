@@ -483,11 +483,11 @@ enum PayoutStatus {
   reversed
 }
 
-/// Not enumerated in 04 §Referral loop (`referral_rewards`).
+/// Not enumerated in 04 §Referral loop (`referral_rewards`). B07b brief §1.
 enum ReferralRewardStatus {
   pending
   granted
-  revoked
+  rejected
 }
 
 /// 06 `share_reports.category` (`nciI` there is a typo for NCII).
@@ -769,6 +769,18 @@ model Workspace {
   /// Set the first time this workspace spends its one watermark-free 1080p
   /// browser export (D04). Null means the gift is still available.
   signupGiftConsumedAt      DateTime?     @map("signup_gift_consumed_at") @db.Timestamptz(6)
+  /// Personal give-get referral code (D53, B07b), format `AK-XXXXXX`. Lazily
+  /// generated on first read of `GET /referrals/me`; distinct from
+  /// `affiliates.code` (B07's affiliate codes carry no fixed prefix).
+  referralCode               String?       @unique @map("referral_code")
+  /// Set once, the first time this workspace's referrals cross the tiered
+  /// bonus threshold (3 granted referrals → +100 credits, 13-launch-plan).
+  /// Guards the bonus grant against a double-fire the same way
+  /// `signupGiftConsumedAt` guards the signup gift.
+  referralBonusGrantedAt     DateTime?     @map("referral_bonus_granted_at") @db.Timestamptz(6)
+  /// Set the first time the give-get in-app sheet is shown to this workspace
+  /// (brief §3: "shown once per workspace, dismissible").
+  referralPromptShownAt      DateTime?     @map("referral_prompt_shown_at") @db.Timestamptz(6)
   createdAt                 DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   deletedAt                 DateTime?     @map("deleted_at") @db.Timestamptz(6)
 
@@ -798,7 +810,8 @@ model Workspace {
   streakExperiment    StreakExperiment?
   publishEvents       PublishEvent[]
   referral            Referral?
-  referralRewards     ReferralReward[]
+  referralRewardsGiven    ReferralReward[] @relation("ReferralRewardReferrer")
+  referralRewardReceived  ReferralReward?  @relation("ReferralRewardReferred")
   assetUsages         AssetUsage[]
   clearanceGrants     AssetClearanceGrant[]
   webhookEndpoints    WebhookEndpoint[]
@@ -2274,23 +2287,35 @@ model Payout {
   @@map("payouts")
 }
 
-/// User-to-user referral: give 30 credits, get 30 credits on the referred user's
-/// first export. Product currency only, so no KYC or tax handling (04 §Referral loop).
+/// User-to-user referral: give 30 credits, get 30 credits on the referred workspace's
+/// first completed export. Product currency only, so no KYC or tax handling (04
+/// §Referral loop, D53, B07b). One row per referred workspace
+/// (`referredWorkspaceId` unique) — that uniqueness is what makes the grant
+/// exactly-once.
 model ReferralReward {
-  id                String               @id @db.Char(26)
-  workspaceId       String               @map("workspace_id") @db.Char(26)
-  referredEmailHash String?              @map("referred_email_hash")
-  code              String
-  /// Tenths of a credit granted to each side.
-  creditsTenths     Int                  @default(300) @map("credits_tenths")
-  status            ReferralRewardStatus @default(pending)
-  lotId             String?              @map("lot_id") @db.Char(26)
-  grantedAt         DateTime?            @map("granted_at") @db.Timestamptz(6)
-  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                  String               @id @db.Char(26)
+  referrerWorkspaceId String               @map("referrer_workspace_id") @db.Char(26)
+  referredWorkspaceId String               @unique @map("referred_workspace_id") @db.Char(26)
+  /// The referrer's `workspaces.referral_code` at claim time.
+  code                String
+  status              ReferralRewardStatus @default(pending)
+  /// Set only when `status = rejected` (`cap`, `self_referral`, `same_device`,
+  /// `disposable_email`, `minor`).
+  reason              String?
+  grantedAt           DateTime?            @map("granted_at") @db.Timestamptz(6)
+  /// The non-expiring `credit_lots` row granted to each side (B02 `grantLot`,
+  /// `source: "referral"`) — set together, only when `status = granted`.
+  referrerLotId       String?              @map("referrer_lot_id") @db.Char(26)
+  referredLotId       String?              @map("referred_lot_id") @db.Char(26)
+  /// Abuse fingerprints captured from the claiming request (THREAT-MODEL T17).
+  deviceHash          String?              @map("device_hash")
+  ipHash               String?             @map("ip_hash")
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  referrerWorkspace Workspace @relation("ReferralRewardReferrer", fields: [referrerWorkspaceId], references: [id], onDelete: Cascade)
+  referredWorkspace Workspace @relation("ReferralRewardReferred", fields: [referredWorkspaceId], references: [id], onDelete: Cascade)
 
-  @@index([workspaceId])
+  @@index([referrerWorkspaceId])
   @@index([code])
   @@map("referral_rewards")
 }

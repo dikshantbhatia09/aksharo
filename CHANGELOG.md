@@ -10,6 +10,49 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Fixed
 
+- **B03b — unified the two `apps/web/lib/billing/razorpay.ts` modules B03 and B04 each
+  wrote (add/add conflict merging main).** One module now backs both: the checkout
+  sheet's subscription/mandate flow and B04's one-time purchases (`ExportUpsellPanel`'s
+  ₹9 clean export and week pass, `TopupCard`'s top-ups). `loadRazorpayCheckout()` keeps
+  B03's non-throwing, typed-constructor return (`Promise<RazorpayConstructor | null>`);
+  `openRazorpayCheckout()` keeps B04's stricter contract — a typed `RazorpayOutcome`
+  (`success` with payment/order ids, or `dismissed`), rejecting rather than resolving
+  falsely when the widget cannot load or open. `checkout-sheet.tsx` and `plan-table.tsx`
+  (the offers-ladder purchases) were updated to the outcome/throwing contract; their
+  tests and `lib/billing/razorpay.test.ts` updated to match. Also: the sidebar
+  `CreditMeter` (`apps/web/components/shell/sidebar.tsx`) now reads B02's real
+  `GET /workspaces/{id}/credits` via `packages/api-client`'s `useWorkspaceCredits()`
+  instead of the wrong `pending.usage` path, so the meter shows a live balance and reset
+  date instead of an honest zero. `lib/nav.test.ts`'s `SETTINGS_NAV` assertion updated
+  to include B04's "subscription" settings section.
+
+### Added
+
+- **B03 — web Subscription pages, checkout sheet and `UpgradeGate` wiring.** `/billing`
+  (Overview: plan card with status/renewal/mandate cap, credits meter with lots and
+  expiries, pause/cancel/resume with confirmations, streak slot behind a flag),
+  `/billing/plans` (INR/USD from `GET /billing/plans`, monthly/yearly toggle, Agency
+  seat stepper, offers ladder, credits-to-outcomes table, pay-once vs Autopay
+  explainer, FAQ), `/billing/methods` (payment methods, mandates with the 24-hour
+  pre-debit notice, revoke with a consequence-explained confirmation),
+  `/billing/invoices` (GST break-up, credit-note linking, signed PDF download; built
+  against B05's `invoices` row shape and resilient to `GET /invoices` 404ing while
+  B05 is still landing), `/billing/usage` (ledger history, per-job attribution, lots,
+  CSV export). The shared `CheckoutSheet` (`apps/web/components/billing/`) drives tax
+  profile (State + optional GSTIN with checksum and state auto-fill for India,
+  country elsewhere) → method (UPI Autopay / Card / pay-once; Netbanking marked
+  unsupported by B01's checkout schema) → confirm (GST-inclusive break-up) → gateway
+  (Razorpay Checkout.js from its official script URL, webhook-driven status polling)
+  → success/failed, and handles the `409 billing/mandate_cap_exceeded` alternatives.
+  `BillingUpgradeGate` composes `packages/ui`'s `UpgradeGate` with the sheet so any
+  other work package can gate a control with one import. A typed client layer lives
+  in `apps/web/lib/billing/` (endpoints, hooks, money/GST/checkout-state pure logic)
+  rather than in `packages/api-client`, which is outside this work package's file
+  boundary — see the report's Deviations. `apps/web/lib/nav.ts` flips the sidebar's
+  "Subscription" item to `ready: true` and adds `BILLING_NAV`.
+
+### Fixed
+
 - **A05b — `onboardingSchema` rejected the multi-select onboarding answers.** Reported
   by A13. `apps/api/src/users/users.dto.ts`'s `onboardingSchema` accepted only
   `boolean | number | string` per `onboarding` value, so `PATCH /me` answered
@@ -61,6 +104,99 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   - **web**: `/team` (members, invite, role change, remove, seats/cost preview from `useEntitlement`, client tags, ownership transfer dialog), `/plugins/keys` (create — key shown once — list, revoke), and a new "Devices" section on `/settings/devices` alongside the existing session list (a `devices` row is a plugin/desktop registration counted against the plan limit, distinct from an auth session). `packages/api-client` gained hand-written types/endpoints/hooks for members (previously unwired despite A05 shipping the routes), devices, licensing and client tags, plus the generated `operations.ts`/`openapi.json` refresh (`pnpm gen:client`).
   - **Tests**: `test/b08-teams.e2e-spec.ts` (seat proration incl. the mandate-reregistration D40 edge case, pooled credits, ownership transfer incl. the invalid-target case, client tags, a role-matrix contract test) and `test/b08-devices-licensing.e2e-spec.ts` (device limits/revocation → heartbeat failure, per-seat Agency device scaling, licence key creation/activation/heartbeat/nonce-replay/revocation propagation, device-code activation), both against a real Postgres/Redis; `licensing/offline-verify.test.ts` and `licensing/license-key.util.test.ts` (pure unit tests, signature/clock-skew); `apps/web/e2e/team-devices-licensing.spec.ts` (functional, chromium + WebKit) and three new screens added to `apps/web/e2e/a11y.spec.ts`'s existing signed-in axe pass.
   - **Deviations** (reported per the brief, not hidden): (1) `members.service.ts` and `auth/auth.module.ts`/`workspaces/workspaces.module.ts` needed small additive edits outside this work package's stated file boundary — an event emit, an `AuthModule` export, a `WORKSPACE_NOTIFIER` export — the same pattern B05's `billing-events.ts` used for the equivalent billing-events edit. (2) Licence-key signing reuses the access-token RSA key pair rather than a second one — no second key pair exists anywhere in this codebase's env schema, and the brief only names `kid`, not a distinct pair. (3) A licence-key-activated device (no signed-in person) is attributed to the workspace owner (`devices.user_id` is `NOT NULL`; 06 does not say who else it could be). (4) A real, pre-existing bug found while writing these tests and fixed in the same commit: `test/billing-harness.ts`'s pattern of clearing `billing_events` between tests was not something this suite's own new harness copied at first, which silently made `FakeProvider`'s deterministic event ids collide across tests and get treated as webhook replays — fixed in `test/b08-harness.ts#reset()`.
+- **B07b — the give-get referral loop (D53, F-607): personal `AK-XXXXXX` codes, claim at onboarding, 30/30 credits on the referred workspace's first completed export, caps and abuse rules, the tiered bonus, the in-app prompt and the Invite-friends tab.**
+  - **`apps/api/src/referrals/**` (new `ReferralsModule`).** `POST /referrals/claim
+{code}` classifies a posted code by prefix (`AK-` is a referral code; anything
+    else is a no-op here — B07's affiliate attribution owns it) and creates a
+    `pending` `referral_rewards` row, running every check decidable immediately:
+    self-referral, either side a declared minor (D60), a disposable referred-email
+    domain, or the same device/IP fingerprint as the referrer's most recent session
+    (THREAT-MODEL T17) — all four reject at claim time. `GET /referrals/me` lazily
+    allocates the workspace's personal code and reports reward counts, the tiered-
+    bonus timestamp, and `promptEligible` (computed server-side: a succeeded export
+    exists and the sheet has not been shown yet, so the frontend never re-derives
+    "first export" itself). `POST /referrals/prompt/shown` marks the sheet shown,
+    once, idempotently.
+  - **The grant.** `ExportCompletedListener` reacts to a new `export.completed`
+    `EventEmitter2` event (`export-completed.event.ts`) emitted from
+    `exports/exports.service.ts`'s browser `completeManifest()` and both cloud
+    completion handlers in `exports/render-completion.handler.ts` (one shared
+    `recordPublishEvent()` helper covers `render.video` and `render.subtitle`) —
+    additive, non-forking edits outside this work package's file boundary, flagged
+    per `invoices/billing-events.ts`'s precedent. `ReferralsService.grantForExport`
+    is a no-op unless the workspace has a still-`pending` referral; when it does, it
+    checks the referrer's Free-plan monthly cap (10 granted rewards/calendar month,
+    checked at grant time since it moves between claim and export) and resolves the
+    row to `granted` or `rejected: cap` with the same conditional `UPDATE … WHERE
+status = 'pending'` idempotency trick `claimManifest` uses for a replayed
+    completion — so a duplicate event grants at most once. A granted row calls
+    `CreditsFacade.grantLot({source: "referral", tenths: 300})` for both sides as
+    non-expiring lots (B02); a 3rd granted referral for one referrer additionally
+    grants a once-only 1000-tenths (100-credit) tier bonus
+    (13-launch-plan), guarded by a new `workspaces.referral_bonus_granted_at`.
+  - **Data**: migration `20260902090000_b07b_referral_loop` reshapes A03's unused
+    `referral_rewards` (no application code read or wrote it) into the brief's
+    two-workspace shape — `referrerWorkspaceId`, `referredWorkspaceId` (unique, the
+    exactly-once grant guarantee), separate `referrerLotId`/`referredLotId`,
+    `reason`, `deviceHash`/`ipHash` — and adds `workspaces.referral_code` (unique),
+    `referral_bonus_granted_at`, `referral_prompt_shown_at`.
+  - **web: `apps/web/components/referrals/**`.** `ReferralPromptSheet` (the give-get
+    sheet, "Give 30 credits, get 30 credits") and `InviteFriendsTab`, both
+    self-contained (they read `useReferralStats`/`useMarkReferralPromptShown`/
+    `useClaimReferral` themselves) and shipped with a documented mount point rather
+    than wired into a page — B07's Refer & Earn page shell had not landed on `main`
+    yet. `ReferralPromptSheet` is mounted into `components/shell/app-shell.tsx`
+    (documented, additive) so a workspace sees it once, on any authenticated page,
+    after its first completed export; `onboarding-flow.tsx` gets one additive,
+    best-effort `useClaimReferral()` call on a successful `finish()` (documented,
+    additive) so the code the form already collected is actually claimed.
+    `ReferralShareRow`/`share-links.ts` back the copy-code/copy-link/WhatsApp/X/
+    Instagram-caption row both surfaces render.
+  - **Tests**: `apps/api/src/referrals/*.test.ts` (code generation/classification,
+    disposable-email); `apps/api/test/referrals.e2e-spec.ts` (26 cases against a
+    real Postgres and the real `LedgerCreditsFacade` — claim, all four abuse
+    rejections, idempotent claim, the Free cap and its Starter exemption, the tiered
+    bonus and its once-only guard, `promptEligible` transitions, idempotent grant
+    under a duplicate `grantForExport` call); `apps/api/test/referrals-http.e2e-spec.ts`
+    (the same grant proven over real HTTP through the real `export.completed` emit,
+    not by calling the service directly); web component tests for both components;
+    `apps/web/e2e/referral-prompt.spec.ts` (Playwright + axe: the sheet opens once,
+    marks itself shown, does not reopen, no serious/critical a11y violations).
+- **A19 — web: browser-native export (WebCodecs + Mediabunny + CanvasKit).**
+  `apps/web/lib/export/**`: a capability probe (H.264 codec ladder, AAC/`AudioEncoder`,
+  File System Access, a 2 s throughput sample), manifest handling (`RenderManifest`
+  request/sanity-check/completion against the real, HMAC-signed `@montaj/render-manifest`
+  document — no client-side signature verification, see the deviation below), the
+  audio decision tree (packet copy / native AAC encode / lazy `@mediabunny/aac-encoder`
+  polyfill / cloud), client-side SRT/VTT/TXT subtitle generation from the projection +
+  `@montaj/timemap`, and the decode → composite → encode → mux engine itself: Mediabunny
+  `Input`/`CanvasSink` decodes the source, `@montaj/render-core`'s `renderFrame` (same
+  `DrawCommand[]` the cloud renderer uses, watermark included whenever the manifest
+  carries one) is rasterised per frame by `@montaj/render-canvaskit` and composited over
+  the decoded frame, and Mediabunny's `CanvasSource`/`EncodedAudioPacketSource`/
+  `AudioBufferSource` encode and mux to MP4 — streamed to a File System Access sink when
+  available, else buffered in memory, with progress, cancellation and a hard duration cap
+  (1080p ≤ 20 min, 4K ≤ 10 min desktop-Chromium-only). `apps/web/components/editor/export/**`:
+  the editor's Export dialog (Video/Subtitles/To-editor tabs, a watermark notice with no
+  client-side toggle, credit cost, progress and cancel), mounted from a new `ExportButton`
+  in `editor-client.tsx`'s toolbar. `apps/web/app/(app)/export-harness/page.tsx` is a bare,
+  unlinked page exposing the engine on `window` for the Playwright suite to drive with real
+  WebCodecs. `apps/web/next.config.ts` rewrites `node:` specifiers to their bare form for the
+  client bundle (`NormalModuleReplacementPlugin`) so `@montaj/render-manifest`'s
+  `node:crypto` import (server-only signing code, unreachable at runtime from the browser
+  exporter) does not fail the webpack build. New Playwright specs: `e2e/export.spec.ts`
+  (chromium) exports a real 10 s fixture MP4 end to end — real API-issued signed manifest,
+  real WebCodecs decode/encode, `ffprobe`-verified duration and codec, a sampled frame
+  hashed, `POST /exports/manifests/{id}/complete` accepted — and `e2e/export-fallback.spec.ts`
+  (webkit) asserts the capability probe reports the browser path ineligible and that the
+  dialog's own mode selection (never `"auto"` for an ineligible probe) still gets a working
+  cloud decision back. See `apps/web/lib/export/README.md` for the full design, the browser
+  support matrix, and every deviation from the brief (no client-side manifest signature
+  verification — the package signs with a symmetric HMAC, not a keypair, mirroring A21's own
+  reported deviation; the raw-bucket source and the watermark-asset bytes have no
+  client-reachable signed-URL endpoint yet; `@montaj/ass-exporter` is still A01's unimplemented
+  skeleton so ASS export is greyed out; the cleaned/cut audio re-encode path is wired through
+  the audio decision tree but not yet connected to a resampled sample source).
 
 - **B04 — api: the `offers` module (real signup-gift/₹9-pass/week-pass/top-up backing, ₹9 eligibility, instrumentation); web: export-dialog upsell panel, credits-meter top-up card, Subscription overview pass chips.**
   - **`OffersModule` backs the interfaces A21 left as no-ops.** `PassesNinePassLedger`
@@ -328,6 +464,64 @@ retention.service.ts`'s `purgeDueMedia` only ever queries `media_assets`,
     `notify.kinds.test.ts`'s hard-pinned ten-value list; the closest existing
     kind's copy — "kept for N days, then deleted" — is false for a document
     retained 72 months).
+- **A17 — web: editor timeline (waveform, word/segment lanes, playhead, zoom,
+  lanes API, keyboard nudge, output-time mode).**
+  - **`Timeline.tsx` (`apps/web/components/editor/timeline/`)** draws the
+    whole row — A07's `waveform.json` peaks/RMS, a time ruler, the word and
+    segment lanes and three read-only pass-item lanes (cuts/zoom/audio) — on
+    one Canvas2D surface, the same "no DOM per row" precedent A16's
+    `CaptionStage` set for the preview canvas, and for the same reason: one
+    `<div>` per word in a multi-hour transcript is what the brief's own
+    55 fps floor rules out. All the maths lives in `apps/web/lib/timeline/*.ts`,
+    unit-tested without a browser (`coords.ts` time↔px and zoom,
+    `snapping.ts`, `output-clock.ts`, `lanes.ts`, `waveform-view.ts`,
+    `nudge.ts`) — 51 tests, including a `fast-check` property test that
+    dragging never produces an overlapping or inverted segment.
+  - **Segment-edge drag and the arrow-key nudge both resolve through
+    `resolveSegmentDrag`** (snap to the nearest word boundary within 40 ms,
+    then clamp to the bounds invariants) into one `SetSegmentBounds`
+    (CONTRACTS §2) on drop/keypress — never per pointer move, same discipline
+    `CaptionStage`'s own drag handle already uses for `SetSegmentPosition`.
+    Double-click splits at the nearest word; a button merges with the next
+    segment.
+  - **Output-time mode** (`lib/timeline/output-clock.ts`) maps the ruler and
+    playhead onto `@montaj/timemap`'s output clock once an accepted cut
+    exists; scrubbing always resolves back to source ms for the (still
+    source-time) proxy `<video>`, per the brief.
+  - **The lanes API** (`lib/timeline/lanes.ts`) turns a document's pass items
+    into three typed, coloured-by-state rows B20 can add accept/reject
+    affordances to without this module changing.
+  - **A timing-nudge interface** (`lib/timeline/nudge.ts`) — every resolved
+    drag/keyboard delta is emitted to a `TimingNudgeSink`; `noopNudgeSink` is
+    the only implementation until B09 exists, matching the brief's own
+    wording ("an interface with a no-op sink now").
+  - **Deviation, reported rather than resolved:** the brief's "word block
+    drag → `EditWord` op" has no backing op — `EditWordOpSchema` (CONTRACTS
+    §2) carries only `{wordId, text, script?}`, never `s`/`e`; word timing is
+    set once at transcription and is not client-editable through any op in
+    `packages/edg`. Word blocks are therefore read-only/selectable (click
+    seeks and selects, low-confidence tint, filler dim, tombstoned hidden);
+    all retiming happens on the segment lane, which matches
+    `SetSegmentBoundsOpSchema` exactly.
+  - **Integration outside the brief's literal file boundary:** wiring
+    `<Timeline>` into `apps/web/app/(app)/p/[id]/editor-client.tsx` (mount,
+    `SetSegmentBounds` submit path, `CaptionStage`'s `src` pointed at the
+    real proxy URL) required a small additive patch to that file, which A15's
+    own file-boundary note already anticipated for A16's `CaptionStage`. A
+    new `apps/web/lib/timeline/use-timeline-media.ts` fetches the proxy/
+    waveform signed URLs via `@montaj/api-client`'s documented
+    `defineEndpoint` + `useRawApiClient()` escape hatch — "for a call the
+    hooks do not cover yet" — rather than editing that package's curated
+    `endpoints.ts`.
+  - **e2e:** `apps/web/e2e/timeline.spec.ts` (6 tests: draw, segment-edge
+    drag lands the op, ruler scrub, zoom, keyboard nudge, axe) on chromium
+    and webkit; `timeline-performance.spec.ts` measures a 3-hour,
+    54,000-word timeline's scroll/zoom fps. A fresh e2e sign-up's workspace
+    has no credit grant (only `prisma/seed.ts`'s demo workspace does), so
+    `apps/web/e2e/timeline-credits.ts` grants one directly (same
+    `credit_accounts`/`credit_lots`/`credit_ledger` shape the seed script
+    writes), the same "one non-HTTP step" precedent as `editor-fixtures.ts`'s
+    `insertProbedMedia`.
 - **A22 — scripts and translation: transliteration (`ai.transliterate`), translation
   (`ai.translate`), the producers, and the editor's script tabs.**
   - **Transliteration writes per word, translation writes per segment, and each

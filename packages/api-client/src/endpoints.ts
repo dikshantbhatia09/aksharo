@@ -17,6 +17,8 @@ import type {
   AvailableScripts,
   BatchCreateProjectsRequest,
   ChangeRoleRequest,
+  ClaimReferralRequest,
+  ClaimReferralResult,
   ClientTagView,
   CompletedUpload,
   CompleteUploadRequest,
@@ -28,6 +30,7 @@ import type {
   CurrentUser,
   DeviceApproveRequest,
   DeviceView,
+  DismissReferralPromptResult,
   Entitlement,
   Folder,
   InitUploadRequest,
@@ -51,6 +54,7 @@ import type {
   PlanCatalogueEntry,
   Project,
   ProjectPage,
+  ReferralStats,
   RenameDeviceRequest,
   RightsRequest,
   SessionSummary,
@@ -586,6 +590,31 @@ export const offersEndpoints = {
   }),
 } as const;
 
+/**
+ * The give-get referral loop (B07b): the personal code, claim-at-onboarding,
+ * and the give-get sheet's "shown once" marker.
+ */
+export const referralsEndpoints = {
+  me: defineEndpoint<void, ReferralStats>({
+    method: "GET",
+    path: "/referrals/me",
+    auth: "bearer",
+    operationId: "getReferralsMe",
+  }),
+  claim: defineEndpoint<ClaimReferralRequest, ClaimReferralResult>({
+    method: "POST",
+    path: "/referrals/claim",
+    auth: "bearer",
+    operationId: "claimReferral",
+  }),
+  markPromptShown: defineEndpoint<void, DismissReferralPromptResult>({
+    method: "POST",
+    path: "/referrals/prompt/shown",
+    auth: "bearer",
+    operationId: "markReferralPromptShown",
+  }),
+} as const;
+
 /** Scripts and translation (A22): `apps/api/src/transcripts/scripts`. */
 export const transcriptScriptsEndpoints = {
   transliterate: defineEndpoint<TransliterateRequest, TransliterateAccepted>({
@@ -652,6 +681,7 @@ export const endpoints = {
   registeredDevices: registeredDeviceEndpoints,
   licensing: licensingEndpoints,
   clientTags: clientTagEndpoints,
+  referrals: referralsEndpoints,
   pending: pendingEndpoints,
 } as const;
 
@@ -673,5 +703,6 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(billingEndpoints),
   ...Object.entries(creditsEndpoints),
   ...Object.entries(offersEndpoints),
+  ...Object.entries(referralsEndpoints),
   ...Object.entries(pendingEndpoints),
 ] as const;

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-02T10:52:02.000Z",
+  "generatedAt": "2026-09-02T11:20:18.897Z",
   "maxDiffRatio": 0.01,
   "libassMeasured": true,
   "styles": {
@@ -11,7 +11,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:24.762Z"
+      "measuredAt": "2026-09-02T11:19:19.548Z"
     },
     "bold-drop": {
       "styleId": "bold-drop",
@@ -21,7 +21,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:26.562Z"
+      "measuredAt": "2026-09-02T11:19:21.502Z"
     },
     "box-block": {
       "styleId": "box-block",
@@ -31,7 +31,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:27.496Z"
+      "measuredAt": "2026-09-02T11:19:22.630Z"
     },
     "bubble-soft": {
       "styleId": "bubble-soft",
@@ -41,7 +41,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:28.842Z"
+      "measuredAt": "2026-09-02T11:19:24.484Z"
     },
     "caption-card": {
       "styleId": "caption-card",
@@ -51,7 +51,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:30.260Z"
+      "measuredAt": "2026-09-02T11:19:26.425Z"
     },
     "duo-tone": {
       "styleId": "duo-tone",
@@ -61,7 +61,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:31.873Z"
+      "measuredAt": "2026-09-02T11:19:28.356Z"
     },
     "glitch-shift": {
       "styleId": "glitch-shift",
@@ -71,7 +71,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:33.221Z"
+      "measuredAt": "2026-09-02T11:19:30.719Z"
     },
     "gradient-sweep": {
       "styleId": "gradient-sweep",
@@ -81,7 +81,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:34.451Z"
+      "measuredAt": "2026-09-02T11:19:32.855Z"
     },
     "highlight-marker": {
       "styleId": "highlight-marker",
@@ -91,7 +91,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:35.620Z"
+      "measuredAt": "2026-09-02T11:19:34.891Z"
     },
     "hype-bold": {
       "styleId": "hype-bold",
@@ -101,7 +101,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:37.285Z"
+      "measuredAt": "2026-09-02T11:19:36.764Z"
     },
     "impact-shout": {
       "styleId": "impact-shout",
@@ -111,7 +111,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": [],
-      "measuredAt": "2026-09-02T10:51:38.262Z"
+      "measuredAt": "2026-09-02T11:19:38.242Z"
     },
     "karaoke-fill": {
       "styleId": "karaoke-fill",
@@ -121,7 +121,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["karaoke_non_latin_disabled"],
-      "measuredAt": "2026-09-02T10:51:38.978Z"
+      "measuredAt": "2026-09-02T11:19:39.252Z"
     },
     "liquid-glass": {
       "styleId": "liquid-glass",
@@ -131,7 +131,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:40.117Z"
+      "measuredAt": "2026-09-02T11:19:40.760Z"
     },
     "minimal-lower-third": {
       "styleId": "minimal-lower-third",
@@ -141,7 +141,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T10:51:40.673Z"
+      "measuredAt": "2026-09-02T11:19:41.829Z"
     },
     "neon-glow": {
       "styleId": "neon-glow",
@@ -151,7 +151,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["glow_reduced_to_outline"],
-      "measuredAt": "2026-09-02T10:51:41.881Z"
+      "measuredAt": "2026-09-02T11:19:43.525Z"
     },
     "news-ticker": {
       "styleId": "news-ticker",
@@ -161,7 +161,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:42.557Z"
+      "measuredAt": "2026-09-02T11:19:44.421Z"
     },
     "outline-only": {
       "styleId": "outline-only",
@@ -171,7 +171,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:44.077Z"
+      "measuredAt": "2026-09-02T11:19:46.974Z"
     },
     "podcast-duo": {
       "styleId": "podcast-duo",
@@ -181,7 +181,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:45.507Z"
+      "measuredAt": "2026-09-02T11:19:49.770Z"
     },
     "prism-split": {
       "styleId": "prism-split",
@@ -191,7 +191,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:47.149Z"
+      "measuredAt": "2026-09-02T11:19:52.445Z"
     },
     "punch-pop": {
       "styleId": "punch-pop",
@@ -201,7 +201,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:49.264Z"
+      "measuredAt": "2026-09-02T11:19:56.624Z"
     },
     "quote-frame": {
       "styleId": "quote-frame",
@@ -211,7 +211,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T10:51:50.520Z"
+      "measuredAt": "2026-09-02T11:19:59.125Z"
     },
     "soft-serif": {
       "styleId": "soft-serif",
@@ -221,7 +221,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T10:51:51.805Z"
+      "measuredAt": "2026-09-02T11:20:07.215Z"
     },
     "spotlight-word": {
       "styleId": "spotlight-word",
@@ -231,7 +231,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:53.250Z"
+      "measuredAt": "2026-09-02T11:20:09.204Z"
     },
     "stroke-heavy": {
       "styleId": "stroke-heavy",
@@ -241,7 +241,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:54.492Z"
+      "measuredAt": "2026-09-02T11:20:10.298Z"
     },
     "subtitle-classic": {
       "styleId": "subtitle-classic",
@@ -251,7 +251,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T10:51:56.008Z"
+      "measuredAt": "2026-09-02T11:20:11.939Z"
     },
     "tape-retro": {
       "styleId": "tape-retro",
@@ -261,7 +261,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:57.499Z"
+      "measuredAt": "2026-09-02T11:20:13.626Z"
     },
     "typewriter-mono": {
       "styleId": "typewriter-mono",
@@ -271,7 +271,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:51:58.210Z"
+      "measuredAt": "2026-09-02T11:20:14.496Z"
     },
     "vertical-clean": {
       "styleId": "vertical-clean",
@@ -281,7 +281,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T10:51:59.529Z"
+      "measuredAt": "2026-09-02T11:20:16.105Z"
     },
     "whisper-thin": {
       "styleId": "whisper-thin",
@@ -291,7 +291,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:52:00.678Z"
+      "measuredAt": "2026-09-02T11:20:17.477Z"
     },
     "word-pop": {
       "styleId": "word-pop",
@@ -301,7 +301,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T10:52:02.000Z"
+      "measuredAt": "2026-09-02T11:20:18.897Z"
     }
   }
 }

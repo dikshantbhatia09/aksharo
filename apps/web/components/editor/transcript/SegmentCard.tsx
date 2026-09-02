@@ -18,14 +18,21 @@ import { useState } from "react";
 import type { Segment, Word } from "@montaj/edg";
 
 import { SpeakerChip } from "./SpeakerChip";
-import { WordChip, type DisplayScript } from "./WordChip";
+import { WordChip, isWordDisplayScript } from "./WordChip";
 
 import { cn } from "@/lib/utils";
 
 export interface SegmentCardProps {
   readonly segment: Segment;
   readonly words: readonly Word[];
-  readonly script: DisplayScript;
+  /**
+   * A22's `ScriptTabs` offers `"translated"` alongside the three word-level
+   * scripts (`roman`/`native`/`en`) - it is a segment-level caption, not a
+   * per-word one (`segment.textOverrides.translated`, `packages/edg`
+   * README), so this widens to `string` and branches below rather than
+   * forcing every caller through `DisplayScript`.
+   */
+  readonly script: string;
   readonly speakerName?: string;
   readonly speakerColor?: string;
   readonly selected?: boolean;
@@ -138,69 +145,76 @@ export function SegmentCard({
         </div>
       </div>
 
-      <div
-        className="flex flex-wrap gap-x-1 gap-y-0.5 text-sm leading-relaxed"
-        data-testid={`segment-words-${segment.id}`}
-      >
-        {words.map((word) => (
-          <span
-            key={word.wid}
-            className="relative"
-            onContextMenu={(event) => {
-              event.preventDefault();
-              setMenuFor(word.wid);
-            }}
-          >
-            <WordChip
-              word={word}
-              script={script}
-              active={word.wid === activeWordId}
-              selected={word.wid === selectedWordId}
-              hideFillers={hideFillers}
-              onCommit={onEditWord}
-              {...(onSeek === undefined ? {} : { onSeek })}
-              {...(onFixSpellingEverywhere === undefined ? {} : { onFixSpellingEverywhere })}
-              onSelect={(wordId) => {
-                onSelectWord?.(segment.id, wordId);
+      {isWordDisplayScript(script) ? (
+        <div
+          className="flex flex-wrap gap-x-1 gap-y-0.5 text-sm leading-relaxed"
+          data-testid={`segment-words-${segment.id}`}
+        >
+          {words.map((word) => (
+            <span
+              key={word.wid}
+              className="relative"
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setMenuFor(word.wid);
               }}
-            />
-            {menuFor === word.wid ? (
-              <span
-                role="menu"
-                data-testid={`word-insert-menu-${word.wid}`}
-                className="absolute top-full left-0 z-10 mt-1 flex gap-1 rounded-md border border-white/10 bg-black p-1 text-xs shadow-lg"
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  data-testid={`word-insert-after-${word.wid}`}
-                  className="rounded px-2 py-1 hover:bg-white/10"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    const text = window.prompt("Insert word after this one:", "");
-                    setMenuFor(undefined);
-                    if (text !== null && text.trim() !== "")
-                      onInsertWordAfter(word.wid, text.trim());
-                  }}
+            >
+              <WordChip
+                word={word}
+                script={script}
+                active={word.wid === activeWordId}
+                selected={word.wid === selectedWordId}
+                hideFillers={hideFillers}
+                onCommit={onEditWord}
+                {...(onSeek === undefined ? {} : { onSeek })}
+                {...(onFixSpellingEverywhere === undefined ? {} : { onFixSpellingEverywhere })}
+                onSelect={(wordId) => {
+                  onSelectWord?.(segment.id, wordId);
+                }}
+              />
+              {menuFor === word.wid ? (
+                <span
+                  role="menu"
+                  data-testid={`word-insert-menu-${word.wid}`}
+                  className="absolute top-full left-0 z-10 mt-1 flex gap-1 rounded-md border border-white/10 bg-black p-1 text-xs shadow-lg"
                 >
-                  Insert word after
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="rounded px-2 py-1 hover:bg-white/10"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setMenuFor(undefined);
-                  }}
-                >
-                  Cancel
-                </button>
-              </span>
-            ) : null}
-          </span>
-        ))}
-      </div>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid={`word-insert-after-${word.wid}`}
+                    className="rounded px-2 py-1 hover:bg-white/10"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      const text = window.prompt("Insert word after this one:", "");
+                      setMenuFor(undefined);
+                      if (text !== null && text.trim() !== "")
+                        onInsertWordAfter(word.wid, text.trim());
+                    }}
+                  >
+                    Insert word after
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="rounded px-2 py-1 hover:bg-white/10"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setMenuFor(undefined);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </span>
+              ) : null}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-fg-2 text-sm italic" data-testid={`segment-translated-${segment.id}`}>
+          {segment.textOverrides?.["translated"] ??
+            "(no translation yet — use +Add translation above)"}
+        </p>
+      )}
     </div>
   );
 }

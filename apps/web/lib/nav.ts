@@ -64,7 +64,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     label: "Subscription",
     href: "/billing",
     icon: CreditCard,
-    ready: false,
+    ready: true,
     owner: "B03",
   },
   {
@@ -134,6 +134,35 @@ export const SETTINGS_NAV: readonly SettingsSection[] = [
     label: "Licence keys",
     href: "/plugins/keys",
     description: "Offline activation for plugins and the desktop app.",
+  },
+];
+
+/** `/billing/*` sub-navigation (08 §Subscription). */
+export const BILLING_NAV: readonly SettingsSection[] = [
+  { key: "overview", label: "Overview", href: "/billing", description: "Your plan and credits." },
+  {
+    key: "plans",
+    label: "Plans",
+    href: "/billing/plans",
+    description: "Compare and change plans.",
+  },
+  {
+    key: "methods",
+    label: "Payment methods",
+    href: "/billing/methods",
+    description: "Cards, UPI and mandates.",
+  },
+  {
+    key: "invoices",
+    label: "Invoices",
+    href: "/billing/invoices",
+    description: "GST invoices and credit notes.",
+  },
+  {
+    key: "usage",
+    label: "Usage",
+    href: "/billing/usage",
+    description: "Credit ledger and CSV export.",
   },
 ];
 

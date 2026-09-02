@@ -12086,6 +12086,180 @@
         ]
       }
     },
+    "/referrals/me": {
+      "get": {
+        "description": "Backs the Invite-friends tab and the give-get sheet. Creates the code if it did not exist yet.",
+        "operationId": "getReferralsMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Personal code, reward counts, bonus/prompt state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "pending": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "granted": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "rejected": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "bonusGrantedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "promptShownAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "promptEligible": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "pending",
+                    "granted",
+                    "rejected",
+                    "bonusGrantedAt",
+                    "promptShownAt",
+                    "promptEligible"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "This workspace's referral code and reward counts",
+        "tags": [
+          "referrals"
+        ]
+      }
+    },
+    "/referrals/claim": {
+      "post": {
+        "description": "Accepts both referral (`AK-XXXXXX`) and affiliate codes; a non-referral code is a no-op here (`claimed: false`) — attribution for it is B07's concern.",
+        "operationId": "claimReferral",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimReferralDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Whether the code was claimed, and its resulting state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "claimed": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "granted",
+                        "rejected"
+                      ]
+                    },
+                    "reason": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "claimed",
+                    "status",
+                    "reason"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Claim a code posted at onboarding",
+        "tags": [
+          "referrals"
+        ]
+      }
+    },
+    "/referrals/prompt/shown": {
+      "post": {
+        "description": "Idempotent — the sheet shows once per workspace; a repeat call returns the first timestamp.",
+        "operationId": "markReferralPromptShown",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "When the sheet was first shown.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "shownAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "shownAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mark the give-get sheet as shown for this workspace",
+        "tags": [
+          "referrals"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "getHealth",
@@ -16558,6 +16732,10 @@
           "contentType",
           "createdAt"
         ]
+      },
+      "ClaimReferralDto": {
+        "type": "object",
+        "properties": {}
       },
       "HealthResponseDto": {
         "type": "object",

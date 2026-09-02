@@ -781,3 +781,34 @@ export interface ClientTagView {
 export interface SetClientTagRequest {
   clientTag: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Referrals (B07b): the give-get loop.
+// ---------------------------------------------------------------------------
+
+export type ReferralRewardStatus = "pending" | "granted" | "rejected";
+
+export interface ClaimReferralRequest {
+  code: string;
+}
+
+export interface ClaimReferralResult {
+  claimed: boolean;
+  status: ReferralRewardStatus | null;
+  reason: string | null;
+}
+
+export interface ReferralStats {
+  code: string;
+  pending: number;
+  granted: number;
+  rejected: number;
+  bonusGrantedAt: string | null;
+  promptShownAt: string | null;
+  /** `true` once this workspace has completed its first export and the sheet has not been shown yet. */
+  promptEligible: boolean;
+}
+
+export interface DismissReferralPromptResult {
+  shownAt: string;
+}

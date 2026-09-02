@@ -24,6 +24,7 @@ export const queryKeys = {
   credits: (workspaceId: string) => ["ws", workspaceId, "credits"] as const,
   offersEligibility: (workspaceId: string) => ["ws", workspaceId, "offers", "eligibility"] as const,
   offersPasses: (workspaceId: string) => ["ws", workspaceId, "offers", "passes"] as const,
+  referrals: (workspaceId: string) => ["ws", workspaceId, "referrals"] as const,
   /**
    * Jobs for one project (a card's progress poll). Nested *under* `jobs()`
    * (`["ws", id, "jobs", "byProject", projectId]`), not under `projects()`, on
