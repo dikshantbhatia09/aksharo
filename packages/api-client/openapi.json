@@ -14844,6 +14844,863 @@
           "plugins"
         ]
       }
+    },
+    "/affiliate/apply": {
+      "post": {
+        "operationId": "applyAffiliate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "legalName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "pan": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{5}[0-9]{4}[A-Z]$"
+                  },
+                  "gstin": {
+                    "type": "string"
+                  },
+                  "payoutMethod": {
+                    "type": "object",
+                    "properties": {
+                      "rail": {
+                        "type": "string",
+                        "enum": [
+                          "neft",
+                          "imps",
+                          "rtgs",
+                          "upi"
+                        ]
+                      },
+                      "vpaOrAccountNumber": {
+                        "type": "string",
+                        "minLength": 4,
+                        "maxLength": 64
+                      },
+                      "ifsc": {
+                        "type": "string",
+                        "minLength": 11,
+                        "maxLength": 11
+                      },
+                      "accountHolderName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      }
+                    },
+                    "required": [
+                      "rail",
+                      "vpaOrAccountNumber",
+                      "accountHolderName"
+                    ]
+                  },
+                  "acceptedDisclosure": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  }
+                },
+                "required": [
+                  "legalName",
+                  "pan",
+                  "payoutMethod",
+                  "acceptedDisclosure"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new affiliate profile, status pending.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "tier": {
+                      "type": "string"
+                    },
+                    "legalName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "panLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstin": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "balanceMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "referralLink": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "status",
+                    "tier",
+                    "legalName",
+                    "panLast4",
+                    "gstin",
+                    "balanceMinor",
+                    "currency",
+                    "approvedAt",
+                    "createdAt",
+                    "referralLink"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Apply to the affiliate programme (India only)",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/me": {
+      "get": {
+        "operationId": "getMyAffiliate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Affiliate profile, wrapped so `affiliate: null` is a real JSON body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "affiliate": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "tier": {
+                          "type": "string"
+                        },
+                        "legalName": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "panLast4": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "gstin": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "balanceMinor": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "approvedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "referralLink": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "code",
+                        "status",
+                        "tier",
+                        "legalName",
+                        "panLast4",
+                        "gstin",
+                        "balanceMinor",
+                        "currency",
+                        "approvedAt",
+                        "createdAt",
+                        "referralLink"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "affiliate"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The caller's own affiliate profile, or null",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/me/stats": {
+      "get": {
+        "operationId": "getMyAffiliateStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Clicks, sign-ups, pending/available/paid, FY TDS.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "clicks": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "signups": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "paidReferrals": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "activeReferrals": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "pendingCommissionMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "availableCommissionMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "paidOutMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "fyLabel": {
+                      "type": "string"
+                    },
+                    "fyGrossMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "fyTdsMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "fyNetMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "tier": {
+                      "type": "string"
+                    },
+                    "activeReferralsForTierUpgrade": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "clicks",
+                    "signups",
+                    "paidReferrals",
+                    "activeReferrals",
+                    "pendingCommissionMinor",
+                    "availableCommissionMinor",
+                    "paidOutMinor",
+                    "fyLabel",
+                    "fyGrossMinor",
+                    "fyTdsMinor",
+                    "fyNetMinor",
+                    "tier",
+                    "activeReferralsForTierUpgrade"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Dashboard stats for the caller's affiliate profile",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/r/click": {
+      "post": {
+        "operationId": "recordAffiliateClick",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16
+                  },
+                  "ipHash": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "deviceHash": {
+                    "type": "string",
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Record a /r/<code> click (called by the web route)",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/attribution/attach": {
+      "post": {
+        "operationId": "attachAffiliateAttribution",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "referredWorkspaceId": {
+                    "type": "string"
+                  },
+                  "referredUserId": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16
+                  },
+                  "cookieCode": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16
+                  },
+                  "cookieExpiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "ipHash": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "deviceHash": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "paymentFingerprint": {
+                    "type": "string",
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "referredWorkspaceId",
+                  "referredUserId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Resolve attribution for a newly-created workspace (code beats cookie)",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/admin/{affiliateId}/approve": {
+      "post": {
+        "operationId": "adminApproveAffiliate",
+        "parameters": [
+          {
+            "name": "affiliateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The approved affiliate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "tier": {
+                      "type": "string"
+                    },
+                    "legalName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "panLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstin": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "balanceMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "referralLink": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "status",
+                    "tier",
+                    "legalName",
+                    "panLast4",
+                    "gstin",
+                    "balanceMinor",
+                    "currency",
+                    "approvedAt",
+                    "createdAt",
+                    "referralLink"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Approve a pending affiliate application (admin)",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/admin/{affiliateId}/suspend": {
+      "post": {
+        "operationId": "adminSuspendAffiliate",
+        "parameters": [
+          {
+            "name": "affiliateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The suspended affiliate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "tier": {
+                      "type": "string"
+                    },
+                    "legalName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "panLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstin": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "balanceMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "referralLink": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "status",
+                    "tier",
+                    "legalName",
+                    "panLast4",
+                    "gstin",
+                    "balanceMinor",
+                    "currency",
+                    "approvedAt",
+                    "createdAt",
+                    "referralLink"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Suspend an affiliate (admin)",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/admin/{affiliateId}/reject": {
+      "post": {
+        "operationId": "adminRejectAffiliate",
+        "parameters": [
+          {
+            "name": "affiliateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Function"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The rejected affiliate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "tier": {
+                      "type": "string"
+                    },
+                    "legalName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "panLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstin": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "balanceMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "referralLink": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "status",
+                    "tier",
+                    "legalName",
+                    "panLast4",
+                    "gstin",
+                    "balanceMinor",
+                    "currency",
+                    "approvedAt",
+                    "createdAt",
+                    "referralLink"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reject a pending affiliate application (admin)",
+        "tags": [
+          "affiliate"
+        ]
+      }
+    },
+    "/affiliate/admin/{affiliateId}/revoke-code": {
+      "post": {
+        "operationId": "adminRevokeAffiliateCode",
+        "parameters": [
+          {
+            "name": "affiliateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The affiliate with a new code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "tier": {
+                      "type": "string"
+                    },
+                    "legalName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "panLast4": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "gstin": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "balanceMinor": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "referralLink": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "status",
+                    "tier",
+                    "legalName",
+                    "panLast4",
+                    "gstin",
+                    "balanceMinor",
+                    "currency",
+                    "approvedAt",
+                    "createdAt",
+                    "referralLink"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke and regenerate an affiliate's code (admin)",
+        "tags": [
+          "affiliate"
+        ]
+      }
     }
   },
   "info": {
@@ -16825,6 +17682,10 @@
           "version",
           "checks"
         ]
+      },
+      "Function": {
+        "type": "object",
+        "properties": {}
       }
     }
   }

@@ -14,6 +14,9 @@
 import { defineEndpoint } from "./http.js";
 
 import type {
+  AffiliateProfile,
+  AffiliateStats,
+  ApplyAffiliateRequest,
   AvailableScripts,
   BatchCreateProjectsRequest,
   ChangeRoleRequest,
@@ -664,6 +667,29 @@ export const pendingEndpoints = {
   }),
 } as const;
 
+/** Affiliate v2 (B07). `apply`/`me`/`stats` are scoped to the caller's own affiliate profile. */
+export const affiliateEndpoints = {
+  apply: defineEndpoint<ApplyAffiliateRequest, AffiliateProfile>({
+    method: "POST",
+    path: "/affiliate/apply",
+    auth: "bearer",
+    operationId: "applyAffiliate",
+  }),
+  /** Wrapped `{ affiliate }` — see `hooks.ts useMyAffiliate`'s doc-comment for why. */
+  me: defineEndpoint<void, { affiliate: AffiliateProfile | null }>({
+    method: "GET",
+    path: "/affiliate/me",
+    auth: "bearer",
+    operationId: "getMyAffiliate",
+  }),
+  stats: defineEndpoint<void, AffiliateStats>({
+    method: "GET",
+    path: "/affiliate/me/stats",
+    auth: "bearer",
+    operationId: "getMyAffiliateStats",
+  }),
+} as const;
+
 export const endpoints = {
   auth: authEndpoints,
   device: deviceEndpoints,
@@ -676,6 +702,7 @@ export const endpoints = {
   transcripts: transcriptEndpoints,
   transcriptScripts: transcriptScriptsEndpoints,
   billing: billingEndpoints,
+  affiliate: affiliateEndpoints,
   credits: creditsEndpoints,
   offers: offersEndpoints,
   registeredDevices: registeredDeviceEndpoints,
@@ -701,6 +728,7 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(transcriptEndpoints),
   ...Object.entries(transcriptScriptsEndpoints),
   ...Object.entries(billingEndpoints),
+  ...Object.entries(affiliateEndpoints),
   ...Object.entries(creditsEndpoints),
   ...Object.entries(offersEndpoints),
   ...Object.entries(referralsEndpoints),

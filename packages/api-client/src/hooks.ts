@@ -22,6 +22,9 @@ import { queryKeys } from "./query-keys.js";
 
 import type { ApiClient } from "./http.js";
 import type {
+  AffiliateProfile,
+  AffiliateStats,
+  ApplyAffiliateRequest,
   AvailableScripts,
   BatchCreateProjectsRequest,
   ClaimReferralRequest,
@@ -992,6 +995,49 @@ export function useTranslateTranscript(
       void queryClient.invalidateQueries({
         queryKey: queryKeys.transcriptScripts(workspaceId, projectId),
       });
+    },
+  });
+}
+
+// --- Affiliate (B07) -----------------------------------------------------------
+
+export function useMyAffiliate(): UseQueryResult<AffiliateProfile | null> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.affiliate(),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    // The route wraps `{ affiliate }` rather than a bare nullable body — a
+    // handler returning `null`/`undefined` makes Nest's Express adapter send
+    // an empty body (`isNil(body)` → `response.send()`), which `readJson`
+    // then reads back as `undefined`, and TanStack Query refuses `undefined`
+    // as query data outright.
+    queryFn: async () => (await client.call(endpoints.affiliate.me)).affiliate,
+  });
+}
+
+export function useMyAffiliateStats(enabled: boolean): UseQueryResult<AffiliateStats> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.affiliateStats(),
+    enabled,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.affiliate.stats),
+  });
+}
+
+export function useApplyAffiliate(): UseMutationResult<
+  AffiliateProfile,
+  Error,
+  ApplyAffiliateRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ApplyAffiliateRequest) => client.call(endpoints.affiliate.apply, { body }),
+    onSuccess: (affiliate) => {
+      queryClient.setQueryData(queryKeys.affiliate(), affiliate);
     },
   });
 }

@@ -812,3 +812,54 @@ export interface ReferralStats {
 export interface DismissReferralPromptResult {
   shownAt: string;
 }
+
+// --- Affiliate (B07) -----------------------------------------------------------
+
+export interface AffiliatePayoutMethod {
+  rail: "neft" | "imps" | "rtgs" | "upi";
+  vpaOrAccountNumber: string;
+  ifsc?: string;
+  accountHolderName: string;
+}
+
+export interface ApplyAffiliateRequest {
+  legalName: string;
+  /** `AAAAA9999A` — validated and stored encrypted server-side. */
+  pan: string;
+  gstin?: string;
+  payoutMethod: AffiliatePayoutMethod;
+  /** Acceptance of the ASCI disclosure clause verbatim (04 §Affiliate). */
+  acceptedDisclosure: true;
+}
+
+export interface AffiliateProfile {
+  id: string;
+  code: string;
+  status: "pending" | "approved" | "suspended" | "rejected" | "suspended_review";
+  tier: "standard" | "while_subscribed_30";
+  legalName: string | null;
+  panLast4: string | null;
+  gstin: string | null;
+  balanceMinor: number;
+  currency: string;
+  approvedAt: string | null;
+  createdAt: string;
+  /** `BRAND.domain/r/<code>` (brief §1). */
+  referralLink: string;
+}
+
+export interface AffiliateStats {
+  clicks: number;
+  signups: number;
+  paidReferrals: number;
+  activeReferrals: number;
+  pendingCommissionMinor: number;
+  availableCommissionMinor: number;
+  paidOutMinor: number;
+  fyLabel: string;
+  fyGrossMinor: number;
+  fyTdsMinor: number;
+  fyNetMinor: number;
+  tier: string;
+  activeReferralsForTierUpgrade: number;
+}
