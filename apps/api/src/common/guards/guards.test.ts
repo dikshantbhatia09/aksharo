@@ -210,8 +210,9 @@ describe("ApiKeyGuard", () => {
   const record = {
     id: "key-1",
     hash: hashApiKeySecret(secret),
-    scopes: ["read", "jobs"],
+    scopes: ["projects_read", "projects_write"],
     revokedAt: null,
+    expiresAt: null,
     workspaceId: "ws-1",
     workspace: { ownerId: "owner-1", deletedAt: null },
   };
@@ -235,8 +236,8 @@ describe("ApiKeyGuard", () => {
     });
   });
 
-  it("never grants more than viewer without the jobs scope (D27)", async () => {
-    const guard = guardWith({ ...record, scopes: ["read"] });
+  it("never grants more than viewer without a write scope (D27)", async () => {
+    const guard = guardWith({ ...record, scopes: ["projects_read"] });
     const request = { headers: { "x-api-key": `ak_prefix01.${secret}` } } as unknown as Request & {
       principal?: { role: string };
     };
@@ -256,6 +257,11 @@ describe("ApiKeyGuard", () => {
         { ...record, workspace: { ownerId: "o", deletedAt: new Date() } },
         { "x-api-key": `ak_prefix01.${secret}` },
       ],
+      [
+        "expired (rotation overlap elapsed)",
+        { ...record, expiresAt: new Date(Date.now() - 1_000) },
+        { "x-api-key": `ak_prefix01.${secret}` },
+      ],
     ];
 
     for (const [, found, headers] of cases) {
@@ -267,10 +273,22 @@ describe("ApiKeyGuard", () => {
   });
 
   it("enforces the scopes a route asked for", async () => {
-    const guard = guardWith({ ...record, scopes: ["read"] }, { "montaj:api-scopes": ["jobs"] });
+    const guard = guardWith(
+      { ...record, scopes: ["projects_read"] },
+      { "montaj:api-scopes": ["projects_write"] },
+    );
     await expect(
       guard.canActivate(contextFor({ headers: { "x-api-key": `ak_prefix01.${secret}` } } as never)),
     ).rejects.toMatchObject({ code: "common/forbidden" });
+  });
+
+  it("admits a key inside its rotation overlap window (expiresAt in the future)", async () => {
+    const guard = guardWith({ ...record, expiresAt: new Date(Date.now() + 60_000) });
+    await expect(
+      guard.canActivate(
+        contextFor({ headers: { "x-api-key": `ak_prefix01.${secret}` } } as never),
+      ),
+    ).resolves.toBe(true);
   });
 });
 

@@ -17061,6 +17061,865 @@
           "affiliate"
         ]
       }
+    },
+    "/workspaces/{id}/api-keys": {
+      "post": {
+        "description": "The full key (`ak_live_<prefix>.<secret>`) is returned once, here, and never again.",
+        "operationId": "createApiKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MintedApiKeyDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`entitlement/upgrade_required` — Studio/Agency only."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mint a new API key",
+        "tags": [
+          "developers"
+        ]
+      },
+      "get": {
+        "operationId": "listApiKeys",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiKeyDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List a workspace's API keys (never the secret)",
+        "tags": [
+          "developers"
+        ]
+      }
+    },
+    "/workspaces/{id}/api-keys/{keyId}/rotate": {
+      "post": {
+        "operationId": "rotateApiKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MintedApiKeyDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`public_api/key_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Rotate a key: mint a replacement, give the old one a 24h overlap window",
+        "tags": [
+          "developers"
+        ]
+      }
+    },
+    "/workspaces/{id}/api-keys/{keyId}": {
+      "delete": {
+        "operationId": "revokeApiKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`public_api/key_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke an API key immediately",
+        "tags": [
+          "developers"
+        ]
+      }
+    },
+    "/v1/projects": {
+      "post": {
+        "description": "`sourceUrl` is fetched under the SSRF guard (https only, private/link-local/metadata addresses refused, redirects re-validated) and attached as the project's primary media.",
+        "operationId": "v1CreateProject",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1CreateProjectRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ProjectDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid `X-Api-Key`."
+          },
+          "403": {
+            "description": "The key lacks the required scope."
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Create a project, optionally from a sourceUrl",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/v1/projects/{id}": {
+      "get": {
+        "operationId": "v1GetProject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ProjectDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid `X-Api-Key`."
+          },
+          "403": {
+            "description": "The key lacks the required scope."
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Fetch a project",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/v1/projects/{projectId}/transcribe": {
+      "post": {
+        "operationId": "v1Transcribe",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1TranscribeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1TranscribeAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid `X-Api-Key`."
+          },
+          "403": {
+            "description": "The key lacks the required scope."
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Start transcription",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/v1/projects/{projectId}/transcript": {
+      "get": {
+        "operationId": "v1GetTranscript",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The transcript file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid `X-Api-Key`."
+          },
+          "403": {
+            "description": "The key lacks the required scope."
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Download the transcript as json, srt or vtt",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/v1/projects/{projectId}/exports": {
+      "post": {
+        "operationId": "v1CreateExport",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1CreateExportRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ExportAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid `X-Api-Key`."
+          },
+          "403": {
+            "description": "The key lacks the required scope."
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Request an export (cloud path)",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/v1/exports/{exportId}": {
+      "get": {
+        "operationId": "v1GetExport",
+        "parameters": [
+          {
+            "name": "exportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ExportDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid `X-Api-Key`."
+          },
+          "403": {
+            "description": "The key lacks the required scope."
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Fetch an export's status and (once ready) its download URL",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/v1/jobs/{id}": {
+      "get": {
+        "operationId": "v1GetJob",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1JobDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid `X-Api-Key`."
+          },
+          "403": {
+            "description": "The key lacks the required scope."
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Poll a job's status",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/workspaces/{id}/webhooks": {
+      "post": {
+        "operationId": "createWebhookEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedWebhookEndpointDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Register a webhook endpoint",
+        "tags": [
+          "webhooks"
+        ]
+      },
+      "get": {
+        "operationId": "listWebhookEndpoints",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WebhookEndpointDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List a workspace's webhook endpoints",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/workspaces/{id}/webhooks/{endpointId}": {
+      "patch": {
+        "operationId": "updateWebhookEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endpointId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWebhookRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEndpointDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`webhooks/endpoint_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Update a webhook endpoint's URL, events or active state",
+        "tags": [
+          "webhooks"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteWebhookEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endpointId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEndpointDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`webhooks/endpoint_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove a webhook endpoint",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/workspaces/{id}/webhooks/{endpointId}/test": {
+      "post": {
+        "operationId": "sendWebhookTestEvent",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endpointId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookTestResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`webhooks/endpoint_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Send a synthetic `ping` event to this endpoint",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/workspaces/{id}/webhooks/{endpointId}/deliveries": {
+      "get": {
+        "operationId": "listWebhookDeliveries",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endpointId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WebhookDeliveryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`webhooks/endpoint_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "This endpoint's recent delivery log",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/workspaces/{id}/webhooks/deliveries/{deliveryId}/redeliver": {
+      "post": {
+        "operationId": "redeliverWebhookDelivery",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deliveryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookRedeliverResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`webhooks/delivery_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Manually redeliver an exhausted delivery",
+        "tags": [
+          "webhooks"
+        ]
+      }
     }
   },
   "info": {
@@ -19076,6 +19935,409 @@
       "Function": {
         "type": "object",
         "properties": {}
+      },
+      "CreateApiKeyRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "MintedApiKeyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rateLimit": {
+            "type": "number"
+          },
+          "burstLimit": {
+            "type": "number"
+          },
+          "lastUsedAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "revokedAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "description": "`ak_live_<prefix>.<secret>` — shown once. Store it now."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "rateLimit",
+          "burstLimit",
+          "createdAt",
+          "key"
+        ]
+      },
+      "ApiKeyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rateLimit": {
+            "type": "number"
+          },
+          "burstLimit": {
+            "type": "number"
+          },
+          "lastUsedAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "revokedAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "rateLimit",
+          "burstLimit",
+          "createdAt"
+        ]
+      },
+      "V1CreateProjectRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "V1ProjectDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "createdAt"
+        ]
+      },
+      "V1TranscribeRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "V1TranscribeAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "transcriptId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "transcriptId",
+          "status"
+        ]
+      },
+      "V1CreateExportRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "V1ExportAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "exportId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "exportId",
+          "status"
+        ]
+      },
+      "V1ExportDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "downloadUrl": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "status",
+          "createdAt"
+        ]
+      },
+      "V1JobDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "progress": {
+            "type": "number"
+          },
+          "error": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "progress",
+          "createdAt"
+        ]
+      },
+      "CreateWebhookRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreatedWebhookEndpointDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "failures": {
+            "type": "number"
+          },
+          "disabledAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string",
+            "description": "The signing secret. Shown once — store it now."
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "events",
+          "active",
+          "failures",
+          "createdAt",
+          "secret"
+        ]
+      },
+      "WebhookEndpointDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "failures": {
+            "type": "number"
+          },
+          "disabledAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "events",
+          "active",
+          "failures",
+          "createdAt"
+        ]
+      },
+      "UpdateWebhookRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "WebhookTestResultDto": {
+        "type": "object",
+        "properties": {
+          "deliveryId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "deliveryId"
+        ]
+      },
+      "WebhookDeliveryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "event": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "delivered",
+              "failed",
+              "dead"
+            ]
+          },
+          "attempt": {
+            "type": "number"
+          },
+          "responseCode": {
+            "type": "object",
+            "nullable": true
+          },
+          "error": {
+            "type": "object",
+            "nullable": true
+          },
+          "nextRetryAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "deliveredAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "event",
+          "status",
+          "attempt",
+          "createdAt"
+        ]
+      },
+      "WebhookRedeliverResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
       }
     }
   }

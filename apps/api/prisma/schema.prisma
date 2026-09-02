@@ -132,10 +132,16 @@ enum HostApp {
   resolve
 }
 
+/// B14 §1: the only scopes a customer key can carry. `projects_write` covers
+/// creating/mutating projects and enqueuing jobs (`ApiKeyGuard` derives `editor`
+/// from it, per A04's D27); there is deliberately no `admin` or `billing` scope —
+/// the enum itself is the guarantee a key can never carry one.
 enum ApiKeyScope {
-  read
-  jobs
-  webhooks
+  projects_read
+  projects_write
+  transcripts_read
+  exports_write
+  webhooks_manage
 }
 
 /// Not enumerated in 06 (`status`); the device-code flow of 07 §Auth.
@@ -896,18 +902,45 @@ model LicenseKey {
 model ApiKey {
   id          String        @id @db.Char(26)
   workspaceId String        @map("workspace_id") @db.Char(26)
+  /// Display name the workspace gave it ("CI pipeline", "Zapier").
+  name        String        @default("")
   prefix      String        @unique
   hash        String
   scopes      ApiKeyScope[]
   rateLimit   Int           @default(60) @map("rate_limit")
+  /// Burst above `rateLimit` a token bucket may absorb (B14 §1: 120 default).
+  burstLimit  Int           @default(120) @map("burst_limit")
   lastUsedAt  DateTime?     @map("last_used_at") @db.Timestamptz(6)
+  /// Optional caller-set expiry. `ApiKeyGuard` refuses a key past this instant.
+  expiresAt   DateTime?     @map("expires_at") @db.Timestamptz(6)
   revokedAt   DateTime?     @map("revoked_at") @db.Timestamptz(6)
+  createdBy   String?       @map("created_by") @db.Char(26)
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// Set on rotate: the key this one replaced, kept for the audit trail.
+  rotatedFrom String?       @map("rotated_from") @db.Char(26)
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
   @@map("api_keys")
+}
+
+/// `Idempotency-Key` replay store for `/v1/*` (B14 §2), 24h TTL enforced by
+/// `expiresAt` plus the retention sweep — never read past it.
+model IdempotencyRecord {
+  /// `sha256(workspaceId + ":" + route + ":" + key)`, hex — one row per caller/route/key.
+  id             String   @id
+  workspaceId    String   @map("workspace_id") @db.Char(26)
+  /// `sha256` of the request body, so the *same* key with a *different* body is a conflict.
+  requestHash    String   @map("request_hash")
+  responseStatus Int      @map("response_status")
+  /// Zod: opaque — whatever the wrapped handler answered, replayed verbatim.
+  responseBody   Json     @map("response_body") @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@index([expiresAt])
+  @@map("idempotency_records")
 }
 
 /// Device-code grant (07 §Auth, THREAT-MODEL T3). TTL at most 10 minutes.

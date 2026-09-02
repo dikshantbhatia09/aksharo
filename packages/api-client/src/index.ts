@@ -84,15 +84,25 @@ export type {
   WebSocketLike,
 } from "./realtime.js";
 
-export { CONSENT_PURPOSES } from "./types.js";
+export { API_KEY_SCOPES, CONSENT_PURPOSES, WEBHOOK_EVENT_NAMES } from "./types.js";
 export type {
   AffiliatePayoutMethod,
   AffiliateProfile,
   AffiliateStats,
+  ApiKeyScope,
+  ApiKeyView,
   ApplyAffiliateRequest,
   AttachAffiliateAttributionRequest,
   AttachAffiliateAttributionResult,
   AvailableScripts,
+  CreateApiKeyRequest,
+  CreatedWebhookEndpointView,
+  CreateWebhookRequest,
+  MintedApiKeyView,
+  UpdateWebhookRequest,
+  WebhookDeliveryView,
+  WebhookEndpointView,
+  WebhookEventName,
   BillingInterval,
   BatchCreateProjectsRequest,
   ClientKind,

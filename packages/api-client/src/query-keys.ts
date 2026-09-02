@@ -54,6 +54,10 @@ export const queryKeys = {
   devices: (workspaceId: string) => ["ws", workspaceId, "devices"] as const,
   licenseKeys: (workspaceId: string) => ["ws", workspaceId, "licenseKeys"] as const,
   clientTags: (workspaceId: string) => ["ws", workspaceId, "clientTags"] as const,
+  apiKeys: (workspaceId: string) => ["ws", workspaceId, "apiKeys"] as const,
+  webhooks: (workspaceId: string) => ["ws", workspaceId, "webhooks"] as const,
+  webhookDeliveries: (workspaceId: string, endpointId: string) =>
+    ["ws", workspaceId, "webhooks", endpointId, "deliveries"] as const,
 } as const;
 
 export type QueryKeys = typeof queryKeys;
