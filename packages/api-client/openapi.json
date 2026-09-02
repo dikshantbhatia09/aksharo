@@ -10198,6 +10198,119 @@
         ]
       }
     },
+    "/admin/auth/totp/enroll": {
+      "post": {
+        "operationId": "adminTotpEnroll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotpEnrollResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "The caller holds no active admin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start TOTP enrolment for an admin account",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/totp/verify": {
+      "post": {
+        "operationId": "adminTotpVerify",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TotpCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "The caller holds no active admin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Confirm TOTP enrolment with the first valid code",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/step-up": {
+      "post": {
+        "description": "CONTRACTS §5: mints `kind: \"admin\"`, never refreshable.",
+        "operationId": "adminStepUp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TotpCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStepUpResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "The caller holds no active admin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Exchange a normal session plus a TOTP code for a 30-minute admin token",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/dlq": {
       "get": {
         "description": "Filter by `queue`, `status`, `workspaceId`, a `reason` substring of the last error's code or message, and a `since`/`until` window. Cursor pagination: pass the previous page's `nextCursor`.",
@@ -11510,6 +11623,108 @@
         ]
       }
     },
+    "/projects/{projectId}/audio/clean": {
+      "post": {
+        "description": "Quotes the job from the probed media duration (1 credit a minute, rounded up to 0.1 of a minute, creator plan and above), holds the credits and enqueues `ai.clean`. Watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`, then read `GET /projects/{id}/audio/cleans` for the signed URLs and metrics.",
+        "operationId": "cleanProjectAudio",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleanRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          },
+          "409": {
+            "description": "`audio/media_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Clean the project's audio: denoise, normalise loudness",
+        "tags": [
+          "audio"
+        ]
+      }
+    },
+    "/projects/{projectId}/audio/cleans": {
+      "get": {
+        "description": "Newest first, capped at 50. `cleanedAudioUrl`/`previewOriginalUrl`/`previewCleanedUrl` are short-lived signed GET URLs, present once the run has succeeded.",
+        "operationId": "listProjectAudioCleans",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioCleanListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "This project's audio-clean history",
+        "tags": [
+          "audio"
+        ]
+      }
+    },
     "/projects/{projectId}/passes/autocut": {
       "post": {
         "description": "Quotes the job from the primary media's probed duration (`autocutPass` burn rate, source minutes), holds the credits and enqueues `ai.pass`. The proposed cuts land as `edg_pass_items` (state `proposed`) once the worker's completion arrives and `MergePass` merges them; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`.",
@@ -11564,6 +11779,124 @@
           }
         ],
         "summary": "Start an autocut pass",
+        "tags": [
+          "passes"
+        ]
+      }
+    },
+    "/projects/{projectId}/passes/zoom": {
+      "post": {
+        "description": "Quotes the job from the primary media's probed duration (`reframeZoomPass` burn rate, source minutes), holds the credits and enqueues `ai.pass`. Proposed punch-in events land as `edg_pass_items` (kind `zoom`, state `proposed`) once the worker's completion arrives and `MergePass` merges them; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`.",
+        "operationId": "startZoomPass",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartZoomRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          },
+          "409": {
+            "description": "`pass/media_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start a zoom pass",
+        "tags": [
+          "passes"
+        ]
+      }
+    },
+    "/projects/{projectId}/passes/reframe": {
+      "post": {
+        "description": "Quotes the job from the primary media's probed duration (`reframeZoomPass` burn rate, source minutes), holds the credits and enqueues `ai.pass`. A crop-window keyframe curve lands as one `edg_pass_items` row (kind `reframe`, state `proposed`) once the worker's completion arrives and `MergePass` merges it; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`.",
+        "operationId": "startReframePass",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartReframeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          },
+          "409": {
+            "description": "`pass/media_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start a reframe pass",
         "tags": [
           "passes"
         ]
@@ -19228,6 +19561,51 @@
           "segments"
         ]
       },
+      "TotpEnrollResponseDto": {
+        "type": "object",
+        "properties": {
+          "secret": {
+            "type": "string",
+            "description": "Base32 TOTP secret; also encoded in `otpauthUrl`."
+          },
+          "otpauthUrl": {
+            "type": "string",
+            "description": "otpauth:// URI for a QR code in an authenticator app."
+          }
+        },
+        "required": [
+          "secret",
+          "otpauthUrl"
+        ]
+      },
+      "TotpCodeDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdminStepUpResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "A `kind: \"admin\"` access token (CONTRACTS §5)."
+          },
+          "expiresIn": {
+            "type": "number",
+            "description": "Seconds until the admin token expires (1800)."
+          },
+          "adminRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "accessToken",
+          "expiresIn",
+          "adminRoles"
+        ]
+      },
       "DlqEntryDto": {
         "type": "object",
         "properties": {
@@ -19708,6 +20086,185 @@
           "ledgerDriftTenths"
         ]
       },
+      "CleanRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AudioCleanQuoteDto": {
+        "type": "object",
+        "properties": {
+          "tenths": {
+            "type": "number",
+            "description": "Credits held before the job was enqueued, in tenths."
+          },
+          "credits": {
+            "type": "string",
+            "description": "\"1.2\" — for display only, never for arithmetic."
+          },
+          "durationMs": {
+            "type": "number",
+            "description": "Media duration the quote was computed from."
+          }
+        },
+        "required": [
+          "tenths",
+          "credits",
+          "durationMs"
+        ]
+      },
+      "CleanAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
+          },
+          "cleanId": {
+            "type": "string",
+            "description": "The `audio_cleans` row this run will write to."
+          },
+          "status": {
+            "type": "string",
+            "description": "`queued` on a fresh accept."
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when an identical live run already existed."
+          },
+          "quote": {
+            "$ref": "#/components/schemas/AudioCleanQuoteDto"
+          }
+        },
+        "required": [
+          "jobId",
+          "cleanId",
+          "status",
+          "deduplicated",
+          "quote"
+        ]
+      },
+      "AudioCleanMetricsDto": {
+        "type": "object",
+        "properties": {
+          "inputLufs": {
+            "type": "number",
+            "description": "Approximate LUFS before cleaning."
+          },
+          "outputLufs": {
+            "type": "number",
+            "description": "Approximate LUFS after cleaning and normalising."
+          },
+          "snrGainDb": {
+            "type": "number",
+            "description": "Estimated noise-floor reduction, dB."
+          },
+          "clippingCount": {
+            "type": "number",
+            "description": "Samples at or beyond full scale in the output."
+          },
+          "truePeakDbtp": {
+            "type": "number",
+            "description": "Peak true level of the output, dBTP."
+          }
+        }
+      },
+      "AudioCleanDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "mediaId": {
+            "type": "string"
+          },
+          "strength": {
+            "type": "string",
+            "enum": [
+              "light",
+              "medium",
+              "strong"
+            ]
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "social",
+              "youtube",
+              "podcast"
+            ]
+          },
+          "dereverb": {
+            "type": "boolean"
+          },
+          "deesser": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed"
+            ]
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/AudioCleanMetricsDto"
+          },
+          "cleanedAudioUrl": {
+            "type": "string",
+            "description": "Signed GET URL for the cleaned 48 kHz WAV, when succeeded."
+          },
+          "previewOriginalUrl": {
+            "type": "string",
+            "description": "Signed GET URL for the original-track A/B preview clip."
+          },
+          "previewCleanedUrl": {
+            "type": "string",
+            "description": "Signed GET URL for the cleaned-track A/B preview clip."
+          },
+          "failureReason": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "completedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "mediaId",
+          "strength",
+          "target",
+          "dereverb",
+          "deesser",
+          "status",
+          "createdAt"
+        ]
+      },
+      "AudioCleanListDto": {
+        "type": "object",
+        "properties": {
+          "cleans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioCleanDto"
+            }
+          }
+        },
+        "required": [
+          "cleans"
+        ]
+      },
       "StartAutocutRequestDto": {
         "type": "object",
         "properties": {}
@@ -19742,6 +20299,14 @@
           "deduplicated",
           "quote"
         ]
+      },
+      "StartZoomRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "StartReframeRequestDto": {
+        "type": "object",
+        "properties": {}
       },
       "PassSummaryListDto": {
         "type": "object",

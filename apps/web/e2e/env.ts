@@ -19,6 +19,22 @@ export function loadRepoEnv(startDir: string = process.cwd()): Record<string, st
   return merged;
 }
 
+/**
+ * The namespace every `montaj:`-style key the API writes lives under
+ * (`apps/api/src/common/redis/redis-keys.ts`, `DEFAULT_REDIS_KEY_PREFIX`).
+ *
+ * Each worktree's `.env` sets `MONTAJ_REDIS_PREFIX` to its own work-package id
+ * so suites sharing one Redis (A05/A23a) do not read or sweep each other's
+ * keys. The e2e fixtures have to derive every Redis key they touch from the
+ * same variable, or they poll a prefix the API never wrote to and every
+ * sign-up fixture times out waiting for a message that already arrived under
+ * a different key.
+ */
+export function redisKeyPrefix(env: Record<string, string>): string {
+  const raw = env["MONTAJ_REDIS_PREFIX"]?.trim();
+  return raw === undefined || raw === "" ? "montaj" : raw;
+}
+
 function findEnvFile(startDir: string): string | undefined {
   let dir = startDir;
   const { root } = parse(dir);

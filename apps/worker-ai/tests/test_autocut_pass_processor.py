@@ -66,7 +66,7 @@ def _words(count: int, *, gap_ms: int = 300) -> list[dict[str, Any]]:
 
 
 async def test_unsupported_pass_type_fails_non_retryable() -> None:
-    context = _context(passType="reframe", passId="01JPASS0000000000000000000")
+    context = _context(passType="sfx", passId="01JPASS0000000000000000000")
     with pytest.raises(JobFailureError) as raised:
         await process_pass(context)
     assert raised.value.code == "worker/not_implemented"

@@ -33,6 +33,8 @@ __all__ = [
     "ObjectStore",
     "S3Client",
     "StorageError",
+    "clean_audio_key",
+    "clean_preview_key",
     "derived_key",
     "export_key",
     "font_key",
@@ -95,6 +97,32 @@ def derived_key(
     return f"{media_prefix(workspace_id, project_id, media_id)}/{artefact}"
 
 
+#: `cleanId` is a client ULID (SetAudio, B10); validated the same as any other id.
+def clean_audio_key(workspace_id: str, project_id: str, media_id: str, clean_id: str) -> str:
+    """B10's output key: ``clean48k-{cleanId}.wav`` next to the source's derived media.
+
+    Not one of :data:`DERIVED_ARTEFACTS` because it is per-clean-run rather than
+    per-media — a project can hold more than one completed clean (undo, A/B) and
+    each keeps its own object rather than overwriting the last one.
+    """
+    checked_id = _checked("cleanId", clean_id)
+    return f"{media_prefix(workspace_id, project_id, media_id)}/clean48k-{checked_id}.wav"
+
+
+def clean_preview_key(
+    workspace_id: str,
+    project_id: str,
+    media_id: str,
+    clean_id: str,
+    variant: Literal["original", "cleaned"],
+) -> str:
+    """The 20 s A/B preview clip: ``preview-{cleanId}-{original|cleaned}.mp3``."""
+    return (
+        f"{media_prefix(workspace_id, project_id, media_id)}"
+        f"/preview-{_checked('cleanId', clean_id)}-{variant}.mp3"
+    )
+
+
 def thumb_key(workspace_id: str, project_id: str, media_id: str, index: int) -> str:
     """``thumb-{n}.jpg`` in the R2 bucket."""
     if index < 0:
@@ -130,6 +158,10 @@ class S3Client(Protocol):
 
     def head_object(self, Bucket: str, Key: str) -> dict[str, Any]:  # noqa: N803
         """Object metadata; raises when the object does not exist."""
+        ...
+
+    def upload_file(self, Filename: str, Bucket: str, Key: str) -> None:  # noqa: N803
+        """Upload a local path to an object. B10 is the first writer this worker has."""
         ...
 
 
@@ -178,6 +210,20 @@ class ObjectStore:
             raise StorageError(f"could not read {self.bucket}/{key}: {error}") from error
         _log.debug("downloaded object", extra={"bucket": self.bucket, "key": key})
         return destination
+
+    def upload(self, path: Path, key: str) -> str:
+        """Write a local file to ``key``. Used only by B10's ``ai.clean`` output.
+
+        Every other processor in this worker only reads the derived bucket
+        (module docstring); B10 is the first one that produces derived media
+        rather than consuming it, so this is the one write path here.
+        """
+        try:
+            self.client.upload_file(Filename=str(path), Bucket=self.bucket, Key=key)
+        except Exception as error:  # boto3 raises ClientError and friends
+            raise StorageError(f"could not write {self.bucket}/{key}: {error}") from error
+        _log.debug("uploaded object", extra={"bucket": self.bucket, "key": key})
+        return key
 
     def size_bytes(self, key: str) -> int:
         """``ContentLength`` of one object; used for egress accounting."""

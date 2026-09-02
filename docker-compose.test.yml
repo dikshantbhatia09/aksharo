@@ -1,0 +1,260 @@
+# A23's "test stack": postgres/redis/minio (same images as docker-compose.yml,
+# a second project name and volume set so it never collides with a developer's
+# own compose stack) plus api, web, worker-media, worker-ai and render built
+# from the repo, wired for `worker-ai` to run in mock-provider mode.
+#
+#   pnpm e2e:stack up      # docker compose -p montaj-e2e -f docker-compose.test.yml up -d --build
+#   pnpm e2e:stack down    # ... down -v
+#
+# ## Known gap (reported, not fixed here — outside this work package's file
+# ## boundary, which lists only `apps/api/prisma/seed-sample.ts` and
+# ## `apps/web/e2e/**`, not the rest of either app)
+#
+# `apps/worker-media`, `apps/worker-ai` and `apps/render` already have a
+# `Dockerfile` (built by A07/A10/A20); `apps/api` and `apps/web` do not. Rather
+# than add production Dockerfiles for those two apps from inside an e2e work
+# package, `api` and `web` below run from the shared `node:22-bookworm-slim`
+# image against the mounted repo (`pnpm install --frozen-lockfile`, `nest
+# build`/`next build`, then start) — slower to boot than a prebuilt image, but
+# it does not require a decision (multi-stage layout, base image, non-root
+# user) that belongs to whoever eventually owns `apps/api/Dockerfile` /
+# `apps/web/Dockerfile`. Flagged in the final report as an open item.
+#
+# The brief names `AI_PROVIDER=mock` for worker-ai's mock mode; the setting
+# that actually exists (`apps/worker-ai/worker_ai/settings.py`) is
+# `WORKER_AI_ALLOW_MOCK=1` with no vendor API keys and `GPU_PROVIDER=none` —
+# used below instead, reported as a brief/code naming mismatch.
+
+name: montaj-e2e
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: montaj-e2e-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: montaj
+      POSTGRES_PASSWORD: montaj
+      POSTGRES_DB: montaj_e2e
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "${E2E_POSTGRES_PORT:-59432}:5432"
+    volumes:
+      - e2e-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U montaj -d montaj_e2e"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  redis:
+    image: redis:7
+    container_name: montaj-e2e-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "${E2E_REDIS_PORT:-59379}:6379"
+    volumes:
+      - e2e-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: montaj-e2e-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: montaj-e2e
+      MINIO_ROOT_PASSWORD: montaj-e2e-secret
+      MINIO_REGION_NAME: ap-south-1
+    ports:
+      - "${E2E_MINIO_API_PORT:-59000}:9000"
+      - "${E2E_MINIO_CONSOLE_PORT:-59001}:9001"
+    volumes:
+      - e2e-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  minio-bootstrap:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: montaj-e2e-minio-bootstrap
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: montaj-e2e
+      MINIO_ROOT_PASSWORD: montaj-e2e-secret
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing local/montaj-raw
+        mc mb --ignore-existing local/montaj-derived
+        mc anonymous set none local/montaj-raw
+        mc anonymous set none local/montaj-derived
+    restart: "no"
+
+  api:
+    image: node:22-bookworm-slim
+    container_name: montaj-e2e-api
+    working_dir: /repo
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
+    volumes:
+      - .:/repo
+      - e2e-node-modules:/repo/node_modules
+    environment: &api-env
+      NODE_ENV: development
+      DATABASE_URL: postgresql://montaj:montaj@postgres:5432/montaj_e2e?schema=public
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      R2_ENDPOINT: http://minio:9000
+      S3_REGION: ap-south-1
+      S3_BUCKET_RAW: montaj-raw
+      R2_BUCKET_DERIVED: montaj-derived
+      S3_ACCESS_KEY: montaj-e2e
+      S3_SECRET_KEY: montaj-e2e-secret
+      R2_ACCESS_KEY: montaj-e2e
+      R2_SECRET_KEY: montaj-e2e-secret
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      INTERNAL_CALLBACK_SECRET: ${INTERNAL_CALLBACK_SECRET:-e2e-internal-callback-secret}
+      LLM_PROVIDER: mock
+      GPU_PROVIDER: none
+      API_PORT: "3001"
+      WEB_ORIGIN: http://web:3000
+      API_ORIGIN: http://api:3001
+      MONTAJ_QUEUE_PREFIX: e2e
+      MONTAJ_REDIS_PREFIX: e2e
+      MONTAJ_SCHEDULER_DISABLED: "1"
+      FEATURE_FLAGS_JSON: "{}"
+    # `db:seed:sample` is deliberately NOT part of this chain: it drives the
+    # real `POST /transcribe` HTTP path (`apps/api/prisma/seed-sample.ts`'s
+    # header explains why), which means it needs the API already listening —
+    # a single container command cannot both start that server and be a step
+    # that runs before it. `pnpm e2e:stack up` (`scripts/e2e-stack.mjs`) runs
+    # it as a follow-up `docker compose exec` once the healthcheck below
+    # passes.
+    command: >
+      sh -c "corepack enable && corepack prepare pnpm@9.15.9 --activate &&
+             pnpm install --frozen-lockfile &&
+             pnpm --filter @montaj/api exec prisma migrate deploy &&
+             pnpm --filter @montaj/api exec tsx prisma/seed.ts &&
+             pnpm --filter @montaj/api exec nest build &&
+             pnpm --filter @montaj/api start"
+    ports:
+      - "${E2E_API_PORT:-59923}:3001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  web:
+    image: node:22-bookworm-slim
+    container_name: montaj-e2e-web
+    working_dir: /repo
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - .:/repo
+      - e2e-node-modules:/repo/node_modules
+    environment:
+      NODE_ENV: production
+      API_ORIGIN: http://api:3001
+      WEB_ORIGIN: http://web:3000
+      FEATURE_FLAGS_JSON: "{}"
+    command: >
+      sh -c "corepack enable && corepack prepare pnpm@9.15.9 --activate &&
+             pnpm install --frozen-lockfile &&
+             pnpm --filter @montaj/web exec next build &&
+             pnpm --filter @montaj/web exec next start --port 3000"
+    ports:
+      - "${E2E_WEB_PORT:-59924}:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  worker-media:
+    build:
+      context: .
+      dockerfile: apps/worker-media/Dockerfile
+    container_name: montaj-e2e-worker-media
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      <<: *api-env
+    restart: unless-stopped
+
+  worker-ai:
+    build:
+      context: apps/worker-ai
+      dockerfile: Dockerfile
+    container_name: montaj-e2e-worker-ai
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://montaj:montaj@postgres:5432/montaj_e2e?schema=public
+      REDIS_URL: redis://redis:6379
+      INTERNAL_CALLBACK_SECRET: ${INTERNAL_CALLBACK_SECRET:-e2e-internal-callback-secret}
+      API_ORIGIN: http://api:3001
+      LLM_PROVIDER: mock
+      GPU_PROVIDER: none
+      # The setting that actually gates the deterministic mock ASR/LLM
+      # provider (see the file header note on the brief's `AI_PROVIDER=mock`).
+      WORKER_AI_ALLOW_MOCK: "1"
+      MONTAJ_QUEUE_PREFIX: e2e
+    restart: unless-stopped
+
+  render:
+    build:
+      context: .
+      dockerfile: apps/render/Dockerfile
+    container_name: montaj-e2e-render
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      <<: *api-env
+    restart: unless-stopped
+
+volumes:
+  e2e-postgres-data:
+  e2e-redis-data:
+  e2e-minio-data:
+  e2e-node-modules:

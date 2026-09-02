@@ -42,6 +42,7 @@ from typing import Any
 from worker_ai.alignment import AlignerRegistry
 from worker_ai.cache import MemoryResultCache, NullResultCache, RedisResultCache, ResultCache
 from worker_ai.callbacks import CallbackClient, JobCompletion, JobError
+from worker_ai.clean.processor import process_clean
 from worker_ai.diarisation import DiariserRegistry
 from worker_ai.lid import (
     GpuLanguageIdentifier,
@@ -112,6 +113,7 @@ PROCESSORS: dict[str, Processor] = {
     "ai.transliterate": process_transliterate,
     "ai.llm": process_llm,
     "ai.pass": process_pass,
+    "ai.clean": process_clean,
 }
 
 
@@ -270,9 +272,7 @@ def build_cache(settings: Settings) -> ResultCache:
     """The `09 §1` result cache for this deployment."""
     kind = settings.cache_kind
     if kind == "redis":
-        return RedisResultCache(
-            settings.redis_url, max_entry_bytes=settings.cache_max_entry_bytes
-        )
+        return RedisResultCache(settings.redis_url, max_entry_bytes=settings.cache_max_entry_bytes)
     if kind == "memory":
         return MemoryResultCache(max_entry_bytes=settings.cache_max_entry_bytes)
     return NullResultCache()

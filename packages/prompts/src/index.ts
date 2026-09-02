@@ -51,7 +51,12 @@ export type { HookPlatform, HooksInput, HooksOutput } from "./templates/hooks.js
 export { keyphrasesTemplate, KEYPHRASES_TEMPLATE_VERSION } from "./templates/keyphrases.js";
 export type { Keyphrase, KeyphrasesInput, KeyphrasesOutput } from "./templates/keyphrases.js";
 
-export { FILLER_LEXICON, fillersFor } from "./lexicon/fillers.js";
+export {
+  loadFillers,
+  loadLexiconFile,
+  lexiconLanguages as fillerLexiconLanguages,
+} from "./lexicon/index.js";
+export type { FillerContextRule, FillerEntry, FillerLexiconFile } from "./lexicon/index.js";
 
 export { run as runEval, renderMarkdown as renderEvalMarkdown } from "./eval/runner.js";
 export type { EvalCase, EvalReport } from "./eval/runner.js";

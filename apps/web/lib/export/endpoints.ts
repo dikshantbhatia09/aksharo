@@ -65,6 +65,8 @@ export interface ExportSources {
   readonly rawUrl: string;
   readonly proxyUrl?: string;
   readonly watermarkUrl?: string;
+  /** B10: signed GET for the ai.clean output, present when `audio.strategy === "replace"`. */
+  readonly cleanedAudioUrl?: string;
 }
 
 export interface CreateExportResponse {

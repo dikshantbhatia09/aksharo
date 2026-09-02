@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { test as base, expect } from "@playwright/test";
 import Redis from "ioredis";
 
-import { loadRepoEnv } from "./env";
+import { loadRepoEnv, redisKeyPrefix } from "./env";
 
 import type { BrowserContext, Page } from "@playwright/test";
 
@@ -16,8 +16,11 @@ const env = loadRepoEnv();
 export const API_ORIGIN = env["API_ORIGIN"] ?? "http://127.0.0.1:3913";
 const REDIS_URL = env["REDIS_URL"] ?? "redis://localhost:6379";
 
-/** A04 writes every auth email here outside production. Not namespaced. */
-const DEV_OUTBOX_KEY = "montaj:auth:dev-outbox";
+/** See {@link redisKeyPrefix}: keeps this suite's Redis reads on the API's keys. */
+export const REDIS_KEY_PREFIX = redisKeyPrefix(env);
+
+/** A04 writes every auth email here outside production. */
+const DEV_OUTBOX_KEY = `${REDIS_KEY_PREFIX}:auth:dev-outbox`;
 
 export interface OutboxMessage {
   to: string;

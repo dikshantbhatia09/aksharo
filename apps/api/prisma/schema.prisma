@@ -89,6 +89,20 @@ enum ClientKind {
   ae
   resolve
   api
+  /// B13: minted only by `POST /admin/auth/step-up` (CONTRACTS §5, amended
+  /// 2026-09-03). 30-minute lifetime, never refreshable, never issued to API
+  /// keys or plugin/bridge clients.
+  admin
+}
+
+/// Platform-staff permission a `users` row can hold (B13). Not a workspace
+/// role (`MembershipRole`) — this is cross-tenant.
+enum AdminRoleName {
+  support
+  finance
+  ops
+  content
+  superadmin
 }
 
 enum WorkspaceType {
@@ -604,9 +618,49 @@ model User {
   comments        Comment[]
   clearanceGrants AssetClearanceGrant[]
   notifications   Notification[]
+  adminRoles      AdminRole[]
+  adminTotp       AdminTotp?
 
   @@index([deletedAt])
   @@map("users")
+}
+
+/// B13: platform-staff role grant. A user may hold more than one; the set of
+/// non-revoked rows is what `AdminGuard` checks (kept in the database, not
+/// trusted from the JWT's `adminRoles` claim alone, so revocation takes effect
+/// immediately rather than waiting out the 30-minute admin token).
+model AdminRole {
+  id         String         @id @db.Char(26)
+  userId     String         @map("user_id") @db.Char(26)
+  role       AdminRoleName
+  /// Who granted it — another admin's `users.id`, or null for the seed/bootstrap grant.
+  grantedBy  String?        @map("granted_by") @db.Char(26)
+  grantedAt  DateTime       @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt  DateTime?      @map("revoked_at") @db.Timestamptz(6)
+  revokedBy  String?        @map("revoked_by") @db.Char(26)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@index([userId, revokedAt])
+  @@map("admin_roles")
+}
+
+/// B13: TOTP enrolment for admin step-up (`POST /admin/auth/step-up`). Nothing
+/// else in the platform uses TOTP — `users.mfa_secret` is a separate, unused
+/// A04 placeholder for a future consumer-facing MFA and is left untouched.
+model AdminTotp {
+  userId       String    @id @map("user_id") @db.Char(26)
+  /// Base32 TOTP secret. Admin-only, platform-staff-scoped credential — not a
+  /// user password or a workspace secret; stored as issued by `otplib`.
+  secret       String
+  enrolledAt   DateTime  @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  verifiedAt   DateTime? @map("verified_at") @db.Timestamptz(6)
+  lastUsedAt   DateTime? @map("last_used_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admin_totp")
 }
 
 model ConsentRecord {
@@ -1048,6 +1102,7 @@ model Project {
   edgDocument         EdgDocument?
   jobs                Job[]
   exports             Export[]
+  audioCleans         AudioClean[]
   exportManifests     ExportManifest[]
   providerSubmissions ProviderSubmission[]
   shareLinks          ShareLink[]
@@ -1115,6 +1170,7 @@ model MediaAsset {
 
   project             Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   providerSubmissions ProviderSubmission[]
+  audioCleans         AudioClean[]
 
   @@index([projectId])
   @@index([contentHash])
@@ -1538,6 +1594,7 @@ model Job {
   passes              EdgPass[]
   creditHold          CreditHold?
   dlqEntries          DlqEntry[]
+  audioCleans         AudioClean[]
 
   @@index([workspaceId])
   @@index([projectId])
@@ -1758,6 +1815,71 @@ model Export {
   @@index([workspaceId])
   @@index([expiresAt])
   @@map("exports")
+}
+
+/// B10: one run of the audio-clean chain (denoise, optional de-reverb/de-esser,
+/// loudness normalisation) over one media asset's `audio48k.wav` (CONTRACTS section 6).
+/// A project can hold more than one — undo keeps the previous clean addressable
+/// and A/B preview needs both the original and the cleaned track available at
+/// once, so a clean run never overwrites the last one (`worker_ai.storage`'s
+/// `clean48k-{cleanId}.wav` key is per-run, not per-media).
+model AudioClean {
+  id          String           @id @db.Char(26)
+  projectId   String           @map("project_id") @db.Char(26)
+  mediaId     String           @map("media_id") @db.Char(26)
+  strength    AudioCleanStrength @default(medium)
+  target      AudioCleanTarget @default(social)
+  dereverb    Boolean          @default(false)
+  deesser     Boolean          @default(false)
+  status      AudioCleanStatus @default(queued)
+  jobId       String?          @map("job_id") @db.Char(26)
+  /// `worker_ai.clean.dsp.CleanMetrics.to_wire()`: inputLufs, outputLufs,
+  /// snrGainDb, clippingCount, truePeakDbtp.
+  metrics     Json?            @db.JsonB
+  /// R2 derived-bucket keys the worker uploaded (CONTRACTS section 6):
+  /// `cleanedAudioUrl`, `previewOriginalUrl`, `previewCleanedUrl`. Despite the
+  /// name these are storage **keys**, not signed URLs — the API mints a signed
+  /// URL from a key on read, the same convention every other derived artefact
+  /// follows, so a key never goes stale even though a signature does.
+  storageKeys Json             @default("{}") @map("storage_keys") @db.JsonB
+  failureReason String?        @map("failure_reason")
+  createdBy   String?          @map("created_by") @db.Char(26)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt DateTime?        @map("completed_at") @db.Timestamptz(6)
+
+  project Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  media   MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  job     Job?       @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([mediaId])
+  @@index([projectId, createdAt])
+  @@map("audio_cleans")
+}
+
+enum AudioCleanStrength {
+  light
+  medium
+  strong
+
+  @@map("audio_clean_strength")
+}
+
+enum AudioCleanTarget {
+  social
+  youtube
+  podcast
+
+  @@map("audio_clean_target")
+}
+
+enum AudioCleanStatus {
+  queued
+  running
+  succeeded
+  failed
+
+  @@map("audio_clean_status")
 }
 
 /// A watermark or logo image the workspace owns, used by the render manifest's
