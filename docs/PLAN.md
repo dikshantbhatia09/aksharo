@@ -121,7 +121,7 @@ C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 | C08b | Fusion Text+ macro generator + style coverage report | C08 | done (merged + verified: 19 supported / 6 approximate / 5 unsupported of 30; classification_rules.json is the reference; real-Fusion check at Gate C) |
 | C00b | Real desktop packaging: esbuild-bundled main/preload, electron-builder over dist, CI e2e runnable | C02b | done (merged + verified: pack:dry produces Aksharo.exe, 270 MB unpacked; C10 measures the installer) |
 | C10 | Installers (NSIS/pkg/Resolve/.ccx), `/plugins/manifest`, plugins + download pages | C00, C02, C05a, C08 | briefed |
-| D08 | Eval harness & quality gates on fixture datasets, shadow routing, routing freeze, admin leaderboard | A10, B13, B16 | briefed |
+| D08 | Eval harness & quality gates on fixture datasets, shadow routing, routing freeze, admin leaderboard | A10, B13, B16 | done pending merge (7d03c29: Indic-aware WER/CER + boundary/DER/transliteration/autocut/LLM metrics, 6 generated datasets + licensed-set seam, shadow rung + freeze, eval_runs/leaderboard/freeze API, nightly task; worker env-list drift test → M04) |
 | C06 | Premiere apply modes (transcript injection, MOGRT captions, overlay, SRT, cuts/zooms/audio, transactions, marker map, re-sync) over the mocked host | C05a, C06b | done (merged + verified, 99 tests; MOGRT param addressing + per-word keyframing flagged for Gate C) |
 | C06b | MOGRT authoring: definition.json generator, verifier, style coverage; the .aep itself is human (H-25) | C05a | done (merged + verified 136 tests; ff7662c + aba71de: 14 frozen params as the single source for C06 too, verifier in CI, 19/6/5 coverage matching Resolve) |
 
