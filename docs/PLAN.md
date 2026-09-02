@@ -132,7 +132,7 @@ C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machine
 |---|---|---|---|
 | D06 | Text FX pass: key phrases → titles, layout solver never overlapping captions, 6 motion presets, exports + parity | B11, B20b | briefed |
 | D04a | Owned audio pack ingestion (licence columns, CLAP, loudness) + SFX pass + ducking, on a fixture pack until A00-07 | B19b, B20b, A00-07 | briefed |
-| C09 | Resolve Studio Workflow Integration panel over aksharo_core's loopback server | C08, C08b | briefed |
+| C09 | Resolve Studio Workflow Integration panel over aksharo_core's loopback server | C08, C08b | done pending merge (721e8a2: panel + mock host, 3 new server methods, ?token= WS bearer on loopback (X01 to audit), packaged; manifest schema + install paths pending A00-04) |
 | D05 | Music pass: sections/mood/BPM, beat-aligned cuts, loops/fades, ducking; owned pack only | D04a | briefed |
 | C05b | After Effects CEP panel over a mocked AeHost; ZXP dry run | C05a, C06b, C00 | running |
 | C03a | `apps/engine` local sidecar supervisor: whisper.cpp/Silero/deep-filter/ffmpeg via a signed manifest, model manager, backend detection, FakeBackend | C02, A00-10 | done (merged + verified — engine 51, engine-client 15, release 53; c12df56: /health /models /transcribe(+WS) /align /clean /render, manifest + resumable SHA-256 model manager, tier table, FakeBackend; the A01 scaffold engine/montaj-engine is deleted by C03b) |
