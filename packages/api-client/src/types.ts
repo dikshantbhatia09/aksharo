@@ -728,6 +728,8 @@ export interface ReferralStats {
 
 export interface DismissReferralPromptResult {
   shownAt: string;
+}
+
 // --- Affiliate (B07) -----------------------------------------------------------
 
 export interface AffiliatePayoutMethod {
