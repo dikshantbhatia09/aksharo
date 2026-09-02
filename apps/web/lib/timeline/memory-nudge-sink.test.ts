@@ -18,7 +18,7 @@ describe("createMemoryNudgeSink", () => {
   it("consent on: debounces a run of drags into one request, the last delta wins", () => {
     let scheduled: (() => void) | undefined;
     let cleared = 0;
-    const setTimeoutFn = vi.fn((fn: () => void) => {
+    const setTimeoutFn = vi.fn((fn: () => void, _ms: number) => {
       scheduled = fn;
       return "handle";
     });

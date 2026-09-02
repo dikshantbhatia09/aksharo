@@ -12,11 +12,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useRecordTimingNudgeMemory } from "@montaj/api-client";
 
-import { readPrivacy, subscribePrivacy } from "@/lib/privacy/consent";
-
 import { createMemoryNudgeSink } from "./memory-nudge-sink";
 
 import type { TimingNudgeSink } from "./nudge";
+
+import { readPrivacy, subscribePrivacy } from "@/lib/privacy/consent";
 
 /** A stable sink instance for the component's lifetime; consent and the mutation are read fresh via refs. */
 export function useMemoryNudgeSink(): TimingNudgeSink {

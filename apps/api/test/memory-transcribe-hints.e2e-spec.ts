@@ -21,7 +21,11 @@ import { TokenService } from "../src/auth/token.service.js";
 import { PrismaService } from "../src/common/prisma/prisma.service.js";
 import { RedisService } from "../src/common/redis/redis.service.js";
 import { resetEnvCache } from "../src/config/config.module.js";
-import { InMemoryRealtimeBroker, InMemoryRealtimeBus, REALTIME_BUS } from "../src/realtime/realtime.bus.js";
+import {
+  InMemoryRealtimeBroker,
+  InMemoryRealtimeBus,
+  REALTIME_BUS,
+} from "../src/realtime/realtime.bus.js";
 
 import type { TestDatabase } from "./db-harness.js";
 import type { INestApplication } from "@nestjs/common";
@@ -187,7 +191,11 @@ beforeAll(async () => {
       }),
     )
     .overrideProvider(RedisService)
-    .useValue({ client: redis, ping: async () => undefined, onModuleDestroy: async () => undefined })
+    .useValue({
+      client: redis,
+      ping: async () => undefined,
+      onModuleDestroy: async () => undefined,
+    })
     .overrideProvider(REALTIME_BUS)
     .useValue(new InMemoryRealtimeBus(new InMemoryRealtimeBroker()))
     .compile();
@@ -218,7 +226,9 @@ describe.skipIf(!CAN_RUN)("transcribe enqueue merges memory glossary into hints"
       .send({ languages: ["hi-Latn"], hints: ["OnlyMine"] })
       .expect(202);
 
-    const job = await prisma.job.findUniqueOrThrow({ where: { id: response.body.jobId as string } });
+    const job = await prisma.job.findUniqueOrThrow({
+      where: { id: response.body.jobId as string },
+    });
     const hints = (job.params as { hints?: string[] }).hints ?? [];
     expect(hints).toEqual(["OnlyMine"]);
   });
@@ -256,7 +266,9 @@ describe.skipIf(!CAN_RUN)("transcribe enqueue merges memory glossary into hints"
       .send({ languages: ["hi-Latn"], hints: ["aksharo", "Timeline"] })
       .expect(202);
 
-    const job = await prisma.job.findUniqueOrThrow({ where: { id: response.body.jobId as string } });
+    const job = await prisma.job.findUniqueOrThrow({
+      where: { id: response.body.jobId as string },
+    });
     const hints = (job.params as { hints?: string[] }).hints ?? [];
     // request-time hints first, case-insensitively deduplicated against the
     // stored "Aksharo" glossary term, and the "Sarvam" spelling term appended.

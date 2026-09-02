@@ -34,7 +34,8 @@ export interface MemoryNudgeSinkDeps {
 export function createMemoryNudgeSink(deps: MemoryNudgeSinkDeps): TimingNudgeSink {
   let handle: unknown = null;
   const schedule = deps.setTimeoutFn ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
-  const clear = deps.clearTimeoutFn ?? ((h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>));
+  const clear =
+    deps.clearTimeoutFn ?? ((h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>));
 
   return {
     record(nudge: TimingNudge): void {

@@ -155,7 +155,9 @@ export class TranscriptsService {
    * memory terms are appended, never a thrown error.
    */
   private async buildHints(request: TranscribeRequest): Promise<readonly string[]> {
-    const requested = (request.hints ?? []).map((hint) => hint.trim()).filter((hint) => hint !== "");
+    const requested = (request.hints ?? [])
+      .map((hint) => hint.trim())
+      .filter((hint) => hint !== "");
     const memoryTerms = await this.memory.glossaryTermsFor(request.workspaceId, request.userId);
 
     const seen = new Set<string>();
