@@ -75,6 +75,8 @@ import {
   createFontRegistry,
   createHarfBuzzShaper,
   renderFrame,
+  sampleCropWindow,
+  type CropKeyframe,
   type EdgProjection,
   type FontRegistry,
   type FontResource,
@@ -85,6 +87,7 @@ import type { TimeMap } from "@montaj/timemap";
 
 import { decideAudioStrategy, isAudioUnmodified } from "./audio-strategy";
 import { sha256Hex } from "./checksum";
+import { outputCropKeyframesFromManifest } from "./keyframe-adapter";
 import {
   createExportTarget,
   createMemoryTarget,
@@ -217,6 +220,11 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
   const timemap: TimeMap | null =
     manifest.timemap.edits.length > 0 ? timeMapFromManifest(manifest) : null;
   const outputDurationMs = timemap?.outputDurationMs ?? manifest.timemap.sourceDurationMs;
+  // B20: accepted zoom/reframe items' curves, already remapped onto the output
+  // clock and pinned at every splice they cross. Empty when no such item is
+  // accepted — `sampleCropWindow` then returns `null` and every frame draws
+  // the full source, exactly today's behaviour.
+  const cropKeyframes: CropKeyframe[] = outputCropKeyframesFromManifest(manifest, timemap);
   const fps = manifest.output.fps;
   const totalFrames = Math.max(1, Math.round((outputDurationMs / 1000) * fps));
 
@@ -450,13 +458,42 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
 
     const wrapped = await canvasSink.getCanvas(sourceMs / 1000);
     if (wrapped !== null) {
-      ctx.drawImage(
-        wrapped.canvas as CanvasImageSource,
-        0,
-        0,
-        manifest.output.width,
-        manifest.output.height,
-      );
+      // B20: `wrapped.canvas` is already cover-fit to the output size (the
+      // documented deviation above). A zoom/reframe crop window is applied as
+      // a *second* crop on top of that cover-fit frame — sampling the window's
+      // fraction of the already-fitted canvas and stretching it to fill the
+      // output — rather than composed with the cover-fit's own source-pixel
+      // crop math. That keeps every export with no accepted zoom/reframe item
+      // (the overwhelming majority, and every export before B20) byte-identical
+      // to today, at the cost of not being proven pixel-exact against the cloud
+      // path's crop composition for the case where both a non-1:1 cover crop
+      // and a zoom/reframe window are active at once — reported as an open
+      // question in the final report, same category as the pre-existing
+      // cover-fit deviation this note sits next to.
+      const window = sampleCropWindow(cropKeyframes, outputMs);
+      if (window === null) {
+        ctx.drawImage(
+          wrapped.canvas as CanvasImageSource,
+          0,
+          0,
+          manifest.output.width,
+          manifest.output.height,
+        );
+      } else {
+        const canvasWidth = (wrapped.canvas as { width: number }).width;
+        const canvasHeight = (wrapped.canvas as { height: number }).height;
+        ctx.drawImage(
+          wrapped.canvas as CanvasImageSource,
+          window.x * canvasWidth,
+          window.y * canvasHeight,
+          window.w * canvasWidth,
+          window.h * canvasHeight,
+          0,
+          0,
+          manifest.output.width,
+          manifest.output.height,
+        );
+      }
     }
 
     const commands = renderFrame({

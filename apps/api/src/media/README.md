@@ -26,6 +26,26 @@ T5, T6, T7, T24; `03-architecture/07-api-and-contracts.md` §Projects & media;
 The worker's write-back path is A08's `PATCH /internal/media/{id}`, behind the
 signed internal surface, and stays there.
 
+### The `media.proxy` completion handler (A07b)
+
+`proxy.handler.ts`'s `MediaProxyCompletionHandler` registers on A07's
+`JobCompletionRegistry` (`apps/api/src/jobs/completion-handlers.ts`) alongside
+`probe.handler.ts`'s `MediaProbeCompletionHandler`. It flips `media_assets.
+status` to `ready`/`failed` off the `media.proxy` job's own completion,
+independently of the worker's `PATCH` above: in the ordinary case the PATCH
+already lands first (`apps/worker-media/src/runtime.ts` writes it before
+calling the completion callback) and this handler's write is a no-op, but a
+job the API itself considers `succeeded`/`failed` must never leave the asset
+stuck at `probing` because that separate write-back was lost, or a test
+harness drove the completion callback directly with no worker running at all
+(`apps/web/e2e/gate-a.spec.ts`).
+
+Two writers, one asset, never two authoritative answers: the same outcome
+twice is a no-op, and a conflicting outcome always resolves to `failed` — a
+stray `ready` is overwritten, and a success completion never undoes an
+existing `failed`. `failed` winning is the fail-safe direction; calling a
+broken upload "ready" is not.
+
 ## The upload, end to end
 
 ```

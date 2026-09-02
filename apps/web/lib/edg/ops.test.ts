@@ -13,10 +13,13 @@ import {
   mergeStyleOverrides,
   nextWordIdInChunk,
   panelOpToEdgOp,
+  isFullyProtected,
   setEmphasis,
+  setProtectedRanges,
   setSegmentText,
   setWordTiming,
   splitSegment,
+  toggleProtectedRange,
   type InverseState,
   type PanelOp,
 } from "./ops";
@@ -78,6 +81,10 @@ describe("op builders", () => {
     expect(setEmphasis("s1", "0:0", "pop", id)).toMatchObject({
       type: "SetEmphasis",
       presetId: "pop",
+    });
+    expect(setProtectedRanges([{ id: "r1", s: 1_000, e: 2_000 }], id)).toMatchObject({
+      type: "SetProtectedRanges",
+      ranges: [{ id: "r1", s: 1_000, e: 2_000 }],
     });
   });
 
@@ -184,6 +191,94 @@ describe("panel op adaptation", () => {
     });
     expect(mergeStyleOverrides(undefined, { a: 1 })).toEqual({ a: 1 });
     expect(mergeStyleOverrides({ a: 1 }, undefined)).toEqual({ a: 1 });
+  });
+});
+
+describe("isFullyProtected", () => {
+  it("is false when nothing is protected", () => {
+    expect(isFullyProtected([], 100, 200)).toBe(false);
+  });
+
+  it("is true when one range fully covers the selection", () => {
+    expect(isFullyProtected([{ s: 0, e: 500 }], 100, 200)).toBe(true);
+  });
+
+  it("is true when adjacent ranges together cover the selection", () => {
+    expect(
+      isFullyProtected(
+        [
+          { s: 0, e: 150 },
+          { s: 150, e: 300 },
+        ],
+        100,
+        200,
+      ),
+    ).toBe(true);
+  });
+
+  it("is false when a gap remains in the middle", () => {
+    expect(
+      isFullyProtected(
+        [
+          { s: 0, e: 120 },
+          { s: 180, e: 300 },
+        ],
+        100,
+        200,
+      ),
+    ).toBe(false);
+  });
+
+  it("is false for an empty or inverted selection", () => {
+    expect(isFullyProtected([{ s: 0, e: 500 }], 200, 200)).toBe(false);
+    expect(isFullyProtected([{ s: 0, e: 500 }], 300, 200)).toBe(false);
+  });
+});
+
+describe("toggleProtectedRange", () => {
+  it("adds a new range when the selection is not yet protected", () => {
+    const result = toggleProtectedRange([], 1_000, 2_000, id);
+    expect(result).toEqual([{ id: expect.any(String), s: 1_000, e: 2_000 }]);
+  });
+
+  it("merges with an overlapping range instead of stacking a duplicate", () => {
+    const result = toggleProtectedRange([{ id: "a", s: 1_000, e: 1_500 }], 1_200, 2_000, id);
+    // The op layer stores both entries; normaliseProtectedRanges (packages/edg)
+    // is what actually merges them once the op lands — this only has to avoid
+    // losing either range.
+    expect(result).toHaveLength(2);
+  });
+
+  it("subtracts the selection when it is already fully protected", () => {
+    const result = toggleProtectedRange([{ id: "a", s: 0, e: 3_000 }], 1_000, 2_000, id);
+    expect(result.sort((x, y) => x.s - y.s)).toEqual([
+      { id: "a", s: 0, e: 1_000 },
+      { id: expect.any(String), s: 2_000, e: 3_000 },
+    ]);
+  });
+
+  it("removes a range entirely when the selection covers it exactly", () => {
+    const result = toggleProtectedRange([{ id: "a", s: 1_000, e: 2_000 }], 1_000, 2_000, id);
+    expect(result).toEqual([]);
+  });
+
+  it("leaves other ranges alone", () => {
+    const result = toggleProtectedRange(
+      [
+        { id: "a", s: 1_000, e: 2_000 },
+        { id: "b", s: 5_000, e: 6_000 },
+      ],
+      1_000,
+      2_000,
+      id,
+    );
+    expect(result).toEqual([{ id: "b", s: 5_000, e: 6_000 }]);
+  });
+
+  it("is a no-op for an empty or inverted selection", () => {
+    const current = [{ id: "a", s: 1_000, e: 2_000 }];
+    expect(toggleProtectedRange(current, 500, 500, id)).toEqual(current);
+    expect(toggleProtectedRange(current, 500, 400, id)).toEqual(current);
   });
 });
 
@@ -334,6 +429,32 @@ describe("computeInverseOps", () => {
     };
     const [inverse] = computeInverseOps(op, s, id, id);
     expect(inverse).toMatchObject({ type: "SetSegmentPosition", position: null });
+  });
+
+  it("SetProtectedRanges inverts to the prior stored set", () => {
+    const s = state({
+      hot: {
+        meta: { edgId: "e", projectId: "p", revision: 1, schemaVersion: 2 },
+        media: [],
+        transcript: { transcriptId: "t", revision: 1, language: "en", scripts: ["roman"] },
+        canvas: { aspect: "9:16", width: 1080, height: 1920 },
+        styles: { defaultStyleId: "punch-pop" },
+        protected: [{ id: "a", s: 1_000, e: 2_000, reason: "user" }],
+      } as never,
+    });
+    const op: EdgOp = setProtectedRanges([{ id: "b", s: 5_000, e: 6_000 }], id);
+    const [inverse] = computeInverseOps(op, s, id, id);
+    expect(inverse).toMatchObject({
+      type: "SetProtectedRanges",
+      ranges: [{ id: "a", s: 1_000, e: 2_000 }],
+    });
+  });
+
+  it("SetProtectedRanges inverts to an empty set when nothing was stored", () => {
+    const s = state();
+    const op: EdgOp = setProtectedRanges([{ id: "b", s: 5_000, e: 6_000 }], id);
+    const [inverse] = computeInverseOps(op, s, id, id);
+    expect(inverse).toMatchObject({ type: "SetProtectedRanges", ranges: [] });
   });
 
   it("SetStyle at segment scope inverts to the segment's prior style/overrides", () => {

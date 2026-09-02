@@ -1,7 +1,13 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { ulid } from "ulid";
 
-import { DEVICE_AUDIT_ACTIONS, DEVICE_ERRORS, DEVICE_LEASE_MS } from "./devices.constants.js";
+import {
+  BRIDGE_TOKEN_ERRORS,
+  DEVICE_AUDIT_ACTIONS,
+  DEVICE_ERRORS,
+  DEVICE_LEASE_MS,
+} from "./devices.constants.js";
+import { TokenService } from "../auth/token.service.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { AuditService } from "../users/audit.service.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
@@ -9,6 +15,12 @@ import { EntitlementService } from "../workspaces/entitlement.service.js";
 import type { RegisterDeviceDto } from "./devices.dto.js";
 import type { RequestContextInfo } from "../users/profile.service.js";
 import type { $Enums, Device } from "@prisma/client";
+
+export interface BridgeTokenView {
+  readonly accessToken: string;
+  readonly expiresIn: number;
+  readonly deviceId: string;
+}
 
 export interface DeviceView {
   readonly id: string;
@@ -62,6 +74,7 @@ export class DevicesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly entitlements: EntitlementService,
+    private readonly tokens: TokenService,
   ) {}
 
   async list(workspaceId: string, currentDeviceId: string | null): Promise<DeviceView[]> {
@@ -213,6 +226,65 @@ export class DevicesService {
     });
 
     return updated;
+  }
+
+  /**
+   * `POST /devices/{id}/bridge-token` (B08b, CONTRACTS §5 amended
+   * 2026-09-03 after C01): mint a `kind:"bridge"` access token carrying this
+   * device's id, for a registered, leased device the caller owns.
+   *
+   * The device's own lease (`leaseUntil`, refreshed by `register()`, which
+   * doubles as the device's heartbeat) gates this exactly like a licence
+   * key's heartbeat gates `licensing/`'s device tokens — a revoked device or
+   * an expired lease refuses with the same `licensing/device_revoked` code
+   * `plugins.service.ts`'s heartbeat already uses, plus
+   * `licensing/device_lease_expired` for the lease case licensing has no
+   * device-lease equivalent for.
+   */
+  async mintBridgeToken(
+    workspaceId: string,
+    deviceId: string,
+    caller: { readonly userId: string; readonly role: $Enums.MembershipRole },
+  ): Promise<BridgeTokenView> {
+    const device = await this.require(workspaceId, deviceId);
+    if (device.userId !== caller.userId) {
+      // Reported as absent, not forbidden: a device id is not the caller's
+      // secret to probe (same shape `require()` already uses for a device in
+      // another workspace).
+      throw new AppException(DEVICE_ERRORS.notFound, "No such device.", HttpStatus.NOT_FOUND);
+    }
+    if (device.revokedAt !== null) {
+      throw new AppException(
+        BRIDGE_TOKEN_ERRORS.deviceRevoked,
+        "This device was revoked. Sign in again to reactivate.",
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    if (device.leaseUntil === null || device.leaseUntil.getTime() <= Date.now()) {
+      throw new AppException(
+        BRIDGE_TOKEN_ERRORS.deviceLeaseExpired,
+        "This device's entitlement lease has expired. Register it again to renew.",
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    const minted = this.tokens.mintAccessToken({
+      userId: caller.userId,
+      workspaceId,
+      role: caller.role,
+      kind: "bridge",
+      deviceId: device.id,
+    });
+
+    await this.audit.record({
+      action: DEVICE_AUDIT_ACTIONS.bridgeTokenIssued,
+      resource: "device",
+      resourceId: device.id,
+      actorId: caller.userId,
+      workspaceId,
+    });
+
+    return { accessToken: minted.accessToken, expiresIn: minted.expiresIn, deviceId: device.id };
   }
 
   private async require(workspaceId: string, deviceId: string): Promise<Device> {

@@ -24,6 +24,17 @@ interface OpenApiDocument {
 
 const METHOD_ORDER = ["get", "post", "put", "patch", "delete"];
 
+/** No shape change from B14b — these four names have subscribed since B14. */
+const WEBHOOK_EVENT_ROWS: readonly { event: string; description: string }[] = [
+  { event: "transcript.completed", description: "A transcription finished and was persisted." },
+  { event: "export.completed", description: "A render/export finished and is ready to download." },
+  { event: "job.failed", description: "A job (of any type) reached a terminal failure." },
+  {
+    event: "credits.low",
+    description: "A workspace's credit balance crossed 20% or 0% of its monthly grant.",
+  },
+];
+
 function publicEndpoints(): {
   method: string;
   path: string;
@@ -188,11 +199,28 @@ export function DevelopersDocs(): React.JSX.Element {
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold">Webhooks</h2>
         <p className="text-fg-2 text-sm">
-          Subscribe to <code>transcript.completed</code>, <code>export.completed</code>,{" "}
-          <code>job.failed</code> and <code>credits.low</code> under{" "}
+          Subscribe to any of the events below under{" "}
           <strong>Settings → Developers → Webhooks</strong>. Retries follow 1m, 5m, 30m, 2h, 12h; an
           endpoint that fails 20 deliveries in a row is disabled automatically.
         </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-border border-b">
+                <th className="py-2 pr-4 font-medium">Event</th>
+                <th className="py-2 font-medium">Fires when</th>
+              </tr>
+            </thead>
+            <tbody>
+              {WEBHOOK_EVENT_ROWS.map((row) => (
+                <tr key={row.event} className="border-border/50 border-b">
+                  <td className="py-2 pr-4 font-mono text-xs">{row.event}</td>
+                  <td className="text-fg-1 py-2">{row.description}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <h3 className="text-base font-semibold">Verify a webhook</h3>
         <p className="text-fg-2 text-sm">
           Every delivery carries <code>X-Aksharo-Signature: t=&lt;unix&gt;,v1=&lt;hex&gt;</code>{" "}

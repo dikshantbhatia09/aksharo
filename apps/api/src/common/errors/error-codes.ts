@@ -33,6 +33,9 @@ export const ERROR_CODES = {
   mediaTooLarge: "media/too_large",
   exportUnsupportedInBrowser: "export/unsupported_in_browser",
   billingMandateCapExceeded: "billing/mandate_cap_exceeded",
+  academyUnknownTrack: "academy/unknown_track",
+  academyUnknownStep: "academy/unknown_step",
+  supportTicketNotFound: "support/not_found",
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

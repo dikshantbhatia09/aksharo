@@ -21,6 +21,8 @@ export interface AuthPrincipal {
   readonly scopes?: readonly $Enums.ApiKeyScope[];
   /** Present only for `kind: "admin"` tokens (B13 step-up, CONTRACTS §5). */
   readonly adminRoles?: readonly $Enums.AdminRoleName[];
+  /** Present only for `kind: "bridge"` tokens (B08b, CONTRACTS §5 amended 2026-09-03). */
+  readonly deviceId?: string;
 }
 
 /** The verified claim set of an access token (CONTRACTS §5). */
@@ -35,6 +37,13 @@ export interface AccessTokenClaims {
   readonly iss: string;
   /** Only present, and only meaningful, when `kind === "admin"`. */
   readonly adminRoles?: readonly $Enums.AdminRoleName[];
+  /**
+   * The B08 device row this token was minted for. Required, and only ever
+   * present, when `kind === "bridge"` (B08b, CONTRACTS §5 amended
+   * 2026-09-03 after C01): a bridge token without it is not a valid bridge
+   * credential, and `TokenService.mintAccessToken` refuses to mint one.
+   */
+  readonly deviceId?: string;
 }
 
 /**

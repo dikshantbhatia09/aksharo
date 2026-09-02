@@ -185,6 +185,25 @@ Two deliberate approximations, both documented at their call sites: an emphasis 
 layout time, and the karaoke fill sweeps continuously rather than snapping to cluster
 boundaries.
 
+## The zoom/reframe crop window (B20)
+
+`frame/crop-window.ts` (`sampleCropWindow`, `CropKeyframe`, `cropRectFromZoom`/
+`cropRectFromCentre`) and `frame/keyframe-track.ts`
+(`outputCropKeyframesFromTracks`) are the one shared answer to "which
+normalised `[0,1]` rectangle of the source frame is on screen at this output
+instant" — a `zoom` item's `target`+`scale` and a `reframe` item's crop
+rectangle both reduce to the same `CropRect` shape before reaching
+`sampleCropWindow`, and B19's real packed-keyframe row (`@montaj/edg`
+`passes/keyframes.ts`, `{tMs, zoom, cx, cy, ease}`) reduces to it via
+`cropRectFromCentre`. Both the browser exporter
+(`apps/web/lib/export/engine.ts`) and the cloud renderer's ffmpeg graph
+(`apps/render/src/ffmpeg/crop-expr.ts`) call `outputCropKeyframesFromTracks`
+against the same manifest field and remap it onto the output clock with the
+same `@montaj/timemap` `TimeMap.mapKeyframes` call, so a splice pins the
+curve identically on both paths. Like `sampleCropWindow`'s caption sibling
+`render-frame.ts`, it is a pure function of `(keyframes, outputMs)` — no
+clock, no previous-frame state.
+
 ## Fonts
 
 `FontRegistry` is the only way in. A host registers bytes it already has — A18b fetches

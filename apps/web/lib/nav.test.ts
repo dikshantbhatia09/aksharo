@@ -45,6 +45,7 @@ describe("SETTINGS_NAV", () => {
       "devices",
       "privacy",
       "notifications",
+      "support",
       "subscription",
       "plugin-keys",
       "developers",

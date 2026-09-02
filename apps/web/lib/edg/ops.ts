@@ -129,6 +129,73 @@ export function setSegmentText(
   return { type: "SetSegmentText", opId: newOpId(), segmentId, script, text };
 }
 
+/** Replaces `EdgHot.protected[]` wholesale (CONTRACTS §2, B18b). */
+export function setProtectedRanges(
+  ranges: readonly { id: string; s: number; e: number }[],
+  newOpId: OpIdFactory,
+): EdgOp {
+  return {
+    type: "SetProtectedRanges",
+    opId: newOpId(),
+    ranges: ranges.map((range) => ({ id: range.id, s: range.s, e: range.e })),
+  };
+}
+
+/**
+ * Toggles protection on `[s, e]` against the currently stored `protected[]`
+ * (the "P" keyboard shortcut in `Timeline.tsx`): fully protected already →
+ * subtract `[s, e]` from every range it overlaps (splitting one in two when
+ * the selection sits in the middle); otherwise → add it, merged with whatever
+ * it overlaps. Either way the result is the *whole* set the op replaces, ready
+ * for `setProtectedRanges`. `newId` mints the id for a freshly added range;
+ * ids of ranges that only shrink or split keep the id of the range they came
+ * from (the tail of a split gets a fresh id from `newId`).
+ */
+export function toggleProtectedRange(
+  current: readonly { id: string; s: number; e: number }[],
+  s: number,
+  e: number,
+  newId: () => string,
+): { id: string; s: number; e: number }[] {
+  if (s >= e) return current.map((range) => ({ id: range.id, s: range.s, e: range.e }));
+
+  const fullyCovered = isFullyProtected(current, s, e);
+  if (fullyCovered) {
+    const next: { id: string; s: number; e: number }[] = [];
+    for (const range of current) {
+      if (range.e <= s || range.s >= e) {
+        next.push({ id: range.id, s: range.s, e: range.e });
+        continue;
+      }
+      if (range.s < s) next.push({ id: range.id, s: range.s, e: s });
+      if (range.e > e) next.push({ id: newId(), s: e, e: range.e });
+    }
+    return next;
+  }
+
+  return [
+    ...current.map((range) => ({ id: range.id, s: range.s, e: range.e })),
+    { id: newId(), s, e },
+  ];
+}
+
+/** `true` when every millisecond of `[s, e)` is already covered by `ranges`. */
+export function isFullyProtected(
+  ranges: readonly { s: number; e: number }[],
+  s: number,
+  e: number,
+): boolean {
+  if (s >= e) return false;
+  const sorted = [...ranges].sort((a, b) => a.s - b.s);
+  let cursor = s;
+  for (const range of sorted) {
+    if (range.s > cursor) break;
+    if (range.e > cursor) cursor = range.e;
+    if (cursor >= e) return true;
+  }
+  return cursor >= e;
+}
+
 export function setEmphasis(
   segmentId: string,
   wordId: string,
@@ -395,6 +462,16 @@ export function computeInverseOps(
       const prior =
         segment?.emphasis?.find((entry) => entry.wordId === op.wordId)?.presetId ?? null;
       return [setEmphasis(op.segmentId, op.wordId, prior, newOpId)];
+    }
+
+    case "SetProtectedRanges": {
+      const prior = state.hot.protected ?? [];
+      return [
+        setProtectedRanges(
+          prior.map((range) => ({ id: range.id, s: range.s, e: range.e })),
+          newOpId,
+        ),
+      ];
     }
 
     case "SetSegmentPosition": {

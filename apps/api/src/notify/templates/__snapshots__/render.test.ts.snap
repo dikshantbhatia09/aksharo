@@ -504,6 +504,48 @@ Aksharo की ओर से भेजा गया। कोई सवाल? �
 }
 `;
 
+exports[`rendering > renders support-ticket-created in English 1`] = `
+{
+  "subject": "[export] Export stuck at 90%",
+  "text": "Aksharo
+
+New support ticket: Export stuck at 90%
+
+Workspace 01JWORKSPACE0000000000000 filed a export ticket: "Export stuck at 90%".
+
+Diagnostics: attached.
+
+Open in admin:
+https://app.example.test/admin/support/01JTICKET00000000000000000
+
+Ticket id 01JTICKET00000000000000000.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders support-ticket-created in Hindi 1`] = `
+{
+  "subject": "[export] Export stuck at 90%",
+  "text": "Aksharo
+
+नया सपोर्ट टिकट: Export stuck at 90%
+
+वर्कस्पेस 01JWORKSPACE0000000000000 ने एक export टिकट दर्ज किया: "Export stuck at 90%"।
+
+डायग्नोस्टिक्स: attached।
+
+एडमिन में खोलें:
+https://app.example.test/admin/support/01JTICKET00000000000000000
+
+टिकट आईडी 01JTICKET00000000000000000।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
 exports[`rendering > renders verify-email in English 1`] = `
 {
   "subject": "Confirm your email address",
