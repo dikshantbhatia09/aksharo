@@ -131,11 +131,41 @@ no restart needed.
   green there.
 - `pnpm pack:dry` — unsigned `electron-builder --dir` build (fuses hook
   included) for a packaging smoke check; real signing/notarisation/channels
-  hosting is C00. **Known blocker (C02b, not yet fixed):** in this pnpm
-  workspace this currently fails before producing output — `node_modules/
-@montaj/{bridge-core,config}` are pnpm symlinks whose real path resolves
-  outside `apps/desktop/`, and electron-builder's asar packager refuses a
-  file it can't express as a path relative to the app dir. See
-  `tools/release/src/commands/buildDesktop.ts`'s `findRealElectronBuilderOutput`
-  doc comment for the full write-up and candidate fixes (`pnpm deploy`, an
-  app-local hoisted linker, or bundling the main process) — flagged for C00.
+  hosting is C00. **Fixed by C00b** (was: "in this pnpm workspace this
+  currently fails before producing output — `node_modules/@montaj/{bridge-core,
+config}` are pnpm symlinks whose real path resolves outside `apps/desktop/`,
+  and electron-builder's asar packager refuses a file it can't express as a
+  path relative to the app dir"). See "Packaging" below for the fix.
+
+## Packaging (C00b)
+
+`pnpm build` now bundles `src/main/index.ts`, `src/preload/index.ts` and
+`src/main/pairing-preload.ts` into single CommonJS files under `dist/**`
+with esbuild (`scripts/bundle.mjs`) — every workspace dependency
+(`@montaj/bridge-core`, `@montaj/config`, `electron-updater`, `ws`,
+`selfsigned`, `ulid`, `zod`; all pure JS, no native addons) is inlined; only
+`electron` and Node builtins stay external. `scripts/bundle.mjs` also writes
+a minimal, dependency-free `dist/package.json` (`name`/`version`/`main`
+only).
+
+`electron-builder.yml` points `directories.app` at that `dist/` tree instead
+of the repo-managed `apps/desktop/package.json` (which lists
+`workspace:*` deps that resolve to pnpm symlinks outside this app dir) —
+electron-builder's own package.json/dependency lookup now runs against the
+dependency-free `dist/package.json`, so it never touches a workspace
+symlink and the `<file> must be under <appDir>` asar failure is gone.
+`files: ["**/*"]` is relative to that app dir, so it means "everything in
+`dist/`". `scripts/pack.mjs` wraps the `electron-builder` invocation to pass
+`-c.extraMetadata.version`/`-c.extraMetadata.productName` sourced from this
+package's own `package.json` version and `@montaj/config`'s `BRAND.name`,
+so those values can never drift from `docs/CONTRACTS.md` §0's brand source
+of truth. `pnpm pack:dry` (`pnpm build && node scripts/pack.mjs --dir`)
+verifies this locally and prints the unpacked size of `release/win-unpacked`
+(or `release/mac*/Aksharo.app` on macOS) — C10's size budget is ≤ 150 MB
+(Windows).
+
+`tools/release`'s `build-desktop` consumes this real `release/` output by
+default (`findRealElectronBuilderOutput`) and falls back to the synthesized
+placeholder tree only when no real output exists, or when `--placeholder`
+is passed explicitly (used by the CI `dry-run` job, which never builds
+`apps/desktop`).

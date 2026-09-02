@@ -12,6 +12,25 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Fixed
 
+- **C00b — `apps/desktop` real electron-builder packaging over a pnpm workspace.**
+  `pnpm --filter @montaj/desktop pack:dry` (`electron-builder --dir`) used to fail
+  before producing any output: `node_modules/@montaj/{bridge-core,config}` are pnpm
+  symlinks whose real path resolves to `packages/*`, outside `apps/desktop/`, and
+  app-builder-lib's asar packager refused any file it couldn't express as a path
+  relative to the app dir (`<file> must be under <appDir>`), so `tools/release`'s
+  `build-desktop` always fell back to a placeholder tree and the `e2e` CI job would
+  have hit the same failure on real runners. Fixed by esbuild-bundling the Electron
+  main/preload/pairing-preload entry points into single CommonJS files under
+  `apps/desktop/dist/**` (`scripts/bundle.mjs`) — every workspace dependency inlined,
+  only `electron` and Node builtins left external — and pointing electron-builder's
+  `directories.app` at that dependency-free `dist/` tree instead of the repo-managed
+  `apps/desktop/package.json`. `scripts/pack.mjs` wraps the `electron-builder`
+  invocation to pass `-c.extraMetadata.version`/`-c.extraMetadata.productName` sourced
+  from `@montaj/config`'s `BRAND` so those values can't drift from
+  `docs/CONTRACTS.md` §0. `tools/release build-desktop` now consumes this real output
+  by default and only falls back to (or is forced onto, via a new `--placeholder`
+  flag) the synthesized placeholder tree when no real build exists.
+
 - **A23b — a real Postgres 40P01 ("deadlock detected") in `auth-harness.ts`'s
   `reset()`.** Several background writers the API starts inside a test app
   outlive the HTTP request a test awaits: `AccessLogInterceptor` fires
@@ -77,6 +96,51 @@ lint`/`helm template`/`kubeconform` pipeline still runs in
   regenerate). 19 new tests: `infra/scripts/egress-hosts.test.mjs` (9),
   `infra/scripts/generate-egress-inventory.test.mjs` (4, CLI-level) and
   `infra/scripts/validate-chart-local.test.mjs` (6).
+
+- **C03a — `apps/engine` local sidecar (whisper.cpp/Silero/deep-filter/ffmpeg
+  supervisor), model manager, backend detection, `@montaj/engine-client`.**
+  New app `apps/engine`: a Node supervisor (no native compilation in the
+  repo — every binary and model weight comes from `MODEL_WEIGHTS_BASE_URL`
+  via a versioned, SHA-256-verified manifest, `manifest.ts`/`defaultManifest()`,
+  the H-22 pattern) exposing a localhost-only (`127.0.0.1`, bound port) HTTP/WS
+  contract — `GET /health` (unauthenticated, mirrors `model-server`'s
+  `/healthz`), `GET /models`, `POST /models/download`, `POST /models/delete`,
+  `POST /transcribe` (+ streaming partials over a `/transcribe` WS, bearer via
+  query param since a WS handshake carries no header), `POST /align`,
+  `POST /clean`, `POST /render` — every bearer/Host check reusing
+  `@montaj/bridge-core`'s `bearerMatches`/`extractBearer`/`isAllowedHost`/
+  `RateLimiter` rather than reimplementing them. `detection.ts` computes the
+  backend (`metal-coreml`/`vulkan`/`cuda`/`cpu`) and latency tier A–D from an
+  injected `SystemInfo` per `05-system-architecture.md` §7's table (Apple
+  Silicon ≥16GB → A, Windows ≥8 cores/16GB+GPU → B, 4-8 cores/8GB → C,
+  <8GB → D, local disabled). `ModelManager` (`model-manager.ts`) downloads
+  manifest entries with resumable `Range` requests, verifies SHA-256 before
+  an atomic rename into place (a checksum failure deletes the bad file and
+  throws rather than risk running a tampered binary), enforces a disk budget,
+  supports delete, and re-verifies every installed file's hash on launch
+  (THREAT-MODEL T22). `discovery.ts` writes `~/.aksharo/engine.json` (0600,
+  bearer, ephemeral port) — a file separate from the bridge's own
+  `bridge.json`, reusing `aksharoDir()`/`generateBearerToken()` from
+  `bridge-core`. `FakeBackend` (`backends/fake-backend.ts`) answers every
+  route deterministically from a fixture manifest keyed by an `audio` path
+  substring, so `apps/engine`'s full contract-test suite runs with zero real
+  models on disk and the engine reports `modelsMissing: true` correctly with
+  none present — the real whisper.cpp/Silero/deep-filter backends are C03b's
+  to wire behind the same `EngineBackend` interface and exercise on real
+  hardware. New package `packages/engine-client`: Zod schemas mirroring
+  `apps/model-server`'s `/transcribe`/`/align` word shape plus the
+  local-only routes, and a typed `EngineClient` (fetch + `ws`) for
+  `apps/desktop` and `apps/web` to share verbatim. `tools/release`'s
+  `build-desktop` gained an additive, dry-run-only step
+  (`bundleEngineSupervisor`) that copies a built `apps/engine/dist` into the
+  app tree's `resources/engine` (mac: `Contents/Resources/engine`) when one
+  exists, reported via a new `engineBundled` result field; it never touches
+  signing or `discoverNestedBinaries` (the copied tree is plain `.js`).
+  **Open for C03b/A00-10:** the real whisper.cpp Metal/CoreML and
+  Vulkan/CUDA backends, the quality gate (≤80ms median word-boundary error
+  vs. the cloud aligner), and the faster-whisper Windows fallback are not
+  implemented here — only their detection/versioning surface is, per the
+  brief's own scope split.
 
 - **C06 — Premiere Pro apply modes: transcript injection, MOGRT captions, alpha
   overlay, SRT to bin, cuts/zooms/audio, transactions, host-id map + re-sync.**

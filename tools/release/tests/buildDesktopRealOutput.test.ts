@@ -66,6 +66,24 @@ describe("build-desktop against a real electron-builder output", () => {
     expect(result.signed.some((s) => s.path.endsWith("Aksharo.exe"))).toBe(true);
   });
 
+  it("forces the placeholder tree with --placeholder even when a real output exists", async () => {
+    // C00b scope §3: CI's dry-run job never builds apps/desktop, so it always wants the
+    // synthesized tree explicitly rather than accidentally picking up a real one.
+    const winUnpacked = path.join(repoRoot, "apps/desktop/release/win-unpacked");
+    await mkdir(winUnpacked, { recursive: true });
+    await writeFile(path.join(winUnpacked, "Aksharo.exe"), "real-pe-main\n");
+
+    const result = await runBuildDesktop(ctx(), config, {
+      platform: "win",
+      channel: "alpha",
+      dryRun: true,
+      placeholder: true,
+    });
+
+    expect(result.placeholderApp).toBe(true);
+    expect(result.signed.some((s) => s.path.endsWith("Aksharo.exe"))).toBe(true);
+  });
+
   it("falls back to the placeholder tree when release/ exists but has no Aksharo.exe yet", async () => {
     // e.g. a partial/failed electron-builder run (only Electron's own binaries copied).
     const winUnpacked = path.join(repoRoot, "apps/desktop/release/win-unpacked");
