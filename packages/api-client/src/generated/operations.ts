@@ -628,6 +628,13 @@ export const API_OPERATIONS = [
     summary: "The hot document, its revision and the first page of segments",
   },
   {
+    operationId: "getProjectInsights",
+    method: "GET",
+    path: "/projects/{projectId}/insights",
+    tags: ["insights"],
+    summary: "The most recent chapters/summary/hooks result per kind",
+  },
+  {
     operationId: "getProjectTranscript",
     method: "GET",
     path: "/projects/{projectId}/transcript",
@@ -1242,6 +1249,13 @@ export const API_OPERATIONS = [
     path: "/me/data",
     tags: ["me"],
     summary: "Export everything the account holds about you",
+  },
+  {
+    operationId: "requestProjectInsights",
+    method: "POST",
+    path: "/projects/{projectId}/insights",
+    tags: ["insights"],
+    summary: "Generate chapters, summary and/or hooks from the project's transcript",
   },
   {
     operationId: "resegmentEdg",

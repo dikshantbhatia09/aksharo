@@ -766,6 +766,45 @@ export interface AvailableScripts {
   scripts: ScriptAvailability[];
 }
 
+// --- Insights (B11) -------------------------------------------------------
+
+export type InsightKind = "chapters" | "summary" | "hooks";
+export type InsightTone = "energetic" | "calm" | "bold" | "informative";
+
+export interface InsightsRequest {
+  kinds: InsightKind[];
+  tone?: InsightTone;
+  regenerate?: boolean;
+}
+
+export interface InsightJob {
+  kind: InsightKind;
+  jobId: string;
+  deduplicated: boolean;
+  tenths: number;
+}
+
+export interface InsightsAccepted {
+  jobs: InsightJob[];
+  totalTenths: number;
+}
+
+export interface InsightRow {
+  id: string;
+  kind: InsightKind;
+  templateVersion: string;
+  provider: string;
+  region: string;
+  output: Record<string, unknown>;
+  usage: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface InsightsResponse {
+  items: InsightRow[];
+  disclosure: string;
+}
+
 // --- Billing (B01) ------------------------------------------------------------
 
 /**

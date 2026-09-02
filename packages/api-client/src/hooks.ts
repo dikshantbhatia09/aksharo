@@ -43,6 +43,9 @@ import type {
   CompletedUpload,
   ConsentPurpose,
   ConsentState,
+  InsightsAccepted,
+  InsightsRequest,
+  InsightsResponse,
   CreateFolderRequest,
   CreateMemoryEntryRequest,
   CreateProjectRequest,
@@ -965,6 +968,50 @@ export function useTranscriptScripts(projectId: string | null): UseQueryResult<A
       client.call(endpoints.transcriptScripts.scripts, {
         params: { projectId: projectId ?? "" },
       }),
+  });
+}
+
+// --- Insights (B11) ----------------------------------------------------------
+
+/**
+ * `GET /projects/{id}/insights` — the most recent chapters/summary/hooks
+ * result per kind, plus the ASCI-friendly disclosure line to render next to
+ * whichever kind is shown.
+ */
+export function useProjectInsights(projectId: string | null): UseQueryResult<InsightsResponse> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.insights(workspaceId ?? "none", projectId ?? "none"),
+    enabled: workspaceId !== null && projectId !== null && projectId !== "",
+    retry: retryPolicy,
+    queryFn: () =>
+      client.call(endpoints.insights.list, {
+        params: { projectId: projectId ?? "" },
+      }),
+  });
+}
+
+/**
+ * `POST /projects/{id}/insights` — request (or regenerate) chapters, summary
+ * and/or hooks. Invalidates the read on success so a poller (`job.completed`)
+ * picking up the worker's completion is not required for the UI to refetch.
+ */
+export function useRequestInsights(
+  projectId: string,
+): UseMutationResult<InsightsAccepted, Error, InsightsRequest> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) => client.call(endpoints.insights.request, { params: { projectId }, body }),
+    onSuccess: () => {
+      if (workspaceId !== null) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.insights(workspaceId, projectId),
+        });
+      }
+    },
   });
 }
 /**
