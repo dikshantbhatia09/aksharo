@@ -51,6 +51,76 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   workspace+user (one paired bridge per signed-in user per workspace) until a
   follow-up work package adds a real per-device bridge credential — see the
   WP report's open questions.
+- **B14b — Webhook events: real event emits replace the poller.**
+  `transcript.completed` (`transcripts/transcribe.handler.ts`), `job.failed`
+  (`jobs/jobs.service.ts::complete()`, after DLQ handling) and `credits.low`
+  (`credits/credits-low-balance.notifier.ts`) are now real `EventEmitter2`
+  emits at their producers, each with its own `<module>/*.event.ts` name +
+  payload contract (the `referrals/export-completed.event.ts` precedent) and
+  a `webhooks/listeners/*.listener.ts` subscriber. `WebhookEventPollerService`
+  and its Redis cursors are deleted; `webhooks.e2e-spec.ts` proves the whole
+  chain (API key → `/v1` project → simulated worker completion → a signed
+  delivery a receiver can verify, plus retries on a receiver that fails
+  twice) end to end. `WebhookDeliveryService.sendOverride` is a new,
+  production-inert test seam (parallel to `sendWebhook`'s own resolver/
+  transport seams) that lets that suite's in-process receiver stand in for a
+  real internet endpoint without touching the SSRF guard.
+- **B11b — LLM follow-up reconciliation: per-kind burn rates, one filler
+  lexicon, EDG-segment transcript payload.** `packages/config/src/credits.ts`:
+  the flat `chaptersSummaryHook` burn rate (2 credits/job for every kind) is
+  retired in favour of three per-kind operations — `insightsChapters` (2),
+  `insightsSummary` (1), `insightsHooks` (2) — now the single source for
+  insight pricing; `apps/api/src/insights/insights.quote.ts` reads them
+  through `creditCostTenths` instead of carrying its own local table, and
+  `03-architecture/04-pricing-and-monetization.md`'s credits table row is
+  updated to match. `packages/prompts`: B11's flat, in-code
+  `src/lexicon/fillers.ts` word arrays are deleted; `src/lexicon/index.ts`
+  (`loadFillers(language)`, `loadLexiconFile`, `lexiconLanguages`) reads B18's
+  richer per-language JSON lexicon (`packages/prompts/lexicons/fillers/*.json`)
+  directly, so the package has one filler lexicon instead of two that could
+  drift apart (the worker's `autocut.py::load_lexicon` already read the JSON;
+  no import-path change was needed there). `apps/api/src/insights/insights.service.ts`:
+  the `ai.llm` job's transcript payload is now built from the project's EDG
+  caption segments when it has one — each live segment's
+  `startWordId`/`endWordId` resolved to text via `EdgRepository.projectionOf`
+  and `loadChunks` (the same read path `ExportsModule` uses) — so the
+  templates see the creator's edited captions (cuts, re-segmentation, text
+  fixes already applied) rather than the raw ASR chunks; a project with no EDG
+  document yet (or one with no live segments) falls back to the original
+  `TranscriptsService.chunks()` path unchanged.
+- **C02 — Desktop shell.** `@montaj/desktop`: Electron main/preload loading
+  the hosted web app (`?desktop=1`, `AksharoDesktop/<version>` User-Agent
+  suffix, decision D71 — one web codebase, no packaged bundle until C04),
+  `contextIsolation`/`sandbox`/`nodeIntegration:false`/`webSecurity:true`,
+  navigation/`window.open`/`shell.openExternal` allowlists
+  (`src/security/allowlist.ts`), strict-CSP packaged offline page with retry,
+  `aksharo://` deep links (`auth/callback`, `project/<ulid>`, `pair`) with
+  single-instance-lock hand-off, `electron-updater` wired to C00's
+  `releases/<channel>/` feed layout with alpha/beta/stable channels and a
+  deterministic staged-rollout gate, native menu + tray (bridge/pairing status,
+  approve pairing, check for updates, copy diagnostics), Electron fuses
+  flipped in the `electron-builder` `afterPack` hook. `src/bridge/adapter.ts`
+  defines the `BridgeAdapter` interface and a stub implementation, since C01
+  (`bridge-core`) is not yet merged. `apps/web/lib/desktop.ts`: the
+  desktop-detection hook agreed with A13. Unit tests (vitest) for the
+  allowlists, deep-link parsing, updater feed/rollout math and the bridge
+  stub; a Playwright-Electron smoke suite (`e2e/smoke.spec.ts`, run via
+  `pnpm test:e2e`, needs a built app and a display).
+- **B13a — Admin roles, TOTP step-up, `AdminGuard(role)`.** CONTRACTS §5
+  (amended 2026-09-03): `kind: "admin"` access tokens, minted only by
+  `POST /admin/auth/step-up` after a TOTP check, 30-minute lifetime, never
+  refreshable, carrying `adminRoles: ("support"|"finance"|"ops"|"content"|
+"superadmin")[]`. New tables `admin_roles` (grant/revoke, re-checked by
+  `AdminGuard` on every request so revocation is immediate rather than
+  waiting out the token) and `admin_totp` (hand-rolled RFC 6238 TOTP,
+  `apps/api/src/admin/auth/totp.ts` — no new dependency, same reasoning as
+  `TokenService`'s hand-rolled RS256). `apps/api/src/admin/auth/
+admin-step-up.{controller,service,dto,constants}.ts`: TOTP enrol/verify
+  and step-up, rate-limited per user and per IP. `AdminGuard` rewritten to
+  require `kind: "admin"` (not merely `users.is_admin`) plus, when a route
+  carries the new `@AdminRoles(...)` decorator, a matching non-revoked
+  `admin_roles` grant (`superadmin` always satisfies any role list). Role
+  matrix contract test: `apps/api/src/admin/admin.guard.test.ts`.
 
 - **A23 — Gate A e2e journey, sample-project seed, wave verification script,
   X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)
@@ -163,6 +233,56 @@ redis-keys.ts`); any worktree with a non-default prefix (A05/A23a's
 
 ### Added
 
+- **B19 — Reframe & zoom pass: scene detection, subject tracking, cue
+  detection, velocity-eased keyframes packed as bytea.** Reuses B18's
+  generic `ai.pass` runner end to end (no second pass runner) for two new
+  pass kinds. Worker (`apps/worker-ai/worker_ai/passes/{scenes,tracking,
+zoom,reframe}.py`, `apps/worker-ai/worker_ai/processors/
+reframe_zoom_pass.py`): a `ContentDetector`-style scene-cut metric
+  (re-implemented directly rather than depending on `pyscenedetect`); an
+  IoU-linked subject track with a one-euro filter, speaking-speaker/largest-
+  face multi-face resolution and a saliency-centre fallback (the YuNet ONNX
+  face detector the brief names could not be fetched or committed in this
+  CPU-only, no-download environment — a `FrameDetector` seam and a
+  brightness-blob stand-in are documented in `passes/README.md`'s "Gap"
+  section, matching A10/B18's own pattern for an unavailable model weight);
+  a zoom pass turning emphasis-word/audio-energy/sentence-start cues into
+  rate-limited (>=2.5s apart, never across a scene cut or an accepted `cut`
+  item) punch-in events (180ms ease-out-cubic in, >=600ms hold, 260ms out,
+  subtle/standard/punchy presets); a reframe pass building an 8%-deadzone,
+  velocity-capped, scene-hard-cut 16:9→9:16/1:1 crop track at 10Hz,
+  simplified with Ramer–Douglas–Peucker. Packed-keyframe byte format
+  (`[tMs, cx, cy, scale]` little-endian float32 rows, `MKF1` v1 header):
+  `packKeyframes`/`unpackKeyframes`/`loadKeyframes` in `@montaj/edg`
+  (`packages/edg/src/keyframes.ts`, documented in its README) with a
+  byte-for-byte-matching Python encoder in the worker, round-trip and
+  property tests both sides. API (`apps/api/src/passes/**`, extended):
+  `POST /projects/{id}/passes/{zoom,reframe}` quoted against `@montaj/
+config`'s existing `reframeZoomPass` burn rate (flash tier — the brief's
+  literal "3 credits/minute" is that rate's _pro_ tier; flagged for
+  reconciliation, the same kind of gap B18 flagged for `autocutPass`),
+  `PassCompletionHandler` extended to merge zoom/reframe items. Two frozen-
+  interface gaps found and flagged rather than silently worked around
+  (`passes-completion.handler.ts`'s class docstring): `PassTypeSchema` has
+  no `"zoom"` value, so both land as `type: "reframe"` distinguished by
+  `kind`/`engine`; and neither the inline-bytea nor the derived-storage
+  write path for `keyframesRef` exists yet (`PassItem` carries only a
+  string ref, `ObjectStore` has no `putObject` by design), so this work
+  package computes the addendum's key shape and sets it, but does not yet
+  write the bytes anywhere — flagged as an open question for a follow-up
+  (B20 already touches keyframe consumption). Also flagged: real detections/
+  scene frames need decoded video (out of scope here — no video-decode
+  dependency was added), so the producer sends them empty for now; the
+  worker still runs correctly on emphasis-only zoom cues with a saliency
+  fallback, while reframe fails non-retryably (`worker/invalid_payload`)
+  until that producer-side gap closes. See `apps/worker-ai/worker_ai/
+passes/README.md` for models used, presets and the full gap list. Also
+  added `packages/edg/src/passes/keyframes.ts` — `encodeKeyframes`/
+  `decodeKeyframes` over B20's own `Keyframe = {tMs, zoom, cx, cy, ease}`
+  shape (a second, `MKF2` on-disk format, distinct from the `MKF1` one
+  above; reconciling the two is flagged as an open question) — so B20 can
+  code against this exact name/shape ahead of B19 landing.
+
 - **B10 — Audio clean: denoise, loudness normalise, A/B preview, applied to
   browser and cloud exports.** Worker (`apps/worker-ai/worker_ai/clean/**`):
   `ai.clean` denoises via spectral-subtraction gating (a DeepFilterNet3
@@ -252,7 +372,8 @@ t=<unix>,v1=hmac_sha256(secret, t + "." + body)`
   `packages/prompts`: versioned template registry (`chapters@1`, `summary@1`,
   `hooks@1`, `keyphrases@1`) with Zod input/output schemas, a shared
   prompt-injection guardrail (transcript fenced as `<transcript>` DATA), a filler
-  lexicon (`en`/`hi`/`hi-Latn`/`ta`, shared with B18), a fake-provider generator
+  lexicon (`en`/`hi`/`hi-Latn`/`ta`; B11b later replaced this in-code lexicon
+  with a typed loader over B18's JSON lexicon, the single source), a fake-provider generator
   and an eval runner (`pnpm --filter @montaj/prompts eval`) over four fixture
   transcripts (English, Hindi, Hinglish, Tamil) with five automatic checks
   (schema validity, timestamp validity/ordering, hallucination guard, length
@@ -266,11 +387,12 @@ t=<unix>,v1=hmac_sha256(secret, t + "." + body)`
   call with retry → validate → one repair attempt); `processors/llm.py` wires
   it to the now-implemented `ai.llm` queue. `apps/api/src/insights/`:
   `POST /projects/{id}/insights {kinds, tone?, regenerate?}` quotes and holds
-  credits per kind (chapters 2, summary 1, hooks 2 — see the README note on the
-  conflict with `packages/config`'s flat `chaptersSummaryHook` rate), builds the
-  job's transcript payload from `TranscriptsService.chunks()` (language,
-  optional media title, segments only — no user identity, brief's PII
-  minimisation), and enqueues one `ai.llm` job per kind; `GET
+  credits per kind (chapters 2, summary 1, hooks 2 — reconciled into
+  `packages/config`'s `BURN_RATES` by B11b, see that entry and the README),
+  builds the job's transcript payload from `TranscriptsService.chunks()`
+  (language, optional media title, segments only — no user identity, brief's
+  PII minimisation; B11b later added the EDG-segment path), and enqueues one
+  `ai.llm` job per kind; `GET
 /projects/{id}/insights` reads the latest `llm_outputs` row per kind plus the
   ASCI-friendly disclosure line. Migration adds `llm_outputs` (id, projectId,
   workspaceId, jobId, kind, templateVersion, provider, region, output jsonb,

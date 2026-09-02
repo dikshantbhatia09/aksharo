@@ -118,6 +118,14 @@ export interface FakeUser {
   readonly locale?: string;
 }
 
+/** B13: one `admin_roles` row. */
+export interface FakeAdminRole {
+  readonly id: string;
+  readonly userId: string;
+  readonly role: "support" | "finance" | "ops" | "content" | "superadmin";
+  readonly revokedAt: Date | null;
+}
+
 /** B02b: `JobsService.notifyCreditsShortfall`'s `workspace.findFirst`. */
 export interface FakeWorkspace {
   readonly id: string;
@@ -160,6 +168,8 @@ export class FakeDb {
   readonly creditAccounts = new Map<string, FakeCreditAccount>();
   readonly creditHolds = new Map<string, FakeCreditHold>();
   readonly audit: AuditLog[] = [];
+  /** B13: platform-staff role grants (`admin_roles`), keyed by row id. */
+  readonly adminRoles = new Map<string, FakeAdminRole>();
   /** A25: in-app notifications. */
   readonly notifications = new Map<string, Notification>();
 
@@ -187,6 +197,17 @@ export class FakeDb {
     };
     this.users.set(user.id, user);
     return user;
+  }
+
+  adminRole(overrides: Partial<FakeAdminRole> & { userId: string }): FakeAdminRole {
+    const row: FakeAdminRole = {
+      id: ulid(),
+      role: "support",
+      revokedAt: null,
+      ...overrides,
+    };
+    this.adminRoles.set(row.id, row);
+    return row;
   }
 
   workspace(overrides: Partial<FakeWorkspace> = {}): FakeWorkspace {
@@ -407,6 +428,17 @@ export function createFakePrisma(db: FakeDb) {
     user: {
       findUnique: async ({ where }: { where: { id: string } }): Promise<FakeUser | null> =>
         db.users.get(where.id) ?? null,
+    },
+    // B13: `AdminGuard`'s per-request role re-check.
+    adminRole: {
+      findMany: async ({
+        where,
+      }: {
+        where: { userId: string; revokedAt: null };
+      }): Promise<FakeAdminRole[]> =>
+        [...db.adminRoles.values()].filter(
+          (row) => row.userId === where.userId && row.revokedAt === null,
+        ),
     },
     // B02b: `JobsService.notifyCreditsShortfall`'s workspace-owner lookup.
     workspace: {

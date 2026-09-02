@@ -3,7 +3,7 @@
 Outgoing webhooks: endpoint CRUD (`webhooks.controller.ts`,
 `webhook-endpoints.service.ts`), signed retried delivery
 (`webhook-delivery.service.ts`, `webhook-signature.ts`), and the event
-sources that feed it (`listeners/`, `webhook-event-poller.service.ts`).
+listeners that feed it (`listeners/`).
 
 ## Endpoints and CRUD
 
@@ -40,23 +40,30 @@ the log.
 
 ## Event sources
 
-- `export.completed` — `listeners/export-completed.listener.ts` subscribes
-  to the `EventEmitter2` event of that exact name, already emitted by
-  `exports/exports.service.ts` and `exports/render-completion.handler.ts`
-  for B07b's referral loop. No file outside this WP's boundaries changed.
-- `transcript.completed` / `job.failed` / `credits.low` — nothing in
-  `transcripts/`, `jobs/` or `credits/` emits an event for these today, and
-  adding one is an edit to files outside this WP's boundaries.
-  `WebhookEventPollerService` instead polls `jobs`
-  (`type = "ai.transcribe" AND status = "succeeded"`, and separately
-  `status = "failed"` for any type) and `notifications`
-  (`kind = "low-credits"`, already written by
-  `credits/credits-low-balance.notifier.ts`), each with its own
-  "last id seen" cursor in Redis, primed at "now" on first run rather than
-  replaying history. **This is a deviation from the brief**, which describes
-  emitting these events directly from their producers; see the WP's final
-  report and this file's top-level doc comment on `webhook-event-poller.service.ts`
-  for the reasoning (avoiding a merge collision with B11/B18, which are
-  actively changing `transcripts/`/the worker in parallel) and the migration
-  path (swap a stream for a real `EventEmitter2` emit later; the poller's
-  public shape does not need to change).
+Every one of the four subscribable events (`webhooks.constants.ts`'s
+`WEBHOOK_EVENTS`) is a real `EventEmitter2` emit at its producer, picked up
+by a listener in `listeners/` that calls `WebhookDeliveryService.emit()`.
+B14b removed `WebhookEventPollerService` (the `jobs`/`notifications`
+Redis-cursor poller B14 shipped for three of these) once each producer could
+take the one-line edit directly:
+
+| Event                  | Emitted from                                                                                           | Listener                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| `export.completed`     | `exports/exports.service.ts`, `exports/render-completion.handler.ts` (B07b)                            | `listeners/export-completed.listener.ts`     |
+| `transcript.completed` | `transcripts/transcribe.handler.ts`, right after the transcript is persisted and the EDG initialised   | `listeners/transcript-completed.listener.ts` |
+| `job.failed`           | `jobs/jobs.service.ts::complete()`, once the row is `failed` and dead-letter handling (if any) has run | `listeners/job-failed.listener.ts`           |
+| `credits.low`          | `credits/credits-low-balance.notifier.ts`, where it already raises the `low-credits` notification      | `listeners/credits-low.listener.ts`          |
+
+Each producer's own event-name/payload contract lives next to it —
+`transcripts/transcript-completed.event.ts`, `jobs/job-failed.event.ts`,
+`credits/credits-low.event.ts` — the same shape
+`referrals/export-completed.event.ts` already established for
+`export.completed`, so the producer and this module's listener agree on the
+event without either importing the other's internals.
+
+`webhooks.e2e-spec.ts` proves the whole chain end to end: an API key, a
+`/v1` project, a simulated worker completion, and a real signed HTTP
+delivery to an in-process receiver (`WebhookDeliveryService.sendOverride`,
+a test seam parallel to `sendWebhook`'s own `resolver`/`transport` seams,
+since a receiver bound to `127.0.0.1` is exactly what `resolveSafeTarget`
+exists to refuse in production).

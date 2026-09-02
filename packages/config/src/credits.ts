@@ -42,7 +42,9 @@ export type CreditOperation =
   | "reframeZoomPass"
   | "sfxMusicPass"
   | "promptedEdit"
-  | "chaptersSummaryHook";
+  | "insightsChapters"
+  | "insightsSummary"
+  | "insightsHooks";
 
 export interface BurnRate {
   readonly operation: CreditOperation;
@@ -127,12 +129,26 @@ export const BURN_RATES = {
     minimumPlan: "creator",
     note: "Held on source minutes at enqueue, settled on finished minutes.",
   },
-  chaptersSummaryHook: {
-    operation: "chaptersSummaryHook",
+  insightsChapters: {
+    operation: "insightsChapters",
     basis: "job",
     ratePerUnitTenths: 20,
     minimumPlan: "creator",
-    note: "Flat 2 credits per job.",
+    note: "Chapters insight, 2 credits per job (03-architecture/04 §Credits).",
+  },
+  insightsSummary: {
+    operation: "insightsSummary",
+    basis: "job",
+    ratePerUnitTenths: 10,
+    minimumPlan: "creator",
+    note: "Summary insight, 1 credit per job (03-architecture/04 §Credits).",
+  },
+  insightsHooks: {
+    operation: "insightsHooks",
+    basis: "job",
+    ratePerUnitTenths: 20,
+    minimumPlan: "creator",
+    note: "Hooks insight, 2 credits per job (03-architecture/04 §Credits).",
   },
 } as const satisfies Record<CreditOperation, BurnRate>;
 
@@ -257,9 +273,10 @@ export interface QuoteOptions {
  *
  * `mediaMinutes` is the operation's own basis (media minutes for transcription
  * and translation, output minutes for `cloudRender`, source minutes for the edit
- * passes, finished minutes for `sfxMusicPass`/`promptedEdit`/`chaptersSummaryHook`
- * — see {@link BurnRate.basis}), never negative; a caller with a duration in
- * milliseconds divides by 60,000 first.
+ * passes, finished minutes for `sfxMusicPass`/`promptedEdit` — see
+ * {@link BurnRate.basis}), never negative; a caller with a duration in
+ * milliseconds divides by 60,000 first. `insightsChapters`/`insightsSummary`/
+ * `insightsHooks` are `"job"` basis and ignore the minutes argument entirely.
  */
 export function quote(
   operation: CreditOperation,

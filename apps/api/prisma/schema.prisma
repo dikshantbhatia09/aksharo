@@ -89,6 +89,20 @@ enum ClientKind {
   ae
   resolve
   api
+  /// B13: minted only by `POST /admin/auth/step-up` (CONTRACTS §5, amended
+  /// 2026-09-03). 30-minute lifetime, never refreshable, never issued to API
+  /// keys or plugin/bridge clients.
+  admin
+}
+
+/// Platform-staff permission a `users` row can hold (B13). Not a workspace
+/// role (`MembershipRole`) — this is cross-tenant.
+enum AdminRoleName {
+  support
+  finance
+  ops
+  content
+  superadmin
 }
 
 enum WorkspaceType {
@@ -604,9 +618,49 @@ model User {
   comments        Comment[]
   clearanceGrants AssetClearanceGrant[]
   notifications   Notification[]
+  adminRoles      AdminRole[]
+  adminTotp       AdminTotp?
 
   @@index([deletedAt])
   @@map("users")
+}
+
+/// B13: platform-staff role grant. A user may hold more than one; the set of
+/// non-revoked rows is what `AdminGuard` checks (kept in the database, not
+/// trusted from the JWT's `adminRoles` claim alone, so revocation takes effect
+/// immediately rather than waiting out the 30-minute admin token).
+model AdminRole {
+  id         String         @id @db.Char(26)
+  userId     String         @map("user_id") @db.Char(26)
+  role       AdminRoleName
+  /// Who granted it — another admin's `users.id`, or null for the seed/bootstrap grant.
+  grantedBy  String?        @map("granted_by") @db.Char(26)
+  grantedAt  DateTime       @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt  DateTime?      @map("revoked_at") @db.Timestamptz(6)
+  revokedBy  String?        @map("revoked_by") @db.Char(26)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@index([userId, revokedAt])
+  @@map("admin_roles")
+}
+
+/// B13: TOTP enrolment for admin step-up (`POST /admin/auth/step-up`). Nothing
+/// else in the platform uses TOTP — `users.mfa_secret` is a separate, unused
+/// A04 placeholder for a future consumer-facing MFA and is left untouched.
+model AdminTotp {
+  userId       String    @id @map("user_id") @db.Char(26)
+  /// Base32 TOTP secret. Admin-only, platform-staff-scoped credential — not a
+  /// user password or a workspace secret; stored as issued by `otplib`.
+  secret       String
+  enrolledAt   DateTime  @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  verifiedAt   DateTime? @map("verified_at") @db.Timestamptz(6)
+  lastUsedAt   DateTime? @map("last_used_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admin_totp")
 }
 
 model ConsentRecord {
