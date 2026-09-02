@@ -40,6 +40,9 @@ import type {
   ImportGlossaryRequest,
   ImportGlossaryResult,
   InitUploadRequest,
+  InsightsAccepted,
+  InsightsRequest,
+  InsightsResponse,
   InviteMemberRequest,
   JobPage,
   JobSummary,
@@ -658,6 +661,22 @@ export const transcriptScriptsEndpoints = {
   }),
 } as const;
 
+/** Insights (B11): `apps/api/src/insights`. */
+export const insightsEndpoints = {
+  request: defineEndpoint<InsightsRequest, InsightsAccepted>({
+    method: "POST",
+    path: "/projects/{projectId}/insights",
+    auth: "bearer",
+    operationId: "requestProjectInsights",
+  }),
+  list: defineEndpoint<void, InsightsResponse>({
+    method: "GET",
+    path: "/projects/{projectId}/insights",
+    auth: "bearer",
+    operationId: "getProjectInsights",
+  }),
+} as const;
+
 /**
  * `/memory` — Settings → "What Aksharo learned" (F-204, D62, B09).
  *
@@ -772,6 +791,7 @@ export const endpoints = {
   styles: styleEndpoints,
   transcripts: transcriptEndpoints,
   transcriptScripts: transcriptScriptsEndpoints,
+  insights: insightsEndpoints,
   billing: billingEndpoints,
   affiliate: affiliateEndpoints,
   credits: creditsEndpoints,
@@ -800,6 +820,7 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(styleEndpoints),
   ...Object.entries(transcriptEndpoints),
   ...Object.entries(transcriptScriptsEndpoints),
+  ...Object.entries(insightsEndpoints),
   ...Object.entries(billingEndpoints),
   ...Object.entries(affiliateEndpoints),
   ...Object.entries(creditsEndpoints),

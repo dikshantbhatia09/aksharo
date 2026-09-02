@@ -23,12 +23,17 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "eval": "tsx src/eval/cli.ts",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@montaj/config": "workspace:*",
     "@types/node": "^22.19.2",
     "eslint": "^9.39.5",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"
   }

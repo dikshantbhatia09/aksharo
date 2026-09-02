@@ -13,6 +13,7 @@ import { EdgModule } from "./edg/edg.module.js";
 import { ExportsModule } from "./exports/exports.module.js";
 import { FontsModule } from "./fonts/fonts.module.js";
 import { HealthModule } from "./health/health.module.js";
+import { InsightsModule } from "./insights/insights.module.js";
 import { InternalModule } from "./internal/internal.module.js";
 import { InvoicesModule } from "./invoices/invoices.module.js";
 import { JobsModule } from "./jobs/jobs.module.js";
@@ -98,6 +99,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     NotifyModule,
     ProjectsModule,
     MediaModule,
+    InsightsModule,
     MemoryModule,
     StylesModule,
     InternalModule,

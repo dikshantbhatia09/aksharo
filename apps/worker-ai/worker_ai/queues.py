@@ -49,10 +49,10 @@ QUEUE_NAMES: Final[tuple[str, ...]] = (
 #: Node workers, so a job on one of them never reaches this process.
 AI_QUEUES: Final[tuple[str, ...]] = tuple(name for name in QUEUE_NAMES if name.startswith("ai."))
 
-#: The six this worker implements (four from A09/A10, `ai.translate` and
-#: `ai.transliterate` from A22); the rest are registered and answer
-#: `not_implemented` so a producer gets a clear failure instead of a job that
-#: sits in Redis forever.
+#: The seven this worker implements (four from A09/A10, `ai.translate` and
+#: `ai.transliterate` from A22, `ai.llm` from B11); the rest are registered and
+#: answer `not_implemented` so a producer gets a clear failure instead of a job
+#: that sits in Redis forever.
 IMPLEMENTED_AI_QUEUES: Final[tuple[str, ...]] = (
     "ai.vad",
     "ai.transcribe",
@@ -60,6 +60,7 @@ IMPLEMENTED_AI_QUEUES: Final[tuple[str, ...]] = (
     "ai.diarise",
     "ai.translate",
     "ai.transliterate",
+    "ai.llm",
 )
 
 AI_TRANSCRIBE_QUEUE: Final[str] = "ai.transcribe"

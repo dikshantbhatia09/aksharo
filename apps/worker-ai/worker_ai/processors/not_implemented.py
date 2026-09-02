@@ -1,12 +1,13 @@
 """Processors for the ``ai.*`` queues not yet implemented.
 
-``ai.clean``, ``ai.pass`` and ``ai.llm`` are real queues in CONTRACTS section 3
-and the API will happily enqueue onto them. A worker that simply did not consume
-them would leave those jobs in Redis until the queue-wait sweeper failed them
-half an hour later (``jobs.config.ts``), with no explanation attached.
-``ai.translate`` and ``ai.transliterate`` were on this list through A09/A10/A11;
-A22 gives them real processors (``processors/translate.py``,
-``processors/transliterate.py``), registered ahead of this fallback in
+``ai.clean`` and ``ai.pass`` are real queues in CONTRACTS section 3 and the API
+will happily enqueue onto them. A worker that simply did not consume them would
+leave those jobs in Redis until the queue-wait sweeper failed them half an hour
+later (``jobs.config.ts``), with no explanation attached.
+``ai.translate``, ``ai.transliterate`` and ``ai.llm`` were on this list through
+A09/A10/A11/B11; A22 and B11 give them real processors
+(``processors/translate.py``, ``processors/transliterate.py``,
+``processors/llm.py``), registered ahead of this fallback in
 ``runtime.PROCESSORS``.
 
 So the remaining queues are consumed and answered: one **non-retryable** failed
@@ -26,7 +27,6 @@ __all__ = ["OWNERS", "process_not_implemented"]
 OWNERS: dict[str, str] = {
     "ai.clean": "B10 (audio clean)",
     "ai.pass": "B18/B19 (edit passes)",
-    "ai.llm": "B11 (LLM features)",
 }
 
 

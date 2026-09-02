@@ -802,6 +802,7 @@ model Workspace {
   invoices            Invoice[]
   jobs                Job[]
   providerSubmissions ProviderSubmission[]
+  llmOutputs          LlmOutput[]
   exportManifests     ExportManifest[]
   exports             Export[]
   brandAssets         BrandAsset[]
@@ -1020,6 +1021,7 @@ model Project {
   comments            Comment[]
   assetUsages         AssetUsage[]
   publishEvents       PublishEvent[]
+  llmOutputs          LlmOutput[]
 
   @@index([workspaceId])
   @@index([lastActivityAt])
@@ -1498,6 +1500,7 @@ model Job {
   project             Project?             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   events              JobEvent[]
   providerSubmissions ProviderSubmission[]
+  llmOutputs          LlmOutput[]
   exports             Export[]
   passes              EdgPass[]
   creditHold          CreditHold?
@@ -1606,6 +1609,44 @@ model ProviderSubmission {
   @@index([workspaceId])
   @@index([provider])
   @@map("provider_submissions")
+}
+
+/// One `ai.llm` completion (B11): chapters, summary or hooks/titles/hashtags,
+/// generated from the project's transcript. `output` is the schema-validated
+/// JSON the template's Zod output schema describes
+/// (`@montaj/prompts`'s `ChaptersOutput`/`SummaryOutput`/`HooksOutput`) — never
+/// executed, only ever rendered (THREAT-MODEL T19). `templateVersion` is
+/// `"<id>@<n>"` (e.g. `"chapters@1"`) so a later prompt revision does not
+/// silently reinterpret an old row; `GET /projects/{id}/insights` always
+/// returns the most recent row per kind, older ones kept for audit/regenerate
+/// history. `region` is the workspace jurisdiction the call was pinned to
+/// (`worker_ai.llm.region`), recorded here rather than only on
+/// `provider_submissions` because a compliance reviewer reads insights output
+/// far more often than the submissions ledger.
+model LlmOutput {
+  id              String   @id @db.Char(26)
+  projectId       String   @map("project_id") @db.Char(26)
+  workspaceId     String   @map("workspace_id") @db.Char(26)
+  jobId           String?  @map("job_id") @db.Char(26)
+  kind            String
+  templateVersion String   @map("template_version")
+  provider        String
+  region          String
+  /// Zod: `ChaptersOutputSchema` | `SummaryOutputSchema` | `HooksOutputSchema`
+  /// (`@montaj/prompts`), keyed by `kind`.
+  output          Json     @db.JsonB
+  /// `{inputTokens, outputTokens, costMinor, currency}` — token/cost accounting
+  /// per call (brief section 2).
+  usage           Json     @default("{}") @db.JsonB
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  job       Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, kind, createdAt])
+  @@index([workspaceId])
+  @@map("llm_outputs")
 }
 
 /// Server-signed render manifest (THREAT-MODEL T10, A21). Single use: the nonce

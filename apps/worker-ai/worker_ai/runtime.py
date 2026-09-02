@@ -49,6 +49,7 @@ from worker_ai.lid import (
     LanguageIdentifier,
     WhisperLanguageIdentifier,
 )
+from worker_ai.llm.registry import build_llm_providers
 from worker_ai.logging_setup import get_logger
 from worker_ai.processors import (
     JobContext,
@@ -57,6 +58,7 @@ from worker_ai.processors import (
     Services,
     process_align,
     process_diarise,
+    process_llm,
     process_not_implemented,
     process_transcribe,
     process_translate,
@@ -107,6 +109,7 @@ PROCESSORS: dict[str, Processor] = {
     "ai.diarise": process_diarise,
     "ai.translate": process_translate,
     "ai.transliterate": process_transliterate,
+    "ai.llm": process_llm,
 }
 
 
@@ -151,6 +154,7 @@ def build_services(settings: Settings, *, callbacks: CallbackClient | None = Non
         text_lid=IndicLidClassifier(settings.indiclid_dir),
         transliteration=build_transliteration_provider(settings),
         translation_providers=build_translation_providers(settings),
+        llm_providers=build_llm_providers(settings),
     )
 
 
