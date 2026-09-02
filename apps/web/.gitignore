@@ -6,3 +6,7 @@
 public/canvaskit/
 public/fonts/
 public/style-previews/
+
+# `e2e/export.spec.ts` generates this with ffmpeg on first run (`ensureFixtureVideo`);
+# committing a binary video fixture would only duplicate bytes a one-line script makes.
+public/e2e-fixtures/

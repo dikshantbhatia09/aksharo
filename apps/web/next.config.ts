@@ -28,7 +28,7 @@ const nextConfig: NextConfig = {
    * for the client bundle only — the server bundle keeps the real ones, which is
    * what lets a route read the style catalogue off disk.
    */
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, webpack }) => {
     if (!isServer) {
       config.resolve = config.resolve ?? {};
       config.resolve.fallback = {
@@ -38,6 +38,29 @@ const nextConfig: NextConfig = {
         module: false,
         crypto: false,
       };
+      // `@montaj/render-manifest`'s HMAC signing/verification (`node:crypto`) is
+      // server-only; the browser exporter (A19) only imports the package's
+      // schema and cap-checking helpers, never `signRenderManifest`/
+      // `verifyManifestSignature`, but ES module evaluation still touches the
+      // whole barrel file at load time. The bare `crypto` fallback above does
+      // not cover the `node:` URI scheme (webpack 5 treats it as a distinct
+      // scheme, not a bare specifier to resolve), so it needs its own alias.
+      // Reported as a deviation in the final report: an isomorphic split of
+      // `@montaj/render-manifest` (schema/caps vs. signing) would let a browser
+      // bundle avoid pulling this in at all.
+      //
+      // Neither `resolve.fallback` nor `resolve.alias` intercepts a `node:`
+      // specifier: webpack 5 treats `node:` as a URI *scheme*, resolved before
+      // normal module resolution runs, so it fails with `UnhandledSchemeError`
+      // even with `"node:crypto": false` aliased. Rewriting the specifier to
+      // its bare form first is what lets the existing `crypto: false` fallback
+      // apply.
+      config.plugins = config.plugins ?? [];
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(/^node:/, (resource: { request: string }) => {
+          resource.request = resource.request.replace(/^node:/, "");
+        }),
+      );
     }
     return config;
   },

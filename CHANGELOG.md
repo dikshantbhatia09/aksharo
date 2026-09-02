@@ -52,6 +52,42 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A19 — web: browser-native export (WebCodecs + Mediabunny + CanvasKit).**
+  `apps/web/lib/export/**`: a capability probe (H.264 codec ladder, AAC/`AudioEncoder`,
+  File System Access, a 2 s throughput sample), manifest handling (`RenderManifest`
+  request/sanity-check/completion against the real, HMAC-signed `@montaj/render-manifest`
+  document — no client-side signature verification, see the deviation below), the
+  audio decision tree (packet copy / native AAC encode / lazy `@mediabunny/aac-encoder`
+  polyfill / cloud), client-side SRT/VTT/TXT subtitle generation from the projection +
+  `@montaj/timemap`, and the decode → composite → encode → mux engine itself: Mediabunny
+  `Input`/`CanvasSink` decodes the source, `@montaj/render-core`'s `renderFrame` (same
+  `DrawCommand[]` the cloud renderer uses, watermark included whenever the manifest
+  carries one) is rasterised per frame by `@montaj/render-canvaskit` and composited over
+  the decoded frame, and Mediabunny's `CanvasSource`/`EncodedAudioPacketSource`/
+  `AudioBufferSource` encode and mux to MP4 — streamed to a File System Access sink when
+  available, else buffered in memory, with progress, cancellation and a hard duration cap
+  (1080p ≤ 20 min, 4K ≤ 10 min desktop-Chromium-only). `apps/web/components/editor/export/**`:
+  the editor's Export dialog (Video/Subtitles/To-editor tabs, a watermark notice with no
+  client-side toggle, credit cost, progress and cancel), mounted from a new `ExportButton`
+  in `editor-client.tsx`'s toolbar. `apps/web/app/(app)/export-harness/page.tsx` is a bare,
+  unlinked page exposing the engine on `window` for the Playwright suite to drive with real
+  WebCodecs. `apps/web/next.config.ts` rewrites `node:` specifiers to their bare form for the
+  client bundle (`NormalModuleReplacementPlugin`) so `@montaj/render-manifest`'s
+  `node:crypto` import (server-only signing code, unreachable at runtime from the browser
+  exporter) does not fail the webpack build. New Playwright specs: `e2e/export.spec.ts`
+  (chromium) exports a real 10 s fixture MP4 end to end — real API-issued signed manifest,
+  real WebCodecs decode/encode, `ffprobe`-verified duration and codec, a sampled frame
+  hashed, `POST /exports/manifests/{id}/complete` accepted — and `e2e/export-fallback.spec.ts`
+  (webkit) asserts the capability probe reports the browser path ineligible and that the
+  dialog's own mode selection (never `"auto"` for an ineligible probe) still gets a working
+  cloud decision back. See `apps/web/lib/export/README.md` for the full design, the browser
+  support matrix, and every deviation from the brief (no client-side manifest signature
+  verification — the package signs with a symmetric HMAC, not a keypair, mirroring A21's own
+  reported deviation; the raw-bucket source and the watermark-asset bytes have no
+  client-reachable signed-URL endpoint yet; `@montaj/ass-exporter` is still A01's unimplemented
+  skeleton so ASS export is greyed out; the cleaned/cut audio re-encode path is wired through
+  the audio decision tree but not yet connected to a resampled sample source).
+
 - **A14 — web: Home and Projects, the presigned-multipart upload engine, and the style catalogue API.**
   - **Home (`/`, rewritten from `(app)/home/page.tsx` — see Deviations below).** A drop
     zone that goes straight to presigned S3/MinIO multipart URLs, never through the API
