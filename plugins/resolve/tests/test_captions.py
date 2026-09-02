@@ -7,6 +7,7 @@ from aksharo_core_app.captions import (
     CaptionStyle,
     UnsupportedStyleError,
     build_captions,
+    build_segment_item,
     ensure_caption_track,
     resync_captions,
 )
@@ -114,3 +115,61 @@ def test_resync_creates_clip_for_brand_new_segment() -> None:
     assert len(created) == 1
     assert created[0].fusion_text is not None
     assert created[0].fusion_text.text == "new segment"
+
+
+def test_build_segment_item_uses_macro_params_when_installed() -> None:
+    """`fusion_macro_available()` finds the real, committed
+    `AksharoCaption.setting` in this checkout, so the macro branch is live by
+    default; `FakeResolveHost` records whatever params it's given even though
+    it only interprets a subset of them."""
+    host = FakeResolveHost()
+    timeline = make_timeline()
+    track = ensure_caption_track(host, timeline)
+    segment = CaptionSegment(
+        "seg1",
+        0,
+        1000,
+        "hello",
+        "a",
+        rev=1,
+        word_highlights=((0, 250), (250, 500)),
+    )
+
+    captured: dict[str, object] = {}
+    original = host.append_text_plus
+
+    def spy(timeline_, track_index, start_frame, end_frame, params):  # type: ignore[no-untyped-def]
+        captured.update(params)
+        return original(timeline_, track_index, start_frame, end_frame, params)
+
+    host.append_text_plus = spy  # type: ignore[method-assign]
+    build_segment_item(host, timeline, track, segment, STYLE_A)
+
+    assert captured["fusion_macro"] == "AksharoCaption"
+    assert captured["highlight_color"] == STYLE_A.color
+    assert captured["highlight_keyframes"] == ((0, 6), (6, 12))  # 25 fps: 250ms=6.25->6 frames
+
+
+def test_build_segment_item_omits_macro_params_when_not_installed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from aksharo_core_app import captions as captions_module
+
+    monkeypatch.setattr(captions_module, "fusion_macro_available", lambda: False)
+    host = FakeResolveHost()
+    timeline = make_timeline()
+    track = ensure_caption_track(host, timeline)
+    segment = CaptionSegment("seg1", 0, 1000, "hello", "a", rev=1)
+
+    captured: dict[str, object] = {}
+    original = host.append_text_plus
+
+    def spy(timeline_, track_index, start_frame, end_frame, params):  # type: ignore[no-untyped-def]
+        captured.update(params)
+        return original(timeline_, track_index, start_frame, end_frame, params)
+
+    host.append_text_plus = spy  # type: ignore[method-assign]
+    build_segment_item(host, timeline, track, segment, STYLE_A)
+
+    assert "fusion_macro" not in captured
+    assert "highlight_color" not in captured
