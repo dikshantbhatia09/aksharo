@@ -409,33 +409,62 @@ async function redisReachable(url: string): Promise<boolean> {
 }
 
 /** The URL with its logical-database path removed, and the index it carried. */
-function splitRedisUrl(url: string): { baseUrl: string; firstDb: number } {
+function splitRedisUrl(url: string): { baseUrl: string; firstDb: number; pinned: boolean } {
   const parsed = new URL(url);
   const path = parsed.pathname.replace(/^\//, "");
   const index = Number.parseInt(path, 10);
+  const pinned = Number.isFinite(index) && path !== "";
   parsed.pathname = "";
-  return {
-    baseUrl: parsed.toString(),
-    firstDb: Number.isFinite(index) && path !== "" ? index : FIRST_REDIS_DB,
-  };
+  return { baseUrl: parsed.toString(), firstDb: pinned ? index : FIRST_REDIS_DB, pinned };
 }
 
-async function resolveRedis(docker: {
-  available: boolean;
-  reason: string;
-}): Promise<{ redis: TestRunRedis | null; reason: string; containers: number }> {
+/**
+ * The lowest logical database the run will claim.
+ *
+ * Leaving database 0 alone is a courtesy to whatever the developer has running on
+ * the same Redis; giving every suite one of its own is a correctness requirement,
+ * because two suites in one logical database sweep each other's `montaj:*` keys.
+ * When the two conflict, correctness wins and the run takes database 0 as well —
+ * loudly. A pinned index in the URL is an instruction and is never overridden.
+ */
+function chooseFirstDb(
+  databases: number,
+  firstDb: number,
+  pinned: boolean,
+  suiteCount: number,
+): number {
+  if (pinned || firstDb === 0) return firstDb;
+  if (databases - firstDb >= suiteCount) return firstDb;
+  console.warn(
+    `[test-run] ${String(databases)} logical Redis databases for ${String(suiteCount)} e2e ` +
+      "suites: claiming database 0 as well, so no two suites have to share one. Pin a database " +
+      "in TEST_REDIS_URL (…/1) to forbid that, at the cost of two suites sharing.",
+  );
+  return 0;
+}
+
+async function resolveRedis(
+  docker: { available: boolean; reason: string },
+  suiteCount: number,
+): Promise<{ redis: TestRunRedis | null; reason: string; containers: number }> {
   if (process.env["MONTAJ_SKIP_REDIS_TESTS"] === "1") {
     return { redis: null, reason: "MONTAJ_SKIP_REDIS_TESTS=1", containers: 0 };
   }
 
   const fromEnv = process.env["TEST_REDIS_URL"];
   if (fromEnv !== undefined && fromEnv !== "") {
-    const { baseUrl, firstDb } = splitRedisUrl(fromEnv);
+    const { baseUrl, firstDb, pinned } = splitRedisUrl(fromEnv);
     if (!(await redisReachable(baseUrl))) {
       return { redis: null, reason: `TEST_REDIS_URL is not reachable (${baseUrl})`, containers: 0 };
     }
+    const databases = await countRedisDatabases(baseUrl);
     return {
-      redis: { baseUrl, firstDb, databases: await countRedisDatabases(baseUrl), source: "env" },
+      redis: {
+        baseUrl,
+        firstDb: chooseFirstDb(databases, firstDb, pinned, suiteCount),
+        databases,
+        source: "env",
+      },
       reason: "",
       containers: 0,
     };
@@ -484,10 +513,16 @@ async function resolveRedis(docker: {
   // No Docker: fall back to whatever `REDIS_URL` points at, which is how the
   // Redis-only suites ran before A23a on a machine with the compose stack up.
   const fallback = process.env["REDIS_URL"] ?? "redis://localhost:6379";
-  const { baseUrl, firstDb } = splitRedisUrl(fallback);
+  const { baseUrl, firstDb, pinned } = splitRedisUrl(fallback);
   if (await redisReachable(baseUrl)) {
+    const databases = await countRedisDatabases(baseUrl);
     return {
-      redis: { baseUrl, firstDb, databases: await countRedisDatabases(baseUrl), source: "env" },
+      redis: {
+        baseUrl,
+        firstDb: chooseFirstDb(databases, firstDb, pinned, suiteCount),
+        databases,
+        source: "env",
+      },
       reason: "",
       containers: 0,
     };
@@ -572,12 +607,12 @@ export default async function setup(project: TestProject): Promise<() => Promise
     return async () => undefined;
   }
 
+  const suiteCount = Object.keys(slots).length;
   const docker = probeDocker();
   const postgres = await resolvePostgres(apiDir, docker);
-  const redis = await resolveRedis(docker);
+  const redis = await resolveRedis(docker, suiteCount);
   const containersStarted = postgres.containers + redis.containers;
 
-  const suiteCount = Object.keys(slots).length;
   const redisPool = redis.redis === null ? 0 : redisDbPool(redis.redis).length;
   if (redis.redis !== null && redisPool < suiteCount) {
     console.warn(

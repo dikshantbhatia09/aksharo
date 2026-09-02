@@ -17,7 +17,7 @@
 import { generateKeyPairSync } from "node:crypto";
 
 import { Test } from "@nestjs/testing";
-import { PrismaClient } from "@prisma/client";
+import { type PrismaClient, type $Enums } from "@prisma/client";
 import Redis from "ioredis";
 
 import { newId } from "@montaj/edg";
@@ -41,7 +41,6 @@ import {
 } from "../src/realtime/realtime.bus.js";
 
 import type { INestApplication } from "@nestjs/common";
-import type { $Enums } from "@prisma/client";
 
 export interface SeededProject {
   readonly projectId: string;
@@ -180,7 +179,10 @@ export async function createEdgTestContext(): Promise<EdgTestContext | null> {
   await app.listen(0);
 
   const address = app.getHttpServer().address() as { port: number };
-  const prisma = new PrismaClient({ datasources: { db: { url: database.url } } });
+  // A23a: the client the database handed us, rather than a second one of our own.
+  // One shared PostgreSQL serves every suite in the run now, and a duplicate pool
+  // per suite is connections spent on nothing — `db.stop()` disconnects it.
+  const prisma = database.prisma;
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: null });
   const tokens = app.get(TokenService);
   const edg = app.get(EdgService);

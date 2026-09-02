@@ -63,6 +63,16 @@ export function isolationProbe(party: string): void {
       await db?.stop();
     }, 60_000);
 
+    // Every `it` below that calls `rendezvous` is given a timeout comfortably
+    // above that call's own (default 30s) budget. `rendezvous` is documented to
+    // make a timeout "not a failure" — the assertions after it still run, against
+    // fewer confirmed parties — but that is only true if the surrounding test
+    // outlives it. Vitest's global `testTimeout` (30s, `vitest.config.ts`) is
+    // exactly `rendezvous`'s own default, so with no override here Vitest killed
+    // the test itself a hair before `rendezvous` could return gracefully, turning
+    // "the sibling never arrived" into a hard timeout failure instead of the
+    // proves-less-but-still-green result the design intends.
+
     it("runs against a database of its own, named for this run and this suite", async () => {
       const rows = await db.prisma.$queryRawUnsafe<{ name: string }[]>(
         "SELECT current_database() AS name",
@@ -75,7 +85,7 @@ export function isolationProbe(party: string): void {
         if (other === party) continue;
         expect(otherName).not.toBe(name);
       }
-    });
+    }, 40_000);
 
     it("accepts the same primary key both suites insert at the same instant", async () => {
       await db.prisma.user.create({
@@ -86,7 +96,7 @@ export function isolationProbe(party: string): void {
       const rows = await db.prisma.user.findMany({ where: { id: SHARED_USER_ID } });
       expect(rows).toHaveLength(1);
       expect(rows[0]?.name).toBe(party);
-    });
+    }, 40_000);
 
     it("survives the other suite truncating the same table", async () => {
       if (party === TRUNCATING_PARTY) {
@@ -98,30 +108,36 @@ export function isolationProbe(party: string): void {
 
       const survivors = await db.prisma.user.count({ where: { id: SHARED_USER_ID } });
       expect(survivors).toBe(party === TRUNCATING_PARTY ? 0 : 1);
-    });
+    }, 40_000);
 
-    it.skipIf(!redisReady)("owns its logical Redis database and its queue prefix", async () => {
-      const client = redis;
-      if (client === undefined) throw new Error("redis client missing");
+    // Two sequential rendezvous calls, so the worst case (neither arrives at
+    // either barrier) is up to twice the single-barrier budget.
+    it.skipIf(!redisReady)(
+      "owns its logical Redis database and its queue prefix",
+      async () => {
+        const client = redis;
+        if (client === undefined) throw new Error("redis client missing");
 
-      const logicalDb = String(suiteRedisDb() ?? -1);
-      await client.set(SHARED_REDIS_KEY, party);
-      const met = await rendezvous(runId, "redis-written", party, logicalDb);
+        const logicalDb = String(suiteRedisDb() ?? -1);
+        await client.set(SHARED_REDIS_KEY, party);
+        const met = await rendezvous(runId, "redis-written", party, logicalDb);
 
-      expect(await client.get(SHARED_REDIS_KEY)).toBe(party);
-      for (const [other, otherDb] of Object.entries(met.parties)) {
-        if (other === party) continue;
-        expect(otherDb).not.toBe(logicalDb);
-      }
+        expect(await client.get(SHARED_REDIS_KEY)).toBe(party);
+        for (const [other, otherDb] of Object.entries(met.parties)) {
+          if (other === party) continue;
+          expect(otherDb).not.toBe(logicalDb);
+        }
 
-      // BullMQ keys and realtime channels are separated by the prefix instead:
-      // Redis pub/sub ignores the logical database entirely.
-      expect(process.env["MONTAJ_QUEUE_PREFIX"]).toBe(suiteQueuePrefix());
-      const prefixes = await rendezvous(runId, "queue-prefix", party, suiteQueuePrefix());
-      for (const [other, otherPrefix] of Object.entries(prefixes.parties)) {
-        if (other === party) continue;
-        expect(otherPrefix).not.toBe(suiteQueuePrefix());
-      }
-    });
+        // BullMQ keys and realtime channels are separated by the prefix instead:
+        // Redis pub/sub ignores the logical database entirely.
+        expect(process.env["MONTAJ_QUEUE_PREFIX"]).toBe(suiteQueuePrefix());
+        const prefixes = await rendezvous(runId, "queue-prefix", party, suiteQueuePrefix());
+        for (const [other, otherPrefix] of Object.entries(prefixes.parties)) {
+          if (other === party) continue;
+          expect(otherPrefix).not.toBe(suiteQueuePrefix());
+        }
+      },
+      70_000,
+    );
   });
 }

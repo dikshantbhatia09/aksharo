@@ -489,6 +489,14 @@ Dropping a database forces a checkpoint, which is slow on a busy machine, so
 `afterAll` gives it fifteen seconds and then hands it to the run teardown, which
 sweeps sequentially. Anything a crash leaves behind is dropped by the next run.
 
+One PostgreSQL for the whole run also means one **connection budget** for the
+whole run, so the suite database URL pins `connection_limit=3`. Prisma otherwise
+sizes a pool at `cpus * 2 + 1` — twenty-five on a twelve-core laptop — which was
+free when every suite had a container to itself and is not now: a dozen suites at
+once against a server whose `max_connections` is 100 fails halfway through with
+"Can't reach database server". Three is far more than a suite uses at any instant,
+because Prisma opens them lazily.
+
 ### Pointing a run at the compose stack
 
 ```bash
@@ -507,12 +515,13 @@ Setting these variables used to be a hazard, because the suites shared and
 truncated whatever they were pointed at. It is now the recommended way to run the
 suite on a machine where Docker is busy.
 
-Two things to know about `TEST_REDIS_URL`. Suites take logical databases from the
-one in the URL upwards, so `redis://localhost:6379` leaves database 0 alone and
-uses 1 upwards, while `redis://localhost:6379/0` claims all sixteen (which is what
-CI does, where the Redis is the job's own). And the run needs one logical database
-per e2e suite: `global-setup.ts` prints a warning when there are not enough,
-because two suites sharing one can sweep each other's keys.
+One thing to know about `TEST_REDIS_URL`: the run needs one logical database per
+e2e suite, and it takes them from the one in the URL upwards. `redis://localhost:6379`
+leaves database 0 alone — where a developer's own stack lives — until there are
+more suites than databases above it, at which point it claims 0 as well and says
+so, because two suites sharing one logical database sweep each other's `montaj:*`
+keys. Pinning a database (`redis://localhost:6379/1`) is an instruction the run
+will not override; it then warns instead, and two suites share.
 
 ### Debugging one suite
 
@@ -547,6 +556,14 @@ Redis, because their whole point is that real BullMQ can read the envelope a rea
 producer wrote — including the one an admin replay writes under a fresh attempt
 id. `test/realtime-redis.e2e-spec.ts` needs only a Redis.
 
+`test/projects-media.e2e-spec.ts` (A06) needs a PostgreSQL, a Redis **and** an
+S3-compatible store: the upload path issues real presigned URLs and the suite PUTs
+to them, which only an actual object store can answer. `test/minio-harness.ts`
+probes `S3_ENDPOINT` (the compose MinIO by default) with a bare TCP connect rather
+than starting a container of its own — a fourth container per run was judged not
+worth it for one suite — so it skips loudly, same as the others, when nothing is
+listening there; `MONTAJ_SKIP_STORAGE_TESTS=1` skips it deliberately.
+
 All of them skip with a loud reason rather than failing when nothing can be
 reached, so a laptop with Docker stopped still runs the unit tests.
 
@@ -571,6 +588,7 @@ in-memory Prisma and queue stubs the unit suites share.
 | `TEST_REDIS_URL`            | Use this Redis instead of starting a container. A logical database in the path is the lowest one the run will claim.                                                         |
 | `MONTAJ_SKIP_DB_TESTS`      | `1` skips every suite that needs PostgreSQL, and starts no container for it.                                                                                                 |
 | `MONTAJ_SKIP_REDIS_TESTS`   | `1` skips every suite that needs Redis, and starts no container for it.                                                                                                      |
+| `MONTAJ_SKIP_STORAGE_TESTS` | `1` skips `test/projects-media.e2e-spec.ts` deliberately, the same way for the one suite that needs an S3-compatible store.                                                  |
 | `MONTAJ_QUEUE_PREFIX`       | Redis key prefix for BullMQ and realtime. `test/suite-context.ts` sets a per-suite value; a deployment leaves it at `bull`, which is what the workers expect.                |
 | `MONTAJ_SCHEDULER_DISABLED` | `1` stops this process running the scheduler worker. Set in tests, which call `ScheduledTasksService.runNow(name)` instead.                                                  |
 | `MONTAJ_METRICS_TOKEN`      | When set, `GET /internal/metrics` requires `Authorization: Bearer <token>`. Unset, the endpoint is open (A08b).                                                              |

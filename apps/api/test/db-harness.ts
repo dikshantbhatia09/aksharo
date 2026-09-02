@@ -115,6 +115,28 @@ async function cloneTemplate(adminUrl: string, template: string, name: string): 
   }
 }
 
+/**
+ * Pin Prisma's connection pool, because the PostgreSQL is now shared.
+ *
+ * Prisma sizes a pool at `cpus * 2 + 1` — twenty-five on a twelve-core laptop —
+ * which was harmless while every suite had a PostgreSQL container to itself and
+ * is not now: a dozen suites running at once, two or three clients each, against
+ * one server whose `max_connections` is 100, and the run dies with "Can't reach
+ * database server" halfway through. Three is far more than a suite ever uses at
+ * one instant (Prisma opens them lazily), and it keeps the whole run inside the
+ * budget with room for whatever else is on the machine.
+ */
+const SUITE_CONNECTION_LIMIT = 3;
+/** Seconds a query may wait for one of those connections before it gives up. */
+const SUITE_POOL_TIMEOUT_S = 30;
+
+function withPoolLimit(url: string): string {
+  const parsed = new URL(url);
+  parsed.searchParams.set("connection_limit", String(SUITE_CONNECTION_LIMIT));
+  parsed.searchParams.set("pool_timeout", String(SUITE_POOL_TIMEOUT_S));
+  return parsed.toString();
+}
+
 /** `true` when the database is gone, `false` when the budget ran out first. */
 async function dropDatabase(adminUrl: string, name: string, budgetMs: number): Promise<boolean> {
   const admin = new Client({ connectionString: adminUrl });
@@ -155,7 +177,7 @@ export async function createTestDatabase(): Promise<TestDatabase | null> {
     return null;
   }
 
-  const url = databaseUrlFor(adminUrl, name);
+  const url = withPoolLimit(databaseUrlFor(adminUrl, name));
   const prisma = new PrismaClient({ datasources: { db: { url } } });
 
   return {

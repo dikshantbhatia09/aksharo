@@ -1261,6 +1261,13 @@ sarvam` replays the recorded session, `--live` calls the configured vendor.
     do overlap, then insert the same primary key into the same table from both
     sides, truncate that table from one side, and write the same hard-coded Redis
     key from both — each of which fails loudly if the isolation regresses.
+    `rendezvous()`'s own timeout (30s) is documented as "not a failure", but every
+    `it` calling it now gets an explicit Vitest timeout well above that (40s single
+    barrier, 70s for the two sequential Redis barriers) — found stress-testing this
+    work package on a machine busy enough that a sibling could still be running:
+    Vitest's global 30s `testTimeout` matched `rendezvous()`'s default exactly, so
+    it could kill the test itself a hair before the graceful "proves less" path
+    got to return, turning "the sibling never arrived" into a hard timeout failure.
   - One PostgreSQL for the run is also one connection budget for the run, so the
     suite database URL pins `connection_limit=3` and both context harnesses reuse
     the client `createTestDatabase()` already opened instead of a second one of
