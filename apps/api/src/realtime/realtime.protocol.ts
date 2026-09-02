@@ -79,6 +79,11 @@ export const REALTIME_EVENTS = [
   "job.progress",
   "job.completed",
   "comment.added",
+  // A25. CONTRACTS §7 names the four above; this fifth one is additive — a client
+  // that does not know it ignores the frame — and needs the contract amending
+  // before Gate A. Raised in the A25 report rather than edited into the frozen
+  // document, because a contract changes by ADR and not by a feature commit.
+  "notification.created",
 ] as const;
 
 export type RealtimeEvent = (typeof REALTIME_EVENTS)[number];
@@ -121,11 +126,27 @@ export interface CommentAddedEvent {
   readonly at: string;
 }
 
+/**
+ * `notification.created` — emitted by A25 when a row lands in `notifications`.
+ *
+ * The payload is a pointer, not the notification: the bell fetches
+ * `GET /me/notifications` to render, so a message that arrives twice or out of
+ * order costs a refetch rather than a wrong badge. It carries no body text for
+ * the same reason the row does not — wording is rendered per locale at read time.
+ */
+export interface NotificationCreatedEvent {
+  readonly notificationId: string;
+  readonly userId: string;
+  readonly kind: string;
+  readonly at: string;
+}
+
 export interface RealtimeEventPayloads {
   "job.progress": JobProgressEvent;
   "job.completed": JobCompletedEvent;
   "edg.ops": EdgOpsEvent;
   "comment.added": CommentAddedEvent;
+  "notification.created": NotificationCreatedEvent;
 }
 
 // ---------------------------------------------------------------------------

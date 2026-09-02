@@ -10,6 +10,79 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A25 — api: `notify` consumer, transactional email (SES/SMTP/dev outbox),
+  English and Hindi templates, suppression, in-app notifications.**
+  - `apps/api/src/notify`: a `MailProvider` port with three adapters chosen once
+    at boot by `MAIL_PROVIDER` — `SesProvider` (AWS SDK v3 SESv2, credentials from
+    the pod's IRSA role and region from `S3_REGION`, so there is still no mail key
+    in CONTRACTS section 1), `SmtpProvider` (pooled nodemailer from `SMTP_URL`;
+    Mailpit locally under the new compose profile `mail`), and `DevOutboxProvider`,
+    which writes A04's Redis list at A04's key in A04's entry shape plus the
+    rendered message and refuses to run in production. A misconfigured transport is
+    a startup failure rather than a queue quietly filling with undeliverable jobs.
+  - `NotifyService.enqueue({kind, to, locale, data, idempotencyKey})` — the brief's
+    payload, carried as the `payload` of the frozen CONTRACTS section 3 envelope so
+    a future out-of-process consumer parses the same shape. The idempotency key is
+    the BullMQ job id, which is what makes a repeated enqueue a no-op; a message
+    produced before a user belongs to anything uses the documented sentinel
+    `workspaceId: "none"`, because the envelope requires a non-empty one.
+    Enqueueing never throws for a delivery reason: a notification is a side effect
+    of work the caller cares about, so a Redis hiccup is logged, exactly as
+    `RealtimePublisher` already swallows one.
+  - `NotifyConsumer`: one BullMQ `Worker` inside the API process behind
+    `NOTIFY_WORKER_ENABLED` (default on; `0` for one-shot processes and test runs,
+    the same lever `MONTAJ_SCHEDULER_DISABLED` is for the scheduler). Sending is a
+    render and one HTTPS call, so a second deployable would be a rollout and an
+    on-call surface for work the API is already sized for. Per job: suppression,
+    then a ten-an-hour per-recipient bucket that the account-security kinds skip,
+    then a delivery receipt checked before the render and written after the send —
+    so the queue's five retries cannot deliver the same message twice. A malformed
+    payload or a template missing a variable is an `UnrecoverableError`, because no
+    amount of retrying fixes either.
+  - Ten templates (`verify-email`, `magic-link`, `password-changed`,
+    `device-approval`, `login-new-device`, `parental-waitlist`, `renewal-notice`,
+    `low-credits`, `export-ready`, `share-comment`) as hand-written responsive HTML
+    plus a real text part, from ICU MessageFormat strings in English and Hindi
+    (08 section 6). **No remote images and therefore no tracking pixel**; values are
+    escaped before ICU formats them, so a project called `<b>` is text and not
+    markup; brand words arrive as `{brand}`/`{support}` from
+    `packages/config/src/brand.ts` rather than being written into a string
+    (CONTRACTS section 0). `List-Unsubscribe` (RFC 8058 one-click) only on
+    `low-credits` and `share-comment` — everything else is transactional or, for
+    the pre-debit `renewal-notice`, legally required.
+  - `POST /internal/mail/events`: the SES bounce and complaint feed over SNS,
+    authenticated by the **SNS message signature** rather than by
+    `InternalSignatureGuard`, because SNS will not compute our HMAC. Canonical
+    string, RSA-SHA1/SHA-256 verify, and a signing certificate fetched only from
+    `https://sns.<region>.amazonaws.com/*.pem` (05 section 8's SSRF rule) — without
+    that check the route would let anyone suppress any address they can name. SNS
+    posts `text/plain`, so a middleware parses the body for that one route instead
+    of widening the global parser. A `SubscriptionConfirmation` is verified and
+    logged but never auto-confirmed: confirming is an outbound GET to a URL that
+    arrived in a request.
+  - Suppression: permanent for a hard bounce or any complaint, a fortnight for a
+    transient one, released early by a later `Delivery`. The live set is in Redis
+    keyed by SHA-256 of the address (a Redis dump should not be a mailing list) and
+    every change — including each message _not_ sent — is an `audit_log` row with
+    the address masked, because a cache is not an answer to "why did we stop
+    mailing this customer?".
+  - In-app notifications: a `notifications` table (`id`, `userId`, `workspaceId?`,
+    `kind`, `data`, `readAt`, `createdAt`, both keys cascading so erasure takes the
+    bell with it), `GET /me/notifications` and `POST /me/notifications/{id}/read`
+    scoped to the user from the access token, and a realtime `notification.created`
+    event on the workspace room. Rows carry no body text: wording is rendered per
+    locale at read time, so switching language switches the bell.
+  - A04's `AuthMailerService` is now a thin adapter onto `NotifyService.enqueue`
+    instead of a logger. Its e2e suite completes real sign-up, verification and
+    magic-link flows unchanged — delivery became asynchronous, so `auth-harness`
+    drains the queue before reading the outbox rather than sleeping and hoping.
+  - `tools/runbooks/mail-outbox.js` prints the development outbox.
+  - 130 notify tests (template snapshots in both languages, provider selection and
+    each adapter, SNS signature verification against a per-run self-signed
+    certificate, suppression, retry and idempotency semantics, both bell endpoints)
+    plus an HTTP suite for the `text/plain` webhook body. `apps/api` sits at 93.9%
+    lines and 87.2% branches against the CONTRACTS section 9 gate of 75/70.
+
 - **A02b — `@montaj/edg` ops engine: apply, rebase, segmenter, snapshots, migrations.**
   - `@montaj/edg/ops`: `EdgState` (hot document, segments by id in `seq` order,
     passes and items, the transcript word index, tombstones and a 10,000-entry
@@ -359,6 +432,19 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     credential-shaped is committed.
 
 ### Changed
+
+- **A25** — `.env.example`, `packages/config/src/env.ts`, the Terraform secrets
+  contract and the Helm chart all gained `MAIL_PROVIDER`, `MAIL_FROM` and
+  `SMTP_URL`, the three variables CONTRACTS section 1 added after A04.
+  `infra/scripts/check-contracts-parity.py` reports 35/35 on both sides.
+  `loadEnv()` also gained a cross-field check (`crossFieldProblems`): `ses` and
+  `smtp` require `MAIL_FROM`, and `smtp` requires `SMTP_URL`. It lives beside the
+  schema rather than inside it because a `.superRefine()` would remove
+  `envSchema.shape`, which the contract test walks.
+- **A25** — `REALTIME_EVENTS` gained `notification.created`. CONTRACTS section 7
+  names four events; this fifth is additive (a client that does not know it ignores
+  the frame) and needs the contract amending before Gate A — raised in the A25
+  report rather than edited into the frozen document.
 
 - **A02b** — `OpRejectionReasonSchema` gained `invalid-range`, `not-contiguous`,
   `invariant`, `rebased-away` and `stale-after-resegment`. The reason list is a

@@ -565,6 +565,7 @@ model User {
   lessonProgress  LessonProgress[]
   comments        Comment[]
   clearanceGrants AssetClearanceGrant[]
+  notifications   Notification[]
 
   @@index([deletedAt])
   @@map("users")
@@ -742,6 +743,7 @@ model Workspace {
   clearanceGrants     AssetClearanceGrant[]
   webhookEndpoints    WebhookEndpoint[]
   auditEntries        AuditLog[]
+  notifications       Notification[]
 
   @@index([ownerId])
   @@index([billingCountry])
@@ -2112,6 +2114,35 @@ model AuditLog {
   @@index([actorId, at])
   @@index([resourceId])
   @@map("audit_log")
+}
+
+/// In-app notifications: the bell in the app shell (A13), written by A25 for the
+/// kinds a signed-in user should see again after the email has been archived.
+///
+/// `kind` stays a free string for the same reason `jobs.type` does: the closed set
+/// is `NOTIFY_KINDS` in `src/notify/notify.kinds.ts`, and pinning it as a Postgres
+/// enum would fork that list and turn adding a template into a migration.
+///
+/// There is no `body` column. A notification is `(kind, data)` and the wording is
+/// rendered per locale at read time, so a user who switches to Hindi sees the bell
+/// in Hindi rather than in whatever language the email happened to be sent in.
+model Notification {
+  id          String    @id @db.Char(26)
+  userId      String    @map("user_id") @db.Char(26)
+  workspaceId String?   @map("workspace_id") @db.Char(26)
+  kind        String
+  /// Zod: `NotificationDataSchema` — the same variables the email template used.
+  data        Json      @default("{}") @db.JsonB
+  readAt      DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([workspaceId])
+  @@map("notifications")
 }
 
 model WebhookEndpoint {

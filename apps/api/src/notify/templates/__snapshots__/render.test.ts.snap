@@ -1,0 +1,459 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`rendering > produces the same HTML shell for one kind, in both languages > export-ready.en.html 1`] = `
+"<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="supported-color-schemes" content="light" />
+    <title>Aksharo</title>
+    <style>
+      @media only screen and (max-width: 600px) {
+        .wrap { padding: 16px !important; }
+        .card { padding: 24px 20px !important; }
+      }
+    </style>
+  </head>
+  <body style="margin:0;padding:0;background:#f6f6f8;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f6f6f8;">
+      <tr>
+        <td class="wrap" align="center" style="padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,'Noto Sans Devanagari',sans-serif;">
+          <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;">
+            <tr>
+              <td style="padding:0 0 16px;font-size:15px;font-weight:700;letter-spacing:0.02em;color:#101014;">Aksharo</td>
+            </tr>
+            <tr>
+              <td class="card" style="background:#ffffff;border:1px solid #e4e4ea;border-radius:12px;padding:32px;">
+            <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;font-weight:700;color:#101014;">Your export is ready</h1>
+            <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#101014;">Hi Asha, Diwali promo has finished rendering and is ready to download.</p>
+            <p style="margin:24px 0 8px;">
+              <a href="https://app.example.test/exports/01J" style="display:inline-block;padding:12px 22px;border-radius:8px;background:#101014;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;">Download</a>
+            </p>
+            <p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#5b5b66;word-break:break-all;">https://app.example.test/exports/01J</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 4px 0;">
+            <p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:#5b5b66;">The file is kept for 7 days, then deleted. Re-export any time from the project.</p>
+                <p style="margin:8px 0 0;font-size:13px;line-height:1.5;color:#5b5b66;">Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.</p>
+                
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"
+`;
+
+exports[`rendering > renders device-approval in English 1`] = `
+{
+  "subject": "Approve Studio iMac",
+  "text": "Aksharo
+
+Approve a new device
+
+Hi Asha, Studio iMac is asking to sign in to Aksharo from Premiere Pro.
+
+Request from Mumbai, India. Approve it only if you started it.
+
+Approve this device:
+https://app.example.test/device?code=WXYZ
+
+The request expires in 10 minutes.
+If this was not you, ignore this message — the device stays locked out.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders device-approval in Hindi 1`] = `
+{
+  "subject": "Studio iMac को मंज़ूरी दें",
+  "text": "Aksharo
+
+नए डिवाइस को मंज़ूरी दें
+
+नमस्ते Asha, Studio iMac Aksharo में Premiere Pro से साइन इन करना चाहता है।
+
+अनुरोध Mumbai, India से आया है। मंज़ूरी तभी दीजिए जब यह आपने शुरू किया हो।
+
+इस डिवाइस को मंज़ूरी दें:
+https://app.example.test/device?code=WXYZ
+
+यह अनुरोध 10 मिनट में ख़त्म हो जाएगा।
+अगर यह आपने नहीं किया तो इस मेल को छोड़ दीजिए — डिवाइस बाहर ही रहेगा।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
+exports[`rendering > renders export-ready in English 1`] = `
+{
+  "subject": "Diwali promo is ready to download",
+  "text": "Aksharo
+
+Your export is ready
+
+Hi Asha, Diwali promo has finished rendering and is ready to download.
+
+Download:
+https://app.example.test/exports/01J
+
+The file is kept for 7 days, then deleted. Re-export any time from the project.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders export-ready in Hindi 1`] = `
+{
+  "subject": "Diwali promo डाउनलोड के लिए तैयार है",
+  "text": "Aksharo
+
+आपका एक्सपोर्ट तैयार है
+
+नमस्ते Asha, Diwali promo का रेंडर पूरा हो गया है और वह डाउनलोड के लिए तैयार है।
+
+डाउनलोड करें:
+https://app.example.test/exports/01J
+
+फ़ाइल 7 दिनों तक रखी जाती है, फिर हटा दी जाती है। प्रोजेक्ट से कभी भी दोबारा एक्सपोर्ट कर सकते हैं।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
+exports[`rendering > renders login-new-device in English 1`] = `
+{
+  "subject": "New sign-in from Pixel 9",
+  "text": "Aksharo
+
+New sign-in on your account
+
+Hi Asha, your account was signed in on Pixel 9 from Pune, India at 14:32 IST.
+
+If that was you, there is nothing to do.
+
+Review your sessions:
+https://app.example.test/settings/sessions
+
+If it was not you, sign that session out from the link above and change your password.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders login-new-device in Hindi 1`] = `
+{
+  "subject": "Pixel 9 से नया साइन-इन",
+  "text": "Aksharo
+
+आपके अकाउंट में नया साइन-इन
+
+नमस्ते Asha, आपके अकाउंट में 14:32 IST बजे Pune, India से Pixel 9 पर साइन इन हुआ है।
+
+अगर यह आप ही थे तो कुछ करने की ज़रूरत नहीं।
+
+अपने सेशन देखें:
+https://app.example.test/settings/sessions
+
+अगर यह आप नहीं थे, तो ऊपर के लिंक से उस सेशन को साइन आउट कीजिए और पासवर्ड बदल लीजिए।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
+exports[`rendering > renders low-credits in English 1`] = `
+{
+  "subject": "12 minutes of processing left",
+  "text": "Aksharo
+
+You are running low
+
+Hi Asha, your workspace has 12 minutes of cloud processing left.
+
+Top up now and nothing in the queue stops halfway.
+
+Top up:
+https://app.example.test/billing/top-up
+
+Local exports and browser-native exports never use processing minutes.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+Turn off these emails: https://app.example.test/settings/notifications
+",
+}
+`;
+
+exports[`rendering > renders low-credits in Hindi 1`] = `
+{
+  "subject": "12 मिनट प्रोसेसिंग बची है",
+  "text": "Aksharo
+
+आपके मिनट ख़त्म होने वाले हैं
+
+नमस्ते Asha, आपके वर्कस्पेस में 12 मिनट क्लाउड प्रोसेसिंग बची है।
+
+अभी टॉप-अप कर लीजिए ताकि कतार में लगा कोई काम बीच में न रुके।
+
+टॉप-अप करें:
+https://app.example.test/billing/top-up
+
+लोकल और ब्राउज़र एक्सपोर्ट में प्रोसेसिंग मिनट कभी नहीं लगते।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+ये ईमेल बंद करें: https://app.example.test/settings/notifications
+",
+}
+`;
+
+exports[`rendering > renders magic-link in English 1`] = `
+{
+  "subject": "Your sign-in link",
+  "text": "Aksharo
+
+Sign in to Aksharo
+
+Hi Asha, here is your sign-in link. No password needed.
+
+Sign in:
+https://app.example.test/magic?token=abc
+
+The link works once and expires in 15 minutes.
+If you did not ask to sign in, ignore this message and change your password at support@aksharo.ai.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders magic-link in Hindi 1`] = `
+{
+  "subject": "आपका साइन-इन लिंक",
+  "text": "Aksharo
+
+Aksharo में साइन इन करें
+
+नमस्ते Asha, यह रहा आपका साइन-इन लिंक। पासवर्ड की ज़रूरत नहीं।
+
+साइन इन करें:
+https://app.example.test/magic?token=abc
+
+यह लिंक एक ही बार चलता है और 15 मिनट में ख़त्म हो जाता है।
+अगर आपने साइन-इन नहीं माँगा था तो इसे छोड़ दीजिए और support@aksharo.ai पर लिखकर पासवर्ड बदल लीजिए।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
+exports[`rendering > renders parental-waitlist in English 1`] = `
+{
+  "subject": "You are on the family accounts waitlist",
+  "text": "Aksharo
+
+You are on the waitlist
+
+Thanks — we will write to this address the day family accounts open, and not before.
+
+Until then a parent or guardian can use their own account, and nothing has been created for the young person.
+
+One message, one address. Reply to this email to be taken off the list.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders parental-waitlist in Hindi 1`] = `
+{
+  "subject": "आप फ़ैमिली अकाउंट की वेटलिस्ट में हैं",
+  "text": "Aksharo
+
+आप वेटलिस्ट में हैं
+
+धन्यवाद — फ़ैमिली अकाउंट शुरू होते ही हम इसी पते पर लिखेंगे, उससे पहले नहीं।
+
+तब तक माता-पिता या अभिभावक अपने अकाउंट का इस्तेमाल कर सकते हैं; बच्चे के लिए कोई अकाउंट नहीं बनाया गया है।
+
+एक पते पर एक ही मेल। लिस्ट से हटने के लिए इसी मेल का जवाब दे दीजिए।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
+exports[`rendering > renders password-changed in English 1`] = `
+{
+  "subject": "Your password was changed",
+  "text": "Aksharo
+
+Your password was changed
+
+Hi Asha, the password on your account was changed just now. Every other signed-in device has been signed out.
+
+If that was you, there is nothing to do.
+
+Review your sessions:
+https://app.example.test/settings/sessions
+
+If it was not you, reset your password from the link above and write to support@aksharo.ai straight away.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders password-changed in Hindi 1`] = `
+{
+  "subject": "आपका पासवर्ड बदल दिया गया",
+  "text": "Aksharo
+
+आपका पासवर्ड बदल दिया गया
+
+नमस्ते Asha, अभी आपके अकाउंट का पासवर्ड बदला गया है। बाकी सभी डिवाइस साइन आउट कर दिए गए हैं।
+
+अगर यह आपने ही किया है तो कुछ करने की ज़रूरत नहीं।
+
+अपने सेशन देखें:
+https://app.example.test/settings/sessions
+
+अगर यह आपने नहीं किया, तो ऊपर के लिंक से पासवर्ड रीसेट कीजिए और तुरंत support@aksharo.ai पर लिखिए।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
+exports[`rendering > renders renewal-notice in English 1`] = `
+{
+  "subject": "Creator renews on 12 October 2026 — ₹1,499",
+  "text": "Aksharo
+
+Your plan renews in 3 days
+
+Hi Asha, your Creator plan renews on 12 October 2026 and ₹1,499 will be debited from the payment method on file.
+
+You can change or cancel the plan before then; a cancellation takes effect at the end of the current period.
+
+Manage your plan:
+https://app.example.test/settings/plan
+
+This is the pre-debit notice your bank requires, so it is sent for every renewal.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders renewal-notice in Hindi 1`] = `
+{
+  "subject": "Creator 12 October 2026 को रिन्यू होगा — ₹1,499",
+  "text": "Aksharo
+
+आपका प्लान 3 दिनों में रिन्यू होगा
+
+नमस्ते Asha, आपका Creator प्लान 12 October 2026 को रिन्यू होगा और आपके सेव किए गए पेमेंट तरीके से ₹1,499 काटे जाएँगे।
+
+उससे पहले आप प्लान बदल या बंद कर सकते हैं; बंद करना मौजूदा अवधि ख़त्म होने पर लागू होता है।
+
+प्लान देखें:
+https://app.example.test/settings/plan
+
+यह वही प्री-डेबिट सूचना है जो आपका बैंक ज़रूरी करता है, इसलिए हर रिन्यूअल पर भेजी जाती है।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
+exports[`rendering > renders share-comment in English 1`] = `
+{
+  "subject": "3 new comments on Diwali promo",
+  "text": "Aksharo
+
+3 new comments
+
+Hi Asha, Ravi left 3 comments on Diwali promo.
+
+Open the review:
+https://app.example.test/p/01J/review
+
+Comments are grouped, so a busy review is one message and not twenty.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+Turn off these emails: https://app.example.test/settings/notifications
+",
+}
+`;
+
+exports[`rendering > renders share-comment in Hindi 1`] = `
+{
+  "subject": "Diwali promo पर 3 नए कमेंट",
+  "text": "Aksharo
+
+3 नए कमेंट
+
+नमस्ते Asha, Ravi ने Diwali promo पर 3 कमेंट किया है।
+
+रिव्यू खोलें:
+https://app.example.test/p/01J/review
+
+कमेंट एक साथ भेजे जाते हैं, ताकि व्यस्त रिव्यू से बीस मेल न आएँ।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+ये ईमेल बंद करें: https://app.example.test/settings/notifications
+",
+}
+`;
+
+exports[`rendering > renders verify-email in English 1`] = `
+{
+  "subject": "Confirm your email address",
+  "text": "Aksharo
+
+Confirm your email address
+
+Hi Asha, one step left. Confirm this address and your account is ready.
+
+Confirm email:
+https://app.example.test/verify?token=abc
+
+The link works once and expires in 24 hours.
+If you did not create an account, ignore this message — nothing happens without the link.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders verify-email in Hindi 1`] = `
+{
+  "subject": "अपना ईमेल पता कन्फ़र्म करें",
+  "text": "Aksharo
+
+अपना ईमेल पता कन्फ़र्म करें
+
+नमस्ते Asha, बस एक कदम बाकी है। इस पते को कन्फ़र्म कीजिए और आपका अकाउंट तैयार है।
+
+ईमेल कन्फ़र्म करें:
+https://app.example.test/verify?token=abc
+
+यह लिंक एक ही बार चलता है और 24 घंटों में ख़त्म हो जाता है।
+अगर आपने अकाउंट नहीं बनाया है तो इस मेल को छोड़ दीजिए — लिंक के बिना कुछ नहीं होता।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;

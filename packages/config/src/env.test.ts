@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 import {
   CONTRACT_ENV_VARS,
   EnvValidationError,
+  MAIL_PROVIDERS,
   REQUIRED_ENV_VARS,
+  crossFieldProblems,
   envSchema,
   loadEnv,
   safeLoadEnv,
@@ -155,5 +157,60 @@ describe("loadEnv", () => {
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.error.message).toContain("LLM_PROVIDER");
+  });
+});
+
+describe("transactional mail (CONTRACTS §1, added after A04)", () => {
+  it("defaults to the development outbox, which needs nothing configured", () => {
+    const env = loadEnv({ source: validEnv() });
+    expect(env.MAIL_PROVIDER).toBe("dev");
+    expect(env.MAIL_FROM).toBeUndefined();
+    expect(env.SMTP_URL).toBeUndefined();
+  });
+
+  it("offers exactly the three transports", () => {
+    expect([...MAIL_PROVIDERS]).toEqual(["ses", "smtp", "dev"]);
+    expect(() => loadEnv({ source: validEnv({ MAIL_PROVIDER: "sendgrid" }) })).toThrow(
+      EnvValidationError,
+    );
+  });
+
+  /**
+   * SES authenticates with the pod's IRSA role, so there is deliberately no mail
+   * key in the contract — but it still needs a verified sender, and SMTP still
+   * needs somewhere to connect.
+   */
+  it("requires an envelope sender for a real transport, and a URL for SMTP", () => {
+    expect(() => loadEnv({ source: validEnv({ MAIL_PROVIDER: "ses" }) })).toThrow(
+      /MAIL_FROM is required/,
+    );
+    expect(() =>
+      loadEnv({ source: validEnv({ MAIL_PROVIDER: "smtp", MAIL_FROM: "hi@aksharo.ai" }) }),
+    ).toThrow(/SMTP_URL is required/);
+
+    const env = loadEnv({
+      source: validEnv({
+        MAIL_PROVIDER: "smtp",
+        MAIL_FROM: "Aksharo <hi@aksharo.ai>",
+        SMTP_URL: "smtp://localhost:1025",
+      }),
+    });
+    expect(env.MAIL_FROM).toBe("Aksharo <hi@aksharo.ai>");
+    expect(crossFieldProblems(env)).toEqual([]);
+  });
+
+  it("rejects a sender that is not an address and a URL that is not SMTP", () => {
+    expect(() =>
+      loadEnv({ source: validEnv({ MAIL_PROVIDER: "ses", MAIL_FROM: "aksharo.ai" }) }),
+    ).toThrow(EnvValidationError);
+    expect(() =>
+      loadEnv({
+        source: validEnv({
+          MAIL_PROVIDER: "smtp",
+          MAIL_FROM: "hi@aksharo.ai",
+          SMTP_URL: "https://localhost:1025",
+        }),
+      }),
+    ).toThrow(EnvValidationError);
   });
 });

@@ -188,6 +188,21 @@ locals {
       human       = false
       description = "JSON object of feature flags. Terraform owns the default; the admin console overrides at runtime."
     }
+    MAIL_PROVIDER = {
+      secret      = false
+      human       = false
+      description = "ses | smtp | dev. Cloud environments use ses, which authenticates with the pod's IRSA role and takes its region from S3_REGION, so there is no mail access key in this contract."
+    }
+    MAIL_FROM = {
+      secret      = false
+      human       = true
+      description = "Envelope sender for transactional mail, e.g. `Aksharo <hello@aksharo.ai>`. Public, but a human fills it in once because it must match a verified SES identity."
+    }
+    SMTP_URL = {
+      secret      = true
+      human       = true
+      description = "SMTP connection URL for self-hosted and local delivery (Mailpit). Carries credentials, so it is a SecureString. Left as the placeholder wherever MAIL_PROVIDER is ses."
+    }
   }
 
   # Parameters Terraform computes and keeps up to date.

@@ -245,6 +245,41 @@ await this.realtime.jobProgress({ workspaceId, projectId }, { jobId, progress })
 The wire protocol, the room authorisation rules, the close codes and the
 reconnection contract are in [`src/realtime/README.md`](src/realtime/README.md).
 
+## Notifications (`src/notify`)
+
+Transactional mail and the in-app bell. To send anything from any module:
+
+```ts
+await this.notify.enqueue({
+  kind: "export-ready",
+  to: user.email,
+  locale: user.locale,
+  userId: user.id,
+  workspaceId,
+  data: { project: project.name, link, days: 7 },
+  idempotencyKey: `export-ready-${exportId}`,
+});
+```
+
+`NotifyModule` is `@Global()`, so nothing needs importing. `enqueue` never throws
+for a delivery reason — a notification is a side effect of work the caller cares
+about — and the `idempotencyKey` is the BullMQ job id, which is what makes a
+repeat enqueue a no-op.
+
+`MAIL_PROVIDER` picks the transport: `ses` (the pod's IRSA role, region from
+`S3_REGION`, no key anywhere), `smtp` (from `SMTP_URL`), or `dev`, which writes to
+the Redis outbox A04 introduced instead of sending. For a real client locally:
+
+```bash
+docker compose --profile mail up -d     # Mailpit: SMTP 1025, UI http://localhost:8025
+node tools/runbooks/mail-outbox.js      # or just read the dev outbox
+```
+
+The consumer runs inside this process; `NOTIFY_WORKER_ENABLED=0` turns it off for
+one-shot processes and test runs, exactly as `MONTAJ_SCHEDULER_DISABLED` does for
+the scheduler. Templates, the kind table, the suppression rules and the SES/SNS
+webhook are in [`src/notify/README.md`](src/notify/README.md).
+
 ## Runbook scripts
 
 Operational helpers live in `tools/runbooks/` at the repo root and resolve their
@@ -254,6 +289,7 @@ dependencies from this package, so they run with plain `node` from anywhere.
 | ------------------------------- | ----------------------------------------------------------- |
 | `tools/runbooks/queue-drain.js` | Pause a queue and wait for its active jobs to finish (A08). |
 | `tools/runbooks/dlq-replay.js`  | Re-enqueue or discard dead-lettered jobs (A08b).            |
+| `tools/runbooks/mail-outbox.js` | Print the development mail outbox (A25).                    |
 
 ```bash
 node tools/runbooks/queue-drain.js ai.transcribe --timeout=300000
@@ -284,6 +320,10 @@ through testcontainers. Auth is the one module that cannot be tested against
 substituted infrastructure: refresh families are a database invariant and the
 rotation grace is a Redis entry.
 
+`test/notify.e2e-spec.ts` needs neither, but it does need `openssl` on `PATH` to
+build the throwaway X.509 certificate the SNS signature cases sign against; the
+cases that need it skip with a reason when it is absent.
+
 `test/database.e2e-spec.ts` needs a PostgreSQL **with pgvector**. It uses
 `TEST_DATABASE_URL` if set, otherwise starts `pgvector/pgvector:pg16` through
 testcontainers, and skips with an explanation when Docker is unavailable
@@ -300,6 +340,7 @@ Two variables shape a test run:
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MONTAJ_QUEUE_PREFIX`       | Redis key prefix for BullMQ and realtime. `setup-env.ts` sets a per-process value so two runs never share keys; a deployment leaves it at `bull`, which is what the workers expect. |
 | `MONTAJ_SCHEDULER_DISABLED` | `1` stops this process running the scheduler worker. Set in tests, which call `ScheduledTasksService.runNow(name)` instead.                                                         |
+| `NOTIFY_WORKER_ENABLED`     | `0` stops this process draining the `notify` queue. `setup-env.ts` sets it; `test/auth-harness.ts` turns it back on, because that suite delivers to the outbox and reads it.        |
 
 ## Adding a module
 
