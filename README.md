@@ -44,6 +44,29 @@ any shared type — those interfaces are frozen and change only through an ADR.
 `10-build-plan.md` section 2 has the engineering conventions and the Definition of
 Done, which is also the pull-request checklist.
 
+### Formatting
+
+**Use `pnpm format:changed`, not `pnpm format`.**
+
+`pnpm format` rewrites every file in the repository. Several work packages run at
+once, each in its own worktree, so a repo-wide rewrite drags dozens of files
+nobody touched into the diff — and every one has then had to be reverted by hand
+before the commit. `pnpm format:changed` runs Prettier over exactly what this
+branch changed: everything that differs from the merge base with `main`
+(`git diff --name-only main...HEAD`, so a merged-in `main` does not count), plus
+whatever is uncommitted, staged or not, new files included.
+
+```bash
+pnpm format:changed          # rewrite this branch's files
+pnpm format:changed:check    # fail if any of them is unformatted
+pnpm format:changed -- --base release/1.2   # compare against something else
+```
+
+`pnpm format` and `pnpm format:check` still exist for the one job they are right
+for: a deliberate, reviewed, repo-wide reformat after a Prettier upgrade. Never
+leave a file that fails `format:changed:check`, and never reformat a file outside
+your work package unless a merge conflict forced you into it.
+
 ## Scripts
 
 | Command                                      | Does                                                 |
@@ -51,7 +74,9 @@ Done, which is also the pull-request checklist.
 | `pnpm dev`                                   | every app in watch mode                              |
 | `pnpm build` / `lint` / `typecheck` / `test` | across the workspace (Python included)               |
 | `pnpm test:e2e`                              | Playwright (chromium + webkit) and the API e2e suite |
-| `pnpm format`                                | Prettier over the repo                               |
+| `pnpm format:changed`                        | Prettier over this branch's files (use this one)     |
+| `pnpm format:changed:check`                  | the same set, checked rather than rewritten          |
+| `pnpm format`                                | Prettier over the **whole repo** — see Formatting    |
 | `pnpm db:migrate` / `db:seed`                | Prisma migrations and seed                           |
 
 ## Licence
