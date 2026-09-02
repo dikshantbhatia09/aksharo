@@ -112,6 +112,36 @@ export interface FakeUser {
   readonly id: string;
   readonly isAdmin: boolean;
   readonly deletedAt: Date | null;
+  /** B02b: `JobsService.notifyCreditsShortfall`'s workspace-owner lookup. */
+  readonly email?: string;
+  readonly name?: string | null;
+  readonly locale?: string;
+}
+
+/** B02b: `JobsService.notifyCreditsShortfall`'s `workspace.findFirst`. */
+export interface FakeWorkspace {
+  readonly id: string;
+  readonly ownerId: string;
+  readonly deletedAt: Date | null;
+}
+
+/** B02b: the balance `JobsService.notifyCreditsShortfall` reports as "minutes left". */
+export interface FakeCreditAccount {
+  readonly workspaceId: string;
+  readonly balanceTenths: number;
+}
+
+/**
+ * B02b: `AdmissionService.admit`'s enqueued-credit sum. Flattened onto
+ * `workspaceId` directly rather than an `accountId` indirection through
+ * `FakeCreditAccount` — the fake only ever needs to answer "holds `status =
+ * 'held'` for this workspace", never a real join.
+ */
+export interface FakeCreditHold {
+  readonly id: string;
+  readonly workspaceId: string;
+  readonly status: "held" | "settled" | "released" | "partially_settled";
+  readonly amountTenths: number;
 }
 
 /** The mutable world the fake Prisma reads and writes. */
@@ -125,6 +155,10 @@ export class FakeDb {
   /** A08b: dead-letter entries, the admin users who may act on them, and the trail. */
   readonly dlq = new Map<string, DlqEntry>();
   readonly users = new Map<string, FakeUser>();
+  readonly workspaces = new Map<string, FakeWorkspace>();
+  /** Keyed by `workspaceId`, like the real table's unique index. */
+  readonly creditAccounts = new Map<string, FakeCreditAccount>();
+  readonly creditHolds = new Map<string, FakeCreditHold>();
   readonly audit: AuditLog[] = [];
   /** A25: in-app notifications. */
   readonly notifications = new Map<string, Notification>();
@@ -153,6 +187,39 @@ export class FakeDb {
     };
     this.users.set(user.id, user);
     return user;
+  }
+
+  workspace(overrides: Partial<FakeWorkspace> = {}): FakeWorkspace {
+    const workspace: FakeWorkspace = {
+      id: ulid(),
+      ownerId: ulid(),
+      deletedAt: null,
+      ...overrides,
+    };
+    this.workspaces.set(workspace.id, workspace);
+    return workspace;
+  }
+
+  creditAccount(overrides: Partial<FakeCreditAccount> = {}): FakeCreditAccount {
+    const account: FakeCreditAccount = {
+      workspaceId: ulid(),
+      balanceTenths: 0,
+      ...overrides,
+    };
+    this.creditAccounts.set(account.workspaceId, account);
+    return account;
+  }
+
+  creditHold(overrides: Partial<FakeCreditHold> = {}): FakeCreditHold {
+    const hold: FakeCreditHold = {
+      id: ulid(),
+      workspaceId: "01JCWORKSPACE00000000000000".slice(0, 26),
+      status: "held",
+      amountTenths: 0,
+      ...overrides,
+    };
+    this.creditHolds.set(hold.id, hold);
+    return hold;
   }
 
   dlqEntry(overrides: Partial<DlqEntry> = {}): DlqEntry {
@@ -340,6 +407,55 @@ export function createFakePrisma(db: FakeDb) {
     user: {
       findUnique: async ({ where }: { where: { id: string } }): Promise<FakeUser | null> =>
         db.users.get(where.id) ?? null,
+    },
+    // B02b: `JobsService.notifyCreditsShortfall`'s workspace-owner lookup.
+    workspace: {
+      findFirst: async (
+        args: Row,
+      ): Promise<{
+        owner: { id: string; email: string; name: string | null; locale: string };
+      } | null> => {
+        const workspace = [...db.workspaces.values()].find((row) =>
+          matches(row as unknown as Row, args["where"] as Row),
+        );
+        if (workspace === undefined) return null;
+        const owner = db.users.get(workspace.ownerId);
+        if (owner === undefined) return null;
+        return {
+          owner: {
+            id: owner.id,
+            email: owner.email ?? `${owner.id}@example.test`,
+            name: owner.name ?? null,
+            locale: owner.locale ?? "en-IN",
+          },
+        };
+      },
+    },
+    creditAccount: {
+      findUnique: async ({
+        where,
+      }: {
+        where: { workspaceId: string };
+      }): Promise<FakeCreditAccount | null> => db.creditAccounts.get(where.workspaceId) ?? null,
+    },
+    // B02b: `AdmissionService.admit`'s enqueued-credit sum. `where` is the one
+    // shape production code sends — `{ status, account: { workspaceId } }` — so
+    // this reads it directly rather than teaching the generic `matches()`
+    // helper a relation filter for a single call site.
+    creditHold: {
+      aggregate: async (args: Row): Promise<{ _sum: { amountTenths: number | null } }> => {
+        const where = args["where"] as { status?: string; account?: { workspaceId?: string } };
+        const rows = [...db.creditHolds.values()].filter(
+          (row) =>
+            (where.status === undefined || row.status === where.status) &&
+            (where.account?.workspaceId === undefined ||
+              row.workspaceId === where.account.workspaceId),
+        );
+        if (rows.length === 0) return { _sum: { amountTenths: null } };
+        return {
+          _sum: { amountTenths: rows.reduce((total, row) => total + row.amountTenths, 0) },
+        };
+      },
     },
     notification: {
       create: async ({ data }: { data: Row }): Promise<Notification> =>
