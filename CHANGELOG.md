@@ -10,6 +10,41 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **C08 — DaVinci Resolve `aksharo_core`: Workspace ▸ Scripts launcher, in-Resolve
+  loopback server, bridge client, Text+ captions, cuts, dynamic zoom, marker
+  customData map.** New workspace `plugins/resolve` (Python 3.12, same
+  `pyproject.toml`/`scripts/py.mjs` tooling as `apps/worker-ai`): the Resolve
+  entry bootstrap `aksharo_core.py` (installed to Fusion's `Scripts/Utility`
+  by C10) delegates to the real, unit-tested library `aksharo_core_app/`.
+  `host/resolve.py` is the only module importing the real
+  `DaVinciResolveScript` (lazily); `FakeResolveHost` mirrors the documented
+  object model (ProjectManager → Project → MediaPool → Timeline →
+  TimelineItem, plus a Fusion comp for Text+) so everything else — the Text+
+  caption builder (`captions.py`, with an alpha-overlay fallback for styles
+  A18a marks `assRenderable=false`), the accepted-cut applier (`cuts.py`,
+  `Timeline.DeleteClips(items, ripple=True)`), the accepted-zoom applier
+  (`zooms.py`, MKF2-decoded keyframes collapsed to Resolve's two-point Dynamic
+  Zoom via `TimelineItem.SetProperty`), and the `{aksharo: {projectId,
+segmentId|itemId, rev}}` marker `customData` re-sync mapping
+  (`markers.py`) — is tested headless. `keyframes.py` ports
+  `packages/edg/src/passes/keyframes.ts`'s MKF2 codec byte-for-byte
+  (round-trip tested against fixture bytes produced by the TS encoder).
+  `bridge/` is a `websockets`-based JSON-RPC 2.0 client for the C01 local
+  bridge protocol plus a Python port of `apps/bridge/src/device-auth.ts`'s
+  B08b device-code bootstrap (`clientKind: "resolve"`). `server.py` is the
+  in-Resolve loopback JSON-RPC server (`host.info`, `timeline.current`,
+  `apply.*`, ports 47841-47843, bearer from a new `~/.aksharo/resolve.json`
+  discovery file distinct from the desktop bridge's). `tools/release/src/
+commands/packageResolve.ts` now stages and zips the real `aksharo_core.py` +
+  `aksharo_core_app/` tree (previously a placeholder `.lua` file) plus per-OS
+  installer scripts. `docs/GATE-C-CHECKLIST.md` (new) records the manual
+  first-run steps for a real DaVinci Resolve (Free and Studio) once human
+  spike A00-04 reports; several Resolve-side assumptions (the Utility-script
+  `resolve` global on Free, whether a loopback server may run inside Resolve,
+  the exact `SetProperty` keys Dynamic Zoom keyframes, and the absence of a
+  scriptable undo-transaction API) are called out there and in
+  `plugins/resolve/README.md` as unverified pending that spike.
+
 - **B19b — Reframe/zoom wiring: one keyframe codec, keyframe storage, `zoom`
   pass type, word-timed emphasis cues, frame/RMS sampling from the proxy.**
   `packages/edg`: `src/keyframes.ts` (`MKF1`) is deleted — `src/passes/
