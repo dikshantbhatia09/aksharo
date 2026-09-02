@@ -293,13 +293,14 @@ Flagged as an open question below rather than guessed silently.
    accepts an optional `coupon` field for forward API compatibility, but no
    discount is applied; the amount charged always equals the undiscounted
    list price today.
-5. **`payment.refunded` credits clawback (B01b): implemented, but blocked on
-   a primitive gap in `LedgerCreditsFacade`.** See "Credits clawback: an open
-   primitive gap" below — the short version is that `reverse()` requires a
-   `credit_holds` row (hard FK to `jobs`) that a grant-sourced lot never has,
-   so the attempt this work package makes is expected to fail every time,
-   caught, and turned into an audited `manual_action_required` outcome rather
-   than a crash or a silent no-op.
+5. **`payment.refunded` credits clawback (B01b, fixed in B01d): fully
+   working.** See "Credits clawback" below — B01b/B01c called `reverse()`,
+   the wrong primitive (it refunds a _settled job_, keyed on a `credit_holds`
+   row a grant-sourced lot never has); B01d switched to B02b's
+   `CreditsFacade.revokeLot({lotId, tenths?, reason, refundId})`, which is
+   keyed on the lot itself and subtracts, reporting any `shortfallTenths`
+   (credits already spent before the refund) for manual review instead of
+   failing.
 6. **`chargeRenewal` against the live `RazorpayProvider` throws.** Razorpay
    auto-charges a registered recurring mandate on its own schedule; there is
    no publicly documented "charge this subscription now" call for a manual
@@ -309,49 +310,65 @@ Flagged as an open question below rather than guessed silently.
 7. **`event id` is derived from the webhook body**, not read from an
    `X-Razorpay-Event-Id` header — see "Open questions".
 
-## Credits clawback: an open primitive gap (B01b)
+## Credits clawback (B01b, fixed in B01d)
 
 The B01b follow-up asked for "`payment.refunded` (and refund via the
-admin/API path) claws back the credits granted by that payment through
-`CreditsFacade.reverse(...)`". This is implemented end to end —
-`refunds.service.ts`'s `RefundsService` — but the call to `reverse()` is
-expected to fail for every real pass/top-up refund in this codebase, and here
-is exactly why, so nobody has to re-derive it:
+admin/API path) claws back the credits granted by that payment". B01b/B01c
+implemented this against `LedgerCreditsFacade.reverse()`, and that call was
+expected to fail for every real pass/top-up refund in this codebase:
+`reverse()` refunds a _settled job_ — it is 04 §Refunds & cancellation's "a
+settled job with a bad artefact gets a reversal lot", keyed on a
+`credit_holds` row with a hard FK to `jobs.id`, and it **adds** tenths back.
+A pass/top-up purchase's credits come from `CreditsFacade.grantLot()`
+(`webhooks.service.ts`'s `grantPass`), which creates only a `credit_lots`
+row — never a hold, never a job — so `reverse()`'s precondition could never
+be satisfied by a grant, and the attempt always fell into a caught
+`credits/reversal_source_not_found` → `manual_action_required` audit.
 
-- **`reverse()` refunds a _settled job_, not a _granted lot_.** Its doc
-  comment: "Refund a settled job: a new lot inheriting the original lot's
-  expiry, and a `reversal` ledger row" — this is 04 §Refunds & cancellation's
-  "a settled job with a bad artefact gets a reversal lot", i.e. compensating a
-  customer for bad _output_. It **adds** tenths to the balance. "Claw back
-  credits granted by a refunded payment" needs the opposite: **subtracting**
-  tenths a purchase granted.
-- **Its precondition cannot be satisfied by a grant.** `reverse()` looks up
-  `credit_holds` by `jobId` — a column with a hard foreign key to `jobs.id`.
-  `CreditsFacade.grantLot()` (what `webhooks.service.ts`'s `grantPass` calls
-  for every pass/top-up purchase) creates **only** a `credit_lots` row — never
-  a hold, never a job. There is no `jobId` a grant-sourced lot could ever
-  supply, real or synthetic (creating a fake `jobs` row to satisfy the FK
-  would pollute a table that represents actual queued work, and was rejected
-  as a workaround for that reason).
-- **Nothing else on `CreditsFacade`/`LedgerCreditsFacade` subtracts.**
-  `grantLot`'s `tenths` is asserted non-negative; `reserve()`/`settle()` have
-  the same `jobs.id` foreign key `reverse()` does. There is no
-  `revokeLot`/`adjust`-shaped method to reach for instead.
+B01d closes that gap using B02b's `CreditsFacade.revokeLot({lotId, tenths?,
+reason, refundId})` → `{revokedTenths, shortfallTenths}` (see
+`../credits/README.md`), the primitive `reverse()` should have been:
 
-**What this work package does given that:** `RefundsService.
-clawbackPassPurchase` resolves exactly which lot a purchase granted
-(`passes_purchased.lot_id`, now populated by `grantPass` — B01b), guards the
-whole operation with a compare-and-swap on `passes_purchased.refunded_at` so
-a replayed webhook or a repeated admin call is a clean no-op, calls
-`LedgerCreditsFacade.reverse()` exactly as instructed, and catches precisely
-`credits/reversal_source_not_found` (`CREDIT_ERROR_CODES.
-reversalSourceNotFound`) to record a fully detailed, clearly labelled
-`billing.credits.clawback_unavailable` audit row — never a crash, never a
-silently-dropped refund. `refunds.service.test.ts` also proves the success
-path works correctly (mocking `reverse()` to resolve), so if B02 ever adds a
-primitive this can call — a real `revokeLot(lotId, tenths, reason)` or a
-signed `adjust(workspaceId, deltaTenths, reason)` — the fix is one line in
-`clawbackPassPurchase`, not a rewrite.
+- **Keyed on the lot, not a job.** `revokeLot` takes `lotId` directly —
+  exactly what `passes_purchased.lot_id` already records.
+- **Subtracts**, never more than the lot still has remaining. If a customer
+  already spent some of what is being refunded, the shortfall — the part
+  that cannot be recovered from the ledger — comes back as
+  `shortfallTenths` rather than throwing.
+- **Idempotent per `refundId`** on the ledger's own side (a partial unique
+  index on `credit_ledger`), on top of `RefundsService`'s own
+  compare-and-swap on `passes_purchased.refunded_at`.
+
+`RefundsService.clawbackPassPurchase` resolves which lot a purchase granted
+(`passes_purchased.lot_id`, populated by `grantPass`), guards the whole
+operation with the compare-and-swap so a replayed webhook or a repeated
+admin call is a clean no-op, then calls `revokeLot({lotId, tenths:
+creditsGrantedTenths, reason, refundId: passPurchaseId})`. The outcome is
+now one of:
+
+- `already_processed` — a replay of an already-clawed-back purchase.
+- `nothing_to_claw_back` — the purchase never recorded a lot (e.g. this
+  suite's own harness, see below).
+- `clawed_back` (with `revokedTenths`) — the full amount came back.
+- `manual_action_required` (with `revokedTenths` and `shortfallTenths`) —
+  `shortfallTenths > 0`: some of what was refunded in money had already been
+  spent in credits and cannot be recovered from the ledger; a human needs to
+  see the gap. This is also what a defensive `credits/lot_not_found` catch
+  reports (the lot referenced by `passes_purchased.lot_id` no longer
+  exists — should not be reachable in practice, since `grantPass` populates
+  that column from the very `grantLot()` call that created the lot).
+
+`shortfallTenths` is carried onto the `billing.refund.issued` audit row from
+the admin/API path too, so support can see the gap without cross-referencing
+the clawback audit separately. `refunds.service.test.ts` covers every branch
+above against a mocked `LedgerCreditsFacade`, and `billing.e2e-spec.ts`'s
+"B01d: fake provider refund revokes the real lot and reduces the real
+balance" test proves the full path against the real ledger: it seeds a real
+lot through `app.get(LedgerCreditsFacade)`, links it onto a purchase exactly
+as `grantPass` would once `CREDITS_FACADE` binds to the real ledger, fires
+the fake provider's `payment.refunded` webhook, and asserts both
+`credit_lots.remaining_tenths` and `credit_accounts.balance_tenths` actually
+moved — and that a replayed webhook does not move them twice.
 
 Subscription-renewal payment refunds are narrower still: B02's periodic
 `credit-grant-reset.task.ts` grants the monthly allowance on the billing
@@ -377,12 +394,15 @@ one write that needs a real lot tolerate a synthetic one. `grantPass`
 (`webhooks.service.ts`) now catches that specific write in a `try`/`catch` —
 the lot link is bookkeeping for a best-effort clawback, not part of granting
 the credits itself, so a failure to record it must not fail the webhook. The
-practical effect in this suite: `passes_purchased.lot_id` stays `null`, so
-the e2e clawback tests exercise `"nothing_to_claw_back"`, not
-`"manual_action_required"` — that branch (and the happy path, and the
-`reversalSourceNotFound` branch) is covered instead by
-`refunds.service.test.ts`, which mocks `LedgerCreditsFacade` directly and so
-is not affected by which facade the e2e harness binds.
+practical effect in this suite: a purchase made through the normal checkout
+flow in this harness leaves `passes_purchased.lot_id` as `null`, so the
+webhook-driven and admin-path clawback tests in that position exercise
+`"nothing_to_claw_back"`. The `manual_action_required`/shortfall branches are
+covered by `refunds.service.test.ts` (mocking `LedgerCreditsFacade`
+directly), and the full `clawed_back` path against a real lot and a real
+balance is covered by `billing.e2e-spec.ts`'s "B01d" test, which fetches
+`LedgerCreditsFacade` from the app directly (`ctx.app.get(...)`) to seed a
+real lot without needing the harness's `CREDITS_FACADE` override changed.
 
 ## Open questions (Razorpay behaviours not verifiable without live keys)
 
