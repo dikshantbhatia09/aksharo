@@ -3,6 +3,8 @@ import { Module } from "@nestjs/common";
 import { AdminAcquisitionController } from "./acquisition/admin-acquisition.controller.js";
 import { AdminAcquisitionService } from "./acquisition/admin-acquisition.service.js";
 import { AdminGuard } from "./admin.guard.js";
+import { AdminStepUpController } from "./auth/admin-step-up.controller.js";
+import { AdminStepUpService } from "./auth/admin-step-up.service.js";
 import { AdminCreditsController } from "./credits/admin-credits.controller.js";
 import { AdminDlqController } from "./dlq/dlq.controller.js";
 import { AdminParentalWaitlistController } from "./parental-waitlist.controller.js";
@@ -39,6 +41,7 @@ import { PrivacyModule } from "../privacy/privacy.module.js";
 @Module({
   imports: [JobsModule, PrivacyModule, OffersModule],
   controllers: [
+    AdminStepUpController,
     AdminDlqController,
     AdminParentalWaitlistController,
     AdminCreditsController,
@@ -48,7 +51,7 @@ import { PrivacyModule } from "../privacy/privacy.module.js";
     AdminPrivacyController,
     AdminSchedulerController,
   ],
-  providers: [AdminGuard, AdminStreakService, AdminAcquisitionService],
+  providers: [AdminGuard, AdminStepUpService, AdminStreakService, AdminAcquisitionService],
   exports: [AdminGuard],
 })
 export class AdminModule {}
