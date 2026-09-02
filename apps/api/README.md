@@ -344,6 +344,91 @@ what the system could not do.
 it to `NoopCreditsFacade`: real interface, real idempotency, no ledger. B02 changes
 one `useClass` in `src/credits/credits.module.ts` and nothing else.
 
+## Share links, comments and batch (`src/share`, `src/comments`, `src/batch`)
+
+B15. Three modules, kept separate because they are owned by different callers
+(a workspace member vs. an anonymous reviewer vs. the batch dropzone) even
+though `comments` and `batch` both build on `share`/`projects`.
+
+### Share links (`src/share`)
+
+`share_links` (`token` unique, base62, 24 chars — `generateShareToken()`) carries
+a `scope` (`view < comment < approve`, `ShareLinksService.assertScope` enforces
+the ladder), an optional argon2 `passwordHash` (the same `PasswordService`
+account passwords use, declared as a local provider in `ShareModule` since
+`AuthModule` does not export it), `expiresAt`, `maxViews`/`viewCount` and a
+`clientTag` independent of the project's own.
+
+`ShareLinksController` (`/projects/:id/share-links`) is the owner side —
+`JwtAuthGuard`/`WorkspaceMemberGuard`/`RolesGuard`, same ladder as
+`ProjectsController` (`editor` creates, `admin` revokes). `PublicViewerController`
+(`/s/:token`) is the public side and wears no `JwtAuthGuard` at all — every route
+is `@Public()` explicitly and `RateLimitGuard`-keyed on IP
+(THREAT-MODEL T21). `ShareLinksService.resolve()` is the one liveness check
+(not revoked, not expired, under any view cap) every other public route reuses.
+
+A password-gated link is unlocked once (`POST /s/:token/unlock`) and the caller
+replays the returned value as `X-Share-Session` on later requests
+(`ShareSessionSigner`, HMAC over `token.expiresAtMs` keyed on
+`INTERNAL_CALLBACK_SECRET` — a header rather than a cookie because nothing else
+in this API parses cookies). `POST /s/:token/decision` flips
+`projects.reviewStatus` (`none|pending|approved|changes_requested`) and only
+works on a `scope: approve` link.
+
+**Intermediary hygiene (F-504).** `POST /s/:token/report` writes a `share_reports`
+row with a category-driven SLA (`ncii`: 3h, everything else: 36h — the same
+figure `ShareReportSlaTask`, B16, sweeps for breaches) and auto-disables the link
+(`revokedAt` + `autoDisabled`) once `SHARE_AUTO_DISABLE_REPORT_THRESHOLD` (3)
+_pending_ (`resolvedAt IS NULL`) reports accumulate. A dismissed report never
+re-triggers it. The web app's report-abuse form, legal footer and `noindex`/no
+open-graph-thumbnail response headers on `/(public)/s/[token]` are not part of
+this package — see "Deferred" below.
+
+### Comments (`src/comments`)
+
+Threaded (`parentId`), time-anchored (`atMs`) comments on a project, reachable
+both as a workspace member (`/projects/:id/comments`) and as a public reviewer
+(`/s/:token/comments`, gated on `scope: comment`/`approve` via
+`ShareLinksService.assertScope`). A guest identity is `{name, email}`; the email
+is hashed (`sha256`, lowercased+trimmed) before it is stored —
+`comments.author_email_hash`, never the address. Adding a top-level or reply
+comment enqueues the already-templated `share-comment` notify kind
+(`apps/api/src/notify/templates/messages.*.ts`) to the project owner, at
+`count: 1` per call — the template supports a real digest (`{count} new
+comments`) but this package sends one notification per comment rather than
+batching them into a scheduled digest; see "Deferred".
+
+### Batch (`src/batch`)
+
+Orchestration over `ProjectsService.batchCreate` (A06's `POST /projects/batch`,
+which creates the rows only) and `TranscriptsService.transcribe` (A11's
+`ai.transcribe` producer) — this module adds neither project creation nor a new
+transcription path, it wires the two together:
+
+- `POST /batch/quote` — sums `quoteTranscription()` (1 credit/media-minute) over
+  a list of durations, for the "Apply to all" sheet's up-front total.
+- `POST /batch` — creates a `batches` row (settings, the quoted total) and N
+  projects via `batchCreate`, then tags every created project's new `batch_id`
+  column (a nullable FK, `SetNull` on delete) with `updateMany`.
+- `POST /batch/:id/apply` — calls `transcribe()` for every project in the
+  batch. A project without a probed media asset yet (the file is still
+  uploading through the ordinary per-project media flow) fails that one call
+  with `transcript/media_not_ready`; the batch does not fail, the project's
+  status in the progress view stays `null`/`draft` until the caller applies
+  again.
+- `GET /batch/:id` — per-project status (`project.status` plus its most recent
+  `Job` row), the progress view "one-click export-all" and the batch dropzone
+  poll.
+
+### Deferred (not built in this work package — see the final report)
+
+Replace-media re-alignment (forced `ai.align` of an existing transcript onto a
+newly uploaded file, a diff report, and a `Resegment` EDG revision) and import
+transcript & align (SRT/VTT/TXT/DOCX → normalised text → `ai.align` → EDG init
+with cue-boundary hints) are not implemented. Both need a real diff/rewrite
+algorithm against `packages/edg`'s op model that is its own unit of work — see
+the work package's final report for what is left and why.
+
 ## Realtime (`src/realtime`)
 
 `/realtime` is a WebSocket over plain `ws`, with rooms `project:{id}` and

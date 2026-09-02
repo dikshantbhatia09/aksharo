@@ -5,7 +5,9 @@ import { AdminModule } from "./admin/admin.module.js";
 import { AffiliatesModule } from "./affiliates/affiliates.module.js";
 import { AudioModule } from "./audio/audio.module.js";
 import { AuthModule } from "./auth/auth.module.js";
+import { BatchModule } from "./batch/batch.module.js";
 import { BillingModule } from "./billing/billing.module.js";
+import { CommentsModule } from "./comments/comments.module.js";
 import { CommonModule } from "./common/common.module.js";
 import { ConsentsModule } from "./consents/consents.module.js";
 import { CreditsModule } from "./credits/credits.module.js";
@@ -30,6 +32,7 @@ import { PublicApiModule } from "./public-api/public-api.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { ReferralsModule } from "./referrals/referrals.module.js";
 import { SchedulerTasksModule } from "./scheduler/scheduler-tasks.module.js";
+import { ShareModule } from "./share/share.module.js";
 import { StreakModule } from "./streak/streak.module.js";
 import { StylesModule } from "./styles/styles.module.js";
 import { TaxModule } from "./tax/tax.module.js";
@@ -140,6 +143,13 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // neither is depended on by anything above.
     PublicApiModule,
     WebhooksModule,
+    // B15: share links + the public `/s/:token` viewer (`ShareModule`), threaded
+    // review comments (`CommentsModule`, imports `ShareModule` for its scope/
+    // liveness checks) and batch project creation's orchestration
+    // (`BatchModule`, building on `ProjectsService.batchCreate` from A06).
+    ShareModule,
+    CommentsModule,
+    BatchModule,
   ],
 })
 export class AppModule {}
