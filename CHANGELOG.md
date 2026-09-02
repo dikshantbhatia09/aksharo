@@ -8,7 +8,49 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+### Added
+
+- **A23 — Gate A e2e journey, sample-project seed, wave verification script,
+  X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)
+  through onboarding, a real MinIO upload, transcription completion via the
+  signed internal callback (standing in for a running `worker-ai` mock
+  provider, per this suite's established convention), word edit, segment
+  split, script switch, `punch-pop` style, SRT export (content verified),
+  browser MP4 export on chromium (webkit asserts the cloud fallback), a
+  cloud render job, and reload persistence — both browsers.
+  `apps/api/prisma/seed-sample.ts`: a 90-second, deterministic Hinglish
+  sample project (hand-generated WAV, no ffmpeg dependency; scripted
+  transcript fixture so ASR is not in the loop), already transcribed,
+  segmented, and carrying one `autocut` pass with three items in `proposed`
+  state for Wave 4's review UI. `docker-compose.test.yml` +
+  `scripts/e2e-stack.mjs` (`pnpm e2e:stack up|down`): api/web (from the
+  mounted repo — see the compose file's header for why, and for the
+  `AI_PROVIDER=mock` vs. actual `WORKER_AI_ALLOW_MOCK` naming note) plus
+  worker-media/worker-ai/render (their existing Dockerfiles), postgres,
+  redis, minio. `scripts/verify-wave.mjs`: fresh clone → install → compose
+  up → migrate/seed → unit tests → e2e → parity gate → screenshots →
+  `docs/verification/<date>-wave<n>.md`. `load/run.mjs` (+
+  `load/k6-transcribe.js` for a machine with k6 installed): 100 concurrent
+  `POST /projects/{id}/transcribe` calls, asserting p95 < 300 ms, all
+  accepted, and a WS `job.*` event delivered; writes
+  `docs/verification/load-<date>.md`. `.github/workflows/e2e.yml`: the Gate
+  A journey plus the load harness against the compose stack, on PRs into a
+  wave branch.
+
 ### Fixed
+
+- **A23 — the e2e fixtures' dev-outbox Redis key ignored
+  `MONTAJ_REDIS_PREFIX`.** `apps/web/e2e/fixtures.ts` hard-coded
+  `montaj:auth:dev-outbox`, but the API writes it under
+  `${MONTAJ_REDIS_PREFIX}:auth:dev-outbox` (`apps/api/src/common/redis/
+  redis-keys.ts`); any worktree with a non-default prefix (A05/A23a's
+  per-suite isolation) timed out every sign-up fixture after 45s waiting for
+  a message that had actually arrived under a different key. `env.ts` now
+  exports `redisKeyPrefix()`, read the same way the API's own reads it, and
+  `fixtures.ts` builds the outbox key from it; covered by `env.test.ts` (a
+  `node:test` file — see its header for why it is not a Vitest or Playwright
+  file). Also added `apps/web/e2e/README.md`'s `--project`/worktree-`.env`
+  note per the same addendum.
 
 - **B06b — a Free downgrade now switches the streak row to credits-only
   immediately, not just at assignment.** B06's `ensureAssigned` only set

@@ -373,6 +373,9 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.980.0
+        version: 3.1124.0
       '@axe-core/playwright':
         specifier: ^4.13.0
         version: 4.13.0(playwright-core@1.62.1)
@@ -478,6 +481,15 @@ importers:
       vitest:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@22.20.1)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0)
+
+  load:
+    dependencies:
+      pg:
+        specifier: ^8.16.3
+        version: 8.23.0
+      ulid:
+        specifier: ^3.0.2
+        version: 3.0.2
 
   packages/api-client:
     devDependencies:
