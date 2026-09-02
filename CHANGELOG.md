@@ -77,6 +77,63 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     signature, and `tests/test_integration.py` — a real BullMQ job from the API's
     own producer modules, consumed by a real worker, completing against the real
     API (`RUN_INTEGRATION=1`).
+- **A05 — api: users, workspaces (tax profile), memberships, consent, privacy.**
+  - `apps/api/src/users/`: `GET`/`PATCH /me` (name, avatar, locale, onboarding
+    state, marketing opt-in, with a change to the opt-in also appending a
+    `consent_records` row); `GET /me/data`, the DPDP access and portability right
+    — a `dsr_requests` row of kind `export`, a JSON bundle of every row the
+    account holds, and a single-use download link carrying 256 bits of entropy
+    that expires in an hour; `DELETE /me`, the erasure right — a `dsr_requests`
+    row of kind `erasure`, the account marked deleted, the address anonymised to
+    an RFC 2606 `.invalid` mailbox and every session revoked in one transaction
+    (the cascade over media and transcripts is B16). Both stamp `dueAt` 30 days
+    out (DPDP Rule 14). The module also owns `AuditService`, the `audit_log` +
+    `access_logs` writer every other A05 module uses.
+  - `apps/api/src/workspaces/`: `GET`/`POST /workspaces`, `GET`/`PATCH`/`DELETE
+/workspaces/{id}` (settings merged rather than replaced; a personal workspace
+    that is the caller's only one cannot be deleted); `PUT
+/workspaces/{id}/tax-profile` with the D41 rules — India requires a State code
+    from the 36 live GST codes, an optional GSTIN is checked against its base-36
+    check digit and must name that same State, currency is derived
+    (`IN → INR`, else `USD`) and locked once a subscription exists, and confirming
+    a profile stamps the new `billingCountryConfirmedAt` that B01 requires before a
+    checkout; `GET /workspaces/{id}/entitlement`, the Free-plan stub cached in
+    Redis for 60 seconds (B02 computes it for real); members
+    (`GET`/`POST /workspaces/{id}/members`, `PATCH`/`DELETE .../{membershipId}`)
+    with exactly one immutable owner, no granting a role above your own, and every
+    session of a removed member revoked at once; and `/invitations` — accepted from
+    the invitee's own verified address, so the id in the mail is a lookup key
+    rather than a bearer secret.
+  - `WorkspaceMemberGuard` on **every** `/workspaces/:id` route (THREAT-MODEL T4):
+    the id in the path must be the token's `ws` claim, an active membership must
+    still exist, and the principal's role is replaced with the one in the database
+    so a demotion bites on the next request rather than at the end of the token's
+    fifteen minutes. `test/workspace-guard.e2e-spec.ts` enumerates the shipped
+    route table from the router and drives every `:id` route as a stranger, as a
+    removed member and with no token, so a route added without the guard fails
+    without anybody editing the test.
+  - `apps/api/src/consents/`: `GET`/`POST /consents` over an append-only
+    `consent_records` log (a refusal is a row, a withdrawal closes the grants it
+    supersedes, and `users.marketingOptIn` / `analyticsConsentAt` /
+    `memoryConsentAt` are mirrored in the same transaction); `reconsentRequired`
+    reports an answer given against an older notice (D61, D62).
+  - `apps/api/src/privacy/`: `GET /privacy/notice`, the itemised notice's version
+    and purpose list, public because a person has to read it before creating an
+    account; and `GET /admin/parental-waitlist`, which lives in A08b's
+    `AdminModule` behind `AdminGuard` (`users.is_admin`) because the waiting list
+    belongs to nobody's workspace and no membership could authorise reading it.
+  - **Schema:** `workspaces.billing_country_confirmed_at` (the sign-up default is a
+    guess, not a statement the customer made) and the `parental_waitlist` table
+    (`sha256(address)`, jurisdiction, age bracket, `notifiedAt`), which
+    `ParentalWaitlistService` drains A04's Redis hash into at boot. Migration
+    `20260902030000_a05_billing_country_confirmed_and_parental_waitlist`.
+  - No new environment variables and no new feature flags; `pnpm gen:client`
+    regenerated `packages/api-client` (53 operations).
+  - `apps/api/test/db-harness.ts`: the Docker probe waits 60 s rather than 20 s.
+    Vitest collects the suite files in parallel, so every Docker-backed suite
+    probes the daemon at once, and A05 took that from three suites to five; a
+    timeout there does not fail a run, it silently skips every integration suite.
+    A daemon that is genuinely absent still fails in milliseconds.
 - **A08b — api: dead-letter queue, admin replay, retry/stall policy, job-event
   retention.**
   - `apps/api/prisma`: the `dlq` table (migration
@@ -87,7 +144,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     migration **backfills** from the `job.dead_lettered` events A08 wrote when
     there was nowhere else to put them, so no dead letter is lost.
   - `apps/api/src/jobs/dlq.service.ts`: the dead-letter path. The copy is taken
-    from the job row *before* the completion update, so it remembers the hold, and
+    from the job row _before_ the completion update, so it remembers the hold, and
     it is idempotent on `(jobId, attemptId)` so an at-least-once callback writes
     one row. **Replay** claims the entry with a conditional update (two admins,
     one replay), reuses the same `jobs` row, mints a fresh `attemptId` and
@@ -480,7 +537,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 - **A08b — `jobKey` deduplication was scoped globally, not per workspace.** A08's
   `jobs_live_job_key_key` was `UNIQUE (job_key) WHERE status IN
-  ('queued','running')` with no workspace column, so two tenants with the same
+('queued','running')` with no workspace column, so two tenants with the same
   live job key collided and the second enqueue failed with an unexplainable unique
   violation. `prisma/sql/0005-a08b-dlq.sql` replaces it with
   `jobs_live_workspace_job_key_key` on `(workspace_id, job_key)`, and
