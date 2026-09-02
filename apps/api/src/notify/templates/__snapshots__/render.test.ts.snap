@@ -460,6 +460,48 @@ Aksharo की ओर से भेजा गया। कोई सवाल? �
 }
 `;
 
+exports[`rendering > renders share-report-resolved in English 1`] = `
+{
+  "subject": "Your report about a shared link has been reviewed",
+  "text": "Aksharo
+
+Your report has been reviewed
+
+Hi there, thanks for the report you filed on 2026-09-01 — an admin has reviewed the shared link and marked it taken down.
+
+The link no longer works.
+
+Learn about sharing:
+https://aksharo.ai/help/sharing
+
+This message confirms the review only; no further action is needed from you.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders share-report-resolved in Hindi 1`] = `
+{
+  "subject": "शेयर की गई लिंक पर आपकी रिपोर्ट की समीक्षा हो गई है",
+  "text": "Aksharo
+
+आपकी रिपोर्ट की समीक्षा हो गई है
+
+नमस्ते जी, 2026-09-01 को आपने जो रिपोर्ट दर्ज की थी, उसकी एडमिन ने समीक्षा कर ली है और शेयर की गई लिंक को taken down के रूप में चिह्नित किया है।
+
+The link no longer works.
+
+शेयरिंग के बारे में जानें:
+https://aksharo.ai/help/sharing
+
+यह मैसेज सिर्फ़ समीक्षा की पुष्टि है; आपकी ओर से कोई और कार्रवाई ज़रूरी नहीं है।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
 exports[`rendering > renders streak-nudge in English 1`] = `
 {
   "subject": "One export from keeping your streak this week",
@@ -538,6 +580,48 @@ exports[`rendering > renders support-ticket-created in Hindi 1`] = `
 
 एडमिन में खोलें:
 https://app.example.test/admin/support/01JTICKET00000000000000000
+
+टिकट आईडी 01JTICKET00000000000000000।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
+exports[`rendering > renders support-ticket-reply in English 1`] = `
+{
+  "subject": "New reply on your ticket: Export stuck at 90%",
+  "text": "Aksharo
+
+You have a reply
+
+Hi there, our support team replied to your ticket:
+
+We've restarted the export — please try again.
+
+View your ticket:
+https://app.example.test/support/01JTICKET00000000000000000
+
+Ticket id 01JTICKET00000000000000000.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders support-ticket-reply in Hindi 1`] = `
+{
+  "subject": "आपके टिकट पर नया जवाब: Export stuck at 90%",
+  "text": "Aksharo
+
+आपको एक जवाब मिला है
+
+नमस्ते जी, हमारी सपोर्ट टीम ने आपके टिकट पर जवाब दिया है:
+
+We've restarted the export — please try again.
+
+अपना टिकट देखें:
+https://app.example.test/support/01JTICKET00000000000000000
 
 टिकट आईडी 01JTICKET00000000000000000।
 

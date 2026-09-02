@@ -1185,6 +1185,8 @@ importers:
         specifier: ^3.2.7
         version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0)
 
+  plugins/resolve: {}
+
   tools/release:
     dependencies:
       '@cyclonedx/cyclonedx-npm':

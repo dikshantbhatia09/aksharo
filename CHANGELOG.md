@@ -34,6 +34,54 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B13b — admin console follow-ups: routing overrides reach the worker,
+  share-report/support-reply notifications, a real support panel, a
+  server-side admin gate, admin Playwright, dashboard charts.**
+  `GET /internal/routing/overrides` (`apps/api/src/internal/routing-overrides.controller.ts`)
+  is a new, HMAC-signed (`InternalSignatureGuard`) internal endpoint serving
+  `RoutingWeightOverride` rows as the `{ lanes: { candidates: { weight } } }`
+  shape `worker_ai.routing.RoutingTable.apply_overrides` already expects,
+  with a weak-ETag `Cache-Control: private, max-age=60`. The worker's new
+  `worker_ai/routing_overrides.py` fetches it with a 60s in-process cache
+  revalidated by that ETag, falls back to the last-known-good body on any
+  network/5xx/404, and defers to D08's forthcoming routing-freeze flag via
+  `getattr(settings, "routing_freeze", False)` (skips the fetch entirely
+  when set, so freeze wins over an override with no code change needed on
+  either side once that flag lands) — `worker_ai/runtime.py`'s
+  `fetch_routing_overrides` now delegates to it, kept for import
+  compatibility with `tests/test_routing.py`. Two new `NOTIFY_KINDS`,
+  `share-report-resolved` and `support-ticket-reply` (kind + en/hi templates
+  only, per this WP's file boundary): `AdminShareController.resolve` now
+  emails the reporter (when they left contact details) and the workspace
+  owner once a report is resolved; the new `AdminSupportService`/
+  `AdminSupportController` (`admin/support/**`) replace B13's
+  `available: false` stub with a real queue over B12's `support_tickets` —
+  list/filter by status and category, a `support`/`superadmin`-gated status
+  transition (the schema's own comment names this "B13 (admin) transitions
+  it"), and a reply sent via the notify interface, both audited
+  (`admin.support.status_set`, `admin.support.replied`). `apps/web/middleware.ts`
+  gates the whole `(admin)` route group with a routing-only, httpOnly
+  `aksharo_admin_hint` cookie (`lib/admin/admin-hint-cookie.ts`,
+  `app/api/admin-hint/route.ts`, set by the step-up page and cleared by
+  "End admin session") — a visitor who has never stepped up gets a plain
+  404 rather than a redirect that would announce `/admin` exists;
+  `AdminGuard` on the API is unchanged and remains the real authorization.
+  A new dependency-free `BarChart` (`components/admin/bar-chart.tsx`, plain
+  SVG, no CDN) renders the acquisition/streak/offers panels on the admin
+  dashboard as bar breakdowns — an honest simplification, since none of the
+  three source endpoints bucket by day yet (see the component's own doc
+  comment and "open questions" below). New `apps/web/e2e/admin.spec.ts`
+  seeds `admin_roles`/`admin_totp` directly with `pg` (no self-service grant
+  route exists, the same gap `streak.spec.ts` documents for its own
+  fixtures) and proves the 404 gate, and that `support` is refused by
+  `AdminGuard`'s role check on a refund while `finance` clears it.
+  **Deliberately not built**: the chained-self-referral device/IP signal
+  (recorded here, per the orchestrator's ruling, as a clustering candidate
+  for a future anti-abuse pass, not code) — a workspace pair that shares a
+  device fingerprint or IP across `referral_rewards` rows is a signal this
+  WP was told to name, not implement; see the doc comment on
+  `AdminReferralsController` (`admin/referrals/admin-referrals.controller.ts`).
+
 - **C08 — DaVinci Resolve `aksharo_core`: Workspace ▸ Scripts launcher, in-Resolve
   loopback server, bridge client, Text+ captions, cuts, dynamic zoom, marker
   customData map.** New workspace `plugins/resolve` (Python 3.12, same

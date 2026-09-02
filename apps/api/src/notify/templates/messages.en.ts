@@ -175,5 +175,24 @@ export const EN_MESSAGES: MessageCatalogue = {
       cta: "Open the project",
       footnotes: ["Upgrading your plan also extends how long projects are kept."],
     },
+
+    "share-report-resolved": {
+      subject: "Your report about a shared link has been reviewed",
+      heading: "Your report has been reviewed",
+      paragraphs: [
+        "Hi {name}, thanks for the report you filed on {reportedAt} — an admin has reviewed the shared link and marked it {resolution}.",
+        "{resolutionNote}",
+      ],
+      cta: "Learn about sharing",
+      footnotes: ["This message confirms the review only; no further action is needed from you."],
+    },
+
+    "support-ticket-reply": {
+      subject: "New reply on your ticket: {subject}",
+      heading: "You have a reply",
+      paragraphs: ["Hi {name}, our support team replied to your ticket:", "{replyBody}"],
+      cta: "View your ticket",
+      footnotes: ["Ticket id {ticketId}."],
+    },
   },
 };
