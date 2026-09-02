@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, signIn, test } from "./fixtures";
 
 /**
  * The renderer, in a real browser, drawing real captions.
@@ -14,8 +14,10 @@ test.describe("style preview canvas", () => {
     "CanvasKit is exercised on chromium here",
   );
 
-  test.beforeEach(async ({ page }) => {
-    await page.goto("/studio/styles");
+  // `/studio/styles` is in the `(app)` route group, which A13 put behind a
+  // session: a signed-out visitor is redirected before any HTML is sent.
+  test.beforeEach(async ({ page, sharedAccount }) => {
+    await signIn(page, sharedAccount, "/studio/styles");
     await expect(page.getByTestId("styles-heading")).toBeVisible();
   });
 

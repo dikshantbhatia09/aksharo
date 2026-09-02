@@ -3,5 +3,5 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./dist/.tsbuildinfo.build"
   },
-  "exclude": ["node_modules", "dist", ".turbo", "src/**/*.test.ts"]
+  "exclude": ["node_modules", "dist", ".turbo", "src/**/*.test.ts", "src/**/*.test.tsx"]
 }

@@ -100,6 +100,124 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     WOFF2 files over a static server, decompresses and draws a Latin, a Devanagari
     and a Tamil caption in Chromium.
 
+- **A13 — web app shell: auth screens, onboarding step 0, settings, `@montaj/ui` and the typed client layer.**
+  - `@montaj/ui`: the design system of `03-architecture/08-ux-design-system.md`
+    §1–§2. `src/styles/tokens.css` _is_ the Tailwind v4 preset — the near-black
+    and lime palette, the signal colours, 8/12/16 radii, the type scale, the
+    120–200 ms motion band, one lime focus ring and a `prefers-reduced-motion`
+    rule that applies to chrome only, because caption animation is the product's
+    output rather than decoration. `src/tokens.ts` carries the same values as
+    data and a test fails if the two drift. shadcn/ui primitives over Radix
+    (Button, Input, Field, Dialog, Sheet, Tabs, Tooltip, DropdownMenu, Toast,
+    Command palette, Switch, Checkbox, Separator, Card, Badge, Skeleton,
+    ProgressBar) plus the product components: `CreditMeter` (credits, minutes,
+    reset date, burn-rate tooltip with runway, streak badge behind a flag),
+    `JobProgress` (stage chips and ETA), `UpgradeGate` (the exact plan and a
+    checkout-sheet slot), `StatusChip`, `LangChip`, `ShortcutHint`,
+    `EmptyState`. The nine Indic Noto families load on demand — `loadIndicFont`
+    inserts one the first time that script is rendered, rather than putting
+    ~1.5 MB of webfont in front of a first paint nobody needs it for.
+  - The package is consumed as **source** through Next's `transpilePackages`, so
+    the app's own compiler handles the `"use client"` boundaries and there is no
+    build artefact to keep in step.
+  - `@montaj/api-client`: the fetch layer and hooks on top of A04's generated
+    operation index. Typed endpoint descriptors checked against that index by
+    `contract.test.ts`, which fails both ways — a route that moved, and a route
+    marked `pending` that has since landed. A13 was written against a `pending`
+    stub for the whole A05 surface (`/me`, `/workspaces`, `/entitlement`,
+    `/usage`, `/consents`, `/memory`); A05 merged first, so `accountEndpoints`
+    (`/me`, `/workspaces`, `/workspaces/{id}/entitlement`, `/consents`) call the
+    real routes and `useCurrentUser`/`useWorkspaces`/`useEntitlement`/
+    `useConsents` no longer need a fallback. `/usage` (the credit ledger, B02)
+    and `/memory` (D62, B09) are still declared `pending` and raise
+    `client/not_implemented` without a request, so the shell renders honestly
+    for the weeks before those two work packages land instead of showing an
+    error state everyone learns to ignore.
+  - The client owns the bearer header, the CONTRACTS §8 envelope and one
+    single-flight refresh: ten parallel 401s cause one rotation. A 401 on a
+    **public** route is a domain answer, not an expired session — refreshing
+    there signed the user out of a session they were in the middle of creating,
+    which is the bug the login e2e caught.
+  - `RealtimeClient` for CONTRACTS §7: subprotocol `aksharo.v1` plus
+    `bearer.<token>` (never a query string, T21), backoff with jitter capped at
+    30 s, re-subscribe after every `welcome`, `onResync` so a client that was
+    offline converges by re-reading rather than replaying, refused rooms
+    remembered, and 4401/4403/4503 handled distinctly.
+  - The package is ESM-only. A CommonJS build resolves `@tanstack/react-query`
+    through the `require` condition while the app resolves it through `import`,
+    which makes two `QueryClient` contexts and an error that points nowhere near
+    its cause.
+  - `apps/web`: the shell of 08 §3 — sidebar with the full information
+    architecture (items whose routes have not been built are disabled with a
+    "Soon" chip rather than shipped as dead links), workspace switcher over
+    `POST /auth/token/exchange`, credit meter, desktop download, profile menu,
+    top bar with Ctrl+K, New project, What's new and Upgrade, a drawer at phone
+    width, a skip link and a focusable `main`.
+  - Auth screens: `/signup` (credentials, then onboarding **step 0** — date of
+    birth, jurisdiction and two consent switches that both start off), `/login`,
+    `/magic`, `/verify`, `/auth/callback` (Google `status=registration` asks
+    step 0 before the account exists), `/auth/desktop-landing`, `/device`.
+    `/auth/verify-email` and `/auth/magic-link` forward to the first two,
+    because that is where A04's emails point.
+  - Sign-up copy never distinguishes a new address from a taken one, because the
+    API deliberately answers 202 either way; an e2e test compares the two
+    responses character for character.
+  - D60 throughout: the browser checks the same age floors the API enforces so a
+    15-year-old gets an explanation instead of a red error after typing a
+    password; a blocked sign-up is offered the parental waiting list; a declared
+    minor never gets analytics whatever the toggle says.
+  - Settings: profile, languages and defaults, "What Aksharo learned" (disabled
+    until the memory consent exists, D62), devices and sessions (revoke a family
+    from a list with the current one marked), privacy (consents, data export,
+    deletion behind a typed confirmation), notifications — a placeholder that
+    says why there is nothing to choose yet rather than offering switches that
+    do nothing.
+  - Sessions: the refresh token lives in an httpOnly SameSite=Lax cookie only
+    `app/api/session/*` can read, and the access token lives in memory for its
+    15 minutes (T2). Both handlers refuse a cross-site request, because a route
+    that writes a session cookie is a session-fixation primitive otherwise.
+    `middleware.ts` keeps signed-out visitors out of the studio before any HTML
+    is sent — a routing decision; the shell still rotates on mount, because a
+    cookie is not proof the family is alive.
+  - Analytics loads **after** consent and not before: `posthog-js` is a dynamic
+    import, so before consent it is not in the page and there is no request to
+    any analytics host. Sentry runs through a scrubber that replaces addresses,
+    JWTs, bearer headers and signed URL parameters, with tracing and replay off.
+  - `/(admin)/ui-kit` renders every component state; Playwright screenshots it
+    and the auth, shell, onboarding and settings screens into
+    `apps/web/e2e/__screenshots__/` and runs axe over each one.
+  - Tests: 82 component tests in `@montaj/ui`, 78 in `@montaj/api-client`, 115
+    in `apps/web`, and a Playwright suite on chromium and webkit covering sign-up
+    → onboarding → shell, the enumeration-safe 202, the age gate and the
+    waiting list, sign-in and sign-out, magic links, device-code approval and
+    refusal, consent persistence, "no analytics before consent", and an axe pass
+    on every screen.
+  - Two things A13 changed for everyone else: `/studio/*` is now behind a
+    session, so A16's `/studio/styles` harness signs in before it navigates;
+    and the end-to-end suite takes one confirmed account per Playwright worker
+    rather than one per test, because A04's development outbox is a 50-entry
+    Redis list every work package's local API shares and eighteen sign-ups in
+    one run lose their own message.
+  - The realtime channel found a live defect on the way in: joining a room took
+    the API process down, because `RedisRealtimeBus` duplicated a connection
+    created with `lazyConnect: true` and `enableOfflineQueue: false`, so the
+    duplicate was never dialled and the first `SUBSCRIBE` was rejected outright.
+    A08c has since fixed it (A12 reported the same thing independently), so the
+    shell connects by default; `FEATURE_FLAGS_JSON={"realtime.enabled":false}`
+    remains as a kill switch.
+  - **Found and reported, not fixed here (A05's files): `onboardingSchema`
+    rejects the multi-select answers this screen collects.**
+    `apps/api/src/users/users.dto.ts` accepts only `boolean | number | string`
+    per `onboarding` value; "what you make" and "languages you speak" are
+    `string[]` (multi-select, per `OnboardingProfile` and 08 §Onboarding), so
+    `PATCH /me` answers `400 common/validation_failed` on
+    `onboarding.makes`/`.languages` every time, not intermittently — confirmed
+    directly against the API, isolated to the array branch alone. The client
+    side is real and covered: the rejection surfaces as an honest toast instead
+    of a silent hang, and nothing typed is lost. `e2e/auth.spec.ts`'s journey
+    test asserts today's honest failure and says exactly where to restore the
+    original "lands in the shell" assertions once `onboardingSchema` gains an
+    array branch.
 - **A10c — the model-server alignment rung, and the stale-reference sweep after A26.**
   - `worker_ai/alignment/gpu.py`: `GpuCtcAligner`, `POST /align` on
     `apps/model-server`. It sits at rank 35 — **below** the two local CTC rungs,

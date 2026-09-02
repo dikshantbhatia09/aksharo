@@ -1,28 +1,117 @@
 /**
- * `@montaj/api-client` — OpenAPI-generated API client and TanStack Query hooks.
+ * `@montaj/api-client` — the typed API surface every Aksharo client uses.
  *
- * `pnpm gen:client` regenerates `openapi.json` (the whole document) and
- * `src/generated/operations.ts` (a typed index of every operation) from the API's
- * own Swagger output. A13 adds the fetch layer and the TanStack Query hooks on
- * top of them, which is why `PACKAGE_INFO.implemented` is still `false`.
+ * Three layers, and each one is replaceable without touching the others:
  *
- * See README.md for what belongs here and docs/PLAN.md for scheduling.
+ *   generated/   `pnpm gen:client` writes `openapi.json` and the operation index
+ *                from the API's own Swagger output (A04 built the generator).
+ *   endpoints    typed descriptors — method, path, auth, request and response —
+ *                checked against the generated index by `contract.test.ts`.
+ *   hooks        TanStack Query over those descriptors, plus the realtime client.
+ *
+ * The fetch layer owns the bearer header, the CONTRACTS §8 error envelope and
+ * the single-flight refresh; it owns no storage, because where the refresh token
+ * lives is a property of the surface (httpOnly cookie in the browser, keychain
+ * on the desktop, nothing at all in a panel).
  */
 
 export { API_OPERATIONS, API_VERSION, findOperation } from "./generated/operations.js";
 export type { ApiOperation, ApiOperationId } from "./generated/operations.js";
 
-/** Build-time identity of this package, used by diagnostics bundles and the admin console. */
+export {
+  ApiError,
+  AUTH_ERROR_CODES,
+  CLIENT_ERROR_CODES,
+  hasErrorCode,
+  isApiError,
+  parseErrorEnvelope,
+} from "./errors.js";
+export type { ErrorEnvelope } from "./errors.js";
+
+export { ApiClient, createApiClient, defineEndpoint } from "./http.js";
+export type {
+  ApiClientOptions,
+  CallOptions,
+  EndpointSpec,
+  HttpMethod,
+  RequestOf,
+  ResponseOf,
+} from "./http.js";
+
+export {
+  ALL_ENDPOINTS,
+  authEndpoints,
+  deviceEndpoints,
+  endpoints,
+  jobEndpoints,
+  pendingEndpoints,
+} from "./endpoints.js";
+
+export { decodeAccessToken, REFRESH_SKEW_MS, SessionStore } from "./session.js";
+export type { SessionSnapshot } from "./session.js";
+
+export { queryKeys } from "./query-keys.js";
+export type { QueryKeys } from "./query-keys.js";
+
+export { ApiProvider, useApiClient, useApiContext, useSession, useWorkspaceId } from "./context.js";
+export type { ApiContextValue } from "./context.js";
+
+export * from "./hooks.js";
+
+export {
+  backoffDelayMs,
+  CLOSE_CODES,
+  REALTIME_PROTOCOL,
+  RealtimeClient,
+  rooms,
+} from "./realtime.js";
+export type {
+  RealtimeClientOptions,
+  RealtimeEvent,
+  RealtimeEventMap,
+  RealtimeEventName,
+  RealtimeStatus,
+  WebSocketLike,
+} from "./realtime.js";
+
+export { CONSENT_PURPOSES } from "./types.js";
+export type {
+  ClientKind,
+  ConsentPurpose,
+  ConsentRecord,
+  Consents,
+  ConsentState,
+  CurrentUser,
+  DeviceApproveRequest,
+  Entitlement,
+  Jurisdiction,
+  LoginRequest,
+  MagicLinkResponse,
+  MemoryEntry,
+  OAuthCompleteRequest,
+  OnboardingProfile,
+  PendingApproval,
+  RightsRequest,
+  SessionSummary,
+  SetConsentRequest,
+  SignUpRequest,
+  SignUpResponse,
+  TokenResponse,
+  UpdateMeRequest,
+  UsageSummary,
+  WorkspaceRole,
+  WorkspaceSummary,
+} from "./types.js";
+
+/** Build-time identity of this package, used by diagnostics bundles. */
 export interface PackageInfo {
   readonly name: `@montaj/${string}`;
-  /** Work package(s) that implement it. */
   readonly implementedBy: string;
-  /** `false` until the owning work package lands. */
   readonly implemented: boolean;
 }
 
 export const PACKAGE_INFO: PackageInfo = {
   name: "@montaj/api-client",
-  implementedBy: "A03 (spec), A13 (hooks)",
-  implemented: false,
+  implementedBy: "A03 (spec), A04 (generator), A13 (fetch layer + hooks)",
+  implemented: true,
 };

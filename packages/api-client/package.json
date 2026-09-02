@@ -2,9 +2,9 @@
   "name": "@montaj/api-client",
   "version": "0.1.0",
   "private": true,
-  "description": "OpenAPI-generated API client and TanStack Query hooks.",
+  "description": "Typed API client, TanStack Query hooks and the realtime client, generated from the API OpenAPI document.",
   "license": "UNLICENSED",
-  "type": "commonjs",
+  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
@@ -25,11 +25,20 @@
     "test:coverage": "vitest run --coverage",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
   },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.102.8",
+    "react": "^19.0.0"
+  },
   "devDependencies": {
     "@montaj/config": "workspace:*",
     "@types/node": "^22.19.2",
+    "@types/react": "^19.2.18",
     "eslint": "^9.39.5",
+    "jsdom": "^30.0.1",
+    "react": "^19.2.8",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.7"
-  }
+    "vitest": "^3.2.7",
+    "@tanstack/react-query": "^5.102.8"
+  },
+  "sideEffects": false
 }
