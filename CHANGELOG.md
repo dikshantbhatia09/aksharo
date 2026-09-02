@@ -10,6 +10,73 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A09 — worker-ai: the BullMQ Python worker, provider interface, VAD and
+  chunking, alignment and diarisation registries, evals.**
+  - `apps/worker-ai/worker_ai/runtime.py`: one `bullmq.Worker` per `ai.*` queue.
+    `ai.vad`, `ai.transcribe`, `ai.align` and `ai.diarise` are implemented;
+    `ai.translate`, `ai.transliterate`, `ai.clean`, `ai.pass` and `ai.llm` are
+    consumed and answered `worker/not_implemented` naming the work package that
+    owns them, so a producer gets an error in seconds instead of a job that rots
+    in Redis until the queue-wait sweeper finds it.
+  - **Retry semantics against A08.** A job has two BullMQ attempts but one
+    `attemptId`, so a failed completion posted on a non-final attempt would move
+    the row to `failed` and make the retry invisible. The worker therefore posts a
+    failed completion only on the final attempt (`finalAttempt: true`) or when the
+    error is non-retryable (`error.retryable: false`) — the two flags
+    `markDeadLetterIfFinal` reads — and re-raises either way.
+  - `worker_ai/callbacks.py`: the signed progress and completion client of
+    CONTRACTS section 3. The body is serialised once, signed as those exact bytes
+    and posted unchanged; the worker signs with the primary
+    `INTERNAL_CALLBACK_SECRET` only (`INTERNAL_CALLBACK_SECRET_NEXT` is the API's
+    verification key during a roll). Bounded retries on transport, 5xx and 429;
+    a 4xx is fatal; `applied: false` is reported as the success it is.
+  - `worker_ai/vad.py` and `chunking.py`: decision **D14** — a full-file VAD pass,
+    then nominal 10-minute chunks cut at the longest silence within ±30 s, never
+    mid-region, no overlap. Silero v5 through onnxruntime (torch-free) when a model
+    file is configured, and a deterministic energy backend otherwise, which is what
+    CI and the property tests run on.
+  - `worker_ai/providers/`: the `Provider` interface with a capability record, a
+    cost estimate and a `ProviderSubmission` trail, plus a registry that reports
+    *why* an adapter is disabled. `MockProvider` (deterministic, Hinglish sample),
+    `LocalWhisperProvider` (faster-whisper, optional `local-asr` extra) and
+    `ServerlessWhisperProvider` (the D15 per-second GPU endpoint) ship; ElevenLabs
+    Scribe v2, Sarvam Saaras v4 and AssemblyAI are shells carrying their
+    capabilities and prices until A10.
+  - `worker_ai/routing.yaml` + `routing.py`: the v2 routing table of `09 §1`
+    (decision **D12**) as data, read-only, with a resolver that walks a lane and
+    takes the first provider the deployment enables.
+  - `worker_ai/alignment/` and `diarisation/`: the **D13** registries.
+    `ProportionalAligner` distributes words by character length onto the VAD speech
+    timeline and repairs monotonicity — the always-available rung; IndicWav2Vec,
+    MMS and ElevenLabs FA are shells with their models and licences recorded.
+    `NoopDiariser` labels every region `S1`; the pyannote community-1 shell records
+    the model name and its CC-BY-4.0 licence.
+  - `worker_ai/transcript.py`: stable `"<chunkIdx>:<n>"` word ids, chunk-local and
+    dense, with the post-processing hook A11 replaces.
+  - `worker_ai/control.py`: `GET /health`, `GET /providers` (every adapter, its
+    enable flag and its reason, plus the routing table and both registries) and a
+    `POST /evals/run` stub, on port 8091, pod-internal.
+  - `worker_ai/evals/`: a fixture-manifest format, WER/CER over normalised text
+    (Devanagari danda included), a runner and
+    `python -m worker_ai.evals run --set fixtures/hinglish-mini --max-wer 0.15`,
+    which is the gate `09 §8` needs to block a routing change on a regression.
+  - `apps/worker-ai/Dockerfile` (CPU: ffmpeg, onnxruntime, faster-whisper and the
+    Silero model baked in) and `Dockerfile.gpu`, a placeholder documenting the
+    serverless-GPU image contract of D15.
+  - `worker_ai/policies.py`: A08b's retry, stall and heartbeat table, mirrored from
+    `apps/api/src/jobs/jobs.config.ts` and pinned by a parity test that parses the
+    TypeScript. `attempts` and `backoff` reach the worker inside the job options,
+    but `lockDurationMs`, `stalledIntervalMs` and `maxStalledCount` are `Worker`
+    constructor options a worker has to read — and **the progress callback is the
+    heartbeat**, so `JobContext.heartbeat()` reposts the last percentage every
+    third of the lock and `ai.transcribe` beats while a chunk is inside a provider.
+    Without it a ten-minute chunk on a two-minute lock would be declared stalled
+    and handed to a second worker mid-transcription.
+  - Tests: 321 unit and property tests with the CONTRACTS section 9 coverage gate,
+    a callback suite verified against a server that implements the section 3
+    signature, and `tests/test_integration.py` — a real BullMQ job from the API's
+    own producer modules, consumed by a real worker, completing against the real
+    API (`RUN_INTEGRATION=1`).
 - **A08b — api: dead-letter queue, admin replay, retry/stall policy, job-event
   retention.**
   - `apps/api/prisma`: the `dlq` table (migration

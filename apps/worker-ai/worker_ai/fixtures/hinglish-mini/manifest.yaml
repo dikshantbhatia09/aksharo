@@ -1,0 +1,37 @@
+# A synthetic Hinglish set: enough to prove the harness, nothing more.
+#
+# `09 §8` puts the real sets in **A00-05** — 5 h of hand-labelled Hinglish creator
+# speech with word timings and code-switch tags, 22 Indic languages, Indian
+# English, global English and a noisy/gaming set. Routing weights are NOT frozen
+# until that Hinglish set exists, because no vendor publishes a code-switch WER.
+#
+# Until then this set exists so the harness, the manifest format and the CLI are
+# already reviewed and tested. `audioAvailable: false` says the references are
+# real and the media is not, which is why a provider that reads audio skips it and
+# the mock provider does not.
+
+set: hinglish-mini
+language: hi-en
+codeMix: true
+audioAvailable: false
+description: >
+  Synthetic Hinglish smoke set. References are hand-written; the `words` files are
+  what the mock provider returns, so the WER below is a property of the fixture,
+  not a measurement of any ASR system.
+
+items:
+  - id: hm-001
+    audio: audio/hm-001.wav
+    reference: "toh aaj hum baat karenge video editing ke baare mein"
+    words: words/hm-001.json
+    hints: ["Aksharo"]
+
+  - id: hm-002
+    audio: audio/hm-002.wav
+    reference: "matlab captions kaise banate hain automatically"
+    words: words/hm-002.json
+
+  - id: hm-003
+    audio: audio/hm-003.wav
+    reference: "yaani ek hi click mein poora transcript ready"
+    words: words/hm-003.json
