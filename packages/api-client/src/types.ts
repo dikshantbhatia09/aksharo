@@ -344,6 +344,9 @@ export interface CreditsSummary {
   monthlyGrantTenths: number;
   grantResetAt: string | null;
   lots: { id: string; source: string; remainingTenths: number; expiresAt: string | null }[];
+}
+
+// ---------------------------------------------------------------------------
 // Scripts and translation (A22)
 // ---------------------------------------------------------------------------
 
