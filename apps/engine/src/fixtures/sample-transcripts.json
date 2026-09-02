@@ -1,0 +1,30 @@
+{
+  "v": 1,
+  "transcripts": [
+    {
+      "audioMatch": "hinglish-sample",
+      "language": "hi",
+      "languageProbability": 0.92,
+      "durationS": 4.2,
+      "words": [
+        { "start": 0.0, "end": 0.32, "word": "toh", "probability": 0.95 },
+        { "start": 0.32, "end": 0.61, "word": "aaj", "probability": 0.93 },
+        { "start": 0.61, "end": 0.9, "word": "hum", "probability": 0.97 },
+        { "start": 0.9, "end": 1.4, "word": "shuru", "probability": 0.9 },
+        { "start": 1.4, "end": 1.8, "word": "karte", "probability": 0.91 },
+        { "start": 1.8, "end": 2.1, "word": "hain", "probability": 0.96 }
+      ],
+      "segments": [{ "start": 0.0, "end": 2.1, "text": "toh aaj hum shuru karte hain" }]
+    }
+  ],
+  "default": {
+    "language": "en",
+    "languageProbability": 0.88,
+    "durationS": 3.0,
+    "words": [
+      { "start": 0.0, "end": 0.4, "word": "hello", "probability": 0.97 },
+      { "start": 0.4, "end": 0.9, "word": "world", "probability": 0.95 }
+    ],
+    "segments": [{ "start": 0.0, "end": 0.9, "text": "hello world" }]
+  }
+}

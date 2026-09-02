@@ -26,6 +26,8 @@ export interface BuildDesktopResult {
   electronBuilderConfigPath: string;
   signed: { path: string; signed: boolean }[];
   placeholderApp: boolean;
+  /** Whether a real `apps/engine` build (`dist/`) was found and copied in (C03a). */
+  engineBundled: boolean;
 }
 
 /** Generates the electron-builder YAML-shaped config as JSON from `release.config.ts`. Kept
@@ -171,6 +173,34 @@ async function ensureAppTree(
   return { appDir, placeholder: !hasRealApp };
 }
 
+/**
+ * Bundles `apps/engine`'s built supervisor (C03a) into the app tree's
+ * resources, dry run: `pnpm --filter @montaj/engine build` must have already
+ * produced `apps/engine/dist` — this function never invokes a build itself
+ * (the host guard's "build only what you need" is the caller's job, same as
+ * `findRealElectronBuilderOutput`'s own precedent). It is additive and never
+ * touches signing: the copied tree is plain `.js`, so `discoverNestedBinaries`
+ * does not pick it up, and C00 (signing) and C00b (packaging) own turning this
+ * resources folder into something electron-builder actually launches.
+ */
+async function bundleEngineSupervisor(
+  bundleRoot: string,
+  platform: Platform,
+  repoRoot: string,
+): Promise<boolean> {
+  const engineDist = path.join(repoRoot, "apps", "engine", "dist");
+  if (!(await pathExists(engineDist))) return false;
+
+  const resourcesDir =
+    platform === "mac"
+      ? path.join(bundleRoot, "Contents", "Resources", "engine")
+      : path.join(bundleRoot, "resources", "engine");
+  await ensureDir(path.dirname(resourcesDir));
+  await fs.rm(resourcesDir, { recursive: true, force: true });
+  await fs.cp(engineDist, resourcesDir, { recursive: true });
+  return true;
+}
+
 export async function runBuildDesktop(
   ctx: ReleaseContext,
   config: ReleaseConfig,
@@ -190,9 +220,11 @@ export async function runBuildDesktop(
     opts.placeholder ?? false,
   );
 
-  const nested = await discoverNestedBinaries(appDir, opts.platform);
   const bundleRoot =
     opts.platform === "mac" ? path.join(appDir, "Aksharo.app") : path.join(appDir, "win-unpacked");
+  const engineBundled = await bundleEngineSupervisor(bundleRoot, opts.platform, ctx.repoRoot);
+
+  const nested = await discoverNestedBinaries(appDir, opts.platform);
   const outer = outermostBundleTarget(bundleRoot, opts.platform);
 
   const provider = resolveSignProvider(opts.platform, ctx.mode);
@@ -209,5 +241,12 @@ export async function runBuildDesktop(
   const artifactPath = path.join(ctx.outDir, "artifacts", opts.channel, artifactName);
   await zipDirectory(bundleRoot, artifactPath);
 
-  return { appDir, artifactPath, electronBuilderConfigPath, signed, placeholderApp: placeholder };
+  return {
+    appDir,
+    artifactPath,
+    electronBuilderConfigPath,
+    signed,
+    placeholderApp: placeholder,
+    engineBundled,
+  };
 }
