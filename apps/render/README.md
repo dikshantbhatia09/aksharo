@@ -107,6 +107,41 @@ the full target canvas.
 graph, same overlay frames. Off by default; `RR-04 §P2.16` puts the evaluation after
 cloud volume passes ~500 output-hours a month.
 
+## The rasteriser pool
+
+Skia runs on `min(cores − 1, 4)` worker threads, so it overlaps with ffmpeg instead of
+taking turns with it. That is the difference between **1.13×** and **2.31×** realtime at
+1080p; the whole render now costs about what the encoder alone costs.
+
+```
+main thread                              worker threads (min(cores − 1, 4))
+  renderFrame → hashCommands               ┌─ Skia → SharedArrayBuffer slot 0
+  │  (changed frames only)                 ├─ Skia → slot 1
+  ├──── DrawCommand[] ~12 KB ──────────────┤
+  │                                        └─ …
+  └─ write slot bytes → ffmpeg stdin
+        ↑ slot released when the write callback fires
+```
+
+Three things are load-bearing, and each is asserted in `src/render/pool.test.ts`:
+
+- **Pixels never cross the thread boundary.** A slot is a `SharedArrayBuffer` allocated
+  once and drawn into in place; only the finished command list is sent. A20 measured the
+  alternative — an 8.3 MB copy per frame made the render _slower_.
+- **The cache decision stays on the main thread.** Layout and the hash cost about
+  0.9 ms a frame and decide whether a frame is new, so two thirds of a render never
+  reach a worker at all.
+- **A slot comes back only when the pipe says the bytes have gone**, counted by
+  reference: one for the cache's pin on the current frame, one for every output frame
+  written from it.
+
+Memory is `slots × width × height × 4` with `slots = workers × 2` — 66 MB at 1080p,
+265 MB at 4K — allocated once, whatever the length of the video.
+
+`RENDER_RASTER_WORKERS=0`, a machine without worker threads, or an image missing
+`workers/raster-worker.mjs` all fall back to rasterising inline, with a warning. Same
+pixels, A20's speed.
+
 ## The frame cache
 
 A caption is on screen for two or three seconds and animates for about three hundred
@@ -196,10 +231,10 @@ out.
 
 ## Performance
 
-**1.05× realtime at 1080p** on a 12-thread desktop; 3.85× at 540p; 0.30× at 4K. The A20
-target of ≥ 2× at 1080p is **not met**, and [`BENCHMARK.md`](BENCHMARK.md) has the
-measurements, the reason (Skia and x264 do not overlap, because rasterising blocks
-Node's only thread) and the fix that would close it.
+**2.31× realtime at 1080p** on a 12-thread desktop; 4.87× at 540p; 0.45× at 4K — against
+1.13× at 1080p before the rasteriser pool. The ≥ 2× target is met.
+[`BENCHMARK.md`](BENCHMARK.md) has the before/after, the stage split showing that ffmpeg
+is now the whole render, and what is left to move.
 
 ## Layout
 

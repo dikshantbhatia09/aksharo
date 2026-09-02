@@ -1,7 +1,7 @@
 {
   "$schema": "./endpoint.schema.json",
   "name": "montaj-asr-{{ENVIRONMENT}}",
-  "description": "Whisper large-v3-turbo + forced alignment + pyannote community-1, co-resident in one model server (decision D15). Serves ai.transcribe, ai.align and ai.diarise.",
+  "description": "Whisper large-v3-turbo + CTC forced alignment (IndicWav2Vec/XLSR-53, D77) + pyannote community-1, co-resident in one model server (decision D15). Serves ai.transcribe, ai.align, ai.diarise and language identification. Built from apps/model-server/Dockerfile.",
   "templateId": "{{TEMPLATE_ID}}",
   "template": {
     "name": "montaj-ai-worker-{{ENVIRONMENT}}",
@@ -13,10 +13,18 @@
     "isServerless": true,
     "readme": "Models are baked into the image, not downloaded at boot: a cold start that pulls 3 GB of weights costs more in GPU-seconds than the image layer cache costs in storage.",
     "env": {
-      "MODEL_WHISPER": "large-v3-turbo",
-      "MODEL_ALIGNER": "wav2vec2-multilingual",
-      "MODEL_DIARISER": "pyannote/speaker-diarization-community-1",
-      "COMPUTE_TYPE": "float16",
+      "MODEL_SERVER_MODE": "runpod",
+      "MODEL_SERVER_DEVICE": "cuda",
+      "MODEL_SERVER_COMPUTE_TYPE": "float16",
+      "MODEL_SERVER_WHISPER_MODEL": "large-v3-turbo",
+      "MODEL_SERVER_DIARISER_MODEL": "pyannote/speaker-diarization-community-1",
+      "MODEL_SERVER_ALIGN_MODEL_DIR": "/models/align",
+      "MODEL_SERVER_PRELOAD": "asr,align,diarise",
+      "MODEL_SERVER_BATCH_MAX_SIZE": "8",
+      "MODEL_SERVER_BATCH_WINDOW_MS": "50",
+      "MODEL_SERVER_MEMORY_BUDGET_MB": "18432",
+      "MODEL_SERVER_MAX_AUDIO_SECONDS": "600",
+      "MODEL_SERVER_DRAIN_TIMEOUT_S": "30",
       "HF_HOME": "/models/hf",
       "HF_HUB_OFFLINE": "1",
       "TRANSFORMERS_OFFLINE": "1",
@@ -52,6 +60,9 @@
     "executionTimeoutMs": "30 minutes. A 3-hour source is chunked at VAD boundaries into ~10-minute pieces (05 section 5.1), so no single request should come close.",
     "gpuIds": "24 GB Ada (L4, A5000) or Ampere (A10, 3090). large-v3-turbo plus the aligner and the diariser co-resident need about 11 GB; 24 GB leaves room for a second concurrent stream.",
     "locations": "AP first for Indian users and for the residency story in 05 section 9. EU and US are listed for overflow only; the routing layer must not send Indian media there while the transfer impact assessment (05 section 8) is outstanding.",
-    "flashboot": "RunPod keeps the container image warm across scale-to-zero. Halves the cold start at no extra cost."
+    "flashboot": "RunPod keeps the container image warm across scale-to-zero. Halves the cold start at no extra cost.",
+    "env": "MODEL_SERVER_* are read by apps/model-server (see its README). GPU_PROVIDER_TOKEN is NOT here: it is a secret and belongs in the endpoint's secret store, and the server refuses to boot without it. MODEL_SERVER_MODE=runpod selects the queue handler; a load-balancing endpoint sets it to http and gets plain uvicorn.",
+    "batching": "MODEL_SERVER_BATCH_MAX_SIZE and MODEL_SERVER_BATCH_WINDOW_MS are the lever decision D74's cost band depends on - see ../COST.md section 2 and apps/model-server/cost.md. Setting the size to 1 disables batching and puts the cost back at the unbatched figure.",
+    "image": "Built from apps/model-server/Dockerfile with apps/model-server as the build context. X05's infra/gpu/runpod/Dockerfile and bake_models.py were placeholders pointing at paths that never existed; A26 replaced them with the app's own."
   }
 }

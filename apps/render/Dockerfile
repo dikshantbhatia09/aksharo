@@ -75,6 +75,10 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY --from=build /app ./
+# `workers/raster-worker.mjs` is loaded by `worker_threads` at runtime and is not
+# part of the `tsc` output, so it is copied explicitly rather than trusted to
+# whatever `pnpm deploy` decided about a package with no `files` field.
+COPY --from=build /repo/apps/render/workers ./apps/render/workers
 
 # Scratch space for the downloaded source and the encoder's output. It is a
 # volume in the chart: a render writes gigabytes and the image stays read-only.

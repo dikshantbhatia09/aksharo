@@ -3,12 +3,14 @@ import { describe, expect, it } from "vitest";
 import { loadRenderSettings, queuePrefix } from "./config.js";
 import { heartbeatIntervalMs } from "./policies.js";
 import { RENDER_VIDEO_QUEUE } from "./queues.js";
+import { defaultPoolSize, MAX_RASTER_WORKERS } from "./render/pool.js";
 
 describe("the render settings", () => {
   it("has a working default for every knob", () => {
     const settings = loadRenderSettings({});
     expect(settings).toEqual({
       concurrency: 1,
+      rasterWorkers: defaultPoolSize(),
       encoder: "libx264",
       fontDir: undefined,
       workDir: undefined,
@@ -42,6 +44,19 @@ describe("the render settings", () => {
     expect(loadRenderSettings({ RENDER_PROGRESS_INTERVAL_MS: "1" }).progressIntervalMs).toBe(250);
     expect(loadRenderSettings({ RENDER_PROGRESS_INTERVAL_MS: "1000" }).progressIntervalMs).toBe(
       1_000,
+    );
+  });
+
+  it("sizes the rasteriser pool at min(cores − 1, 4) unless told otherwise", () => {
+    expect(loadRenderSettings({}).rasterWorkers).toBe(defaultPoolSize());
+    expect(loadRenderSettings({ RENDER_RASTER_WORKERS: "2" }).rasterWorkers).toBe(2);
+    // Zero is the documented way to rasterise inline, so it must survive.
+    expect(loadRenderSettings({ RENDER_RASTER_WORKERS: "0" }).rasterWorkers).toBe(0);
+    expect(loadRenderSettings({ RENDER_RASTER_WORKERS: "99" }).rasterWorkers).toBe(
+      MAX_RASTER_WORKERS,
+    );
+    expect(loadRenderSettings({ RENDER_RASTER_WORKERS: "  " }).rasterWorkers).toBe(
+      defaultPoolSize(),
     );
   });
 

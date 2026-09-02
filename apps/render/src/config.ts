@@ -15,6 +15,7 @@
 import { isVideoEncoder, type VideoEncoder } from "./ffmpeg/graph.js";
 import { heartbeatIntervalMs } from "./policies.js";
 import { RENDER_VIDEO_QUEUE } from "./queues.js";
+import { defaultPoolSize, MAX_RASTER_WORKERS } from "./render/pool.js";
 
 export interface RenderSettings {
   /** Parallel renders per pod. Renders are CPU-bound; one per pod is the floor. */
@@ -33,6 +34,16 @@ export interface RenderSettings {
    * stalled while it was working perfectly (A08b).
    */
   readonly progressIntervalMs: number;
+  /**
+   * Rasteriser threads per render.
+   *
+   * `min(cores − 1, 4)` by default: one core is left for the thread feeding
+   * ffmpeg, and past four the encoder is the bottleneck rather than Skia, so a
+   * fifth worker only takes a core x264 wanted. `0` turns the pool off and
+   * rasterises inline, which is the fallback a machine without worker threads
+   * lands on anyway.
+   */
+  readonly rasterWorkers: number;
   /** Redis key prefix; matches the API's `queuePrefix()`. */
   readonly queuePrefix: string;
   readonly logLevel: string;
@@ -64,8 +75,15 @@ export function loadRenderSettings(source: NodeJS.ProcessEnv = process.env): Ren
   const fontDir = source["RENDER_FONT_DIR"]?.trim();
   const workDir = source["RENDER_WORK_DIR"]?.trim();
 
+  const workersRaw = source["RENDER_RASTER_WORKERS"]?.trim();
+  const rasterWorkers =
+    workersRaw === undefined || workersRaw === ""
+      ? defaultPoolSize()
+      : intFrom(source, "RENDER_RASTER_WORKERS", defaultPoolSize(), 0, MAX_RASTER_WORKERS);
+
   return {
     concurrency: intFrom(source, "RENDER_CONCURRENCY", 1, 1, 32),
+    rasterWorkers,
     encoder: isVideoEncoder(encoderName) ? encoderName : "libx264",
     fontDir: fontDir === undefined || fontDir === "" ? undefined : fontDir,
     workDir: workDir === undefined || workDir === "" ? undefined : workDir,

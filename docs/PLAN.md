@@ -4,6 +4,9 @@ Codename in code: `montaj` (package scope `@montaj/*`). Brand strings live only 
 
 Roles: **Fable 5.1** designs, decides, writes briefs, verifies gates. **Opus 5 agents** write code from briefs. **Dikshant** owns [H] human items and gates that need real machines, accounts or professionals.
 
+## Model roles
+Fable 5.1 orchestrates, designs and decides; coding agents implement briefs. Coding agents ran on Opus 5 until 2026-09-02, when the Opus session limit terminated seven running agents; per the user's instruction the same day, coding agents run on **Sonnet 5** from then on (the "Agent" column in the Wave 1 table is historical).
+
 ## Status legend
 `todo` · `briefed` · `in-progress` · `review` · `done` · `blocked(<reason>)`
 
@@ -68,7 +71,7 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A23a | api test isolation: one Postgres + one Redis container per vitest run (or `TEST_*` URLs), database per suite from a migrated template, Redis prefix per suite; CI service containers | A05, A12, A25 | in-progress |
 | A24 | marketing site v1 | A16 | briefed |
 | A25 | notify consumer: transactional email (SES via IRSA / SMTP / dev outbox), templates en+hi, suppression, in-app notifications | A04, A08 | done |
-| A26 | GPU model server `apps/model-server` (/transcribe, /align, /diarise, /detect-language; batching; RunPod + Modal packaging replacing X05 placeholders) | A10, X05 | in-progress |
+| A26 | GPU model server `apps/model-server` (/transcribe, /align, /diarise, /detect-language; batching; RunPod + Modal packaging replacing X05 placeholders) | A10, X05 | done |
 Sub-wave order: {A10, A11, A12, A13, A16, A18b, A20, A25, A26} → {A14, A15, A21, A22, A24} → {A17, A18a, A19} → {A23 + Gate A}.
 
 ## Wave 3 — Monetisation (all briefs ready in `05-build/_orchestration/`)
