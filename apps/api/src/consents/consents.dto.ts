@@ -14,6 +14,7 @@ export const CONSENT_PURPOSES = [
   "marketing",
   "share_upload",
   "affiliate",
+  "telemetry",
 ] as const;
 
 export const consentPurposeSchema = z.enum(CONSENT_PURPOSES);

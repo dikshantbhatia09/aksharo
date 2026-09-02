@@ -502,6 +502,13 @@ export const API_OPERATIONS = [
     summary: "Finish an upload (project-scoped form)",
   },
   {
+    operationId: "confirmDiagnosticsBundle",
+    method: "POST",
+    path: "/telemetry/diagnostics-bundle/confirm",
+    tags: ["telemetry"],
+    summary: "Confirm an uploaded diagnostics bundle and attach it to the ticket",
+  },
+  {
     operationId: "createApiKey",
     method: "POST",
     path: "/workspaces/{id}/api-keys",
@@ -1482,6 +1489,13 @@ export const API_OPERATIONS = [
     summary: "Signed daily revocation snapshot for fully offline clients",
   },
   {
+    operationId: "presignDiagnosticsBundle",
+    method: "POST",
+    path: "/telemetry/diagnostics-bundle/presign",
+    tags: ["telemetry"],
+    summary: "Presign an upload for a diagnostics bundle on the caller's own support ticket",
+  },
+  {
     operationId: "previewChangePlan",
     method: "GET",
     path: "/billing/subscription/change-preview",
@@ -1809,6 +1823,20 @@ export const API_OPERATIONS = [
     path: "/streak/test-hooks",
     tags: ["streak"],
     summary: "Simulate weeks (test environment only)",
+  },
+  {
+    operationId: "submitCrashReport",
+    method: "POST",
+    path: "/telemetry/crash",
+    tags: ["telemetry"],
+    summary: "Submit a redacted crash report",
+  },
+  {
+    operationId: "submitTelemetryEvents",
+    method: "POST",
+    path: "/telemetry/events",
+    tags: ["telemetry"],
+    summary: "Submit a batch of consent-gated telemetry events",
   },
   {
     operationId: "TaxRegistrationsController_list",

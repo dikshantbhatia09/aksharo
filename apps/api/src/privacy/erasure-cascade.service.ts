@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { DERIVED_STORE, RAW_STORE } from "../common/storage/index.js";
+import { TELEMETRY_EVENT_KINDS } from "../telemetry/telemetry.dto.js";
 
 import type { ObjectStore } from "../common/storage/index.js";
 
@@ -140,6 +141,16 @@ export class ErasureCascadeService {
     });
     await this.prisma.memoryEntry.deleteMany({ where: { userId } });
 
+    // C12: telemetry rows are keyed on plain `userId`/`workspaceId` (no FK, by
+    // design — see `CrashReport`'s and `ProductEvent`'s own schema comments),
+    // so a workspace erased above does not remove a user's crash reports or
+    // telemetry events filed against a workspace this user does *not* own
+    // (a team/agency seat). Removed here, independent of ownership.
+    await this.prisma.crashReport.deleteMany({ where: { userId } });
+    await this.prisma.productEvent.deleteMany({
+      where: { userId, kind: { in: [...TELEMETRY_EVENT_KINDS] } },
+    });
+
     await this.prisma.dsrRequest.update({
       where: { id: dsrRequestId },
       data: {
@@ -265,6 +276,13 @@ export class ErasureCascadeService {
       this.prisma.webhookEndpoint.deleteMany({ where: { workspaceId } }),
       this.prisma.notification.deleteMany({ where: { workspaceId } }),
       this.prisma.assetClearanceGrant.deleteMany({ where: { workspaceId } }),
+      // C12: crash reports and telemetry-kind product events are keyed on a
+      // plain `workspaceId` too (no FK), so an owned workspace's own rows need
+      // an explicit sweep the same as everything else in this list.
+      this.prisma.crashReport.deleteMany({ where: { workspaceId } }),
+      this.prisma.productEvent.deleteMany({
+        where: { workspaceId, kind: { in: [...TELEMETRY_EVENT_KINDS] } },
+      }),
     ]);
 
     // Billing documents are retained (Rule 46, 72 months) — minimised, not
