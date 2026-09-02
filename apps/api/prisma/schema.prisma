@@ -431,6 +431,11 @@ enum CreditLedgerKind {
   adjust
   expire
   referral_bonus
+  /// A lot clawed back before it was spent (B02b `revokeLot`) — B01's refunds
+  /// service uses this when a payment refund must take back an UNUSED grant/
+  /// pass/top-up lot, which `reverse()` cannot express (that method is keyed on
+  /// a settled job, not a lot).
+  revoke
 }
 
 /// Not enumerated in 06 (`affiliates.status`).
@@ -1789,7 +1794,23 @@ model PassPurchase {
   /// Tenths of a credit granted by this purchase.
   creditsGrantedTenths Int              @default(0) @map("credits_granted_tenths")
   lotId                String?          @map("lot_id") @db.Char(26)
+  /// Set by `billing/webhooks.service.ts#grantPass` once the order/payment webhook
+  /// lands — "paid", not "spent". Kept as-is (B01); B04 adds `redeemedAt` below for
+  /// "spent on an export" because the two events happen at different times for a
+  /// `first_export` pass (paid at checkout, spent later at manifest completion) and
+  /// reusing this field for both would make a freshly paid pass look already spent.
   consumedAt           DateTime?        @map("consumed_at") @db.Timestamptz(6)
+  /// `first_export` only (B04): set when `OffersModule`'s `NinePassLedger.consume()`
+  /// spends this pass on a manifest's completion (`exports.service.ts#completeManifest`).
+  /// Null means the paid pass is still available for one more clean export.
+  redeemedAt           DateTime?        @map("redeemed_at") @db.Timestamptz(6)
+  /// The `export_manifests.id` this pass cleared the watermark for. Informational
+  /// (an audit trail), and doubles as an idempotency marker for a retried `consume`.
+  redeemedManifestId   String?          @map("redeemed_manifest_id")
+  /// B01b: CAS guard for the credits clawback — set once, the first time a
+  /// refund (webhook or admin/API) is processed for this purchase, so a
+  /// replayed webhook or a repeated admin call is a no-op.
+  refundedAt           DateTime?        @map("refunded_at") @db.Timestamptz(6)
   createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
 
   workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -1798,6 +1819,7 @@ model PassPurchase {
 
   @@index([workspaceId])
   @@index([endsAt])
+  @@index([workspaceId, kind, redeemedAt])
   @@map("passes_purchased")
 }
 

@@ -215,6 +215,20 @@ export const API_OPERATIONS = [
     summary: "Create a project",
   },
   {
+    operationId: "createSampleProject",
+    method: "POST",
+    path: "/projects/sample",
+    tags: ["projects"],
+    summary: "Create the seeded sample project (\"Welcome to Aksharo\")",
+  },
+  {
+    operationId: "createStylePreset",
+    method: "POST",
+    path: "/workspaces/{id}/style-presets",
+    tags: ["styles"],
+    summary: "Save a custom style preset",
+  },
+  {
     operationId: "createTopupCheckout",
     method: "POST",
     path: "/billing/topups/checkout",
@@ -264,6 +278,13 @@ export const API_OPERATIONS = [
     summary: "Delete a project",
   },
   {
+    operationId: "deleteStylePreset",
+    method: "DELETE",
+    path: "/workspaces/{id}/style-presets/{presetId}",
+    tags: ["styles"],
+    summary: "Delete a custom style preset",
+  },
+  {
     operationId: "deleteWorkspace",
     method: "DELETE",
     path: "/workspaces/{id}",
@@ -276,6 +297,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/fonts/{fontId}",
     tags: ["fonts"],
     summary: "Delete a custom font",
+  },
+  {
+    operationId: "devConsumeSignupGift",
+    method: "POST",
+    path: "/offers/dev/consume-signup-gift",
+    tags: ["offers"],
+    summary: "Dev/test only: mark a workspace's signup gift already spent",
   },
   {
     operationId: "DeviceController_decide",
@@ -423,6 +451,20 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/media/{mediaId}/urls",
     tags: ["media"],
     summary: "Signed URLs for the derived objects",
+  },
+  {
+    operationId: "getOffersEligibility",
+    method: "GET",
+    path: "/offers/eligibility",
+    tags: ["offers"],
+    summary: "What this workspace may buy right now, and why not otherwise",
+  },
+  {
+    operationId: "getOffersMetrics",
+    method: "GET",
+    path: "/admin/metrics/offers",
+    tags: ["admin"],
+    summary: "₹9 clean-export hypothesis: purchases, upgrades within 60 days, recommendation",
   },
   {
     operationId: "getPrivacyNotice",
@@ -670,6 +712,13 @@ export const API_OPERATIONS = [
     summary: "List your notifications, newest first",
   },
   {
+    operationId: "listOffersPasses",
+    method: "GET",
+    path: "/offers/passes",
+    tags: ["offers"],
+    summary: "Every pass this workspace has bought, newest first",
+  },
+  {
     operationId: "listOrphanedCreditHolds",
     method: "GET",
     path: "/admin/credits/orphaned-holds",
@@ -717,6 +766,13 @@ export const API_OPERATIONS = [
     path: "/projects",
     tags: ["projects"],
     summary: "List the workspace's projects, newest first",
+  },
+  {
+    operationId: "listStyles",
+    method: "GET",
+    path: "/styles",
+    tags: ["styles"],
+    summary: "The style catalogue: system styles plus this workspace's presets",
   },
   {
     operationId: "listWorkspaceFonts",
@@ -794,6 +850,13 @@ export const API_OPERATIONS = [
     path: "/admin/credits/reconcile/{accountId}",
     tags: ["admin"],
     summary: "Reconcile one credit account",
+  },
+  {
+    operationId: "refundPassPurchase",
+    method: "POST",
+    path: "/billing/passes/{passPurchaseId}/refund",
+    tags: ["billing"],
+    summary: "Refund a pass/top-up purchase (admin/API path)",
   },
   {
     operationId: "removeWorkspaceMember",
@@ -894,6 +957,13 @@ export const API_OPERATIONS = [
     summary: "Set the billing country, State and GSTIN",
   },
   {
+    operationId: "simulateNinePassPayment",
+    method: "POST",
+    path: "/offers/dev/simulate-nine-pass-payment",
+    tags: ["offers"],
+    summary: "Dev/test only: simulate a ₹9 pass payment landing (FakeProvider environments)",
+  },
+  {
     operationId: "TaxRegistrationsController_list",
     method: "GET",
     path: "/admin/tax-registrations",
@@ -955,6 +1025,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}",
     tags: ["projects"],
     summary: "Rename, re-file, re-tag or archive a project",
+  },
+  {
+    operationId: "updateStylePreset",
+    method: "PATCH",
+    path: "/workspaces/{id}/style-presets/{presetId}",
+    tags: ["styles"],
+    summary: "Update a custom style preset",
   },
   {
     operationId: "updateWorkspace",

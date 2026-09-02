@@ -13,7 +13,10 @@
     "lineHeight": 1.24,
     "letterSpacingEm": 0,
     "textTransform": "none",
-    "scriptScale": { "deva": 0.71, "taml": 0.43 }
+    "scriptScale": {
+      "deva": 0.71,
+      "taml": 0.43
+    }
   },
   "colors": {
     "text": "#20223a",
@@ -80,7 +83,8 @@
     }
   ],
   "assRenderable": false,
-  "assExportable": false,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/bubble-soft.mp4"
+  "previewKey": "system/style-previews/bubble-soft.mp4",
+  "parityScore": 0.9004
 }

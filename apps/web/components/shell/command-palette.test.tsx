@@ -93,10 +93,11 @@ describe("<CommandPalette />", () => {
 
   it("only offers destinations that exist", () => {
     render(<CommandPalette open onOpenChange={() => undefined} />);
-    // "Projects" is A14's route and is not built yet, so it must not be a
-    // one-keystroke path to a 404.
-    expect(screen.queryByText("Projects")).toBeNull();
+    // "Templates" is not built yet, so it must not be a one-keystroke path to
+    // a 404; "Projects" landed in A14 and is now offered.
+    expect(screen.queryByText("Templates")).toBeNull();
     expect(screen.getByText("Home")).toBeInTheDocument();
+    expect(screen.getByText("Projects")).toBeInTheDocument();
   });
 
   it("runs a caller-supplied action", async () => {

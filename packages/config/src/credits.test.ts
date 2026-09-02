@@ -143,6 +143,23 @@ describe("quote", () => {
     expect(() => quote("transcription", -1)).toThrow(RangeError);
     expect(() => quote("transcription", Number.NaN)).toThrow(RangeError);
   });
+
+  it("never over-charges a duration a caller converted from milliseconds (B02b)", () => {
+    // A caller that already has milliseconds (a probed duration, a worker's
+    // `outputMs`) divides by 60,000 to call `quote()`. That division can land a
+    // few ULPs past an exact `BILLING_QUANTUM_MS` (6,000 ms) boundary — e.g.
+    // 498,000 ms / 60,000 * 60,000 = 498,000.00000000006 — which `Math.ceil`
+    // would otherwise bill as one whole extra 0.1-minute quantum. Every exact
+    // multiple of the quantum up to 100,000 (10,000 minutes) must round-trip
+    // to the SAME tenths as calling `creditCostTenths` on the millisecond value
+    // directly.
+    for (let k = 1; k <= 2_000; k += 1) {
+      const ms = k * BILLING_QUANTUM_MS;
+      const direct = creditCostTenths({ operation: "cloudRender", durationMs: ms });
+      const viaQuote = quote("cloudRender", ms / 60_000).costTenths;
+      expect(viaQuote, `k=${String(k)}, ms=${String(ms)}`).toBe(direct);
+    }
+  });
 });
 
 describe("formatCredits", () => {

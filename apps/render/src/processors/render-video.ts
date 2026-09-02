@@ -17,10 +17,39 @@ import { isRenderManifestError } from "@montaj/render-manifest";
 import { logger } from "../logger.js";
 import { isJobEnvelope, RenderVideoPayloadSchema } from "../queues.js";
 import { renderVideo, type RenderDependencies } from "../render/pipeline.js";
+import { parseStyleCatalogue } from "../render/projection.js";
 
 import type { CallbackClient, JobError } from "../callbacks.js";
-import type { RenderVideoResult } from "../queues.js";
+import type { RenderVideoPayload, RenderVideoResult } from "../queues.js";
 import type { Job } from "bullmq";
+
+/**
+ * Every `styleRef` this render's captions actually use — the manifest's
+ * default plus each segment's own override — that is **not** `assRenderable`
+ * per the payload's own style documents (A18a's parity gate is the only
+ * writer of that flag, D33). Empty means the `ass` path's capability
+ * precondition is satisfied; a bad/unparseable style document counts as
+ * "not renderable" rather than throwing here, so the caller gets one clear
+ * `render/unsupported-output` refusal instead of a schema error.
+ */
+export function unrenderableStylesUsed(payload: RenderVideoPayload): string[] {
+  let catalogue: Map<string, unknown>;
+  try {
+    catalogue = parseStyleCatalogue(payload.styles);
+  } catch {
+    return [payload.manifest.styles.defaultStyleId];
+  }
+  const refs = new Set<string>([payload.manifest.styles.defaultStyleId]);
+  for (const segment of payload.projection.segments) {
+    if (segment.styleRef !== undefined) refs.add(segment.styleRef);
+  }
+  const unrenderable: string[] = [];
+  for (const ref of refs) {
+    const doc = catalogue.get(ref) as { assRenderable?: unknown } | undefined;
+    if (doc?.assRenderable !== true) unrenderable.push(ref);
+  }
+  return unrenderable;
+}
 
 export interface ProcessorContext {
   readonly dependencies: Omit<RenderDependencies, "onProgress">;
@@ -83,13 +112,34 @@ export async function processRenderVideo(
   try {
     const payload = RenderVideoPayloadSchema.parse(envelope.payload);
     if (payload.path === "ass") {
-      // `05 §5.2` keeps an ASS fast path for the styles the parity test proves
-      // are `assRenderable`. Those flags are written by A18a and every style
-      // ships `assRenderable: false` until then, so a job asking for this path
-      // is a producer bug rather than a capability this service is missing.
+      // `05 §5.2` keeps an ASS fast path for the styles A18a's parity gate has
+      // proved `assRenderable` (D33): a real, measured SSIM/pixel-diff against
+      // libass, not a hand-set flag. Refuse unless *every* style this render's
+      // captions actually reference — the manifest's default plus each
+      // segment's own `styleRef` — carries `assRenderable: true`; a producer
+      // asking for a style that has not passed the gate is a producer bug,
+      // exactly as asking for a style the gate has never seen is.
+      //
+      // Burning the sidecar into pixels (ffmpeg `-vf ass=`, bypassing the Skia
+      // pipeline entirely, which is the whole point of the fast path) is
+      // `render/pipeline.ts`'s own machinery (A20) — encoder selection,
+      // watermark honesty under THREAT-MODEL T10, audio-replace, alpha output
+      // — and stays out of A18a's file boundary (`packages/ass-exporter/**`,
+      // `packages/caption-styles/styles/*.json`, the parity CI workflow).
+      // A18a's job here is the capability check the fast path is gated on;
+      // wiring the actual libass burn-in is A20/A21 follow-up work.
+      const unrenderable = unrenderableStylesUsed(payload);
+      if (unrenderable.length === 0) {
+        throw Object.assign(
+          new Error(
+            "every referenced style is assRenderable, but the ass burn-in pipeline (ffmpeg -vf ass=, replacing the Skia frame path) is not wired yet — a follow-up to A20/A21, not A18a's own file boundary",
+          ),
+          { code: "render/unsupported-output" },
+        );
+      }
       throw Object.assign(
         new Error(
-          "the ass render path needs @montaj/ass-exporter and the assRenderable flags, both of which land in A18a",
+          `the ass render path needs every referenced style to be assRenderable (A18a's parity gate); not yet true for: ${unrenderable.join(", ")}`,
         ),
         { code: "render/unsupported-output" },
       );

@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-import { RealtimeClient, rooms, useApiContext, useSession } from "@montaj/api-client";
+import { RealtimeClient, rooms, useApiContext, useProjects, useSession } from "@montaj/api-client";
 import type { RealtimeEvent } from "@montaj/api-client";
 
 import { CommandPalette, useCommandPalette } from "./command-palette";
@@ -31,6 +31,20 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
   const queryClient = useQueryClient();
   const { open, setOpen } = useCommandPalette();
   const [bootstrapped, setBootstrapped] = React.useState(false);
+
+  // The palette's "Recent projects" group (A14): only the first page, and only
+  // once the palette might actually open — there is no reason to hold a
+  // project list query alive on every screen in the shell.
+  const recentProjectsQuery = useProjects({ limit: 8 });
+  const recentProjects = React.useMemo(
+    () =>
+      (recentProjectsQuery.data?.pages[0]?.items ?? []).map((project) => ({
+        id: project.id,
+        title: project.title,
+        href: `/p/${project.id}`,
+      })),
+    [recentProjectsQuery.data],
+  );
 
   // The store object itself, not a subscription: `useSession()` above already
   // re-renders on a token change, and subscribing here as well would restart the
@@ -132,7 +146,7 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
         </div>
       </div>
 
-      <CommandPalette open={open} onOpenChange={setOpen} />
+      <CommandPalette open={open} onOpenChange={setOpen} recentProjects={recentProjects} />
     </div>
   );
 }

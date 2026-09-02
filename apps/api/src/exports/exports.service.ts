@@ -1,7 +1,7 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 import { ulid } from "ulid";
 
-import { creditCostTenths, formatCredits } from "@montaj/config";
+import { formatCredits, quote } from "@montaj/config";
 import type {
   OutputKind,
   RenderPreset,
@@ -149,6 +149,16 @@ export class ExportsService {
     const signupGiftAvailable = signupGiftEntitled && workspace.signupGiftConsumedAt === null;
     const ninePassAvailable = await this.ninePass.isAvailable(input.workspaceId);
 
+    // Resolved before `decideExport` (rather than after, as before A18a) so an
+    // `ass` subtitle request can be judged against the real, gated flags: an
+    // `ass` request is allowed only when every StyleDoc the project's captions
+    // actually reference carries `assRenderable: true`, the flag only
+    // `@montaj/ass-exporter`'s parity gate writes (D33).
+    const styleSnapshot = await resolveStyleSnapshot(this.prisma, input.workspaceId, edg);
+    const assStylesRenderable = Object.values(styleSnapshot.styles).every(
+      (doc) => (doc as { assRenderable?: unknown } | null)?.assRenderable === true,
+    );
+
     const decisionInput: ExportDecisionInput = {
       requestedMode: input.mode,
       kind: input.kind,
@@ -156,7 +166,9 @@ export class ExportsService {
       preset: input.preset,
       ...(input.customWidth === undefined ? {} : { customWidth: input.customWidth }),
       ...(input.customHeight === undefined ? {} : { customHeight: input.customHeight }),
-      ...(input.subtitle === undefined ? {} : { subtitleFormats: input.subtitle.formats }),
+      ...(input.subtitle === undefined
+        ? {}
+        : { subtitleFormats: input.subtitle.formats, assStylesRenderable }),
       sourceDurationMs: media.durationMs ?? 0,
       outputDurationMs,
       plan: entitlement.planKey,
@@ -169,7 +181,6 @@ export class ExportsService {
     if (decision.watermark) await this.defaultWatermark.ensure(input.workspaceId);
 
     const exportId = ulid();
-    const styleSnapshot = await resolveStyleSnapshot(this.prisma, input.workspaceId, edg);
     const projection = buildRenderProjection(
       edg,
       await this.edgRepository.loadChunks(edg.transcript.transcriptId),
@@ -293,10 +304,13 @@ export class ExportsService {
     });
 
     const queue = input.kind === "subtitle" ? RENDER_SUBTITLE_QUEUE : RENDER_VIDEO_QUEUE;
+    // B02b: routed through `quote()` rather than `creditCostTenths` directly,
+    // so this reserve and `decision.ts`'s dialog estimate can never compute the
+    // 0.1-minute billing quantum two different ways.
     const worstCaseTenths =
       input.kind === "subtitle"
         ? 0
-        : creditCostTenths({ operation: "cloudRender", durationMs: media.durationMs ?? 0 });
+        : quote("cloudRender", (media.durationMs ?? 0) / 60_000).holdTenths;
 
     const enqueued = await this.jobs.enqueue({
       type: queue,

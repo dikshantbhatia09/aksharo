@@ -1,0 +1,103 @@
+name: Render parity gate (D33)
+
+# The A18a parity gate: three renderers (browser CanvasKit, cloud Skia,
+# `.ass`-via-libass) compared with decision D33's own pixel yardstick, for
+# every shipped caption style. Runs only when a PR touches the packages whose
+# code the gate measures — the render engines it compares, the style
+# catalogue it grades, or the exporter/gate itself.
+#
+# "Fail with diff", per the brief: this job never commits the flag change
+# itself. It runs the gate, regenerates `packages/caption-styles/styles/*.json`'s
+# flag fields and `packages/caption-styles/parity/results.json`, and fails the
+# PR if that regeneration produced an uncommitted diff — so a flag change is
+# always something a human (Fable) reviewed and committed, never something CI
+# pushed silently.
+
+on:
+  pull_request:
+    branches: ["main", "wave/**"]
+    paths:
+      - "packages/render-core/**"
+      - "packages/render-canvaskit/**"
+      - "packages/render-skia-node/**"
+      - "packages/caption-styles/**"
+      - "packages/ass-exporter/**"
+      - ".github/workflows/parity.yml"
+
+concurrency:
+  group: parity-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  TURBO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  parity:
+    name: Parity gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Ubuntu's `ffmpeg` package is built with `--enable-libass`; this is the
+      # "ffmpeg from PATH" the brief asks for. If a future runner image drops
+      # libass, `probeLibass()` in `packages/ass-exporter/parity/ffmpeg-libass.ts`
+      # detects it and the gate marks every style's `assVsSkia` "not measured"
+      # rather than failing or fabricating a number — see that module's doc
+      # comment for the Docker-based fallback this step would then need.
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version
+          ffmpeg -hide_banner -filters | grep -i "ass" || echo "::warning::ffmpeg has no ass filter; assVsSkia will be 'not measured'"
+
+      - name: Build workspace packages the gate needs
+        run: pnpm --filter @montaj/edg --filter @montaj/timemap --filter @montaj/render-core --filter @montaj/render-canvaskit --filter @montaj/render-skia-node --filter @montaj/caption-styles --filter @montaj/render-manifest --filter @montaj/config build
+
+      - name: "Run the parity gate (full sweep: 30 styles x 4 fixtures x 3 instants)"
+        working-directory: packages/ass-exporter
+        run: node --import tsx parity/run.ts --full
+
+      - name: Apply the measured flags to packages/caption-styles/styles/*.json
+        working-directory: packages/ass-exporter
+        run: node --import tsx parity/apply-flags.ts
+
+      # Gated on styles/*.json only, not parity/results.json: that file's
+      # `measuredAt`/`generatedAt` timestamps differ on every run by design,
+      # which would fail this check on an unchanged measurement. The uploaded
+      # artifact above is where a reviewer reads the fresh numbers; this step
+      # exists to catch a *flag* change (`assRenderable` flipping, a new
+      # `parityScore`) landing without a human having reviewed and committed it.
+      - name: Fail with a diff if the flags changed (never auto-committed)
+        run: |
+          if ! git diff --exit-code -- packages/caption-styles/styles; then
+            echo "::error::The parity gate changed packages/caption-styles/styles/*.json's flag fields. Commit the diff above (reviewed by Fable) rather than merging without it — the gate never writes these files silently. See the uploaded parity-results artifact for the full measurement."
+            exit 1
+          fi
+
+      - name: Upload the parity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-results
+          path: packages/caption-styles/parity/results.json
+          retention-days: 30
+
+      - name: Run the ass-exporter test suite (mapping units, probe, Devanagari golden)
+        run: pnpm --filter @montaj/ass-exporter test:coverage

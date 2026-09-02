@@ -13,7 +13,10 @@
     "lineHeight": 1.34,
     "letterSpacingEm": 0.02,
     "textTransform": "none",
-    "scriptScale": { "deva": 0.9, "taml": 0.55 }
+    "scriptScale": {
+      "deva": 0.9,
+      "taml": 0.55
+    }
   },
   "colors": {
     "text": "#eaffe6",
@@ -72,7 +75,8 @@
     }
   ],
   "assRenderable": false,
-  "assExportable": false,
+  "assExportable": true,
   "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/typewriter-mono.mp4"
+  "previewKey": "system/style-previews/typewriter-mono.mp4",
+  "parityScore": 0.8531
 }

@@ -8,7 +8,7 @@ describe("@montaj/ass-exporter", () => {
     expect(PACKAGE_INFO.implementedBy).toBe("A18a");
   });
 
-  it("is still a skeleton until A18a lands", () => {
-    expect(PACKAGE_INFO.implemented).toBe(false);
+  it("is implemented as of A18a", () => {
+    expect(PACKAGE_INFO.implemented).toBe(true);
   });
 });

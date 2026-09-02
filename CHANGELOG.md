@@ -10,6 +10,49 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Fixed
 
+- **B03b — unified the two `apps/web/lib/billing/razorpay.ts` modules B03 and B04 each
+  wrote (add/add conflict merging main).** One module now backs both: the checkout
+  sheet's subscription/mandate flow and B04's one-time purchases (`ExportUpsellPanel`'s
+  ₹9 clean export and week pass, `TopupCard`'s top-ups). `loadRazorpayCheckout()` keeps
+  B03's non-throwing, typed-constructor return (`Promise<RazorpayConstructor | null>`);
+  `openRazorpayCheckout()` keeps B04's stricter contract — a typed `RazorpayOutcome`
+  (`success` with payment/order ids, or `dismissed`), rejecting rather than resolving
+  falsely when the widget cannot load or open. `checkout-sheet.tsx` and `plan-table.tsx`
+  (the offers-ladder purchases) were updated to the outcome/throwing contract; their
+  tests and `lib/billing/razorpay.test.ts` updated to match. Also: the sidebar
+  `CreditMeter` (`apps/web/components/shell/sidebar.tsx`) now reads B02's real
+  `GET /workspaces/{id}/credits` via `packages/api-client`'s `useWorkspaceCredits()`
+  instead of the wrong `pending.usage` path, so the meter shows a live balance and reset
+  date instead of an honest zero. `lib/nav.test.ts`'s `SETTINGS_NAV` assertion updated
+  to include B04's "subscription" settings section.
+
+### Added
+
+- **B03 — web Subscription pages, checkout sheet and `UpgradeGate` wiring.** `/billing`
+  (Overview: plan card with status/renewal/mandate cap, credits meter with lots and
+  expiries, pause/cancel/resume with confirmations, streak slot behind a flag),
+  `/billing/plans` (INR/USD from `GET /billing/plans`, monthly/yearly toggle, Agency
+  seat stepper, offers ladder, credits-to-outcomes table, pay-once vs Autopay
+  explainer, FAQ), `/billing/methods` (payment methods, mandates with the 24-hour
+  pre-debit notice, revoke with a consequence-explained confirmation),
+  `/billing/invoices` (GST break-up, credit-note linking, signed PDF download; built
+  against B05's `invoices` row shape and resilient to `GET /invoices` 404ing while
+  B05 is still landing), `/billing/usage` (ledger history, per-job attribution, lots,
+  CSV export). The shared `CheckoutSheet` (`apps/web/components/billing/`) drives tax
+  profile (State + optional GSTIN with checksum and state auto-fill for India,
+  country elsewhere) → method (UPI Autopay / Card / pay-once; Netbanking marked
+  unsupported by B01's checkout schema) → confirm (GST-inclusive break-up) → gateway
+  (Razorpay Checkout.js from its official script URL, webhook-driven status polling)
+  → success/failed, and handles the `409 billing/mandate_cap_exceeded` alternatives.
+  `BillingUpgradeGate` composes `packages/ui`'s `UpgradeGate` with the sheet so any
+  other work package can gate a control with one import. A typed client layer lives
+  in `apps/web/lib/billing/` (endpoints, hooks, money/GST/checkout-state pure logic)
+  rather than in `packages/api-client`, which is outside this work package's file
+  boundary — see the report's Deviations. `apps/web/lib/nav.ts` flips the sidebar's
+  "Subscription" item to `ready: true` and adds `BILLING_NAV`.
+
+### Fixed
+
 - **A05b — `onboardingSchema` rejected the multi-select onboarding answers.** Reported
   by A13. `apps/api/src/users/users.dto.ts`'s `onboardingSchema` accepted only
   `boolean | number | string` per `onboarding` value, so `PATCH /me` answered
@@ -51,6 +94,125 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     at 0 pixels differing on all eight frames.
 
 ### Added
+
+- **B04 — api: the `offers` module (real signup-gift/₹9-pass/week-pass/top-up backing, ₹9 eligibility, instrumentation); web: export-dialog upsell panel, credits-meter top-up card, Subscription overview pass chips.**
+  - **`OffersModule` backs the interfaces A21 left as no-ops.** `PassesNinePassLedger`
+    (`nine-pass-ledger.impl.ts`) replaces `NoopNinePassLedger` as `ExportsModule`'s
+    `NINE_PASS_LEDGER` binding: a `first_export` pass is "available" once
+    `billing/webhooks.service.ts`'s `grantPass` stamps it paid (`consumedAt`) and stays
+    available until `consume()` stamps a new `redeemedAt`/`redeemedManifestId` pair at
+    manifest completion — a migration
+    (`20260902080000_b04_offers_nine_pass_redeem`) adds both columns to
+    `passes_purchased` specifically so "paid" and "spent" cannot collide (B01's own
+    `consumedAt` already meant "the webhook landed," not "the workspace used it").
+    **Manifest re-issue needs no new endpoint**: the client just re-calls `POST
+/projects/{id}/exports` with the same parameters after the pass is paid — the
+    decision engine (A21, unmodified) re-evaluates `ninePass.isAvailable` fresh and
+    returns a clean manifest, satisfying "no re-render needed if the render has not
+    started; if already rendered, re-run" without inventing a parallel mechanism.
+  - **Eligibility, enforced server-side.** `nine-pass-eligibility.ts` is a pure,
+    table-tested function (INR-only, never on a paid plan, once per workspace per 30
+    days); `NinePassEligibilityService` resolves the DB state and is called from
+    `billing/passes.service.ts#passCheckout` _after_ its existing INR check (so the
+    pre-existing `billing/pass_kind_unavailable` 400 for a USD workspace is
+    unchanged) and refuses with `409 offers/nine_pass_ineligible` otherwise.
+  - **`GET /offers/eligibility`** (signup gift / ₹9 pass / week pass / ₹149 top-up,
+    every amount read from `billing/billing.constants.ts`) and **`GET
+/offers/passes`** (every pass, newest first, with a computed
+    `pending_payment|available|active|redeemed|expired` status) back the web upsell
+    panel and the Subscription overview's pass chips.
+  - **`GET /admin/metrics/offers`** (`AdminOffersController`, registered in
+    `admin.module.ts` per the `AdminCreditsController` convention): the ₹9 hypothesis
+    (D55) — purchases, upgrades within 60 days, conversion rate, and a
+    keep/replace/monitor recommendation from D55's own thresholds — derived from
+    `passes_purchased`/`subscriptions` rather than a separate event log.
+  - **Two dev/test-only routes**, `POST /offers/dev/simulate-nine-pass-payment` and
+    `POST /offers/dev/consume-signup-gift` (`offers-dev.controller.ts`, registered
+    under `BillingModule`): both refuse outright unless `BILLING_PROVIDER` resolves
+    to `FakeProvider`, and carry no bearer auth (the Playwright e2e that calls them
+    runs against the web app's own httpOnly-cookie session, which a cross-origin test
+    client cannot attach as a header) — self-limited instead by needing an
+    unguessable `passPurchaseId`/`workspaceId` already returned by a real
+    authenticated call.
+  - **Web**: `components/editor/export/upsell/ExportUpsellPanel.tsx` (signup gift →
+    ₹9 clean export via Razorpay Checkout → week pass → "See plans", self-contained
+    since the editor's own export dialog had not landed — A15/A19 own it; mount point
+    documented in the component's header, exercised standalone at
+    `/ui-kit/export-upsell`), `components/billing/passes/{PassStatusChips,
+TopupCard}.tsx`, a new `/settings/subscription` page (Subscription overview did
+    not exist before this work package), and `lib/billing/razorpay.ts` (the Checkout
+    widget loader). `packages/api-client` gains `offersEndpoints`,
+    `billingEndpoints` (subscription, pass/top-up checkout) and `creditsEndpoints`
+    (balance), plus matching hooks and types.
+  - Tests: the ₹9 eligibility table (currency/plan/30-day-window boundaries), a
+    decision-engine test proving a ₹9 pass never clears a cloud render's watermark
+    (acceptance criterion 1), and `test/offers.e2e-spec.ts` (pass lifecycle, checkout
+    eligibility gating, week-pass entitlement raise and expiry via a fake `endsAt`,
+    the Free top-up lot, manifest re-issue after a ₹9 purchase end to end, and
+    `/admin/metrics/offers`) against a real PostgreSQL and Redis. Playwright:
+    `e2e/offers-nine-pass.spec.ts` drives the real panel through a faked Razorpay
+    widget and the dev-only webhook simulator.
+- **A14 — web: Home and Projects, the presigned-multipart upload engine, and the style catalogue API.**
+  - **Home (`/`, rewritten from `(app)/home/page.tsx` — see Deviations below).** A drop
+    zone that goes straight to presigned S3/MinIO multipart URLs, never through the API
+    process: parts hash client-side with a pure-JS streaming SHA-256 (a Web Worker when
+    available, inline otherwise), upload in parallel (3 at a time), resume from an
+    IndexedDB-persisted record after a reload, and report progress per file. The
+    quick-pick row defaults to Hinglish (Roman) and `punch-pop` first (08 §Home), and
+    opens A16's real `StylePicker` against the new `GET /styles` catalogue. "Try with a
+    sample" creates the seeded sample project and opens it.
+  - **Projects (`/projects`).** Search, status/language filters, an Agency-only client
+    tag filter, sort, folders (create/rename/filter), bulk select (archive/delete),
+    infinite scroll, and a detail sheet with retention date and job history. Cards read
+    live job state from the realtime client (queued/processing/ready/failed), piggy-
+    backing on `AppShell`'s existing `["ws", id, "jobs"]` realtime invalidation via a
+    nested query key.
+  - **`GET /styles`** (`apps/api/src/styles`) merges the seeded `style_presets` system
+    catalogue with a workspace's own custom presets; the new
+    `/workspaces/{id}/style-presets` `POST`/`PATCH`/`DELETE` routes validate a full
+    StyleDoc v2 document server-side (D64's naming rule; a preset may not shadow or
+    duplicate a key) and carry the same guard stack as the rest of `/workspaces/:id/*`.
+  - **`POST /projects/sample`** creates a project from a small bundled WAV fixture,
+    PUTting it directly to storage (not through the multipart path a real upload uses)
+    and enqueuing `media.probe`, for Home's "Try with a sample".
+  - Wired the real `POST /projects/{id}/transcribe` (A11, merged after this branch was
+    cut) into the upload engine's best-effort "start transcribing" step and into
+    `useTranscribe`; both treat `transcript/media_not_ready` as a normal outcome, not
+    a failure.
+  - **Deviations from the brief.** The brief's file boundary was
+    `apps/web/app/(app)/(home)/**`; Next.js refuses two page files that resolve to the
+    same path, and `(app)/(home)/page.tsx` and the marketing site's own homepage both
+    resolve to `/`. Home lives at the real segment `apps/web/app/(app)/home/page.tsx`
+    instead, with `middleware.ts` rewriting an authenticated `GET /` to it — the
+    address bar, and the sidebar's Home link, never show `/home`.
+- **A18a — `@montaj/ass-exporter` and the render parity gate (D33).**
+  `toAss(projection, transcript, styleCatalogue, canvas, opts)` maps StyleDoc v2 to an
+  ASS v4+ document (`[Script Info]`/`[V4+ Styles]`/`[Events]`): font/size/colours,
+  `\bord`/`\shad`, `BorderStyle=3` boxes, `\pos` from the style's own layout anchor,
+  and `\kf` karaoke fill for `karaoke-fill` styles on **Latin script only** — Devanagari
+  and Tamil karaoke stay disabled and warn (`karaoke_non_latin_disabled`) until a parity
+  test proves otherwise (RR-04 F7). Other word highlights (`color`, `scale`,
+  `underline`, `glow`) degrade deterministically to one `Dialogue:` event per word,
+  reported through a `warnings[]` list rather than silently dropped.
+  `packages/ass-exporter/parity/run.ts` renders every shipped style three ways —
+  browser CanvasKit vs cloud Skia (widening A20's own harness from one style to all 30)
+  and `.ass` via `ffmpeg -vf ass=` (libass, `shaping=complex` verified for
+  Devanagari/Tamil against RR-04 F6/F14 — see `parity/golden-devanagari.test.ts`) —
+  and writes `packages/caption-styles/parity/results.json`;
+  `parity/apply-flags.ts` is the **only** writer of each style's `assRenderable` /
+  `assExportable` / `requiresLayoutMetrics` / `parityScore` fields (never by hand). A
+  libass-less `ffmpeg` marks `assVsSkia` "not measured" rather than fabricating a score.
+  `apps/api/src/exports/decision.ts` now gates an `ass` subtitle export on
+  `assStylesRenderable` (every StyleDoc a project's captions reference having passed
+  the gate) instead of refusing unconditionally; `apps/api/prisma/seed.ts` reads the
+  same flags off each style document into `style_presets`' parity columns.
+  `apps/render`'s `render.video` `path: "ass"` guard now checks the real flags rather
+  than refusing unconditionally, naming the unrenderable style when one is found;
+  burning the sidecar into pixels (the ffmpeg libass path replacing Skia rasterisation)
+  is A20/A21 follow-up work, outside this package's own file boundary. New CI job
+  `.github/workflows/parity.yml` runs the full 30 × 4 × 3 sweep on PRs touching the
+  render packages or the style catalogue and fails with a diff if the flags moved,
+  rather than committing them silently.
 
 - **A15 — web: editor transcript column, EDG op queue, undo/redo, conflict
   chooser, reflow.** The left column of `/p/{id}` (08 §4) and the store

@@ -21,6 +21,8 @@ import type {
   ReleaseInput,
   ReserveInput,
   ReserveResult,
+  RevokeLotInput,
+  RevokeLotResult,
   SettleInput,
   SettleResult,
 } from "./credits.facade.js";
@@ -35,6 +37,10 @@ const EXPIRE_BATCH = 500;
 const REF_TYPE_JOB = "job";
 const REF_TYPE_LOT = "credit_lot";
 const REF_TYPE_GRANT = "grant";
+/** `revokeLot`'s `refId` names the refund; the partial unique index that makes
+ *  `revokeLot` idempotent is keyed on exactly `(kind='revoke', ref_type=
+ *  'refund', ref_id)` (`prisma/sql/0007-b02b-credit-revoke.sql`). */
+const REF_TYPE_REFUND = "refund";
 
 interface AccountRow {
   readonly id: string;
@@ -479,6 +485,102 @@ export class LedgerCreditsFacade implements CreditsFacade {
         };
       }),
     );
+  }
+
+  /**
+   * Claw back an unspent lot before a payment refund (B02b). Never takes more
+   * than the lot still has remaining (`revokedTenths ≤ min(requested, lot.
+   * remainingTenths)`, never below zero on either the lot or the account) and
+   * is idempotent per `refundId` via the partial unique index on
+   * `credit_ledger` (`prisma/sql/0007-b02b-credit-revoke.sql`): a retried
+   * refund finds the first call's row and reports it back rather than clawing
+   * back a second time, and two genuinely concurrent calls for the same
+   * `refundId` have exactly one winner — the loser's `INSERT` hits the unique
+   * index, its whole transaction rolls back (so its own lot/balance changes
+   * never happened), and it re-reads the winner's row outside the transaction.
+   */
+  async revokeLot(input: RevokeLotInput): Promise<RevokeLotResult> {
+    if (input.tenths !== undefined) assertNonNegativeInteger(input.tenths, "tenths");
+
+    try {
+      return await this.runAndNotify(
+        this.transaction(async (tx) => {
+          const existing = await tx.creditLedger.findFirst({
+            where: { kind: "revoke", refType: REF_TYPE_REFUND, refId: input.refundId },
+          });
+          if (existing !== null) {
+            // Replayed refund: report what actually happened the first time,
+            // not a fresh shortfall computed against this call's own request.
+            return unchanged({ revokedTenths: -existing.deltaTenths, shortfallTenths: 0 });
+          }
+
+          const lot = await tx.creditLot.findUnique({ where: { id: input.lotId } });
+          if (lot === null) {
+            throw new AppException(
+              CREDIT_ERROR_CODES.lotNotFound,
+              `No such lot: ${input.lotId}.`,
+              HttpStatus.NOT_FOUND,
+              { lotId: input.lotId },
+            );
+          }
+
+          const requested = input.tenths ?? lot.remainingTenths;
+          const revokedTenths = Math.min(requested, lot.remainingTenths);
+          const shortfallTenths = requested - revokedTenths;
+
+          let balanceAfter: number;
+          if (revokedTenths > 0) {
+            await tx.creditLot.update({
+              where: { id: lot.id },
+              data: { remainingTenths: { decrement: revokedTenths } },
+            });
+            const [row] = await tx.$queryRaw<{ balance_tenths: number }[]>`
+              UPDATE credit_accounts SET balance_tenths = balance_tenths - ${revokedTenths}
+              WHERE id = ${lot.accountId} AND balance_tenths >= ${revokedTenths}
+              RETURNING balance_tenths
+            `;
+            if (row === undefined) throw ledgerDrift(lot.accountId, "revokeLot");
+            balanceAfter = row.balance_tenths;
+          } else {
+            const account = await tx.creditAccount.findUniqueOrThrow({
+              where: { id: lot.accountId },
+            });
+            balanceAfter = account.balanceTenths;
+          }
+
+          await tx.creditLedger.create({
+            data: {
+              id: ulid(),
+              accountId: lot.accountId,
+              deltaTenths: -revokedTenths,
+              kind: "revoke",
+              refType: REF_TYPE_REFUND,
+              refId: input.refundId,
+              lotId: lot.id,
+              balanceAfterTenths: balanceAfter,
+            },
+          });
+
+          const account = await tx.creditAccount.findUniqueOrThrow({
+            where: { id: lot.accountId },
+          });
+          return {
+            result: { revokedTenths, shortfallTenths },
+            workspaceId: account.workspaceId,
+            beforeTenths: balanceAfter + revokedTenths,
+            afterTenths: balanceAfter,
+            monthlyGrantTenths: account.monthlyGrantTenths,
+          };
+        }),
+      );
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      const existing = await this.prisma.creditLedger.findFirst({
+        where: { kind: "revoke", refType: REF_TYPE_REFUND, refId: input.refundId },
+      });
+      if (existing !== null) return { revokedTenths: -existing.deltaTenths, shortfallTenths: 0 };
+      throw error;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -940,6 +1042,22 @@ function isRetryableTransactionError(error: unknown): boolean {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Prisma's code for "unique constraint failed" (P2002) — `revokeLot`'s own
+ * concurrent-race detector on `credit_ledger_revoke_refund_unique`. Matched
+ * structurally, like `jobs.service.ts`'s `isUniqueViolation`, rather than
+ * `instanceof Prisma.PrismaClientKnownRequestError`, so this file does not
+ * have to import the generated client just for a type guard.
+ */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "P2002"
+  );
 }
 
 function ledgerKindForSource(source: CreditLotSource): $Enums.CreditLedgerKind {

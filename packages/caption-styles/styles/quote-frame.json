@@ -13,7 +13,10 @@
     "lineHeight": 1.4,
     "letterSpacingEm": 0,
     "textTransform": "none",
-    "scriptScale": { "deva": 0.7, "taml": 0.42 }
+    "scriptScale": {
+      "deva": 0.7,
+      "taml": 0.42
+    }
   },
   "colors": {
     "text": "#ffffff",
@@ -73,7 +76,8 @@
     }
   ],
   "assRenderable": false,
-  "assExportable": false,
-  "requiresLayoutMetrics": true,
-  "previewKey": "system/style-previews/quote-frame.mp4"
+  "assExportable": true,
+  "requiresLayoutMetrics": false,
+  "previewKey": "system/style-previews/quote-frame.mp4",
+  "parityScore": 0.7693
 }

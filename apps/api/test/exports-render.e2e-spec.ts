@@ -30,6 +30,7 @@ import { loadSystemStyleMap } from "@montaj/caption-styles";
 import { creditCostTenths } from "@montaj/config";
 import { verifyRenderManifest } from "@montaj/render-manifest";
 
+import { AMPLE_TEST_CREDIT_TENTHS, fundWorkspaceCredits } from "./credits-fixture.js";
 import { isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { createEdgTestContext, edgSkipReason, type EdgTestContext } from "./edg-harness.js";
 import {
@@ -122,6 +123,15 @@ describe.skipIf(!CAN_RUN)("exports — cloud render path (real apps/render worke
         entitlements: free.entitlements,
       },
     });
+
+    // B02's real ledger enforces an actual balance: a plan alone is not
+    // credits (a subscription grants one on the billing anniversary; this
+    // suite has no subscription at all). Fund it through the app's own
+    // CreditsFacade, not a hand-rolled row — this suite is about the cloud
+    // render pipeline and its settlement, not the ledger itself, which has
+    // its own `test/credits-ledger.e2e-spec.ts`.
+    await fundWorkspaceCredits(ctx.app, ctx.workspaceId, AMPLE_TEST_CREDIT_TENTHS);
+
     // `EdgService.initialise` defaults an uncaptioned document's style to
     // "clean-bold" (its own internal default) rather than the segmenter's
     // "vertical-clean" default, which only applies through `edgInitInputFor`;

@@ -25,6 +25,7 @@
 
 import { HttpStatus } from "@nestjs/common";
 
+import { quote } from "@montaj/config";
 import type { OutputKind, RenderPreset } from "@montaj/render-manifest";
 
 import { EXPORT_ERROR_CODES } from "./exports.errors.js";
@@ -73,6 +74,15 @@ export interface ExportDecisionInput {
   readonly capabilities?: ExportCapabilities;
   /** HDR source; browser export tone-maps it and shows a notice (D34). Informational only. */
   readonly isHdrSource?: boolean;
+  /**
+   * Whether every `StyleDoc` the project's captions actually use carries
+   * `assRenderable: true` — the flag only `@montaj/ass-exporter`'s parity gate
+   * writes (D33). The caller (`ExportsService`) resolves the project's style
+   * snapshot and reduces it to this one boolean so the decision stays pure
+   * and synchronous; omitted (or `false`) refuses an `ass` subtitle request,
+   * exactly as it did before A18a landed.
+   */
+  readonly assStylesRenderable?: boolean;
 }
 
 export type ExportPath = "browser" | "cloud";
@@ -101,7 +111,6 @@ const BROWSER_1080P_MAX_MS = 20 * 60_000;
 const BROWSER_4K_MAX_MS = 10 * 60_000;
 const SIGNUP_GIFT_MAX_MS = 10 * 60_000;
 const NINE_PASS_MAX_MS = 10 * 60_000;
-const CLOUD_RENDER_TENTHS_PER_MINUTE = 5; // `packages/config/src/credits.ts` BURN_RATES.cloudRender
 
 const FOUR_K_WIDTH = 2_560;
 const DEFAULT_MAX_FPS_BROWSER = 60;
@@ -129,9 +138,14 @@ function isFourK(width: number): boolean {
   return width >= FOUR_K_WIDTH;
 }
 
+/**
+ * B02b: routed through `@montaj/config`'s `quote()` rather than a local
+ * `CLOUD_RENDER_TENTHS_PER_MINUTE` constant and hand-rolled whole-minute
+ * rounding — both drift risks against `BURN_RATES.cloudRender`, which bills
+ * on the 0.1-minute billing quantum (`BILLING_QUANTUM_MS`), not a whole one.
+ */
 function creditsFor(outputDurationMs: number): number {
-  const minutes = Math.max(1, Math.ceil(outputDurationMs / 60_000));
-  return minutes * CLOUD_RENDER_TENTHS_PER_MINUTE;
+  return quote("cloudRender", outputDurationMs / 60_000).costTenths;
 }
 
 /**
@@ -322,10 +336,11 @@ function assertSubtitleFormatsAllowed(input: ExportDecisionInput): void {
       : ["srt", "vtt", "txt"],
   );
   for (const format of formats) {
-    // ASS waits on A18a's parity flags; DOCX is not generated anywhere yet
-    // (orchestrator addendum, after A20). Both are refused here rather than
-    // enqueued to fail deep inside the render worker.
-    if (format === "ass") {
+    // ASS is refused unless every style the project's captions use has
+    // passed A18a's parity gate (`assRenderable: true`, D33); DOCX is not
+    // generated anywhere yet (orchestrator addendum, after A20). Both are
+    // refused here rather than enqueued to fail deep inside the render worker.
+    if (format === "ass" && input.assStylesRenderable !== true) {
       throw new AppException(
         EXPORT_ERROR_CODES.formatUnavailable,
         "ASS subtitle export is not available yet.",

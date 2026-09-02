@@ -236,6 +236,397 @@ export interface MemoryEntry {
   expiresAt: string;
 }
 
+// --- Projects, folders and media (A06, A14) ---------------------------------
+
+export type ProjectAspect = "9:16" | "16:9" | "1:1" | "4:5";
+export type ProjectStatus = "draft" | "active" | "archived";
+
+export interface Project {
+  id: string;
+  workspaceId: string;
+  title: string;
+  folderId: string | null;
+  clientTag: string | null;
+  sourceLanguage: string | null;
+  scripts: string[];
+  aspect: ProjectAspect;
+  status: ProjectStatus;
+  thumbnailKey: string | null;
+  durationMs: number | null;
+  mediaCount: number;
+  lastActivityAt: string;
+  retentionUntil: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface ProjectPage {
+  items: Project[];
+  nextCursor: string | null;
+}
+
+export interface CreateProjectRequest {
+  title: string;
+  folderId?: string;
+  clientTag?: string;
+  aspect?: ProjectAspect;
+  sourceLanguage?: string;
+}
+
+export interface UpdateProjectRequest {
+  title?: string;
+  folderId?: string | null;
+  clientTag?: string | null;
+  aspect?: ProjectAspect;
+  sourceLanguage?: string | null;
+  status?: ProjectStatus;
+}
+
+export interface ListProjectsQuery {
+  q?: string;
+  status?: ProjectStatus;
+  /** A folder id, or the literal `"root"` for projects in no folder. */
+  folder?: string;
+  clientTag?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface BatchCreateProjectsRequest {
+  projects: CreateProjectRequest[];
+  folderId?: string;
+  clientTag?: string;
+}
+
+export interface Folder {
+  id: string;
+  workspaceId: string;
+  name: string;
+  parentId: string | null;
+  position: number;
+  projectCount: number;
+  createdAt: string;
+}
+
+export interface CreateFolderRequest {
+  name: string;
+  parentId?: string;
+  position?: number;
+}
+
+export interface UpdateFolderRequest {
+  name?: string;
+  parentId?: string | null;
+  position?: number;
+}
+
+export type MediaStatus =
+  "pending" | "uploading" | "uploaded" | "probing" | "ready" | "failed" | "purged";
+
+export interface MediaDerivedKeys {
+  proxy: string | null;
+  audio16k: string | null;
+  audio48k: string | null;
+  waveform: string | null;
+  thumbs: string[];
+}
+
+export interface Media {
+  id: string;
+  projectId: string;
+  role: string;
+  bucket: "s3" | "r2";
+  storageKey: string;
+  filename: string | null;
+  mime: string | null;
+  sizeBytes: number | null;
+  contentHash: string | null;
+  durationMs: number | null;
+  fps: number | null;
+  width: number | null;
+  height: number | null;
+  audioChannels: number | null;
+  status: MediaStatus;
+  needsRealign: boolean;
+  uploadedAt: string | null;
+  rawPurgeAt: string | null;
+  derivedPurgeAt: string | null;
+  derived: MediaDerivedKeys;
+  createdAt: string;
+}
+
+export interface InitUploadRequest {
+  filename: string;
+  size: number;
+  mime: string;
+  /** Client-computed digest (SHA-256), used to recognise a re-upload. */
+  contentHash?: string;
+  role?: "primary" | "broll" | "audio";
+}
+
+export interface UploadPart {
+  partNumber: number;
+  url: string;
+}
+
+export interface UploadTicket {
+  mediaId: string;
+  /** `null` when `duplicate` is true. */
+  uploadId: string | null;
+  key: string;
+  bucket: "s3" | "r2";
+  partSizeBytes: number;
+  parts: UploadPart[];
+  expiresAt: string | null;
+  duplicate: boolean;
+  media: Media;
+}
+
+export interface CompleteUploadRequest {
+  /** `ETag` response headers of the part uploads, in part order. */
+  etags: string[];
+}
+
+export interface CompletedUpload {
+  media: Media;
+  probeJobId: string;
+  proxyJobId: string | null;
+}
+
+export interface MediaUrls {
+  mediaId: string;
+  proxy?: string;
+  audio16k?: string;
+  audio48k?: string;
+  waveform?: string;
+  thumbs: string[];
+  expiresAt: string;
+}
+
+// --- Jobs (A08, A14) ---------------------------------------------------------
+
+export type JobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+
+export interface JobSummary {
+  id: string;
+  type: string;
+  status: JobStatus;
+  priority: number;
+  /** 0-100. */
+  progress: number;
+  etaMs: number | null;
+  projectId: string | null;
+  jobKey: string;
+  attemptId: string | null;
+  creditsChargedTenths: number;
+  maxQueueWaitMs: number | null;
+  result: unknown;
+  error: { code?: string; message?: string; retryable?: boolean } | null;
+  provider: string | null;
+  model: string | null;
+  queuedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface JobPage {
+  items: JobSummary[];
+  nextCursor: string | null;
+}
+
+export interface ListJobsQuery {
+  projectId?: string;
+  status?: JobStatus;
+  type?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+// --- Styles (A16, A14) -------------------------------------------------------
+
+/**
+ * One catalogue entry: every `StyleDoc` v2 field (07 §Styles), plus where it
+ * came from. `@montaj/caption-styles` — which already depends on nothing this
+ * package should — owns the authoritative `StyleDoc` shape and the type the web
+ * app casts a fetched entry to; this client only declares the fields it and a
+ * quick-pick need to route and to render without pulling a rendering package
+ * into a generic HTTP client.
+ */
+export interface StyleCatalogueEntry {
+  id: string;
+  name: string;
+  version: 2;
+  category: string;
+  minPlan: "free" | "starter" | "creator" | "studio" | "agency";
+  /** The `style_presets` row id — never the same as `id` (the catalogue key). */
+  presetId: string;
+  source: "system" | "custom";
+  /** `null` for a system style. */
+  workspaceId: string | null;
+  /** Filename under the web app's own `/style-previews/`, or `null`. */
+  previewKey: string | null;
+  /** Typography, colours, animation, ... — the rest of StyleDoc v2. */
+  [key: string]: unknown;
+}
+
+/** `POST /workspaces/{id}/style-presets` and the `PATCH` that follows it. */
+export interface StylePresetRequest {
+  /** A full StyleDoc v2 document; validated server-side (D64 naming rule too). */
+  doc: Record<string, unknown>;
+}
+
+// --- Transcripts (A11, A14) --------------------------------------------------
+
+interface TranscribeCaptionPreferences {
+  maxLines?: number;
+  minMs?: number;
+  maxMs?: number;
+  maxChars?: number;
+  dropFillers?: boolean;
+  styleRef?: string;
+}
+
+/** `POST /projects/{id}/transcribe` and `/transcript/retranscribe`'s shared body. */
+export interface TranscribeRequest {
+  /** Language hints, best first; the first is passed to the provider. */
+  languages?: string[];
+  /** Glossary terms: hotword prompts where the provider supports them. */
+  hints?: string[];
+  /** Free — the transcription rate includes diarisation. */
+  diarise?: boolean;
+  captions?: TranscribeCaptionPreferences;
+}
+
+export interface TranscriptionQuote {
+  /** Credits held before the job was enqueued, in tenths. */
+  tenths: number;
+  /** For display only, never for arithmetic. */
+  credits: string;
+  durationMs: number;
+}
+
+export interface TranscribeAccepted {
+  /** Poll `GET /jobs/{id}` or listen for `job.completed`. */
+  jobId: string;
+  /** The transcript the completion will write. */
+  transcriptId: string;
+  /** `queued`, or the live job's status when deduplicated. */
+  status: string;
+  /** True when a transcription was already running and none was enqueued. */
+  deduplicated: boolean;
+  quote: TranscriptionQuote;
+}
+
+// ---------------------------------------------------------------------------
+// Offers (B04): signup gift, ₹9 clean export, week pass, ₹149 Free top-up.
+// ---------------------------------------------------------------------------
+
+export type Currency = "INR" | "USD";
+
+export type NinePassIneligibleReason =
+  "currency_not_inr" | "on_paid_plan" | "purchased_within_30_days";
+
+export interface NinePassEligibilityView {
+  /** An unconsumed, paid pass exists right now — a clean export is available. */
+  available: boolean;
+  /** May the workspace start a *new* checkout for one? (independent of `available`.) */
+  eligibleToBuy: boolean;
+  reason: NinePassIneligibleReason | null;
+  nextEligibleAt: string | null;
+  priceMinor: number;
+  currency: Currency;
+}
+
+export interface WeekPassEligibilityView {
+  active: boolean;
+  endsAt: string | null;
+  priceMinor: number;
+  currency: Currency;
+  creditsGrantedTenths: number;
+  days: number;
+}
+
+export interface TopupEligibilityView {
+  available: boolean;
+  priceMinor: number;
+  currency: Currency;
+  credits: number;
+}
+
+export interface OffersEligibilityView {
+  signupGift: { available: boolean };
+  ninePass: NinePassEligibilityView;
+  weekPass: WeekPassEligibilityView;
+  topupFree149: TopupEligibilityView;
+}
+
+export type PassKind = "first_export" | "week_pass" | "pay_once" | "topup";
+export type PassStatus = "pending_payment" | "available" | "active" | "redeemed" | "expired";
+
+export interface PassView {
+  id: string;
+  kind: PassKind;
+  status: PassStatus;
+  startsAt: string;
+  endsAt: string | null;
+  creditsGrantedTenths: number;
+  redeemedAt: string | null;
+  createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Billing (B01): plan checkout, passes/top-ups, subscription.
+// ---------------------------------------------------------------------------
+
+export type PlanKey = "free" | "starter" | "creator" | "studio" | "agency";
+export type BillingInterval = "month" | "year" | "halfyear" | "once";
+
+export interface PassCheckoutRequest {
+  kind: "first_export" | "week_pass" | "pay_once";
+  /** Required for `pay_once` (whose plan's credit allotment is being bought). */
+  planKey?: PlanKey;
+}
+
+export interface TopupCheckoutRequest {
+  credits: number;
+}
+
+export interface PassCheckoutResponse {
+  passPurchaseId: string;
+  /** Razorpay Checkout key id — `undefined` against the fake provider. */
+  keyId: string;
+  providerOrderId: string;
+  amountMinor: number;
+  currency: Currency;
+  creditsGrantedTenths: number;
+}
+
+export interface SubscriptionView {
+  id: string;
+  planKey: PlanKey;
+  status: string;
+  interval: BillingInterval;
+  currency: Currency;
+  listPriceMinor: number;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  renewalInitiateAt: string | null;
+  graceUntil: string | null;
+  cancelAtPeriodEnd: boolean;
+  pausedUntil: string | null;
+  seats: number;
+  mandateId: string | null;
+}
+
+/** `GET /workspaces/{id}/credits` (B02). */
+export interface CreditsSummary {
+  workspaceId: string;
+  balanceTenths: number;
+  monthlyGrantTenths: number;
+  grantResetAt: string | null;
+  lots: { id: string; source: string; remainingTenths: number; expiresAt: string | null }[];
+}
+
 // ---------------------------------------------------------------------------
 // Scripts and translation (A22)
 // ---------------------------------------------------------------------------
@@ -290,6 +681,8 @@ export interface ScriptAvailability {
 export interface AvailableScripts {
   scripts: ScriptAvailability[];
 }
+
+// --- Billing (B01) ------------------------------------------------------------
 
 /**
  * `GET /billing/plans` (B01, public — no auth required). One entry per active

@@ -165,8 +165,19 @@ the cuts before it — the drift D30 exists to prevent. A segment straddling a s
 becomes **two cues**, one either side, because a single cue across the splice would be
 on screen over footage that no longer contains its words.
 
-ASS is not written here: `@montaj/ass-exporter` owns it and lands in A18a. A manifest
-asking for one is refused with a message that says so.
+ASS is not written here: `@montaj/ass-exporter` owns it (A18a). A `render.subtitle`
+manifest asking for the `ass` format is still refused with a message that says so —
+writing the sidecar bytes is entirely `@montaj/ass-exporter`'s job.
+
+`render.video`'s `path: "ass"` is a different question — a _burned-in_ fast path via
+`ffmpeg -vf ass=` (libass), bypassing the Skia pipeline below entirely. A18a's parity
+gate is the only writer of each style's `assRenderable` flag (D33: a real, measured
+pixel-diff against libass, not a hand-set flag), and this service checks it: a request
+for a style that has not passed the gate is refused with `render/unsupported-output`
+naming which style. A request where every referenced style **has** passed the gate is
+refused too, for now, with a different message — the actual libass burn-in (encoder
+selection, watermark honesty under THREAT-MODEL T10, audio-replace, alpha output) is
+A20/A21 follow-up work, outside `@montaj/ass-exporter`'s own file boundary.
 
 ## Fonts
 
