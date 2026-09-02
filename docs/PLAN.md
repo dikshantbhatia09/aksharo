@@ -96,17 +96,17 @@ Sub-wave order: {B01, B02, B05, B09} → {B03, B04, B06, B07, B07b, B08} → {B1
 | WP | Title | Deps | Status |
 |---|---|---|---|
 | B10 | Audio clean: 48 kHz deep-filter path, loudness targets, A/B preview, applied in browser + cloud exports | A09, A20, A19 | done (merged: Quick clean chain, A/B previews, cleanedAudioUrl in export sources; D82 tiers; B10b: SetAudio.cleanId, panel mount + op wiring, audio parity gate, e2e, RSS bound) |
-| B11 | LLM features (chapters, summary, hooks) + `packages/prompts` registry, region pinning, evals, Insights tab | A11, B02 | done (merged: packages/prompts registry + evals 12/12, worker llm with fail-closed region pinning, insights API/tab; B11b: per-kind burn rates in config, one filler lexicon, EDG-segment payload) |
+| B11 | LLM features (chapters, summary, hooks) + `packages/prompts` registry, region pinning, evals, Insights tab | A11, B02 | done (B11/B11b merged: per-kind burn rates in config, one lexicon loader, EDG-segment insights payload) |
 | B12 | Academy tracks + rewards, Changelog + What's new, Help centre, support tickets with diagnostics | A13, B02 | briefed |
-| B13 | Admin console: roles + step-up, users/credits/refunds, flags, styles/parity, routing weights, jobs/DLQ, mandates, TDS, affiliate review, DSR/breach, share reports, metrics | B01–B12, B16 | briefed |
+| B13 | Admin console: roles + step-up, users/credits/refunds, flags, styles/parity, routing weights, jobs/DLQ, mandates, TDS, affiliate review, DSR/breach, share reports, metrics | B01–B12, B16 | in-progress (increment a merged: admin_roles + TOTP step-up + AdminGuard(role) + role-matrix test; b–e running on wp/B13) |
 | B14 | Public API v1 + scoped API keys + signed webhooks + SSRF-guarded URL import + developer docs | B02, A21, A06 | done (merged: scoped API keys with rotation overlap, /v1, idempotency, SSRF-safe URL ingest, signed webhooks with retries, Developers settings + /developers docs; B14b: real event emits for transcript.completed/job.failed/credits.low + fixture-server e2e) |
 | B15 | Share/review links (view/comment/approve, hygiene), comments, batch, replace media (re-align), import transcript & align | A12, A21, A10, B08 | briefed |
 | B18 | Autocut pass (silences, filler lexicons, retakes, protection, pacing) → pass items | A10, A11, A02c | done (merged: autocut pass in worker + API over edg_passes, 12 filler lexicons (H-20 review), CONTRACTS protected ranges → B18b) |
 | B19 | Reframe & zoom pass (scene detection, subject tracking, cues, packed keyframes) | A07, A11, B18 | done (merged: scene-cut metric, tracking, zoom/reframe on the B18 runner, MKF2 keyframes; B19b: proxy frame sampling, single codec, keyframe storage, zoom type; H-22 weights) |
 | B20 | Proposal review UI + exports apply cuts/zooms via `timemap` (browser + cloud) + parity fixtures | A17, A19, A20, B18, B19 | briefed |
-| C00 | Signing & release pipeline (notarytool + 24 h buffer, cloud-HSM Windows signing, `.ccx`, ZXP, Resolve bundle, channels, SBOM); dry-run until A00-03 | A01 | briefed |
+| C00 | Signing & release pipeline (notarytool + 24 h buffer, cloud-HSM Windows signing, `.ccx`, ZXP, Resolve bundle, channels, SBOM); dry-run until A00-03 | A01 | running |
 | C01 | Local bridge v2: `bridge-core` + Node SEA app, relay-first WSS, loopback HTTPS + per-install cert, pairing, 12 h pair tokens, api relay module | A04, A08, B08 | briefed |
-| C02 | Desktop shell: Electron loading the hosted web app (decision D71), deep links, updater with channels, tray, embedded bridge, hardened defaults | A13, C00, C01 | briefed |
+| C02 | Desktop shell: Electron loading the hosted web app (decision D71), deep links, updater with channels, tray, embedded bridge, hardened defaults | A13, C00, C01 | done (merged: hardened Electron shell, allowlist, aksharo:// deep links, updater channels, fuses, BridgeAdapter stub; T25 added; C00 provides release scripts) |
 Sub-wave order: {B10, B11, B18, C00} → {B12, B14, B15, B19, C01} → {B13, B20, C02} → **Gate B**.
 
 ## Wave 5 — Plugins
