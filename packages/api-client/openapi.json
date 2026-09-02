@@ -16013,6 +16013,59 @@
         ]
       }
     },
+    "/devices/{deviceId}/bridge-token": {
+      "post": {
+        "description": "For a registered, leased device the caller owns: mints a `kind:\"bridge\"` access token carrying this device's id (CONTRACTS §5), which is what the local bridge presents to `/bridge/relay`. Refreshed the same way the device's entitlement lease is, via `POST /devices/register`. Refuses with `licensing/device_revoked` (the device was revoked) or `licensing/device_lease_expired` (the lease needs renewing first).",
+        "operationId": "mintDeviceBridgeToken",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A short-lived bridge access token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "expiresIn": {
+                      "type": "number"
+                    },
+                    "deviceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "accessToken",
+                    "expiresIn",
+                    "deviceId"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mint a bridge credential for this device",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
     "/workspaces/{id}/transfer-ownership": {
       "post": {
         "description": "Owner only. The first call (no confirmToken) mints a 10-minute confirmation token and mails it to the current owner; the second call, with that token, executes the transfer. Sessions are unaffected.",
