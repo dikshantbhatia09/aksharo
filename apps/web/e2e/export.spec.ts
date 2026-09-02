@@ -14,6 +14,7 @@ import {
   grantTestCredits,
   workspaceIdFromPage,
 } from "./export-test-helpers";
+import { gotoHydrated } from "./fixtures";
 
 /**
  * Chromium: exports a 10-second synthetic clip end to end in the browser —
@@ -282,5 +283,99 @@ test.describe("browser export (chromium)", () => {
     expect(completeResponse.ok(), await completeResponse.text()).toBe(true);
     const completion = (await completeResponse.json()) as { status: string };
     expect(completion.status).toBe("succeeded");
+  });
+
+  /**
+   * A07b: the real `ExportDialog` UI, clicked all the way through, rather
+   * than the `/export-harness` driver the test above uses. Before this work
+   * package, `use-export-dialog.ts` never passed `preferFileSystemAccess:
+   * false` to the engine, so a synthetic Playwright click on the dialog's
+   * own "Export" button reached for the real `showSaveFilePicker` — which
+   * rejects a synthetic click with "The user aborted a request." (there is
+   * no browser chrome for it to prompt against) — and the export ended in
+   * `phase: "error"` before a single frame rendered. `gate-a.spec.ts` hit
+   * this exact gap and worked around it by asserting the API decision
+   * directly instead of driving the dialog on chromium; that workaround's
+   * note is now superseded by this test.
+   *
+   * `use-export-dialog.ts`'s fix is a non-production-only `window.
+   * __aksharoE2E?.noFilePicker` flag, set below with `addInitScript` before
+   * the app's own scripts run, exactly as a real feature flag would be.
+   *
+   * The seeded project's `media_assets` row still has no real bytes behind
+   * it (this file's header note) — this test's own fix for that is a
+   * `page.route` intercept that rewrites the manifest response's signed
+   * `sources.rawUrl` to the same local fixture MP4 the harness test above
+   * reads directly, so the real dialog's real `fetch` of "the source video"
+   * resolves to real bytes instead of a presigned URL for an object that
+   * was never uploaded.
+   */
+  test("drives the real export dialog end to end, not the /export-harness driver", async ({
+    page,
+    browser,
+  }) => {
+    ensureFixtureVideo();
+
+    const setupContext = await browser.newContext();
+    const setupPage = await setupContext.newPage();
+    const account = await freshAccount(setupPage, "export-dialog-e2e");
+    const workspaceId = await workspaceIdFromPage(setupPage);
+    await grantTestCredits(workspaceId);
+    await setupContext.close();
+
+    const { projectId } = await seedEditorProject(page, account, {
+      title: "A07b export dialog e2e",
+    });
+    await correctFixtureMediaDuration(projectId, FIXTURE_SECONDS * 1000);
+
+    await page.addInitScript(() => {
+      (window as unknown as { __aksharoE2E?: { noFilePicker?: boolean } }).__aksharoE2E = {
+        noFilePicker: true,
+      };
+    });
+
+    await page.route(`${API_ORIGIN}/projects/${projectId}/exports`, async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.fallback();
+        return;
+      }
+      const response = await route.fetch();
+      const body = (await response.json()) as { sources?: Record<string, unknown> };
+      if (body.sources !== undefined) {
+        body.sources = { ...body.sources, rawUrl: "/e2e-fixtures/export-sample.mp4" };
+      }
+      await route.fulfill({ response, json: body });
+    });
+
+    await gotoHydrated(page, `/p/${projectId}`);
+    await expect(page.getByTestId("editor-root")).toBeVisible({ timeout: 30_000 });
+
+    await page.getByTestId("editor-export-open").click();
+    await expect(page.getByTestId("export-dialog")).toBeVisible();
+    await page.getByTestId("export-tab-video").click();
+    await page.getByTestId("export-start").click();
+
+    // A19c's software-encoder default (this file's other test) can still
+    // route a fresh `auto` request to the cloud offer on a headless
+    // chromium with no hardware encoder; the dialog's own override is
+    // exactly what a real user would click in that case.
+    const cloudOffer = page.getByTestId("export-cloud-offer");
+    const wentToCloud = await cloudOffer
+      .waitFor({ state: "visible", timeout: 10_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (wentToCloud) {
+      await page.getByTestId("export-browser-anyway").click();
+    }
+
+    await expect(page.getByTestId("export-error")).toHaveCount(0);
+    await expect(page.getByTestId("export-done")).toBeVisible({ timeout: 120_000 });
+
+    const exportsResponse = await page.request.get(`${API_ORIGIN}/projects/${projectId}/exports`, {
+      headers: { Authorization: `Bearer ${await accessTokenFromPage(page)}` },
+    });
+    expect(exportsResponse.ok(), await exportsResponse.text()).toBe(true);
+    const exports = (await exportsResponse.json()) as { items: { status: string }[] };
+    expect(exports.items.some((item) => item.status === "succeeded")).toBe(true);
   });
 });

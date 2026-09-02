@@ -4,6 +4,7 @@ import { SubtitleImportService } from "./import/subtitle-import.service.js";
 import { MediaController, MediaUploadsController } from "./media.controller.js";
 import { MediaService } from "./media.service.js";
 import { MediaProbeCompletionHandler } from "./probe.handler.js";
+import { MediaProxyCompletionHandler } from "./proxy.handler.js";
 import { RetentionService } from "./retention.service.js";
 import { SampleProjectController } from "./sample-project.controller.js";
 import { JobsModule } from "../jobs/jobs.module.js";
@@ -23,11 +24,22 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
  * `RetentionService` is exported and registers no schedule of its own: B16 owns
  * the scheduler wiring, and a sweep that started itself in every process would
  * delete a shared bucket from a developer's laptop.
+ *
+ * `MediaProxyCompletionHandler` (A07b) is the completion-side half of what
+ * `MediaProbeCompletionHandler` starts: it independently flips the asset to
+ * `ready`/`failed` off the job's own completion, alongside (never instead of)
+ * the worker's `PATCH /internal/media/{id}` write-back.
  */
 @Module({
   imports: [ProjectsModule, WorkspacesModule, JobsModule],
   controllers: [MediaController, MediaUploadsController, SampleProjectController],
-  providers: [MediaService, SubtitleImportService, RetentionService, MediaProbeCompletionHandler],
+  providers: [
+    MediaService,
+    SubtitleImportService,
+    RetentionService,
+    MediaProbeCompletionHandler,
+    MediaProxyCompletionHandler,
+  ],
   exports: [MediaService, SubtitleImportService, RetentionService],
 })
 export class MediaModule {}

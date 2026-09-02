@@ -103,6 +103,37 @@ export const TimemapEditSchema = z.discriminatedUnion("kind", [
 export type TimemapEdit = z.infer<typeof TimemapEditSchema>;
 
 /**
+ * One accepted `zoom` or `reframe` pass item's curve, on the **source** clock
+ * (B20 addition, CONTRACTS §7 manifest schema).
+ *
+ * `packed` is the item's keyframe rows — `@montaj/edg` `ZoomPayload`/
+ * `ReframePayload`'s `keyframesRef` bytea, base64-encoded for the JSON wire —
+ * five little-endian float32s per row, `[tMs, x, y, w, h]` (a normalised
+ * `[0,1]` source rectangle; a `zoom` item is reduced to this same shape by
+ * `apps/web/lib/passes/keyframes.ts`'s `cropRectFromZoom` before it is packed,
+ * so both consumers — the browser exporter and the cloud renderer — read one
+ * row format regardless of pass kind). Consumers remap `tMs` onto the output
+ * clock themselves with `@montaj/timemap`'s `mapKeyframes`, using the same
+ * `TimeMap` this manifest's `timemap.edits` builds — the manifest does not
+ * carry pre-remapped output times because a manifest is issued once and the
+ * remap is a pure, cheap function of data already on the document.
+ */
+export const KeyframeTrackSchema = z.object({
+  itemId: Ulid,
+  kind: z.enum(["zoom", "reframe"]),
+  /**
+   * The item's own `startMs` — B19's packed rows' `tMs` is relative to it
+   * (`@montaj/edg` `passes/keyframes.ts`'s `Keyframe.tMs`), so a consumer adds
+   * this back to land on the document's absolute source clock before it
+   * builds/queries a `@montaj/timemap` `TimeMap` against it.
+   */
+  itemStartMs: WholeMs,
+  /** Base64 of `@montaj/edg` `passes/keyframes.ts`'s packed `"MKF2"` rows. */
+  packed: z.string().min(1).max(1_000_000),
+});
+export type KeyframeTrack = z.infer<typeof KeyframeTrackSchema>;
+
+/**
  * The style documents this render is pinned to.
  *
  * `catalogueSnapshotIds` are content ids of the exact StyleDocs used —
@@ -223,6 +254,13 @@ export const RenderManifestSchema = z.object({
     edits: z.array(TimemapEditSchema).max(20_000),
     fps: z.number().positive().finite().optional(),
     snapCutsToFrames: z.boolean().default(false),
+    /**
+     * Accepted zoom/reframe curves (B20). Optional, not defaulted: every manifest
+     * built before this field existed — and every fixture/test literal across the
+     * repo that predates it — stays a valid `UnsignedRenderManifest` without
+     * being touched; a consumer reads `manifest.timemap.keyframes ?? []`.
+     */
+    keyframes: z.array(KeyframeTrackSchema).max(2_000).optional(),
   }),
   output: OutputSpecSchema,
   audio: AudioSpecSchema,
