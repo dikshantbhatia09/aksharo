@@ -1,0 +1,40 @@
+{
+  "name": "@montaj/release",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Signing & release pipeline CLI (C00): build-desktop, sign-nested, notarize, package-ccx, sign-zxp, package-resolve, sbom, checksums, publish, promote, verify-release. Dry-run by default; fails closed in signed mode without secrets.",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "main": "./dist/cli.js",
+  "bin": {
+    "montaj-release": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "start": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@montaj/config": "workspace:*",
+    "@cyclonedx/cyclonedx-npm": "^3.1.0",
+    "commander": "^13.1.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^22.19.2",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^3.2.7"
+  }
+}
