@@ -40,6 +40,40 @@ export interface ExportDialogDeps {
   readonly catalogue: ReadonlyMap<string, StyleDoc>;
   readonly registry: FontRegistry | undefined;
   readonly shaper: Shaper | undefined;
+  /**
+   * Passed straight through to `runExport` (`lib/export/engine.ts`'s
+   * `RunExportOptions`). Defaults to `true` — a real user click is a trusted
+   * gesture, so `createExportTarget` reaches for `showSaveFilePicker` before
+   * falling back to a plain download. A caller only ever sets this to drive
+   * the engine at a specific target in a unit test; production callers should
+   * leave it unset and let the E2E override below (a synthetic Playwright
+   * click is never a trusted gesture, so `showSaveFilePicker` throws
+   * `NotAllowedError` and the whole export aborts) do its job instead.
+   */
+  readonly preferFileSystemAccess?: boolean;
+}
+
+/**
+ * `window.__aksharoE2E` — a non-production-only escape hatch, never shipped to
+ * a real user (see the `process.env.NODE_ENV` guard below), that lets
+ * `apps/web/e2e/export.spec.ts` click all the way through the export dialog.
+ *
+ * A synthetic click is not a "user activation" as far as `showSaveFilePicker`
+ * is concerned, so without this flag the dialog's real button is
+ * un-automatable: the picker call rejects with `NotAllowedError` and the
+ * export ends in `phase: "error"` before a single frame renders. Setting
+ * `noFilePicker: true` (`export.spec.ts`'s `page.addInitScript`, before the
+ * app's own scripts run) is Playwright's side of the handshake.
+ */
+interface AksharoE2EWindow {
+  readonly __aksharoE2E?: { readonly noFilePicker?: boolean };
+}
+
+/** `true` only in a non-production build, and only when the page opted in. */
+function e2eNoFilePicker(): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+  if (typeof window === "undefined") return false;
+  return (window as unknown as AksharoE2EWindow).__aksharoE2E?.noFilePicker === true;
 }
 
 export type ExportPhase =
@@ -190,6 +224,12 @@ export function useExportDialog(deps: ExportDialogDeps): {
         // (`audio.strategy === "replace"`); the engine refuses to proceed on
         // "replace" without it.
         const cleanAudioSource = sources.cleanedAudioUrl;
+        // An E2E run's flag wins over whatever the caller passed: a synthetic
+        // click can never satisfy `showSaveFilePicker`'s activation check, so
+        // there is no scenario where automation wants the picker anyway.
+        const preferFileSystemAccess = e2eNoFilePicker()
+          ? false
+          : (deps.preferFileSystemAccess ?? true);
         const result = await runExport({
           manifest,
           source: sourceUrl,
@@ -199,6 +239,7 @@ export function useExportDialog(deps: ExportDialogDeps): {
           registry: deps.registry,
           shaper: deps.shaper,
           signal: controller.signal,
+          preferFileSystemAccess,
           aacEncodable: probe.audio.aac,
           aacPolyfillAvailable: true,
           fetchWatermarkAsset:

@@ -52,6 +52,20 @@ export interface JobCompletionHandler {
   /** The queue whose completions this handler owns. Exactly one handler per queue. */
   readonly jobType: QueueName;
   handle(context: JobCompletionContext): Promise<JobCompletionOutcome | undefined>;
+  /**
+   * Optional: what a **terminal failure** of this queue means to the domain that
+   * owns it, mirroring `handle`'s idempotency contract — called before the
+   * status flip, at-least-once, and expected to be safe to run twice.
+   *
+   * Most job types have nothing extra to do here: the `jobs` row already reads
+   * `failed` and that is the whole of it. A handler implements this only when a
+   * domain row needs its own independently-terminal write even if the worker's
+   * own write-back never lands (A07b: `media.proxy` marking `media_assets`
+   * `failed` when the worker's separate `PATCH /internal/media/{id}` was lost).
+   * Unlike `handle`, its return contributes nothing to settlement — a failed
+   * job settles zero tenths regardless.
+   */
+  handleFailure?(context: JobCompletionContext): Promise<void>;
 }
 
 /**

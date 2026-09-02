@@ -37,6 +37,37 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   A journey plus the load harness against the compose stack, on PRs into a
   wave branch.
 
+### Added
+
+- **A07b — a `media.proxy` completion handler, and a real-dialog export e2e.**
+  `apps/api/src/media/proxy.handler.ts` (`MediaProxyCompletionHandler`)
+  registers on `JobCompletionRegistry` alongside A07's probe handler: it
+  independently flips `media_assets.status` to `ready`/`failed` off the
+  job's own completion, alongside (never instead of) the worker's `PATCH
+/internal/media/{id}` write-back — closing the gap A23 found where a
+  completed `media.proxy` job left the asset stuck unless that separate
+  write-back happened to land. Idempotent both ways: the same outcome
+  twice is a no-op, and a conflicting outcome always resolves to `failed`
+  (a stray `ready` is overwritten; a success completion never undoes an
+  existing `failed`). Failure completions needed a new, additive
+  `JobCompletionHandler.handleFailure?` hook (`apps/api/src/jobs/
+completion-handlers.ts`) and one call site in `JobsService.complete`
+  (`apps/api/src/jobs/jobs.service.ts`) — every existing handler is
+  unaffected since none implements it. `apps/web/e2e/gate-a.spec.ts` no
+  longer needs `patchMediaForTest` to reach `status: "ready"`.
+
+  `apps/web/components/editor/export/use-export-dialog.ts` now accepts a
+  `preferFileSystemAccess` dep (default `true`) and, in non-production
+  builds only, reads `window.__aksharoE2E?.noFilePicker` to force `false`
+  — a synthetic Playwright click is not a "user activation"
+  `showSaveFilePicker` recognises, so without this a real click on the
+  export dialog's own button aborted the export before this fix.
+  `apps/web/e2e/export.spec.ts` adds a second chromium test that drives the
+  real `ExportDialog` end to end (open → Video tab → Export → the software-
+  encoder cloud-offer override where a headless browser needs it → `export-
+done`), verified against `GET /projects/{id}/exports`, alongside the
+  existing `/export-harness`-driven ffprobe assertion.
+
 ### Fixed
 
 - **A23 — the e2e fixtures' dev-outbox Redis key ignored

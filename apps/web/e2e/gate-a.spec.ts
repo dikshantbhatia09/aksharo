@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { loadRepoEnv } from "./env";
 import { API_ORIGIN, expect, expectNoSeriousA11yViolations, gotoHydrated, test } from "./fixtures";
-import { completeJobForTest, patchMediaForTest } from "./internal-callback";
+import { completeJobForTest } from "./internal-callback";
 
 import type { Page } from "@playwright/test";
 
@@ -270,16 +270,18 @@ test.describe("Gate A journey", () => {
     });
     await expect(card).toHaveAttribute("data-status", "ready", { timeout: 15_000 });
 
-    // `completeJobForTest` above only marks the *job* succeeded — the media
-    // asset's own `status` (what `POST /transcribe` actually checks) flips
-    // through the real worker's separate write-back route,
-    // `PATCH /internal/media/{id}` (there is no completion-registry handler
-    // for `media.proxy`; see `internal-callback.ts`'s `patchMediaForTest`).
+    // `completeJobForTest` above is enough on its own: `MediaProxyCompletionHandler`
+    // (A07b) reads `media.proxy`'s own completion and flips the media asset's
+    // `status` (what `POST /transcribe` actually checks) to `ready` off the job
+    // completion itself, independently of the real worker's separate write-back
+    // route (`PATCH /internal/media/{id}`, which is not running against this
+    // suite's API instance — see this file's header). Asserted directly, since
+    // that is the thing this step is actually relying on.
     const mediaListResponse = await page.request.get(`${API_ORIGIN}/projects/${id}/media`, {
       headers: authHeaders,
     });
-    const mediaList = (await mediaListResponse.json()) as { id: string }[];
-    await patchMediaForTest(mediaList[0]!.id, { status: "ready" });
+    const mediaList = (await mediaListResponse.json()) as { id: string; status: string }[];
+    expect(mediaList[0]?.status).toBe("ready");
 
     // Grant credits directly (the fresh signup's signup-gift is enough for a
     // 6s clip in practice, but a generous grant keeps this journey from being
