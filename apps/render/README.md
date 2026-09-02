@@ -107,6 +107,29 @@ the full target canvas.
 graph, same overlay frames. Off by default; `RR-04 §P2.16` puts the evaluation after
 cloud volume passes ~500 output-hours a month.
 
+### Dynamic zoom/reframe crop (B20)
+
+When the manifest's `timemap.keyframes` carries an accepted zoom/reframe item's
+curve (decoded and remapped onto the output clock by `@montaj/render-core`'s
+`outputCropKeyframesFromTracks`, the same function the browser exporter calls),
+`ffmpeg/crop-expr.ts` builds a `crop=w:h:x:y` filter whose `w`/`h`/`x`/`y` are
+ffmpeg expressions — nested `if(lt(t, ...), ramp, ...)` chains, one per
+dimension, since ffmpeg's expression language has no `lerp`. It runs on the
+post-cut (`concat`), pre-`buildFit` video: `t` is already the output clock, and
+the crop has to see the whole source before the static cover-fit crop changes
+the coordinate space. When a dynamic crop is present, the static cover-fit
+crop is **skipped** rather than composed with it — the crop window is treated
+as the intended composition (already picked at the project's aspect), and
+composing a second, static crop on top of a per-frame-varying one is not
+expressible as one `scale`/`crop` pair.
+
+**Known deviation:** only a `"linear"` keyframe segment is exact here; an
+`"easeInOutCubic"` segment (the browser path's real cubic, run in TypeScript)
+is approximated as linear in the ffmpeg expression — building the cubic in
+ffmpeg's expression language is possible (`pow()` exists) but was out of reach
+in this pass. `ffmpeg/crop-parity.test.ts` proves the two backends agree using
+`"linear"`-only fixtures, which is the honest scope of that guarantee.
+
 ## The rasteriser pool
 
 Skia runs on `min(cores − 1, 4)` worker threads, so it overlaps with ffmpeg instead of
