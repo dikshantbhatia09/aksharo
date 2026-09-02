@@ -23,23 +23,23 @@ each surface can own its layout and auth boundary.
 
 ## Routes A13 owns
 
-| Route                                    | What it is                                                                       |
-| ---------------------------------------- | -------------------------------------------------------------------------------- |
-| `/signup`                                | credentials, then onboarding **step 0** (age + consents, D60)                    |
-| `/login`                                 | password or Google; `?next=` is followed only when same-site                     |
-| `/magic`                                 | request a sign-in link, and consume one with `?token=`                           |
-| `/verify`                                | confirm an address, then on to sign in                                           |
-| `/auth/verify-email`, `/auth/magic-link` | where A04's emails point; they forward to the two above                          |
-| `/auth/callback`                         | Google returns here; `status=registration` asks step 0 before the account exists |
-| `/auth/desktop-landing`                  | triggers the `aksharo://` deep link with a visible fallback                      |
-| `/device`                                | device-code approval (host app, device, address, location)                       |
-| `/studio`                                | the shell's landing page until A14 builds Home                                   |
+| Route                                    | What it is                                                                           |
+| ---------------------------------------- | ------------------------------------------------------------------------------------ |
+| `/signup`                                | credentials, then onboarding **step 0** (age + consents, D60)                        |
+| `/login`                                 | password or Google; `?next=` is followed only when same-site                         |
+| `/magic`                                 | request a sign-in link, and consume one with `?token=`                               |
+| `/verify`                                | confirm an address, then on to sign in                                               |
+| `/auth/verify-email`, `/auth/magic-link` | where A04's emails point; they forward to the two above                              |
+| `/auth/callback`                         | Google returns here; `status=registration` asks step 0 before the account exists     |
+| `/auth/desktop-landing`                  | triggers the `aksharo://` deep link with a visible fallback                          |
+| `/device`                                | device-code approval (host app, device, address, location)                           |
+| `/studio`                                | the shell's landing page until A14 builds Home                                       |
 | `/onboarding`                            | steps 1–4 (B17 added step 4): what you make, languages, how you found us, you're set |
-| `/settings/*`                            | profile, languages, what Aksharo learned, devices, privacy, notifications        |
-| `/ui-kit`                                | every component state, for screenshot review                                     |
-| `/studio/styles`                         | A16's style harness: the caption canvas and the right panel                      |
-| `/p/{id}`                                | A15's editor: transcript, caption preview, style panel, in one store             |
-| `/api/session`, `/api/session/refresh`   | the only code that may touch the refresh token                                   |
+| `/settings/*`                            | profile, languages, what Aksharo learned, devices, privacy, notifications            |
+| `/ui-kit`                                | every component state, for screenshot review                                         |
+| `/studio/styles`                         | A16's style harness: the caption canvas and the right panel                          |
+| `/p/{id}`                                | A15's editor: transcript, caption preview, style panel, in one store                 |
+| `/api/session`, `/api/session/refresh`   | the only code that may touch the refresh token                                       |
 
 ## Onboarding completion and i18n (B17)
 

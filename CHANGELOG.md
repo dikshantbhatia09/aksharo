@@ -88,7 +88,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   export-preset label (`MAKE_DEFAULTS`), persisted onto `onboarding` and
   adopted by the Home quick-pick row (`home-view.tsx`) the same way it already
   adopted the language; "languages you speak on camera" now rides along as
-  routing hints on the *next* transcribe request (`upload-job.ts`'s
+  routing hints on the _next_ transcribe request (`upload-job.ts`'s
   `tryStartTranscription`, `languages: [primary, ...secondary]` plus
   `captions.styleRef`), not just the first pick. The code field classifies by
   prefix (`apps/api/src/users/onboarding/code-classifier.ts`, mirrored

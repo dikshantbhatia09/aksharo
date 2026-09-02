@@ -460,6 +460,13 @@ export const API_OPERATIONS = [
     summary: "List FIRC records, most recent settlement first.",
   },
   {
+    operationId: "getAcquisitionMetrics",
+    method: "GET",
+    path: "/admin/metrics/acquisition",
+    tags: ["admin"],
+    summary: "Onboarding completions by source and code type",
+  },
+  {
     operationId: "getBreachIncidentTemplates",
     method: "GET",
     path: "/admin/privacy/breach-incidents/{id}/templates",
