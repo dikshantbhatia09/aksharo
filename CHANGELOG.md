@@ -32,6 +32,33 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A10c — the model-server alignment rung, and the stale-reference sweep after A26.**
+  - `worker_ai/alignment/gpu.py`: `GpuCtcAligner`, `POST /align` on
+    `apps/model-server`. It sits at rank 35 — **below** the two local CTC rungs,
+    which cost only the CPU pod they already run in, and **above** the paid
+    ElevenLabs one. The `ai.*` pool is the CPU pool and carries no weights, so on
+    a normal deployment this is the rung that actually runs: the chain becomes
+    model server, then paid, then proportional.
+  - Three facts from A26's response shape the adapter, and each is pinned by a
+    test: words come back in **file time** (the server adds `startS` itself, so
+    only the caller's `offset_ms` is applied); there is always **one word per
+    input word**, a word outside the checkpoint's vocabulary getting
+    `probability: 0.0` and a mention in `skipped[]` rather than being dropped;
+    and `licence` is per checkpoint, so which family answered is recorded.
+  - `fixtures/vendor/gpu-whisper/session.json` gained a **real** `/align`
+    response, produced by driving `apps/model-server`'s own test client rather
+    than hand-written from prose. A26's `tests/test_contract_fixtures.py` reads
+    the same file from the other side, so neither app can change the shape
+    without the other's tests failing. `fixtures/vendor/gpu-align-skipped/`
+    records the degraded case.
+  - **`apps/worker-ai/Dockerfile.gpu` is deleted.** It described the GPU image
+    before that image existed; `apps/model-server/Dockerfile` is the real one, and
+    two files describing one image is how they drift. The README's GPU section now
+    names `apps/model-server` and tables the four routes this worker calls with
+    their clients, and `alignment/xlsr.py` cites
+    `apps/model-server/scripts/bake_models.py --aligner-global` instead of X05's
+    removed `infra/gpu/runpod/bake_models.py`.
+
 - **A26 — model-server: the GPU model server (`apps/model-server`), serving
   `/transcribe`, `/align`, `/diarise` and `/detect-language` for the serverless
   GPU lane (D15), with dynamic batching, warm-model lifecycle, a memory guard,
