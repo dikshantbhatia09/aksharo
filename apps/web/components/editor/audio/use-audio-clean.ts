@@ -27,7 +27,11 @@ import {
 const POLL_MS = 3_000;
 
 export interface SetAudioCleanOp {
-  readonly clean: { readonly enabled: boolean; readonly preset: string; readonly targetLufs: number };
+  readonly clean: {
+    readonly enabled: boolean;
+    readonly preset: string;
+    readonly targetLufs: number;
+  };
 }
 
 /** `TARGET_LUFS` mirrored from `worker_ai.clean.dsp` (brief §1) for the "Apply" op. */
@@ -55,7 +59,11 @@ export interface UseAudioCleanResult {
 /** Builds the `SetAudio` op payload for one clean; the caller enqueues it. */
 export function applyCleanOp(clean: AudioClean): SetAudioCleanOp {
   return {
-    clean: { enabled: true, preset: presetFor(clean.id), targetLufs: AUDIO_TARGET_LUFS[clean.target] },
+    clean: {
+      enabled: true,
+      preset: presetFor(clean.id),
+      targetLufs: AUDIO_TARGET_LUFS[clean.target],
+    },
   };
 }
 
@@ -87,7 +95,9 @@ export function useAudioClean(projectId: string): UseAudioCleanResult {
     void refresh();
   }, [refresh]);
 
-  const hasOpenRun = cleans.some((clean) => clean.status === "queued" || clean.status === "running");
+  const hasOpenRun = cleans.some(
+    (clean) => clean.status === "queued" || clean.status === "running",
+  );
   React.useEffect(() => {
     if (!hasOpenRun) return;
     const timer = setInterval(() => void refresh(), POLL_MS);

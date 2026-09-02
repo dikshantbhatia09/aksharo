@@ -252,7 +252,10 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
           "(see CreateExportResponse.sources.cleanedAudioUrl) — render in the cloud instead.",
       );
     }
-    const cleanInput = new Input({ source: sourceOf(options.cleanAudioSource), formats: ALL_FORMATS });
+    const cleanInput = new Input({
+      source: sourceOf(options.cleanAudioSource),
+      formats: ALL_FORMATS,
+    });
     const cleanAudioTrack = await cleanInput.getPrimaryAudioTrack();
     if (cleanAudioTrack === null) {
       throw new Error("the cleaned audio source has no audio track — render in the cloud instead.");

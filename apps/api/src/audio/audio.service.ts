@@ -133,7 +133,10 @@ export class AudioService {
   }): Promise<AudioCleanView[]> {
     const project = await this.project(input.projectId, input.workspaceId);
     const rows = await this.prisma.audioClean.findMany({
-      where: { projectId: project.id, ...(input.mediaId === undefined ? {} : { mediaId: input.mediaId }) },
+      where: {
+        projectId: project.id,
+        ...(input.mediaId === undefined ? {} : { mediaId: input.mediaId }),
+      },
       orderBy: { createdAt: "desc" },
       take: 50,
     });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { applyCleanOp, clearCleanOp } from "./use-audio-clean";
 import { metricsSummary } from "./AudioPanel";
+import { applyCleanOp, clearCleanOp } from "./use-audio-clean";
 
 import type { AudioClean } from "./audio-endpoints";
 

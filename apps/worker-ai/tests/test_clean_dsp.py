@@ -56,7 +56,7 @@ def _pink_noise(
     pink_spectrum = spectrum / np.sqrt(freqs)
     pink = np.fft.irfft(pink_spectrum, n=n)
     pink = pink / (np.max(np.abs(pink)) + 1e-9) * amplitude
-    return pink.astype(np.float32)
+    return np.asarray(pink, dtype=np.float32)
 
 
 def _speech_like_noisy(seconds: float = 6.0, *, noise_kind: str = "white") -> Pcm:

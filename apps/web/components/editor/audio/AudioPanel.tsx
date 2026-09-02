@@ -5,6 +5,7 @@ import * as React from "react";
 import { Button, ProgressBar, Switch } from "@montaj/ui";
 
 import { applyCleanOp, clearCleanOp, useAudioClean, type SetAudioCleanOp } from "./use-audio-clean";
+
 import type { AudioClean, AudioCleanStrength, AudioCleanTarget } from "./audio-endpoints";
 
 export interface AudioPanelProps {
@@ -84,7 +85,10 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
         </label>
         <label className="flex flex-col gap-1 text-xs">
           Target
-          <select value={target} onChange={(event) => setTarget(event.target.value as AudioCleanTarget)}>
+          <select
+            value={target}
+            onChange={(event) => setTarget(event.target.value as AudioCleanTarget)}
+          >
             {TARGETS.map((value) => (
               <option key={value} value={value}>
                 {value}
@@ -143,7 +147,6 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
                 </button>
               </div>
               {previewSrc !== undefined && (
-                // eslint-disable-next-line jsx-a11y/media-has-caption -- a 20 s A/B audio preview, not programme content
                 <audio controls src={previewSrc} data-testid="ab-preview-player" />
               )}
 

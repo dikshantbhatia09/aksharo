@@ -89,7 +89,9 @@ export class AudioCleanDto {
   @ApiPropertyOptional() jobId?: string;
   @ApiPropertyOptional({ type: AudioCleanMetricsDto })
   metrics?: AudioCleanMetricsDto;
-  @ApiPropertyOptional({ description: "Signed GET URL for the cleaned 48 kHz WAV, when succeeded." })
+  @ApiPropertyOptional({
+    description: "Signed GET URL for the cleaned 48 kHz WAV, when succeeded.",
+  })
   cleanedAudioUrl?: string;
   @ApiPropertyOptional({ description: "Signed GET URL for the original-track A/B preview clip." })
   previewOriginalUrl?: string;

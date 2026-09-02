@@ -27,7 +27,11 @@ export interface CleanAccepted {
   readonly cleanId: string;
   readonly status: string;
   readonly deduplicated: boolean;
-  readonly quote: { readonly tenths: number; readonly credits: string; readonly durationMs: number };
+  readonly quote: {
+    readonly tenths: number;
+    readonly credits: string;
+    readonly durationMs: number;
+  };
 }
 
 export interface AudioCleanMetrics {

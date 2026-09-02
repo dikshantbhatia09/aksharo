@@ -306,4 +306,7 @@ def _missing_object_store() -> Any:
         def head_object(self, Bucket: str, Key: str) -> dict[str, Any]:  # noqa: N803
             raise RuntimeError("NoSuchKey")
 
+        def upload_file(self, Filename: str, Bucket: str, Key: str) -> None:  # noqa: N803
+            raise RuntimeError("NoSuchKey")
+
     return ObjectStore(bucket="derived", client=_Missing())

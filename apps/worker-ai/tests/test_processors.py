@@ -492,6 +492,9 @@ class _FakeS3:
     def head_object(self, Bucket: str, Key: str) -> dict[str, Any]:  # noqa: N803
         return {"ContentLength": 42}
 
+    def upload_file(self, Filename: str, Bucket: str, Key: str) -> None:  # noqa: N803
+        raise NotImplementedError("this fixture only exercises the read path")
+
 
 async def test_a_processor_reads_the_contracts_derived_key(wav_file: Path) -> None:
     client = _FakeS3(wav_file)
@@ -567,6 +570,9 @@ def test_the_store_wraps_a_head_failure(wav_file: Path) -> None:
             raise RuntimeError("boom")
 
         def head_object(self, Bucket: str, Key: str) -> dict[str, Any]:  # noqa: N803
+            raise RuntimeError("boom")
+
+        def upload_file(self, Filename: str, Bucket: str, Key: str) -> None:  # noqa: N803
             raise RuntimeError("boom")
 
     store = ObjectStore(bucket="derived", client=_Failing())

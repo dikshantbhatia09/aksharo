@@ -7451,6 +7451,753 @@
         ]
       }
     },
+    "/projects/{projectId}/insights": {
+      "post": {
+        "description": "Quotes and holds credits per kind (chapters 2, summary 1, hooks 2), enqueues one `ai.llm` job per kind. Pass `regenerate: true` to force a fresh run (e.g. a different `tone`) instead of deduplicating against an in-flight one.",
+        "operationId": "requestProjectInsights",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsightsRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightsAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Generate chapters, summary and/or hooks from the project's transcript",
+        "tags": [
+          "insights"
+        ]
+      },
+      "get": {
+        "operationId": "getProjectInsights",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightsResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The most recent chapters/summary/hooks result per kind",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcribe": {
+      "post": {
+        "description": "Quotes the job from the probed media duration (1 credit a minute, rounded up to 0.1 of a minute), holds the credits and enqueues `ai.transcribe`. The transcript and the editing document are written when the worker's completion arrives; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`. Diarisation is free — the transcription rate includes it.",
+        "operationId": "transcribeProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscribeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscribeAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          },
+          "409": {
+            "description": "`transcript/media_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Transcribe the project's primary media",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript/retranscribe": {
+      "post": {
+        "description": "Refused with `transcript/has_edits` when the editing document has moved past the revision the first transcription created: a new transcription mints new word ids, and edited captions are addressed by the old ones. Send `force: true` to proceed.",
+        "operationId": "retranscribeProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetranscribeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscribeAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          },
+          "409": {
+            "description": "`transcript/has_edits` or `transcript/media_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Transcribe the media again",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript": {
+      "get": {
+        "description": "Chunks are paged because one 10-minute chunk is roughly 1 500 words: a long recording is megabytes and an editor opens on the first screenful. The cursor is the previous page's last `chunkIdx`.",
+        "operationId": "getProjectTranscript",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptChunkPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The transcript manifest and one page of chunks",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript/export": {
+      "get": {
+        "description": "**Source time**: cues are where the words were spoken in the uploaded media. Once a project has cuts that is no longer the finished video's clock — output-time exports are A21's. Cues come from the editing document's captions when it has them, so an export reflects what the user edited.",
+        "operationId": "exportProjectTranscript",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The transcript file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/x-subrip": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/vtt": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Download the transcript",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg": {
+      "get": {
+        "description": "The hot state is under 64 KB. Segments are paged — `nextCursor` continues at `/edg/segments` — because a long-form project has thousands and an editor opens on the first screenful.",
+        "operationId": "getProjectEdg",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EdgDocumentDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The hot document, its revision and the first page of segments",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/segments": {
+      "get": {
+        "description": "The cursor is the previous page's last `seq`, so an edit three pages back cannot make a later page skip a caption.",
+        "operationId": "listEdgSegments",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One page of segments, ordered by `seq`",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/passes": {
+      "get": {
+        "operationId": "listEdgPasses",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every AI pass on the document, with its items",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/passes/{passId}/items": {
+      "get": {
+        "operationId": "listEdgPassItems",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "passId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassItemListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One pass's proposals, optionally filtered by review state",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/revisions": {
+      "get": {
+        "description": "A revision with no ops replaced the state wholesale (a snapshot restore); a client that finds one between its base and now must reload rather than replay.",
+        "operationId": "listEdgRevisions",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The op log from `from` onwards",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/snapshots": {
+      "get": {
+        "operationId": "listEdgSnapshots",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revisions a snapshot was taken at, newest first",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/ops": {
+      "post": {
+        "description": "A batch written against an older revision is rebased server-side and applied; the ops that had to be rewritten come back under `rebased`. Two writers who typed different text into the same caption cannot be reconciled by the server, so that is a 409 `edg/conflict` carrying `{latestRevision, opsSince, conflicts}` — never the document. More than 200 revisions behind is `edg/too_stale`: reload.",
+        "operationId": "applyEdgOps",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpBatchRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpBatchResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — a viewer may not write."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          },
+          "409": {
+            "description": "`edg/conflict` or `edg/too_stale`."
+          },
+          "429": {
+            "description": "`common/rate_limited` — the workspace op budget."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Apply a batch of ops (CONTRACTS §2)",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/resegment": {
+      "post": {
+        "description": "The server mints the `Resegment` op, so the audited record of what happened carries an id this API can vouch for. Every previous segment id is tombstoned; style, position and `hidden` are inherited by whichever new segment overlaps.",
+        "operationId": "resegmentEdg",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResegmentRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpBatchResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          },
+          "409": {
+            "description": "`edg/conflict` or `edg/too_stale`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Re-run segmentation over the whole document",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/snapshots/{revision}/restore": {
+      "post": {
+        "description": "History is never rewritten: the restore is appended, so restoring a later snapshot undoes it. The transcript is not rolled back — words live in their own table and a spelling fixed after the snapshot stays fixed. A snapshot that names a word the transcript no longer has live is refused with `edg/restore_invalid` and the dangling ids, rather than written as a caption nothing can render.",
+        "operationId": "restoreEdgSnapshot",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revision",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`edg/snapshot_not_found`."
+          },
+          "409": {
+            "description": "`edg/restore_invalid` — `details.danglingWordIds` names the words."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Restore a snapshot as a new revision",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
     "/memory": {
       "get": {
         "operationId": "listMemory",
@@ -10763,657 +11510,6 @@
         ]
       }
     },
-    "/projects/{projectId}/edg": {
-      "get": {
-        "description": "The hot state is under 64 KB. Segments are paged — `nextCursor` continues at `/edg/segments` — because a long-form project has thousands and an editor opens on the first screenful.",
-        "operationId": "getProjectEdg",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EdgDocumentDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "The hot document, its revision and the first page of segments",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/segments": {
-      "get": {
-        "description": "The cursor is the previous page's last `seq`, so an edit three pages back cannot make a later page skip a caption.",
-        "operationId": "listEdgSegments",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SegmentPageDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "One page of segments, ordered by `seq`",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/passes": {
-      "get": {
-        "operationId": "listEdgPasses",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PassListDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Every AI pass on the document, with its items",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/passes/{passId}/items": {
-      "get": {
-        "operationId": "listEdgPassItems",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "passId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PassItemListDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "One pass's proposals, optionally filtered by review state",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/revisions": {
-      "get": {
-        "description": "A revision with no ops replaced the state wholesale (a snapshot restore); a client that finds one between its base and now must reload rather than replay.",
-        "operationId": "listEdgRevisions",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RevisionPageDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "The op log from `from` onwards",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/snapshots": {
-      "get": {
-        "operationId": "listEdgSnapshots",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SnapshotListDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Revisions a snapshot was taken at, newest first",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/ops": {
-      "post": {
-        "description": "A batch written against an older revision is rebased server-side and applied; the ops that had to be rewritten come back under `rebased`. Two writers who typed different text into the same caption cannot be reconciled by the server, so that is a 409 `edg/conflict` carrying `{latestRevision, opsSince, conflicts}` — never the document. More than 200 revisions behind is `edg/too_stale`: reload.",
-        "operationId": "applyEdgOps",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OpBatchRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpBatchResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "403": {
-            "description": "`common/forbidden` — a viewer may not write."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          },
-          "409": {
-            "description": "`edg/conflict` or `edg/too_stale`."
-          },
-          "429": {
-            "description": "`common/rate_limited` — the workspace op budget."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Apply a batch of ops (CONTRACTS §2)",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/resegment": {
-      "post": {
-        "description": "The server mints the `Resegment` op, so the audited record of what happened carries an id this API can vouch for. Every previous segment id is tombstoned; style, position and `hidden` are inherited by whichever new segment overlaps.",
-        "operationId": "resegmentEdg",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResegmentRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpBatchResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          },
-          "409": {
-            "description": "`edg/conflict` or `edg/too_stale`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Re-run segmentation over the whole document",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/snapshots/{revision}/restore": {
-      "post": {
-        "description": "History is never rewritten: the restore is appended, so restoring a later snapshot undoes it. The transcript is not rolled back — words live in their own table and a spelling fixed after the snapshot stays fixed. A snapshot that names a word the transcript no longer has live is refused with `edg/restore_invalid` and the dangling ids, rather than written as a caption nothing can render.",
-        "operationId": "restoreEdgSnapshot",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "revision",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RestoreResultDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`edg/snapshot_not_found`."
-          },
-          "409": {
-            "description": "`edg/restore_invalid` — `details.danglingWordIds` names the words."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Restore a snapshot as a new revision",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/transcribe": {
-      "post": {
-        "description": "Quotes the job from the probed media duration (1 credit a minute, rounded up to 0.1 of a minute), holds the credits and enqueues `ai.transcribe`. The transcript and the editing document are written when the worker's completion arrives; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`. Diarisation is free — the transcription rate includes it.",
-        "operationId": "transcribeProject",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TranscribeRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Accepted and queued.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TranscribeAcceptedDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "402": {
-            "description": "`credits/insufficient`."
-          },
-          "404": {
-            "description": "`common/not_found`, or `transcript/not_found`."
-          },
-          "409": {
-            "description": "`transcript/media_not_ready`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Transcribe the project's primary media",
-        "tags": [
-          "transcripts"
-        ]
-      }
-    },
-    "/projects/{projectId}/transcript/retranscribe": {
-      "post": {
-        "description": "Refused with `transcript/has_edits` when the editing document has moved past the revision the first transcription created: a new transcription mints new word ids, and edited captions are addressed by the old ones. Send `force: true` to proceed.",
-        "operationId": "retranscribeProject",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RetranscribeRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TranscribeAcceptedDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `transcript/not_found`."
-          },
-          "409": {
-            "description": "`transcript/has_edits` or `transcript/media_not_ready`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Transcribe the media again",
-        "tags": [
-          "transcripts"
-        ]
-      }
-    },
-    "/projects/{projectId}/transcript": {
-      "get": {
-        "description": "Chunks are paged because one 10-minute chunk is roughly 1 500 words: a long recording is megabytes and an editor opens on the first screenful. The cursor is the previous page's last `chunkIdx`.",
-        "operationId": "getProjectTranscript",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TranscriptChunkPageDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `transcript/not_found`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "The transcript manifest and one page of chunks",
-        "tags": [
-          "transcripts"
-        ]
-      }
-    },
-    "/projects/{projectId}/transcript/export": {
-      "get": {
-        "description": "**Source time**: cues are where the words were spoken in the uploaded media. Once a project has cuts that is no longer the finished video's clock — output-time exports are A21's. Cues come from the editing document's captions when it has them, so an export reflects what the user edited.",
-        "operationId": "exportProjectTranscript",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The transcript file.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "application/x-subrip": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "text/vtt": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `transcript/not_found`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Download the transcript",
-        "tags": [
-          "transcripts"
-        ]
-      }
-    },
     "/projects/{projectId}/audio/clean": {
       "post": {
         "description": "Quotes the job from the probed media duration (1 credit a minute, rounded up to 0.1 of a minute, creator plan and above), holds the credits and enqueues `ai.clean`. Watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`, then read `GET /projects/{id}/audio/cleans` for the signed URLs and metrics.",
@@ -11513,6 +11609,107 @@
         "summary": "This project's audio-clean history",
         "tags": [
           "audio"
+        ]
+      }
+    },
+    "/projects/{projectId}/passes/autocut": {
+      "post": {
+        "description": "Quotes the job from the primary media's probed duration (`autocutPass` burn rate, source minutes), holds the credits and enqueues `ai.pass`. The proposed cuts land as `edg_pass_items` (state `proposed`) once the worker's completion arrives and `MergePass` merges them; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`.",
+        "operationId": "startAutocutPass",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartAutocutRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          },
+          "409": {
+            "description": "`pass/media_not_ready` or `pass/transcript_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start an autocut pass",
+        "tags": [
+          "passes"
+        ]
+      }
+    },
+    "/projects/{projectId}/passes": {
+      "get": {
+        "operationId": "listProjectPasses",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassSummaryListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every pass this project has landed, with items",
+        "tags": [
+          "passes"
         ]
       }
     },
@@ -17163,6 +17360,865 @@
           "affiliate"
         ]
       }
+    },
+    "/workspaces/{id}/api-keys": {
+      "post": {
+        "description": "The full key (`ak_live_<prefix>.<secret>`) is returned once, here, and never again.",
+        "operationId": "createApiKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MintedApiKeyDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`entitlement/upgrade_required` — Studio/Agency only."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mint a new API key",
+        "tags": [
+          "developers"
+        ]
+      },
+      "get": {
+        "operationId": "listApiKeys",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiKeyDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List a workspace's API keys (never the secret)",
+        "tags": [
+          "developers"
+        ]
+      }
+    },
+    "/workspaces/{id}/api-keys/{keyId}/rotate": {
+      "post": {
+        "operationId": "rotateApiKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MintedApiKeyDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`public_api/key_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Rotate a key: mint a replacement, give the old one a 24h overlap window",
+        "tags": [
+          "developers"
+        ]
+      }
+    },
+    "/workspaces/{id}/api-keys/{keyId}": {
+      "delete": {
+        "operationId": "revokeApiKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`public_api/key_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke an API key immediately",
+        "tags": [
+          "developers"
+        ]
+      }
+    },
+    "/v1/projects": {
+      "post": {
+        "description": "`sourceUrl` is fetched under the SSRF guard (https only, private/link-local/metadata addresses refused, redirects re-validated) and attached as the project's primary media.",
+        "operationId": "v1CreateProject",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1CreateProjectRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ProjectDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid `X-Api-Key`."
+          },
+          "403": {
+            "description": "The key lacks the required scope."
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Create a project, optionally from a sourceUrl",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/v1/projects/{id}": {
+      "get": {
+        "operationId": "v1GetProject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ProjectDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid `X-Api-Key`."
+          },
+          "403": {
+            "description": "The key lacks the required scope."
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Fetch a project",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/v1/projects/{projectId}/transcribe": {
+      "post": {
+        "operationId": "v1Transcribe",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1TranscribeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1TranscribeAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid `X-Api-Key`."
+          },
+          "403": {
+            "description": "The key lacks the required scope."
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Start transcription",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/v1/projects/{projectId}/transcript": {
+      "get": {
+        "operationId": "v1GetTranscript",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The transcript file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid `X-Api-Key`."
+          },
+          "403": {
+            "description": "The key lacks the required scope."
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Download the transcript as json, srt or vtt",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/v1/projects/{projectId}/exports": {
+      "post": {
+        "operationId": "v1CreateExport",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1CreateExportRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ExportAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid `X-Api-Key`."
+          },
+          "403": {
+            "description": "The key lacks the required scope."
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Request an export (cloud path)",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/v1/exports/{exportId}": {
+      "get": {
+        "operationId": "v1GetExport",
+        "parameters": [
+          {
+            "name": "exportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ExportDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid `X-Api-Key`."
+          },
+          "403": {
+            "description": "The key lacks the required scope."
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Fetch an export's status and (once ready) its download URL",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/v1/jobs/{id}": {
+      "get": {
+        "operationId": "v1GetJob",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1JobDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid `X-Api-Key`."
+          },
+          "403": {
+            "description": "The key lacks the required scope."
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Poll a job's status",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/workspaces/{id}/webhooks": {
+      "post": {
+        "operationId": "createWebhookEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedWebhookEndpointDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Register a webhook endpoint",
+        "tags": [
+          "webhooks"
+        ]
+      },
+      "get": {
+        "operationId": "listWebhookEndpoints",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WebhookEndpointDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List a workspace's webhook endpoints",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/workspaces/{id}/webhooks/{endpointId}": {
+      "patch": {
+        "operationId": "updateWebhookEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endpointId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWebhookRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEndpointDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`webhooks/endpoint_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Update a webhook endpoint's URL, events or active state",
+        "tags": [
+          "webhooks"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteWebhookEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endpointId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEndpointDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`webhooks/endpoint_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove a webhook endpoint",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/workspaces/{id}/webhooks/{endpointId}/test": {
+      "post": {
+        "operationId": "sendWebhookTestEvent",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endpointId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookTestResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`webhooks/endpoint_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Send a synthetic `ping` event to this endpoint",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/workspaces/{id}/webhooks/{endpointId}/deliveries": {
+      "get": {
+        "operationId": "listWebhookDeliveries",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endpointId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WebhookDeliveryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`webhooks/endpoint_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "This endpoint's recent delivery log",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/workspaces/{id}/webhooks/deliveries/{deliveryId}/redeliver": {
+      "post": {
+        "operationId": "redeliverWebhookDelivery",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deliveryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookRedeliverResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`webhooks/delivery_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Manually redeliver an exhausted delivery",
+        "tags": [
+          "webhooks"
+        ]
+      }
     }
   },
   "info": {
@@ -17599,6 +18655,679 @@
         "required": [
           "items",
           "unread"
+        ]
+      },
+      "InsightsRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "InsightJobDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "chapters",
+              "summary",
+              "hooks"
+            ]
+          },
+          "jobId": {
+            "type": "string",
+            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when an identical run was already queued."
+          },
+          "tenths": {
+            "type": "number",
+            "description": "Tenths of a credit held for this kind."
+          }
+        },
+        "required": [
+          "kind",
+          "jobId",
+          "deduplicated",
+          "tenths"
+        ]
+      },
+      "InsightsAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InsightJobDto"
+            }
+          },
+          "totalTenths": {
+            "type": "number",
+            "description": "Sum of `tenths` across every kind in this request."
+          }
+        },
+        "required": [
+          "jobs",
+          "totalTenths"
+        ]
+      },
+      "InsightRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "chapters",
+              "summary",
+              "hooks"
+            ]
+          },
+          "templateVersion": {
+            "type": "string",
+            "description": "`\"<id>@<n>\"`, e.g. `\"chapters@1\"`."
+          },
+          "provider": {
+            "type": "string",
+            "description": "`\"anthropic\"`, `\"openai\"` or `\"mock\"`."
+          },
+          "region": {
+            "type": "string",
+            "description": "The workspace jurisdiction this call was pinned to."
+          },
+          "output": {
+            "type": "object",
+            "description": "Schema-validated per `kind`: ChaptersOutput | SummaryOutput | HooksOutput (@montaj/prompts)."
+          },
+          "usage": {
+            "type": "object",
+            "description": "`{inputTokens, outputTokens, costMinor, currency}`."
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "templateVersion",
+          "provider",
+          "region",
+          "output",
+          "usage",
+          "createdAt"
+        ]
+      },
+      "InsightsResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Most recent row per kind.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InsightRowDto"
+            }
+          },
+          "disclosure": {
+            "type": "string",
+            "description": "Consent notice, ASCI-friendly labelling (brief §5): show verbatim next to generated content."
+          }
+        },
+        "required": [
+          "items",
+          "disclosure"
+        ]
+      },
+      "TranscribeRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "TranscriptionQuoteDto": {
+        "type": "object",
+        "properties": {
+          "tenths": {
+            "type": "number",
+            "description": "Credits held before the job was enqueued, in tenths."
+          },
+          "credits": {
+            "type": "string",
+            "description": "\"1.2\" — for display only, never for arithmetic."
+          },
+          "durationMs": {
+            "type": "number",
+            "description": "Media duration the quote was computed from."
+          }
+        },
+        "required": [
+          "tenths",
+          "credits",
+          "durationMs"
+        ]
+      },
+      "TranscribeAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
+          },
+          "transcriptId": {
+            "type": "string",
+            "description": "The transcript the completion will write."
+          },
+          "status": {
+            "type": "string",
+            "description": "`queued`, or the live job's status when deduplicated."
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when a transcription was already running and none was enqueued."
+          },
+          "quote": {
+            "$ref": "#/components/schemas/TranscriptionQuoteDto"
+          }
+        },
+        "required": [
+          "jobId",
+          "transcriptId",
+          "status",
+          "deduplicated",
+          "quote"
+        ]
+      },
+      "RetranscribeRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "DetectedLanguageDto": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "description": "BCP-47 tag."
+          },
+          "confidence": {
+            "type": "number",
+            "description": "0–1."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "script"
+            ],
+            "description": "Which of the two LID signals (D14)."
+          }
+        },
+        "required": [
+          "language",
+          "confidence",
+          "source"
+        ]
+      },
+      "CorrectionDto": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "string",
+            "enum": [
+              "punctuation",
+              "numerals",
+              "glossary",
+              "spelling",
+              "fillers",
+              "speakers"
+            ]
+          },
+          "wordId": {
+            "type": "string",
+            "description": "Word id, `\"<chunkIdx>:<n>\"`."
+          },
+          "before": {
+            "type": "string",
+            "description": "The text as the provider sent it."
+          },
+          "after": {
+            "type": "string",
+            "description": "The text as it was stored."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why, in a form a human can review."
+          }
+        },
+        "required": [
+          "step",
+          "wordId",
+          "before",
+          "after"
+        ]
+      },
+      "PostProcessingDto": {
+        "type": "object",
+        "properties": {
+          "steps": {
+            "description": "Steps that actually changed something.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "correctionCount": {
+            "type": "number",
+            "description": "Total corrections, including any not listed."
+          },
+          "corrections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CorrectionDto"
+            }
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when `corrections` is a prefix of the full log."
+          },
+          "languageDisagreement": {
+            "type": "boolean",
+            "description": "True when the acoustic and orthographic LID signals disagreed."
+          }
+        },
+        "required": [
+          "steps",
+          "correctionCount",
+          "corrections",
+          "truncated",
+          "languageDisagreement"
+        ]
+      },
+      "TranscriptDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "number",
+            "description": "Transcript revision these chunks belong to."
+          },
+          "language": {
+            "type": "string",
+            "description": "Resolved BCP-47 tag; Hinglish is `hi-Latn`."
+          },
+          "detectedLanguages": {
+            "description": "Both LID signals (D14).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DetectedLanguageDto"
+            }
+          },
+          "provider": {
+            "type": "object",
+            "nullable": true
+          },
+          "model": {
+            "type": "object",
+            "nullable": true
+          },
+          "alignerModel": {
+            "type": "object",
+            "nullable": true
+          },
+          "diariser": {
+            "type": "object",
+            "nullable": true
+          },
+          "chunkCount": {
+            "type": "number",
+            "description": "Chunks in this revision."
+          },
+          "durationMs": {
+            "type": "number",
+            "description": "End of the last chunk, in media ms."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "postProcessing": {
+            "$ref": "#/components/schemas/PostProcessingDto"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "revision",
+          "language",
+          "detectedLanguages",
+          "chunkCount",
+          "durationMs",
+          "createdAt"
+        ]
+      },
+      "TranscriptChunkPageDto": {
+        "type": "object",
+        "properties": {
+          "transcript": {
+            "$ref": "#/components/schemas/TranscriptDto"
+          },
+          "chunks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "description": "`TranscriptChunk` from `@montaj/edg` (CONTRACTS §2): `{chunkIdx, startMs, endMs, words[]}`."
+          },
+          "nextCursor": {
+            "type": "number",
+            "nullable": true,
+            "description": "Last `chunkIdx` returned; pass as `cursor`. `null` at the end."
+          }
+        },
+        "required": [
+          "transcript",
+          "chunks",
+          "nextCursor"
+        ]
+      },
+      "EdgDocumentDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number",
+            "description": "Compare-and-swap counter; one accepted batch raises it by 1."
+          },
+          "schemaVersion": {
+            "type": "number",
+            "description": "EDG schema generation (D28). Always 2 in this wave."
+          },
+          "hot": {
+            "type": "object",
+            "description": "`EdgHot` from `@montaj/edg` (CONTRACTS §2): meta, media, transcript, canvas, styles."
+          },
+          "segments": {
+            "description": "First page of segments, in `seq` order.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true,
+            "description": "Pass as `cursor` to `/edg/segments` for the next page."
+          },
+          "passes": {
+            "description": "Passes with their items.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "revision",
+          "schemaVersion",
+          "hot",
+          "segments",
+          "passes",
+          "updatedAt"
+        ]
+      },
+      "SegmentPageDto": {
+        "type": "object",
+        "properties": {
+          "segments": {
+            "description": "`Segment[]` from `@montaj/edg`, in `seq` order.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true
+          },
+          "revision": {
+            "type": "number",
+            "description": "Revision the page was read at."
+          }
+        },
+        "required": [
+          "segments",
+          "revision"
+        ]
+      },
+      "PassListDto": {
+        "type": "object",
+        "properties": {
+          "passes": {
+            "description": "`Pass[]` from `@montaj/edg`.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "passes"
+        ]
+      },
+      "PassItemListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "`PassItem[]` from `@montaj/edg`.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "RevisionDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number"
+          },
+          "ops": {
+            "description": "The ops as applied. Empty means the state was replaced (a snapshot restore).",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "clientOpIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "author": {
+            "type": "object",
+            "nullable": true,
+            "description": "User id, or null for a worker."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "web",
+              "desktop",
+              "premiere",
+              "ae",
+              "resolve",
+              "worker"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "revision",
+          "ops",
+          "clientOpIds",
+          "source",
+          "at"
+        ]
+      },
+      "RevisionPageDto": {
+        "type": "object",
+        "properties": {
+          "revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RevisionDto"
+            }
+          },
+          "latestRevision": {
+            "type": "number"
+          },
+          "nextFrom": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "revisions",
+          "latestRevision"
+        ]
+      },
+      "SnapshotDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "revision",
+          "createdAt"
+        ]
+      },
+      "SnapshotListDto": {
+        "type": "object",
+        "properties": {
+          "snapshots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SnapshotDto"
+            }
+          }
+        },
+        "required": [
+          "snapshots"
+        ]
+      },
+      "OpBatchRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "OpRejectionDto": {
+        "type": "object",
+        "properties": {
+          "opId": {
+            "type": "string",
+            "description": "The client op id that did not land."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "stale",
+              "conflict",
+              "invalid",
+              "invalid-range",
+              "not-contiguous",
+              "unknown-id",
+              "invariant",
+              "rebased-away",
+              "stale-after-resegment",
+              "forbidden",
+              "rate-limited"
+            ],
+            "description": "Closed enum (`packages/edg` README). Never free text."
+          },
+          "message": {
+            "type": "string",
+            "description": "Operator-facing detail; not for end users."
+          }
+        },
+        "required": [
+          "opId",
+          "reason"
+        ]
+      },
+      "OpBatchResponseDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number",
+            "description": "The revision after the batch; unchanged when nothing applied."
+          },
+          "applied": {
+            "description": "Op ids applied as written.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rebased": {
+            "description": "Op ids applied after a server-side rebase.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rejected": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpRejectionDto"
+            }
+          }
+        },
+        "required": [
+          "revision",
+          "applied",
+          "rebased",
+          "rejected"
+        ]
+      },
+      "ResegmentRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RestoreResultDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number",
+            "description": "The new revision the restore appended."
+          },
+          "segments": {
+            "type": "number",
+            "description": "Live segments after the restore."
+          }
+        },
+        "required": [
+          "revision",
+          "segments"
         ]
       },
       "DlqEntryDto": {
@@ -18081,556 +19810,6 @@
           "ledgerDriftTenths"
         ]
       },
-      "EdgDocumentDto": {
-        "type": "object",
-        "properties": {
-          "revision": {
-            "type": "number",
-            "description": "Compare-and-swap counter; one accepted batch raises it by 1."
-          },
-          "schemaVersion": {
-            "type": "number",
-            "description": "EDG schema generation (D28). Always 2 in this wave."
-          },
-          "hot": {
-            "type": "object",
-            "description": "`EdgHot` from `@montaj/edg` (CONTRACTS §2): meta, media, transcript, canvas, styles."
-          },
-          "segments": {
-            "description": "First page of segments, in `seq` order.",
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "nextCursor": {
-            "type": "object",
-            "nullable": true,
-            "description": "Pass as `cursor` to `/edg/segments` for the next page."
-          },
-          "passes": {
-            "description": "Passes with their items.",
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "revision",
-          "schemaVersion",
-          "hot",
-          "segments",
-          "passes",
-          "updatedAt"
-        ]
-      },
-      "SegmentPageDto": {
-        "type": "object",
-        "properties": {
-          "segments": {
-            "description": "`Segment[]` from `@montaj/edg`, in `seq` order.",
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "nextCursor": {
-            "type": "object",
-            "nullable": true
-          },
-          "revision": {
-            "type": "number",
-            "description": "Revision the page was read at."
-          }
-        },
-        "required": [
-          "segments",
-          "revision"
-        ]
-      },
-      "PassListDto": {
-        "type": "object",
-        "properties": {
-          "passes": {
-            "description": "`Pass[]` from `@montaj/edg`.",
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          }
-        },
-        "required": [
-          "passes"
-        ]
-      },
-      "PassItemListDto": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "description": "`PassItem[]` from `@montaj/edg`.",
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          }
-        },
-        "required": [
-          "items"
-        ]
-      },
-      "RevisionDto": {
-        "type": "object",
-        "properties": {
-          "revision": {
-            "type": "number"
-          },
-          "ops": {
-            "description": "The ops as applied. Empty means the state was replaced (a snapshot restore).",
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "clientOpIds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "author": {
-            "type": "object",
-            "nullable": true,
-            "description": "User id, or null for a worker."
-          },
-          "source": {
-            "type": "string",
-            "enum": [
-              "web",
-              "desktop",
-              "premiere",
-              "ae",
-              "resolve",
-              "worker"
-            ]
-          },
-          "at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "revision",
-          "ops",
-          "clientOpIds",
-          "source",
-          "at"
-        ]
-      },
-      "RevisionPageDto": {
-        "type": "object",
-        "properties": {
-          "revisions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RevisionDto"
-            }
-          },
-          "latestRevision": {
-            "type": "number"
-          },
-          "nextFrom": {
-            "type": "object",
-            "nullable": true
-          }
-        },
-        "required": [
-          "revisions",
-          "latestRevision"
-        ]
-      },
-      "SnapshotDto": {
-        "type": "object",
-        "properties": {
-          "revision": {
-            "type": "number"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "revision",
-          "createdAt"
-        ]
-      },
-      "SnapshotListDto": {
-        "type": "object",
-        "properties": {
-          "snapshots": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SnapshotDto"
-            }
-          }
-        },
-        "required": [
-          "snapshots"
-        ]
-      },
-      "OpBatchRequestDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "OpRejectionDto": {
-        "type": "object",
-        "properties": {
-          "opId": {
-            "type": "string",
-            "description": "The client op id that did not land."
-          },
-          "reason": {
-            "type": "string",
-            "enum": [
-              "stale",
-              "conflict",
-              "invalid",
-              "invalid-range",
-              "not-contiguous",
-              "unknown-id",
-              "invariant",
-              "rebased-away",
-              "stale-after-resegment",
-              "forbidden",
-              "rate-limited"
-            ],
-            "description": "Closed enum (`packages/edg` README). Never free text."
-          },
-          "message": {
-            "type": "string",
-            "description": "Operator-facing detail; not for end users."
-          }
-        },
-        "required": [
-          "opId",
-          "reason"
-        ]
-      },
-      "OpBatchResponseDto": {
-        "type": "object",
-        "properties": {
-          "revision": {
-            "type": "number",
-            "description": "The revision after the batch; unchanged when nothing applied."
-          },
-          "applied": {
-            "description": "Op ids applied as written.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "rebased": {
-            "description": "Op ids applied after a server-side rebase.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "rejected": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/OpRejectionDto"
-            }
-          }
-        },
-        "required": [
-          "revision",
-          "applied",
-          "rebased",
-          "rejected"
-        ]
-      },
-      "ResegmentRequestDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "RestoreResultDto": {
-        "type": "object",
-        "properties": {
-          "revision": {
-            "type": "number",
-            "description": "The new revision the restore appended."
-          },
-          "segments": {
-            "type": "number",
-            "description": "Live segments after the restore."
-          }
-        },
-        "required": [
-          "revision",
-          "segments"
-        ]
-      },
-      "TranscribeRequestDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "TranscriptionQuoteDto": {
-        "type": "object",
-        "properties": {
-          "tenths": {
-            "type": "number",
-            "description": "Credits held before the job was enqueued, in tenths."
-          },
-          "credits": {
-            "type": "string",
-            "description": "\"1.2\" — for display only, never for arithmetic."
-          },
-          "durationMs": {
-            "type": "number",
-            "description": "Media duration the quote was computed from."
-          }
-        },
-        "required": [
-          "tenths",
-          "credits",
-          "durationMs"
-        ]
-      },
-      "TranscribeAcceptedDto": {
-        "type": "object",
-        "properties": {
-          "jobId": {
-            "type": "string",
-            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
-          },
-          "transcriptId": {
-            "type": "string",
-            "description": "The transcript the completion will write."
-          },
-          "status": {
-            "type": "string",
-            "description": "`queued`, or the live job's status when deduplicated."
-          },
-          "deduplicated": {
-            "type": "boolean",
-            "description": "True when a transcription was already running and none was enqueued."
-          },
-          "quote": {
-            "$ref": "#/components/schemas/TranscriptionQuoteDto"
-          }
-        },
-        "required": [
-          "jobId",
-          "transcriptId",
-          "status",
-          "deduplicated",
-          "quote"
-        ]
-      },
-      "RetranscribeRequestDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "DetectedLanguageDto": {
-        "type": "object",
-        "properties": {
-          "language": {
-            "type": "string",
-            "description": "BCP-47 tag."
-          },
-          "confidence": {
-            "type": "number",
-            "description": "0–1."
-          },
-          "source": {
-            "type": "string",
-            "enum": [
-              "provider",
-              "script"
-            ],
-            "description": "Which of the two LID signals (D14)."
-          }
-        },
-        "required": [
-          "language",
-          "confidence",
-          "source"
-        ]
-      },
-      "CorrectionDto": {
-        "type": "object",
-        "properties": {
-          "step": {
-            "type": "string",
-            "enum": [
-              "punctuation",
-              "numerals",
-              "glossary",
-              "spelling",
-              "fillers",
-              "speakers"
-            ]
-          },
-          "wordId": {
-            "type": "string",
-            "description": "Word id, `\"<chunkIdx>:<n>\"`."
-          },
-          "before": {
-            "type": "string",
-            "description": "The text as the provider sent it."
-          },
-          "after": {
-            "type": "string",
-            "description": "The text as it was stored."
-          },
-          "reason": {
-            "type": "string",
-            "description": "Why, in a form a human can review."
-          }
-        },
-        "required": [
-          "step",
-          "wordId",
-          "before",
-          "after"
-        ]
-      },
-      "PostProcessingDto": {
-        "type": "object",
-        "properties": {
-          "steps": {
-            "description": "Steps that actually changed something.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "correctionCount": {
-            "type": "number",
-            "description": "Total corrections, including any not listed."
-          },
-          "corrections": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CorrectionDto"
-            }
-          },
-          "truncated": {
-            "type": "boolean",
-            "description": "True when `corrections` is a prefix of the full log."
-          },
-          "languageDisagreement": {
-            "type": "boolean",
-            "description": "True when the acoustic and orthographic LID signals disagreed."
-          }
-        },
-        "required": [
-          "steps",
-          "correctionCount",
-          "corrections",
-          "truncated",
-          "languageDisagreement"
-        ]
-      },
-      "TranscriptDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "projectId": {
-            "type": "string"
-          },
-          "revision": {
-            "type": "number",
-            "description": "Transcript revision these chunks belong to."
-          },
-          "language": {
-            "type": "string",
-            "description": "Resolved BCP-47 tag; Hinglish is `hi-Latn`."
-          },
-          "detectedLanguages": {
-            "description": "Both LID signals (D14).",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DetectedLanguageDto"
-            }
-          },
-          "provider": {
-            "type": "object",
-            "nullable": true
-          },
-          "model": {
-            "type": "object",
-            "nullable": true
-          },
-          "alignerModel": {
-            "type": "object",
-            "nullable": true
-          },
-          "diariser": {
-            "type": "object",
-            "nullable": true
-          },
-          "chunkCount": {
-            "type": "number",
-            "description": "Chunks in this revision."
-          },
-          "durationMs": {
-            "type": "number",
-            "description": "End of the last chunk, in media ms."
-          },
-          "createdAt": {
-            "type": "string"
-          },
-          "postProcessing": {
-            "$ref": "#/components/schemas/PostProcessingDto"
-          }
-        },
-        "required": [
-          "id",
-          "projectId",
-          "revision",
-          "language",
-          "detectedLanguages",
-          "chunkCount",
-          "durationMs",
-          "createdAt"
-        ]
-      },
-      "TranscriptChunkPageDto": {
-        "type": "object",
-        "properties": {
-          "transcript": {
-            "$ref": "#/components/schemas/TranscriptDto"
-          },
-          "chunks": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "additionalProperties": true
-            },
-            "description": "`TranscriptChunk` from `@montaj/edg` (CONTRACTS §2): `{chunkIdx, startMs, endMs, words[]}`."
-          },
-          "nextCursor": {
-            "type": "number",
-            "nullable": true,
-            "description": "Last `chunkIdx` returned; pass as `cursor`. `null` at the end."
-          }
-        },
-        "required": [
-          "transcript",
-          "chunks",
-          "nextCursor"
-        ]
-      },
       "CleanRequestDto": {
         "type": "object",
         "properties": {}
@@ -18808,6 +19987,56 @@
         },
         "required": [
           "cleans"
+        ]
+      },
+      "StartAutocutRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "PassAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "The `ai.pass` job id; poll `GET /jobs/{id}` or watch `job.completed`."
+          },
+          "passId": {
+            "type": "string",
+            "description": "The pass id `MergePass` will land under once the job completes."
+          },
+          "status": {
+            "type": "string",
+            "description": "The enqueued job's status, e.g. `queued`."
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when an autocut for this project was already queued or running."
+          },
+          "quote": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "jobId",
+          "passId",
+          "status",
+          "deduplicated",
+          "quote"
+        ]
+      },
+      "PassSummaryListDto": {
+        "type": "object",
+        "properties": {
+          "passes": {
+            "description": "`Pass[]` from `@montaj/edg`, each with its `items`.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "passes"
         ]
       },
       "TransliterateRequestDto": {
@@ -19357,6 +20586,409 @@
       "Function": {
         "type": "object",
         "properties": {}
+      },
+      "CreateApiKeyRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "MintedApiKeyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rateLimit": {
+            "type": "number"
+          },
+          "burstLimit": {
+            "type": "number"
+          },
+          "lastUsedAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "revokedAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "description": "`ak_live_<prefix>.<secret>` — shown once. Store it now."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "rateLimit",
+          "burstLimit",
+          "createdAt",
+          "key"
+        ]
+      },
+      "ApiKeyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rateLimit": {
+            "type": "number"
+          },
+          "burstLimit": {
+            "type": "number"
+          },
+          "lastUsedAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "revokedAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "rateLimit",
+          "burstLimit",
+          "createdAt"
+        ]
+      },
+      "V1CreateProjectRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "V1ProjectDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "createdAt"
+        ]
+      },
+      "V1TranscribeRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "V1TranscribeAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "transcriptId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "transcriptId",
+          "status"
+        ]
+      },
+      "V1CreateExportRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "V1ExportAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "exportId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "exportId",
+          "status"
+        ]
+      },
+      "V1ExportDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "downloadUrl": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "status",
+          "createdAt"
+        ]
+      },
+      "V1JobDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "progress": {
+            "type": "number"
+          },
+          "error": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "progress",
+          "createdAt"
+        ]
+      },
+      "CreateWebhookRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreatedWebhookEndpointDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "failures": {
+            "type": "number"
+          },
+          "disabledAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string",
+            "description": "The signing secret. Shown once — store it now."
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "events",
+          "active",
+          "failures",
+          "createdAt",
+          "secret"
+        ]
+      },
+      "WebhookEndpointDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "failures": {
+            "type": "number"
+          },
+          "disabledAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "events",
+          "active",
+          "failures",
+          "createdAt"
+        ]
+      },
+      "UpdateWebhookRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "WebhookTestResultDto": {
+        "type": "object",
+        "properties": {
+          "deliveryId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "deliveryId"
+        ]
+      },
+      "WebhookDeliveryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "event": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "delivered",
+              "failed",
+              "dead"
+            ]
+          },
+          "attempt": {
+            "type": "number"
+          },
+          "responseCode": {
+            "type": "object",
+            "nullable": true
+          },
+          "error": {
+            "type": "object",
+            "nullable": true
+          },
+          "nextRetryAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "deliveredAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "event",
+          "status",
+          "attempt",
+          "createdAt"
+        ]
+      },
+      "WebhookRedeliverResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
       }
     }
   }
