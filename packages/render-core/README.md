@@ -87,6 +87,83 @@ their left.
 **Anchoring** addresses the ink box, not the taller line-height block, so `box`,
 `paddedBox` and the safe-area clamp all talk about the same rectangle.
 
+### Budgets come from the type (D78)
+
+`09 §3` fixes 32/24/22 characters a line and two lines a caption. Those are
+**readability caps** — what a viewer can read in the time the caption is up — and
+they are maxima, not targets. Whether that many characters _fit_ is a different
+question, and `fitBudget` answers it:
+
+```ts
+const { maxChars, maxLines } = fitBudget({ style, script, canvas, registry, shaper });
+```
+
+It measures the average advance per **base character** by running a fixed,
+committed per-script sample through the real shaper with the resolved font — the
+same metrics the layout will use, so the two cannot disagree — and divides the
+caption box (less padding, inside the safe area) by it. The answer is
+`min(readabilityCap, whatFits)`.
+
+`layoutSegment` wraps at that budget rather than at the table, because wrapping
+at the cap would re-join words the segmenter deliberately separated and the
+caption would overflow and shrink. `@montaj/edg/segmenter` takes the same numbers
+as `maxCharsByScript`; A11 computes them at EDG initialisation and A15 offers a
+reflow when a style change moves them.
+
+The arithmetic this replaces: a full 32-character Latin line is about 16 em, and
+16 em inside 78–90% of a 1080-wide portrait frame needs an em of ~2.8% of frame
+height. Shrinking every style to that turns a creator caption into a subtitle;
+cutting the caption shorter does not. At 16:9 the same style has room for the
+whole readability cap, and `limitedByFit` says which of the two decided.
+
+A budget below `MIN_BUDGET_CHARS` is reported through `belowComfortableMinimum`
+rather than inflated — a style that large genuinely shows one short word a line,
+and inflating the number would put the overflow back.
+
+### Per-script size, `typography.scriptScale`
+
+An optional multiplier on `sizePct`, keyed by lowercase OpenType tag (`latn`,
+`deva`, `taml`). Additive: StyleDoc stays at generation 2 and a document without
+it renders exactly as before.
+
+With budgets adaptive it is no longer needed to make Indic _fit_ — it earns its
+place on **readability**. Without it a Tamil budget collapses to five or six
+characters, one short word a line; a modest reduction roughly doubles it. The
+catalogue therefore ships `deva` and `taml` entries and no `latn` entry at all.
+`scripts/tune-style-sizes.ts` bisects them; `src/styles/fit.test.ts` holds the
+result at shrink ≥ 0.95 at 1080×1920 and ≥ 0.9 at 1920×1080, per script.
+
+### Track-level shrink
+
+Shrink-to-fit is decided per caption, which is right in isolation and wrong in
+aggregate: a short caption is drawn at full size and the next one, one word longer,
+smaller, so the type size jitters shot to shot through a video.
+
+```ts
+const trackShrink = computeTrackShrink({ projection, catalogue, registry, shaper, canvas });
+const commands = renderFrame({ ...options, trackShrink });
+```
+
+`computeTrackShrink` lays every caption out once and returns the minimum shrink each
+(style, script) pair needs; `renderFrame` and `layoutFrame` apply it uniformly, so every
+caption in a style is one size for the whole video. It is keyed by script as well as
+style because a Hinglish project draws Latin and Devanagari at different sizes on
+purpose. Without the map, each caption shrinks on its own — the fallback is unchanged.
+
+It is a pure function of its inputs and it costs **one layout per caption**, so the
+exporters (A19, A20) and the preview stage compute it **once per session** — when the
+document, the style catalogue or the canvas changes — and cache it. Nothing calls it
+per frame.
+
+## The watermark
+
+`animate({ watermarkAssetId })` draws the mark; nothing in this package decides whether
+there should be one. The signed export manifest (A21) carries
+`watermark: { assetId, position, opacity } | null`, and A19/A20 pass
+`manifest.watermark.assetId` through. The editor preview takes a different route —
+`renderFrame` reads `projection.render.watermarkAssetId` — because a preview has no
+signed manifest to read.
+
 ## Sizing
 
 A StyleDoc carries no pixels. Type size, caption position and the safe-area margin are
@@ -145,10 +222,12 @@ read the diff, and commit the reason with it.
 
 ## Scripts
 
-| Script                                           | What it does                                      |
-| ------------------------------------------------ | ------------------------------------------------- |
-| `pnpm --filter @montaj/render-core build`        | `tsc` to `dist/` (CJS) and `dist/esm/` (ESM)      |
-| `pnpm --filter @montaj/render-core typecheck`    | type-check including tests                        |
-| `pnpm --filter @montaj/render-core lint`         | ESLint flat config from `@montaj/config/eslint`   |
-| `pnpm --filter @montaj/render-core test`         | Vitest, including the golden and benchmark suites |
-| `pnpm --filter @montaj/render-core golden:build` | regenerate `fixtures/goldens/`                    |
+| Script                                           | What it does                                             |
+| ------------------------------------------------ | -------------------------------------------------------- |
+| `pnpm --filter @montaj/render-core build`        | `tsc` to `dist/` (CJS) and `dist/esm/` (ESM)             |
+| `pnpm --filter @montaj/render-core typecheck`    | type-check including tests                               |
+| `pnpm --filter @montaj/render-core lint`         | ESLint flat config from `@montaj/config/eslint`          |
+| `pnpm --filter @montaj/render-core test`         | Vitest, including the golden and benchmark suites        |
+| `pnpm --filter @montaj/render-core golden:build` | regenerate `fixtures/goldens/`                           |
+| `pnpm --filter @montaj/render-core styles:tune`  | re-bisect every style's `sizePct` (`-- --write` applies) |
+| `pnpm --filter @montaj/render-core styles:fit`   | report the worst shrink per style, both canvases         |

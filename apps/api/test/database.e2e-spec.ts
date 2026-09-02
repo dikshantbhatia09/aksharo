@@ -210,6 +210,44 @@ describe.skipIf(!available)("database schema and seed", () => {
       ]);
     });
 
+    it("adds the A06 folders table, its FK and the upload columns", async () => {
+      // `folders` is not in 06-data-model.md either: 06 lists `projects.folder_id`
+      // but has no table for it, so A03 left the column without a foreign key and
+      // A06 introduces the table and converts it. Asserted separately, for the
+      // same reason `dlq` is.
+      const tables = await prisma.$queryRaw<{ table_name: string }[]>`
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'folders'`;
+      expect(tables).toHaveLength(1);
+
+      const foreignKey = await prisma.$queryRaw<{ conname: string }[]>`
+        SELECT conname FROM pg_constraint
+        WHERE conrelid = 'projects'::regclass AND conname = 'projects_folder_id_fkey'`;
+      expect(foreignKey).toHaveLength(1);
+
+      const columns = await prisma.$queryRaw<{ column_name: string }[]>`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'media_assets'
+          AND column_name IN (
+            'filename', 'upload_id', 'part_size_bytes', 'needs_realign',
+            'thumb_keys', 'raw_purged_at', 'derived_purged_at'
+          )`;
+      expect(columns.map((row) => row.column_name).sort()).toEqual([
+        "derived_purged_at",
+        "filename",
+        "needs_realign",
+        "part_size_bytes",
+        "raw_purged_at",
+        "thumb_keys",
+        "upload_id",
+      ]);
+
+      const role = await prisma.$queryRaw<{ enumlabel: string }[]>`
+        SELECT enumlabel FROM pg_enum
+        WHERE enumtypid = '"MediaRole"'::regtype AND enumlabel = 'subtitle'`;
+      expect(role).toHaveLength(1);
+    });
+
     it("installs the vector extension and types audio_assets.embedding as vector", async () => {
       const extensions = await prisma.$queryRaw<{ extname: string }[]>`
         SELECT extname FROM pg_extension WHERE extname = 'vector'`;

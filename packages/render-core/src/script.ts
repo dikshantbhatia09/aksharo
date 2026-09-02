@@ -41,6 +41,28 @@ export function openTypeScriptTag(script: WordScript): string {
 }
 
 /**
+ * The key a `typography.scriptScale` entry is stored under: the lowercase
+ * OpenType tag. Lowercase because a JSON key is data, and `deva` reads better
+ * in a document than `Deva`.
+ */
+export function scriptScaleKey(script: WordScript): string {
+  return openTypeScriptTag(script).toLowerCase();
+}
+
+/**
+ * The per-script multiplier on a style's `sizePct`, or 1 when the document says
+ * nothing. Latin keeps the size the style was drawn for; Indic scripts take the
+ * size a full-budget line of their own needs.
+ */
+export function scriptScaleFor(
+  scriptScale: Readonly<Record<string, number | undefined>> | undefined,
+  script: WordScript,
+): number {
+  const scale = scriptScale?.[scriptScaleKey(script)];
+  return scale === undefined || !Number.isFinite(scale) || scale <= 0 ? 1 : scale;
+}
+
+/**
  * Whether a script needs cluster-aware treatment: reordered matras, conjuncts
  * and mark positioning mean a break may only fall on a cluster boundary and a
  * "character" is not a code point.

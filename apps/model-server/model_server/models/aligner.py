@@ -72,10 +72,12 @@ _log = get_logger(__name__)
 #: 16 kHz wav2vec2 with a 320-sample stride. Read from the checkpoint when it says.
 DEFAULT_FRAME_MS = 20
 
-#: The languages routed to the MIT IndicWav2Vec heads (RR-02 F4, plus as/pa/ur).
-INDIC_LANGUAGES = frozenset(
-    {"as", "bn", "gu", "hi", "kn", "ml", "mr", "ne", "or", "pa", "sa", "ta", "te", "ur"}
-)
+#: The languages routed to the MIT IndicWav2Vec heads. Kept in step, by value,
+#: with ``worker_ai.alignment.indic_wav2vec.IndicWav2VecAligner.languages`` (A10b):
+#: the two aligners share a checkpoint layout, so a language that this server
+#: sends to ``indicwav2vec/`` and the worker sends to ``xlsr53/`` would be two
+#: rungs disagreeing about the same directory. A test asserts they match.
+INDIC_LANGUAGES = frozenset({"hi", "bn", "gu", "mr", "ne", "or", "ta", "te", "kn", "ml", "ur"})
 
 #: family -> (model id, licence). MMS is absent on purpose (D77).
 FAMILIES: dict[str, tuple[str, str]] = {

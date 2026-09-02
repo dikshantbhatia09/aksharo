@@ -27,7 +27,8 @@ import { RenderError } from "../errors.js";
 import { resolveFontOrThrow } from "../fonts/registry.js";
 import { clusterBoundaries, codePointsOf, type ShapedRun, type Shaper } from "../fonts/shaper.js";
 import { type FontRegistry } from "../fonts/types.js";
-import { charCount, dominantScript, limitsFor, type WordScript } from "../script.js";
+import { charCount, dominantScript, scriptScaleFor, type WordScript } from "../script.js";
+import { fitBudget } from "../styles/budget.js";
 import {
   assertCanvas,
   type CanvasSize,
@@ -38,6 +39,7 @@ import {
   q,
 } from "../units.js";
 import { itemise, type ItemisedRun } from "./itemise.js";
+import { applyTextTransform } from "./text-transform.js";
 import {
   type Layout,
   type LayoutLine,
@@ -74,6 +76,17 @@ export interface LayoutOptions {
   readonly script?: WordScript;
   /** Overrides the per-script character budget (`Resegment.maxChars`). */
   readonly maxChars?: number;
+  /**
+   * A shrink to apply instead of this caption's own, so a whole caption track
+   * can be drawn at one size (`computeTrackShrink`). A function receives the
+   * script the layout actually detected, which is the only way a caller can key
+   * the override by script without re-deriving the detection.
+   *
+   * Applied as `min(own, override)`: the track value is the minimum over the
+   * track and therefore always fits, and the `min` keeps a looser value from
+   * making a caption overflow.
+   */
+  readonly shrinkOverride?: number | ((script: WordScript) => number | undefined);
 }
 
 interface Measured {
@@ -82,26 +95,6 @@ interface Measured {
   /** Advance in em: multiply by the type size to get pixels. */
   readonly widthEm: number;
   readonly clusters: number;
-}
-
-/** `textTransform` from the style, applied before anything is counted or shaped. */
-export function applyTextTransform(
-  text: string,
-  transform: StyleDoc["typography"]["textTransform"],
-): string {
-  switch (transform) {
-    case "uppercase":
-      return text.toLocaleUpperCase();
-    case "lowercase":
-      return text.toLocaleLowerCase();
-    case "capitalize":
-      return text.replace(
-        /(^|\s)(\S)/gu,
-        (_match, lead: string, first: string) => lead + first.toLocaleUpperCase(),
-      );
-    default:
-      return text;
-  }
 }
 
 /**
@@ -355,8 +348,16 @@ export function layoutSegment(options: LayoutOptions): Layout {
     .filter((word) => word.t.trim().length > 0);
 
   const script = options.script ?? dominantScript(transformed.map((word) => word.t));
-  const maxChars = options.maxChars ?? limitsFor(script).maxCharsPerLine;
-  const baseFontSizePx = ofCanvasHeight(style.typography.sizePct, canvas);
+  // The same budget the segmenter cut to (D78). Wrapping at the readability
+  // cap instead would re-join words the segmenter deliberately separated, and
+  // the caption would overflow and shrink — the exact failure D78 removes.
+  const maxChars =
+    options.maxChars ?? fitBudget({ style, script, canvas, registry, shaper }).maxChars;
+  // The style's size, scaled for the script actually on screen. A Hinglish
+  // caption whose visible window is Devanagari takes the Devanagari size.
+  const baseFontSizePx =
+    ofCanvasHeight(style.typography.sizePct, canvas) *
+    scriptScaleFor(style.typography.scriptScale, script);
   const maxWidthPx = ofCanvasWidth(style.layout.maxWidthPct, canvas);
   const safeMarginPx = ofCanvasHeight(style.layout.safeAreaPct ?? 0, canvas);
 
@@ -434,6 +435,12 @@ export function layoutSegment(options: LayoutOptions): Layout {
       shrink = fit(lines, measured);
     }
   }
+
+  const override =
+    typeof options.shrinkOverride === "function"
+      ? options.shrinkOverride(script)
+      : options.shrinkOverride;
+  if (override !== undefined) shrink = clamp(Math.min(shrink, override), MIN_SHRINK, 1);
 
   const fontSizePx = baseFontSizePx * shrink;
   const letterSpacingPx = style.typography.letterSpacingEm * fontSizePx;
@@ -574,3 +581,5 @@ export function assertLayoutable(words: readonly RenderWord[], segmentId: string
     });
   }
 }
+
+export { applyTextTransform } from "./text-transform.js";

@@ -96,6 +96,133 @@ audioSeconds, model, batchSize}` on every response, the arithmetic behind it,
     coverage **95.3 % lines / 88.4 % branches** against the CONTRACTS §9 gate
     of 75/70, checked by `scripts/coverage_gate.py` because `--cov-fail-under`
     blends the two into one number that can pass while the contract fails.
+- **A06 — api: projects, folders, media ingest, derived URLs, subtitle import and
+  retention.**
+  - `apps/api/src/common/storage/`: an `ObjectStore` port with two instances —
+    `RAW_STORE` (`S3_BUCKET_RAW`, AWS S3 `ap-south-1` in production) and
+    `DERIVED_STORE` (`R2_BUCKET_DERIVED`, Cloudflare R2), both MinIO locally.
+    Presigned multipart PUT, presigned GET with a five-minute TTL, HEAD, delete
+    and object tagging over the AWS SDK v3. `storage.keys.ts` is the TypeScript
+    twin of `apps/worker-ai/worker_ai/storage.py` and refuses to build a
+    CONTRACTS section 6 key from anything that is not a ULID (THREAT-MODEL T5).
+  - **The bytes never pass through the API.** `POST /projects/{id}/media/init`
+    checks the plan cap and returns one presigned URL per 16 MiB part;
+    `POST /media/{mediaId}/complete` closes the multipart upload, records the
+    store's own byte count, sets `raw_purge_at` (upload + 7 days) and
+    `derived_purge_at` (the plan's retention), and enqueues `media.probe` then
+    `media.proxy`. Both are deduplicated on `jobKey`, so a retried completion
+    returns the same two job ids rather than four jobs.
+  - `POST /projects/{id}/media/{mediaId}/replace` puts new bytes on the **same**
+    media row — transcripts, the EDG document and exports all reference that id —
+    clears everything that described the old bytes and sets `needs_realign`.
+  - `GET /projects/{id}/media/{mediaId}/urls` signs only the derived artefacts
+    that exist, so the response doubles as "what is ready".
+  - `POST /projects/{id}/import` and `/import-url` parse SRT, WebVTT, ASS and
+    plain text into one normalised cue list (BOM and CRLF handled, ASS override
+    tags stripped, Devanagari untouched), store it as a JSON sidecar under the
+    media prefix as a `media_assets` row with role `subtitle`, and enqueue
+    `ai.align`. Plain text is marked untimed, which is the signal alignment needs.
+  - `apps/api/src/common/net/safe-fetch.ts`: the egress-restricted client of
+    THREAT-MODEL **T6** — http(s) on ports 80/443 only, every resolved address
+    judged against a deny list (RFC1918, loopback, link-local including
+    `169.254.169.254`, CGNAT, IPv6 ULA, multicast, IPv4-mapped and NAT64), the
+    vetted address **pinned** for the connection, three redirects, 2 MB and ten
+    seconds. A refusal reaches the caller as `import/blocked_url` with no detail.
+  - `RetentionService.purgeDueMedia()` (D47): two independent clocks, raw at seven
+    days and derived at the plan's retention. The object is deleted before the row
+    is marked, so a crash leaves a retryable sweep rather than stranded storage.
+    It registers no schedule — B16 owns that wiring.
+  - `POST /projects/batch` creates up to 50 projects in one transaction; folders
+    are a real table with cycle and depth checks and an "empty before delete" rule.
+  - Every `/projects`, `/folders` and `/media` route wears `JwtAuthGuard`,
+    `WorkspaceMemberGuard` and `RolesGuard`. Another tenant's id is a **404**, never
+    a 403 (T5).
+  - Media types are an allow-list (T7): `application/octet-stream` is accepted only
+    when the filename's extension is one we know, and the extension that reaches a
+    key is chosen from the same lists, never from the filename directly.
+
+- **A20 — the cloud render service: `apps/render`, `@montaj/render-skia-node`,
+  `@montaj/render-manifest`.**
+  - `@montaj/render-skia-node` is implemented: the same `DrawCommand[]` the browser
+    executes, run against Skia's native build (`@napi-rs/canvas` 1.0.8, pinned), with
+    `outlineTextCommands` converting every glyph run to a path because Canvas2D has no
+    glyph-id entry point. No system font is ever consulted (D33). Frames come out as
+    straight RGBA through a reusable batch buffer — a 1080×1920 frame is 8.3 MB and a
+    ninety-second Reel is 2,700 of them.
+  - **Parity against CanvasKit is measured, not asserted.** Nineteen frames — A16's
+    seven baselines plus the four caption fixtures at three instants — of which sixteen
+    are inside decision D33's SLO (≤ 1% of pixels off by more than 2/255) and the mean
+    is 0.83%. Everything except text is bit-exact; the residual is Skia's glyph cache
+    against an analytic path fill, and it grows as the type gets smaller.
+    `neon-glow-english` (3.31%) and the two entry-instant frames (1.10% and 1.20%) are
+    over, pinned with their measured values and their reason. Four conversions with a
+    unit in them — blur sigma, shadow sigma, the miter limit and layer opacity — are
+    asserted on their own so a regression names the conversion rather than a whole
+    frame.
+  - `@montaj/render-manifest` defines the server-signed `RenderManifest` of `05 §5.2`:
+    project and EDG revision, style-catalogue snapshot ids, timemap edits, aspect,
+    resolution and fps, the watermark decision, the plan's caps, the audio strategy and
+    the subtitle request. Signed with `INTERNAL_CALLBACK_SECRET` over canonical JSON
+    under a domain-separation prefix, verified against `INTERNAL_CALLBACK_SECRET_NEXT`
+    too, so one rotation procedure covers manifests and callbacks and no new secret was
+    added. Five refusals with stable codes: malformed, bad signature, expired, not yet
+    valid, caps exceeded.
+  - `apps/render` consumes `render.video` and `render.subtitle`. A render verifies the
+    manifest, builds the timemap (D30), and checks the caps against the _rendered_
+    length — all **before a byte of media moves** — then downloads the source, probes
+    it, draws frames on Skia and pipes them into ffmpeg as a second `rawvideo` input.
+    Cuts become `trim`/`concat` per retained span so video and audio are cut at the same
+    instants; the base is forced to the output frame rate immediately before `overlay`
+    so the two streams stay frame-aligned; presets get a centre cover `scale`/`crop`.
+    x264 `veryfast` at CRF 20 (1080p) / 18 (4K) with `+faststart`, or ProRes 4444 /
+    VP9-alpha for an alpha export and a solid chroma ground for green-screen. Output to
+    R2 under CONTRACTS §6, with `usage.outputSeconds` and `egressBytes: 0` (D35).
+  - **The watermark decision is the server's** (THREAT-MODEL T10): it travels inside the
+    signature, is drawn from the manifest rather than the projection, and stripping it
+    from a signed document is a `manifest/bad-signature` refusal — tested with that
+    exact attack.
+  - A frame cache keyed on `hashCommands` reuses the previous frame's pixels whenever
+    the command list is unchanged: two thirds of the frames of the sample project at
+    1080p, four fifths at 4K. It is exact rather than heuristic, because outlining is a
+    pure function of the hashed list.
+  - `render.subtitle` writes SRT, VTT, TXT and Markdown, one file per (format × script),
+    with every cue remapped onto the output clock and a segment straddling a splice
+    split into two cues. ASS is refused with a message naming A18a.
+  - The signed callback client is a TypeScript mirror of
+    `apps/worker-ai/worker_ai/callbacks.py`, down to the header names and the rule that
+    the bytes signed are the bytes sent; the A08b retry, stall and heartbeat table is
+    mirrored with a test that parses the API's own source to prove it has not drifted.
+  - `BENCHMARK.md` reports measured throughput: **1.05× realtime at 1080p**, 3.85× at
+    540p, 0.30× at 4K, on a 12-thread desktop. The ≥ 2× target is not met; the file
+    contains the stage split showing that Skia and x264 do not overlap because
+    rasterising blocks Node's only thread, the two optimisations tried (bounded layer
+    surfaces, landed, 0.69× → ~1.1×; a pipe run-ahead buffer, reverted, slower), and the
+    worker-thread change that would close the gap.
+- **A10b — Meta MMS excluded on licence grounds (D77); tests no longer read a
+  developer's `.env`.**
+  - `worker_ai/alignment/mms.py` is **deleted**. The common
+    `facebook/mms-300m-1130-forced-aligner` export is CC-BY-NC-4.0, which is
+    non-commercial. Rung 3 of the `09 §2` chain is now split by language family:
+    `IndicWav2VecAligner` (AI4Bharat, **MIT**) for the eleven Indic languages,
+    and the new `worker_ai/alignment/xlsr.py` — `jonatasgrosman/wav2vec2-large-xlsr-53-*`
+    per-language CTC fine-tunes, **Apache-2.0**, which is what the GPU model
+    server already bakes in — for the global ones.
+  - `mms` joins `bhashini` in `routing.NEVER_ROUTE`, and the check now covers all
+    three places it could come back: a lane in `routing.yaml`, an admin routing
+    override, and the aligner registry itself. Each raises at load time. A licence
+    exclusion an operator can switch back on is not an exclusion.
+  - Each XLSR-53 fine-tune carries its own vocabulary in its own script, so
+    nothing is romanised any more; `alignment/romanisation.py` keeps the
+    Roman-to-Devanagari projection the Indic heads need and drops the reverse
+    table that only MMS used.
+  - **Tests no longer depend on the machine's `.env`.** The eval CLI's `--live`
+    path calls `load_settings()` against the _process_ environment, so
+    `test_live_asks_the_registry_rather_than_the_fixtures` failed on a fresh
+    clone with "REDIS_URL is missing" instead of the live-path error it asserts —
+    and would have passed for the wrong reason on a machine holding a Sarvam key.
+    A `contract_env` fixture now pins the required variables and blanks every
+    optional credential. The whole suite was run with `.env` renamed away to
+    prove it: 506 passed, 13 skipped, no other test had the same dependency.
 
 - **A12 — api: the EDG module (hot document, `/edg/ops` with server-side rebase
   and compare-and-swap, revisions, snapshots and restore, realtime `edg.ops`).**
@@ -155,6 +282,97 @@ RETURNING revision`. The lock makes read-decide-write atomic; the CAS is the
     `PassItem.keyframesRef`; the table had only the bytes column) and
     `edg_segments (edg_id, start_word_id)` / `(edg_id, end_word_id)`, which is how
     a word delete finds the segments it bounds.
+- **A16c — per-script type sizes (`typography.scriptScale`) and track-level shrink.**
+  - **The problem.** Shrink-to-fit is decided per caption, so a short caption is drawn at
+    full size and the next one, one word longer, smaller: the type size jitters shot to
+    shot inside one video, and the picker's tile — short preview text, never shrunk —
+    shows a size no real caption uses. 28 of 30 styles hit the shrink floor on a
+    budget-filling caption.
+  - **`typography.scriptScale`**, an optional, additive field on StyleDoc v2 (the schema
+    generation stays 2; a document without it renders exactly as before): a per-script
+    multiplier on `sizePct`, keyed by the lowercase OpenType tag (`latn`, `deva`,
+    `taml`). `render-core` applies the entry for the script it is actually laying out —
+    the script of the words on screen, not the project's language — so a Hinglish
+    caption picks the right one line by line. `sizePct` keeps recording the size the
+    style was drawn for.
+  - It exists because the budgets are counted in **base characters** with combining marks
+    excluded (that is what reading speed depends on) while width is a different question:
+    a 22-character Tamil line is ~37 code points and about **21 em** wide, against 15.3 em
+    for a full 32-character Latin line. One size per style cannot satisfy both.
+  - `src/styles/fit.ts` measures the worst shrink over the four caption fixtures **and** a
+    budget-filling caption per script, at every instant a `wordsPerCue` style rotates
+    through, on both canvases; `worstFitForScript` restricts that to the layouts a given
+    multiplier can move, which is what makes per-script tuning well-defined.
+    `scripts/tune-style-sizes.ts` bisects each multiplier; `src/styles/fit.test.ts` asserts
+    shrink ≥ 0.95 at 1080×1920 and ≥ 0.9 at 1920×1080, per script, for all 30 styles.
+  - **`computeTrackShrink({projection, catalogue, registry, shaper, canvas, script})`**
+    lays every caption out once and returns the minimum shrink per (styleId, script);
+    `renderFrame` and `layoutFrame` take the map and apply it uniformly, so every caption
+    in a style is one size for the whole video. Per-caption shrink remains the fallback
+    when no map is given. It is a pure function and costs one layout per caption, so the
+    exporters (A19, A20) and the preview stage compute it once per session — on a change
+    of document, catalogue or canvas — and cache it; nothing calls it per frame.
+  - Goldens, PNG baselines and the 30 catalogue previews regenerated; browser parity holds
+    at 0 pixels differing.
+  - **Reported, because it is a product decision.** Latin needed a multiplier below 1 in
+    **28 of 30 styles** (0.45–0.94), so Latin does not in fact keep its authored size. The
+    cause is the same arithmetic: 32 characters is roughly 16 em, and 16 em inside 78–90%
+    of a 1080-wide portrait frame forces an em of ~2.8% of frame height whatever the
+    script. The 32/24/22 budgets fit a 16:9 subtitle comfortably (a 4.2% line has ~33 em
+    of room there) and are simply generous for 9:16. A 9:16-specific budget — nearer
+    20–26 Latin characters — would let every `latn` multiplier go back to 1.
+    `word-pop` and `impact-shout` need no multipliers at all: they show one word at a time.
+  - **A12b:** a snapshot restore is now validated against the transcript as it
+    stands before anything is written. The transcript is deliberately not rolled
+    back with the captions, so a snapshot old enough to predate a `DeleteWord`
+    still names that word; writing it would leave a caption bounded by something
+    nothing can render. `validateProjection` runs over the projection the restore
+    would produce, with a word index built from the **live** words only (a
+    tombstoned word is as good as a missing one here), and any issue refuses the
+    whole restore with `409 edg/restore_invalid` — `details.danglingWordIds`
+    names the words, `details.issues` carries the validator's findings.
+- **A16c/A16d — line budgets come from the type (decision D78), per-script sizes, and
+  track-level shrink.**
+  - **The problem.** `09 §3`'s 32/24/22 characters a line are readability caps, and were
+    being treated as caption lengths. A full 32-character Latin line is about 16 em; 16 em
+    inside 78–90% of a 1080-wide portrait frame needs an em of ~2.8% of frame height. Every
+    style was therefore overflowing and shrinking, so two captions in one video were two
+    different sizes and the picker's tile showed a size no real caption used.
+  - **`fitBudget({style, script, canvas, registry, shaper}) → {maxChars, maxLines}`** in
+    `@montaj/render-core`. It measures the average advance per **base character** by running
+    a fixed, committed per-script sample through the real shaper with the resolved font, then
+    divides the caption box — less box padding, inside the safe area — by it. The answer is
+    `min(readabilityCap, whatFits)`, with caps 32/24/22 and two lines. `limitedByFit` says
+    which of the two decided; `belowComfortableMinimum` flags a style so large that captions
+    are one short word a line, rather than inflating the number and putting the overflow back.
+  - `layoutSegment` now wraps at that budget instead of at the table. Wrapping at the cap
+    re-joined words the segmenter had deliberately separated, which is what made the caption
+    overflow in the first place. The segmenter and the layout now share one number.
+  - **`@montaj/edg/segmenter` takes `maxCharsByScript`**, the shape `fitBudget` produces —
+    per script, because the segmenter resolves its limit from the script of the run it is
+    closing and a Hinglish transcript needs Roman and Devanagari runs to differ. It falls
+    back to the flat `maxChars`, then to the table. `packages/edg/README.md` gains
+    "Budgets come from `fitBudget`; readability caps are maxima".
+  - **`typography.scriptScale`**, optional and additive (StyleDoc stays at generation 2): a
+    per-script multiplier on `sizePct`, keyed by lowercase OpenType tag. Every style keeps
+    the `sizePct` it was drawn for and **no style carries a `latn` entry**. The Indic entries
+    stay on readability grounds, not fit: at the same em a Tamil budget collapses to five or
+    six characters, and a modest reduction roughly doubles it.
+  - **`computeTrackShrink({projection, catalogue, registry, shaper, canvas, script})`** lays
+    every caption out once and returns the minimum shrink per (styleId, script);
+    `renderFrame` and `layoutFrame` apply it uniformly so a style is one size for the whole
+    video. Per-caption shrink stays the fallback. The value is floored to two decimals
+    rather than rounded, because a value a hair above one caption's true need would leave
+    that caption at its own size and show two sizes instead of one. It is pure and costs one
+    layout per caption, so exporters (A19, A20) and the preview stage compute it once per
+    session and cache it; nothing calls it per frame.
+  - Tests: `fitBudget` (17), the per-script fit suite driven by the measured budget for all
+    30 styles × 3 scripts × 2 canvases at shrink ≥ 0.95 (9:16) and ≥ 0.9 (16:9), track
+    shrink (12), and the segmenter's per-script budgets. Goldens, PNG baselines and the 30
+    catalogue previews regenerated; browser parity holds at 0 pixels differing.
+  - A11 calls `fitBudget` at EDG initialisation from the project aspect and default style;
+    A15 offers "Reflow captions" (a `Resegment` op) when a style change moves the budget.
+    Neither is implemented here.
 
 - **A16 — `@montaj/render-core`, `@montaj/render-canvaskit`, the 30 system styles and
   the editor's caption canvas.**
@@ -883,6 +1101,30 @@ sarvam` replays the recorded session, `--live` calls the configured vendor.
 
 ### Fixed
 
+- **A08c — `RedisRealtimeBus` could not subscribe against a real Redis.** Reported
+  by A12. `RedisService` builds its client with `lazyConnect: true` and
+  `enableOfflineQueue: false`; `duplicate()` inherits both, so the realtime
+  subscriber sat in `wait` and its very first `SUBSCRIBE` was rejected outright
+  with `Stream isn't writeable and enableOfflineQueue options is false` rather than
+  being queued until the socket opened. Nothing retried it, so every room was
+  silently never delivered to — in production only, because the realtime e2e ran
+  over `InMemoryRealtimeBus` and the Redis fake reported `ready` from its first
+  moment. `RedisRealtimeBus` now connects each client explicitly before issuing a
+  command (subscriber _and_ the shared publishing client, which has the same
+  problem on an instance whose first Redis traffic is a realtime publish), waits
+  for `ready` when another caller is already connecting, and skips an
+  `UNSUBSCRIBE` on a connection that never came up.
+  - `RealtimeGateway` no longer lets a fan-out failure escape: a room whose
+    subscription cannot be established is refused with
+    `refused: [{room, reason: "unavailable"}]` and its local membership rolled
+    back, and the fire-and-forget frame handler catches instead of turning a
+    rejection into a process exit.
+  - `apps/api/test/realtime-redis.e2e-spec.ts` runs the real bus, the real
+    `RedisService` options and two gateway instances against the compose Redis,
+    publishing on one and receiving on the other; the unit suite gained a Redis
+    fake with the lazy lifecycle, because the old one was `ready` from the start
+    and could never have caught this.
+
 - **A08b — `jobKey` deduplication was scoped globally, not per workspace.** A08's
   `jobs_live_job_key_key` was `UNIQUE (job_key) WHERE status IN
 ('queued','running')` with no workspace column, so two tenants with the same
@@ -895,6 +1137,25 @@ sarvam` replays the recorded session, `--live` calls the configured vendor.
 
 ### Changed
 
+- **A06 — `WorkspaceMemberGuard` now guards routes with no workspace id in the
+  path.** On a `/workspaces/:id` route both of its rules are unchanged; on a route
+  without an `:id` — every `/projects/*` route — there is nothing to compare, so it
+  performs only its second check (an active membership still exists, and the
+  principal's role is re-read from the database). It previously returned `true`
+  there, which was correct while only `/workspaces/:id` wore it and would have been
+  a silent hole the moment another controller did.
+- **A06 — `/jobs` moved onto A04's `JwtAuthGuard` and the interim access-token
+  guard is deleted.** `JobsController` now uses `JwtAuthGuard`,
+  `@CurrentWorkspace()` and `RolesGuard` (reads are `viewer`, cancel is `editor`),
+  and `src/realtime/auth/access-token.guard.ts` is gone. `AccessTokenService`
+  stays: a WebSocket handshake is not a Nest route, and the gateway has to verify
+  the token itself. A04's verifier pins the `iss` claim to `API_ORIGIN`, which the
+  interim guard did not check, so A08's e2e suite mints tokens with it.
+- **A06 — schema.** New `folders` table, `projects.folder_id` converted to a real
+  foreign key, `media_assets` gains `filename`, `upload_id`, `part_size_bytes`,
+  `needs_realign`, `thumb_keys`, `raw_purged_at` and `derived_purged_at`, and
+  `MediaRole` gains `subtitle`
+  (`prisma/migrations/20260902050000_a06_folders_media_upload`).
 - **A25** — `.env.example`, `packages/config/src/env.ts`, the Terraform secrets
   contract and the Helm chart all gained `MAIL_PROVIDER`, `MAIL_FROM` and
   `SMTP_URL`, the three variables CONTRACTS section 1 added after A04, and

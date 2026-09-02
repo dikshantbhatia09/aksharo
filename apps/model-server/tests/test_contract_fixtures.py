@@ -165,20 +165,47 @@ def test_pyannote_constants_match_the_worker() -> None:
     assert _constant(source, "PYANNOTE_ATTRIBUTION") == PYANNOTE_ATTRIBUTION
 
 
-@pytest.mark.skipif(
-    not (WORKER_AI / "alignment" / "mms.py").is_file(), reason="apps/worker-ai is not present"
-)
 def test_no_mms_checkpoint_is_reachable_from_this_server() -> None:
     """Decision **D77**: the CC-BY-NC-4.0 MMS export never ships.
 
-    The worker still carries an ``MmsAligner`` class, inert without a model
-    directory, which is A10b's to remove. What this server must guarantee is that
-    *its* aligner can never resolve to MMS for any language, including ones with
-    no Indic checkpoint.
+    A10b removed ``worker_ai/alignment/mms.py`` from the worker; this asserts the
+    same thing from this side, for every language including ones with no Indic
+    checkpoint. ``scripts/bake_models.py`` enforces it a second time, at image
+    build, so the decision cannot be undone by a ``--build-arg``.
     """
     from model_server.models.aligner import FAMILIES, family_for
 
     assert "mms" not in FAMILIES
+    assert not (WORKER_AI / "alignment" / "mms.py").is_file(), (
+        "the worker's MMS aligner is back; D77 removed it"
+    )
     for language in ("hi", "ta", "en", "de", "sw", "zz", ""):
         assert family_for(language) in {"indicwav2vec", "xlsr53"}
         assert "mms" not in FAMILIES[family_for(language)][0].casefold()
+
+
+@pytest.mark.skipif(
+    not (WORKER_AI / "alignment" / "indic_wav2vec.py").is_file(),
+    reason="apps/worker-ai is not present",
+)
+def test_the_indic_language_set_matches_the_workers() -> None:
+    """Both aligners read the same checkpoint layout, so they must agree on families.
+
+    A language this server files under ``indicwav2vec/`` while the worker's
+    fallback rung looks for it under ``xlsr53/`` is two rungs disagreeing about
+    one directory, and the symptom would be an aligner that silently reports no
+    checkpoint on a machine where one is installed.
+    """
+    from model_server.models.aligner import INDIC_LANGUAGES
+
+    source = (WORKER_AI / "alignment" / "indic_wav2vec.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    languages: tuple[str, ...] | None = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.AnnAssign | ast.Assign):
+            targets = [node.target] if isinstance(node, ast.AnnAssign) else list(node.targets)
+            names = [t.id for t in targets if isinstance(t, ast.Name)]
+            if "languages" in names and node.value is not None:
+                languages = tuple(ast.literal_eval(node.value))
+    assert languages is not None, "IndicWav2VecAligner.languages was not found"
+    assert set(languages) == set(INDIC_LANGUAGES)

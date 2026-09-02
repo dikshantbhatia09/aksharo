@@ -21,8 +21,8 @@ from worker_ai.alignment.ctc import (
     word_spans,
 )
 from worker_ai.alignment.indic_wav2vec import IndicWav2VecAligner
-from worker_ai.alignment.mms import MmsAligner
-from worker_ai.alignment.romanisation import romanise, to_devanagari
+from worker_ai.alignment.romanisation import to_devanagari
+from worker_ai.alignment.xlsr import XLSR53_LANGUAGES, Xlsr53Aligner
 from worker_ai.audio import Pcm, write_wav
 from worker_ai.providers.base import AlignmentRequest
 from worker_ai.vad import SpeechRegion
@@ -180,17 +180,30 @@ def test_the_indic_heads_cover_the_languages_the_brief_names() -> None:
     assert IndicWav2VecAligner().covers("fr") is False
 
 
-def test_mms_holds_one_checkpoint_for_every_language(tmp_path: Path) -> None:
-    aligner = MmsAligner(str(tmp_path))
-    assert aligner.language_dir("hi") == aligner.language_dir("ta")
-    assert str(aligner.language_dir("hi")).endswith("multilingual")
-    assert MmsAligner().language_dir("hi") is None
+def test_xlsr_holds_one_checkpoint_per_language(tmp_path: Path) -> None:
+    """D77: unlike the single MMS head it replaced, XLSR-53 is per language."""
+    aligner = Xlsr53Aligner(str(tmp_path))
+    french = aligner.language_dir("fr")
+    assert french is not None
+    assert french != aligner.language_dir("de")
+    assert french.parts[-2:] == ("xlsr53", "fr")
+    # A region subtag resolves to the same checkpoint as its base language.
+    assert aligner.language_dir("fr-CA") == french
+    assert Xlsr53Aligner().language_dir("fr") is None
+
+
+def test_xlsr_covers_the_global_languages_and_not_the_indic_ones() -> None:
+    for language in ("en", "fr", "de", "ru", "ja"):
+        assert Xlsr53Aligner().covers(language), language
+    # Indic belongs to rung 2; overlapping would make the chain ambiguous.
+    assert Xlsr53Aligner().covers("ta") is False
+    assert "hi" not in XLSR53_LANGUAGES
 
 
 def test_the_licences_are_recorded_where_they_can_be_read() -> None:
+    """Every shipped rung is permissively licensed; D77 removed the one that was not."""
     assert IndicWav2VecAligner.licence == "MIT"
-    assert "CC-BY-NC" in MmsAligner.licence
-    assert "unresolved" in MmsAligner.licence
+    assert Xlsr53Aligner.licence == "Apache-2.0"
 
 
 def test_the_base_class_prepares_text_as_a_pass_through(clip: Path) -> None:
@@ -217,12 +230,6 @@ def test_devanagari_text_is_left_alone() -> None:
 def test_a_language_with_no_table_is_not_projected() -> None:
     """Projecting Tamil onto Devanagari would be worse than not aligning at all."""
     assert to_devanagari("vanakkam", "ta") == "vanakkam"
-
-
-def test_romanisation_is_the_reverse_for_mms() -> None:
-    assert romanise("मतलब").isascii()
-    assert romanise("Video") == "video"
-    assert romanise("") == ""
 
 
 def test_the_projection_keeps_word_boundaries() -> None:

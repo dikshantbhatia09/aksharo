@@ -1,14 +1,19 @@
 """Forced alignment: the interface and the per-language registry (decision **D13**).
 
-`09 §2` fixes the order, best first:
+`09 §2` fixes the order, best first, as amended by decision **D77**:
 
 ```
 provider word timestamps (Scribe, AssemblyAI, Whisper)
-  -> IndicWav2Vec CTC heads (~11 Indic languages, MIT)
-  -> Meta MMS multilingual CTC with romanisation
+  -> IndicWav2Vec CTC heads    (~11 Indic languages, MIT)
+  -> XLSR-53 CTC fine-tunes    (global languages, Apache-2.0)
   -> ElevenLabs Forced Alignment (paid)
   -> proportional distribution refined by VAD boundaries
 ```
+
+Rung 3 was Meta MMS until **D77**: its common export is CC-BY-NC-4.0, which is
+non-commercial, so it is excluded from the product entirely — not disabled, not
+flagged off, *removed*, and named in ``routing.NEVER_ROUTE`` so it cannot be
+reintroduced by configuration.
 
 The last rung is the one that must never be missing: it needs no model, no
 network and no credentials, so alignment is always available. The three above it
@@ -101,6 +106,24 @@ class AlignerRegistry:
 
     aligners: tuple[Aligner, ...]
 
+    def __post_init__(self) -> None:
+        """Refuse a component excluded on licence grounds (D77, D63).
+
+        The same list that stops ``routing.yaml`` naming a forbidden component
+        stops one being registered here, so re-adding an excluded aligner fails
+        at import rather than at the first job that needs it.
+        """
+        from worker_ai.routing import NEVER_ROUTE
+
+        for aligner in self.aligners:
+            family = getattr(aligner, "family", "")
+            for name in (aligner.name, family):
+                reason = NEVER_ROUTE.get(name)
+                if reason is not None:
+                    raise ValueError(
+                        "aligner " + repr(aligner.name) + " must not be used: " + reason
+                    )
+
     @classmethod
     def default(cls) -> AlignerRegistry:
         """The chain with nothing configured: only the fallback can actually run.
@@ -111,13 +134,13 @@ class AlignerRegistry:
         """
         from worker_ai.alignment.elevenlabs_fa import ElevenLabsForcedAligner
         from worker_ai.alignment.indic_wav2vec import IndicWav2VecAligner
-        from worker_ai.alignment.mms import MmsAligner
         from worker_ai.alignment.proportional import ProportionalAligner
+        from worker_ai.alignment.xlsr import Xlsr53Aligner
 
         return cls(
             aligners=(
                 IndicWav2VecAligner(),
-                MmsAligner(),
+                Xlsr53Aligner(),
                 ElevenLabsForcedAligner(),
                 ProportionalAligner(),
             )
@@ -134,14 +157,14 @@ class AlignerRegistry:
         """
         from worker_ai.alignment.elevenlabs_fa import ElevenLabsForcedAligner
         from worker_ai.alignment.indic_wav2vec import IndicWav2VecAligner
-        from worker_ai.alignment.mms import MmsAligner
         from worker_ai.alignment.proportional import ProportionalAligner
+        from worker_ai.alignment.xlsr import Xlsr53Aligner
 
         model_dir = str(getattr(settings, "align_model_dir", "") or "")
         return cls(
             aligners=(
                 IndicWav2VecAligner(model_dir),
-                MmsAligner(model_dir),
+                Xlsr53Aligner(model_dir),
                 ElevenLabsForcedAligner(
                     str(getattr(settings, "elevenlabs_api_key", "") or ""),
                     enabled=bool(settings.flag("align.elevenlabs", default=True)),

@@ -21,8 +21,8 @@ Two things needed a real audio file rather than a tone:
 ## What it is not
 
 **It is not speech**, and no ASR model will find words in it. That is deliberate:
-this fixture proves the *pipeline* — decode, VAD, chunk, submit, parse — not the
-*quality* of anything. Quality needs the hand-labelled sets of `09 §8`, which are
+this fixture proves the _pipeline_ — decode, VAD, chunk, submit, parse — not the
+_quality_ of anything. Quality needs the hand-labelled sets of `09 §8`, which are
 **A00-05**'s deliverable: 5 h of Hinglish creator speech with word timings and
 code-switch tags, 22 Indic languages, Indian English, global English and a noisy
 set. Nothing here substitutes for them, and no routing weight may be changed on

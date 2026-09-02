@@ -142,6 +142,32 @@ widened schema; see `stylesWithCapabilities()`.
 | `pnpm --filter @montaj/caption-styles test`          | Vitest                                          |
 | `pnpm --filter @montaj/caption-styles test:coverage` | Vitest with the 90/85 gate (CONTRACTS §9)       |
 
+## Type sizes and `typography.scriptScale`
+
+`sizePct` is the size the style was drawn for and it stays — captions are cut to
+fit it, not the other way round (decision D78). `render-core`'s `fitBudget`
+derives the line budget from the style, the font metrics and the canvas, capped
+by the 32/24/22 readability maxima.
+
+`scriptScale` is an optional per-script multiplier on `sizePct`, keyed by the
+lowercase OpenType tag:
+
+```json
+"scriptScale": { "deva": 0.85, "taml": 0.52 }
+```
+
+It is additive — the schema stays at generation 2, and a document without the
+field renders exactly as before.
+
+It is **not** there to make Indic fit; the budget does that. It is there for
+readability: at the same em, a Tamil budget collapses to five or six characters —
+one short word a line — where a modest reduction roughly doubles it. No style
+carries a `latn` entry, because Latin needs none.
+
+The multipliers are not hand-picked. `pnpm --filter @montaj/render-core styles:tune`
+bisects each one; `render-core`'s `styles/fit.test.ts` fails if a hand edit breaks
+the result.
+
 ## Previews
 
 `previews/<id>.png` is a still of each style, rendered by the real pipeline

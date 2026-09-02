@@ -9,7 +9,7 @@
 export { EdgModule } from "./edg.module.js";
 export { EdgService } from "./edg.service.js";
 export type { EdgDocumentView, EdgInitInput, EdgInitResult, OpBatchInput } from "./edg.service.js";
-export { EdgRepository } from "./edg.repository.js";
+export { EdgRepository, RestoreInvalidError } from "./edg.repository.js";
 export type { CommitInput, CommitOutcome, TextConflict } from "./edg.repository.js";
 export {
   EDG_ERROR_CODES,
