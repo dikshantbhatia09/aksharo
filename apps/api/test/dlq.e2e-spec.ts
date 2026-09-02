@@ -80,14 +80,14 @@ let jobs: JobsService;
 let dlq: DlqService;
 let redis: IORedis;
 
-function accessToken(sub: string): string {
+function accessToken(sub: string, kind: "web" | "admin" = "web"): string {
   const header = { alg: "RS256", typ: "JWT" };
   const now = Math.floor(Date.now() / 1000);
   const payload = {
     sub,
     ws: WORKSPACE,
     role: "owner",
-    kind: "web",
+    kind,
     jti: id("JT1"),
     iat: now,
     exp: now + 900,
@@ -103,7 +103,14 @@ function accessToken(sub: string): string {
   return `${signed}.${signer.sign(privateKey).toString("base64url")}`;
 }
 
-const asAdmin = () => `Bearer ${accessToken(ADMIN)}`;
+// B13 (CONTRACTS §5, amended 2026-09-03): `/admin/**` requires a `kind: "admin"`
+// token (minted only by `POST /admin/auth/step-up` for real clients) and an
+// active `admin_roles` row — a `web` token, however privileged, is 403'd by
+// `AdminGuard` before this fixture existed. `asAdmin()` used to reuse the same
+// `web` token as `asUser()`, which is what made every route below 403 once
+// `AdminGuard` started re-reading roles from the database instead of trusting
+// `users.is_admin`.
+const asAdmin = () => `Bearer ${accessToken(ADMIN, "admin")}`;
 const asUser = () => `Bearer ${accessToken(USER)}`;
 
 /** POST a signed internal callback exactly as a worker would. */
@@ -117,16 +124,20 @@ function callback(path: string, body: unknown, attemptId: string) {
 
 let enqueued = 0;
 /**
- * The queue is `ai.clean`, not `ai.transcribe`: this suite is about the
- * dead-letter path and posts a generic completion, and since A11 `ai.transcribe`
- * has an owner that validates its payload into `transcript_chunks` and refuses
- * anything that is not a transcript. `ai.clean` is the same CONTRACTS §3 family
- * with no handler registered against it.
+ * The queue is `ai.vad`, not `ai.transcribe` or `ai.clean`: this suite is about
+ * the dead-letter path and posts a generic `{status:"succeeded"}` completion
+ * with no `result`, and both of those queues now have a real owner that
+ * requires one — A11's `ai.transcribe` validates its payload into
+ * `transcript_chunks`, and B10's `AudioCleanCompletionHandler` (M03: this
+ * suite used to use `ai.clean`, which 400'd once B10 registered a completion
+ * handler requiring `{cleanId, mediaId, strength, target}`) does the same for
+ * `audio_cleans`. `ai.vad` is still a real CONTRACTS §3 queue with no handler
+ * registered against it, so a bare completion is legal there.
  */
 async function enqueue(worstCaseTenths = 100) {
   enqueued += 1;
   return jobs.enqueue({
-    type: "ai.clean",
+    type: "ai.vad",
     workspaceId: WORKSPACE,
     projectId: PROJECT,
     params: { mediaId: id("MEDA") },
@@ -181,6 +192,12 @@ beforeAll(async () => {
   });
   await prisma.user.create({
     data: { id: USER, email: `a08b-user+${RUN}@example.test`, isAdmin: false },
+  });
+  // AdminGuard (B13) re-reads active roles from `admin_roles`, not the JWT or
+  // `users.is_admin` — `superadmin` satisfies every `@AdminRoles(...)` gate,
+  // and the DLQ console declares none, so this single grant is enough.
+  await prisma.adminRole.create({
+    data: { id: id("ARL1"), userId: ADMIN, role: "superadmin" },
   });
   await prisma.workspace.create({
     data: {
@@ -306,7 +323,7 @@ describe.skipIf(!CAN_RUN)("dead-letter queue, end to end", () => {
 
     const entry = await prisma.dlqEntry.findFirstOrThrow({ where: { jobId: job.id } });
     expect(entry.status).toBe("pending");
-    expect(entry.queue).toBe("ai.clean");
+    expect(entry.queue).toBe("ai.vad");
     expect(entry.attempts).toBe(3);
     expect(entry.worstCaseTenths).toBe(120);
     expect(entry.lastError).toMatchObject({
@@ -326,7 +343,7 @@ describe.skipIf(!CAN_RUN)("dead-letter queue, end to end", () => {
 
     const response = await request(app.getHttpServer())
       .get("/admin/dlq")
-      .query({ queue: "ai.clean" })
+      .query({ queue: "ai.vad" })
       .set("Authorization", asAdmin())
       .expect(200);
     const entryId = (response.body as { items: { id: string; jobId: string }[] }).items.find(
@@ -342,7 +359,7 @@ describe.skipIf(!CAN_RUN)("dead-letter queue, end to end", () => {
     expect(attemptNo).toBe(4);
 
     // A REAL BullMQ job exists under the new attempt's id.
-    const queue = new Queue("ai.clean", { connection: redis, prefix: PREFIX });
+    const queue = new Queue("ai.vad", { connection: redis, prefix: PREFIX });
     try {
       const bull = await queue.getJob(bullJobId(job.id, attemptId));
       expect(bull).not.toBeUndefined();
@@ -414,7 +431,7 @@ describe.skipIf(!CAN_RUN)("dead-letter queue, end to end", () => {
       pending: number;
       queues: { queue: string; pending: number; oldestFailedAt: string | null }[];
     };
-    const transcribe = body.queues.find((row) => row.queue === "ai.clean");
+    const transcribe = body.queues.find((row) => row.queue === "ai.vad");
     expect(transcribe?.pending).toBeGreaterThan(0);
     expect(transcribe?.oldestFailedAt).toBeTypeOf("string");
   });
@@ -457,13 +474,13 @@ describe.skipIf(!CAN_RUN)("the jobKey uniqueness index", () => {
     const jobKey = `a08b-race-${RUN}`;
     const results = await Promise.all([
       jobs.enqueue({
-        type: "ai.clean",
+        type: "ai.vad",
         workspaceId: WORKSPACE,
         jobKey,
         worstCaseTenths: 10,
       }),
       jobs.enqueue({
-        type: "ai.clean",
+        type: "ai.vad",
         workspaceId: WORKSPACE,
         jobKey,
         worstCaseTenths: 10,
@@ -585,7 +602,7 @@ describe.skipIf(!CAN_RUN)("GET /internal/metrics", () => {
     expect(text).toContain("# TYPE montaj_dlq_depth gauge");
     expect(text).toContain("# TYPE montaj_job_queue_wait_ms histogram");
     expect(text).toContain("# TYPE montaj_queue_wait_duration_seconds histogram");
-    expect(text).toContain('montaj_jobs_failed_total{queue="ai.clean"}');
+    expect(text).toContain('montaj_jobs_failed_total{queue="ai.vad"}');
   });
 
   it("is not in the OpenAPI document: it is plumbing, not product API", async () => {
