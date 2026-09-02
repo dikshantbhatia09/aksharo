@@ -32,6 +32,23 @@ Three properties are load-bearing and each has a test:
 ``run`` receives the group in submission order and must return one result per
 item, in the same order. A length mismatch is a programming error in a backend
 and is raised as one rather than silently mis-assigning transcripts.
+
+## The clock is injected
+
+``clock`` and ``wait_for`` default to :func:`time.perf_counter` and
+:func:`asyncio.wait_for`, and exist so the window logic can be tested without
+testing the machine. Asserting that a lone request waited *about* 50 ms is a
+race with whatever else the box is doing: it flaked on a loaded CI runner
+against its own lower bound, because ``asyncio.wait_for`` returned 6 ms early.
+With a fake clock the same test asserts the thing that actually matters and can
+actually be wrong - that the deadline is **absolute**, so a second arrival does
+not restart the window, and that the batcher asks for the remaining time rather
+than the whole window again - in zero wall-clock seconds. The real timing is
+still covered, by an opt-in ``slow`` test.
+
+The seam is deliberately narrow: it covers the collection window only.
+:meth:`DynamicBatcher.aclose` keeps the real ``asyncio.wait_for``, because a
+drain that a fake clock could make instantaneous is a drain nobody tested.
 """
 
 from __future__ import annotations
@@ -41,12 +58,21 @@ import time
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
+from typing import Any, cast
 
 from model_server.logging_setup import get_logger
 
-__all__ = ["Batched", "DynamicBatcher"]
+__all__ = ["Batched", "Clock", "DynamicBatcher", "WaitFor"]
 
 _log = get_logger(__name__)
+
+#: ``() -> seconds``. Monotonic; only differences are ever used.
+Clock = Callable[[], float]
+
+#: ``asyncio.wait_for``'s shape: await something, giving up after ``timeout``
+#: seconds with :class:`TimeoutError`. Untyped in its awaited value because the
+#: standard library's own signature is, and the one call site casts.
+WaitFor = Callable[[Awaitable[Any], float], Awaitable[Any]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,10 +102,14 @@ class DynamicBatcher[T, R]:
         max_size: int = 8,
         window_s: float = 0.05,
         name: str = "batcher",
+        clock: Clock | None = None,
+        wait_for: WaitFor | None = None,
     ) -> None:
         if max_size < 1:
             raise ValueError("max_size must be at least 1")
         self._run = run
+        self._clock: Clock = clock or time.perf_counter
+        self._wait_for: WaitFor = wait_for or asyncio.wait_for
         self._max_size = max_size
         self._window_s = max(0.0, window_s)
         self._name = name
@@ -102,6 +132,8 @@ class DynamicBatcher[T, R]:
         if consumer is None:
             return
         try:
+            # The real wait_for, not the injected one: a drain a fake clock could
+            # make instantaneous is a drain nobody tested.
             await asyncio.wait_for(self._queue.join(), timeout=self._window_s + 30.0)
         except TimeoutError:  # pragma: no cover - only on a wedged backend
             _log.warning("batcher drain timed out", extra={"batcher": self._name})
@@ -124,7 +156,7 @@ class DynamicBatcher[T, R]:
         self.start()
         loop = asyncio.get_running_loop()
         future: asyncio.Future[Batched[R]] = loop.create_future()
-        self._queue.put_nowait((item, time.perf_counter(), future))
+        self._queue.put_nowait((item, self._clock(), future))
         return await future
 
     # -- the consumer -------------------------------------------------------
@@ -135,15 +167,18 @@ class DynamicBatcher[T, R]:
         group = [first]
         if self._max_size == 1 or self._window_s <= 0:
             return group
-        deadline = time.perf_counter() + self._window_s
+        # Absolute, so a second arrival does not restart the window: the group's
+        # oldest member decides when the call goes, not its newest.
+        deadline = self._clock() + self._window_s
         while len(group) < self._max_size:
-            remaining = deadline - time.perf_counter()
+            remaining = deadline - self._clock()
             if remaining <= 0:
                 break
             try:
-                group.append(await asyncio.wait_for(self._queue.get(), timeout=remaining))
+                pending = await self._wait_for(self._queue.get(), remaining)
             except TimeoutError:
                 break
+            group.append(cast("tuple[T, float, asyncio.Future[Batched[R]]]", pending))
         return group
 
     async def _consume(self) -> None:
@@ -156,7 +191,7 @@ class DynamicBatcher[T, R]:
                     self._queue.task_done()
 
     async def _dispatch(self, group: list[tuple[T, float, asyncio.Future[Batched[R]]]]) -> None:
-        started = time.perf_counter()
+        started = self._clock()
         items = [item for item, _, _ in group]
         try:
             results = await self._run(items)
@@ -166,7 +201,7 @@ class DynamicBatcher[T, R]:
                     future.set_exception(error)
             return
 
-        compute_s = time.perf_counter() - started
+        compute_s = self._clock() - started
         if len(results) != len(group):
             mismatch = RuntimeError(
                 "batched backend returned "
