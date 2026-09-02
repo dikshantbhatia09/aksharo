@@ -108,7 +108,7 @@ expiresAt: <end of that calendar month>})`.
 
 ## Plan-derived `creditsOnly` (B06b)
 
-`ensureAssigned` still only *sets* `creditsOnly` at row creation. Every
+`ensureAssigned` still only _sets_ `creditsOnly` at row creation. Every
 subsequent read re-derives it from the workspace's current plan and persists
 the flip, so entitlement follows the plan, not the plan at assignment time:
 

@@ -15,7 +15,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `creditsOnly` on first insert, so a workspace that downgraded to Free
   mid-streak kept its L2/L3 renewal discount and L4/L5 credit-lot
   entitlement (04 §Streak: Free earns credits only). `StreakService` now
-  re-derives `creditsOnly` from the workspace's *current* plan on every
+  re-derives `creditsOnly` from the workspace's _current_ plan on every
   `getView`/`getDiscountPercent` read and every `rolloverOne`, persisting
   the flip; `streak.engine.ts#rolloverWeek` takes a `planIsFree` input and
   resets the progression counter on a flip (the level-up track and the Free
