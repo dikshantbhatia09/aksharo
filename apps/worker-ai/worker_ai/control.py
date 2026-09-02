@@ -32,7 +32,7 @@ from worker_ai.metrics import METRICS
 from worker_ai.providers.registry import ProviderRegistry, build_registry
 from worker_ai.queues import IMPLEMENTED_AI_QUEUES
 from worker_ai.routing import RoutingTable, load_routing_table
-from worker_ai.runtime import build_routing_table, queues_for
+from worker_ai.runtime import build_cache, build_routing_table, queues_for
 from worker_ai.settings import Settings
 
 __all__ = [
@@ -58,6 +58,7 @@ class ProvidersResponse(BaseModel):
 
     providers: list[dict[str, Any]]
     routing: dict[str, Any]
+    #: The aligner chain for the requested language (``?language=``, default hi).
     aligners: list[dict[str, Any]]
     diarisers: list[dict[str, Any]]
     vad: dict[str, Any]
@@ -122,7 +123,9 @@ def create_app(
         if settings is not None
         else DiariserRegistry.default()
     )
-    result_cache = cache or NullResultCache()
+    result_cache = cache or (
+        build_cache(settings) if settings is not None else NullResultCache()
+    )
     classifier = IndicLidClassifier(settings.indiclid_dir if settings is not None else "")
     consumed = list(queues_for(settings)) if settings is not None else list(IMPLEMENTED_AI_QUEUES)
 
@@ -137,13 +140,19 @@ def create_app(
         )
 
     @app.get("/providers", response_model=ProvidersResponse, tags=["control"])
-    async def list_providers() -> ProvidersResponse:
-        """Every adapter and why it is or is not enabled here."""
+    async def list_providers(language: str = "hi") -> ProvidersResponse:
+        """Every adapter and why it is or is not enabled here.
+
+        ``?language=`` selects the aligner chain shown: the D13 registry is
+        per-language, so "which aligner would a Tamil job get?" is a different
+        question from "which would an English one get?". The default is Hindi,
+        which is the product's main language.
+        """
         rows = [status_row.to_wire() for status_row in registry.describe()] if registry else []
         return ProvidersResponse(
             providers=rows,
             routing=table.to_wire(),
-            aligners=[dict(item) for item in aligner_registry.describe()],
+            aligners=[dict(item) for item in aligner_registry.describe(language)],
             diarisers=[dict(item) for item in diariser_registry.describe()],
             vad={"backend": vad_name},
             lid={

@@ -80,6 +80,24 @@ def test_providers_carries_the_routing_table_and_the_registries() -> None:
     assert [row["name"] for row in body["diarisers"]][-1] == "noop-single-speaker"
 
 
+def test_the_aligner_chain_shown_depends_on_the_language_asked_about() -> None:
+    """The D13 registry is per-language, so `/providers` has to be told which."""
+    settings = load_settings(VALID_ENV)
+    with TestClient(create_app(settings)) as client:
+        hindi = client.get("/providers", params={"language": "hi"}).json()["aligners"]
+        french = client.get("/providers", params={"language": "fr"}).json()["aligners"]
+
+    assert "indicwav2vec-ctc" in [row["name"] for row in hindi]
+    assert "indicwav2vec-ctc" not in [row["name"] for row in french]
+    assert [row["name"] for row in french][-1] == "proportional-vad"
+
+
+def test_providers_reports_the_cache_this_pod_would_use() -> None:
+    settings = load_settings({**VALID_ENV, "WORKER_AI_CACHE": "memory"})
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/providers").json()["cache"]["backend"] == "memory"
+
+
 def test_providers_reflects_an_injected_registry() -> None:
     """Injection is how a test describes a pod without touching the environment."""
     registry = build_registry(
