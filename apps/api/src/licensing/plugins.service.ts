@@ -16,7 +16,7 @@ import { DevicesService } from "../devices/devices.service.js";
 import { AuditService } from "../users/audit.service.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
-import type { ActivateDto, HeartbeatDto } from "./licensing.dto.js";
+import type { ActivateDto, HeartbeatDto, PluginManifestResponse } from "./licensing.dto.js";
 
 export interface LicenseSnapshotPayload {
   readonly workspaceId: string;
@@ -366,6 +366,34 @@ export class PluginsService {
     }
 
     return snapshot;
+  }
+
+  /**
+   * `GET /plugins/manifest` (07 §Plugins, D65 change note "07
+   * /plugins/manifest"): the channel manifest the plugins page and the
+   * installer download links read. C10 (installer builds and hosting) has
+   * not landed, so every channel is reported `available: false` with no
+   * download URL rather than a channel that resolves to nothing — the same
+   * "unavailable until X" convention `client/not_implemented` uses on the
+   * web side, expressed in this route's own response shape instead of an
+   * error, since a plugin polling this route needs a manifest object back,
+   * not a failure.
+   */
+  manifest(): PluginManifestResponse {
+    const unavailable = {
+      available: false,
+      version: null,
+      minHostVersion: null,
+      maxHostVersion: null,
+      downloadUrl: null,
+    } as const;
+    return {
+      channels: {
+        "premiere-uxp": { ...unavailable },
+        "ae-cep": { ...unavailable },
+        "resolve-script": { ...unavailable },
+      },
+    };
   }
 
   private async snapshotFor(

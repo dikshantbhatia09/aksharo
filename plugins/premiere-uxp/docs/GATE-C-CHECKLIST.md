@@ -55,6 +55,43 @@ Developer Tool load/package path.
       exist, to catch any path issue `index.html`'s relative `dist/...` references might hit
       inside a zip.
 
+## C06 apply modes — additional `createRealPremiereHost()` calls to verify
+
+- [ ] `importTranscript` — confirm `Transcript.createImportTextSegmentsAction`'s exact
+      segment/word JSON shape, and how an existing Aksharo-tagged transcript is identified so a
+      second import replaces only that transcript (not the whole sequence's transcripts).
+- [ ] `insertMogrt` — confirm `Project#importMGTItem` (or the real call name) inserts at an
+      explicit track index/start, or needs a separate placement step; confirm the returned
+      item id shape.
+- [ ] `setMogrtParams`/`getMogrtParams` — confirm whether a MOGRT's `ComponentParam`s are
+      addressed by `displayName` or by index (this WP's `src/apply/mogrtCaptions.ts` builds
+      both a by-name object and an index-ordered array so either answer is a small host-adapter
+      change, not an apply-mode rewrite); run the start-up self-test
+      (`runMogrtSelfTest` in `src/apply/mogrtCaptions.ts`) against the real `.mogrt` first.
+- [ ] MOGRT keyframed highlight — `computeWordHighlightWindows` only computes per-word time
+      windows; confirm whether `HighlightStart`/`HighlightEnd` can be keyframed inside one MOGRT
+      instance via a component-keyframe API, or whether per-word highlight needs one MOGRT
+      instance per word instead (a materially different apply-mode shape — raise as a contract
+      question if so, per the brief).
+- [ ] `rippleDelete` — confirm the real ripple-delete call and its effect on linked audio and
+      other tracks (esp. the dedicated caption track this WP inserts MOGRTs onto).
+- [ ] `setMotionKeyframes` — confirm `Component` property names (`Scale`, `Position`) and the
+      keyframe/ease enum against MKF2's `Ease` (`linear`/`inOut`).
+- [ ] `importMediaToBin`/`placeOnTrack` — confirm `Project#importFiles`'s completion signal
+      (event vs. resolved promise) and insert-vs-overwrite placement semantics.
+- [ ] `replaceAudioRange` — confirm whether "mute a range" needs a gain-automation node (range
+      scoped) rather than a track-level mute toggle (whole-track) — the B10/B10b brief needs the
+      range-scoped behaviour.
+- [ ] `transaction` — confirm `Project#executeTransaction`'s rollback-on-throw semantics match
+      `MockPremiereHost#transaction`'s (an uncaught error inside the callback undoes every
+      action group made so far); until verified, do not rely on `runApply.ts`'s abort path
+      leaving the sequence exactly as it was.
+- [ ] `setItemMetadata`/`getItemMetadata`/`listAksharoItems` — confirm markers support an
+      arbitrary JSON payload (not string-only) and that a marker can attach to a `TrackItem`
+      (not just the `Sequence`), for per-item host-id map entries the re-sync op depends on.
+- [ ] `removeItem` — confirm `TrackItem#remove`'s ripple behaviour (does removing a re-synced
+      item shift neighbouring clips the way `rippleDelete` does, or leave a gap?).
+
 ## Once this checklist is green
 
 Delete the `GATE-C:` comments in `src/host/premiere.ts` that this checklist resolved, add a

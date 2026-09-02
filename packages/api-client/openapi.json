@@ -3496,7 +3496,8 @@
                               "memory",
                               "marketing",
                               "share_upload",
-                              "affiliate"
+                              "affiliate",
+                              "telemetry"
                             ]
                           },
                           "granted": {
@@ -3570,7 +3571,8 @@
                       "memory",
                       "marketing",
                       "share_upload",
-                      "affiliate"
+                      "affiliate",
+                      "telemetry"
                     ]
                   },
                   "granted": {
@@ -3611,7 +3613,8 @@
                               "memory",
                               "marketing",
                               "share_upload",
-                              "affiliate"
+                              "affiliate",
+                              "telemetry"
                             ]
                           },
                           "granted": {
@@ -15058,6 +15061,357 @@
         ]
       }
     },
+    "/telemetry/events": {
+      "post": {
+        "description": "Batched so the offline queue can flush several at once; rejected with `telemetry/consent_required` unless the caller has granted the `telemetry` consent.",
+        "operationId": "submitTelemetryEvents",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "events": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "eventId": {
+                          "type": "string",
+                          "minLength": 26,
+                          "maxLength": 26
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "app_launched",
+                            "app_quit",
+                            "app_crashed",
+                            "consent_granted",
+                            "consent_withdrawn",
+                            "project_opened",
+                            "export_started",
+                            "export_completed",
+                            "bridge_paired",
+                            "bridge_connected",
+                            "bridge_disconnected",
+                            "diagnostics_bundle_created",
+                            "diagnostics_bundle_attached",
+                            "update_check",
+                            "update_installed"
+                          ]
+                        },
+                        "at": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "appVersion": {
+                          "type": "string",
+                          "maxLength": 32
+                        },
+                        "props": {
+                          "default": {},
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "eventId",
+                        "kind",
+                        "at",
+                        "appVersion"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "events"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Count accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "accepted"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`telemetry/consent_required`."
+          },
+          "429": {
+            "description": "`common/rate_limited`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Submit a batch of consent-gated telemetry events",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/telemetry/crash": {
+      "post": {
+        "description": "Minidump-free by default: a redacted stack trace, app/OS version and the last 50 (already redacted) log lines. Forwarded to Sentry server-side only when `SENTRY_DSN` is configured.",
+        "operationId": "submitCrashReport",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clientKind": {
+                    "type": "string",
+                    "enum": [
+                      "desktop",
+                      "bridge",
+                      "premiere",
+                      "ae",
+                      "resolve"
+                    ]
+                  },
+                  "appVersion": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "osVersion": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "stack": {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  "logTail": {
+                    "default": [],
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  }
+                },
+                "required": [
+                  "clientKind",
+                  "appVersion",
+                  "osVersion",
+                  "stack"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored crash report's id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "crashReportId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "crashReportId"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`telemetry/consent_required`."
+          },
+          "429": {
+            "description": "`common/rate_limited`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Submit a redacted crash report",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/telemetry/diagnostics-bundle/presign": {
+      "post": {
+        "description": "Stored at `ws/{workspaceId}/support/{ticketId}/diagnostics.zip` (R2) once uploaded and confirmed via `POST /telemetry/diagnostics-bundle/confirm`; capped at 10 MB.",
+        "operationId": "presignDiagnosticsBundle",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ticketId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  }
+                },
+                "required": [
+                  "ticketId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The presigned PUT URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "bundleKey": {
+                      "type": "string"
+                    },
+                    "maxBytes": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "uploadUrl",
+                    "bundleKey",
+                    "maxBytes"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`telemetry/consent_required`."
+          },
+          "429": {
+            "description": "`common/rate_limited`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Presign an upload for a diagnostics bundle on the caller's own support ticket",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/telemetry/diagnostics-bundle/confirm": {
+      "post": {
+        "operationId": "confirmDiagnosticsBundle",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ticketId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  }
+                },
+                "required": [
+                  "ticketId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The attached bundle's key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bundleKey": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "bundleKey"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`telemetry/consent_required`."
+          },
+          "429": {
+            "description": "`common/rate_limited`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Confirm an uploaded diagnostics bundle and attach it to the ticket",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "getHealth",
@@ -18923,6 +19277,137 @@
           }
         },
         "summary": "Signed daily revocation snapshot for fully offline clients",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
+    "/plugins/manifest": {
+      "get": {
+        "description": "Per host (premiere-uxp, ae-cep, resolve-script): version, min/max host version, download URL (D65). Every channel reports `available: false` until C10 (installer builds and hosting) lands.",
+        "operationId": "pluginManifest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The current channel manifest.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "channels": {
+                      "type": "object",
+                      "properties": {
+                        "premiere-uxp": {
+                          "type": "object",
+                          "properties": {
+                            "available": {
+                              "type": "boolean"
+                            },
+                            "version": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "minHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "maxHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "downloadUrl": {
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "available",
+                            "version",
+                            "minHostVersion",
+                            "maxHostVersion",
+                            "downloadUrl"
+                          ]
+                        },
+                        "ae-cep": {
+                          "type": "object",
+                          "properties": {
+                            "available": {
+                              "type": "boolean"
+                            },
+                            "version": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "minHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "maxHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "downloadUrl": {
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "available",
+                            "version",
+                            "minHostVersion",
+                            "maxHostVersion",
+                            "downloadUrl"
+                          ]
+                        },
+                        "resolve-script": {
+                          "type": "object",
+                          "properties": {
+                            "available": {
+                              "type": "boolean"
+                            },
+                            "version": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "minHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "maxHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "downloadUrl": {
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "available",
+                            "version",
+                            "minHostVersion",
+                            "maxHostVersion",
+                            "downloadUrl"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "premiere-uxp",
+                        "ae-cep",
+                        "resolve-script"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "channels"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "Channel manifest for the plugins page and installer download links",
         "tags": [
           "plugins"
         ]

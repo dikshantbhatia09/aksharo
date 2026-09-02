@@ -8,6 +8,8 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- C12: consent-gated desktop/bridge telemetry (`POST /telemetry/events|crash`), `crash_reports` with 30-day retention, shared redaction in `bridge-core`, diagnostics bundle attached to support tickets, server-side Sentry/PostHog forwarding behind env keys.
+
 ### Fixed
 
 - **A23b — a real Postgres 40P01 ("deadlock detected") in `auth-harness.ts`'s
@@ -69,6 +71,77 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   step-by-step AE authoring guide for H-25 (a human task, not done here). One
   CI step (`.github/workflows/ci.yml`) verifies the placeholder.
 
+- **C06 — Premiere Pro apply modes: transcript injection, MOGRT captions, alpha
+  overlay, SRT to bin, cuts/zooms/audio, transactions, host-id map + re-sync.**
+  `PremiereHost` (`plugins/premiere-uxp/src/host/premiere.ts`) grows the apply-mode
+  surface — `importTranscript`, `insertMogrt`/`setMogrtParams`/`getMogrtParams`,
+  `rippleDelete`, `setMotionKeyframes`, `importMediaToBin`/`placeOnTrack`,
+  `replaceAudioRange`, `transaction`, `setItemMetadata`/`getItemMetadata`/
+  `listAksharoItems`/`removeItem` — each cited to an Adobe UXP doc path,
+  implemented deterministically in `MockPremiereHost` (including true
+  snapshot/rollback for `transaction()`), and left throwing a clear
+  `"... (Gate C)"` error in `createRealPremiereHost()`. New `src/apply/**`:
+  `transcript.ts` builds an idempotent EDG→transcript import; `mogrtCaptions.ts`
+  resolves the appendix param table by name (with an index-fallback helper for
+  a host adapter that turns out to need it) and runs a start-up self-test that
+  inserts a scratch MOGRT instance and confirms params round-trip;
+  `alphaOverlay.ts`/`srtBin.ts` import a downloaded render/SRT into the bin;
+  `cutsZoomsAudio.ts` ripple-deletes accepted cuts, converts decoded MKF2 rows to
+  frame-relative Motion keyframes for accepted zooms, and replaces a cleaned-audio
+  range; `runApply.ts` wraps a selected mode set in one `host.transaction`,
+  reporting `apply.begin/step/commit/abort` to the bridge (rollback + abort on any
+  thrown step) and computes dry-run preview counts (`planApply`); `resync.ts`
+  diffs marker-guid host-id map entries against a fetched EDG revision, removing
+  items whose segment is gone and flagging the rest `stale`/`upToDate` without
+  re-applying anything on the caller's behalf. New panel component
+  `src/ui/components/ApplyPanel.tsx`: one checkbox + dry-run count per apply mode,
+  a mode disabled with a message (e.g. a failed MOGRT self-test), and an Apply
+  button gated on at least one selection. `docs/GATE-C-CHECKLIST.md` gained a
+  verification item per new host call. Per-word caption highlight
+  (`HighlightStart`/`HighlightEnd` keyframes inside one MOGRT instance) is scoped
+  down to `computeWordHighlightWindows` (the per-word time windows only) — real
+  keyframing of a MOGRT's own component params is unverified until Gate C, flagged
+  as a follow-up rather than invented. Native captions-track writing remains out
+  of scope, per the brief.
+- **C11 — Plugin licensing & devices UI: the activation card, and a
+  `/plugins/manifest` stub for C10's download links.** `apps/api/src/
+licensing/`: `GET /plugins/manifest` (public, `pluginManifest` operation) —
+  the per-host channel manifest (`premiere-uxp`, `ae-cep`, `resolve-script`)
+  the Plugins page and installer links read; every channel reports
+  `available: false` with no download URL until C10 (installer builds and
+  hosting) lands. B08's activation-limit enforcement, device revocation ->
+  next-heartbeat-403 propagation, heartbeat-nonce replay refusal and the
+  offline `licenseSnapshot`'s 7-day window with ±5 min clock-skew tolerance
+  were already implemented and covered by its own e2e/unit suites — verified
+  rather than re-built, per this WP's brief.
+  `apps/web`: a new Plugins page (`app/(app)/plugins-app` — see routing note
+  below) renders the activation card v2 (08 §4): one card per D65 product
+  name ("Aksharo Panel — works with Adobe Premiere Pro and Adobe After
+  Effects" and "Aksharo — works with DaVinci Resolve"), each with its
+  Install/Connect/Caption-your-timeline steps, per-channel download links (or
+  "Download coming soon" while `/plugins/manifest` reports a channel
+  unavailable), the device list with "Sign out this device"/"Revoke", the
+  plan's device-limit state with a `BillingUpgradeGate` upgrade link once
+  reached, honest capability notes ("Premiere native captions track: waiting
+  on Adobe", Resolve "Undo: not supported by Resolve's own API"), and B08's
+  licence-key management merged onto the same page. A read-only Passes-tab
+  licensing cue (`components/editor/passes/PluginActivationCue.tsx`) shows
+  the same installed/not-installed/limit-reached state for the
+  "Apply in Premiere/Resolve" affordance, sharing its derivation
+  (`components/plugins/plugin-status.ts`) with the Plugins page — not wired
+  into `PassesTab.tsx` itself, which is outside this WP's file boundary.
+  **Routing note:** `(site)/(marketing)/plugins/page.tsx` (A24) already
+  answers `/plugins` for a signed-out visitor, so the signed-in screen lives
+  at the internal route `/plugins-app` and `middleware.ts` rewrites
+  `/plugins` -> `/plugins-app` for an authenticated request, exactly like the
+  existing `"/"` -> `/home` rewrite; fixed a latent middleware bug the same
+  change exposed, where `PROTECTED`'s `"/p"` prefix matched `pathname.
+startsWith()` on any `/p*` path (so adding `/plugins` to the matcher briefly
+  sent a signed-out visitor to a redirect the marketing page should have
+  answered) — `isUnderPath()` now requires a segment boundary.
+  `packages/api-client`: `PluginManifestResponse`/`PluginManifestChannel`
+  types, `endpoints.plugins.manifest`, `usePluginManifest()`.
+
 - **C08 — DaVinci Resolve `aksharo_core`: Workspace ▸ Scripts launcher, in-Resolve
   loopback server, bridge client, Text+ captions, cuts, dynamic zoom, marker
   customData map.** New workspace `plugins/resolve` (Python 3.12, same
@@ -103,6 +176,39 @@ commands/packageResolve.ts` now stages and zips the real `aksharo_core.py` +
   the exact `SetProperty` keys Dynamic Zoom keyframes, and the absence of a
   scriptable undo-transaction API) are called out there and in
   `plugins/resolve/README.md` as unverified pending that spike.
+- **C08b — Resolve Fusion Text+ macro authoring, style→param mapping, style
+  coverage report.** New `plugins/resolve/aksharo_core_app/fusion/`:
+  `macro.py` generates and parses `AksharoCaption.setting`
+  (`scripts/generate_macro.py`; golden-file + round-trip tested) — a
+  deterministic Text+-based Fusion macro with 11 published inputs (`Text`,
+  `Font`, `Size`, `Colour`, `StrokeColour`, `StrokeWidth`, `ShadowOpacity`,
+  `PositionY`, `HighlightColour`, and keyframed `HighlightStart`/
+  `HighlightEnd` character-range highlight timing) plus a `StyleId` comment;
+  there is no Resolve/Fusion on this build host, so the generator emits and
+  parses a small, explicitly-documented text subset rather than Fusion's real
+  `.setting` grammar byte-for-byte (real-Fusion verification is
+  `docs/GATE-C-CHECKLIST.md` §8). `style_map.py` classifies each of the 30
+  `@montaj/caption-styles` documents (font onto a bundled OFL font from
+  `@montaj/fonts`, plus supported/approximate/unsupported against Text+'s
+  capabilities) using the explicit predicate table in
+  `classification_rules.json` — the same table C06b mirrors for its Premiere
+  MOGRT style→param mapping — and writes
+  `plugins/resolve/docs/RESOLVE-STYLE-COVERAGE.md`
+  (`scripts/generate_style_coverage.py`; 19 supported, 6 approximate, 5
+  unsupported of 30). Every style still reaches picture regardless of this
+  classification: C08's alpha-overlay fallback is unchanged.
+  `aksharo_core_app/captions.py`'s `build_segment_item` now uses the macro
+  (via `fusion_macro_available()`) when installed, adding
+  `fusion_macro`/`highlight_color`/`highlight_keyframes` to the existing
+  minimal params dict, and falls through to the C08 minimal Text+ path
+  unchanged when it is not; `CaptionStyle.highlight_color` and
+  `CaptionSegment.word_highlights` are new optional fields (both default to
+  `None`/prior behaviour). `plugins/resolve/installer/manifest.json` (new)
+  lists the macro file and the per-OS Fusion `Macros` folder destinations for
+  C10's installer to copy it into; `tools/release`'s existing
+  `packageResolve.ts` already stages the whole `aksharo_core_app/` tree, so
+  the new `fusion/` subpackage (including the generated `.setting`) is
+  included in `pnpm release package-resolve --dry-run` with no change there.
 - **C05a — Premiere Pro UXP plugin foundation.** New workspace
   `plugins/premiere-uxp` (`@montaj/premiere-uxp`): UXP manifest v5
   (`ai.aksharo.panel`, host `PPRO` min `25.6`, minimal `requiredPermissions`

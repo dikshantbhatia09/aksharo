@@ -166,7 +166,10 @@ describe("consistency with C08b's style_map report (if it has landed on this wor
     }
     const mine = buildMogrtStyleMap();
     for (const entry of mine) {
-      const rowMatch = new RegExp("`" + entry.styleId + "`\\) \\| ([A-Za-z]+) \\|").exec(markdown);
+      // Row shape: | Name (`id`) | category | Status | reason | font | ... |
+      const rowMatch = new RegExp("`" + entry.styleId + "`\\) \\| [^|]+ \\| ([A-Za-z]+) \\|").exec(
+        markdown,
+      );
       expect(rowMatch, `no row for "${entry.styleId}" in the Resolve coverage doc`).not.toBeNull();
       const theirStatus = rowMatch![1]!.toLowerCase();
       expect(theirStatus, `classification mismatch for "${entry.styleId}"`).toBe(entry.support);

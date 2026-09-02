@@ -13,12 +13,14 @@ describe("CONSENT_PURPOSES", () => {
       "marketing",
       "share_upload",
       "affiliate",
+      "telemetry",
     ]);
   });
 
   it("is the closed set the request schema accepts", () => {
     expect(setConsentSchema.safeParse({ purpose: "analytics", granted: true }).success).toBe(true);
-    expect(setConsentSchema.safeParse({ purpose: "telemetry", granted: true }).success).toBe(false);
+    expect(setConsentSchema.safeParse({ purpose: "telemetry", granted: true }).success).toBe(true);
+    expect(setConsentSchema.safeParse({ purpose: "bogus", granted: true }).success).toBe(false);
     // `granted` is required: an absent boolean would silently become a refusal.
     expect(setConsentSchema.safeParse({ purpose: "analytics" }).success).toBe(false);
   });
