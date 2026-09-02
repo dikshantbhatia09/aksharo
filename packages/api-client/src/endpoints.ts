@@ -15,27 +15,47 @@ import { defineEndpoint } from "./http.js";
 
 import type {
   AvailableScripts,
+  BatchCreateProjectsRequest,
+  CompletedUpload,
+  CompleteUploadRequest,
   ConsentState,
+  CreateFolderRequest,
+  CreateProjectRequest,
   CurrentUser,
   DeviceApproveRequest,
   Entitlement,
+  Folder,
+  InitUploadRequest,
+  JobPage,
+  JobSummary,
   LoginRequest,
   MagicLinkResponse,
+  Media,
+  MediaUrls,
   MemoryEntry,
   OAuthCompleteRequest,
   PendingApproval,
   PlanCatalogueEntry,
+  Project,
+  ProjectPage,
   RightsRequest,
   SessionSummary,
   SetConsentRequest,
   SignUpRequest,
   SignUpResponse,
+  StyleCatalogueEntry,
+  StylePresetRequest,
   TokenResponse,
+  TranscribeAccepted,
+  TranscribeRequest,
   TranslateAccepted,
   TranslateRequest,
   TransliterateAccepted,
   TransliterateRequest,
+  UpdateFolderRequest,
   UpdateMeRequest,
+  UpdateProjectRequest,
+  UploadTicket,
   UsageSummary,
   WorkspaceSummary,
 } from "./types.js";
@@ -185,7 +205,6 @@ export const accountEndpoints = {
   }),
 } as const;
 
-/** Jobs (A08) — the shell needs them for `JobProgress` and the realtime resync. */
 /** Billing (B01). Public — the plan catalogue needs no session (07 §Billing). */
 export const billingEndpoints = {
   listPlans: defineEndpoint<void, PlanCatalogueEntry[]>({
@@ -196,18 +215,210 @@ export const billingEndpoints = {
   }),
 } as const;
 
+/**
+ * Jobs (A08) — the shell needs them for `JobProgress`, the polling fallback and
+ * the realtime resync. `list` is what a project card polls when the realtime
+ * channel is off or between events.
+ */
 export const jobEndpoints = {
-  get: defineEndpoint<void, { id: string; status: string; progress?: number; etaMs?: number }>({
+  get: defineEndpoint<void, JobSummary>({
     method: "GET",
     path: "/jobs/{id}",
     auth: "bearer",
     operationId: "getJob",
   }),
-  list: defineEndpoint<void, { items: { id: string; status: string; type: string }[] }>({
+  list: defineEndpoint<void, JobPage>({
     method: "GET",
     path: "/jobs",
     auth: "bearer",
     operationId: "listJobs",
+  }),
+  listEvents: defineEndpoint<void, { items: unknown[]; nextCursor: string | null }>({
+    method: "GET",
+    path: "/jobs/{id}/events",
+    auth: "bearer",
+    operationId: "listJobEvents",
+  }),
+  cancel: defineEndpoint<void, JobSummary>({
+    method: "POST",
+    path: "/jobs/{id}/cancel",
+    auth: "bearer",
+    operationId: "cancelJob",
+  }),
+} as const;
+
+/** Projects (A06) — list, create, fetch, update, delete, batch and the sample. */
+export const projectEndpoints = {
+  list: defineEndpoint<void, ProjectPage>({
+    method: "GET",
+    path: "/projects",
+    auth: "bearer",
+    operationId: "listProjects",
+  }),
+  create: defineEndpoint<CreateProjectRequest, Project>({
+    method: "POST",
+    path: "/projects",
+    auth: "bearer",
+    operationId: "createProject",
+  }),
+  batchCreate: defineEndpoint<BatchCreateProjectsRequest, { created: Project[] }>({
+    method: "POST",
+    path: "/projects/batch",
+    auth: "bearer",
+    operationId: "batchCreateProjects",
+  }),
+  /** "Try with a sample" (08 §Home): a real project, seeded with the sample clip. */
+  createSample: defineEndpoint<void, Project>({
+    method: "POST",
+    path: "/projects/sample",
+    auth: "bearer",
+    operationId: "createSampleProject",
+  }),
+  get: defineEndpoint<void, Project>({
+    method: "GET",
+    path: "/projects/{projectId}",
+    auth: "bearer",
+    operationId: "getProject",
+  }),
+  update: defineEndpoint<UpdateProjectRequest, Project>({
+    method: "PATCH",
+    path: "/projects/{projectId}",
+    auth: "bearer",
+    operationId: "updateProject",
+  }),
+  remove: defineEndpoint<void, { id: string }>({
+    method: "DELETE",
+    path: "/projects/{projectId}",
+    auth: "bearer",
+    operationId: "deleteProject",
+  }),
+} as const;
+
+/**
+ * Folders (A06). `list` is a bare array — "the whole tree", never paginated —
+ * unlike `/projects`, which is cursor-paginated and wraps in `{items,
+ * nextCursor}`. The two collections do not share a response shape.
+ */
+export const folderEndpoints = {
+  list: defineEndpoint<void, Folder[]>({
+    method: "GET",
+    path: "/folders",
+    auth: "bearer",
+    operationId: "listFolders",
+  }),
+  create: defineEndpoint<CreateFolderRequest, Folder>({
+    method: "POST",
+    path: "/folders",
+    auth: "bearer",
+    operationId: "createFolder",
+  }),
+  get: defineEndpoint<void, Folder>({
+    method: "GET",
+    path: "/folders/{folderId}",
+    auth: "bearer",
+    operationId: "getFolder",
+  }),
+  update: defineEndpoint<UpdateFolderRequest, Folder>({
+    method: "PATCH",
+    path: "/folders/{folderId}",
+    auth: "bearer",
+    operationId: "updateFolder",
+  }),
+  remove: defineEndpoint<void, { id: string }>({
+    method: "DELETE",
+    path: "/folders/{folderId}",
+    auth: "bearer",
+    operationId: "deleteFolder",
+  }),
+} as const;
+
+/**
+ * Media ingest (A06). `init` and `complete` are the two calls a browser makes
+ * around the presigned multipart upload; the bytes travel straight to the
+ * store between them (`apps/web/lib/upload`, CONTRACTS §6).
+ */
+export const mediaEndpoints = {
+  list: defineEndpoint<void, Media[]>({
+    method: "GET",
+    path: "/projects/{projectId}/media",
+    auth: "bearer",
+    operationId: "listProjectMedia",
+  }),
+  get: defineEndpoint<void, Media>({
+    method: "GET",
+    path: "/media/{mediaId}",
+    auth: "bearer",
+    operationId: "getMedia",
+  }),
+  init: defineEndpoint<InitUploadRequest, UploadTicket>({
+    method: "POST",
+    path: "/projects/{projectId}/media/init",
+    auth: "bearer",
+    operationId: "initMediaUpload",
+  }),
+  complete: defineEndpoint<CompleteUploadRequest, CompletedUpload>({
+    method: "POST",
+    path: "/projects/{projectId}/media/{mediaId}/complete",
+    auth: "bearer",
+    operationId: "completeProjectMediaUpload",
+  }),
+  replace: defineEndpoint<InitUploadRequest, UploadTicket>({
+    method: "POST",
+    path: "/projects/{projectId}/media/{mediaId}/replace",
+    auth: "bearer",
+    operationId: "replaceMedia",
+  }),
+  urls: defineEndpoint<void, MediaUrls>({
+    method: "GET",
+    path: "/projects/{projectId}/media/{mediaId}/urls",
+    auth: "bearer",
+    operationId: "getMediaUrls",
+  }),
+} as const;
+
+/** The style catalogue and a workspace's custom presets (A16, D64, A14). */
+export const styleEndpoints = {
+  list: defineEndpoint<void, StyleCatalogueEntry[]>({
+    method: "GET",
+    path: "/styles",
+    auth: "bearer",
+    operationId: "listStyles",
+  }),
+  createPreset: defineEndpoint<StylePresetRequest, StyleCatalogueEntry>({
+    method: "POST",
+    path: "/workspaces/{id}/style-presets",
+    auth: "bearer",
+    operationId: "createStylePreset",
+  }),
+  updatePreset: defineEndpoint<StylePresetRequest, StyleCatalogueEntry>({
+    method: "PATCH",
+    path: "/workspaces/{id}/style-presets/{presetId}",
+    auth: "bearer",
+    operationId: "updateStylePreset",
+  }),
+  deletePreset: defineEndpoint<void, { id: string }>({
+    method: "DELETE",
+    path: "/workspaces/{id}/style-presets/{presetId}",
+    auth: "bearer",
+    operationId: "deleteStylePreset",
+  }),
+} as const;
+
+/**
+ * Transcripts (A11). `transcribe` quotes the job from the probed media
+ * duration, holds credits and enqueues `ai.transcribe`; a `transcript/
+ * media_not_ready` conflict means the media hasn't been probed yet, which the
+ * upload engine's best-effort `tryStartTranscription()` treats the same as
+ * any other failure here — the upload is still a complete success, and the
+ * project starts transcribing itself once probing catches up (watch
+ * `job.completed`, or `GET /jobs/{id}`).
+ */
+export const transcriptEndpoints = {
+  transcribe: defineEndpoint<TranscribeRequest, TranscribeAccepted>({
+    method: "POST",
+    path: "/projects/{projectId}/transcribe",
+    auth: "bearer",
+    operationId: "transcribeProject",
   }),
 } as const;
 
@@ -237,8 +448,7 @@ export const transcriptScriptsEndpoints = {
  * Routes `07-api-and-contracts.md` specifies whose work package has not landed.
  *
  * `/usage` carries the credit balance and the burn rate, which belong to the
- * ledger (B02); `/memory` is the learned-memory store of D62 (B09). Until they
- * exist the meter shows the plan's allowance and the memory screen says so.
+ * ledger (B02); `/memory` is the learned-memory store of D62 (B09).
  */
 export const pendingEndpoints = {
   usage: defineEndpoint<void, UsageSummary>({
@@ -266,6 +476,11 @@ export const endpoints = {
   device: deviceEndpoints,
   account: accountEndpoints,
   jobs: jobEndpoints,
+  projects: projectEndpoints,
+  folders: folderEndpoints,
+  media: mediaEndpoints,
+  styles: styleEndpoints,
+  transcripts: transcriptEndpoints,
   transcriptScripts: transcriptScriptsEndpoints,
   billing: billingEndpoints,
   pending: pendingEndpoints,
@@ -277,6 +492,11 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(deviceEndpoints),
   ...Object.entries(accountEndpoints),
   ...Object.entries(jobEndpoints),
+  ...Object.entries(projectEndpoints),
+  ...Object.entries(folderEndpoints),
+  ...Object.entries(mediaEndpoints),
+  ...Object.entries(styleEndpoints),
+  ...Object.entries(transcriptEndpoints),
   ...Object.entries(transcriptScriptsEndpoints),
   ...Object.entries(billingEndpoints),
   ...Object.entries(pendingEndpoints),

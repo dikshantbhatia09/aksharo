@@ -38,8 +38,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     label: "Projects",
     href: "/projects",
     icon: Folder,
-    ready: false,
-    owner: "A14",
+    ready: true,
   },
   {
     key: "templates",

@@ -128,7 +128,7 @@ export function OnboardingFlow(): React.JSX.Element {
       },
       {
         onSuccess: () => {
-          router.replace("/studio");
+          router.replace("/");
         },
         onError: (error) => {
           toast.error("We could not save that", { description: messageForError(error) });
@@ -225,7 +225,7 @@ export function OnboardingFlow(): React.JSX.Element {
           <Button
             variant="ghost"
             onClick={() => {
-              router.replace("/studio");
+              router.replace("/");
             }}
             data-testid="onboarding-skip"
           >

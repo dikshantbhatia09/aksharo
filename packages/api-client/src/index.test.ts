@@ -6,7 +6,7 @@ describe("@montaj/api-client", () => {
   it("declares its identity and its owning work packages", () => {
     expect(PACKAGE_INFO.name).toBe("@montaj/api-client");
     expect(PACKAGE_INFO.implementedBy).toBe(
-      "A03 (spec), A04 (generator), A13 (fetch layer + hooks)",
+      "A03 (spec), A04 (generator), A13 (fetch layer + hooks), A14 (projects/media/styles)",
     );
   });
 

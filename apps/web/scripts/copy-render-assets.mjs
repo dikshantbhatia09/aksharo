@@ -10,9 +10,16 @@
  *
  * A18b replaces the fixture fonts here with the real subset faces served from
  * R2; the paths the components fetch (`/canvaskit/`, `/fonts/`) do not change.
+ *
+ * A14 adds the style catalogue's static previews for the same reason: the Home
+ * quick-pick and any other lightweight style tile read
+ * `/style-previews/<key>.png` from this app's own origin rather than running
+ * the full CanvasKit renderer just to draw a thumbnail. Missing previews (a
+ * style `previews:build` has not rendered yet) are skipped, not fatal — the
+ * web app already treats a `null` `previewKey` as "no static preview yet".
  */
 
-import { copyFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,6 +38,10 @@ const fontDir = resolve(
   "fixtures",
   "fonts",
 );
+const previewsDir = resolve(
+  dirname(require.resolve("@montaj/caption-styles/package.json")),
+  "previews",
+);
 
 const targets = [
   {
@@ -43,6 +54,15 @@ const targets = [
     "NotoSansTamil-Regular-subset.ttf",
   ].map((file) => ({ from: join(fontDir, file), to: join(root, "public", "fonts", file) })),
 ];
+
+if (existsSync(previewsDir)) {
+  for (const file of readdirSync(previewsDir).filter((name) => name.endsWith(".png"))) {
+    targets.push({
+      from: join(previewsDir, file),
+      to: join(root, "public", "style-previews", file),
+    });
+  }
+}
 
 for (const target of targets) {
   mkdirSync(dirname(target.to), { recursive: true });
