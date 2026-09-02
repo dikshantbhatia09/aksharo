@@ -34,6 +34,41 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **C06b — Aksharo caption `.mogrt` authoring: frozen param table, generator,
+  verifier, placeholder, style mapping mirrored with C08b.** No After Effects
+  on the build host, so this ships everything except the binary `.aep`:
+  `plugins/premiere-uxp/mogrt/params.ts` freezes the 14-param order (`Text`,
+  `Font`, `Size`, `Colour`, `StrokeColour`, `StrokeWidth`, `ShadowOpacity`,
+  `PositionY`, `HighlightColour`, `HighlightStart`, `HighlightEnd`, `StyleId`,
+  `BoxFill`, `BoxOpacity`) C06 depends on — the first 12 are C06's own
+  appendix table verbatim; `BoxFill`/`BoxOpacity` were appended (never
+  reordering the original 12) once C08b's Resolve rule set landed mid-WP, so a
+  whole-cue background box classifies the same real capability gap on both
+  hosts instead of MOGRT blanket-rejecting every boxed style. `generate.ts`
+  builds `definition.json` deterministically (golden fixture in
+  `definition.golden.json`); `zip.ts` is a small dependency-free STORE-only zip
+  reader/writer; `verify.ts` unzips a `.mogrt`, validates `definition.json`
+  against the frozen table and reports mismatches by name/index, and checks for
+  a `.aep` unless the file is marked `placeholder`; `build-placeholder.ts`
+  builds the committed `mogrt/placeholder.mogrt` (definition + a `PLACEHOLDER.txt`
+  note, no `.aep`); `verify-cli.ts` is the CI entry point
+  (`pnpm --filter @montaj/premiere-uxp verify:mogrt`).
+  `src/styles/classification-rules.ts` mirrors C08b's
+  `plugins/resolve/aksharo_core_app/fusion/classification_rules.json`
+  (same rule ids/predicates/status, reworded reasons for AE/Premiere), plus a
+  `classification-rules.test.ts` check that it matches the canonical file
+  byte-for-structure once `wp/C08b` is on `main`. `src/styles/mogrt-map.ts`
+  applies those rules (plus one MOGRT-only font-bundling rule) to classify all
+  30 `@montaj/caption-styles` system styles as supported/approximate/unsupported
+  with reasons — **19 supported / 6 approximate / 5 unsupported**, matching
+  C08b's own `RESOLVE-STYLE-COVERAGE.md` counts and per-style buckets exactly
+  (checked against commit `704c92b` on `wp/C08b`); `generate-coverage.ts`
+  writes `docs/MOGRT-STYLE-COVERAGE.md` deterministically. `docs/MOGRT-PARAMS.md`
+  documents the frozen table, the `BoxFill`/`BoxOpacity` addition, and the
+  `definition.json`/Adobe-EGP distinction; `docs/README-AUTHORING.md` is the
+  step-by-step AE authoring guide for H-25 (a human task, not done here). One
+  CI step (`.github/workflows/ci.yml`) verifies the placeholder.
+
 - **C08 — DaVinci Resolve `aksharo_core`: Workspace ▸ Scripts launcher, in-Resolve
   loopback server, bridge client, Text+ captions, cuts, dynamic zoom, marker
   customData map.** New workspace `plugins/resolve` (Python 3.12, same

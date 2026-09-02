@@ -11,9 +11,13 @@
     "lint": "eslint .",
     "test": "vitest run --maxWorkers=2",
     "test:coverage": "vitest run --coverage --maxWorkers=2",
-    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "generate:mogrt-placeholder": "tsx mogrt/build-placeholder.ts",
+    "generate:style-coverage": "tsx src/styles/generate-coverage.ts",
+    "verify:mogrt": "tsx mogrt/verify-cli.ts"
   },
   "dependencies": {
+    "@montaj/caption-styles": "workspace:*",
     "@montaj/config": "workspace:*",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -30,6 +34,7 @@
     "esbuild": "^0.25.12",
     "eslint": "^9.39.5",
     "jsdom": "^30.0.1",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"
   }

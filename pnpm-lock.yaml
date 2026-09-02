@@ -1135,6 +1135,9 @@ importers:
 
   plugins/premiere-uxp:
     dependencies:
+      '@montaj/caption-styles':
+        specifier: workspace:*
+        version: link:../../packages/caption-styles
       '@montaj/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -1178,6 +1181,9 @@ importers:
       jsdom:
         specifier: ^30.0.1
         version: 30.0.1(@noble/hashes@1.8.0)
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
