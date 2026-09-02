@@ -373,17 +373,28 @@ describe.skipIf(!CAN_RUN)("scripts and translation (A22)", () => {
     expect(words).toEqual(["तो", "आज", "हम", "video", "है"]);
     // The original script is untouched: `scripts.roman` was never asked for,
     // and `word.t` in the manifest reads the primary text without ?script=.
+    // No revision pinned either (A11d + A22c): transliteration bumped
+    // transcripts.currentRevision, and the newest-row-at-or-before-revision
+    // read must still return every chunk, not an empty page.
     const primary = await request(app.getHttpServer())
       .get(`/projects/${PROJECT}/transcript`)
       .set("Authorization", `Bearer ${accessToken()}`)
       .expect(200);
-    expect((primary.body.chunks[0].words as { t: string }[]).map((word) => word.t)).toEqual([
-      "toh",
-      "aaj",
-      "hum",
+    const primaryWords = primary.body.chunks[0].words as {
+      t: string;
+      scripts?: { native?: string };
+    }[];
+    expect(primaryWords).toHaveLength(WORDS.length);
+    expect(primaryWords.map((word) => word.t)).toEqual(["toh", "aaj", "hum", "video", "hai"]);
+    // The new script variant is there too - the manifest read did not lose it.
+    expect(primaryWords.map((word) => word.scripts?.native)).toEqual([
+      "तो",
+      "आज",
+      "हम",
       "video",
-      "hai",
+      "है",
     ]);
+    expect(primary.body.transcript.revision).toBeGreaterThan(1);
 
     // GET .../transcript/scripts reports it available, with provenance.
     const scripts = await request(app.getHttpServer())
