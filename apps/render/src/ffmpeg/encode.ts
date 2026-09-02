@@ -13,14 +13,18 @@
  * and because writes block on the encoder, frames-written tracks the encoder
  * anyway.
  *
- * **Why there is no run-ahead buffer.** Rasterising a frame is synchronous and
- * blocks Node's only thread, so it is tempting to queue several finished frames
- * and let ffmpeg drink from the buffer while Skia draws the next one. That was
- * measured and it is *slower*: the batch hands back one reused buffer, so a
- * queued frame has to be copied, and 8.3 MB of memcpy per 1080p frame costs more
- * than the overlap buys (0.82× realtime with a four-frame run-ahead against
- * 0.95× without). Real overlap needs the rasteriser off this thread, which is a
- * worker-thread change and is written up in `BENCHMARK.md`, not a buffer size.
+ * **Why there is no run-ahead buffer here.** Queueing several finished frames so
+ * ffmpeg can drink while Skia draws was measured and it is *slower*: the frame
+ * source hands back one reused buffer, so a queued frame has to be copied, and
+ * 8.3 MB of memcpy per 1080p frame costs more than the overlap buys (0.82×
+ * realtime against 0.95× without). Real overlap belongs upstream, and that is
+ * where it now is: `createPooledFrameSource` rasterises on worker threads and
+ * runs ahead into shared memory, so this loop stays a plain in-order write and
+ * the parallelism costs no copies at all.
+ *
+ * **`onFrameConsumed` is what makes shared memory safe.** `stream.write` queues
+ * a chunk by reference, so a pooled frame's slot must not be redrawn until the
+ * write has actually left. The callback fires then, and only then.
  */
 
 import { spawn } from "node:child_process";
@@ -41,8 +45,13 @@ export class EncodeError extends Error {
   }
 }
 
-/** Produces the RGBA bytes for output frame `index`. */
-export type FrameSource = (index: number) => Uint8Array;
+/**
+ * Produces the RGBA bytes for output frame `index`.
+ *
+ * It may answer with a promise: the pooled source does, because the frame is
+ * being drawn on another thread.
+ */
+export type FrameSource = (index: number) => Uint8Array | Promise<Uint8Array>;
 
 export interface EncodeOptions {
   readonly args: readonly string[];
@@ -51,6 +60,11 @@ export interface EncodeOptions {
   readonly ffmpegPath?: string;
   /** Called with 0–1 as frames go down the pipe; throttled by the caller. */
   readonly onProgress?: (fraction: number, frameIndex: number) => void;
+  /**
+   * Called once a frame's bytes have left the pipe, so the buffer they came from
+   * can be reused. Required for correctness with shared-memory frames.
+   */
+  readonly onFrameConsumed?: (index: number) => void;
   /** How many stderr characters to keep for the error message. */
   readonly stderrTailBytes?: number;
   /** Aborts the render; the process is killed and the promise rejects. */
@@ -68,12 +82,21 @@ export interface EncodeResult {
  *
  * `write` returning false does not mean the write failed — it means the internal
  * buffer is over its high-water mark and the caller should stop. Ignoring it is
- * how a render ends up holding every frame it has produced; honouring it is also
- * what lets the caller keep reusing one frame buffer, because the write has been
- * consumed by the time the next frame is drawn.
+ * how a render ends up holding every frame it has produced.
+ *
+ * The completion callback is separate from the back-pressure: it fires when the
+ * chunk has genuinely gone, which is the earliest moment its memory may be
+ * rewritten.
  */
-async function writeFrame(stream: Writable, bytes: Uint8Array): Promise<void> {
-  if (!stream.write(bytes)) await once(stream, "drain");
+async function writeFrame(
+  stream: Writable,
+  bytes: Uint8Array,
+  onWritten: () => void,
+): Promise<void> {
+  const full = !stream.write(bytes, () => {
+    onWritten();
+  });
+  if (full) await once(stream, "drain");
 }
 
 /** Spawns ffmpeg, feeds it every frame, and resolves when it exits cleanly. */
@@ -121,7 +144,10 @@ export async function runEncode(options: EncodeOptions): Promise<EncodeResult> {
     for (let index = 0; index < options.frames; index += 1) {
       if (options.signal?.aborted === true) break;
       if (child.stdin.destroyed || child.stdin.writableEnded) break;
-      await writeFrame(child.stdin, options.frame(index));
+      const bytes = await options.frame(index);
+      await writeFrame(child.stdin, bytes, () => {
+        options.onFrameConsumed?.(index);
+      });
       framesWritten += 1;
       options.onProgress?.(framesWritten / options.frames, index);
     }

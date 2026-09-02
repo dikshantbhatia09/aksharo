@@ -268,6 +268,53 @@ describe("a whole cloud render", () => {
   }, 600_000);
 });
 
+describe("the rasteriser pool", () => {
+  it(
+    "renders on worker threads by default and says how many",
+    async () => {
+      const payload = await samplePayload(SECRET, baseOverrides(), CLIP_SECONDS * 1000);
+      const outcome = await renderVideo(payload, FIXTURE_IDS.workspaceId, dependencies());
+      expect(outcome.rasterWorkers).toBeGreaterThan(0);
+      expect(outcome.frames.requested).toBe(CLIP_SECONDS * FPS);
+    },
+    600_000,
+  );
+
+  it(
+    "falls back to rasterising inline when the worker entry is missing",
+    async () => {
+      // A machine without worker threads, or an image that dropped
+      // `workers/raster-worker.mjs`, must still render — just at A20's speed.
+      const warnings: string[] = [];
+      const payload = await samplePayload(SECRET, baseOverrides(), CLIP_SECONDS * 1000);
+      const outcome = await renderVideo(payload, FIXTURE_IDS.workspaceId, {
+        ...dependencies(),
+        workerPath: join(scratch, "no-such-worker.mjs"),
+        onWarning: (message) => warnings.push(message),
+      });
+      expect(outcome.rasterWorkers).toBe(0);
+      expect(warnings.join(" ")).toContain("rasterising inline");
+      const probe = await ffprobe(derivedStore.pathFor(outcome.outputKey));
+      expect(streams(probe).find((stream) => stream.codec_type === "video")?.width).toBe(WIDTH);
+    },
+    600_000,
+  );
+
+  it(
+    "rasterises inline when the pool is turned off",
+    async () => {
+      const payload = await samplePayload(SECRET, baseOverrides(), CLIP_SECONDS * 1000);
+      const outcome = await renderVideo(payload, FIXTURE_IDS.workspaceId, {
+        ...dependencies(),
+        rasterWorkers: 0,
+      });
+      expect(outcome.rasterWorkers).toBe(0);
+      expect(outcome.sizeBytes).toBeGreaterThan(1_000);
+    },
+    600_000,
+  );
+});
+
 describe("the cloud-only output shapes", () => {
   it("writes a ProRes 4444 caption layer with a real alpha channel", async () => {
     // Alpha is cloud-only (`03 F-502`): `VideoEncoderConfig.alpha:"keep"` could

@@ -26,7 +26,8 @@ import type { RenderManifest } from "@montaj/render-manifest";
 import { SkiaNodeBackend } from "@montaj/render-skia-node";
 
 import { loadFonts } from "./fonts.js";
-import { createFrameSource, type FrameStats } from "./frames.js";
+import { createFrameSource, createPooledFrameSource, type FrameSource, type FrameStats } from "./frames.js";
+import { createRasterPool, defaultPoolSize, type RasterPool } from "./pool.js";
 import { buildRenderTimeMap, parseStyleCatalogue, toEdgProjection } from "./projection.js";
 import { watermarkCommandFor } from "./watermark.js";
 import { runEncode } from "../ffmpeg/encode.js";
@@ -44,6 +45,12 @@ export interface RenderDependencies {
   readonly secret: string;
   readonly secretNext?: string | undefined;
   readonly encoder: VideoEncoder;
+  /**
+   * Rasteriser threads. `undefined` takes `min(cores − 1, 4)`; `0` rasterises
+   * inline on this thread, which is also where a machine without worker threads
+   * ends up.
+   */
+  readonly rasterWorkers?: number | undefined;
   readonly fontDir?: string | undefined;
   readonly workDir?: string | undefined;
   readonly ffmpegLogLevel?: string;
@@ -59,6 +66,8 @@ export interface RenderDependencies {
   readonly resolveBrandAsset?: (assetId: string) => Promise<Uint8Array>;
   readonly now?: () => number;
   readonly signal?: AbortSignal;
+  /** Overrides the rasteriser worker entry point; a test points it elsewhere. */
+  readonly workerPath?: string | undefined;
 }
 
 export interface RenderOutcome {
@@ -71,6 +80,8 @@ export interface RenderOutcome {
   readonly ffmpegSummary: string;
   readonly filterGraph: string;
   readonly fontSource: "pack" | "fixtures";
+  /** Threads that actually rasterised; `0` when it ran inline. */
+  readonly rasterWorkers: number;
 }
 
 /** Renders one `render.video` job. */
@@ -125,6 +136,7 @@ export async function renderVideo(
     });
     const shaper = await createHarfBuzzShaper(fonts.registry);
     const backend = await SkiaNodeBackend.create({ shaper });
+    const images: { assetId: string; bytes: Uint8Array }[] = [];
     if (manifest.watermark !== null) {
       // A watermark the manifest asked for and the store cannot supply must fail
       // the render. Drawing the frame without it would turn a missing file into
@@ -133,37 +145,16 @@ export async function renderVideo(
         dependencies.resolveBrandAsset ??
         ((assetId: string) =>
           dependencies.derivedStore.getBytes(brandAssetKey(manifest.workspaceId, assetId)));
-      await backend.registerImage(
-        manifest.watermark.assetId,
-        await resolve(manifest.watermark.assetId),
-      );
+      const bytes = await resolve(manifest.watermark.assetId);
+      // Both rasterisers need it: the inline backend here, and every worker in
+      // the pool, which has its own Skia and its own image table.
+      images.push({ assetId: manifest.watermark.assetId, bytes });
+      await backend.registerImage(manifest.watermark.assetId, bytes);
     }
 
     // Every overlay is transparent: `overlay` composites it onto the decoded
     // source, and the green ground of a green-screen export is ffmpeg's `color`
     // source rather than a fill on this side.
-    const batch = backend.createBatch({
-      width: manifest.output.width,
-      height: manifest.output.height,
-    });
-
-    const frames = createFrameSource({
-      backend,
-      batch,
-      projection: toEdgProjection(payload.projection, manifest),
-      timemap,
-      catalogue: parseStyleCatalogue(payload.styles),
-      registry: fonts.registry,
-      shaper,
-      fps: manifest.output.fps,
-      watermark: watermarkCommandFor(manifest.watermark, {
-        width: manifest.output.width,
-        height: manifest.output.height,
-      }),
-      script: payload.script,
-      dropFillers: payload.dropFillers,
-    });
-
     // 6. The encode.
     const outputPath = join(scratch, `export.${manifest.output.container}`);
     const plan = buildFfmpegArgs({
@@ -182,12 +173,76 @@ export async function renderVideo(
         : { logLevel: dependencies.ffmpegLogLevel }),
     });
 
+    // The frame source, once the frame count is known.
+    //
+    // The pool is tried first and the inline path is the fallback, not the
+    // other way round: a machine without worker threads, or an image missing
+    // the worker entry, must still render — just at A20's speed.
+    const commandOptions = {
+      projection: toEdgProjection(payload.projection, manifest),
+      timemap,
+      catalogue: parseStyleCatalogue(payload.styles),
+      registry: fonts.registry,
+      shaper,
+      fps: manifest.output.fps,
+      watermark: watermarkCommandFor(manifest.watermark, {
+        width: manifest.output.width,
+        height: manifest.output.height,
+      }),
+      script: payload.script,
+      dropFillers: payload.dropFillers,
+    };
+
+    const wantedWorkers = dependencies.rasterWorkers ?? defaultPoolSize();
+    let pool: RasterPool | null = null;
+    if (wantedWorkers > 0) {
+      try {
+        pool = await createRasterPool({
+          width: manifest.output.width,
+          height: manifest.output.height,
+          fonts: fonts.fonts,
+          images,
+          size: wantedWorkers,
+          onMissing: (resource) => {
+            dependencies.onWarning?.(`a rasteriser worker could not find ${resource}`);
+          },
+          ...(dependencies.workerPath === undefined
+            ? {}
+            : { workerPath: dependencies.workerPath }),
+        });
+      } catch (error) {
+        dependencies.onWarning?.(
+          `rasterising inline: the worker pool did not start (${
+            error instanceof Error ? error.message : String(error)
+          })`,
+        );
+      }
+    }
+
+    const pooled =
+      pool === null
+        ? null
+        : createPooledFrameSource({ ...commandOptions, pool, frames: plan.overlayFrames });
+    const frames: FrameSource =
+      pooled ??
+      createFrameSource({
+        ...commandOptions,
+        backend,
+        batch: backend.createBatch({
+          width: manifest.output.width,
+          height: manifest.output.height,
+        }),
+      });
+
     const interval = dependencies.progressIntervalMs ?? 5_000;
     let lastReport = Date.now();
     await runEncode({
       args: plan.args,
       frames: plan.overlayFrames,
       frame: (index) => frames.frame(index),
+      onFrameConsumed: (index) => {
+        frames.consumed?.(index);
+      },
       ...(dependencies.signal === undefined ? {} : { signal: dependencies.signal }),
       onProgress: (fraction) => {
         const at = Date.now();
@@ -200,6 +255,8 @@ export async function renderVideo(
         );
       },
     });
+
+    await pooled?.close();
 
     // 7. Media out, to R2 under CONTRACTS §6.
     const key = exportKey(
@@ -225,6 +282,7 @@ export async function renderVideo(
       ffmpegSummary: plan.summary,
       filterGraph: plan.filterGraph,
       fontSource: fonts.source,
+      rasterWorkers: pool?.size ?? 0,
     };
   } finally {
     await rm(scratch, { recursive: true, force: true });

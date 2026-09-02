@@ -74,6 +74,7 @@ async function main(): Promise<void> {
     secret: env.INTERNAL_CALLBACK_SECRET,
     secretNext: env.INTERNAL_CALLBACK_SECRET_NEXT,
     encoder: settings.encoder,
+    rasterWorkers: settings.rasterWorkers,
     fontDir: settings.fontDir,
     workDir: settings.workDir,
     ffmpegLogLevel: settings.logLevel,
@@ -117,6 +118,7 @@ async function main(): Promise<void> {
         concurrency: settings.concurrency,
         prefix: settings.queuePrefix,
         encoder: settings.encoder,
+        rasterWorkers: settings.rasterWorkers,
         fontDir: settings.fontDir ?? "(bundled subsets)",
         ffmpeg: tools.find((tool) => tool.tool === "ffmpeg")?.version,
       });
