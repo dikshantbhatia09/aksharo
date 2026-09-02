@@ -313,6 +313,41 @@ implements: `loadHot`, `loadSegments(cursor)`, `loadItems(passId)`, `appendRevis
 which either returns the new revision or the `{latestRevision, opsSince}` conflict, never
 the document — and `snapshotEvery = 100`.
 
+## Packed keyframes (B19)
+
+`PassItem.keyframesRef` (CONTRACTS §2) points at a dense curve for a `zoom` or
+`reframe` pass item, stored out of band as packed little-endian float32 rows.
+`packKeyframes`/`unpackKeyframes` (`src/keyframes.ts`) are the one encoder/decoder
+pair every producer (`worker-ai`) and every consumer (the API, `render-core`,
+B20's UI) shares.
+
+```ts
+import { loadKeyframes, packKeyframes, unpackKeyframes } from "@montaj/edg";
+
+const bytes = packKeyframes([
+  { tMs: 0, cx: 0.5, cy: 0.42, scale: 1.0 },
+  { tMs: 180, cx: 0.5, cy: 0.42, scale: 1.2 },
+]);
+const rows = unpackKeyframes(bytes); // sorted by tMs, round-trips exactly
+```
+
+Byte layout, version 1:
+
+```
+offset  size  field
+0       4     magic   ASCII "MKF1"
+4       4     version uint32 LE, currently 1
+8       4     count   uint32 LE, number of rows
+12      16*n  rows    n x { tMs: f32, cx: f32, cy: f32, scale: f32 }, all LE
+```
+
+`tMs` is milliseconds relative to the item's `startMs`; `cx`/`cy` are the subject
+centre normalised 0..1; `scale` is the zoom factor (>= 1). `loadKeyframes` resolves
+either storage form (`{kind: "inline", bytes}` or `{kind: "ref", ref}`, fetched
+through an injected `readRef`) to rows, for a render path that does not care which
+form a given item used. `fitsInline`/`INLINE_LIMIT_BYTES` mirror the 64 KiB
+inline-vs-derived-storage rule from the 2026-09-02 orchestrator addendum.
+
 ## Fixtures
 
 | File                               | What it is                                                                                                          |

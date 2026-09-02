@@ -1405,6 +1405,20 @@ export const API_OPERATIONS = [
     summary: "Start an autocut pass",
   },
   {
+    operationId: "startReframePass",
+    method: "POST",
+    path: "/projects/{projectId}/passes/reframe",
+    tags: ["passes"],
+    summary: "Start a reframe pass",
+  },
+  {
+    operationId: "startZoomPass",
+    method: "POST",
+    path: "/projects/{projectId}/passes/zoom",
+    tags: ["passes"],
+    summary: "Start a zoom pass",
+  },
+  {
     operationId: "streakTestHooks",
     method: "POST",
     path: "/streak/test-hooks",

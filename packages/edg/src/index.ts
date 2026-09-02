@@ -15,3 +15,4 @@ export * from "./validate.js";
 export * from "./ops/index.js";
 export * from "./segmenter/index.js";
 export * from "./migrations/index.js";
+export * from "./keyframes.js";

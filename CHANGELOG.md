@@ -79,6 +79,51 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B19 — Reframe & zoom pass: scene detection, subject tracking, cue
+  detection, velocity-eased keyframes packed as bytea.** Reuses B18's
+  generic `ai.pass` runner end to end (no second pass runner) for two new
+  pass kinds. Worker (`apps/worker-ai/worker_ai/passes/{scenes,tracking,
+zoom,reframe}.py`, `apps/worker-ai/worker_ai/processors/
+reframe_zoom_pass.py`): a `ContentDetector`-style scene-cut metric
+  (re-implemented directly rather than depending on `pyscenedetect`); an
+  IoU-linked subject track with a one-euro filter, speaking-speaker/largest-
+  face multi-face resolution and a saliency-centre fallback (the YuNet ONNX
+  face detector the brief names could not be fetched or committed in this
+  CPU-only, no-download environment — a `FrameDetector` seam and a
+  brightness-blob stand-in are documented in `passes/README.md`'s "Gap"
+  section, matching A10/B18's own pattern for an unavailable model weight);
+  a zoom pass turning emphasis-word/audio-energy/sentence-start cues into
+  rate-limited (>=2.5s apart, never across a scene cut or an accepted `cut`
+  item) punch-in events (180ms ease-out-cubic in, >=600ms hold, 260ms out,
+  subtle/standard/punchy presets); a reframe pass building an 8%-deadzone,
+  velocity-capped, scene-hard-cut 16:9→9:16/1:1 crop track at 10Hz,
+  simplified with Ramer–Douglas–Peucker. Packed-keyframe byte format
+  (`[tMs, cx, cy, scale]` little-endian float32 rows, `MKF1` v1 header):
+  `packKeyframes`/`unpackKeyframes`/`loadKeyframes` in `@montaj/edg`
+  (`packages/edg/src/keyframes.ts`, documented in its README) with a
+  byte-for-byte-matching Python encoder in the worker, round-trip and
+  property tests both sides. API (`apps/api/src/passes/**`, extended):
+  `POST /projects/{id}/passes/{zoom,reframe}` quoted against `@montaj/
+config`'s existing `reframeZoomPass` burn rate (flash tier — the brief's
+  literal "3 credits/minute" is that rate's _pro_ tier; flagged for
+  reconciliation, the same kind of gap B18 flagged for `autocutPass`),
+  `PassCompletionHandler` extended to merge zoom/reframe items. Two frozen-
+  interface gaps found and flagged rather than silently worked around
+  (`passes-completion.handler.ts`'s class docstring): `PassTypeSchema` has
+  no `"zoom"` value, so both land as `type: "reframe"` distinguished by
+  `kind`/`engine`; and neither the inline-bytea nor the derived-storage
+  write path for `keyframesRef` exists yet (`PassItem` carries only a
+  string ref, `ObjectStore` has no `putObject` by design), so this work
+  package computes the addendum's key shape and sets it, but does not yet
+  write the bytes anywhere — flagged as an open question for a follow-up
+  (B20 already touches keyframe consumption). Also flagged: real detections/
+  scene frames need decoded video (out of scope here — no video-decode
+  dependency was added), so the producer sends them empty for now; the
+  worker still runs correctly on emphasis-only zoom cues with a saliency
+  fallback, while reframe fails non-retryably (`worker/invalid_payload`)
+  until that producer-side gap closes. See `apps/worker-ai/worker_ai/
+passes/README.md` for models used, presets and the full gap list.
+
 - **B10 — Audio clean: denoise, loudness normalise, A/B preview, applied to
   browser and cloud exports.** Worker (`apps/worker-ai/worker_ai/clean/**`):
   `ai.clean` denoises via spectral-subtraction gating (a DeepFilterNet3
