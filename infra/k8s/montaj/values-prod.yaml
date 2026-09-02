@@ -37,9 +37,10 @@ networkPolicy:
   # terraform output vpc_cidr_block
   vpcCidr: 10.30.0.0/16
   fqdn:
-    # Flip to true once the cluster runs Cilium. Until then the provider
-    # allow-list is documentation plus an egress proxy, not enforcement.
-    enabled: false
+    # Move to "audit" then "enforce" once the cluster runs Cilium
+    # (docs/runbooks/egress-policy.md). Until then the provider allow-list is
+    # documentation plus an egress proxy, not enforcement.
+    mode: off
 
 ingress:
   enabled: true

@@ -59,7 +59,10 @@ jobs:
       - run: pnpm --filter @montaj/release... build
       - run: pnpm --filter @montaj/release test -- --maxWorkers=2
       - name: Build desktop artifact (dry-run, unsigned)
-        run: pnpm release build-desktop --platform ${{ matrix.platform }} --channel alpha --dry-run
+        # --placeholder: this job never installs Electron or builds apps/desktop (that's the
+        # separate `e2e` job below), so it always exercises the synthesized nested-binary tree
+        # rather than depending on one existing already (C00b scope §3).
+        run: pnpm release build-desktop --platform ${{ matrix.platform }} --channel alpha --dry-run --placeholder
       - name: SBOM + checksums (dry-run)
         run: |
           pnpm release sbom --artifact-name desktop-${{ matrix.platform }}
@@ -71,6 +74,36 @@ jobs:
           path: .release/artifacts/**
           retention-days: 7
           if-no-files-found: error
+
+  e2e:
+    name: Electron e2e (${{ matrix.platform }})
+    # C02b: the Playwright-Electron smoke needs a real Electron runtime/display and a real
+    # `electron-builder --dir` output — both unavailable in the sandbox this repo's agents
+    # develop in (Chromium's network service crashes under its container restrictions), so
+    # this only runs here, on a real mac/win runner; locally it stays a documented manual
+    # step (`pnpm --filter @montaj/desktop test:e2e`, see apps/desktop/README.md).
+    runs-on: ${{ matrix.platform == 'mac' && 'macos-14' || 'windows-latest' }}
+    timeout-minutes: 20
+    if: ${{ !startsWith(github.ref, 'refs/tags/release/') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [mac, win]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @montaj/desktop... build
+      - name: electron-builder --dir (unsigned)
+        working-directory: apps/desktop
+        run: node scripts/pack.mjs --dir
+      - name: Playwright-Electron smoke
+        working-directory: apps/desktop
+        run: npx playwright install --with-deps chromium && npx playwright test
 
   signed:
     name: Signed build (${{ matrix.platform }})

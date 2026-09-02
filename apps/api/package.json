@@ -30,6 +30,7 @@
     "@aws-sdk/client-s3": "^3.980.0",
     "@aws-sdk/client-sesv2": "^3.1124.0",
     "@aws-sdk/s3-request-presigner": "^3.980.0",
+    "@montaj/bridge-core": "workspace:*",
     "@montaj/caption-styles": "workspace:*",
     "@montaj/config": "workspace:*",
     "@montaj/edg": "workspace:*",

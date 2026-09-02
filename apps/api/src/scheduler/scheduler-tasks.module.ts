@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { AccessLogPurgeTask } from "./tasks/access-log-purge.task.js";
+import { CrashReportRetentionTask } from "./tasks/crash-report-retention.task.js";
 import { DeviceCodeExpiryTask } from "./tasks/device-code-expiry.task.js";
 import { EvalNightlyTask } from "./tasks/eval-nightly.task.js";
 import { ExportFilingReportTask } from "./tasks/export-filing-report.task.js";
@@ -45,6 +46,7 @@ import { MediaModule } from "../media/media.module.js";
     LedgerReconciliationTask,
     ExportFilingReportTask,
     UsageReportTask,
+    CrashReportRetentionTask,
     EvalNightlyTask,
   ],
 })

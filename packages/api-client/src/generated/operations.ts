@@ -530,6 +530,13 @@ export const API_OPERATIONS = [
     summary: "Finish an upload (project-scoped form)",
   },
   {
+    operationId: "confirmDiagnosticsBundle",
+    method: "POST",
+    path: "/telemetry/diagnostics-bundle/confirm",
+    tags: ["telemetry"],
+    summary: "Confirm an uploaded diagnostics bundle and attach it to the ticket",
+  },
+  {
     operationId: "createApiKey",
     method: "POST",
     path: "/workspaces/{id}/api-keys",
@@ -1503,11 +1510,25 @@ export const API_OPERATIONS = [
     summary: "Renew the 7-day entitlement lease",
   },
   {
+    operationId: "pluginManifest",
+    method: "GET",
+    path: "/plugins/manifest",
+    tags: ["plugins"],
+    summary: "Channel manifest for the plugins page and installer download links",
+  },
+  {
     operationId: "pluginRevocationSnapshot",
     method: "GET",
     path: "/plugins/revocation-snapshot",
     tags: ["plugins"],
     summary: "Signed daily revocation snapshot for fully offline clients",
+  },
+  {
+    operationId: "presignDiagnosticsBundle",
+    method: "POST",
+    path: "/telemetry/diagnostics-bundle/presign",
+    tags: ["telemetry"],
+    summary: "Presign an upload for a diagnostics bundle on the caller's own support ticket",
   },
   {
     operationId: "previewChangePlan",
@@ -1837,6 +1858,20 @@ export const API_OPERATIONS = [
     path: "/streak/test-hooks",
     tags: ["streak"],
     summary: "Simulate weeks (test environment only)",
+  },
+  {
+    operationId: "submitCrashReport",
+    method: "POST",
+    path: "/telemetry/crash",
+    tags: ["telemetry"],
+    summary: "Submit a redacted crash report",
+  },
+  {
+    operationId: "submitTelemetryEvents",
+    method: "POST",
+    path: "/telemetry/events",
+    tags: ["telemetry"],
+    summary: "Submit a batch of consent-gated telemetry events",
   },
   {
     operationId: "TaxRegistrationsController_list",

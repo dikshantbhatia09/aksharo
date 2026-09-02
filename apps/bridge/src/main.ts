@@ -1,4 +1,4 @@
-import { hostname, platform as osPlatform } from "node:os";
+import { hostname, platform as osPlatform, release as osRelease, type as osType } from "node:os";
 
 import { BridgeCore } from "@montaj/bridge-core";
 
@@ -9,8 +9,12 @@ import {
   refreshDeviceCredentials,
 } from "./device-auth.js";
 import { createNativeTray } from "./native-tray.js";
+import { createTelemetryClient } from "./telemetry/client.js";
 
 import type { BridgeAppConfig } from "./config.js";
+
+/** Read from `package.json` at build time by `scripts/build-sea.mjs`; a plain literal here otherwise. */
+const APP_VERSION = process.env["npm_package_version"] ?? "0.0.0";
 
 /**
  * `apps/bridge` entry point: the Node SEA (brief §5). Everything the bridge
@@ -149,6 +153,28 @@ async function main(): Promise<void> {
   bridge.on("pairingRequested", (pairingId, clientName) => {
     log({ evt: "bridge.pairing_requested", pairingId, clientName });
   });
+
+  // C12: consent-gated telemetry. Best-effort, fire-and-forget (see
+  // `telemetry/client.ts`'s doc comment) — never lets a telemetry failure
+  // affect the bridge's own start/stop/pairing behaviour.
+  if (config.telemetryConsent === true && config.deviceToken !== undefined) {
+    const telemetry = createTelemetryClient({
+      apiOrigin: config.apiOrigin ?? relayUrlToApiOrigin(config.relayUrl ?? ""),
+      deviceToken: config.deviceToken,
+      appVersion: APP_VERSION,
+    });
+    process.on("uncaughtException", (error) => {
+      void telemetry.reportCrash(error, `${osType()} ${osRelease()}`);
+    });
+    process.on("unhandledRejection", (reason) => {
+      const error =
+        reason instanceof Error ? reason : { message: `Unhandled rejection: ${String(reason)}` };
+      void telemetry.reportCrash(error, `${osType()} ${osRelease()}`);
+    });
+    bridge.on("status", (event) => {
+      if (event.status === "running") void telemetry.reportEvent("bridge_connected");
+    });
+  }
 
   let shuttingDown = false;
   const shutdown = (signal: string): void => {
