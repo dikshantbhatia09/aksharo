@@ -52,6 +52,15 @@ export interface FrameOptions {
    * or for the green-screen output.
    */
   readonly background?: string;
+  /**
+   * Write the pixels into this buffer instead of a freshly allocated one.
+   *
+   * It exists so a rasteriser running in a worker thread can draw straight into
+   * a `SharedArrayBuffer` the main thread already owns: without it every frame
+   * would cross the thread boundary as an 8.3 MB structured clone, which costs
+   * more than the parallelism buys. Must be exactly `width × height × 4` bytes.
+   */
+  readonly into?: Uint8Array;
 }
 
 /** What the last frame could not find or could not draw exactly. */
@@ -154,7 +163,16 @@ export class SkiaNodeBackend {
    */
   createBatch(options: FrameOptions): FrameBatch {
     const { canvas, ctx } = this.#surface(options);
-    const buffer = new Uint8Array(options.width * options.height * 4);
+    const bytes = options.width * options.height * 4;
+    if (options.into !== undefined && options.into.byteLength !== bytes) {
+      throw new SkiaNodeError(
+        "skia-node/no-surface",
+        `the supplied buffer is ${String(options.into.byteLength)} bytes; a ` +
+          `${String(options.width)}×${String(options.height)} frame needs ${String(bytes)}`,
+        { width: options.width, height: options.height },
+      );
+    }
+    const buffer = options.into ?? new Uint8Array(bytes);
     // An arrow captures `this` lexically, so the returned object needs no alias.
     const draw = (commands: readonly DrawCommand[]): FrameDiagnostics =>
       this.#draw(ctx, canvas, commands, options);

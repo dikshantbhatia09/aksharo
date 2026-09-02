@@ -11,7 +11,9 @@
  *
  * `--cpus` reports the vCPU-second figure against a named core count (default:
  * this machine's), because `05 §12`'s row is per vCPU and a 16-core desktop and
- * a 4-vCPU container do not compare otherwise.
+ * a 4-vCPU container do not compare otherwise. `--workers 0` rasterises inline
+ * on the main thread, which is how the before/after rows in `BENCHMARK.md` were
+ * taken from one binary.
  */
 
 import { mkdtemp } from "node:fs/promises";
@@ -64,6 +66,7 @@ async function main(): Promise<void> {
   const presetName = flag("preset", "1080p");
   const cpuCount = Number(flag("cpus", String(cpus().length)));
   const encoder = flag("encoder", "libx264") as VideoEncoder;
+  const workersFlag = flag("workers", "");
   const preset = PRESETS[presetName];
   if (preset === undefined) {
     throw new Error(`unknown preset ${presetName}; try ${Object.keys(PRESETS).join(", ")}`);
@@ -129,6 +132,7 @@ async function main(): Promise<void> {
       secret: SECRET,
       encoder,
       workDir: scratch,
+      ...(workersFlag === "" ? {} : { rasterWorkers: Number(workersFlag) }),
     });
 
     const wallSeconds = outcome.wallClockMs / 1000;
@@ -142,6 +146,12 @@ async function main(): Promise<void> {
         `${preset.name} ${String(preset.width)}×${String(preset.height)}@${String(preset.fps)}`,
       ],
       ["encoder", encoder],
+      [
+        "rasteriser",
+        outcome.rasterWorkers === 0
+          ? "inline (main thread)"
+          : `${String(outcome.rasterWorkers)} worker threads`,
+      ],
       ["cores counted", String(cpuCount)],
       ["output", `${outputSeconds.toFixed(1)} s`],
       ["wall clock", `${wallSeconds.toFixed(2)} s`],

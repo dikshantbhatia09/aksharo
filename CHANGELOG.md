@@ -32,6 +32,33 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A10c — the model-server alignment rung, and the stale-reference sweep after A26.**
+  - `worker_ai/alignment/gpu.py`: `GpuCtcAligner`, `POST /align` on
+    `apps/model-server`. It sits at rank 35 — **below** the two local CTC rungs,
+    which cost only the CPU pod they already run in, and **above** the paid
+    ElevenLabs one. The `ai.*` pool is the CPU pool and carries no weights, so on
+    a normal deployment this is the rung that actually runs: the chain becomes
+    model server, then paid, then proportional.
+  - Three facts from A26's response shape the adapter, and each is pinned by a
+    test: words come back in **file time** (the server adds `startS` itself, so
+    only the caller's `offset_ms` is applied); there is always **one word per
+    input word**, a word outside the checkpoint's vocabulary getting
+    `probability: 0.0` and a mention in `skipped[]` rather than being dropped;
+    and `licence` is per checkpoint, so which family answered is recorded.
+  - `fixtures/vendor/gpu-whisper/session.json` gained a **real** `/align`
+    response, produced by driving `apps/model-server`'s own test client rather
+    than hand-written from prose. A26's `tests/test_contract_fixtures.py` reads
+    the same file from the other side, so neither app can change the shape
+    without the other's tests failing. `fixtures/vendor/gpu-align-skipped/`
+    records the degraded case.
+  - **`apps/worker-ai/Dockerfile.gpu` is deleted.** It described the GPU image
+    before that image existed; `apps/model-server/Dockerfile` is the real one, and
+    two files describing one image is how they drift. The README's GPU section now
+    names `apps/model-server` and tables the four routes this worker calls with
+    their clients, and `alignment/xlsr.py` cites
+    `apps/model-server/scripts/bake_models.py --aligner-global` instead of X05's
+    removed `infra/gpu/runpod/bake_models.py`.
+
 - **A26 — model-server: the GPU model server (`apps/model-server`), serving
   `/transcribe`, `/align`, `/diarise` and `/detect-language` for the serverless
   GPU lane (D15), with dynamic batching, warm-model lifecycle, a memory guard,
@@ -118,6 +145,35 @@ audioSeconds, model, batchSize}` on every response, the arithmetic behind it,
     coverage **95.3 % lines / 88.4 % branches** against the CONTRACTS §9 gate
     of 75/70, checked by `scripts/coverage_gate.py` because `--cov-fail-under`
     blends the two into one number that can pass while the contract fails.
+- **A20b — the rasteriser moves to worker threads, and `pnpm format:changed`.**
+  - Skia now runs on `min(cores − 1, 4)` worker threads
+    (`apps/render/src/render/pool.ts`), so it overlaps with ffmpeg instead of taking
+    turns with it: **1080p goes from 1.13× to 2.31× realtime**, and the whole render
+    (12.97 s for 30 s of output) now costs about what the encoder alone costs (13.22 s),
+    which is the ceiling this architecture has. 540p is 4.87×, 4K 0.45×.
+  - Frames never cross the thread boundary: each slot is a `SharedArrayBuffer` the main
+    thread allocates once and a worker draws into in place (`FrameOptions.into` on
+    `@montaj/render-skia-node`'s batch). Only the finished `DrawCommand[]` is sent, about
+    12 KB. Memory is `slots × width × height × 4` with `slots = workers × 2` — 66 MB at
+    1080p, 265 MB at 4K — whatever the length of the video.
+  - Layout, the frame-diff hash and the cache decision stay on the main thread, so the
+    cache is exactly as exact as it was single-threaded and two thirds of a render never
+    reach a worker. A slot is released only when `stream.write`'s completion callback
+    fires, reference-counted per frame, which is what stops a slot being redrawn
+    underneath a caption still queued in the pipe.
+  - `src/render/pool.test.ts` renders every frame both ways and asserts the bytes are
+    **identical** — which is how a missing watermark was caught: each worker has its own
+    Skia and its own image table, and nothing had put the mark in it. The nineteen-frame
+    parity table is unchanged to four decimal places.
+  - `RENDER_RASTER_WORKERS` sizes the pool; `0`, a machine without worker threads, or an
+    image missing `workers/raster-worker.mjs` all fall back to rasterising inline, with a
+    warning and the same pixels.
+  - **`pnpm format:changed`** (and `format:changed:check`) runs Prettier over what the
+    branch actually changed — the merge base with `main`, plus the working tree — instead
+    of the whole repository. Every work package so far has had to hand-revert a
+    `pnpm format` run over files it never touched; the root `README.md` now says to use
+    this one.
+
 - **A06 — api: projects, folders, media ingest, derived URLs, subtitle import and
   retention.**
   - `apps/api/src/common/storage/`: an `ObjectStore` port with two instances —

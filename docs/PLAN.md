@@ -4,6 +4,9 @@ Codename in code: `montaj` (package scope `@montaj/*`). Brand strings live only 
 
 Roles: **Fable 5.1** designs, decides, writes briefs, verifies gates. **Opus 5 agents** write code from briefs. **Dikshant** owns [H] human items and gates that need real machines, accounts or professionals.
 
+## Model roles
+Fable 5.1 orchestrates, designs and decides; coding agents implement briefs. Coding agents ran on Opus 5 until 2026-09-02, when the Opus session limit terminated seven running agents; per the user's instruction the same day, coding agents run on **Sonnet 5** from then on (the "Agent" column in the Wave 1 table is historical).
+
 ## Status legend
 `todo` · `briefed` · `in-progress` · `review` · `done` · `blocked(<reason>)`
 
