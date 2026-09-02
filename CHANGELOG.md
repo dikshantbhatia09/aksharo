@@ -8,6 +8,31 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+### Added
+
+- **B03 — web Subscription pages, checkout sheet and `UpgradeGate` wiring.** `/billing`
+  (Overview: plan card with status/renewal/mandate cap, credits meter with lots and
+  expiries, pause/cancel/resume with confirmations, streak slot behind a flag),
+  `/billing/plans` (INR/USD from `GET /billing/plans`, monthly/yearly toggle, Agency
+  seat stepper, offers ladder, credits-to-outcomes table, pay-once vs Autopay
+  explainer, FAQ), `/billing/methods` (payment methods, mandates with the 24-hour
+  pre-debit notice, revoke with a consequence-explained confirmation),
+  `/billing/invoices` (GST break-up, credit-note linking, signed PDF download; built
+  against B05's `invoices` row shape and resilient to `GET /invoices` 404ing while
+  B05 is still landing), `/billing/usage` (ledger history, per-job attribution, lots,
+  CSV export). The shared `CheckoutSheet` (`apps/web/components/billing/`) drives tax
+  profile (State + optional GSTIN with checksum and state auto-fill for India,
+  country elsewhere) → method (UPI Autopay / Card / pay-once; Netbanking marked
+  unsupported by B01's checkout schema) → confirm (GST-inclusive break-up) → gateway
+  (Razorpay Checkout.js from its official script URL, webhook-driven status polling)
+  → success/failed, and handles the `409 billing/mandate_cap_exceeded` alternatives.
+  `BillingUpgradeGate` composes `packages/ui`'s `UpgradeGate` with the sheet so any
+  other work package can gate a control with one import. A typed client layer lives
+  in `apps/web/lib/billing/` (endpoints, hooks, money/GST/checkout-state pure logic)
+  rather than in `packages/api-client`, which is outside this work package's file
+  boundary — see the report's Deviations. `apps/web/lib/nav.ts` flips the sidebar's
+  "Subscription" item to `ready: true` and adds `BILLING_NAV`.
+
 ### Fixed
 
 - **A05b — `onboardingSchema` rejected the multi-select onboarding answers.** Reported
