@@ -290,3 +290,18 @@ export interface ScriptAvailability {
 export interface AvailableScripts {
   scripts: ScriptAvailability[];
 }
+
+/**
+ * `GET /billing/plans` (B01, public — no auth required). One entry per active
+ * plan; `prices`/`seatPrice` are in minor units (paise/cents) keyed by ISO
+ * currency then interval (`month`, `year`, and `halfyear` for Studio/INR
+ * only — `hasHalfyear` says which currency actually carries one).
+ */
+export interface PlanCatalogueEntry {
+  key: "free" | "starter" | "creator" | "studio" | "agency";
+  name: string;
+  prices: Record<string, Record<string, number>>;
+  creditsPerMonthTenths: number;
+  seatPrice: Record<string, number> | null;
+  hasHalfyear: { INR: boolean; USD: boolean };
+}

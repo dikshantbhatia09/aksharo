@@ -41,6 +41,7 @@ export type {
 export {
   ALL_ENDPOINTS,
   authEndpoints,
+  billingEndpoints,
   deviceEndpoints,
   endpoints,
   jobEndpoints,
@@ -93,6 +94,7 @@ export type {
   OAuthCompleteRequest,
   OnboardingProfile,
   PendingApproval,
+  PlanCatalogueEntry,
   RightsRequest,
   ScriptAvailability,
   SessionSummary,
