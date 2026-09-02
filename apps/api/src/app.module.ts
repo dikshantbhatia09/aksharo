@@ -5,6 +5,7 @@ import { AuthModule } from "./auth/auth.module.js";
 import { CommonModule } from "./common/common.module.js";
 import { ConsentsModule } from "./consents/consents.module.js";
 import { CreditsModule } from "./credits/credits.module.js";
+import { EdgModule } from "./edg/edg.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { InternalModule } from "./internal/internal.module.js";
 import { JobsModule } from "./jobs/jobs.module.js";
@@ -24,7 +25,8 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
  * (the no-op facade), `realtime`, `jobs` and the signed `internal` surface; A08b
  * adds `admin`, the platform-staff surface behind `AdminGuard`; A05 fills out
  * `users` and adds `workspaces`, `consents` and `privacy`; A25 adds `notify`
- * (mail delivery and the in-app bell). Later work packages append to `imports`.
+ * (mail delivery and the in-app bell); A12 adds `edg`, the editing document and
+ * its op batches. Later work packages append to `imports`.
  *
  * `NotifyModule` sits after `JobsModule` because it takes the `notify` queue from
  * that module's registry, and it is `@Global()` because `AuthModule` — declared
@@ -48,6 +50,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     NotifyModule,
     InternalModule,
     AdminModule,
+    EdgModule,
     HealthModule,
   ],
 })
