@@ -10,12 +10,14 @@
  *
  * Skips with an explanation when Docker is unavailable.
  */
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { authSkipReason, createAuthTestContext } from "./auth-harness.js";
 import { isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { redisKeys } from "../src/auth/auth.constants.js";
+import { CommonAuditService } from "../src/common/audit/audit.service.js";
 import { hashEmail } from "../src/privacy/parental-waitlist.js";
 import { PRIVACY_NOTICE_VERSION } from "../src/users/users.service.js";
 import { workspacesRedisKeys } from "../src/workspaces/workspaces.constants.js";
@@ -143,6 +145,68 @@ describe.skipIf(!available)("users, workspaces, consents and privacy (e2e)", () 
     });
     return rows.map((row) => row.action);
   }
+
+  // --- harness regression (A23b) --------------------------------------
+
+  describe("the harness's reset()", () => {
+    it("does not deadlock against a write-producing event still in flight", async () => {
+      // `AccessLogInterceptor` calls `recordAccess` from a `tap()` that runs
+      // after the HTTP response has already gone out — a fire-and-forget write
+      // that can still be open when the next test's `beforeEach` truncates
+      // `access_logs`. This reproduces that race directly: start a write and,
+      // without awaiting it, immediately call `reset()` exactly as `beforeEach`
+      // does. Before A23b this raced `TRUNCATE` and could raise Postgres 40P01
+      // ("deadlock detected"); `reset()` now drains every tracked background
+      // write (`auth-harness.ts`'s `drainBackgroundWrites()`, which covers this
+      // one via a test-only patch on `CommonAuditService.prototype`) and
+      // retries the TRUNCATE on 40P01 as a last line of defence, so the
+      // in-flight write is either finished or genuinely gone before it runs.
+      const audit = ctx.app.get(CommonAuditService);
+      const write = audit.recordAccess({
+        action: "harness.regression.read",
+        resource: "harness-regression",
+        actorId: "harness-regression-actor",
+      });
+
+      await expect(ctx.reset()).resolves.toBeUndefined();
+      await expect(write).resolves.toBeUndefined();
+
+      const rows = await ctx.prisma.accessLog.findMany({
+        where: { action: "harness.regression.read" },
+      });
+      // `reset()` truncated after draining, so the write it waited for landed
+      // and was then cleared, exactly as every other row in the table was.
+      expect(rows).toHaveLength(0);
+    });
+
+    it("waits for an un-awaited EventEmitter2 listener before truncating", async () => {
+      // The second background writer this harness has to drain: a plain
+      // `this.events.emit(...)` (`members.service.ts`'s
+      // `MEMBERSHIP_SEAT_EVENTS.seatsChanged`, `referrals`, `invoices`,
+      // `webhooks`, ... all do this) starts an `@OnEvent` listener and never
+      // awaits it — `SeatBillingListener` is one such listener, and it was
+      // still writing `subscriptions` when a run of this suite hit Postgres
+      // 40P01 against `reset()`'s `TRUNCATE` (A23b). Rather than drive that
+      // specific listener (a `changePlan` call needs a live subscription to
+      // do anything), this registers a throwaway listener on the app's real
+      // `EventEmitter2` that only resolves once `settled` is set, `emit`s it
+      // unawaited exactly as the shipped call sites do, and asserts `reset()`
+      // did not return before the listener finished.
+      const emitter = ctx.app.get(EventEmitter2);
+      let settled = false;
+      const event = "harness.regression.event";
+      emitter.on(event, async () => {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        settled = true;
+      });
+      emitter.emit(event);
+      expect(settled).toBe(false); // still in flight — `emit()` does not await it
+
+      await ctx.reset();
+
+      expect(settled).toBe(true);
+    });
+  });
 
   // --- /me -----------------------------------------------------------------
 
