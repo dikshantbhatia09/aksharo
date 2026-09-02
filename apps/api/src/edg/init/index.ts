@@ -20,6 +20,7 @@ export type {
   CaptionRenderContext,
   ResolveBudgetsInput,
 } from "./caption-budgets.js";
+export { captionRenderContext, resetCaptionRenderContext } from "./caption-render-context.js";
 export {
   CAPTION_BOUNDS,
   DEFAULT_STYLE_REF,

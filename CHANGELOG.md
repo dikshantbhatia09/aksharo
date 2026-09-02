@@ -32,6 +32,24 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A11c — api: unify A11's and A07's completion-handler registries; bind
+  `CAPTION_RENDER_CONTEXT` (D78) to the bundled font pack.**
+  - A07 (`media.probe`) independently converged on the same `JobCompletionRegistry`
+    design as A11 — same interfaces, same "runs before the status flip" contract,
+    same `actualTenths` override. Merging `main` kept A07's `completion-handlers.ts`,
+    `jobs.service.ts`, `jobs.module.ts` and `job-events.service.ts` as the one
+    registry both `TranscribeCompletionHandler` and `MediaProbeCompletionHandler`
+    register against; `JOB_EVENT_NAMES` keeps both producers' domain events
+    (`job.completion_handler_failed` from A07, `transcript.postprocessed` from A11)
+    under the file's existing `job.*` lifecycle / `<domain>.<verb>` fact convention.
+  - **The fit half of D78 is live.** `apps/api/src/edg/init/caption-render-context.ts`
+    builds the `CaptionRenderContext` `TranscriptsModule` provides for
+    `CAPTION_RENDER_CONTEXT` from `@montaj/fonts/node`'s `loadPack()` (the bundled
+    open-licence pack, now that A18b is on `main`) and `@montaj/render-core`'s
+    `createHarfBuzzShaper`, built once per process and reused. `resolveBudgets()`
+    now measures the real Inter/Noto Sans faces and reports `source: "fit"` rather
+    than falling back to the readability cap.
+
 - **A11 — api: transcripts, post-processing, segmentation and the EDG hand-off.**
   - **The worker stays stateless.** `ai.transcribe` completions carry
     `result.chunks` already shaped like `transcript_chunks` (A09's
