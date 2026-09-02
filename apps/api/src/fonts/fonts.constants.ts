@@ -1,3 +1,4 @@
+import { BRAND } from "@montaj/config";
 import { z } from "zod";
 
 import type { RateLimitRule } from "../common/guards/index.js";
@@ -36,7 +37,7 @@ export const FONT_ATTESTATION = {
   text:
     "I warrant that I hold a licence permitting this font to be embedded in " +
     "video I create with this service, that I have the right to upload it, and " +
-    "I indemnify Aksharo against any claim arising from its use.",
+    `I indemnify ${BRAND.name} against any claim arising from its use.`,
 } as const;
 
 /** Attestation versions still accepted on a new upload. */
