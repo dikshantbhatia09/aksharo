@@ -54,7 +54,11 @@ export const DIGICERT_KEY_LOCKER_SECRETS = [
 ] as const;
 
 /** ZXP signing (Adobe CEP, After Effects panel). Dry-run uses a generated self-signed dev cert. */
-export const ZXP_SIGN_SECRETS = ["ZXP_CERT_P12_BASE64", "ZXP_CERT_PASSWORD", "ZXP_TIMESTAMP_URL"] as const;
+export const ZXP_SIGN_SECRETS = [
+  "ZXP_CERT_P12_BASE64",
+  "ZXP_CERT_PASSWORD",
+  "ZXP_TIMESTAMP_URL",
+] as const;
 
 /** R2 (S3-compatible) bucket the `publish` command uploads channel artifacts to. */
 export const PUBLISH_SECRETS = [

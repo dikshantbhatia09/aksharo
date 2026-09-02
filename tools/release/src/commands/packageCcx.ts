@@ -34,8 +34,13 @@ const PLACEHOLDER_MANIFEST: UxpManifest = {
  * no signature). Validates `manifest.json` first so a bad id/host entry fails the CLI instead
  * of shipping a package Premiere will refuse to load.
  */
-export async function runPackageCcx(ctx: ReleaseContext, opts: PackageCcxOptions): Promise<PackageCcxResult> {
-  const absPluginDir = path.isAbsolute(opts.pluginDir) ? opts.pluginDir : path.join(ctx.repoRoot, opts.pluginDir);
+export async function runPackageCcx(
+  ctx: ReleaseContext,
+  opts: PackageCcxOptions,
+): Promise<PackageCcxResult> {
+  const absPluginDir = path.isAbsolute(opts.pluginDir)
+    ? opts.pluginDir
+    : path.join(ctx.repoRoot, opts.pluginDir);
   const manifestPath = path.join(absPluginDir, "manifest.json");
 
   let sourceDir = absPluginDir;
@@ -46,19 +51,39 @@ export async function runPackageCcx(ctx: ReleaseContext, opts: PackageCcxOptions
     placeholderPlugin = true;
     sourceDir = path.join(ctx.outDir, "build-ccx", "placeholder-plugin");
     await ensureDir(sourceDir);
-    await fs.writeFile(path.join(sourceDir, "manifest.json"), `${JSON.stringify(PLACEHOLDER_MANIFEST, null, 2)}\n`, "utf8");
-    await fs.writeFile(path.join(sourceDir, "index.html"), "<!-- placeholder UXP entry point -->\n", "utf8");
+    await fs.writeFile(
+      path.join(sourceDir, "manifest.json"),
+      `${JSON.stringify(PLACEHOLDER_MANIFEST, null, 2)}\n`,
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(sourceDir, "index.html"),
+      "<!-- placeholder UXP entry point -->\n",
+      "utf8",
+    );
   }
 
   const manifestRaw = await fs.readFile(path.join(sourceDir, "manifest.json"), "utf8");
   const manifest = JSON.parse(manifestRaw) as unknown;
   const validation = validateUxpManifest(manifest);
   if (!validation.valid) {
-    throw new Error(`manifest.json invalid:\n${validation.errors.map((e) => `  - ${e}`).join("\n")}`);
+    throw new Error(
+      `manifest.json invalid:\n${validation.errors.map((e) => `  - ${e}`).join("\n")}`,
+    );
   }
 
-  const ccxPath = path.join(ctx.outDir, "artifacts", "plugins", `aksharo-premiere-${opts.version}.ccx`);
+  const ccxPath = path.join(
+    ctx.outDir,
+    "artifacts",
+    "plugins",
+    `aksharo-premiere-${opts.version}.ccx`,
+  );
   await zipDirectory(sourceDir, ccxPath);
 
-  return { ccxPath, manifestValid: validation.valid, manifestErrors: validation.errors, placeholderPlugin };
+  return {
+    ccxPath,
+    manifestValid: validation.valid,
+    manifestErrors: validation.errors,
+    placeholderPlugin,
+  };
 }

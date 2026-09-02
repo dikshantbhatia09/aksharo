@@ -44,7 +44,9 @@ export function validateUxpManifest(manifest: unknown): ManifestValidation {
     if (!premiere) {
       errors.push('manifest.host must include an entry with app "PPRO" (Premiere Pro)');
     } else if (compareVersions(premiere.minVersion, MIN_VERSION) < 0) {
-      errors.push(`manifest.host[PPRO].minVersion must be >= ${MIN_VERSION}, got ${premiere.minVersion}`);
+      errors.push(
+        `manifest.host[PPRO].minVersion must be >= ${MIN_VERSION}, got ${premiere.minVersion}`,
+      );
     }
   }
 

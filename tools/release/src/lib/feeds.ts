@@ -48,7 +48,11 @@ function toYaml(feed: UpdaterFeed): string {
   ].join("\n");
 }
 
-export async function writeUpdaterFeedFile(outDir: string, fileName: "latest-mac.yml" | "latest.yml", feed: UpdaterFeed): Promise<string> {
+export async function writeUpdaterFeedFile(
+  outDir: string,
+  fileName: "latest-mac.yml" | "latest.yml",
+  feed: UpdaterFeed,
+): Promise<string> {
   await ensureDir(outDir);
   const file = path.join(outDir, fileName);
   await fs.writeFile(file, toYaml(feed), "utf8");
@@ -56,7 +60,11 @@ export async function writeUpdaterFeedFile(outDir: string, fileName: "latest-mac
 }
 
 /** Also write the feed as JSON alongside the YAML for tests/tools that prefer structured data. */
-export async function writeUpdaterFeedJson(outDir: string, artifactName: string, feed: UpdaterFeed): Promise<string> {
+export async function writeUpdaterFeedJson(
+  outDir: string,
+  artifactName: string,
+  feed: UpdaterFeed,
+): Promise<string> {
   const file = path.join(outDir, `${artifactName}.feed.json`);
   await writeJson(file, feed);
   return file;

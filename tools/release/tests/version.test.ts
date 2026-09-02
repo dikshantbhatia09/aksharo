@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyCommit, computeNextVersion, insertChangelogSection, renderChangelogSection, groupCommitsForChangelog } from "../src/commands/version.js";
+import {
+  classifyCommit,
+  computeNextVersion,
+  insertChangelogSection,
+  renderChangelogSection,
+  groupCommitsForChangelog,
+} from "../src/commands/version.js";
 
 describe("classifyCommit", () => {
   it("classifies feat/fix/breaking/other", () => {
@@ -14,22 +20,35 @@ describe("classifyCommit", () => {
 
 describe("computeNextVersion", () => {
   it("bumps patch for fix-only commit sets", () => {
-    expect(computeNextVersion("1.2.3", ["fix: a", "chore: b"])).toEqual({ next: "1.2.4", bump: "patch" });
+    expect(computeNextVersion("1.2.3", ["fix: a", "chore: b"])).toEqual({
+      next: "1.2.4",
+      bump: "patch",
+    });
   });
   it("bumps minor when a feat is present, even alongside fixes", () => {
-    expect(computeNextVersion("1.2.3", ["fix: a", "feat: b"])).toEqual({ next: "1.3.0", bump: "minor" });
+    expect(computeNextVersion("1.2.3", ["fix: a", "feat: b"])).toEqual({
+      next: "1.3.0",
+      bump: "minor",
+    });
   });
   it("bumps major on a breaking-change commit", () => {
     expect(computeNextVersion("1.2.3", ["feat!: a"])).toEqual({ next: "2.0.0", bump: "major" });
   });
   it("does not bump when there is nothing version-worthy", () => {
-    expect(computeNextVersion("1.2.3", ["chore: a", "docs: b"])).toEqual({ next: "1.2.3", bump: null });
+    expect(computeNextVersion("1.2.3", ["chore: a", "docs: b"])).toEqual({
+      next: "1.2.3",
+      bump: null,
+    });
   });
 });
 
 describe("changelog assembly", () => {
   it("groups and renders a section", () => {
-    const section = groupCommitsForChangelog(["feat: add publish", "fix: 24h math", "chore: tidy"], "1.3.0", "2026-09-03");
+    const section = groupCommitsForChangelog(
+      ["feat: add publish", "fix: 24h math", "chore: tidy"],
+      "1.3.0",
+      "2026-09-03",
+    );
     const rendered = renderChangelogSection(section);
     expect(rendered).toContain("## 1.3.0 — 2026-09-03");
     expect(rendered).toContain("- add publish");

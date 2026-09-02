@@ -16,34 +16,53 @@ import { runSbom } from "./commands/sbom.js";
 import { runSignNested } from "./commands/signNested.js";
 import { runSignZxp } from "./commands/signZxp.js";
 import { runVerifyRelease } from "./commands/verifyRelease.js";
-import { computeNextVersion, groupCommitsForChangelog, insertChangelogSection, renderChangelogSection } from "./commands/version.js";
+import {
+  computeNextVersion,
+  groupCommitsForChangelog,
+  insertChangelogSection,
+  renderChangelogSection,
+} from "./commands/version.js";
 import { createContext, loadReleaseConfig } from "./config.js";
 import { ReleaseFailClosedError } from "./types.js";
 
 const program = new Command();
-program.name("release").description("Aksharo signing & release pipeline (C00). Dry-run by default.");
+program
+  .name("release")
+  .description("Aksharo signing & release pipeline (C00). Dry-run by default.");
 
 function contextFromOpts(opts: { dryRun?: boolean }) {
-  return createContext({ mode: opts.dryRun === false ? undefined : opts.dryRun ? "dry-run" : undefined });
+  return createContext({
+    mode: opts.dryRun === false ? undefined : opts.dryRun ? "dry-run" : undefined,
+  });
 }
 
 program
   .command("version")
   .description("Compute next semver from conventional commits and write a CHANGELOG.md section")
   .requiredOption("--current <version>", "current package.json version")
-  .option("--subjects <file>", "path to a newline-delimited file of commit subjects (defaults to stdin unavailable in CI; use git log --format=%s > file)")
+  .option(
+    "--subjects <file>",
+    "path to a newline-delimited file of commit subjects (defaults to stdin unavailable in CI; use git log --format=%s > file)",
+  )
   .option("--dry-run", "print the result, don't write CHANGELOG.md", true)
-  .option("--no-dry-run", "actually write CHANGELOG.md (or sign/notarize/publish for real if RELEASE_MODE=signed)")
+  .option(
+    "--no-dry-run",
+    "actually write CHANGELOG.md (or sign/notarize/publish for real if RELEASE_MODE=signed)",
+  )
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
-    const subjects = opts.subjects ? (await fs.readFile(opts.subjects, "utf8")).split("\n").filter(Boolean) : [];
+    const subjects = opts.subjects
+      ? (await fs.readFile(opts.subjects, "utf8")).split("\n").filter(Boolean)
+      : [];
     const { next, bump } = computeNextVersion(opts.current, subjects);
     const date = new Date(ctx.now()).toISOString().slice(0, 10);
     const section = renderChangelogSection(groupCommitsForChangelog(subjects, next, date));
     console.log(`current=${opts.current} next=${next} bump=${bump ?? "none"}`);
     if (opts.dryRun === false) {
       const changelogPath = path.join(ctx.repoRoot, "CHANGELOG.md");
-      const existing = await fs.readFile(changelogPath, "utf8").catch(() => "# Changelog\n\n## Unreleased\n\n");
+      const existing = await fs
+        .readFile(changelogPath, "utf8")
+        .catch(() => "# Changelog\n\n## Unreleased\n\n");
       await fs.writeFile(changelogPath, insertChangelogSection(existing, section), "utf8");
     } else {
       console.log(section);
@@ -52,17 +71,28 @@ program
 
 program
   .command("build-desktop")
-  .description("Build the desktop app for one platform/channel via electron-builder (or a placeholder tree if apps/desktop has no code yet)")
+  .description(
+    "Build the desktop app for one platform/channel via electron-builder (or a placeholder tree if apps/desktop has no code yet)",
+  )
   .requiredOption("--platform <platform>", "mac|win")
   .requiredOption("--channel <channel>", "alpha|beta|stable")
   .option("--dry-run", "never sign for real; unsigned artifacts only", true)
-  .option("--no-dry-run", "sign for real if RELEASE_MODE=signed and secrets are set (fails closed otherwise)")
+  .option(
+    "--no-dry-run",
+    "sign for real if RELEASE_MODE=signed and secrets are set (fails closed otherwise)",
+  )
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
     const config = await loadReleaseConfig(ctx.repoRoot);
-    const result = await runBuildDesktop(ctx, config, { platform: opts.platform, channel: opts.channel, dryRun: opts.dryRun !== false });
+    const result = await runBuildDesktop(ctx, config, {
+      platform: opts.platform,
+      channel: opts.channel,
+      dryRun: opts.dryRun !== false,
+    });
     if (result.placeholderApp) {
-      console.warn(`WARNING: apps/desktop has no built app yet; built against a placeholder tree at ${result.appDir}`);
+      console.warn(
+        `WARNING: apps/desktop has no built app yet; built against a placeholder tree at ${result.appDir}`,
+      );
     }
     console.log(`artifact: ${result.artifactPath}`);
     console.log(`signed ${result.signed.length} target(s) with dry-run marker(s)`);
@@ -75,12 +105,17 @@ program
   .requiredOption("--bundle <path>")
   .requiredOption("--platform <platform>")
   .option("--dry-run", "", true)
-  .option("--no-dry-run", "sign for real if RELEASE_MODE=signed and secrets are set (fails closed otherwise)")
+  .option(
+    "--no-dry-run",
+    "sign for real if RELEASE_MODE=signed and secrets are set (fails closed otherwise)",
+  )
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
     const result = await runSignNested(ctx, opts.appDir, opts.bundle, opts.platform);
     console.log(`provider: ${result.provider}`);
-    console.log(`signed ${result.signed.length}, verified ${result.verified.filter((v) => v.verified).length}/${result.verified.length}`);
+    console.log(
+      `signed ${result.signed.length}, verified ${result.verified.filter((v) => v.verified).length}/${result.verified.length}`,
+    );
   });
 
 program
@@ -89,7 +124,10 @@ program
   .requiredOption("--artifact <path>")
   .requiredOption("--name <artifactName>")
   .option("--dry-run", "", true)
-  .option("--no-dry-run", "notarize for real if RELEASE_MODE=signed and secrets are set (fails closed otherwise)")
+  .option(
+    "--no-dry-run",
+    "notarize for real if RELEASE_MODE=signed and secrets are set (fails closed otherwise)",
+  )
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
     const record = await runNotarize(ctx, { artifactPath: opts.artifact, artifactName: opts.name });
@@ -105,9 +143,15 @@ program
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
     const config = await loadReleaseConfig(ctx.repoRoot);
-    const result = await runPackageCcx(ctx, { pluginDir: config.ccx.pluginDir, minPremiereVersion: config.ccx.minPremiereVersion, version: opts.version });
+    const result = await runPackageCcx(ctx, {
+      pluginDir: config.ccx.pluginDir,
+      minPremiereVersion: config.ccx.minPremiereVersion,
+      version: opts.version,
+    });
     if (result.placeholderPlugin) {
-      console.warn("WARNING: plugins/premiere-uxp has no manifest.json yet (C05a not landed); packaged a placeholder plugin");
+      console.warn(
+        "WARNING: plugins/premiere-uxp has no manifest.json yet (C05a not landed); packaged a placeholder plugin",
+      );
     }
     console.log(`ccx: ${result.ccxPath}`);
   });
@@ -117,13 +161,21 @@ program
   .description("Package + sign the AE CEP panel as a .zxp")
   .option("--version <version>", "", "0.1.0")
   .option("--dry-run", "", true)
-  .option("--no-dry-run", "sign for real if RELEASE_MODE=signed and secrets are set (fails closed otherwise)")
+  .option(
+    "--no-dry-run",
+    "sign for real if RELEASE_MODE=signed and secrets are set (fails closed otherwise)",
+  )
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
     const config = await loadReleaseConfig(ctx.repoRoot);
-    const result = await runSignZxp(ctx, { pluginDir: config.zxp.pluginDir, version: opts.version });
+    const result = await runSignZxp(ctx, {
+      pluginDir: config.zxp.pluginDir,
+      version: opts.version,
+    });
     if (result.placeholderPlugin) {
-      console.warn("WARNING: plugins/ae-cep has no CSXS/manifest.xml yet (C07 not landed); packaged a placeholder plugin");
+      console.warn(
+        "WARNING: plugins/ae-cep has no CSXS/manifest.xml yet (C07 not landed); packaged a placeholder plugin",
+      );
     }
     console.log(`zxp: ${result.zxpPath} signed=${result.signed}`);
   });
@@ -137,7 +189,9 @@ program
     const config = await loadReleaseConfig(ctx.repoRoot);
     const result = await runPackageResolve(ctx, config, opts.version);
     if (result.placeholderPlugin) {
-      console.warn("WARNING: plugins/resolve has no aksharo_core.lua yet (C08 not landed); packaged a placeholder plugin");
+      console.warn(
+        "WARNING: plugins/resolve has no aksharo_core.lua yet (C08 not landed); packaged a placeholder plugin",
+      );
     }
     console.log(`bundle: ${result.bundlePath}`);
   });
@@ -150,7 +204,11 @@ program
   .option("--package-json <paths...>", "package.json files to include", [])
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
-    const result = await runSbom(ctx, { artifactName: opts.artifactName, version: opts.version, packageJsonPaths: opts.packageJson });
+    const result = await runSbom(ctx, {
+      artifactName: opts.artifactName,
+      version: opts.version,
+      packageJsonPaths: opts.packageJson,
+    });
     console.log(`sbom: ${result.path} (${result.componentCount} components)`);
   });
 
@@ -198,7 +256,13 @@ program
   .option("--reason <text>")
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
-    const result = await runPromote(ctx, { from: opts.from, to: opts.to, artifactName: opts.artifactName, force: opts.force, reason: opts.reason });
+    const result = await runPromote(ctx, {
+      from: opts.from,
+      to: opts.to,
+      artifactName: opts.artifactName,
+      force: opts.force,
+      reason: opts.reason,
+    });
     if (!result.gate.allowed) {
       console.error(`BLOCKED: ${result.gate.reason}`);
       process.exitCode = 1;
@@ -228,6 +292,6 @@ program.parseAsync(process.argv).catch((err: unknown) => {
     process.exitCode = 1;
     return;
   }
-  console.error(err instanceof Error ? err.stack ?? err.message : String(err));
+  console.error(err instanceof Error ? (err.stack ?? err.message) : String(err));
   process.exitCode = 1;
 });

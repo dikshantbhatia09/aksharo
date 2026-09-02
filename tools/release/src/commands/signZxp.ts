@@ -28,10 +28,15 @@ export interface SignZxpResult {
  * flaky, so the real invocation retries once without `-tsa` on timeout — left as a TODO
  * hook for C07, tracked, not implemented here since AE panel code doesn't exist yet).
  */
-export async function runSignZxp(ctx: ReleaseContext, opts: SignZxpOptions): Promise<SignZxpResult> {
+export async function runSignZxp(
+  ctx: ReleaseContext,
+  opts: SignZxpOptions,
+): Promise<SignZxpResult> {
   requireSecretsIfSigned(ctx.mode, ZXP_SIGN_SECRETS);
 
-  const absPluginDir = path.isAbsolute(opts.pluginDir) ? opts.pluginDir : path.join(ctx.repoRoot, opts.pluginDir);
+  const absPluginDir = path.isAbsolute(opts.pluginDir)
+    ? opts.pluginDir
+    : path.join(ctx.repoRoot, opts.pluginDir);
   let sourceDir = absPluginDir;
   let placeholderPlugin = false;
   if (!(await pathExists(path.join(absPluginDir, "CSXS", "manifest.xml")))) {
@@ -65,6 +70,10 @@ export async function runSignZxp(ctx: ReleaseContext, opts: SignZxpOptions): Pro
   }
 
   await fs.copyFile(unsignedZxp, zxpPath);
-  await fs.writeFile(`${zxpPath}.UNSIGNED`, "UNSIGNED (dry-run) — self-signed dev cert would be used in a real run\n", "utf8");
+  await fs.writeFile(
+    `${zxpPath}.UNSIGNED`,
+    "UNSIGNED (dry-run) — self-signed dev cert would be used in a real run\n",
+    "utf8",
+  );
   return { zxpPath, signed: false, placeholderPlugin };
 }

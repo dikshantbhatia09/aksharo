@@ -31,7 +31,12 @@ export async function runSbom(ctx: ReleaseContext, opts: SbomOptions): Promise<S
     if (!raw) continue;
     const pkg = JSON.parse(raw) as { dependencies?: Record<string, string> };
     for (const [name, version] of Object.entries(pkg.dependencies ?? {})) {
-      components.push({ type: "library", name, version: version.replace(/^[\^~]/, ""), purl: `pkg:npm/${name}@${version.replace(/^[\^~]/, "")}` });
+      components.push({
+        type: "library",
+        name,
+        version: version.replace(/^[\^~]/, ""),
+        purl: `pkg:npm/${name}@${version.replace(/^[\^~]/, "")}`,
+      });
     }
   }
 

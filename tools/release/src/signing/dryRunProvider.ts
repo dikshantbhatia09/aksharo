@@ -1,7 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import type { ReleaseContext, SignProvider, SignResult, SignTarget, VerifyResult } from "../types.js";
+import type {
+  ReleaseContext,
+  SignProvider,
+  SignResult,
+  SignTarget,
+  VerifyResult,
+} from "../types.js";
 
 /**
  * Default provider (hard rule: DRY-RUN ONLY, never sign anything for real). Instead of

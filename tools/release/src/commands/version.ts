@@ -10,9 +10,18 @@ export function classifyCommit(subject: string): Bump | null {
   return null;
 }
 
-export function computeNextVersion(currentVersion: string, subjects: string[]): { next: string; bump: Bump | null } {
+export function computeNextVersion(
+  currentVersion: string,
+  subjects: string[],
+): { next: string; bump: Bump | null } {
   const bumps = subjects.map(classifyCommit).filter((b): b is Bump => b !== null);
-  const bump: Bump | null = bumps.includes("major") ? "major" : bumps.includes("minor") ? "minor" : bumps.includes("patch") ? "patch" : null;
+  const bump: Bump | null = bumps.includes("major")
+    ? "major"
+    : bumps.includes("minor")
+      ? "minor"
+      : bumps.includes("patch")
+        ? "patch"
+        : null;
 
   const parts = currentVersion.split(".").map((n) => Number.parseInt(n, 10) || 0);
   const major = parts[0] ?? 0;
@@ -32,13 +41,19 @@ export interface ChangelogSection {
   other: string[];
 }
 
-export function groupCommitsForChangelog(subjects: string[], version: string, date: string): ChangelogSection {
+export function groupCommitsForChangelog(
+  subjects: string[],
+  version: string,
+  date: string,
+): ChangelogSection {
   const features: string[] = [];
   const fixes: string[] = [];
   const other: string[] = [];
   for (const subject of subjects) {
-    if (/^feat(\([^)]*\))?:/i.test(subject)) features.push(subject.replace(/^feat(\([^)]*\))?:\s*/i, ""));
-    else if (/^fix(\([^)]*\))?:/i.test(subject)) fixes.push(subject.replace(/^fix(\([^)]*\))?:\s*/i, ""));
+    if (/^feat(\([^)]*\))?:/i.test(subject))
+      features.push(subject.replace(/^feat(\([^)]*\))?:\s*/i, ""));
+    else if (/^fix(\([^)]*\))?:/i.test(subject))
+      fixes.push(subject.replace(/^fix(\([^)]*\))?:\s*/i, ""));
     else other.push(subject);
   }
   return { version, date, features, fixes, other };

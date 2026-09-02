@@ -21,11 +21,16 @@ export interface PromoteResult {
 
 /** `promote.yml` / `promote` command: copies a channel's artifacts + feed files to another
  * channel (manual promotion). Promoting to `stable` re-checks the 24h notarisation buffer. */
-export async function runPromote(ctx: ReleaseContext, opts: PromoteOptions): Promise<PromoteResult> {
+export async function runPromote(
+  ctx: ReleaseContext,
+  opts: PromoteOptions,
+): Promise<PromoteResult> {
   let gate = { allowed: true, reason: "not stable; no gate" };
   if (opts.to === "stable") {
     const ledger = await readLedger(ctx.outDir);
-    const record = opts.artifactName ? ledger.find((r) => r.artifact === opts.artifactName) : ledger[0];
+    const record = opts.artifactName
+      ? ledger.find((r) => r.artifact === opts.artifactName)
+      : ledger[0];
     gate = evaluateStableGate(record, ctx.now(), { force: opts.force, reason: opts.reason });
     if (!gate.allowed) {
       return { copied: [], gate };

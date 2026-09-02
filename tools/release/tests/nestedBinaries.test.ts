@@ -20,9 +20,21 @@ describe("discoverNestedBinaries", () => {
   it("finds mac nested binaries: mach-o, helper apps, engine, ffmpeg, bridge", async () => {
     const contents = path.join(dir, "Aksharo.app", "Contents");
     await mkdir(path.join(contents, "MacOS"), { recursive: true });
-    await mkdir(path.join(contents, "Frameworks", "Aksharo Helper.app", "Contents", "MacOS"), { recursive: true });
+    await mkdir(path.join(contents, "Frameworks", "Aksharo Helper.app", "Contents", "MacOS"), {
+      recursive: true,
+    });
     await writeFile(path.join(contents, "MacOS", "Aksharo"), "x");
-    await writeFile(path.join(contents, "Frameworks", "Aksharo Helper.app", "Contents", "MacOS", "Aksharo Helper"), "x");
+    await writeFile(
+      path.join(
+        contents,
+        "Frameworks",
+        "Aksharo Helper.app",
+        "Contents",
+        "MacOS",
+        "Aksharo Helper",
+      ),
+      "x",
+    );
     await writeFile(path.join(contents, "MacOS", "montaj-engine"), "x");
     await writeFile(path.join(contents, "MacOS", "ffmpeg"), "x");
     await writeFile(path.join(contents, "MacOS", "bridge"), "x");

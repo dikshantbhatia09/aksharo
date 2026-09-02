@@ -26,7 +26,10 @@ export interface BuildDesktopResult {
 /** Generates the electron-builder YAML-shaped config as JSON from `release.config.ts`. Kept
  * as JSON (not YAML) so the CLI has no extra YAML dependency; electron-builder also accepts
  * `electron-builder.json`. */
-export function generateElectronBuilderConfig(config: ReleaseConfig, platform: Platform): Record<string, unknown> {
+export function generateElectronBuilderConfig(
+  config: ReleaseConfig,
+  platform: Platform,
+): Record<string, unknown> {
   return {
     appId: config.appId,
     productName: config.productName,
@@ -35,18 +38,34 @@ export function generateElectronBuilderConfig(config: ReleaseConfig, platform: P
     afterSign: "tools/release/dist/hooks/afterSign.js",
     mac:
       platform === "mac"
-        ? { target: config.mac.target.map((t) => ({ target: t, arch: ["universal"] })), category: config.mac.category, hardenedRuntime: true }
+        ? {
+            target: config.mac.target.map((t) => ({ target: t, arch: ["universal"] })),
+            category: config.mac.category,
+            hardenedRuntime: true,
+          }
         : undefined,
-    win: platform === "win" ? { target: [{ target: config.win.target, arch: [config.win.arch] }] } : undefined,
+    win:
+      platform === "win"
+        ? { target: [{ target: config.win.target, arch: [config.win.arch] }] }
+        : undefined,
   };
 }
 
 /**
  * Builds a placeholder desktop app tree when `apps/desktop` has no real Electron code yet
- * (C02 not merged — per brief, "build against a placeholder app if absent and report").
- * Real builds replace this with electron-builder's own `dist-electron/<platform>-unpacked`.
+ * (per brief, "build against a placeholder app if absent and report"). C02 has since landed
+ * `apps/desktop/electron-builder.yml` with `appId: ai.aksharo.desktop`, `productName: Aksharo`
+ * and mac category `public.app-category.video` — this file's `release.config.ts` mirrors
+ * those exact values, so the two configs are provably consistent even though invoking the
+ * real electron-builder (downloads Electron, needs a GUI toolchain) stays out of scope for
+ * this dry-run harness; `ensureAppTree` still synthesizes a nested-binary tree either way so
+ * `sign-nested`/`notarize`/`checksums` exercise their real logic against *some* tree.
  */
-async function ensureAppTree(outDir: string, platform: Platform, desktopAppDir: string): Promise<{ appDir: string; placeholder: boolean }> {
+async function ensureAppTree(
+  outDir: string,
+  platform: Platform,
+  desktopAppDir: string,
+): Promise<{ appDir: string; placeholder: boolean }> {
   const hasRealApp = await pathExists(path.join(desktopAppDir, "package.json"));
   const appDir = path.join(outDir, "build", platform, hasRealApp ? "app" : "placeholder-app");
   if (hasRealApp) {
@@ -61,8 +80,21 @@ async function ensureAppTree(outDir: string, platform: Platform, desktopAppDir: 
     await ensureDir(path.join(contents, "MacOS"));
     await ensureDir(path.join(contents, "Frameworks", "Aksharo Helper.app", "Contents", "MacOS"));
     await fs.writeFile(path.join(contents, "MacOS", "Aksharo"), "placeholder-mach-o-main\n");
-    await fs.writeFile(path.join(contents, "Frameworks", "Aksharo Helper.app", "Contents", "MacOS", "Aksharo Helper"), "placeholder-helper\n");
-    await fs.writeFile(path.join(contents, "MacOS", "montaj-engine"), "placeholder-engine-sidecar\n");
+    await fs.writeFile(
+      path.join(
+        contents,
+        "Frameworks",
+        "Aksharo Helper.app",
+        "Contents",
+        "MacOS",
+        "Aksharo Helper",
+      ),
+      "placeholder-helper\n",
+    );
+    await fs.writeFile(
+      path.join(contents, "MacOS", "montaj-engine"),
+      "placeholder-engine-sidecar\n",
+    );
     await fs.writeFile(path.join(contents, "MacOS", "ffmpeg"), "placeholder-ffmpeg\n");
     await fs.writeFile(path.join(contents, "MacOS", "bridge"), "placeholder-bridge-sea\n");
   } else {
@@ -90,10 +122,15 @@ export async function runBuildDesktop(
   const electronBuilderConfigPath = path.join(outDir, "electron-builder.generated.json");
   await writeJson(electronBuilderConfigPath, ebConfig);
 
-  const { appDir, placeholder } = await ensureAppTree(outDir, opts.platform, path.join(ctx.repoRoot, config.desktopAppDir));
+  const { appDir, placeholder } = await ensureAppTree(
+    outDir,
+    opts.platform,
+    path.join(ctx.repoRoot, config.desktopAppDir),
+  );
 
   const nested = await discoverNestedBinaries(appDir, opts.platform);
-  const bundleRoot = opts.platform === "mac" ? path.join(appDir, "Aksharo.app") : path.join(appDir, "win-unpacked");
+  const bundleRoot =
+    opts.platform === "mac" ? path.join(appDir, "Aksharo.app") : path.join(appDir, "win-unpacked");
   const outer = outermostBundleTarget(bundleRoot, opts.platform);
 
   const provider = resolveSignProvider(opts.platform, ctx.mode);

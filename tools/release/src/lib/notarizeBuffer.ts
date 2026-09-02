@@ -14,7 +14,10 @@ export async function readLedger(outDir: string): Promise<NotarizationRecord[]> 
   return readJson<NotarizationRecord[]>(ledgerPath(outDir), []);
 }
 
-export async function recordNotarization(outDir: string, record: NotarizationRecord): Promise<void> {
+export async function recordNotarization(
+  outDir: string,
+  record: NotarizationRecord,
+): Promise<void> {
   const ledger = await readLedger(outDir);
   const next = [...ledger.filter((r) => r.artifact !== record.artifact), record];
   await writeJson(ledgerPath(outDir), next);

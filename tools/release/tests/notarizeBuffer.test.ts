@@ -23,7 +23,12 @@ describe("24h stable-channel notarisation buffer", () => {
 
   it("blocks publish before 24h have elapsed", () => {
     const notarizedAt = 1_000_000;
-    const record: NotarizationRecord = { artifact: "a.zip", submissionId: "s1", notarizedAt, stapled: true };
+    const record: NotarizationRecord = {
+      artifact: "a.zip",
+      submissionId: "s1",
+      notarizedAt,
+      stapled: true,
+    };
     const result = evaluateStableGate(record, notarizedAt + 23 * HOUR);
     expect(result.allowed).toBe(false);
     expect(result.hoursRemaining).toBeGreaterThan(0);
@@ -31,14 +36,24 @@ describe("24h stable-channel notarisation buffer", () => {
 
   it("allows publish once exactly 24h have elapsed", () => {
     const notarizedAt = 1_000_000;
-    const record: NotarizationRecord = { artifact: "a.zip", submissionId: "s1", notarizedAt, stapled: true };
+    const record: NotarizationRecord = {
+      artifact: "a.zip",
+      submissionId: "s1",
+      notarizedAt,
+      stapled: true,
+    };
     const result = evaluateStableGate(record, notarizedAt + 24 * HOUR);
     expect(result.allowed).toBe(true);
   });
 
   it("blocks when the ticket was never stapled, even after 24h", () => {
     const notarizedAt = 1_000_000;
-    const record: NotarizationRecord = { artifact: "a.zip", submissionId: "s1", notarizedAt, stapled: false };
+    const record: NotarizationRecord = {
+      artifact: "a.zip",
+      submissionId: "s1",
+      notarizedAt,
+      stapled: false,
+    };
     const result = evaluateStableGate(record, notarizedAt + 48 * HOUR);
     expect(result.allowed).toBe(false);
     expect(result.reason).toMatch(/stapled/);
@@ -51,17 +66,33 @@ describe("24h stable-channel notarisation buffer", () => {
 
   it("--force requires a non-empty --reason", () => {
     const notarizedAt = 1_000_000;
-    const record: NotarizationRecord = { artifact: "a.zip", submissionId: "s1", notarizedAt, stapled: true };
-    const withoutReason = evaluateStableGate(record, notarizedAt + HOUR, { force: true, reason: "" });
+    const record: NotarizationRecord = {
+      artifact: "a.zip",
+      submissionId: "s1",
+      notarizedAt,
+      stapled: true,
+    };
+    const withoutReason = evaluateStableGate(record, notarizedAt + HOUR, {
+      force: true,
+      reason: "",
+    });
     expect(withoutReason.allowed).toBe(false);
 
-    const withReason = evaluateStableGate(record, notarizedAt + HOUR, { force: true, reason: "hotfix CVE-2026-1" });
+    const withReason = evaluateStableGate(record, notarizedAt + HOUR, {
+      force: true,
+      reason: "hotfix CVE-2026-1",
+    });
     expect(withReason.allowed).toBe(true);
     expect(withReason.reason).toMatch(/forced/);
   });
 
   it("round-trips through the ledger file", async () => {
-    const record: NotarizationRecord = { artifact: "b.zip", submissionId: "s2", notarizedAt: 42, stapled: true };
+    const record: NotarizationRecord = {
+      artifact: "b.zip",
+      submissionId: "s2",
+      notarizedAt: 42,
+      stapled: true,
+    };
     await recordNotarization(outDir, record);
     const ledger = await readLedger(outDir);
     expect(ledger).toEqual([record]);

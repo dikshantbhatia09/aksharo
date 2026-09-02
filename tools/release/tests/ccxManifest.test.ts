@@ -53,7 +53,11 @@ describe("validateUxpManifest", () => {
   });
 
   it("rejects a missing version", () => {
-    const result = validateUxpManifest({ id: "ai.aksharo.panel", name: "x", host: [{ app: "PPRO", minVersion: "25.6" }] });
+    const result = validateUxpManifest({
+      id: "ai.aksharo.panel",
+      name: "x",
+      host: [{ app: "PPRO", minVersion: "25.6" }],
+    });
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes("version"))).toBe(true);
   });

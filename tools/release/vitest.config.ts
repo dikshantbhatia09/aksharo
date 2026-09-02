@@ -8,7 +8,8 @@ export default mergeConfig(
     test: {
       name: "@montaj/release",
       include: ["tests/**/*.{test,spec}.ts", "src/**/*.{test,spec}.ts"],
-      coverage: coverageThresholds({ lines: 75, functions: 75, branches: 70, statements: 75 }).test.coverage,
+      coverage: coverageThresholds({ lines: 75, functions: 75, branches: 70, statements: 75 }).test
+        .coverage,
     },
   }),
 );

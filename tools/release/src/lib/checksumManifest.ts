@@ -17,7 +17,11 @@ export async function buildChecksumManifest(artifactsDir: string): Promise<Check
   const entries: ChecksumEntry[] = [];
   for (const file of files.sort()) {
     const [sha256, stat] = await Promise.all([sha256File(file), fs.stat(file)]);
-    entries.push({ file: path.relative(artifactsDir, file).split(path.sep).join("/"), sha256, bytes: stat.size });
+    entries.push({
+      file: path.relative(artifactsDir, file).split(path.sep).join("/"),
+      sha256,
+      bytes: stat.size,
+    });
   }
   return entries;
 }
@@ -42,11 +46,19 @@ export async function writeSignedChecksums(
   await ensureDir(artifactsDir);
   await fs.writeFile(manifestPath, body, "utf8");
 
-  const key = signingKeyBase64 ? Buffer.from(signingKeyBase64, "base64") : Buffer.from("dry-run-checksum-key");
+  const key = signingKeyBase64
+    ? Buffer.from(signingKeyBase64, "base64")
+    : Buffer.from("dry-run-checksum-key");
   const signature = createHmac("sha256", key).update(body).digest("hex");
   const signaturePath = path.join(artifactsDir, "SIGNATURES.txt");
-  const marker = signingKeyBase64 ? "" : "# UNSIGNED (dry-run key) — do not trust for a real release\n";
-  await fs.writeFile(signaturePath, `${marker}hmac-sha256  ${signature}  CHECKSUMS.sha256\n`, "utf8");
+  const marker = signingKeyBase64
+    ? ""
+    : "# UNSIGNED (dry-run key) — do not trust for a real release\n";
+  await fs.writeFile(
+    signaturePath,
+    `${marker}hmac-sha256  ${signature}  CHECKSUMS.sha256\n`,
+    "utf8",
+  );
 
   return { manifestPath, signaturePath };
 }

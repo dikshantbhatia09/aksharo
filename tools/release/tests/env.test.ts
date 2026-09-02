@@ -20,7 +20,9 @@ describe("winSignProviderName", () => {
     expect(winSignProviderName({})).toBe("azure-trusted-signing");
   });
   it("selects digicert-key-locker when set", () => {
-    expect(winSignProviderName({ WIN_SIGN_PROVIDER: "digicert-key-locker" })).toBe("digicert-key-locker");
+    expect(winSignProviderName({ WIN_SIGN_PROVIDER: "digicert-key-locker" })).toBe(
+      "digicert-key-locker",
+    );
   });
 });
 
@@ -42,10 +44,14 @@ describe("requireSecretsIfSigned", () => {
   });
 
   it("passes in signed mode once every secret is set", () => {
-    expect(() => requireSecretsIfSigned("signed", ["FOO", "BAR"], { FOO: "1", BAR: "2" })).not.toThrow();
+    expect(() =>
+      requireSecretsIfSigned("signed", ["FOO", "BAR"], { FOO: "1", BAR: "2" }),
+    ).not.toThrow();
   });
 
   it("treats an empty string as missing", () => {
-    expect(() => requireSecretsIfSigned("signed", ["FOO"], { FOO: "" })).toThrow(ReleaseFailClosedError);
+    expect(() => requireSecretsIfSigned("signed", ["FOO"], { FOO: "" })).toThrow(
+      ReleaseFailClosedError,
+    );
   });
 });

@@ -1,7 +1,13 @@
 import { AZURE_TRUSTED_SIGNING_SECRETS, requireSecretsIfSigned } from "../env.js";
 import { execCommand } from "../lib/exec.js";
 
-import type { ReleaseContext, SignProvider, SignResult, SignTarget, VerifyResult } from "../types.js";
+import type {
+  ReleaseContext,
+  SignProvider,
+  SignResult,
+  SignTarget,
+  VerifyResult,
+} from "../types.js";
 
 /**
  * Windows OV signing via Azure Trusted Signing (cloud HSM, no PFX on disk). Brief default.
@@ -38,6 +44,10 @@ export class AzureTrustedSigningProvider implements SignProvider {
   async verify(target: SignTarget, ctx: ReleaseContext): Promise<VerifyResult> {
     requireSecretsIfSigned(ctx.mode, this.requiredSecrets);
     const result = await execCommand("signtool", ["verify", "/pa", target.path]);
-    return { path: target.path, verified: result.code === 0, detail: result.stdout || result.stderr };
+    return {
+      path: target.path,
+      verified: result.code === 0,
+      detail: result.stdout || result.stderr,
+    };
   }
 }

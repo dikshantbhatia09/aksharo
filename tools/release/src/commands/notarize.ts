@@ -16,14 +16,24 @@ export interface NotarizeOptions {
  * submission id and marks the ticket stapled so the 24h-buffer logic (`lib/notarizeBuffer.ts`)
  * can be exercised end to end without Apple credentials.
  */
-export async function runNotarize(ctx: ReleaseContext, opts: NotarizeOptions): Promise<NotarizationRecord> {
+export async function runNotarize(
+  ctx: ReleaseContext,
+  opts: NotarizeOptions,
+): Promise<NotarizationRecord> {
   requireSecretsIfSigned(ctx.mode, APPLE_NOTARIZE_SECRETS);
 
   let submissionId: string;
   let stapled: boolean;
 
   if (ctx.mode === "signed") {
-    const submit = await execCommand("xcrun", ["notarytool", "submit", opts.artifactPath, "--wait", "--output-format", "json"]);
+    const submit = await execCommand("xcrun", [
+      "notarytool",
+      "submit",
+      opts.artifactPath,
+      "--wait",
+      "--output-format",
+      "json",
+    ]);
     submissionId = extractSubmissionId(submit.stdout) ?? randomUUID();
     const staple = await execCommand("xcrun", ["stapler", "staple", opts.artifactPath]);
     stapled = staple.code === 0;

@@ -11,7 +11,12 @@ export interface SignNestedResult {
 
 /** `sign-nested`: walks an already-built app tree and signs + verifies every nested binary,
  * then the outer bundle last (RR-07: nested first, bundle last, `--deep --strict` verify). */
-export async function runSignNested(ctx: ReleaseContext, appDir: string, bundlePath: string, platform: Platform): Promise<SignNestedResult> {
+export async function runSignNested(
+  ctx: ReleaseContext,
+  appDir: string,
+  bundlePath: string,
+  platform: Platform,
+): Promise<SignNestedResult> {
   const provider = resolveSignProvider(platform, ctx.mode);
   const nested = await discoverNestedBinaries(appDir, platform);
   const targets = [...nested, outermostBundleTarget(bundlePath, platform)];

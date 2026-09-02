@@ -25,7 +25,10 @@ const MACHO_NO_EXT_HINTS = [
  * the updater — matches RR-07 "every executable including nested binaries ... signed
  * individually".
  */
-export async function discoverNestedBinaries(appRoot: string, platform: Platform): Promise<SignTarget[]> {
+export async function discoverNestedBinaries(
+  appRoot: string,
+  platform: Platform,
+): Promise<SignTarget[]> {
   const files = await walkFiles(appRoot);
   const targets: SignTarget[] = [];
 
@@ -38,7 +41,8 @@ export async function discoverNestedBinaries(appRoot: string, platform: Platform
         targets.push({ path: file, platform, kind: "mach-o" });
         continue;
       }
-      const looksExecutableNoExt = ext === "" && MACHO_NO_EXT_HINTS.some((hint) => base.includes(hint));
+      const looksExecutableNoExt =
+        ext === "" && MACHO_NO_EXT_HINTS.some((hint) => base.includes(hint));
       if (looksExecutableNoExt) {
         targets.push({ path: file, platform, kind: "mach-o" });
       }

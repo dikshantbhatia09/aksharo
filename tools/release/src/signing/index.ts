@@ -18,5 +18,7 @@ export { MacDeveloperIdProvider } from "./macDeveloperIdProvider.js";
 export function resolveSignProvider(platform: Platform, mode: "dry-run" | "signed"): SignProvider {
   if (mode === "dry-run") return new DryRunSignProvider();
   if (platform === "mac") return new MacDeveloperIdProvider();
-  return winSignProviderName() === "digicert-key-locker" ? new DigiCertKeyLockerProvider() : new AzureTrustedSigningProvider();
+  return winSignProviderName() === "digicert-key-locker"
+    ? new DigiCertKeyLockerProvider()
+    : new AzureTrustedSigningProvider();
 }

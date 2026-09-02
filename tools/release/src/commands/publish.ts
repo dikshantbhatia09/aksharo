@@ -29,7 +29,10 @@ export interface PublishResult {
  * `stable` channel is gated by the 24h notarisation buffer (D48/P0-2) unless `--force
  * --reason` is passed.
  */
-export async function runPublish(ctx: ReleaseContext, opts: PublishOptions): Promise<PublishResult> {
+export async function runPublish(
+  ctx: ReleaseContext,
+  opts: PublishOptions,
+): Promise<PublishResult> {
   requireSecretsIfSigned(ctx.mode, PUBLISH_SECRETS);
 
   if (opts.channel === "stable" && opts.macArtifact) {
@@ -46,7 +49,9 @@ export async function runPublish(ctx: ReleaseContext, opts: PublishOptions): Pro
   await ensureDir(destDir);
 
   const uploaded: string[] = [];
-  for (const artifact of [opts.macArtifact, opts.winArtifact].filter((a): a is string => Boolean(a))) {
+  for (const artifact of [opts.macArtifact, opts.winArtifact].filter((a): a is string =>
+    Boolean(a),
+  )) {
     const dest = path.join(destDir, path.basename(artifact));
     await fs.copyFile(artifact, dest);
     uploaded.push(dest);
@@ -67,7 +72,11 @@ export async function runPublish(ctx: ReleaseContext, opts: PublishOptions): Pro
 
   if (ctx.mode !== "signed") {
     const marker = path.join(destDir, "UNSIGNED_PUBLISH");
-    await fs.writeFile(marker, "dry-run publish — copied locally, R2 was never contacted\n", "utf8");
+    await fs.writeFile(
+      marker,
+      "dry-run publish — copied locally, R2 was never contacted\n",
+      "utf8",
+    );
   }
 
   const allFiles = await walkFiles(destDir);

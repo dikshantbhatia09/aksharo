@@ -10,7 +10,11 @@ export interface ExecResult {
  * Runs a real subprocess. Only ever called from a `SignProvider`/`notarize` code path when
  * `mode === "signed"` and secrets have already been validated — dry-run paths never call this.
  */
-export function execCommand(cmd: string, args: string[], opts: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): Promise<ExecResult> {
+export function execCommand(
+  cmd: string,
+  args: string[],
+  opts: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { cwd: opts.cwd, env: opts.env ?? process.env, shell: false });
     let stdout = "";

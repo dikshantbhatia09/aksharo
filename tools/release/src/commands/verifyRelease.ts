@@ -12,7 +12,10 @@ export interface VerifyReleaseResult {
 
 /** `verify-release`: re-hashes every artifact in a published channel dir and compares against
  * `CHECKSUMS.sha256`, catching corruption or a tampered upload before users see it. */
-export async function runVerifyRelease(_ctx: ReleaseContext, channelDir: string): Promise<VerifyReleaseResult> {
+export async function runVerifyRelease(
+  _ctx: ReleaseContext,
+  channelDir: string,
+): Promise<VerifyReleaseResult> {
   const manifestFile = path.join(channelDir, "CHECKSUMS.sha256");
   const expected = await fs.readFile(manifestFile, "utf8").catch(() => "");
   const recomputed = manifestBody(await buildChecksumManifest(channelDir));

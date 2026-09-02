@@ -4,7 +4,11 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { buildChecksumManifest, manifestBody, writeSignedChecksums } from "../src/lib/checksumManifest.js";
+import {
+  buildChecksumManifest,
+  manifestBody,
+  writeSignedChecksums,
+} from "../src/lib/checksumManifest.js";
 
 describe("checksum manifest round-trip", () => {
   let dir: string;
@@ -43,7 +47,10 @@ describe("checksum manifest round-trip", () => {
     const manifest = await readFile(manifestPath, "utf8");
     expect(manifest.split("\n").filter(Boolean)).toHaveLength(2);
 
-    const signedResult = await writeSignedChecksums(dir, Buffer.from("a-real-key").toString("base64"));
+    const signedResult = await writeSignedChecksums(
+      dir,
+      Buffer.from("a-real-key").toString("base64"),
+    );
     const signedSig = await readFile(signedResult.signaturePath, "utf8");
     expect(signedSig).not.toMatch(/UNSIGNED/);
     expect(signedSig).toMatch(/^hmac-sha256/);

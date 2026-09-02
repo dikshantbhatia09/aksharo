@@ -38,7 +38,11 @@ export function buildCycloneDxDocument(
   };
 }
 
-export async function writeSbom(outDir: string, artifactName: string, doc: Record<string, unknown>): Promise<string> {
+export async function writeSbom(
+  outDir: string,
+  artifactName: string,
+  doc: Record<string, unknown>,
+): Promise<string> {
   await ensureDir(outDir);
   const file = path.join(outDir, `${artifactName}.cdx.json`);
   await writeJson(file, doc);

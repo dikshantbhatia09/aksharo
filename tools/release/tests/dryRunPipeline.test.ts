@@ -25,7 +25,10 @@ const config: ReleaseConfig = {
   win: { target: "nsis", arch: "x64" },
   ccx: { pluginDir: "plugins/premiere-uxp-does-not-exist", minPremiereVersion: "25.6" },
   zxp: { pluginDir: "plugins/ae-cep-does-not-exist" },
-  resolveBundle: { scriptDir: "plugins/resolve-does-not-exist", installPaths: { win: "w", mac: "m", linux: "l" } },
+  resolveBundle: {
+    scriptDir: "plugins/resolve-does-not-exist",
+    installPaths: { win: "w", mac: "m", linux: "l" },
+  },
   channels: ["alpha", "beta", "stable"],
 };
 
@@ -49,14 +52,22 @@ describe("dry-run pipeline (no real signing, no real network)", () => {
   }
 
   it("build-desktop produces an unsigned artifact against a placeholder app and reports it", async () => {
-    const result = await runBuildDesktop(ctx(), config, { platform: "win", channel: "alpha", dryRun: true });
+    const result = await runBuildDesktop(ctx(), config, {
+      platform: "win",
+      channel: "alpha",
+      dryRun: true,
+    });
     expect(result.placeholderApp).toBe(true);
     expect(result.signed.length).toBeGreaterThan(0);
     expect(result.signed.every((s) => s.signed === false)).toBe(true);
   });
 
   it("package-ccx validates and zips a placeholder plugin, reporting the placeholder", async () => {
-    const result = await runPackageCcx(ctx(), { pluginDir: config.ccx.pluginDir, minPremiereVersion: "25.6", version: "0.1.0" });
+    const result = await runPackageCcx(ctx(), {
+      pluginDir: config.ccx.pluginDir,
+      minPremiereVersion: "25.6",
+      version: "0.1.0",
+    });
     expect(result.placeholderPlugin).toBe(true);
     expect(result.manifestValid).toBe(true);
   });
@@ -73,13 +84,21 @@ describe("dry-run pipeline (no real signing, no real network)", () => {
   });
 
   it("end to end: build -> checksums -> notarize -> publish alpha (no gate) -> promote to stable blocked before 24h, allowed after", async () => {
-    const desktop = await runBuildDesktop(ctx(), config, { platform: "mac", channel: "alpha", dryRun: true });
+    const desktop = await runBuildDesktop(ctx(), config, {
+      platform: "mac",
+      channel: "alpha",
+      dryRun: true,
+    });
     await runChecksums(ctx(), "alpha");
 
     const artifactName = path.basename(desktop.artifactPath);
     await runNotarize(ctx(), { artifactPath: desktop.artifactPath, artifactName });
 
-    const publishAlpha = await runPublish(ctx(), { channel: "alpha", version: "0.1.0", macArtifact: desktop.artifactPath });
+    const publishAlpha = await runPublish(ctx(), {
+      channel: "alpha",
+      version: "0.1.0",
+      macArtifact: desktop.artifactPath,
+    });
     expect(publishAlpha.uploaded).toHaveLength(1);
     expect(publishAlpha.feeds.length).toBeGreaterThan(0);
 
@@ -97,19 +116,41 @@ describe("dry-run pipeline (no real signing, no real network)", () => {
   });
 
   it("--force with --reason overrides the 24h gate before it elapses", async () => {
-    const desktop = await runBuildDesktop(ctx(), config, { platform: "mac", channel: "alpha", dryRun: true });
+    const desktop = await runBuildDesktop(ctx(), config, {
+      platform: "mac",
+      channel: "alpha",
+      dryRun: true,
+    });
     const artifactName = path.basename(desktop.artifactPath);
     await runNotarize(ctx(), { artifactPath: desktop.artifactPath, artifactName });
-    await runPublish(ctx(), { channel: "alpha", version: "0.1.0", macArtifact: desktop.artifactPath });
+    await runPublish(ctx(), {
+      channel: "alpha",
+      version: "0.1.0",
+      macArtifact: desktop.artifactPath,
+    });
 
-    const forced = await runPromote(ctx(), { from: "alpha", to: "stable", artifactName, force: true, reason: "hotfix" });
+    const forced = await runPromote(ctx(), {
+      from: "alpha",
+      to: "stable",
+      artifactName,
+      force: true,
+      reason: "hotfix",
+    });
     expect(forced.gate.allowed).toBe(true);
     expect(forced.gate.reason).toMatch(/forced: hotfix/);
   });
 
   it("verify-release detects a tampered artifact after publish", async () => {
-    const desktop = await runBuildDesktop(ctx(), config, { platform: "win", channel: "beta", dryRun: true });
-    const publish = await runPublish(ctx(), { channel: "beta", version: "0.1.0", winArtifact: desktop.artifactPath });
+    const desktop = await runBuildDesktop(ctx(), config, {
+      platform: "win",
+      channel: "beta",
+      dryRun: true,
+    });
+    const publish = await runPublish(ctx(), {
+      channel: "beta",
+      version: "0.1.0",
+      winArtifact: desktop.artifactPath,
+    });
     // No CHECKSUMS.sha256 in the publish dir yet -> not ok.
     const beforeChecksums = await runVerifyRelease(ctx(), publish.destDir);
     expect(beforeChecksums.ok).toBe(false);

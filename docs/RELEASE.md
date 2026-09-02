@@ -21,20 +21,20 @@ Windows secrets.
 pnpm release <command> [options]
 ```
 
-| Command            | Purpose                                                                        |
-| ------------------ | ------------------------------------------------------------------------------ |
-| `version`           | Conventional-commit semver bump + `CHANGELOG.md` section                       |
-| `build-desktop`      | electron-builder-shaped build for one `--platform mac|win` / `--channel`       |
-| `sign-nested`        | Sign + verify every nested binary in a built app tree                          |
-| `notarize`           | notarytool submit/wait/staple; records the 24h ledger                          |
-| `package-ccx`        | Premiere UXP plugin -> `.ccx` (no signing)                                     |
-| `sign-zxp`           | AE CEP panel -> signed `.zxp`                                                  |
-| `package-resolve`    | DaVinci Resolve script bundle + installers                                     |
-| `sbom`               | CycloneDX SBOM for an artifact                                                 |
-| `checksums`          | `CHECKSUMS.sha256` + HMAC `SIGNATURES.txt`                                     |
-| `publish`            | Upload artifacts + updater feeds to a channel                                  |
-| `promote`            | Copy one channel's artifacts to another (24h gate on `stable`)                 |
-| `verify-release`     | Re-hash a published channel dir against its manifest                          |
+| Command           | Purpose                                                                    |
+| ----------------- | -------------------------------------------------------------------------- |
+| `version`         | Conventional-commit semver bump + `CHANGELOG.md` section                   |
+| `build-desktop`   | electron-builder-shaped build for one `--platform` (mac/win) / `--channel` |
+| `sign-nested`     | Sign + verify every nested binary in a built app tree                      |
+| `notarize`        | notarytool submit/wait/staple; records the 24h ledger                      |
+| `package-ccx`     | Premiere UXP plugin -> `.ccx` (no signing)                                 |
+| `sign-zxp`        | AE CEP panel -> signed `.zxp`                                              |
+| `package-resolve` | DaVinci Resolve script bundle + installers                                 |
+| `sbom`            | CycloneDX SBOM for an artifact                                             |
+| `checksums`       | `CHECKSUMS.sha256` + HMAC `SIGNATURES.txt`                                 |
+| `publish`         | Upload artifacts + updater feeds to a channel                              |
+| `promote`         | Copy one channel's artifacts to another (24h gate on `stable`)             |
+| `verify-release`  | Re-hash a published channel dir against its manifest                       |
 
 Every command defaults to dry-run. `RELEASE_MODE=signed` plus `--no-dry-run` (where the
 command exposes that flag) is required to attempt a real signing/notarisation/publish call,
