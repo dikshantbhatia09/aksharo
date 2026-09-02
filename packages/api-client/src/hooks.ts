@@ -33,6 +33,7 @@ import type {
   ConsentState,
   CreateFolderRequest,
   CreateProjectRequest,
+  CreditsSummary,
   CurrentUser,
   Entitlement,
   Folder,
@@ -44,7 +45,11 @@ import type {
   Media,
   MemoryEntry,
   OAuthCompleteRequest,
+  OffersEligibilityView,
   OnboardingProfile,
+  PassCheckoutRequest,
+  PassCheckoutResponse,
+  PassView,
   PendingApproval,
   Project,
   ProjectPage,
@@ -54,7 +59,9 @@ import type {
   SignUpResponse,
   StyleCatalogueEntry,
   StylePresetRequest,
+  SubscriptionView,
   TokenResponse,
+  TopupCheckoutRequest,
   TranscribeAccepted,
   TranscribeRequest,
   TranslateAccepted,
@@ -403,6 +410,32 @@ export function useDecideDeviceApproval(): UseMutationResult<
   const client = useApiClient();
   return useMutation({
     mutationFn: (body) => client.call(endpoints.device.decide, { body }),
+  });
+}
+
+// --- Billing, credits, offers (B01/B02/B04) ---------------------------------
+
+/** The workspace's current subscription, or `null` with no plan on file. */
+export function useSubscription(): UseQueryResult<SubscriptionView | null> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.subscription(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.billing.getSubscription),
+  });
+}
+
+/** Cached balance, next grant reset, and live lots (B02). */
+export function useWorkspaceCredits(): UseQueryResult<CreditsSummary> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.credits(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.credits.getBalance, { params: { id: workspaceId ?? "" } }),
   });
 }
 
@@ -774,6 +807,81 @@ export function useTranscriptScripts(projectId: string | null): UseQueryResult<A
       client.call(endpoints.transcriptScripts.scripts, {
         params: { projectId: projectId ?? "" },
       }),
+  });
+}
+/**
+ * What this workspace may buy right now, and why not otherwise (B04): the
+ * signup gift, the ₹9 clean export, the week pass, the ₹149 Free top-up.
+ * Every amount comes from here — the export-dialog upsell panel and the
+ * Subscription overview never hardcode a price.
+ */
+export function useOffersEligibility(): UseQueryResult<OffersEligibilityView> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.offersEligibility(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    // Short: a purchase should be reflected within a few seconds of the
+    // webhook landing, not held stale behind a long cache.
+    staleTime: 5_000,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.offers.eligibility),
+  });
+}
+
+/** Every pass this workspace has bought, newest first (B04). */
+export function useOffersPasses(): UseQueryResult<PassView[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.offersPasses(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.offers.listPasses),
+  });
+}
+
+/**
+ * Start a pass checkout (₹9 clean export, week pass, or pay-once credits).
+ * On success, invalidates the eligibility/passes reads so the upsell panel and
+ * the Subscription overview refetch once the caller has driven Razorpay
+ * Checkout to completion — the checkout call itself only creates the order;
+ * nothing is granted until the webhook lands (THREAT-MODEL: a client can never
+ * self-report a payment as done).
+ */
+export function usePassCheckout(): UseMutationResult<
+  PassCheckoutResponse,
+  Error,
+  PassCheckoutRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) => client.call(endpoints.billing.createPassCheckout, { body }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.offersEligibility(workspaceId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.offersPasses(workspaceId) });
+    },
+  });
+}
+
+/** Start a top-up checkout (₹149/100 credits on Free, or a larger pack on a paid plan). */
+export function useTopupCheckout(): UseMutationResult<
+  PassCheckoutResponse,
+  Error,
+  TopupCheckoutRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) => client.call(endpoints.billing.createTopupCheckout, { body }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.credits(workspaceId) });
+    },
   });
 }
 

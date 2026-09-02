@@ -312,6 +312,9 @@ importers:
       '@montaj/render-core':
         specifier: workspace:*
         version: link:../../packages/render-core
+      '@montaj/timemap':
+        specifier: workspace:*
+        version: link:../../packages/timemap
       '@montaj/ui':
         specifier: workspace:^
         version: link:../../packages/ui
@@ -391,6 +394,9 @@ importers:
       fake-indexeddb:
         specifier: ^6.2.2
         version: 6.2.5
+      fast-check:
+        specifier: ^3.23.2
+        version: 3.23.2
       ioredis:
         specifier: ^5.11.1
         version: 5.11.1
@@ -515,6 +521,9 @@ importers:
       eslint:
         specifier: ^9.39.5
         version: 9.39.5(jiti@2.7.0)
+      prettier:
+        specifier: ^3.9.6
+        version: 3.9.6
       tsx:
         specifier: ^4.20.6
         version: 4.23.13

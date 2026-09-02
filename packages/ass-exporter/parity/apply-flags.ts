@@ -17,6 +17,8 @@ import { readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { formatJson } from "./format-json.js";
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const RESULTS_PATH = join(__dirname, "..", "..", "caption-styles", "parity", "results.json");
 const STYLES_DIR = join(__dirname, "..", "..", "caption-styles", "styles");
@@ -68,7 +70,7 @@ async function main(): Promise<void> {
       ...(score === undefined ? {} : { parityScore: Math.round(score * 10_000) / 10_000 }),
     };
 
-    const nextText = `${JSON.stringify(next, null, 2)}\n`;
+    const nextText = await formatJson(next, path);
     if (nextText !== raw) {
       await writeFile(path, nextText, "utf8");
       changed += 1;

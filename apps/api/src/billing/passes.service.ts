@@ -14,6 +14,7 @@ import { parsePlanPrices } from "./money.js";
 import { PlansService } from "./plans.service.js";
 import { BILLING_PROVIDER, type BillingProvider } from "./provider.js";
 import { AppException, PrismaService } from "../common/index.js";
+import { NinePassEligibilityService } from "../offers/nine-pass-eligibility.service.js";
 import { AuditService } from "../users/audit.service.js";
 
 import type { RequestContextInfo } from "../users/profile.service.js";
@@ -40,6 +41,7 @@ export class PassesService {
     private readonly plans: PlansService,
     private readonly checkout: CheckoutService,
     private readonly audit: AuditService,
+    private readonly ninePassEligibility: NinePassEligibilityService,
   ) {}
 
   async passCheckout(
@@ -49,8 +51,18 @@ export class PassesService {
     context: RequestContextInfo,
   ): Promise<PassCheckoutResponse> {
     const workspace = await this.checkout.requireConfirmedWorkspace(workspaceId);
-
     const quote = await this.quotePass(body.kind, workspace.currency, body.planKey);
+
+    // B04: server-side eligibility for the ₹9 pass, checked *after* `quotePass`
+    // so a non-INR workspace still gets `quotePass`'s own pre-existing
+    // `billing/pass_kind_unavailable` 400 (B01's contract, and its own
+    // acceptance test) rather than this service's 409 — the two currency checks
+    // agree, they just aren't allowed to race for which error the caller sees.
+    // The once-per-30-days and never-on-a-paid-plan halves have no equivalent
+    // upstream check, so they are only ever reported from here.
+    if (body.kind === "first_export") {
+      await this.ninePassEligibility.assertEligible(workspaceId);
+    }
 
     const passPurchaseId = ulid();
     const order = await this.provider.createOrder({

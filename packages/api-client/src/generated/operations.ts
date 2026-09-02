@@ -341,6 +341,13 @@ export const API_OPERATIONS = [
     summary: "Delete a custom font",
   },
   {
+    operationId: "devConsumeSignupGift",
+    method: "POST",
+    path: "/offers/dev/consume-signup-gift",
+    tags: ["offers"],
+    summary: "Dev/test only: mark a workspace's signup gift already spent",
+  },
+  {
     operationId: "DeviceController_decide",
     method: "POST",
     path: "/auth/device/approve",
@@ -500,6 +507,20 @@ export const API_OPERATIONS = [
     path: "/affiliate/me/stats",
     tags: ["affiliate"],
     summary: "Dashboard stats for the caller's affiliate profile",
+  },
+  {
+    operationId: "getOffersEligibility",
+    method: "GET",
+    path: "/offers/eligibility",
+    tags: ["offers"],
+    summary: "What this workspace may buy right now, and why not otherwise",
+  },
+  {
+    operationId: "getOffersMetrics",
+    method: "GET",
+    path: "/admin/metrics/offers",
+    tags: ["admin"],
+    summary: "₹9 clean-export hypothesis: purchases, upgrades within 60 days, recommendation",
   },
   {
     operationId: "getPrivacyNotice",
@@ -747,6 +768,13 @@ export const API_OPERATIONS = [
     summary: "List your notifications, newest first",
   },
   {
+    operationId: "listOffersPasses",
+    method: "GET",
+    path: "/offers/passes",
+    tags: ["offers"],
+    summary: "Every pass this workspace has bought, newest first",
+  },
+  {
     operationId: "listOrphanedCreditHolds",
     method: "GET",
     path: "/admin/credits/orphaned-holds",
@@ -990,6 +1018,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/tax-profile",
     tags: ["workspaces"],
     summary: "Set the billing country, State and GSTIN",
+  },
+  {
+    operationId: "simulateNinePassPayment",
+    method: "POST",
+    path: "/offers/dev/simulate-nine-pass-payment",
+    tags: ["offers"],
+    summary: "Dev/test only: simulate a ₹9 pass payment landing (FakeProvider environments)",
   },
   {
     operationId: "TaxRegistrationsController_list",

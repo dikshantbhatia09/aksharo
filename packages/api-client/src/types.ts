@@ -518,6 +518,116 @@ export interface TranscribeAccepted {
 }
 
 // ---------------------------------------------------------------------------
+// Offers (B04): signup gift, ₹9 clean export, week pass, ₹149 Free top-up.
+// ---------------------------------------------------------------------------
+
+export type Currency = "INR" | "USD";
+
+export type NinePassIneligibleReason =
+  "currency_not_inr" | "on_paid_plan" | "purchased_within_30_days";
+
+export interface NinePassEligibilityView {
+  /** An unconsumed, paid pass exists right now — a clean export is available. */
+  available: boolean;
+  /** May the workspace start a *new* checkout for one? (independent of `available`.) */
+  eligibleToBuy: boolean;
+  reason: NinePassIneligibleReason | null;
+  nextEligibleAt: string | null;
+  priceMinor: number;
+  currency: Currency;
+}
+
+export interface WeekPassEligibilityView {
+  active: boolean;
+  endsAt: string | null;
+  priceMinor: number;
+  currency: Currency;
+  creditsGrantedTenths: number;
+  days: number;
+}
+
+export interface TopupEligibilityView {
+  available: boolean;
+  priceMinor: number;
+  currency: Currency;
+  credits: number;
+}
+
+export interface OffersEligibilityView {
+  signupGift: { available: boolean };
+  ninePass: NinePassEligibilityView;
+  weekPass: WeekPassEligibilityView;
+  topupFree149: TopupEligibilityView;
+}
+
+export type PassKind = "first_export" | "week_pass" | "pay_once" | "topup";
+export type PassStatus = "pending_payment" | "available" | "active" | "redeemed" | "expired";
+
+export interface PassView {
+  id: string;
+  kind: PassKind;
+  status: PassStatus;
+  startsAt: string;
+  endsAt: string | null;
+  creditsGrantedTenths: number;
+  redeemedAt: string | null;
+  createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Billing (B01): plan checkout, passes/top-ups, subscription.
+// ---------------------------------------------------------------------------
+
+export type PlanKey = "free" | "starter" | "creator" | "studio" | "agency";
+export type BillingInterval = "month" | "year" | "halfyear" | "once";
+
+export interface PassCheckoutRequest {
+  kind: "first_export" | "week_pass" | "pay_once";
+  /** Required for `pay_once` (whose plan's credit allotment is being bought). */
+  planKey?: PlanKey;
+}
+
+export interface TopupCheckoutRequest {
+  credits: number;
+}
+
+export interface PassCheckoutResponse {
+  passPurchaseId: string;
+  /** Razorpay Checkout key id — `undefined` against the fake provider. */
+  keyId: string;
+  providerOrderId: string;
+  amountMinor: number;
+  currency: Currency;
+  creditsGrantedTenths: number;
+}
+
+export interface SubscriptionView {
+  id: string;
+  planKey: PlanKey;
+  status: string;
+  interval: BillingInterval;
+  currency: Currency;
+  listPriceMinor: number;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  renewalInitiateAt: string | null;
+  graceUntil: string | null;
+  cancelAtPeriodEnd: boolean;
+  pausedUntil: string | null;
+  seats: number;
+  mandateId: string | null;
+}
+
+/** `GET /workspaces/{id}/credits` (B02). */
+export interface CreditsSummary {
+  workspaceId: string;
+  balanceTenths: number;
+  monthlyGrantTenths: number;
+  grantResetAt: string | null;
+  lots: { id: string; source: string; remainingTenths: number; expiresAt: string | null }[];
+}
+
+// ---------------------------------------------------------------------------
 // Scripts and translation (A22)
 // ---------------------------------------------------------------------------
 

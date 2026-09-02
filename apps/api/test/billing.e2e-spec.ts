@@ -18,6 +18,7 @@ import {
 } from "./billing-harness.js";
 import { isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { RenewalService } from "../src/billing/renewal.service.js";
+import { LedgerCreditsFacade } from "../src/credits/ledger-credits.facade.js";
 import { NoopCreditsFacade } from "../src/credits/noop-credits.facade.js";
 
 import type { Server } from "node:http";
@@ -806,7 +807,7 @@ describe.skipIf(!available)("billing (e2e)", () => {
   // B01b: credits clawback on a refunded pass/top-up purchase
   // ---------------------------------------------------------------------
 
-  describe("B01b: credits clawback on refund", () => {
+  describe("B01b/B01d: credits clawback on refund", () => {
     async function purchaseWeekPass(): Promise<{
       passPurchaseId: string;
       providerOrderId: string;
@@ -939,6 +940,72 @@ describe.skipIf(!available)("billing (e2e)", () => {
       expect((res.body as { error: { code: string } }).error.code).toBe(
         "billing/pass_purchase_not_found",
       );
+    });
+
+    it("B01d: fake provider refund revokes the real lot and reduces the real balance", async () => {
+      // This harness binds `CREDITS_FACADE` to `NoopCreditsFacade` for
+      // billing's own mechanics (see the comment above), so `grantPass`
+      // never produces a real `credit_lots` row. `RefundsService` injects
+      // `LedgerCreditsFacade` directly (not the token), specifically so a
+      // clawback still works against the real ledger regardless of that
+      // override — proven here by seeding a real lot through the same
+      // instance the app resolves, then linking it onto a purchase exactly
+      // as `grantPass` would once `CREDITS_FACADE` binds to the real ledger.
+      const ledger = ctx.app.get(LedgerCreditsFacade);
+      const { passPurchaseId, providerOrderId } = await purchaseWeekPass();
+
+      const { lotId } = await ledger.grantLot({
+        workspaceId: ctx.workspaceId,
+        source: "pass",
+        tenths: 400,
+        reason: "e2e: seed a real lot for the week pass",
+      });
+      await ctx.prisma.passPurchase.update({
+        where: { id: passPurchaseId },
+        data: { lotId },
+      });
+
+      const before = await ctx.prisma.creditAccount.findUniqueOrThrow({
+        where: { workspaceId: ctx.workspaceId },
+      });
+      expect(before.balanceTenths).toBeGreaterThanOrEqual(400);
+
+      const emitted = ctx.provider.emitWebhook({
+        event: "payment.refunded",
+        providerOrderId,
+        paymentStatus: "refunded",
+        notes: { passPurchaseId },
+      });
+      const res = await postWebhook(emitted.rawBody, emitted.signature);
+      expect(res.status).toBe(200);
+
+      const lot = await ctx.prisma.creditLot.findUniqueOrThrow({ where: { id: lotId } });
+      expect(lot.remainingTenths).toBe(0);
+
+      const after = await ctx.prisma.creditAccount.findUniqueOrThrow({
+        where: { workspaceId: ctx.workspaceId },
+      });
+      expect(after.balanceTenths).toBe(before.balanceTenths - 400);
+
+      const clawedBack = await ctx.prisma.auditLog.findFirst({
+        where: { action: "billing.credits.clawed_back", resourceId: passPurchaseId },
+      });
+      expect(clawedBack).not.toBeNull();
+      expect((clawedBack?.data as { revokedTenths?: number } | null)?.revokedTenths).toBe(400);
+
+      // Idempotent: replaying the same refund must not revoke a second time.
+      const secondEmitted = ctx.provider.emitWebhook({
+        event: "payment.refunded",
+        providerOrderId,
+        paymentStatus: "refunded",
+        notes: { passPurchaseId },
+        createdAt: Math.floor(Date.now() / 1000) + 1,
+      });
+      await postWebhook(secondEmitted.rawBody, secondEmitted.signature);
+      const stillAfter = await ctx.prisma.creditAccount.findUniqueOrThrow({
+        where: { workspaceId: ctx.workspaceId },
+      });
+      expect(stillAfter.balanceTenths).toBe(after.balanceTenths);
     });
   });
 });

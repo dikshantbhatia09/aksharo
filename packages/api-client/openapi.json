@@ -9333,6 +9333,273 @@
         ]
       }
     },
+    "/admin/metrics/offers": {
+      "get": {
+        "description": "`04-pricing-and-monetization.md` §Offers; `12-redesign-decisions.md` D55.",
+        "operationId": "getOffersMetrics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Purchase/upgrade counts, conversion rate, keep/replace verdict."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "₹9 clean-export hypothesis: purchases, upgrades within 60 days, recommendation",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/offers/eligibility": {
+      "get": {
+        "description": "Every amount is read from the same catalogue `/billing/passes/checkout` quotes from — the export dialog never hardcodes a price.",
+        "operationId": "getOffersEligibility",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Signup gift, ₹9 pass, week pass, top-up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "signupGift": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "available"
+                      ]
+                    },
+                    "ninePass": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "eligibleToBuy": {
+                          "type": "boolean"
+                        },
+                        "reason": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "currency_not_inr",
+                            "on_paid_plan",
+                            "purchased_within_30_days"
+                          ]
+                        },
+                        "nextEligibleAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "priceMinor": {
+                          "type": "number"
+                        },
+                        "currency": {
+                          "type": "string",
+                          "enum": [
+                            "INR",
+                            "USD"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "available",
+                        "eligibleToBuy",
+                        "reason",
+                        "nextEligibleAt",
+                        "priceMinor",
+                        "currency"
+                      ]
+                    },
+                    "weekPass": {
+                      "type": "object",
+                      "properties": {
+                        "active": {
+                          "type": "boolean"
+                        },
+                        "endsAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "priceMinor": {
+                          "type": "number"
+                        },
+                        "currency": {
+                          "type": "string",
+                          "enum": [
+                            "INR",
+                            "USD"
+                          ]
+                        },
+                        "creditsGrantedTenths": {
+                          "type": "number"
+                        },
+                        "days": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "active",
+                        "endsAt",
+                        "priceMinor",
+                        "currency",
+                        "creditsGrantedTenths",
+                        "days"
+                      ]
+                    },
+                    "topupFree149": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "priceMinor": {
+                          "type": "number"
+                        },
+                        "currency": {
+                          "type": "string",
+                          "enum": [
+                            "INR",
+                            "USD"
+                          ]
+                        },
+                        "credits": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "available",
+                        "priceMinor",
+                        "currency",
+                        "credits"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "signupGift",
+                    "ninePass",
+                    "weekPass",
+                    "topupFree149"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "What this workspace may buy right now, and why not otherwise",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
+    "/offers/passes": {
+      "get": {
+        "description": "Backs the Subscription overview's pass status chips (expiry, credits left).",
+        "operationId": "listOffersPasses",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Passes, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "first_export",
+                          "week_pass",
+                          "pay_once",
+                          "topup"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "pending_payment",
+                          "available",
+                          "active",
+                          "redeemed",
+                          "expired"
+                        ]
+                      },
+                      "startsAt": {
+                        "type": "string"
+                      },
+                      "endsAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "creditsGrantedTenths": {
+                        "type": "number"
+                      },
+                      "redeemedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "status",
+                      "startsAt",
+                      "endsAt",
+                      "creditsGrantedTenths",
+                      "redeemedAt",
+                      "createdAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every pass this workspace has bought, newest first",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
     "/projects/{projectId}/edg": {
       "get": {
         "description": "The hot state is under 64 KB. Segments are paged — `nextCursor` continues at `/edg/segments` — because a long-form project has thousands and an editor opens on the first screenful.",
@@ -12999,6 +13266,78 @@
         "summary": "Razorpay webhook (THREAT-MODEL T16)",
         "tags": [
           "billing"
+        ]
+      }
+    },
+    "/offers/dev/simulate-nine-pass-payment": {
+      "post": {
+        "operationId": "simulateNinePassPayment",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "passPurchaseId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "passPurchaseId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The webhook outcome, same shape as `POST /billing/webhooks/razorpay`."
+          },
+          "403": {
+            "description": "`offers/dev_simulator_unavailable` — a live provider is wired."
+          },
+          "409": {
+            "description": "`offers/pass_purchase_not_found`."
+          }
+        },
+        "summary": "Dev/test only: simulate a ₹9 pass payment landing (FakeProvider environments)",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
+    "/offers/dev/consume-signup-gift": {
+      "post": {
+        "operationId": "devConsumeSignupGift",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "workspaceId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "workspaceId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`{ consumed: true }`."
+          }
+        },
+        "summary": "Dev/test only: mark a workspace's signup gift already spent",
+        "tags": [
+          "offers"
         ]
       }
     },

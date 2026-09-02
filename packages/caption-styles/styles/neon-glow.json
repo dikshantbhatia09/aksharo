@@ -6,11 +6,7 @@
   "minPlan": "creator",
   "typography": {
     "fontFamily": "Montserrat",
-    "fallbacks": [
-      "Noto Sans Devanagari",
-      "Noto Sans Tamil",
-      "Noto Sans"
-    ],
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
     "weight": 800,
     "italic": false,
     "sizePct": 5.6,

@@ -17,6 +17,7 @@ import { InvoicesModule } from "./invoices/invoices.module.js";
 import { JobsModule } from "./jobs/jobs.module.js";
 import { MediaModule } from "./media/media.module.js";
 import { NotifyModule } from "./notify/notify.module.js";
+import { OffersModule } from "./offers/offers.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
@@ -49,6 +50,11 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
  * `ai.translate` producers, their completion handlers and the internal write
  * path transliteration needed of its own; B01 adds `billing`: the
  * `BillingProvider` port, checkout, webhooks and subscription management.
+ * B04 adds `offers`: the real signup-gift/₹9-pass/week-pass/top-up backing
+ * (`ExportsModule` and `BillingModule` both import it for the
+ * `NINE_PASS_LEDGER` binding and checkout-time eligibility respectively — it
+ * is listed here too because it owns its own `/offers/*` routes). Later work
+ * packages append to `imports`.
  *
  * `NotifyModule` sits after `JobsModule` because it takes the `notify` queue from
  * that module's registry, and it is `@Global()` because `AuthModule` — declared
@@ -95,6 +101,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     ExportsModule,
     HealthModule,
     BillingModule,
+    OffersModule,
     TaxModule,
     InvoicesModule,
     AffiliatesModule,
