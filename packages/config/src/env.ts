@@ -159,6 +159,10 @@ export const envSchema = z.object({
   ),
   GOOGLE_OAUTH_CLIENT_ID: optionalSecret(),
   GOOGLE_OAUTH_CLIENT_SECRET: optionalSecret(),
+  // Identifies which key pair signed a licence-key offline payload (B08). Reuses
+  // JWT_PRIVATE_KEY/JWT_PUBLIC_KEY rather than a third secret; bump this when the
+  // key pair rotates so a cached offline snapshot can be told apart from a fresh one.
+  LICENSE_SIGNING_KID: z.string().trim().min(1).max(32).default("k1"),
 
   // --- Origins ---
   WEB_ORIGIN: httpOrigin("WEB_ORIGIN"),

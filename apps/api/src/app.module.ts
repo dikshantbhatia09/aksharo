@@ -2,11 +2,13 @@ import { Module } from "@nestjs/common";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 
 import { AdminModule } from "./admin/admin.module.js";
+import { AffiliatesModule } from "./affiliates/affiliates.module.js";
 import { AuthModule } from "./auth/auth.module.js";
 import { BillingModule } from "./billing/billing.module.js";
 import { CommonModule } from "./common/common.module.js";
 import { ConsentsModule } from "./consents/consents.module.js";
 import { CreditsModule } from "./credits/credits.module.js";
+import { DevicesModule } from "./devices/devices.module.js";
 import { EdgModule } from "./edg/edg.module.js";
 import { ExportsModule } from "./exports/exports.module.js";
 import { FontsModule } from "./fonts/fonts.module.js";
@@ -14,6 +16,7 @@ import { HealthModule } from "./health/health.module.js";
 import { InternalModule } from "./internal/internal.module.js";
 import { InvoicesModule } from "./invoices/invoices.module.js";
 import { JobsModule } from "./jobs/jobs.module.js";
+import { LicensingModule } from "./licensing/licensing.module.js";
 import { MediaModule } from "./media/media.module.js";
 import { MemoryModule } from "./memory/memory.module.js";
 import { NotifyModule } from "./notify/notify.module.js";
@@ -22,11 +25,13 @@ import { PrivacyModule } from "./privacy/privacy.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { ReferralsModule } from "./referrals/referrals.module.js";
+import { StreakModule } from "./streak/streak.module.js";
 import { StylesModule } from "./styles/styles.module.js";
 import { TaxModule } from "./tax/tax.module.js";
 import { ScriptsModule } from "./transcripts/scripts/scripts.module.js";
 import { TranscriptsModule } from "./transcripts/transcripts.module.js";
 import { UsersModule } from "./users/users.module.js";
+import { TeamsModule } from "./workspaces/teams/teams.module.js";
 import { WorkspacesModule } from "./workspaces/workspaces.module.js";
 
 /**
@@ -105,8 +110,18 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     HealthModule,
     BillingModule,
     OffersModule,
+    StreakModule,
     TaxModule,
     InvoicesModule,
+    // B08: team/agency seat + pooled-credit sync, ownership transfer, client
+    // tags (`TeamsModule`), device registration/management (`DevicesModule`),
+    // licence keys and the plugin activate/heartbeat surface
+    // (`LicensingModule`). `TeamsModule` comes after `BillingModule` because it
+    // imports it (`SeatBillingService` calls `SubscriptionService.changePlan`).
+    DevicesModule,
+    TeamsModule,
+    LicensingModule,
+    AffiliatesModule,
   ],
 })
 export class AppModule {}

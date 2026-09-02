@@ -22,6 +22,9 @@ import { queryKeys } from "./query-keys.js";
 
 import type { ApiClient } from "./http.js";
 import type {
+  AffiliateProfile,
+  AffiliateStats,
+  ApplyAffiliateRequest,
   AvailableScripts,
   BatchCreateProjectsRequest,
   ClaimReferralRequest,
@@ -61,6 +64,7 @@ import type {
   SessionSummary,
   SignUpRequest,
   SignUpResponse,
+  StreakView,
   StyleCatalogueEntry,
   StylePresetRequest,
   SubscriptionView,
@@ -79,6 +83,16 @@ import type {
   UploadTicket,
   UsageSummary,
   WorkspaceSummary,
+  ChangeRoleRequest,
+  ClientTagView,
+  CreateLicenseKeyRequest,
+  DeviceView,
+  InviteMemberRequest,
+  LicenseKeyView,
+  MemberView,
+  MembershipStatus,
+  TransferOwnershipRequest,
+  TransferOwnershipResult,
 } from "./types.js";
 import type {
   InfiniteData,
@@ -470,6 +484,26 @@ export function useDecideDeviceApproval(): UseMutationResult<
 // --- Billing, credits, offers (B01/B02/B04) ---------------------------------
 
 /** The workspace's current subscription, or `null` with no plan on file. */
+/**
+ * B06's streak state (sidebar chip, Subscription widget). `eligible:false`
+ * means "render nothing" — the flag is off, the caller is a declared minor,
+ * or the workspace has not been assigned; a holdout workspace also answers
+ * with real state but MUST never be shown a reward (`nextRewardLabel` is
+ * still computed for it, so a consumer checks `holdout` explicitly, not just
+ * `eligible`, before rendering anything reward-shaped).
+ */
+export function useStreak(): UseQueryResult<StreakView> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.streak(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    staleTime: 60_000,
+    queryFn: () => client.call(endpoints.streak.getStreak),
+  });
+}
+
 export function useSubscription(): UseQueryResult<SubscriptionView | null> {
   const client = useApiClient();
   const workspaceId = useWorkspaceId();
@@ -1039,7 +1073,267 @@ export function useTranslateTranscript(
   });
 }
 
+// --- Affiliate (B07) -----------------------------------------------------------
+
+export function useMyAffiliate(): UseQueryResult<AffiliateProfile | null> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.affiliate(),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    // The route wraps `{ affiliate }` rather than a bare nullable body — a
+    // handler returning `null`/`undefined` makes Nest's Express adapter send
+    // an empty body (`isNil(body)` → `response.send()`), which `readJson`
+    // then reads back as `undefined`, and TanStack Query refuses `undefined`
+    // as query data outright.
+    queryFn: async () => (await client.call(endpoints.affiliate.me)).affiliate,
+  });
+}
+
+export function useMyAffiliateStats(enabled: boolean): UseQueryResult<AffiliateStats> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.affiliateStats(),
+    enabled,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.affiliate.stats),
+  });
+}
+
+export function useApplyAffiliate(): UseMutationResult<
+  AffiliateProfile,
+  Error,
+  ApplyAffiliateRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ApplyAffiliateRequest) => client.call(endpoints.affiliate.apply, { body }),
+    onSuccess: (affiliate) => {
+      queryClient.setQueryData(queryKeys.affiliate(), affiliate);
+    },
+  });
+}
+
 /** Escape hatch for a call the hooks do not cover yet (A14 and later). */
 export function useRawApiClient(): ApiClient {
   return useApiContext().client;
+}
+
+// --- Team: members, roles, ownership transfer (A05, B08) -------------------
+
+export function useMembers(): UseQueryResult<MemberView[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.members(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () =>
+      client.call(endpoints.account.listMembers, { params: { id: workspaceId ?? "" } }),
+  });
+}
+
+export function useInviteMember(): UseMutationResult<MemberView, Error, InviteMemberRequest> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) =>
+      client.call(endpoints.account.inviteMember, { params: { id: workspaceId ?? "" }, body }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.members(workspaceId) });
+    },
+  });
+}
+
+export function useChangeMemberRole(): UseMutationResult<
+  MemberView,
+  Error,
+  { membershipId: string; role: ChangeRoleRequest["role"] }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: ({ membershipId, role }) =>
+      client.call(endpoints.account.changeMemberRole, {
+        params: { id: workspaceId ?? "", membershipId },
+        body: { role },
+      }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.members(workspaceId) });
+    },
+  });
+}
+
+export function useRemoveMember(): UseMutationResult<
+  { id: string; status: MembershipStatus },
+  Error,
+  string
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (membershipId) =>
+      client.call(endpoints.account.removeMember, {
+        params: { id: workspaceId ?? "", membershipId },
+      }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.members(workspaceId) });
+    },
+  });
+}
+
+/**
+ * Owner only. The first call (no `confirmToken`) sends a confirmation to the
+ * current owner; the second, with that token, executes the transfer
+ * (orchestrator addendum after A05).
+ */
+export function useTransferOwnership(): UseMutationResult<
+  TransferOwnershipResult,
+  Error,
+  TransferOwnershipRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) =>
+      client.call(endpoints.account.transferOwnership, { params: { id: workspaceId ?? "" }, body }),
+    onSuccess: (result) => {
+      if (result.status !== "transferred" || workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.members(workspaceId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces() });
+    },
+  });
+}
+
+// --- Devices (B08) -----------------------------------------------------------
+
+export function useDevices(): UseQueryResult<DeviceView[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.devices(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.registeredDevices.list),
+  });
+}
+
+export function useRenameDevice(): UseMutationResult<
+  DeviceView,
+  Error,
+  { deviceId: string; name: string }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: ({ deviceId, name }) =>
+      client.call(endpoints.registeredDevices.rename, { params: { deviceId }, body: { name } }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.devices(workspaceId) });
+    },
+  });
+}
+
+export function useRevokeDevice(): UseMutationResult<DeviceView, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (deviceId) =>
+      client.call(endpoints.registeredDevices.revoke, { params: { deviceId } }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.devices(workspaceId) });
+    },
+  });
+}
+
+// --- Licence keys (B08) -------------------------------------------------------
+
+export function useLicenseKeys(): UseQueryResult<LicenseKeyView[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.licenseKeys(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.licensing.list, { params: { id: workspaceId ?? "" } }),
+  });
+}
+
+export function useCreateLicenseKey(): UseMutationResult<
+  LicenseKeyView,
+  Error,
+  CreateLicenseKeyRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body) =>
+      client.call(endpoints.licensing.create, { params: { id: workspaceId ?? "" }, body }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.licenseKeys(workspaceId) });
+    },
+  });
+}
+
+export function useRevokeLicenseKey(): UseMutationResult<LicenseKeyView, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (keyId) =>
+      client.call(endpoints.licensing.revoke, { params: { id: workspaceId ?? "", keyId } }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.licenseKeys(workspaceId) });
+    },
+  });
+}
+
+// --- Client tags (B08, Agency) -----------------------------------------------
+
+export function useClientTags(): UseQueryResult<ClientTagView[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.clientTags(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.clientTags.list, { params: { id: workspaceId ?? "" } }),
+  });
+}
+
+export function useSetProjectClientTag(): UseMutationResult<
+  { id: string; clientTag: string | null },
+  Error,
+  { projectId: string; clientTag: string | null }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: ({ projectId, clientTag }) =>
+      client.call(endpoints.clientTags.setProjectTag, {
+        params: { id: workspaceId ?? "", projectId },
+        body: { clientTag },
+      }),
+    onSuccess: () => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({ queryKey: queryKeys.clientTags(workspaceId) });
+    },
+  });
 }

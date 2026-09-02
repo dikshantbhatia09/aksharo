@@ -20,6 +20,7 @@ import {
 import { CheckoutSheet } from "./checkout-sheet";
 
 import { useRuntimeConfig } from "@/components/providers";
+import { StreakWidget } from "@/components/streak/streak-widget";
 import {
   useCancelSubscription,
   useCreditsSummary,
@@ -163,11 +164,7 @@ export function OverviewPanel(): React.JSX.Element {
             )}
           </Card>
 
-          {streakEnabled ? (
-            <Card data-testid="streak-widget-slot">
-              <p className="text-fg-2 text-xs">Streak status is not available yet.</p>
-            </Card>
-          ) : null}
+          {streakEnabled ? <StreakWidget /> : null}
         </div>
       </div>
 

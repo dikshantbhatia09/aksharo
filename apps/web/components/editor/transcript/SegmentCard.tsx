@@ -13,7 +13,7 @@
  * user pressed M" into `EditorStore.submitOp`, which is what keeps this
  * component testable without a store.
  */
-import { useState } from "react";
+import { memo, useCallback, useState } from "react";
 
 import type { Segment, Word } from "@montaj/edg";
 
@@ -58,7 +58,20 @@ function formatTimestamp(ms: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-export function SegmentCard({
+/**
+ * Memoised so a scroll frame that re-renders `TranscriptList` (a `range`
+ * state update) does not also re-render every already-mounted, unchanged
+ * card underneath it — the overlap between one frame's visible window and
+ * the next (most of a "natural" wheel scroll; less of the adversarial
+ * whole-list-jump perf test, where nearly every row really is new). Relies
+ * on `words` being a stable reference per segment id (`TranscriptList`'s
+ * `getWords` cache) and on every callback prop being stable from the parent
+ * — both already true here, so the default shallow prop comparison is
+ * enough; no custom comparator needed.
+ */
+export const SegmentCard = memo(SegmentCardImpl);
+
+function SegmentCardImpl({
   segment,
   words,
   script,
@@ -81,6 +94,15 @@ export function SegmentCard({
 }: SegmentCardProps): React.JSX.Element {
   const [menuFor, setMenuFor] = useState<string | undefined>(undefined);
   const speakerId = words[0]?.sp ?? segment.id;
+  // Stable per segment (recreated only when `SegmentCardImpl` itself
+  // re-renders, which memoisation above already limits) so `WordChip`'s own
+  // `React.memo` is not defeated by a fresh closure on every word every time.
+  const handleWordSelect = useCallback(
+    (wordId: string) => {
+      onSelectWord?.(segment.id, wordId);
+    },
+    [segment.id, onSelectWord],
+  );
 
   return (
     <div
@@ -168,9 +190,7 @@ export function SegmentCard({
                 onCommit={onEditWord}
                 {...(onSeek === undefined ? {} : { onSeek })}
                 {...(onFixSpellingEverywhere === undefined ? {} : { onFixSpellingEverywhere })}
-                onSelect={(wordId) => {
-                  onSelectWord?.(segment.id, wordId);
-                }}
+                onSelect={handleWordSelect}
               />
               {menuFor === word.wid ? (
                 <span
@@ -218,3 +238,5 @@ export function SegmentCard({
     </div>
   );
 }
+
+SegmentCardImpl.displayName = "SegmentCardImpl";

@@ -11,15 +11,16 @@ D26, D30, D34; `packages/render-manifest/README.md`; `apps/render/README.md`.
 
 ## Endpoints
 
-| Method   | Path                                      | Who    | Notes                                                  |
-| -------- | ----------------------------------------- | ------ | ------------------------------------------------------ |
-| `POST`   | `/projects/{id}/exports`                  | editor | Decides the path, issues a manifest or enqueues a job. |
-| `POST`   | `/exports/manifests/{id}/complete`        | editor | Browser path only. Single-use nonce.                   |
-| `GET`    | `/projects/{id}/exports`                  | viewer | Paged list.                                            |
-| `GET`    | `/exports/{id}/download`                  | viewer | Short-lived R2 signed URL; 409 for a browser export.   |
-| `POST`   | `/workspaces/{id}/brand-assets`           | editor | Presigned PUT for a watermark/logo PNG.                |
-| `GET`    | `/workspaces/{id}/brand-assets`           | viewer | List.                                                  |
-| `DELETE` | `/workspaces/{id}/brand-assets/{assetId}` | editor | Delete.                                                |
+| Method   | Path                                      | Who    | Notes                                                      |
+| -------- | ----------------------------------------- | ------ | ---------------------------------------------------------- |
+| `POST`   | `/projects/{id}/exports`                  | editor | Decides the path, issues a manifest or enqueues a job.     |
+| `POST`   | `/exports/manifests/{id}/complete`        | editor | Browser path only. Single-use nonce.                       |
+| `GET`    | `/exports/manifests/{id}/sources`         | editor | Reissue a browser manifest's source URLs once they expire. |
+| `GET`    | `/projects/{id}/exports`                  | viewer | Paged list.                                                |
+| `GET`    | `/exports/{id}/download`                  | viewer | Short-lived R2 signed URL; 409 for a browser export.       |
+| `POST`   | `/workspaces/{id}/brand-assets`           | editor | Presigned PUT for a watermark/logo PNG.                    |
+| `GET`    | `/workspaces/{id}/brand-assets`           | viewer | List.                                                      |
+| `DELETE` | `/workspaces/{id}/brand-assets/{assetId}` | editor | Delete.                                                    |
 
 Every route is behind `WorkspaceMemberGuard` + `RolesGuard`; a project in another
 workspace is a 404, not a 403 (THREAT-MODEL T5).
@@ -32,11 +33,18 @@ modes). Two independent questions, decided from the same inputs:
 1. **Path.** `mode:"cloud"|"browser"` is honoured when technically possible and
    refused (`export/unsupported_in_browser`) when an explicit `"browser"` is not;
    `"auto"` picks browser when eligible and falls back to cloud with the reason in
-   `reasons[]`. Alpha and green-screen outputs, a mobile capability probe, and
-   anything over the browser's technical length cap are always cloud (D34). A 4K
-   request the plan does not carry is refused outright
-   (`entitlement/upgrade_required`) before the path is even chosen — that is an
-   entitlement, not a rendering decision.
+   `reasons[]`. Alpha and green-screen outputs, HDR sources (`MediaAsset.hdr`), a
+   mobile capability probe, and anything over the browser's technical length cap
+   are always cloud (D34). A 4K request the plan does not carry is refused
+   outright (`entitlement/upgrade_required`) before the path is even chosen — that
+   is an entitlement, not a rendering decision. **At every resolution, not only
+   4K** (A21b, after A19): the browser path also needs proven H.264 decode+encode
+   (`capabilities.codecs` containing an avc1-prefixed entry — A19's probe only
+   populates that array once both `VideoEncoder` and `VideoDecoder` exist, so one
+   entry is evidence of both) and a usable audio path
+   (`capabilities.audioEncoder`, or the `audioCopyPossible` escape hatch for a
+   source whose audio needs no re-encoding — always `false` today, since
+   `ExportsService` does not yet probe the source's audio codec).
 2. **Watermark.** A plan whose `entitlements.watermark` is `"none"` never gets one.
    Otherwise (Free) the signup gift or an unconsumed ₹9 pass clears it, but only on
    the browser path and only ≤ 10 minutes (D04) — a cloud render, or anything
@@ -63,6 +71,33 @@ or a watermark**; both travel inside the signature (THREAT-MODEL T10).
   / `render.subtitle` job payload via the existing `JobsService.enqueue` (credits
   reserved at 0.5/output-minute, held on the _source_ duration); the `exports` row is
   written by the completion handler once the worker reports back, not before.
+
+## Sources: what the browser actually downloads (A21b, after A19)
+
+The signed manifest tells the browser exporter _how_ to render; it says nothing
+about _where the bytes are_ — that travels alongside it as `sources`, never inside
+the signed body (none of it needs to be, and all of it needs to be re-issuable):
+
+```
+sources: { rawUrl, proxyUrl?, watermarkUrl? }
+```
+
+- **`rawUrl`** — a 15-minute presigned GET for the ORIGINAL media, in S3
+  (`RAW_STORE`). A19 found the browser exporter had no way to fetch it: a 540p
+  proxy cannot produce a clean 1080p export.
+- **`proxyUrl`** — the 540p proxy, in R2, when one exists — an offline/low-bandwidth
+  fallback.
+- **`watermarkUrl`** — the watermark PNG the manifest names, in R2
+  (`brandAssetKey`), only when `manifest.watermark` is not `null`.
+
+All three are built from the signed manifest's own `source.mediaId` — the media
+this export was resolved against at issuance — never the project's current primary
+media, so a refresh always points at exactly what was signed. `GET
+/exports/manifests/{id}/sources` reissues a fresh set once the originals expire
+mid-export (a multi-hundred-megabyte original can outlast 15 minutes on a slow
+connection), with the same ownership checks `POST .../complete` uses — workspace-
+owned, browser mode, not expired — minus the nonce claim, since refreshing consumes
+nothing.
 
 ## Completion (`render-completion.handler.ts`)
 
@@ -116,6 +151,15 @@ design: `@montaj/render-manifest` signs with a symmetric HMAC over
 material for an HMAC would hand out the ability to forge a manifest. This work
 package does not implement that endpoint; every manifest — browser and cloud
 alike — is issued and verified through `@montaj/render-manifest` as A20 built it.
+
+**A21b's own addendum wrote `capabilities.codecs.h264 (encode + decode)`** as the
+required shape; A19 (already merged) sends `codecs?: string[]` — a flat list of
+`VideoEncoder.isConfigSupported` results, gated on `VideoDecoder` existing at all.
+Changing the DTO to a nested object would have been a breaking change against an
+already-shipped client for no real gain: A19's array already only populates when
+both APIs exist, so one avc1-prefixed entry is exactly the evidence the addendum
+asked for. `decision.ts` reads the array as sent; the intent is implemented, the
+literal wire shape is adapted.
 
 ## Layout
 

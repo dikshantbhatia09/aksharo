@@ -138,6 +138,21 @@ export class ExportJobDto {
   deduplicated!: boolean;
 }
 
+export class ExportSourcesDto {
+  @ApiProperty({ description: "15-minute signed GET for the ORIGINAL media (S3)." })
+  rawUrl!: string;
+
+  @ApiPropertyOptional({
+    description: "15-minute signed GET for the 540p proxy (R2), when one exists.",
+  })
+  proxyUrl?: string;
+
+  @ApiPropertyOptional({
+    description: "15-minute signed GET for the watermark PNG (R2), when the manifest carries one.",
+  })
+  watermarkUrl?: string;
+}
+
 export class ExportDecisionResponseDto {
   @ApiProperty() exportId!: string;
 
@@ -160,6 +175,14 @@ export class ExportDecisionResponseDto {
       "the browser renders locally and never uploads. Verify it before drawing a frame.",
   })
   manifest?: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    type: ExportSourcesDto,
+    description:
+      "Present on the browser path only. NOT part of the signed manifest body — issued alongside " +
+      "it, and refreshable at `GET /exports/manifests/{id}/sources` once these expire.",
+  })
+  sources?: ExportSourcesDto;
 
   @ApiPropertyOptional({ type: ExportJobDto, description: "Present on the cloud path only." })
   job?: ExportJobDto;
