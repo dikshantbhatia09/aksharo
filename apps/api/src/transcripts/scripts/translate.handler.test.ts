@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { JobCompletionRegistry } from "../../jobs/completion-handlers.js";
 import { TranslateCompletionHandler } from "./translate.handler.js";
+import { JobCompletionRegistry } from "../../jobs/completion-handlers.js";
 
 import type { ScriptsService } from "./scripts.service.js";
 import type { JobCompletionContext } from "../../jobs/completion-handlers.js";

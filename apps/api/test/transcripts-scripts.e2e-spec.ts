@@ -182,6 +182,23 @@ async function seed(): Promise<void> {
     },
   });
 
+  // B02's real LedgerCreditsFacade (now CREDITS_FACADE, replacing A08's no-op)
+  // needs an account with a funded lot to reserve translation's 0.5 credit/min
+  // against — a bare `subscriptions` row (what the checkout flow this test does
+  // not run would eventually produce) grants nothing on its own.
+  const account = await prisma.creditAccount.create({
+    data: { id: id("CACT"), workspaceId: WORKSPACE, balanceTenths: 3_000 },
+  });
+  await prisma.creditLot.create({
+    data: {
+      id: id("CLOT"),
+      accountId: account.id,
+      source: "grant",
+      grantedTenths: 3_000,
+      remainingTenths: 3_000,
+    },
+  });
+
   // The transcript A11's TranscribeCompletionHandler would have written.
   await prisma.transcript.create({
     data: {

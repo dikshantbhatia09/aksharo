@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { JobCompletionRegistry } from "../../jobs/completion-handlers.js";
 import { TransliterateCompletionHandler } from "./transliterate.handler.js";
+import { JobCompletionRegistry } from "../../jobs/completion-handlers.js";
 
 import type { JobCompletionContext } from "../../jobs/completion-handlers.js";
 import type { Job } from "@prisma/client";
