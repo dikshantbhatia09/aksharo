@@ -25,6 +25,8 @@ import type {
   AffiliateProfile,
   AffiliateStats,
   ApplyAffiliateRequest,
+  AttachAffiliateAttributionRequest,
+  AttachAffiliateAttributionResult,
   AvailableScripts,
   BatchCreateProjectsRequest,
   ClaimReferralRequest,
@@ -1049,6 +1051,24 @@ export function useClaimReferral(): UseMutationResult<
       if (workspaceId === null) return;
       void queryClient.invalidateQueries({ queryKey: queryKeys.referrals(workspaceId) });
     },
+  });
+}
+
+/**
+ * Attaches affiliate attribution for a code typed at onboarding that is not
+ * `AK-`-shaped (B17). Public: it is the same route the sign-up cookie flow
+ * (`/r/<code>`) resolves through, so it needs no bearer token, but the
+ * workspace/user ids are still required — the onboarding caller already has
+ * both from `useCurrentUser()`.
+ */
+export function useAttachAffiliateAttribution(): UseMutationResult<
+  AttachAffiliateAttributionResult,
+  Error,
+  AttachAffiliateAttributionRequest
+> {
+  const client = useApiClient();
+  return useMutation({
+    mutationFn: (body) => client.call(endpoints.affiliate.attach, { body }),
   });
 }
 

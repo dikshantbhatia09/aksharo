@@ -69,7 +69,7 @@ import {
 } from "mediabunny";
 
 import type { StyleDoc } from "@montaj/caption-styles";
-import { CanvasKitBackend } from "@montaj/render-canvaskit";
+import { CanvasKitBackend, createExportSurface } from "@montaj/render-canvaskit";
 import {
   computeTrackShrink,
   createFontRegistry,
@@ -129,6 +129,49 @@ export interface RunExportOptions {
 
 function throwIfCancelled(signal: AbortSignal): void {
   if (signal.aborted) throw new ExportCancelledError();
+}
+
+/** Brief §4: 5 ms linear fades at cut boundaries, left unimplemented in A19b. */
+export const SPLICE_FADE_MS = 5;
+
+/**
+ * Applies up to two linear gain ramps, in place, to one decoded audio chunk:
+ * a fade-in from `chunkStartMs` (this chunk's offset within its retained
+ * range) through `fadeInMs`, and a fade-out from `rangeDurationMs - fadeOutMs`
+ * through the range's end. A chunk entirely inside the steady middle of a
+ * range (the common case — most chunks are nowhere near a boundary) is left
+ * untouched by the early-exit below rather than multiplying by a no-op 1.0
+ * per sample.
+ */
+export function applySpliceFades(
+  buffer: AudioBuffer,
+  chunkStartMs: number,
+  rangeDurationMs: number,
+  fadeInMs: number,
+  fadeOutMs: number,
+): void {
+  if (fadeInMs <= 0 && fadeOutMs <= 0) return;
+  const chunkEndMs = chunkStartMs + (buffer.length / buffer.sampleRate) * 1000;
+  const touchesFadeIn = fadeInMs > 0 && chunkStartMs < fadeInMs;
+  const touchesFadeOut = fadeOutMs > 0 && chunkEndMs > rangeDurationMs - fadeOutMs;
+  if (!touchesFadeIn && !touchesFadeOut) return;
+
+  const msPerSample = 1000 / buffer.sampleRate;
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const data = buffer.getChannelData(channel);
+    for (let i = 0; i < data.length; i += 1) {
+      const sampleMs = chunkStartMs + i * msPerSample;
+      let gain = 1;
+      if (fadeInMs > 0 && sampleMs < fadeInMs) {
+        gain = Math.min(gain, Math.max(0, sampleMs / fadeInMs));
+      }
+      const msFromRangeEnd = rangeDurationMs - sampleMs;
+      if (fadeOutMs > 0 && msFromRangeEnd < fadeOutMs) {
+        gain = Math.min(gain, Math.max(0, msFromRangeEnd / fadeOutMs));
+      }
+      if (gain < 1) data[i] = (data[i] ?? 0) * gain;
+    }
+  }
 }
 
 /** Overrides the projection's watermark with the manifest's own decision (orchestrator addendum). */
@@ -321,15 +364,31 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
     );
     const audioSampleSink = new AudioSampleSink(audioTrack);
     audioCopyTask = (async (): Promise<void> => {
-      for (const range of retainedRanges) {
+      for (const [rangeIndex, range] of retainedRanges.entries()) {
         throwIfCancelled(signal);
+        // A19c (brief §4): a 5 ms linear fade at each splice boundary — the
+        // join `retainedSourceRangesMs` creates between two ranges that used
+        // to be separated by a cut. The outer edges of the whole track (the
+        // very start of the first range, the very end of the last) are not
+        // splices — nothing was cut there — so they are left at full gain;
+        // only an edge that is adjacent to a removed range fades.
+        const rangeDurationMs = range.endMs - range.startMs;
+        const fadeInMs = rangeIndex === 0 ? 0 : Math.min(SPLICE_FADE_MS, rangeDurationMs / 2);
+        const fadeOutMs =
+          rangeIndex === retainedRanges.length - 1
+            ? 0
+            : Math.min(SPLICE_FADE_MS, rangeDurationMs / 2);
+        let elapsedMs = 0;
         for await (const sample of audioSampleSink.samples(
           range.startMs / 1000,
           range.endMs / 1000,
         )) {
           throwIfCancelled(signal);
           try {
-            await audioSource.add(sample.toAudioBuffer());
+            const buffer = sample.toAudioBuffer();
+            applySpliceFades(buffer, elapsedMs, rangeDurationMs, fadeInMs, fadeOutMs);
+            elapsedMs += (buffer.length / buffer.sampleRate) * 1000;
+            await audioSource.add(buffer);
           } finally {
             sample.close();
           }
@@ -342,13 +401,19 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
 
   await output.start();
 
-  // A persistent CPU raster surface, reused every frame (cleared, not
-  // recreated) — the surface allocation itself is the expensive part of
-  // MakeSurface, and this is the loop A19b's throughput target runs in.
-  const captionSurface = backend.ck.MakeSurface(manifest.output.width, manifest.output.height);
-  if (captionSurface === null) {
-    throw new Error("could not allocate a raster surface for the caption layer");
-  }
+  // A19c: a persistent surface, reused every frame (cleared, not recreated) —
+  // the surface allocation itself is the expensive part of MakeSurface/
+  // MakeWebGLCanvasSurface, and this is the loop A19b's throughput target
+  // runs in. `createExportSurface` tries an OffscreenCanvas-backed WebGL
+  // surface first (the highest-leverage throughput item A19b's README
+  // flagged and did not attempt) and falls back to the CPU raster surface
+  // A19b used exclusively — both are Skia, so `engine-parity.test.ts` proves
+  // the pixels agree; only the speed differs.
+  const { surface: captionSurface, backend: captionSurfaceBackend } = createExportSurface(
+    backend.ck,
+    manifest.output.width,
+    manifest.output.height,
+  );
 
   // A persistent scratch canvas the caption layer's pixels are
   // `putImageData`'d into (synchronous, no bitmap allocation), then
@@ -475,6 +540,7 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
     checksum,
     usedFileSystemAccess,
     realtimeMultiplier,
+    captionSurfaceBackend,
     ...(buffer !== null ? { blob: new Blob([buffer], { type: "video/mp4" }) } : {}),
   };
 }

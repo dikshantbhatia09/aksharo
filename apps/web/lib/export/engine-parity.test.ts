@@ -28,6 +28,7 @@ import {
   BASELINE_CANVAS,
   BASELINE_FRAMES,
   CanvasKitBackend,
+  createExportSurface,
   loadCanvasKit,
 } from "@montaj/render-canvaskit";
 import { buildBaselineCommands } from "@montaj/render-canvaskit/testing";
@@ -109,6 +110,61 @@ function colourOf(colour: string): Float32Array {
 // header); everything else holds to D33's own PARITY_MAX_DIFF_RATIO.
 const KNOWN_TEXT_RESIDUALS: Readonly<Record<string, number>> = Object.freeze({
   "neon-glow-english": 0.04,
+});
+
+describe("A19c: createExportSurface's fallback surface matches the plain MakeSurface path", () => {
+  // Node has no `OffscreenCanvas`/WebGL, so `createExportSurface` always
+  // falls back to the same CPU raster `MakeSurface` `readbackPixels` above
+  // uses directly — this proves that fallback path (the one every browser
+  // without a working WebGL context also takes) produces byte-identical
+  // output through `engine.ts`'s exact draw→flush→readPixels sequence, not
+  // just "the same shape of call". The GPU path itself is exercised for real
+  // in a browser by `packages/render-canvaskit`'s own e2e suite
+  // (`createBrowserSurface`, same GPU-first/CPU-fallback logic) and by
+  // `apps/web/e2e/export.spec.ts`'s `caption-surface-backend` annotation.
+  it("falls back to CPU raster in Node and still matches the cloud renderer", () => {
+    const frame = BASELINE_FRAMES[0];
+    if (frame === undefined) throw new Error("no baseline frames");
+    const commands = baselines[frame.name] ?? [];
+
+    const { surface, backend: surfaceBackend } = createExportSurface(
+      ck,
+      BASELINE_CANVAS.width,
+      BASELINE_CANVAS.height,
+    );
+    expect(surfaceBackend).toBe("cpu");
+    let actual: Uint8Array;
+    try {
+      const canvas = surface.getCanvas();
+      canvas.clear(colourOf(BASELINE_BACKGROUND));
+      backend.drawFrame(canvas, commands, {});
+      surface.flush();
+      const snapshot = surface.makeImageSnapshot();
+      try {
+        const pixels = snapshot.readPixels(0, 0, {
+          width: BASELINE_CANVAS.width,
+          height: BASELINE_CANVAS.height,
+          colorType: ck.ColorType.RGBA_8888,
+          alphaType: ck.AlphaType.Unpremul,
+          colorSpace: ck.ColorSpace.SRGB,
+        });
+        if (pixels === null) throw new Error("readPixels returned null");
+        actual = pixels instanceof Uint8Array ? pixels : new Uint8Array(pixels.buffer);
+      } finally {
+        snapshot.delete();
+      }
+    } finally {
+      surface.delete();
+    }
+
+    const expected = readbackPixels(
+      commands,
+      BASELINE_CANVAS.width,
+      BASELINE_CANVAS.height,
+      BASELINE_BACKGROUND,
+    );
+    expect(actual).toEqual(expected);
+  }, 30_000);
 });
 
 describe("A19b: engine.ts's raw readPixels path vs the cloud renderer (D33)", () => {

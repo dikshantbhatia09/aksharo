@@ -46,6 +46,14 @@ export interface ExportCapabilities {
   /** A phone or tablet browser; always cloud regardless of everything else. */
   readonly isMobile?: boolean;
   readonly throughputMbps?: number;
+  /**
+   * A19c ruling (2): `VideoEncoder.isConfigSupported` with
+   * `hardwareAcceleration: "prefer-hardware"`, from `probeHardwareEncoder`
+   * (`apps/web/lib/export/probe.ts`). Absent (older clients that predate this
+   * work package) is treated the same as `false` — the conservative default,
+   * matching every other capability flag in this interface.
+   */
+  readonly hardwareEncoder?: boolean;
 }
 
 export type SubtitleFormat = "srt" | "vtt" | "txt" | "md" | "ass";
@@ -161,6 +169,38 @@ function creditsFor(outputDurationMs: number): number {
 const H264_CODEC_PREFIX = "avc1";
 
 /**
+ * A19c ruling (2): the width at and above which a missing hardware encoder
+ * routes an `auto` request to the cloud by default. `requestedWidth` already
+ * returns exactly `1_080` for every non-4K preset (reels/shorts/square) and
+ * the real pixel width for 4K/custom, so "≥1080p" and "`requestedWidth`'s
+ * output is at least this constant" are the same test the 4K gate above
+ * already relies on.
+ */
+const SOFTWARE_ENCODER_CLOUD_DEFAULT_MIN_WIDTH = 1_080;
+
+const SOFTWARE_ENCODER_CLOUD_DEFAULT_REASON =
+  "No hardware video encoder detected in this browser — 1080p and taller exports default to " +
+  "the cloud for reliable speed.";
+
+const SOFTWARE_ENCODER_BROWSER_WARNING =
+  "No hardware encoder detected in this browser — exporting here anyway may be slow.";
+
+/**
+ * A19c ruling (2): true when this request is 1080p or larger and the client
+ * did not report a hardware encoder (`capabilities.hardwareEncoder`). Kept
+ * separate from `browserEligibility` (which decides whether the browser path
+ * can be attempted *at all*) because an explicit `mode: "browser"` choice
+ * still bypasses this — the ruling only changes `auto`'s default, with
+ * warned copy for the user who overrides it.
+ */
+function softwareEncoderAboveHd(input: ExportDecisionInput): boolean {
+  return (
+    requestedWidth(input) >= SOFTWARE_ENCODER_CLOUD_DEFAULT_MIN_WIDTH &&
+    input.capabilities?.hardwareEncoder !== true
+  );
+}
+
+/**
  * H.264 decode + encode, both (A21b, after A19). A19's probe only ever
  * populates `codecs` from `VideoEncoder.isConfigSupported` — but it gates that
  * probe on `VideoDecoder` existing at all (`probe.ts`'s `webCodecs` flag), so
@@ -259,14 +299,34 @@ function choosePath(input: ExportDecisionInput): { path: ExportPath; reasons: st
         { reason: eligibility.reason },
       );
     }
-    return { path: "browser", reasons: ["In this browser — no upload."] };
+    // Explicit choice bypasses the software-encoder cloud default (ruling 2)
+    // — the dialog's own "export in the browser anyway" button, with warned
+    // copy carried in `reasons` for the UI to show alongside the result.
+    return {
+      path: "browser",
+      reasons: [
+        "In this browser — no upload.",
+        ...(softwareEncoderAboveHd(input) ? [SOFTWARE_ENCODER_BROWSER_WARNING] : []),
+      ],
+    };
   }
   // auto
-  if (eligibility.ok) return { path: "browser", reasons: ["In this browser — no upload."] };
-  return {
-    path: "cloud",
-    reasons: [eligibility.reason, "Cloud render — 0.5 credits per output minute."],
-  };
+  if (!eligibility.ok) {
+    return {
+      path: "cloud",
+      reasons: [eligibility.reason, "Cloud render — 0.5 credits per output minute."],
+    };
+  }
+  if (softwareEncoderAboveHd(input)) {
+    return {
+      path: "cloud",
+      reasons: [
+        SOFTWARE_ENCODER_CLOUD_DEFAULT_REASON,
+        "Cloud render — 0.5 credits per output minute.",
+      ],
+    };
+  }
+  return { path: "browser", reasons: ["In this browser — no upload."] };
 }
 
 /** The watermark decision, independent of path except that the gift/pass need `browser`. */

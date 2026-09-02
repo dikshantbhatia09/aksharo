@@ -17,6 +17,8 @@ import type {
   AffiliateProfile,
   AffiliateStats,
   ApplyAffiliateRequest,
+  AttachAffiliateAttributionRequest,
+  AttachAffiliateAttributionResult,
   AvailableScripts,
   BatchCreateProjectsRequest,
   ChangeRoleRequest,
@@ -758,6 +760,13 @@ export const affiliateEndpoints = {
     path: "/affiliate/me/stats",
     auth: "bearer",
     operationId: "getMyAffiliateStats",
+  }),
+  /** Called from onboarding (B17) when the code field is affiliate-shaped, not `AK-`. */
+  attach: defineEndpoint<AttachAffiliateAttributionRequest, AttachAffiliateAttributionResult>({
+    method: "POST",
+    path: "/affiliate/attribution/attach",
+    auth: "public",
+    operationId: "attachAffiliateAttribution",
   }),
 } as const;
 

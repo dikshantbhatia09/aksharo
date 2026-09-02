@@ -23,23 +23,45 @@ each surface can own its layout and auth boundary.
 
 ## Routes A13 owns
 
-| Route                                    | What it is                                                                       |
-| ---------------------------------------- | -------------------------------------------------------------------------------- |
-| `/signup`                                | credentials, then onboarding **step 0** (age + consents, D60)                    |
-| `/login`                                 | password or Google; `?next=` is followed only when same-site                     |
-| `/magic`                                 | request a sign-in link, and consume one with `?token=`                           |
-| `/verify`                                | confirm an address, then on to sign in                                           |
-| `/auth/verify-email`, `/auth/magic-link` | where A04's emails point; they forward to the two above                          |
-| `/auth/callback`                         | Google returns here; `status=registration` asks step 0 before the account exists |
-| `/auth/desktop-landing`                  | triggers the `aksharo://` deep link with a visible fallback                      |
-| `/device`                                | device-code approval (host app, device, address, location)                       |
-| `/studio`                                | the shell's landing page until A14 builds Home                                   |
-| `/onboarding`                            | steps 1–3: what you make, languages, how you found us                            |
-| `/settings/*`                            | profile, languages, what Aksharo learned, devices, privacy, notifications        |
-| `/ui-kit`                                | every component state, for screenshot review                                     |
-| `/studio/styles`                         | A16's style harness: the caption canvas and the right panel                      |
-| `/p/{id}`                                | A15's editor: transcript, caption preview, style panel, in one store             |
-| `/api/session`, `/api/session/refresh`   | the only code that may touch the refresh token                                   |
+| Route                                    | What it is                                                                           |
+| ---------------------------------------- | ------------------------------------------------------------------------------------ |
+| `/signup`                                | credentials, then onboarding **step 0** (age + consents, D60)                        |
+| `/login`                                 | password or Google; `?next=` is followed only when same-site                         |
+| `/magic`                                 | request a sign-in link, and consume one with `?token=`                               |
+| `/verify`                                | confirm an address, then on to sign in                                               |
+| `/auth/verify-email`, `/auth/magic-link` | where A04's emails point; they forward to the two above                              |
+| `/auth/callback`                         | Google returns here; `status=registration` asks step 0 before the account exists     |
+| `/auth/desktop-landing`                  | triggers the `aksharo://` deep link with a visible fallback                          |
+| `/device`                                | device-code approval (host app, device, address, location)                           |
+| `/studio`                                | the shell's landing page until A14 builds Home                                       |
+| `/onboarding`                            | steps 1–4 (B17 added step 4): what you make, languages, how you found us, you're set |
+| `/settings/*`                            | profile, languages, what Aksharo learned, devices, privacy, notifications            |
+| `/ui-kit`                                | every component state, for screenshot review                                         |
+| `/studio/styles`                         | A16's style harness: the caption canvas and the right panel                          |
+| `/p/{id}`                                | A15's editor: transcript, caption preview, style panel, in one store                 |
+| `/api/session`, `/api/session/refresh`   | the only code that may touch the refresh token                                       |
+
+## Onboarding completion and i18n (B17)
+
+- `onboarding-flow.tsx`'s "what you make" step derives a default aspect,
+  caption style and export-preset label (`MAKE_DEFAULTS`) that the Home
+  quick-pick row (`home-view.tsx`) and the next transcribe request
+  (`lib/upload/upload-job.ts`) adopt, the same way the language pick already
+  did; "languages you speak on camera" now rides along as routing hints
+  (`languages: [primary, ...secondary]`) rather than only the first pick.
+- The code field classifies by prefix
+  (`lib/onboarding/code-classifier.ts`, mirrored server-side in
+  `apps/api/src/users/onboarding/code-classifier.ts`): `AK-` → B07b's
+  `/referrals/claim`; an 8-character Crockford code → B07's
+  `/affiliate/attribution/attach` (via the new `useAttachAffiliateAttribution`
+  hook); anything else → an inline error, never a blocked wizard.
+- `lib/i18n/locale-provider.tsx` is a minimal ICU MessageFormat layer
+  (`intl-messageformat`) over two flat catalogues
+  (`messages/en.json`, `messages/hi.json`) covering the onboarding flow and
+  the editor's first-run coach marks (`components/editor/coach-marks/`); the
+  profile menu's language switch persists the choice through the existing
+  `locale` field on `/me`. It is deliberately not a full app-wide i18n
+  framework — see the final report for the reasoning.
 
 ## Routes A24 owns
 
