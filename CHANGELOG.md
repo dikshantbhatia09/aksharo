@@ -1373,6 +1373,82 @@ sarvam` replays the recorded session, `--live` calls the configured vendor.
 
 ### Changed
 
+- **A23a — the API test suite starts two containers per run instead of one pair
+  per suite, and isolates the suites from each other properly.**
+  - Every Docker-backed suite used to start its own PostgreSQL and Redis through
+    testcontainers. One run asked Docker for eight containers; a machine running
+    several agents at once asked for thirty or forty, and the daemon answered with
+    HTTP 500s and `beforeAll` timeouts — failures that had nothing to do with the
+    code under test and cost every agent a re-run.
+  - `apps/api/test/global-setup.ts` (new, wired in as Vitest's `globalSetup`)
+    resolves **one** `pgvector/pgvector:pg16` and **one** `redis:7-alpine` for the
+    whole run, or reuses the servers `TEST_DATABASE_URL` / `TEST_REDIS_URL` point
+    at and starts nothing. It builds `montaj_test_template` once with
+    `prisma migrate deploy` followed by `prisma/sql/` — the same code path
+    `pnpm db:migrate` uses — under a PostgreSQL advisory lock, and stamps it with a
+    fingerprint of the migrations and the hand SQL, so a second run (or a second
+    agent on the same server) reuses it instead of re-migrating.
+  - Each suite then gets a database of its own,
+    `CREATE DATABASE montaj_t_<runId>_<suite> TEMPLATE montaj_test_template`,
+    dropped in `afterAll`. A clone is a file copy, so it costs a fraction of a
+    second where a migration run costs twenty — and a suite may now `TRUNCATE` any
+    table it likes while a dozen others do the same. A05 and A12 both reported the
+    opposite: setting `TEST_DATABASE_URL` made the suites truncate each other.
+  - Each suite also gets its own **logical Redis database**, which is what isolates
+    the keys the product hard-codes (`montaj:auth:*`, `montaj:rl:*`) with no
+    product change, and its own **`MONTAJ_QUEUE_PREFIX`**, which is what isolates
+    BullMQ structures and realtime channels — Redis pub/sub ignores the logical
+    database, so the prefix is the only isolation there. A run leaves logical
+    database 0 alone — a developer's own compose stack lives there — until there
+    are more suites than databases above it, and then claims it too rather than
+    make two suites share one, saying so on the way past.
+  - `apps/api/test/test-run.ts` and `apps/api/test/suite-context.ts` are the new
+    contract and the worker-side accessors. Slots are assigned from the sorted list
+    of every `*.e2e-spec.ts` in the package rather than the subset being run, so a
+    suite keeps the same database name, logical Redis database and queue prefix
+    whether it runs alone or with all the others — which is what makes a parallel
+    failure reproducible with one `vitest run test/<file>`.
+  - **The public harness API did not change.** `createTestDatabase()`,
+    `createAuthTestContext()`, `createEdgTestContext()`, `isDatabaseAvailable()`,
+    `isRedisAvailable()` and `testRedisUrl()` keep their signatures; no spec was
+    edited. The `docker info` probe that gated the skip path still exists, moved
+    into the global setup, where it runs once per run instead of once per suite on
+    the very daemon the suites were about to overload.
+  - `apps/api/test/isolation-alpha.e2e-spec.ts` and `-beta` are the deliberate
+    collision test. They rendezvous through the filesystem so their writes really
+    do overlap, then insert the same primary key into the same table from both
+    sides, truncate that table from one side, and write the same hard-coded Redis
+    key from both — each of which fails loudly if the isolation regresses.
+    `rendezvous()`'s own timeout (30s) is documented as "not a failure", but every
+    `it` calling it now gets an explicit Vitest timeout well above that (40s single
+    barrier, 70s for the two sequential Redis barriers) — found stress-testing this
+    work package on a machine busy enough that a sibling could still be running:
+    Vitest's global 30s `testTimeout` matched `rendezvous()`'s default exactly, so
+    it could kill the test itself a hair before the graceful "proves less" path
+    got to return, turning "the sibling never arrived" into a hard timeout failure.
+  - One PostgreSQL for the run is also one connection budget for the run, so the
+    suite database URL pins `connection_limit=3` and both context harnesses reuse
+    the client `createTestDatabase()` already opened instead of a second one of
+    their own. Prisma sizes a pool at `cpus * 2 + 1` by default — twenty-five on a
+    twelve-core laptop — which cost nothing while every suite had a container to
+    itself, and sank a dozen concurrent suites against one server's
+    `max_connections` of 100 with "Can't reach database server" the moment they
+    shared.
+  - `DROP DATABASE` forces an immediate checkpoint and waits for it: measured at
+    eleven seconds with two suites dropping at once on a laptop already running
+    thirty containers. `afterAll` therefore bounds the drop with a
+    `statement_timeout` and hands anything slower to the run teardown, which sweeps
+    sequentially; a crashed run's databases are swept by the next one. The
+    cancellation is safe — PostgreSQL removes the files only after the checkpoint
+    it is waiting on.
+  - `.github/workflows/ci.yml` gains an `api` job with PostgreSQL and Redis service
+    containers and the `TEST_*` URLs pointed at them, so the suite runs with no
+    Docker-in-Docker at all; a step asserts that nothing labelled
+    `org.testcontainers` was started. `@montaj/api` is excluded from the
+    `typescript` job's unit-test step so the suite does not run twice.
+  - `apps/api/README.md` §Tests rewritten: how the isolation works, how to point a
+    run at the compose stack, how to debug one suite. The `TEST_DATABASE_URL`
+    hazard note is gone, because the hazard is.
 - **A06 — `WorkspaceMemberGuard` now guards routes with no workspace id in the
   path.** On a `/workspaces/:id` route both of its rules are unchanged; on a route
   without an `:id` — every `/projects/*` route — there is nothing to compare, so it

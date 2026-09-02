@@ -4,10 +4,13 @@
  * Auth is the one module that cannot be tested against substituted
  * infrastructure: refresh families are a database invariant, the rotation grace is
  * a Redis entry, the device-grant poll interval is a Redis `SET NX`, and the point
- * of the tests is that those actually hold. So the suite starts both services
- * (testcontainers, or `TEST_DATABASE_URL` / `TEST_REDIS_URL` when CI already
- * provides them) and skips loudly when Docker is unavailable, exactly as
- * `database.e2e-spec.ts` does.
+ * of the tests is that those actually hold.
+ *
+ * A23a: it no longer STARTS those services. `test/global-setup.ts` provides one
+ * PostgreSQL and one Redis for the whole run; this harness takes a private copy of
+ * the migrated template database and the logical Redis database this suite owns,
+ * and skips loudly when neither Docker nor `TEST_DATABASE_URL` is available,
+ * exactly as `database.e2e-spec.ts` does.
  *
  * Google is the exception: the identity provider is a third party, so it is
  * substituted through the `GOOGLE_OAUTH_PROVIDER` port.
@@ -15,10 +18,11 @@
 import { generateKeyPairSync } from "node:crypto";
 
 import { Test } from "@nestjs/testing";
-import { PrismaClient } from "@prisma/client";
+import { type PrismaClient } from "@prisma/client";
 import Redis from "ioredis";
 
 import { createTestDatabase } from "./db-harness.js";
+import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness.js";
 import { AppModule } from "../src/app.module.js";
 import { redisKeys } from "../src/auth/auth.constants.js";
 import { GOOGLE_OAUTH_PROVIDER } from "../src/auth/google-oauth.provider.js";
@@ -98,33 +102,6 @@ export interface AuthTestContext {
 /** Why the suite was skipped, for the console message. */
 export let authSkipReason = "";
 
-const REDIS_IMAGE = "redis:7-alpine";
-
-interface RedisHandle {
-  url: string;
-  stop(): Promise<void>;
-}
-
-async function startRedis(): Promise<RedisHandle> {
-  const fromEnv = process.env["TEST_REDIS_URL"];
-  if (fromEnv !== undefined && fromEnv !== "") {
-    return { url: fromEnv, stop: async () => undefined };
-  }
-
-  const { GenericContainer } = await import("testcontainers");
-  const container = await new GenericContainer(REDIS_IMAGE)
-    .withExposedPorts(6379)
-    .withStartupTimeout(120_000)
-    .start();
-
-  return {
-    url: `redis://${container.getHost()}:${String(container.getMappedPort(6379))}`,
-    stop: async () => {
-      await container.stop();
-    },
-  };
-}
-
 /**
  * A throwaway RS256 key pair.
  *
@@ -162,8 +139,13 @@ const TABLES = [
 ];
 
 export async function createAuthTestContext(): Promise<AuthTestContext | null> {
+  if (!isRedisAvailable()) {
+    authSkipReason = redisSkipReason;
+    return null;
+  }
+
   let database: TestDatabase | null = null;
-  let redisHandle: RedisHandle | undefined;
+  let redisUrl: string;
 
   try {
     database = await createTestDatabase();
@@ -171,7 +153,7 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
       authSkipReason = "no test database";
       return null;
     }
-    redisHandle = await startRedis();
+    redisUrl = testRedisUrl();
   } catch (error) {
     authSkipReason = error instanceof Error ? error.message : String(error);
     if (database !== null) await database.stop();
@@ -180,7 +162,7 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
 
   const keys = generateJwtKeys();
   process.env["DATABASE_URL"] = database.url;
-  process.env["REDIS_URL"] = redisHandle.url;
+  process.env["REDIS_URL"] = redisUrl;
   process.env["JWT_PRIVATE_KEY"] = keys.privateKey;
   process.env["JWT_PUBLIC_KEY"] = keys.publicKey;
   process.env["GOOGLE_OAUTH_CLIENT_ID"] = "test-client-id.apps.googleusercontent.com";
@@ -208,10 +190,12 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
   setupOpenApi(app);
   await app.init();
 
-  const prisma = new PrismaClient({ datasources: { db: { url: database.url } } });
-  const redis = new Redis(redisHandle.url, { maxRetriesPerRequest: null });
+  // A23a: the client the database handed us, rather than a second one of our own.
+  // One shared PostgreSQL serves every suite in the run now, and a duplicate pool
+  // per suite is connections spent on nothing — `db.stop()` disconnects it.
+  const prisma = database.prisma;
+  const redis = new Redis(redisUrl, { maxRetriesPerRequest: null });
   const db = database;
-  const redisRef = redisHandle;
 
   return {
     app,
@@ -223,6 +207,8 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
       // write its outbox entry into the next test.
       await app.get(NotifyConsumer).drain();
       await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${TABLES.join(", ")} CASCADE`);
+      // Safe to sweep the whole `montaj:` namespace: A23a gives this suite its own
+      // logical Redis database, so nothing else in the run has keys in here.
       const authKeys = await redis.keys("montaj:*");
       if (authKeys.length > 0) await redis.del(...authKeys);
       google.profiles.clear();
@@ -238,7 +224,6 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
       await app.close();
       await prisma.$disconnect();
       redis.disconnect();
-      await redisRef.stop();
       await db.stop();
     },
   };
