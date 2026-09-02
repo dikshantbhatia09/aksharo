@@ -131,6 +131,13 @@ export const API_OPERATIONS = [
     summary: "Change a member's role",
   },
   {
+    operationId: "completeExportManifest",
+    method: "POST",
+    path: "/exports/manifests/{manifestId}/complete",
+    tags: ["exports"],
+    summary: "Close a browser export: single-use nonce, marks the export succeeded",
+  },
+  {
     operationId: "completeFontUpload",
     method: "POST",
     path: "/workspaces/{id}/fonts/{fontId}/complete",
@@ -159,6 +166,13 @@ export const API_OPERATIONS = [
     summary: "Finish an upload (project-scoped form)",
   },
   {
+    operationId: "createBrandAsset",
+    method: "POST",
+    path: "/workspaces/{id}/brand-assets",
+    tags: ["exports"],
+    summary: "Start uploading a brand asset (watermark or logo PNG)",
+  },
+  {
     operationId: "createFolder",
     method: "POST",
     path: "/folders",
@@ -185,6 +199,13 @@ export const API_OPERATIONS = [
     path: "/invitations/{id}",
     tags: ["invitations"],
     summary: "Decline an invitation",
+  },
+  {
+    operationId: "deleteBrandAsset",
+    method: "DELETE",
+    path: "/workspaces/{id}/brand-assets/{assetId}",
+    tags: ["exports"],
+    summary: "Delete a brand asset",
   },
   {
     operationId: "deleteFolder",
@@ -297,6 +318,13 @@ export const API_OPERATIONS = [
     path: "/admin/dlq/stats",
     tags: ["admin"],
     summary: "Per-queue dead-letter counts",
+  },
+  {
+    operationId: "getExportDownloadUrl",
+    method: "GET",
+    path: "/exports/{exportId}/download",
+    tags: ["exports"],
+    summary: "A short-lived signed download URL",
   },
   {
     operationId: "getFolder",
@@ -453,6 +481,13 @@ export const API_OPERATIONS = [
     summary: "Invite an address to the workspace",
   },
   {
+    operationId: "listBrandAssets",
+    method: "GET",
+    path: "/workspaces/{id}/brand-assets",
+    tags: ["exports"],
+    summary: "List a workspace's brand assets",
+  },
+  {
     operationId: "listDeadLetters",
     method: "GET",
     path: "/admin/dlq",
@@ -535,6 +570,13 @@ export const API_OPERATIONS = [
     path: "/admin/parental-waitlist",
     tags: ["admin"],
     summary: "The parental-consent waiting list, oldest first",
+  },
+  {
+    operationId: "listProjectExports",
+    method: "GET",
+    path: "/projects/{projectId}/exports",
+    tags: ["exports"],
+    summary: "List a project's exports",
   },
   {
     operationId: "listProjectMedia",
@@ -626,6 +668,13 @@ export const API_OPERATIONS = [
     path: "/admin/dlq/replay",
     tags: ["admin"],
     summary: "Replay many dead letters",
+  },
+  {
+    operationId: "requestExport",
+    method: "POST",
+    path: "/projects/{projectId}/exports",
+    tags: ["exports"],
+    summary: "Request an export: decides browser vs. cloud and issues a signed manifest or a job",
   },
   {
     operationId: "requestMyData",

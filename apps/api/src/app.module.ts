@@ -6,6 +6,7 @@ import { CommonModule } from "./common/common.module.js";
 import { ConsentsModule } from "./consents/consents.module.js";
 import { CreditsModule } from "./credits/credits.module.js";
 import { EdgModule } from "./edg/edg.module.js";
+import { ExportsModule } from "./exports/exports.module.js";
 import { FontsModule } from "./fonts/fonts.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { InternalModule } from "./internal/internal.module.js";
@@ -68,6 +69,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     EdgModule,
     TranscriptsModule,
     FontsModule,
+    ExportsModule,
     HealthModule,
   ],
 })

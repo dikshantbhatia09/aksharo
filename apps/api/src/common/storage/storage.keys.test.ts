@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  brandAssetKey,
   DERIVED_ARTEFACTS,
   derivedKey,
   exportKey,
@@ -42,6 +43,19 @@ describe("CONTRACTS §6 key shapes", () => {
       `ws/${WS}/p/${PROJECT}/exports/${EXPORT}.mp4`,
     );
     expect(fontKey(WS, FONT, "woff2")).toBe(`ws/${WS}/fonts/${FONT}.woff2`);
+  });
+
+  it("builds the brand asset key for a ULID-addressed asset", () => {
+    expect(brandAssetKey(WS, EXPORT)).toBe(`ws/${WS}/brand/${EXPORT}.png`);
+  });
+
+  it("builds the brand asset key for the platform's bundled watermark slug", () => {
+    expect(brandAssetKey(WS, "aksharo-watermark")).toBe(`ws/${WS}/brand/aksharo-watermark.png`);
+  });
+
+  it("refuses a brand asset id that is neither a ULID nor a safe slug", () => {
+    expect(() => brandAssetKey(WS, "../../etc/passwd")).toThrow(StorageKeyError);
+    expect(() => brandAssetKey(WS, "")).toThrow(StorageKeyError);
   });
 
   it("files the imported-subtitle sidecar under the media prefix", () => {

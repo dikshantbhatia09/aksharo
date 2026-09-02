@@ -9589,6 +9589,334 @@
         ]
       }
     },
+    "/projects/{projectId}/exports": {
+      "post": {
+        "description": "Always returns the chosen path with human-readable reasons for the export dialog. The browser path returns a server-signed `RenderManifest` and never uploads bytes; the cloud path enqueues `render.video` or `render.subtitle` and returns the job.",
+        "operationId": "requestExport",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportDecisionResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`entitlement/upgrade_required` or `credits/insufficient`."
+          },
+          "409": {
+            "description": "`export/unsupported_in_browser`, `export/media_not_ready`, or similar."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Request an export: decides browser vs. cloud and issues a signed manifest or a job",
+        "tags": [
+          "exports"
+        ]
+      },
+      "get": {
+        "operationId": "listProjectExports",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List a project's exports",
+        "tags": [
+          "exports"
+        ]
+      }
+    },
+    "/exports/manifests/{manifestId}/complete": {
+      "post": {
+        "description": "Consumes the manifest's signup gift / ₹9 pass when the decision cleared the watermark that way, and emits a `publish_events` row for the streak experiment.",
+        "operationId": "completeExportManifest",
+        "parameters": [
+          {
+            "name": "manifestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManifestCompleteRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManifestCompleteResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`export/manifest_not_found`."
+          },
+          "409": {
+            "description": "`export/manifest_already_consumed`."
+          },
+          "410": {
+            "description": "`export/manifest_expired`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Close a browser export: single-use nonce, marks the export succeeded",
+        "tags": [
+          "exports"
+        ]
+      }
+    },
+    "/exports/{exportId}/download": {
+      "get": {
+        "description": "409 `export/not_ready` for a browser export — it never leaves the browser.",
+        "operationId": "getExportDownloadUrl",
+        "parameters": [
+          {
+            "name": "exportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportDownloadDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`export/not_found`."
+          },
+          "409": {
+            "description": "`export/not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "A short-lived signed download URL",
+        "tags": [
+          "exports"
+        ]
+      }
+    },
+    "/workspaces/{id}/brand-assets": {
+      "post": {
+        "description": "Returns a presigned PUT URL; the browser uploads the bytes directly to R2.",
+        "operationId": "createBrandAsset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrandAssetCreateRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandAssetUploadDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start uploading a brand asset (watermark or logo PNG)",
+        "tags": [
+          "exports"
+        ]
+      },
+      "get": {
+        "operationId": "listBrandAssets",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BrandAssetDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List a workspace's brand assets",
+        "tags": [
+          "exports"
+        ]
+      }
+    },
+    "/workspaces/{id}/brand-assets/{assetId}": {
+      "delete": {
+        "operationId": "deleteBrandAsset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`export/brand_asset_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete a brand asset",
+        "tags": [
+          "exports"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "getHealth",
@@ -10844,6 +11172,269 @@
           "transcript",
           "chunks",
           "nextCursor"
+        ]
+      },
+      "ExportRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ExportQuoteDto": {
+        "type": "object",
+        "properties": {
+          "tenths": {
+            "type": "number",
+            "description": "Credits held, in tenths. 0 for browser and subtitle exports."
+          },
+          "credits": {
+            "type": "string",
+            "description": "\"0.5\" — for display only, never for arithmetic."
+          }
+        },
+        "required": [
+          "tenths",
+          "credits"
+        ]
+      },
+      "ExportJobDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
+          },
+          "status": {
+            "type": "string",
+            "description": "`queued`, or the live job's status when deduplicated."
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when an identical job was already running."
+          }
+        },
+        "required": [
+          "jobId",
+          "status",
+          "deduplicated"
+        ]
+      },
+      "ExportDecisionResponseDto": {
+        "type": "object",
+        "properties": {
+          "exportId": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "enum": [
+              "browser",
+              "cloud"
+            ]
+          },
+          "reasons": {
+            "description": "Human-readable, UI-safe (`08 §Export dialog`).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "watermarked": {
+            "type": "boolean"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/ExportQuoteDto"
+          },
+          "manifest": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The signed `RenderManifest` (`@montaj/render-manifest`), present on the browser path only — the browser renders locally and never uploads. Verify it before drawing a frame."
+          },
+          "job": {
+            "description": "Present on the cloud path only.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ExportJobDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "exportId",
+          "path",
+          "reasons",
+          "watermarked",
+          "quote"
+        ]
+      },
+      "ManifestCompleteRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ManifestCompleteResponseDto": {
+        "type": "object",
+        "properties": {
+          "exportId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded"
+            ]
+          },
+          "downloadAvailable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "exportId",
+          "status",
+          "downloadAvailable"
+        ]
+      },
+      "ExportDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_browser",
+              "succeeded",
+              "failed"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "preset": {
+            "type": "object",
+            "nullable": true
+          },
+          "watermarked": {
+            "type": "boolean"
+          },
+          "resolution": {
+            "type": "object",
+            "nullable": true
+          },
+          "durationMs": {
+            "type": "object",
+            "nullable": true
+          },
+          "sizeBytes": {
+            "type": "object",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "downloads": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "status",
+          "kind",
+          "watermarked",
+          "downloads",
+          "createdAt"
+        ]
+      },
+      "ExportListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "ExportDownloadDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Short-lived R2 signed URL."
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expiresAt"
+        ]
+      },
+      "BrandAssetCreateRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "BrandAssetUploadDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "description": "Single-shot presigned PUT URL for the PNG bytes."
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "uploadUrl",
+          "expiresAt"
+        ]
+      },
+      "BrandAssetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "contentType",
+          "createdAt"
         ]
       },
       "HealthResponseDto": {
