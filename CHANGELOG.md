@@ -8,6 +8,32 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+### Added
+
+- **B15 — share links, threaded review comments, intermediary-hygiene report
+  flow and batch orchestration.** `ShareLinksService`/`PublicViewerController`
+  add a `scope` (`view|comment|approve`), password (argon2), expiry, view-cap
+  and `clientTag` to `share_links` (previously A12/B16 groundwork only), and
+  the public `/s/:token` surface: resolve, password unlock (`X-Share-Session`
+  header, HMAC-signed, no cookie middleware added), report-abuse
+  (`share_reports`, category-driven SLA — 3h NCII / 36h other, matching
+  `ShareReportSlaTask`) with automatic disable after 3 pending reports, and the
+  approve/request-changes decision (new `projects.review_status`).
+  `CommentsService`/`CommentsController` add threaded, time-anchored comments
+  reachable from a workspace member or a public `comment`/`approve`-scope
+  reviewer (a guest's email is hashed, never stored), notifying the project
+  owner via the existing `share-comment` notify kind.
+  `BatchService`/`BatchController` add `/batch/quote`, `/batch` (tags the
+  projects `POST /projects/batch` already creates with a new `batches` row and
+  `projects.batch_id`) and `/batch/:id/apply` (enqueues `TranscriptsService.
+transcribe()` per project), plus `/batch/:id` for per-project progress.
+  Migrations: `20260903000000_b15_share_review_batch` (share-link scope/
+  password/expiry/views/client-tag, `comments.author_email_hash`,
+  `projects.review_status`), `20260903001000_b15_batch` (`batches`,
+  `projects.batch_id`). Replace-media re-alignment and import-transcript-align
+  (brief §5, §6) are not implemented in this work package — see its final
+  report.
+
 ### Fixed
 
 - **B06b — a Free downgrade now switches the streak row to credits-only
