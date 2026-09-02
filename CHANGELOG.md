@@ -68,6 +68,44 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   keyframing of a MOGRT's own component params is unverified until Gate C, flagged
   as a follow-up rather than invented. Native captions-track writing remains out
   of scope, per the brief.
+- **C11 — Plugin licensing & devices UI: the activation card, and a
+  `/plugins/manifest` stub for C10's download links.** `apps/api/src/
+licensing/`: `GET /plugins/manifest` (public, `pluginManifest` operation) —
+  the per-host channel manifest (`premiere-uxp`, `ae-cep`, `resolve-script`)
+  the Plugins page and installer links read; every channel reports
+  `available: false` with no download URL until C10 (installer builds and
+  hosting) lands. B08's activation-limit enforcement, device revocation ->
+  next-heartbeat-403 propagation, heartbeat-nonce replay refusal and the
+  offline `licenseSnapshot`'s 7-day window with ±5 min clock-skew tolerance
+  were already implemented and covered by its own e2e/unit suites — verified
+  rather than re-built, per this WP's brief.
+  `apps/web`: a new Plugins page (`app/(app)/plugins-app` — see routing note
+  below) renders the activation card v2 (08 §4): one card per D65 product
+  name ("Aksharo Panel — works with Adobe Premiere Pro and Adobe After
+  Effects" and "Aksharo — works with DaVinci Resolve"), each with its
+  Install/Connect/Caption-your-timeline steps, per-channel download links (or
+  "Download coming soon" while `/plugins/manifest` reports a channel
+  unavailable), the device list with "Sign out this device"/"Revoke", the
+  plan's device-limit state with a `BillingUpgradeGate` upgrade link once
+  reached, honest capability notes ("Premiere native captions track: waiting
+  on Adobe", Resolve "Undo: not supported by Resolve's own API"), and B08's
+  licence-key management merged onto the same page. A read-only Passes-tab
+  licensing cue (`components/editor/passes/PluginActivationCue.tsx`) shows
+  the same installed/not-installed/limit-reached state for the
+  "Apply in Premiere/Resolve" affordance, sharing its derivation
+  (`components/plugins/plugin-status.ts`) with the Plugins page — not wired
+  into `PassesTab.tsx` itself, which is outside this WP's file boundary.
+  **Routing note:** `(site)/(marketing)/plugins/page.tsx` (A24) already
+  answers `/plugins` for a signed-out visitor, so the signed-in screen lives
+  at the internal route `/plugins-app` and `middleware.ts` rewrites
+  `/plugins` -> `/plugins-app` for an authenticated request, exactly like the
+  existing `"/"` -> `/home` rewrite; fixed a latent middleware bug the same
+  change exposed, where `PROTECTED`'s `"/p"` prefix matched `pathname.
+startsWith()` on any `/p*` path (so adding `/plugins` to the matcher briefly
+  sent a signed-out visitor to a redirect the marketing page should have
+  answered) — `isUnderPath()` now requires a segment boundary.
+  `packages/api-client`: `PluginManifestResponse`/`PluginManifestChannel`
+  types, `endpoints.plugins.manifest`, `usePluginManifest()`.
 
 - **C08 — DaVinci Resolve `aksharo_core`: Workspace ▸ Scripts launcher, in-Resolve
   loopback server, bridge client, Text+ captions, cuts, dynamic zoom, marker

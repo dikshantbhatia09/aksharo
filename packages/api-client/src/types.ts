@@ -897,6 +897,24 @@ export interface CreateLicenseKeyRequest {
   maxActivations?: number;
 }
 
+/** `GET /plugins/manifest` (07 §Plugins, D65). Every channel is `available:
+ * false` until C10 (installer builds and hosting) lands. */
+export interface PluginManifestChannel {
+  available: boolean;
+  version: string | null;
+  minHostVersion: string | null;
+  maxHostVersion: string | null;
+  downloadUrl: string | null;
+}
+
+export interface PluginManifestResponse {
+  channels: {
+    "premiere-uxp": PluginManifestChannel;
+    "ae-cep": PluginManifestChannel;
+    "resolve-script": PluginManifestChannel;
+  };
+}
+
 export interface ClientTagView {
   tag: string;
   projectCount: number;

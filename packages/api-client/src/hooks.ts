@@ -114,6 +114,7 @@ import type {
   LicenseKeyView,
   MemberView,
   MembershipStatus,
+  PluginManifestResponse,
   TransferOwnershipRequest,
   TransferOwnershipResult,
 } from "./types.js";
@@ -1573,6 +1574,19 @@ export function useRevokeLicenseKey(): UseMutationResult<LicenseKeyView, Error, 
       if (workspaceId === null) return;
       void queryClient.invalidateQueries({ queryKey: queryKeys.licenseKeys(workspaceId) });
     },
+  });
+}
+
+// --- Plugins channel manifest (C11) ------------------------------------------
+
+/** No workspace to key on — public, same manifest for every caller. */
+export function usePluginManifest(): UseQueryResult<PluginManifestResponse> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.pluginManifest(),
+    staleTime: 300_000,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.plugins.manifest),
   });
 }
 
