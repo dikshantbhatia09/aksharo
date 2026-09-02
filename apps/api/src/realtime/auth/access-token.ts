@@ -38,6 +38,11 @@ export interface AccessTokenClaims {
   readonly jti: string;
   readonly iat: number;
   readonly exp: number;
+  /**
+   * The B08 device row a `kind: "bridge"` token was minted for (B08b,
+   * CONTRACTS §5 amended 2026-09-03). Absent for every other kind.
+   */
+  readonly deviceId?: string;
 }
 
 export class AccessTokenError extends Error {
@@ -141,6 +146,8 @@ export function verifyAccessToken(token: string, options: VerifyOptions): Access
   const now = (options.now ?? Date.now)();
   const tolerance = options.clockToleranceMs ?? DEFAULT_CLOCK_TOLERANCE_MS;
 
+  const deviceId = payload["deviceId"];
+
   const claims: AccessTokenClaims = {
     sub: requireString(payload, "sub"),
     ws: requireString(payload, "ws"),
@@ -149,6 +156,7 @@ export function verifyAccessToken(token: string, options: VerifyOptions): Access
     jti: requireString(payload, "jti"),
     iat: requireNumber(payload, "iat"),
     exp: requireNumber(payload, "exp"),
+    ...(typeof deviceId === "string" && deviceId !== "" ? { deviceId } : {}),
   };
 
   if (claims.exp * 1000 + tolerance < now) {

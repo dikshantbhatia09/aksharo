@@ -1,0 +1,26 @@
+---
+slug: uploading-media
+title: "Uploading media"
+category: getting-started
+helpSlug: upload-media
+order: 1
+summary: "Supported formats, size limits and what happens right after upload."
+---
+
+## Supported formats
+
+Video (mp4, mov, mkv) and audio (wav, mp3, m4a) uploads are both accepted. There is no
+hard length limit — transcription and diarisation both scale to full-length recordings.
+
+## What happens after upload
+
+Uploading kicks off media probing, a lower-resolution proxy for fast scrubbing, and a
+16 kHz mono audio extraction used for transcription. You can start reviewing the
+transcript as soon as it's ready — you don't have to wait for the proxy.
+
+## If an upload fails
+
+- Check your connection — uploads resume automatically after a brief drop, but not
+  after the tab is closed.
+- Very large files (multi-hour recordings) can take longer to probe; the project shows
+  a clear "processing" state rather than looking stuck.

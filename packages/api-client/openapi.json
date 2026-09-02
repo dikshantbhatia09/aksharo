@@ -14002,6 +14002,392 @@
         ]
       }
     },
+    "/academy/progress": {
+      "get": {
+        "operationId": "getAcademyProgress",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Per-track completed steps and rewards.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tracks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "trackId": {
+                            "type": "string"
+                          },
+                          "completedStepIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "totalSteps": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "rewardGranted": {
+                            "type": "boolean"
+                          },
+                          "rewardTenths": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "trackId",
+                          "completedStepIds",
+                          "totalSteps",
+                          "rewardGranted",
+                          "rewardTenths"
+                        ]
+                      }
+                    },
+                    "lifetimeGrantedTenths": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "lifetimeCapTenths": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "tracks",
+                    "lifetimeGrantedTenths",
+                    "lifetimeCapTenths"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "This workspace's Academy progress",
+        "tags": [
+          "academy"
+        ]
+      }
+    },
+    "/academy/tracks/{trackId}/steps/{stepId}/done": {
+      "post": {
+        "description": "Idempotent. When this completes the track's last step, grants the one-time credit reward (capped 25/track, 100/workspace lifetime) automatically.",
+        "operationId": "markAcademyStepDone",
+        "parameters": [
+          {
+            "name": "trackId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stepId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether the track completed and a reward was granted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "trackId": {
+                      "type": "string"
+                    },
+                    "stepId": {
+                      "type": "string"
+                    },
+                    "alreadyDone": {
+                      "type": "boolean"
+                    },
+                    "trackCompleted": {
+                      "type": "boolean"
+                    },
+                    "rewardGranted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "trackId",
+                    "stepId",
+                    "alreadyDone",
+                    "trackCompleted",
+                    "rewardGranted"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mark an Academy step done ('Mark done')",
+        "tags": [
+          "academy"
+        ]
+      }
+    },
+    "/academy/changelog/dismissed": {
+      "get": {
+        "operationId": "getDismissedChangelogVersion",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Null when never dismissed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "dismissedVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "dismissedVersion"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The last changelog version this user dismissed",
+        "tags": [
+          "academy"
+        ]
+      },
+      "post": {
+        "operationId": "dismissChangelogVersion",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissChangelogDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The now-dismissed version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "dismissedVersion": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "dismissedVersion"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mark the What's-new modal seen for a changelog version",
+        "tags": [
+          "academy"
+        ]
+      }
+    },
+    "/support/tickets": {
+      "post": {
+        "description": "Diagnostics (app version, browser/OS, workspace id, last 10 job ids/statuses, a console-error ring buffer — never media) are included only when the caller opted in and attaches the `diagnostics` field.",
+        "operationId": "createSupportTicket",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSupportTicketDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created ticket.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "subject": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "hasDiagnostics": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "subject",
+                    "category",
+                    "status",
+                    "hasDiagnostics",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "File a support ticket",
+        "tags": [
+          "support"
+        ]
+      },
+      "get": {
+        "operationId": "listSupportTickets",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tickets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "category": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "hasDiagnostics": {
+                            "type": "boolean"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "subject",
+                          "category",
+                          "status",
+                          "hasDiagnostics",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "tickets"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "This workspace's support tickets",
+        "tags": [
+          "support"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "getHealth",
@@ -16008,6 +16394,59 @@
           }
         ],
         "summary": "Revoke a device",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/devices/{deviceId}/bridge-token": {
+      "post": {
+        "description": "For a registered, leased device the caller owns: mints a `kind:\"bridge\"` access token carrying this device's id (CONTRACTS §5), which is what the local bridge presents to `/bridge/relay`. Refreshed the same way the device's entitlement lease is, via `POST /devices/register`. Refuses with `licensing/device_revoked` (the device was revoked) or `licensing/device_lease_expired` (the lease needs renewing first).",
+        "operationId": "mintDeviceBridgeToken",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A short-lived bridge access token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "expiresIn": {
+                      "type": "number"
+                    },
+                    "deviceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "accessToken",
+                    "expiresIn",
+                    "deviceId"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mint a bridge credential for this device",
         "tags": [
           "devices"
         ]
@@ -20157,7 +20596,8 @@
               "export-ready",
               "share-comment",
               "streak-nudge",
-              "retention-warning"
+              "retention-warning",
+              "support-ticket-created"
             ],
             "description": "What happened. The client renders its own wording per locale, so the row carries no text of its own."
           },
@@ -22098,6 +22538,14 @@
         ]
       },
       "ClaimReferralDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "DismissChangelogDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateSupportTicketDto": {
         "type": "object",
         "properties": {}
       },

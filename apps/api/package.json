@@ -84,6 +84,7 @@
     "@types/ws": "^8.18.1",
     "eslint": "^9.39.5",
     "fast-check": "^3.23.2",
+    "gray-matter": "^4.0.3",
     "prisma": "^6.19.3",
     "supertest": "^7.2.2",
     "testcontainers": "^12.1.0",
