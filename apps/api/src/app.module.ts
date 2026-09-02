@@ -39,6 +39,7 @@ import { StreakModule } from "./streak/streak.module.js";
 import { StylesModule } from "./styles/styles.module.js";
 import { SupportModule } from "./support/support.module.js";
 import { TaxModule } from "./tax/tax.module.js";
+import { TelemetryModule } from "./telemetry/telemetry.module.js";
 import { ScriptsModule } from "./transcripts/scripts/scripts.module.js";
 import { TranscriptsModule } from "./transcripts/transcripts.module.js";
 import { UsersModule } from "./users/users.module.js";
@@ -129,6 +130,8 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // event without touching it.
     AcademyModule,
     SupportModule,
+    // C12: consent-gated desktop/bridge telemetry events and crash reports.
+    TelemetryModule,
     HealthModule,
     BillingModule,
     OffersModule,

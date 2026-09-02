@@ -20,6 +20,14 @@ import type {
   ListSupportTicketsResponse,
   MarkStepDoneResult,
   SupportTicketView,
+  ConfirmDiagnosticsBundleRequest,
+  ConfirmDiagnosticsBundleResponse,
+  PresignDiagnosticsBundleRequest,
+  PresignDiagnosticsBundleResponse,
+  SubmitCrashReportRequest,
+  SubmitCrashReportResponse,
+  SubmitTelemetryEventsRequest,
+  SubmitTelemetryEventsResponse,
   AffiliateProfile,
   AffiliateStats,
   ApiKeyView,
@@ -699,6 +707,46 @@ export const supportEndpoints = {
   }),
 } as const;
 
+/**
+ * Telemetry (C12): consent-gated events/crash reports, and the diagnostics
+ * bundle presign/confirm attached to a support ticket. The desktop shell and
+ * the local bridge are the primary callers; the web shell uses the
+ * diagnostics-bundle pair when the support form lets a user attach a bundle
+ * built elsewhere (the desktop app).
+ */
+export const telemetryEndpoints = {
+  submitEvents: defineEndpoint<SubmitTelemetryEventsRequest, SubmitTelemetryEventsResponse>({
+    method: "POST",
+    path: "/telemetry/events",
+    auth: "bearer",
+    operationId: "submitTelemetryEvents",
+  }),
+  submitCrash: defineEndpoint<SubmitCrashReportRequest, SubmitCrashReportResponse>({
+    method: "POST",
+    path: "/telemetry/crash",
+    auth: "bearer",
+    operationId: "submitCrashReport",
+  }),
+  presignDiagnosticsBundle: defineEndpoint<
+    PresignDiagnosticsBundleRequest,
+    PresignDiagnosticsBundleResponse
+  >({
+    method: "POST",
+    path: "/telemetry/diagnostics-bundle/presign",
+    auth: "bearer",
+    operationId: "presignDiagnosticsBundle",
+  }),
+  confirmDiagnosticsBundle: defineEndpoint<
+    ConfirmDiagnosticsBundleRequest,
+    ConfirmDiagnosticsBundleResponse
+  >({
+    method: "POST",
+    path: "/telemetry/diagnostics-bundle/confirm",
+    auth: "bearer",
+    operationId: "confirmDiagnosticsBundle",
+  }),
+} as const;
+
 /** Scripts and translation (A22): `apps/api/src/transcripts/scripts`. */
 export const transcriptScriptsEndpoints = {
   transliterate: defineEndpoint<TransliterateRequest, TransliterateAccepted>({
@@ -943,6 +991,7 @@ export const endpoints = {
   referrals: referralsEndpoints,
   academy: academyEndpoints,
   support: supportEndpoints,
+  telemetry: telemetryEndpoints,
   memory: memoryEndpoints,
   streak: streakEndpoints,
   apiKeys: apiKeyEndpoints,
@@ -973,6 +1022,7 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(referralsEndpoints),
   ...Object.entries(academyEndpoints),
   ...Object.entries(supportEndpoints),
+  ...Object.entries(telemetryEndpoints),
   ...Object.entries(memoryEndpoints),
   ...Object.entries(streakEndpoints),
   ...Object.entries(apiKeyEndpoints),
