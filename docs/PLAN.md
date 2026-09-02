@@ -64,7 +64,7 @@ Sub-wave order: A01 → {A02, A02b, A02c, A03, X05} → {A04–A08, A08b, A09}.
 | A17 | web Timeline | A15, A16 | done (word retiming → A02d; perf → A15c) |
 | A18a | ass-exporter + parity gate | A16, A20 | done (A18a-c seed parity test aligned with D33) |
 | A18b | fonts pipeline | A06, A07 | done |
-| A19 | web browser export + export dialog | A16, A21, A02c | done (A19b merged: sources, readPixels, coverScaleCrop parity, audio cuts, HDR→cloud, upsell; 0.12× realtime headless → A19c running, H-19 real-machine measure; cloud default above 1080p until then) |
+| A19 | web browser export + export dialog | A16, A21, A02c | done (A19b + A19c merged: sources, readPixels, WebGL export surface, HW-encoder probe, cloud default ≥1080p, splice fades, onboarding preset; 0.15× realtime headless — H-19 real-machine measurement; A19d: add a 1080p 16:9 render preset) |
 | A20 | render service (Skia-Node + ffmpeg) + subtitle sidecars | A16, A08, A02c | done |
 | A21 | api exports module (manifests, cloud jobs) | A08, A20 | done (A21b merged: manifest sources + refresh, codec/audio eligibility, HDR cloud-only) |
 | A22 | scripts + translation | A10, A11, A12 | done |
@@ -95,7 +95,7 @@ Sub-wave order: {B01, B02, B05, B09} → {B03, B04, B06, B07, B07b, B08} → {B1
 ## Wave 4 — Growth, passes, plugin foundations (all briefs ready in `05-build/_orchestration/`)
 | WP | Title | Deps | Status |
 |---|---|---|---|
-| B10 | Audio clean: 48 kHz deep-filter path, loudness targets, A/B preview, applied in browser + cloud exports | A09, A20, A19 | briefed |
+| B10 | Audio clean: 48 kHz deep-filter path, loudness targets, A/B preview, applied in browser + cloud exports | A09, A20, A19 | running |
 | B11 | LLM features (chapters, summary, hooks) + `packages/prompts` registry, region pinning, evals, Insights tab | A11, B02 | running |
 | B12 | Academy tracks + rewards, Changelog + What's new, Help centre, support tickets with diagnostics | A13, B02 | briefed |
 | B13 | Admin console: roles + step-up, users/credits/refunds, flags, styles/parity, routing weights, jobs/DLQ, mandates, TDS, affiliate review, DSR/breach, share reports, metrics | B01–B12, B16 | briefed |
