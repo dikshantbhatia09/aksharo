@@ -85,8 +85,12 @@ export type {
 
 export { CONSENT_PURPOSES } from "./types.js";
 export type {
-  BillingInterval,
+  AffiliatePayoutMethod,
+  AffiliateProfile,
+  AffiliateStats,
+  ApplyAffiliateRequest,
   AvailableScripts,
+  BillingInterval,
   BatchCreateProjectsRequest,
   ClientKind,
   CompletedUpload,

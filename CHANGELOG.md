@@ -188,6 +188,69 @@ status = 'pending'` idempotency trick `claimManifest` uses for a replayed
   client-reachable signed-URL endpoint yet; `@montaj/ass-exporter` is still A01's unimplemented
   skeleton so ASS export is greyed out; the cleaned/cut audio re-encode path is wired through
   the audio decision tree but not yet connected to a resampled sample source).
+- **B07 — api + web: Affiliate v2 (apply with PAN, 60-day cookie + code attribution,
+  rate tiers, FY-to-date TDS accumulator, RazorpayX payouts, fraud rules, dashboard,
+  asset pack pages).**
+  - **Application (`POST /affiliate/apply`).** India-only at launch (`affiliate/
+region_unsupported` otherwise); PAN validated (`AAAAA9999A`) and stored
+    AES-256-GCM-encrypted at rest (key HKDF-derived from `INTERNAL_CALLBACK_SECRET`,
+    domain-separated — no new frozen-contract env var); a non-guessable 8-character
+    Crockford-base32 code, revocable by admin. Admin `approve`/`suspend`/`reject`/
+    `revoke-code` routes behind `AdminGuard` (UI is B13's).
+  - **Attribution (`/r/<code>` in web, `apps/web/app/(site)/r/[code]/route.ts`).** Sets a
+    first-party, `httpOnly`, 60-day last-click cookie and records an `affiliate_clicks`
+    row; `POST /affiliate/attribution/attach` resolves precedence — an entered code
+    always wins over an unexpired cookie (`affiliates/attribution.ts`, pure and unit
+    tested) — and rejects a self-referral (same user, device, or payment fingerprint)
+    with an audit row.
+  - **Commission engine (`affiliates/commission-schedule.ts` + `commission.service.ts`).**
+    Months 1–3 of a monthly subscription at 40%, months 4–12 at 15%, a yearly payment at
+    20% once per referral; after 10 active paying referrals the affiliate's tier becomes
+    `while_subscribed_30` — a flat 30% on every subsequent payment, forward-only. Base
+    excludes GST (the invoice's `taxableValueMinor`); commissions are `pending` with a
+    30-day `availableAt` hold, `clawed_back` (negative reconciliation against the running
+    balance) on a refund/chargeback credit note. Driven by two new events
+    (`affiliates/invoice-events.ts`) emitted from `invoices/invoices.service.ts` right
+    after its two existing "issued" transitions — additive, observe-only, mirroring the
+    precedent `invoices/billing-events.ts` already set for B01→B05.
+  - **TDS (`affiliates/tds.ts`).** `affiliate_fy_totals` FY (Apr–Mar) accumulator; once
+    the running gross crosses ₹20,000 the crossing commission and every later one that FY
+    are taxed at 2% (20% without a verified PAN), `tdsSection` always `194H` — the
+    `affiliate_tds_section` flag only switches the Form 16A stub between final and a
+    "DRAFT — pending CA confirmation" watermark (H-18/RR-05, 194H vs 194-O).
+  - **Payouts (`affiliates/payouts/`).** `PayoutProvider` interface, `FakePayoutProvider`
+    (every test in this environment — no RazorpayX keys) and a `RazorpayXProvider` stub
+    reading the public Payouts API shape (unverified without live keys, documented in
+    `affiliates/README.md`); monthly batch task sweeps `payable` commissions per
+    affiliate, skips a batch under the ₹1,000 net minimum (rolls forward), records
+    `providerFeeMinor`/`challanRef`/`tdsTotalMinor` on `payouts`.
+  - **Fraud (`affiliates/fraud.ts` + `fraud.service.ts`, THREAT-MODEL T17).** Burst
+    sign-ups from one IP/device hash and a refund ratio over 30% of an affiliate's
+    referrals both move it to `suspended_review` (new `AffiliateStatus` value); a
+    suspended or under-review affiliate earns nothing (`CommissionService` checks
+    `status === "approved"` before recording).
+  - **Dashboard (`apps/web/app/(app)/affiliate/**`).** Apply form with PAN and the ASCI
+    disclosure clause verbatim; once approved, the link/code with copy, clicks/sign-ups/
+    paid/pending/available/paid-out stats, tier progress toward `while_subscribed_30`,
+    FY-to-date gross/TDS/net, and a link to `/affiliate/assets` (scripts, 9:16 demo cut
+    and before/after-clip placeholders, the permitted disclosure labels table, and the
+    programme rules).
+  - Two scheduler tasks (`affiliates.commission-maturation`, `affiliates.payout-batch`)
+    register with the shared `ScheduledTasksService` for B16 to wire a production cron
+    trigger to; this work package implements the task bodies and drives them directly
+    (`runNow`) in tests.
+  - Schema: `AffiliateStatus.suspended_review`; `affiliates.tier`/`fraudFlag`; new
+    `affiliate_clicks` table; `referrals.ipHash`/`deviceHash`/`paymentFingerprint`/
+    `monthlyPaidCount`/`yearlyCommissionPaid`/`countsTowardTier` (migration
+    `20260902090000_b07_affiliate_v2`, additive only).
+  - Tests: attribution precedence and expiry, the full commission schedule table
+    (exact minor-unit arithmetic), the TDS threshold crossing with/without a verified
+    PAN, self-referral/burst/refund-ratio fraud predicates — all pure-function unit
+    tests — plus an API e2e suite (`apps/api/test/affiliates.e2e-spec.ts`) covering
+    attribution → a real paid invoice (via B01's `FakeProvider`) → pending commission →
+    30-day maturation → payout batch, and self-referral rejection; a Playwright spec
+    (`apps/web/e2e/affiliate.spec.ts`) axe-checks the apply form, the pending-state
+    dashboard, and the asset pack page.
 
 - **B04 — api: the `offers` module (real signup-gift/₹9-pass/week-pass/top-up backing, ₹9 eligibility, instrumentation); web: export-dialog upsell panel, credits-meter top-up card, Subscription overview pass chips.**
   - **`OffersModule` backs the interfaces A21 left as no-ops.** `PassesNinePassLedger`

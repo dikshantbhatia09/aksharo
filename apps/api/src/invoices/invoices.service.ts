@@ -1,8 +1,10 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ulid } from "ulid";
 
 import type { Env } from "@montaj/config";
 
+import { INVOICE_AFFILIATE_EVENTS } from "../affiliates/invoice-events.js";
 import { buildEInvoicePayload } from "./einvoice/einvoice-payload.builder.js";
 import { EINVOICE_PROVIDER, type EInvoiceProvider } from "./einvoice/einvoice.types.js";
 import { fiscalYearFor, gstr1PeriodFor } from "./fiscal-year.js";
@@ -74,6 +76,7 @@ export class InvoicesService {
     @Inject(ENV) private readonly env: Env,
     @Inject(EINVOICE_PROVIDER) private readonly einvoice: EInvoiceProvider,
     @Inject(MAIL_PROVIDER) private readonly mail: MailProvider,
+    private readonly events: EventEmitter2,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -285,6 +288,15 @@ export class InvoicesService {
     });
 
     await this.emailInvoice(invoice, workspace.owner.email, displayNumber, pdfKey);
+    if (docType === "tax_invoice" || docType === "export_invoice") {
+      this.events.emit(INVOICE_AFFILIATE_EVENTS.invoiceIssued, {
+        invoiceId: invoice.id,
+        workspaceId: invoice.workspaceId,
+        taxableValueMinor: invoice.taxableValueMinor,
+        currency: invoice.currency,
+        issuedAt: invoice.issuedAt.toISOString(),
+      });
+    }
     return invoice;
   }
 
@@ -441,6 +453,13 @@ export class InvoicesService {
     if (original.recipientEmail !== null) {
       await this.emailInvoice(creditNote, original.recipientEmail, displayNumber, pdfKey);
     }
+    this.events.emit(INVOICE_AFFILIATE_EVENTS.creditNoteIssued, {
+      creditNoteId: creditNote.id,
+      originalInvoiceId: original.id,
+      workspaceId: original.workspaceId,
+      refundTaxableValueMinor: taxableValueMinor,
+      reasonCode: input.reasonCode,
+    });
     return creditNote;
   }
 
