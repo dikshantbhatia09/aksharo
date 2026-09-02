@@ -1,3 +1,5 @@
+import { redisKeyPrefix } from "../common/redis/redis-keys.js";
+
 import type { RateLimitRule } from "../common/guards/index.js";
 
 /**
@@ -67,20 +69,29 @@ export const BREACHED_PASSWORD_FLAG = "auth.breachedPasswordCheck";
 /** Feature flag that turns the age gate off in a sandbox. Defaults to ON. */
 export const AGE_GATE_FLAG = "auth.ageGate";
 
-/** Every Redis key this module writes lives under one prefix. */
-export const AUTH_REDIS_PREFIX = "montaj:auth";
+/**
+ * Every Redis key this module writes lives under one prefix.
+ *
+ * A function rather than a constant since A23b: {@link redisKeyPrefix} is
+ * `montaj` in every deployment and per-suite in a test run, which is what stops
+ * two e2e suites sharing one logical Redis database from sweeping each other's
+ * keys — the dev outbox most painfully (A21).
+ */
+export function authRedisPrefix(): string {
+  return `${redisKeyPrefix()}:auth`;
+}
 
 export const redisKeys = {
-  emailVerification: (tokenHash: string) => `${AUTH_REDIS_PREFIX}:verify:${tokenHash}`,
-  magicLink: (tokenHash: string) => `${AUTH_REDIS_PREFIX}:magic:${tokenHash}`,
-  oauthState: (state: string) => `${AUTH_REDIS_PREFIX}:oauth:state:${state}`,
-  oauthHandoff: (codeHash: string) => `${AUTH_REDIS_PREFIX}:oauth:handoff:${codeHash}`,
+  emailVerification: (tokenHash: string) => `${authRedisPrefix()}:verify:${tokenHash}`,
+  magicLink: (tokenHash: string) => `${authRedisPrefix()}:magic:${tokenHash}`,
+  oauthState: (state: string) => `${authRedisPrefix()}:oauth:state:${state}`,
+  oauthHandoff: (codeHash: string) => `${authRedisPrefix()}:oauth:handoff:${codeHash}`,
   /** The rotation response replayed to a token presented inside the grace window. */
-  refreshGrace: (previousHash: string) => `${AUTH_REDIS_PREFIX}:refresh:grace:${previousHash}`,
-  devicePollAt: (deviceCodeHash: string) => `${AUTH_REDIS_PREFIX}:device:poll:${deviceCodeHash}`,
+  refreshGrace: (previousHash: string) => `${authRedisPrefix()}:refresh:grace:${previousHash}`,
+  devicePollAt: (deviceCodeHash: string) => `${authRedisPrefix()}:device:poll:${deviceCodeHash}`,
   /** Development-only mail outbox; see `AuthMailerService`. */
-  devOutbox: () => `${AUTH_REDIS_PREFIX}:dev-outbox`,
-  parentalWaitlist: () => `${AUTH_REDIS_PREFIX}:parental-waitlist`,
+  devOutbox: () => `${authRedisPrefix()}:dev-outbox`,
+  parentalWaitlist: () => `${authRedisPrefix()}:parental-waitlist`,
 } as const;
 
 /**

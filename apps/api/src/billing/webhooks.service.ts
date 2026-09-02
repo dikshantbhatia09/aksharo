@@ -1,4 +1,5 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ulid } from "ulid";
 
 import { B01_AUDIT_ACTIONS, BILLING_ERRORS } from "./billing.constants.js";
@@ -13,6 +14,12 @@ import { RenewalService } from "./renewal.service.js";
 import { graceUntil, periodEnd, renewalInitiateAt } from "./schedule.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { CREDITS_FACADE, type CreditsFacade } from "../credits/credits.facade.js";
+// B05 (invoices/tax): the event contract these emissions publish belongs to
+// `invoices/`, not to this module — see `invoices/billing-events.ts`'s
+// doc-comment for why this file emits them (setup instructions: "register
+// listeners, do not fork the state machine") and for the file-boundary
+// deviation this is reported as in B05's work package report.
+import { BILLING_INVOICE_EVENTS } from "../invoices/billing-events.js";
 import { AuditService } from "../users/audit.service.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
@@ -54,6 +61,7 @@ export class WebhooksService {
     private readonly audit: AuditService,
     private readonly renewal: RenewalService,
     private readonly refunds: RefundsService,
+    private readonly events: EventEmitter2,
   ) {}
 
   async handleRazorpay(rawBody: Buffer, signature: string): Promise<WebhookOutcome> {
@@ -205,6 +213,17 @@ export class WebhooksService {
       workspaceId: subscription.workspaceId,
       data: { eventType: event.eventType },
     });
+    // B05: first charge on a recurring subscription — a tax/export invoice.
+    this.events.emit(BILLING_INVOICE_EVENTS.subscriptionCharged, {
+      subscriptionId: subscription.id,
+      workspaceId: subscription.workspaceId,
+      amountMinor: event.amountMinor ?? subscription.listPriceMinor,
+      currency: subscription.currency,
+      ...(event.providerPaymentId === undefined
+        ? {}
+        : { providerPaymentId: event.providerPaymentId }),
+      isFirstCharge: true,
+    });
     return "processed";
   }
 
@@ -242,6 +261,17 @@ export class WebhooksService {
       resourceId: subscription.id,
       workspaceId: subscription.workspaceId,
       data: { newPeriodEnd: newEnd.toISOString() },
+    });
+    // B05: a renewal charge — another tax/export invoice.
+    this.events.emit(BILLING_INVOICE_EVENTS.subscriptionCharged, {
+      subscriptionId: subscription.id,
+      workspaceId: subscription.workspaceId,
+      amountMinor: event.amountMinor ?? subscription.listPriceMinor,
+      currency: subscription.currency,
+      ...(event.providerPaymentId === undefined
+        ? {}
+        : { providerPaymentId: event.providerPaymentId }),
+      isFirstCharge: false,
     });
     return "processed";
   }
@@ -392,6 +422,16 @@ export class WebhooksService {
       workspaceId: subscription.workspaceId,
       data: { payOnce: true },
     });
+    // B05: a one-time (pay-once / card_once) purchase — a tax/export invoice.
+    this.events.emit(BILLING_INVOICE_EVENTS.orderPaid, {
+      subscriptionId: subscription.id,
+      workspaceId: subscription.workspaceId,
+      amountMinor: event.amountMinor ?? subscription.listPriceMinor,
+      currency: subscription.currency,
+      ...(event.providerPaymentId === undefined
+        ? {}
+        : { providerPaymentId: event.providerPaymentId }),
+    });
     return "processed";
   }
 
@@ -467,6 +507,17 @@ export class WebhooksService {
       workspaceId: pass.workspaceId,
       data: { kind: pass.kind, creditsGrantedTenths: pass.creditsGrantedTenths },
     });
+    // B05: a pass/top-up purchase — a tax/export invoice.
+    this.events.emit(BILLING_INVOICE_EVENTS.passPaid, {
+      passPurchaseId: pass.id,
+      workspaceId: pass.workspaceId,
+      amountMinor: event.amountMinor ?? 0,
+      currency: (event.currency ?? "INR") as "INR" | "USD",
+      kind: pass.kind,
+      ...(event.providerPaymentId === undefined
+        ? {}
+        : { providerPaymentId: event.providerPaymentId }),
+    });
     return "processed";
   }
 
@@ -495,9 +546,10 @@ export class WebhooksService {
    * Subscription credits are granted by B02's periodic monthly-grant task
    * (`credit-grant-reset.task.ts`), not by this webhook, so there is no
    * B01-owned lot to claw back for a subscription refund — the payment is
-   * marked refunded and audited, and that is the whole of it. A pass/top-up
-   * refund goes through {@link RefundsService}, which is where the actual
-   * (currently inapplicable — see its class doc) clawback attempt lives.
+   * marked refunded and audited (and B05's `billing.invoice.payment_refunded`
+   * fires so the GST credit note gets issued), and that is the whole of it. A
+   * pass/top-up refund goes through {@link RefundsService}, which is where the
+   * actual (currently inapplicable — see its class doc) clawback attempt lives.
    */
   private async onPaymentRefunded(event: BillingEvent): Promise<"processed" | "ignored"> {
     if (event.providerPaymentId !== undefined) {
@@ -519,6 +571,19 @@ export class WebhooksService {
             creditsClawback: "not_applicable_subscription_payment_grants_are_periodic",
           },
         });
+        // B05: every refund gets a GST credit note, linked to the original invoice.
+        if (payment.invoiceId !== null) {
+          const invoice = await this.prisma.invoice.findUnique({
+            where: { id: payment.invoiceId },
+            select: { workspaceId: true },
+          });
+          this.events.emit(BILLING_INVOICE_EVENTS.paymentRefunded, {
+            paymentId: payment.id,
+            invoiceId: payment.invoiceId,
+            workspaceId: invoice?.workspaceId ?? null,
+            amountMinor: payment.amountMinor,
+          });
+        }
         return "processed";
       }
     }

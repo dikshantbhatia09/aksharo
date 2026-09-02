@@ -18,6 +18,7 @@ import { isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { redisKeys } from "../src/auth/auth.constants.js";
 import { hashEmail } from "../src/privacy/parental-waitlist.js";
 import { PRIVACY_NOTICE_VERSION } from "../src/users/users.service.js";
+import { workspacesRedisKeys } from "../src/workspaces/workspaces.constants.js";
 
 import type { AuthTestContext } from "./auth-harness.js";
 import type { Server } from "node:http";
@@ -906,7 +907,9 @@ describe.skipIf(!available)("users, workspaces, consents and privacy (e2e)", () 
         seatsUsed: 1,
       });
 
-      const key = `montaj:workspaces:entitlement:${user.workspaceId}`;
+      // The product's own builder, not a literal: A23b makes the namespace
+      // per-suite so twenty-two e2e suites can share one logical Redis database.
+      const key = workspacesRedisKeys.entitlement(user.workspaceId);
       expect(await ctx.redis.ttl(key)).toBeGreaterThan(0);
       expect(await ctx.redis.ttl(key)).toBeLessThanOrEqual(60);
 

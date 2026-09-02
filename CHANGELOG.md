@@ -52,6 +52,151 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B05 — api: invoices (Rule 46), tax engine, credit notes, export invoices
+  under LUT, signed PDFs, e-invoicing hook, FIRC records, tax registrations.**
+  - **`tax/`** — place of supply (GSTIN → recorded State → billing address,
+    D41), intra-state (CGST 9% + SGST 9%) / inter-state (IGST 18%) / export
+    (0%, LUT) / `import_rcm` (self-invoice, reverse charge) rate selection,
+    Rule 35 GST-inclusive back-computation with explicit, reconciled rounding
+    (`roundOffMinor`), and a pluggable USD→INR exchange-rate provider
+    (`ManualFallbackExchangeRateProvider` today — no live RBI feed key exists
+    in this environment, same posture `billing/providers/provider.factory.ts`
+    takes for Razorpay).
+  - **`invoices/`** — numbering per `(series, fiscalYear)` off a real Postgres
+    `SEQUENCE`, lazily created under an advisory lock so 200 concurrent
+    invoices in one series/year get unique, gap-free numbers with no lock on
+    the hot path; document types `tax_invoice`, `export_invoice`,
+    `credit_note` (every refund, linked to the original, reason code),
+    `debit_note`, `self_invoice`, `bill_of_supply`; **India B2C invoices hard-fail
+    without a recorded State** (`invoices/state_required`, D41); `gstr1Period`
+    stamped on every row.
+  - **PDF** (`invoices/pdf/`) — `pdfkit`, no headless browser; every Rule 46
+    particular, the GST break-up, "incl. GST" display, HSN/SAC, the LUT
+    export endorsement verbatim, and a visible "Digitally signed" block.
+    Detached signature (`signature.service.ts`): SHA-256 of the exact stored
+    PDF bytes, HMAC-SHA256 by default (over `INTERNAL_CALLBACK_SECRET`) or
+    RSA-SHA256 when an optional, non-contract `INVOICE_SIGNING_KEY` is set;
+    stored as its own small JSON record next to the PDF in derived storage.
+  - **`einvoice/`** — `EInvoiceProvider` interface, `NoopEInvoiceProvider`, and
+    a government e-invoice (IRP) schema payload builder, gated on
+    `FEATURE_FLAGS_JSON.einvoice_enabled` (off by default) — not wired to a
+    GSP.
+  - **`firc/`** — `firc_records` from a settled USD payment, and a monthly
+    export-filing CSV (`GET /admin/firc-records/csv?month=YYYY-MM`, EDF-regime
+    placeholder).
+  - **`tax-registrations/`** — admin-editable GSTIN/LUT rows
+    (`/admin/tax-registrations`, `AdminGuard`) and a startup check that warns
+    when USD activity exists with no valid LUT on file.
+  - **Triggered from `billing/webhooks.service.ts`'s existing state
+    transitions via `EventEmitter2`** (`EventEmitterModule.forRoot()`,
+    registered once in `app.module.ts`), not a fork of the state machine —
+    five `this.events.emit(...)` calls added after the transitions that were
+    already there; `invoices/listeners/billing-events.listener.ts` turns each
+    into an invoice or credit note. See `invoices/billing-events.ts`'s
+    doc-comment and the work package report for the file-boundary deviation
+    this required.
+  - Billing documents are exempt from every purge by construction: `media/
+retention.service.ts`'s `purgeDueMedia` only ever queries `media_assets`,
+    never `invoices` — asserted by a new test rather than by a special case.
+  - Golden PDFs (India B2C intra-state, India B2B inter-state, USD export
+    under LUT, credit note), text-extracted and asserted against every Rule 46
+    particular. Text extraction is a small dependency-free extractor
+    (`pdf-text-extract.ts`), not a library — see its doc-comment: the obvious
+    choice, `pdf-parse`, throws `bad XRef entry` on a valid PDF the moment
+    `zlib` has been used anywhere earlier in the same process, reproduced in
+    isolation with no `pdfkit` involved.
+  - **Deviations, all reported in full in the work package's final message:**
+    a placeholder default SAC code (`998316`) pending CA confirmation; the
+    brief's own `AKS/26-27/IN/000123` example is 19 characters against its own
+    "(≤ 16 chars)" annotation — implemented against the shipped
+    `invoices_number_length_check` CHECK (the `number` column, 6 digits) with
+    the full string composed only for display; supplier legal
+    name/address/PAN read from optional, non-contract environment variables
+    (`SUPPLIER_LEGAL_NAME` etc.) pending real registered-office details;
+    invoice/credit-note email reuses `MailProvider` directly rather than
+    `NotifyService`'s closed `NotifyKind` catalogue (adding a kind would edit
+    `notify.kinds.test.ts`'s hard-pinned ten-value list; the closest existing
+    kind's copy — "kept for N days, then deleted" — is false for a document
+    retained 72 months).
+- **A22 — scripts and translation: transliteration (`ai.transliterate`), translation
+  (`ai.translate`), the producers, and the editor's script tabs.**
+  - **Transliteration writes per word, translation writes per segment, and each
+    gets the write path that shape actually needs.** `word.scripts` can carry
+    thousands of values per job and CONTRACTS §2's `EdgOp` union has no bulk op for
+    it, so the worker writes those through a new signed surface,
+    `POST /internal/transcripts/{id}/scripts` (`apps/api/src/transcripts/scripts/
+scripts-internal.controller.ts`), which patches only the `transcript_chunks`
+    rows a job actually touched. Translation is a few hundred segments at most and
+    CONTRACTS §2 already has `SetSegmentText{segmentId, script, text}`, so it
+    reuses A12's **existing** `POST /internal/projects/{id}/edg/ops` unchanged —
+    landing as `textOverrides.translated`, revisioned, rebased and undoable exactly
+    like an interactive edit, with a genuine conflict coming back as the same 409 a
+    concurrent human edit would.
+  - **Transliteration is free** (`04-pricing-and-monetization.md` has no burn-rate
+    row for it); the job is still admitted through `JobsService.enqueue` with a
+    zero-tenths hold, so CONTRACTS §4's "every producer reserves" rule holds even
+    when the reservation is for nothing. **Translation reuses the existing
+    `translation` burn rate** (0.5 credit / media minute / target language) and
+    adds the plan gate `04 §Plans` describes: refused outright below Starter,
+    refused for anything but English below Creator (`transcript/plan_required`).
+  - **IndicXlit, without a vendor key.** No AI4Bharat model weight exists in this
+    environment (A00-06), so `RuleTableTransliterationProvider`
+    (`apps/worker-ai/worker_ai/transliterate/`) is a deterministic dictionary +
+    syllable-table transliterator for Hindi/Devanagari and Tamil, plus numeral and
+    punctuation rules that apply to every supported language. The Hinglish rule —
+    English words stay Roman — is a curated dictionary and a morphology check
+    (`-ing`, `-tion`, …), checked before any script mapping runs.
+    `IndicXlitHttpProvider` is the seam for a served model; **no `apps/model-server`
+    route was added**, because there is nothing to serve yet (decision recorded in
+    `apps/worker-ai/worker_ai/transliterate/provider.py`).
+  - **The translation provider chain** — `SarvamMayuraProvider` →
+    `IndicTrans2Provider` (self-hosted, only when `WORKER_AI_INDICTRANS2_URL` is
+    set) → `LLMTranslateProvider` (`LLM_PROVIDER=anthropic|openai|mock`) — tries
+    each in order until one succeeds. **Glossary terms are masked to opaque
+    placeholders before any provider sees the text** (`translate/glossary.py`), so
+    every adapter gets verbatim preservation for free rather than depending on a
+    provider-specific instruction. A segment still over the **1.3x length budget**
+    after one "shorter, please" retry is hard-truncated on a word boundary
+    (`translate/length.py`), so the budget holds unconditionally, not just usually.
+  - **A pre-existing gap between A11's chunk-read contract and A12's word-patch
+    contract, found and routed around, not fixed.** `TranscriptsRepository.
+chunkPage`/`allChunks` (`GET /projects/{id}/transcript`, the exporters) select
+    `transcript_chunks` by an exact `revision` match; `EdgRepository.persistWords`
+    (`EditWord`) bumps `transcripts.currentRevision` without changing the row's own
+    `revision` at all, so a client reading the default revision after any word edit
+    gets an empty page. Reachable today through an ordinary `EditWord` op — this
+    work package's own write avoids adding a second way to hit it by never bumping
+    `currentRevision` for a transliteration, but the underlying gap is unresolved
+    and is reported to the orchestrator (`apps/api/src/transcripts/scripts/
+scripts.repository.ts`'s class doc) rather than patched here.
+  - **`?script=` on `GET /projects/{id}/transcript` and the transcript export**
+    (`roman | native | en | translated`): the manifest projects each word's `t`
+    onto `scripts[script]`, falling back to the word's own primary text; export
+    threads the same choice through `transcript-export.ts`'s `toCues`, preferring a
+    segment's own `textOverrides[script]` first. Omitted, both keep their exact
+    pre-A22 behaviour.
+  - **`GET /projects/{id}/transcript/scripts`** reports availability and provenance
+    per script — `roman`/`native`/`en` from a scan of the transcript's own words,
+    `translated` from the EDG segments plus the `transcript.scripts_updated` /
+    `transcript.translated` job events this work package's two completion handlers
+    log, so the editor's tabs and the "regenerate" confirmation know what is
+    already there and who made it.
+  - **`ScriptTabs`/`RegenerateTranslationDialog`**
+    (`apps/web/components/editor/transcript/scripts/`) and three new
+    `@montaj/api-client` hooks (`useTranscriptScripts`, `useTransliterateTranscript`,
+    `useTranslateTranscript`) — self-contained and tested against a mocked `fetch`,
+    because **A15 (the transcript editor) and A19 (the export dialog) are not yet
+    on `main`** to wire into; the integration note each leaves behind names exactly
+    what dropping them in involves once those work packages land.
+  - Golden transliteration tests (Hinglish sentence → Devanagari with English words
+    preserved; a Tamil sentence) in `apps/worker-ai/tests/test_transliterate.py`;
+    provider-chain, length-aware-retry and glossary-preservation tests plus fixture
+    tests for all three translation adapters in `test_translate.py`; a real-database
+    e2e (`apps/api/test/transcripts-scripts.e2e-spec.ts`) that runs a transliteration
+    and a translation through the real signed write paths against a seeded Hinglish
+    transcript and asserts the per-word scripts, the segment override, the
+    provenance read and the export in each script.
+
 - **A21 — api: the exports module (decision engine, signed render manifests, cloud render/subtitle jobs, downloads, brand assets).**
   - **`POST /projects/{id}/exports`** runs the decision engine (`src/exports/decision.ts`,
     ≥25 table tests): browser vs. cloud per D34's technical caps (1080p ≤ 20 min on
@@ -166,6 +311,21 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     account, asserting `balance = Σ lots = Σ ledger ≥ 0` after every batch.
   - A11/A21/A22 (the intended `quote()` callers) had not landed when this WP was
     written; nothing there to switch over yet.
+- **A24b — the pricing page now fetches B01's live `GET /billing/plans`.** Follow-up
+  to A24, once B01 shipped the endpoint. `content/site/pricing-live.ts` calls it through
+  `@montaj/api-client` (a plain `ApiClient` — the route is public, no session needed),
+  with Next.js ISR (`next: { revalidate: 300 }`) rather than a fetch on every request; the
+  server component (`pricing/page.tsx`) resolves the catalogue before rendering and hands
+  it to the client component as props. `content/site/pricing-data.ts`'s
+  `FALLBACK_PLAN_CATALOGUE` is kept as the fallback for when the API is unreachable — never
+  throws, logs a warning and serves the static mirror instead, exercised automatically by
+  any build that runs without the API up (a bare `pnpm --filter @montaj/web build`).
+  `packages/api-client` gained the one missing piece: a `billingEndpoints.listPlans`
+  descriptor and a `PlanCatalogueEntry` type (B01 had only regenerated the OpenAPI
+  operation index, not this hand-written layer) — outside A24's original file boundary,
+  touched here on the coordinator's explicit instruction. A new pricing e2e test fetches
+  `GET /billing/plans` from the suite's own API instance and asserts every rendered plan
+  card's price equals it exactly.
 
 - **B01 — api: billing core — `BillingProvider` (Razorpay + fake), plan
   catalogue, checkout with the ₹15,000 UPI mandate rule, passes/top-ups,
@@ -1833,6 +1993,42 @@ sarvam` replays the recorded session, `--live` calls the configured vendor.
   microsecond later, so the index is the actual guarantee.
 
 ### Changed
+
+- **A23b — Redis test isolation is a key prefix, not a logical database.**
+  - A23a gave every e2e suite a logical Redis database of its own. Redis ships
+    with sixteen and `apps/api` now has twenty-two e2e suites, so from the
+    seventeenth onwards two suites shared one — and a `KEYS montaj:* / DEL` sweep
+    between tests took the sibling's keys with it. A21 watched
+    `auth.e2e-spec.ts` lose its dev-outbox messages exactly that way.
+  - `apps/api/src/common/redis/redis-keys.ts` (new) exports `redisKeyPrefix()`:
+    `MONTAJ_REDIS_PREFIX` when set, `montaj` otherwise. Unset — which is every
+    deployment — every key keeps the name it has always had.
+  - The five modules that hard-coded `montaj:` now build their namespace from it:
+    `authRedisPrefix()` (`auth.constants.ts`, which carries the development mail
+    outbox), `rateLimitPrefix()` and the new `rateLimitKey()`
+    (`rate-limit.service.ts`), `notifyRedisPrefix()` (the suppression list and the
+    delivery receipts), `accountRedisPrefix()` (the data-export bundles) and
+    `workspacesRedisPrefix()` (the entitlement cache). `exports/daily-cap.ts`
+    wrote `exports:daily-browser-manifests:…` outside the `montaj:` namespace
+    altogether; it is prefixed now too. All six are the same shape as
+    `queuePrefix()` — a function reading `process.env`, because CONTRACTS section
+    1 is the frozen list of _product_ configuration and this is naming.
+  - BullMQ structures and realtime pub/sub channels are deliberately NOT moved.
+    They are named by `MONTAJ_QUEUE_PREFIX`, which `apps/worker-media`,
+    `apps/render` and `apps/worker-ai` have to agree with the API on, and which
+    the test harness already sets per suite.
+  - `test/suite-context.ts` sets `MONTAJ_REDIS_PREFIX` alongside
+    `MONTAJ_QUEUE_PREFIX`, so a suite's keys are its own before its module graph
+    is loaded. `auth-harness.reset()` sweeps `${redisKeyPrefix()}:*` rather than
+    `montaj:*` — the sweep that used to reach across.
+  - Logical databases are now a **second** separator, taken when the run has more
+    of them than suites. A logical database named in `TEST_REDIS_URL` is an
+    instruction rather than a starting point: `redis://localhost:6379/0` puts the
+    whole suite in database 0, which is how this is verified.
+  - `test/isolation-probe.ts` grew the proof: both halves pin the SAME logical
+    database, write `redisKeys.devOutbox()`, and one of them runs the between-tests
+    sweep — the other's key has to survive it. It also writes the product's real
+    key builder now rather than a hard-coded literal.
 
 - **A23a — the API test suite starts two containers per run instead of one pair
   per suite, and isolates the suites from each other properly.**

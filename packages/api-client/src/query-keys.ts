@@ -20,6 +20,8 @@ export const queryKeys = {
   deviceApproval: (userCode: string) => ["auth", "device", userCode] as const,
   jobs: (workspaceId: string) => ["ws", workspaceId, "jobs"] as const,
   job: (workspaceId: string, jobId: string) => ["ws", workspaceId, "jobs", jobId] as const,
+  transcriptScripts: (workspaceId: string, projectId: string) =>
+    ["ws", workspaceId, "projects", projectId, "transcript", "scripts"] as const,
 } as const;
 
 export type QueryKeys = typeof queryKeys;
