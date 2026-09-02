@@ -7,6 +7,7 @@ import { AdminStepUpController } from "./auth/admin-step-up.controller.js";
 import { AdminStepUpService } from "./auth/admin-step-up.service.js";
 import { AdminCreditsController } from "./credits/admin-credits.controller.js";
 import { AdminDlqController } from "./dlq/dlq.controller.js";
+import { AdminEvalsController } from "./evals/admin-evals.controller.js";
 import { AdminFlagsController } from "./flags/admin-flags.controller.js";
 import { AdminJobsController } from "./jobs/admin-jobs.controller.js";
 import { AdminParentalWaitlistController } from "./parental-waitlist.controller.js";
@@ -60,6 +61,7 @@ import { PrivacyModule } from "../privacy/privacy.module.js";
     AdminRoutingController,
     AdminStylesController,
     AdminSupportController,
+    AdminEvalsController,
   ],
   providers: [AdminGuard, AdminStepUpService, AdminStreakService, AdminAcquisitionService],
   exports: [AdminGuard],

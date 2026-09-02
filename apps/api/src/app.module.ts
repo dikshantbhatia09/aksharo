@@ -20,6 +20,7 @@ import { ConsentsModule } from "./consents/consents.module.js";
 import { CreditsModule } from "./credits/credits.module.js";
 import { DevicesModule } from "./devices/devices.module.js";
 import { EdgModule } from "./edg/edg.module.js";
+import { EvalsModule } from "./evals/evals.module.js";
 import { ExportsModule } from "./exports/exports.module.js";
 import { FontsModule } from "./fonts/fonts.module.js";
 import { HealthModule } from "./health/health.module.js";
@@ -174,6 +175,10 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // plugin clients ride when loopback is unreachable (brief §3). Last, like
     // `PublicApiModule`/`WebhooksModule`: nothing above depends on it.
     BridgeRelayModule,
+    // D08: the eval harness's signed worker -> API ingestion surface
+    // (`POST /internal/evals/runs`). Last for the same reason as the other
+    // internal/last-mile modules above: nothing else depends on it.
+    EvalsModule,
   ],
 })
 export class AppModule {}

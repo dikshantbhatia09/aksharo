@@ -10,6 +10,60 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **D08 — Eval harness & quality gates: datasets, nightly runs, shadow
+  routing, admin leaderboard, routing freeze.** Built on synthetic and fixture
+  datasets only (A00-05's licensed Indic sets have not reported).
+  `apps/worker-ai/worker_ai/evals/datasets/`: a `Dataset(name, kind, language,
+script, licence, items[])` loader — `licence` mandatory — searching bundled
+  `generated/` (six hand-authored synthetic sets: Hinglish/Hindi/Tamil
+  transcript, transliteration pairs drawn from A22's real dictionary tables,
+  autocut ground-truth cut lists, LLM check outcomes), `fixtures/` (an
+  adapter reusing A09's `hinglish-mini` set without duplicating its
+  audio/words files) and, if `EVAL_LICENSED_DATASETS_DIR` is set, an external
+  root for A00-05's real corpus with no code change. `checksums.py` writes/
+  verifies a SHA-256 `manifest.json` over every bundled file.
+  `evals/metrics.py`: Indic-aware `normalise()` now folds ZWJ/ZWNJ and all
+  nine nukta letters (four with no Unicode canonical decomposition, mapped by
+  hand) in addition to the existing case/punctuation/whitespace folding, so a
+  provider's spelling convention is never charged as a WER/CER error; new
+  `word_boundary_error`, `diarisation_der` (dependency-free, grid-based, no
+  `pyannote.metrics`), `transliteration_accuracy`, `autocut_precision_recall`
+  (tolerance-windowed greedy matching) and `llm_pass_rate`.
+  `evals/runner_datasets.py` dispatches `run_dataset` by kind (transcript
+  reuses A09's `EvalSet`/provider path; the rest score directly).
+  `evals/nightly.py`: `run_nightly` (cost-capped per D74:
+  `DEFAULT_MAX_ITEMS_PER_DATASET`), `write_report` (`eval-results/<date>/
+report.{json,md}`), `post_nightly_report` (signed like a job-completion
+  callback, `POST {API_ORIGIN}/internal/evals/runs`); `python -m
+worker_ai.evals nightly[--post]` and `pnpm --filter @montaj/worker-ai eval`.
+  `routing.py`: `RoutingCandidate.shadow` — a shadow candidate is excluded
+  from `resolve`/`resolve_chain` entirely (never a fallback, never returned)
+  while `shadow_candidates()` lists the ones this deployment could run in
+  parallel for a nightly comparison; `ROUTING_FROZEN=1` (or an upstream admin
+  toggle) makes `load_routing_table_guarded()` skip `routing.yaml` and serve
+  the last-approved snapshot (`write_routing_snapshot`/`load_routing_snapshot`)
+  instead — reloads are refused outright while frozen. `apps/api`: new Prisma
+  models `EvalRun`/`EvalResult`/`RoutingFreeze` (migration
+  `20260903130000_d08_evals`); `POST /internal/evals/runs`
+  (`src/evals/`, signed like other internal callbacks, idempotent on the
+  signed attempt id used as `EvalRun.id`); `GET /admin/evals/leaderboard`
+  (groups a recent window of results by dataset/language/provider/metric,
+  reporting each group's latest value and trend vs. the previous run),
+  `GET|POST /admin/evals/freeze`, `POST /admin/evals/unfreeze` (superadmin
+  only, mandatory reason, audited — `src/admin/evals/`); B16 scheduler task
+  `eval-nightly.task.ts` purges `eval_runs`/`eval_results` past 90 days and
+  shells out to `pnpm --filter @montaj/worker-ai eval -- --post` (a
+  documented pre-Gate-A simplification: the two apps share one monorepo
+  checkout today; see the WP's final report for the production-shape follow-
+  up). `apps/web`: `(admin)/admin/evals` panel (leaderboard table, freeze/
+  unfreeze form). `packages/api-client` regenerated. Tests: Python unit tests
+  for the Indic normalisation edge cases, dataset loader/manifest/licence
+  checks, per-kind runner dispatch, shadow-exclusion and freeze-precedence
+  routing tests; API unit tests (leaderboard grouping, freeze audit) and an
+  e2e spec against real Postgres/Redis (signed ingestion + idempotency,
+  leaderboard trend, freeze role-gating and audit, unfreeze). Deviations and
+  open questions for A00-05 are in the WP's final report.
+
 - **B10b — Audio clean wiring: `SetAudio.clean.cleanId`, Audio panel mounted,
   audio parity gate, API e2e, RSS bound.** `packages/edg`: `AudioCleanSchema`
   (`schemas/document.ts`) gains a first-class `cleanId` field (CONTRACTS §2,
