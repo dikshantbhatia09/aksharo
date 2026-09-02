@@ -1,0 +1,77 @@
+{
+  "id": "soft-serif",
+  "name": "Soft Serif",
+  "version": 2,
+  "category": "cinematic",
+  "minPlan": "creator",
+  "typography": {
+    "fontFamily": "Playfair Display",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 600,
+    "italic": false,
+    "sizePct": 4.4,
+    "lineHeight": 1.36,
+    "letterSpacingEm": 0.01,
+    "textTransform": "none"
+  },
+  "colors": {
+    "text": "#f6efe4",
+    "activeText": "#f6efe4",
+    "upcomingText": "#f6efe499"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 20,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 3,
+    "blurPct": 22,
+    "opacity": 0.5
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.84,
+    "align": "center",
+    "maxWidthPct": 72,
+    "maxLines": 3,
+    "safeAreaPct": 14
+  },
+  "animation": {
+    "in": {
+      "type": "fade",
+      "durationMs": 400
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 400
+    },
+    "wordHighlight": {
+      "type": "none",
+      "durationMs": 0
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "accent",
+      "label": "Accent",
+      "color": "#d9b26a",
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/soft-serif.mp4"
+}
