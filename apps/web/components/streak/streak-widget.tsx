@@ -40,7 +40,7 @@ export function StreakWidget(): React.JSX.Element | null {
 
         {data.paused ? (
           <p className="text-warning text-xs" data-testid="streak-widget-paused">
-            Streak paused — one export restores it
+            streak paused — one export restores it
           </p>
         ) : (
           <>
