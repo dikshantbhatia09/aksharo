@@ -1,5 +1,9 @@
+import { Logger } from "@nestjs/common";
+
+import { loadSystemStyleMap, type StyleDoc } from "@montaj/caption-styles";
 import type { Aspect } from "@montaj/edg/schemas";
 import { limitsFor, type WordScript } from "@montaj/edg/segmenter";
+import { fitBudget, type FitBudgetOptions, type LineBudget } from "@montaj/render-core";
 
 import { CAPTION_BOUNDS, DEFAULT_STYLE_REF } from "./transcript-init.js";
 
@@ -26,14 +30,21 @@ import type { CaptionPreferences } from "./transcript-init.js";
  * with HarfBuzz, which is the only way to know what fits and the reason the number
  * cannot be a constant in this file.
  *
- * ### The seam
+ * ### What decides whether the fit half runs
  *
- * A16d is not on `main` yet, and `apps/api` does not depend on `@montaj/render-core`
- * at all. {@link resolveBudgets} is therefore written as the `min` it will always
- * be, with the fit half absent: today it returns the readability cap and reports
- * `source: "readability"`. When `fitBudget` lands, {@link fitCapFor} is the one
- * function that changes — it gains the import, the font registry and the shaper —
- * and every caller, every recorded budget and every test stays as it is.
+ * `fitBudget` measures through the **real shaper and the real faces**: it needs a
+ * {@link CaptionRenderContext} (a `FontRegistry` and a `Shaper`). A18b is the work
+ * package that registers the production subset faces; until it does, nothing binds
+ * {@link CAPTION_RENDER_CONTEXT}, {@link fitCapFor} answers `undefined`, and the
+ * budget is the readability cap reported as `source: "readability"`.
+ *
+ * That absence is deliberate rather than a stub. `averageAdvanceEm` raises
+ * `render/no-font` instead of guessing when nothing can draw the sample, and a
+ * budget measured against a placeholder face would be a *wrong* number wearing the
+ * word "measured" — worse than the honest cap. The call itself is wired and
+ * covered (`transcript-init.test.ts` drives it through `createFixtureRenderer`),
+ * so the day a registry is bound the budgets narrow and `source` becomes `"fit"`
+ * with no further edit.
  *
  * Readability caps and the two-line maximum are **maxima** either way: the fit cap
  * can only narrow them, never widen them, which is what keeps a large style from
@@ -55,6 +66,8 @@ export interface CaptionBudgets {
   readonly source: "readability" | "fit";
   /** The readability cap on its own, so a later reflow can tell the two apart. */
   readonly readabilityChars: number;
+  /** What the type metrics alone allowed, when the fit half ran. */
+  readonly fitChars?: number;
 }
 
 /** Render resolutions per aspect (`05 §4`), the same table `EdgService` uses. */
@@ -103,27 +116,70 @@ export function canvasAspectFor(
 }
 
 /**
- * The fit cap for a style on a canvas, or `undefined` while A16d is not available.
+ * What `fitBudget` needs beyond the style, the script and the canvas.
  *
- * **This is the switch point.** When `packages/render-core/src/index.ts` exports
- * `fitBudget`, this becomes:
- *
- * ```ts
- * const fit = fitBudget({ style, script, canvas, registry, shaper });
- * return { maxChars: fit.maxChars, maxLines: fit.maxLines };
- * ```
- *
- * and {@link resolveBudgets} starts reporting `source: "fit"` without any other
- * edit. Until then it returns nothing, and the `min` below is the readability cap
- * alone — which is the correct conservative answer, not a placeholder number.
+ * A18b binds it; nothing does yet. Injected optionally, so the API boots and
+ * transcribes without a font stack at all.
  */
-export function fitCapFor(_input: {
+export type CaptionRenderContext = Pick<FitBudgetOptions, "registry" | "shaper">;
+
+/** DI token for {@link CaptionRenderContext}. Optional by design. */
+export const CAPTION_RENDER_CONTEXT = Symbol("CAPTION_RENDER_CONTEXT");
+
+const logger = new Logger("CaptionBudgets");
+
+/** The system style catalogue, loaded once. */
+let catalogue: Map<string, StyleDoc> | undefined;
+
+/** One system style by id, or `undefined` — a brand-kit style is B10's. */
+export function systemStyle(styleRef: string): StyleDoc | undefined {
+  const loaded = (catalogue ??= loadSystemStyleMap());
+  return loaded.get(styleRef);
+}
+
+/**
+ * The fit cap for a style on a canvas: `fitBudget` from `@montaj/render-core`
+ * (A16d), measured through the real shaper.
+ *
+ * `undefined` when the fit half cannot answer — no render context bound, an
+ * unknown style id, or `render/no-font` because the registry cannot draw the
+ * script's sample. Every one of those is a reason to fall back to the readability
+ * cap rather than to a guess, and the failure is logged so an operator can see
+ * that the fit half is not running.
+ */
+export function fitCapFor(input: {
   readonly script: WordScript;
-  readonly aspect: Aspect;
   readonly canvas: { readonly width: number; readonly height: number };
   readonly styleRef: string;
-}): { maxChars: number; maxLines: number } | undefined {
-  return undefined;
+  readonly render?: CaptionRenderContext;
+}): LineBudget | undefined {
+  if (input.render === undefined) return undefined;
+
+  const style = systemStyle(input.styleRef);
+  if (style === undefined) {
+    logger.warn({ styleRef: input.styleRef }, "no system style; using the readability cap");
+    return undefined;
+  }
+
+  try {
+    return fitBudget({
+      style,
+      script: input.script,
+      canvas: input.canvas,
+      registry: input.render.registry,
+      shaper: input.render.shaper,
+    });
+  } catch (error) {
+    logger.warn(
+      {
+        styleRef: input.styleRef,
+        script: input.script,
+        err: error instanceof Error ? error.message : String(error),
+      },
+      "fit budget unavailable; using the readability cap",
+    );
+    return undefined;
+  }
 }
 
 export interface ResolveBudgetsInput {
@@ -136,6 +192,8 @@ export interface ResolveBudgetsInput {
   readonly styleRef?: string;
   /** Workspace caption preferences. They can only narrow the budget. */
   readonly preferences?: CaptionPreferences;
+  /** The font stack the fit half measures through. Absent until A18b binds one. */
+  readonly render?: CaptionRenderContext;
 }
 
 /** `min(readability cap, fit cap, the workspace's own preference)`. */
@@ -145,7 +203,12 @@ export function resolveBudgets(input: ResolveBudgetsInput): CaptionBudgets {
   const styleRef = input.styleRef ?? DEFAULT_STYLE_REF;
 
   const readability = limitsFor(input.script);
-  const fit = fitCapFor({ script: input.script, aspect, canvas, styleRef });
+  const fit = fitCapFor({
+    script: input.script,
+    canvas,
+    styleRef,
+    ...(input.render === undefined ? {} : { render: input.render }),
+  });
 
   const caps: number[] = [readability.maxCharsPerLine];
   const lineCaps: number[] = [CAPTION_BOUNDS.maxLines.max - 1];
@@ -167,6 +230,7 @@ export function resolveBudgets(input: ResolveBudgetsInput): CaptionBudgets {
     styleRef,
     source: fit === undefined ? "readability" : "fit",
     readabilityChars: readability.maxCharsPerLine,
+    ...(fit === undefined ? {} : { fitChars: fit.fitMaxChars }),
   };
 }
 
@@ -190,6 +254,7 @@ export function budgetsForMeta(budgets: CaptionBudgets): Record<string, string> 
       styleRef: budgets.styleRef,
       source: budgets.source,
       readabilityChars: budgets.readabilityChars,
+      ...(budgets.fitChars === undefined ? {} : { fitChars: budgets.fitChars }),
     }),
   };
 }

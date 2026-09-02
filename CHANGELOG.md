@@ -57,10 +57,13 @@ reason}`; the log is written to `job_events` as `transcript.postprocessed`
 workspace preference)`, resolved per script from the project's canvas in
     `src/edg/init/caption-budgets.ts` and recorded on
     `EdgHot.meta.engineVersions.captionBudgets` so A15 can offer "Reflow
-    captions". The fit half is `fitBudget` from `@montaj/render-core` (A16d);
-    until it lands, `fitCapFor` returns nothing and the `min` is the readability
-    cap alone. Landscape footage overrides an _untouched_ 9:16 default; a chosen
-    aspect is never second-guessed.
+    captions". The fit half calls A16d's `fitBudget` for real; it needs a font
+    registry and a shaper, which **A18b** registers, so until something binds
+    `CAPTION_RENDER_CONTEXT` the budget is the readability cap and says so
+    (`source: "readability"`). The call is covered through
+    `@montaj/render-core/testing`'s fixture renderer, so binding a registry is
+    the only change left. Landscape footage overrides an _untouched_ 9:16
+    default; a chosen aspect is never second-guessed.
   - **Endpoints**, all behind `WorkspaceMemberGuard` with roles, and a project in
     another workspace is a 404 (THREAT-MODEL T4, T5):
     `POST /projects/{id}/transcribe` (quotes from the probed duration at 1 credit
@@ -78,6 +81,32 @@ workspace preference)`, resolved per script from the project's canvas in
     last word and both halves still fit; a speaker change and a full stop are
     left alone, because a one-word caption after a full stop is the speaker's.
     Goldens regenerated (`pnpm --filter @montaj/edg golden:build`).
+
+- **A10b — Meta MMS excluded on licence grounds (D77); tests no longer read a
+  developer's `.env`.**
+  - `worker_ai/alignment/mms.py` is **deleted**. The common
+    `facebook/mms-300m-1130-forced-aligner` export is CC-BY-NC-4.0, which is
+    non-commercial. Rung 3 of the `09 §2` chain is now split by language family:
+    `IndicWav2VecAligner` (AI4Bharat, **MIT**) for the eleven Indic languages,
+    and the new `worker_ai/alignment/xlsr.py` — `jonatasgrosman/wav2vec2-large-xlsr-53-*`
+    per-language CTC fine-tunes, **Apache-2.0**, which is what the GPU model
+    server already bakes in — for the global ones.
+  - `mms` joins `bhashini` in `routing.NEVER_ROUTE`, and the check now covers all
+    three places it could come back: a lane in `routing.yaml`, an admin routing
+    override, and the aligner registry itself. Each raises at load time. A licence
+    exclusion an operator can switch back on is not an exclusion.
+  - Each XLSR-53 fine-tune carries its own vocabulary in its own script, so
+    nothing is romanised any more; `alignment/romanisation.py` keeps the
+    Roman-to-Devanagari projection the Indic heads need and drops the reverse
+    table that only MMS used.
+  - **Tests no longer depend on the machine's `.env`.** The eval CLI's `--live`
+    path calls `load_settings()` against the _process_ environment, so
+    `test_live_asks_the_registry_rather_than_the_fixtures` failed on a fresh
+    clone with "REDIS_URL is missing" instead of the live-path error it asserts —
+    and would have passed for the wrong reason on a machine holding a Sarvam key.
+    A `contract_env` fixture now pins the required variables and blanks every
+    optional credential. The whole suite was run with `.env` renamed away to
+    prove it: 506 passed, 13 skipped, no other test had the same dependency.
 
 - **A12 — api: the EDG module (hot document, `/edg/ops` with server-side rebase
   and compare-and-swap, revisions, snapshots and restore, realtime `edg.ops`).**
@@ -137,6 +166,97 @@ RETURNING revision`. The lock makes read-decide-write atomic; the CAS is the
     `PassItem.keyframesRef`; the table had only the bytes column) and
     `edg_segments (edg_id, start_word_id)` / `(edg_id, end_word_id)`, which is how
     a word delete finds the segments it bounds.
+- **A16c — per-script type sizes (`typography.scriptScale`) and track-level shrink.**
+  - **The problem.** Shrink-to-fit is decided per caption, so a short caption is drawn at
+    full size and the next one, one word longer, smaller: the type size jitters shot to
+    shot inside one video, and the picker's tile — short preview text, never shrunk —
+    shows a size no real caption uses. 28 of 30 styles hit the shrink floor on a
+    budget-filling caption.
+  - **`typography.scriptScale`**, an optional, additive field on StyleDoc v2 (the schema
+    generation stays 2; a document without it renders exactly as before): a per-script
+    multiplier on `sizePct`, keyed by the lowercase OpenType tag (`latn`, `deva`,
+    `taml`). `render-core` applies the entry for the script it is actually laying out —
+    the script of the words on screen, not the project's language — so a Hinglish
+    caption picks the right one line by line. `sizePct` keeps recording the size the
+    style was drawn for.
+  - It exists because the budgets are counted in **base characters** with combining marks
+    excluded (that is what reading speed depends on) while width is a different question:
+    a 22-character Tamil line is ~37 code points and about **21 em** wide, against 15.3 em
+    for a full 32-character Latin line. One size per style cannot satisfy both.
+  - `src/styles/fit.ts` measures the worst shrink over the four caption fixtures **and** a
+    budget-filling caption per script, at every instant a `wordsPerCue` style rotates
+    through, on both canvases; `worstFitForScript` restricts that to the layouts a given
+    multiplier can move, which is what makes per-script tuning well-defined.
+    `scripts/tune-style-sizes.ts` bisects each multiplier; `src/styles/fit.test.ts` asserts
+    shrink ≥ 0.95 at 1080×1920 and ≥ 0.9 at 1920×1080, per script, for all 30 styles.
+  - **`computeTrackShrink({projection, catalogue, registry, shaper, canvas, script})`**
+    lays every caption out once and returns the minimum shrink per (styleId, script);
+    `renderFrame` and `layoutFrame` take the map and apply it uniformly, so every caption
+    in a style is one size for the whole video. Per-caption shrink remains the fallback
+    when no map is given. It is a pure function and costs one layout per caption, so the
+    exporters (A19, A20) and the preview stage compute it once per session — on a change
+    of document, catalogue or canvas — and cache it; nothing calls it per frame.
+  - Goldens, PNG baselines and the 30 catalogue previews regenerated; browser parity holds
+    at 0 pixels differing.
+  - **Reported, because it is a product decision.** Latin needed a multiplier below 1 in
+    **28 of 30 styles** (0.45–0.94), so Latin does not in fact keep its authored size. The
+    cause is the same arithmetic: 32 characters is roughly 16 em, and 16 em inside 78–90%
+    of a 1080-wide portrait frame forces an em of ~2.8% of frame height whatever the
+    script. The 32/24/22 budgets fit a 16:9 subtitle comfortably (a 4.2% line has ~33 em
+    of room there) and are simply generous for 9:16. A 9:16-specific budget — nearer
+    20–26 Latin characters — would let every `latn` multiplier go back to 1.
+    `word-pop` and `impact-shout` need no multipliers at all: they show one word at a time.
+  - **A12b:** a snapshot restore is now validated against the transcript as it
+    stands before anything is written. The transcript is deliberately not rolled
+    back with the captions, so a snapshot old enough to predate a `DeleteWord`
+    still names that word; writing it would leave a caption bounded by something
+    nothing can render. `validateProjection` runs over the projection the restore
+    would produce, with a word index built from the **live** words only (a
+    tombstoned word is as good as a missing one here), and any issue refuses the
+    whole restore with `409 edg/restore_invalid` — `details.danglingWordIds`
+    names the words, `details.issues` carries the validator's findings.
+- **A16c/A16d — line budgets come from the type (decision D78), per-script sizes, and
+  track-level shrink.**
+  - **The problem.** `09 §3`'s 32/24/22 characters a line are readability caps, and were
+    being treated as caption lengths. A full 32-character Latin line is about 16 em; 16 em
+    inside 78–90% of a 1080-wide portrait frame needs an em of ~2.8% of frame height. Every
+    style was therefore overflowing and shrinking, so two captions in one video were two
+    different sizes and the picker's tile showed a size no real caption used.
+  - **`fitBudget({style, script, canvas, registry, shaper}) → {maxChars, maxLines}`** in
+    `@montaj/render-core`. It measures the average advance per **base character** by running
+    a fixed, committed per-script sample through the real shaper with the resolved font, then
+    divides the caption box — less box padding, inside the safe area — by it. The answer is
+    `min(readabilityCap, whatFits)`, with caps 32/24/22 and two lines. `limitedByFit` says
+    which of the two decided; `belowComfortableMinimum` flags a style so large that captions
+    are one short word a line, rather than inflating the number and putting the overflow back.
+  - `layoutSegment` now wraps at that budget instead of at the table. Wrapping at the cap
+    re-joined words the segmenter had deliberately separated, which is what made the caption
+    overflow in the first place. The segmenter and the layout now share one number.
+  - **`@montaj/edg/segmenter` takes `maxCharsByScript`**, the shape `fitBudget` produces —
+    per script, because the segmenter resolves its limit from the script of the run it is
+    closing and a Hinglish transcript needs Roman and Devanagari runs to differ. It falls
+    back to the flat `maxChars`, then to the table. `packages/edg/README.md` gains
+    "Budgets come from `fitBudget`; readability caps are maxima".
+  - **`typography.scriptScale`**, optional and additive (StyleDoc stays at generation 2): a
+    per-script multiplier on `sizePct`, keyed by lowercase OpenType tag. Every style keeps
+    the `sizePct` it was drawn for and **no style carries a `latn` entry**. The Indic entries
+    stay on readability grounds, not fit: at the same em a Tamil budget collapses to five or
+    six characters, and a modest reduction roughly doubles it.
+  - **`computeTrackShrink({projection, catalogue, registry, shaper, canvas, script})`** lays
+    every caption out once and returns the minimum shrink per (styleId, script);
+    `renderFrame` and `layoutFrame` apply it uniformly so a style is one size for the whole
+    video. Per-caption shrink stays the fallback. The value is floored to two decimals
+    rather than rounded, because a value a hair above one caption's true need would leave
+    that caption at its own size and show two sizes instead of one. It is pure and costs one
+    layout per caption, so exporters (A19, A20) and the preview stage compute it once per
+    session and cache it; nothing calls it per frame.
+  - Tests: `fitBudget` (17), the per-script fit suite driven by the measured budget for all
+    30 styles × 3 scripts × 2 canvases at shrink ≥ 0.95 (9:16) and ≥ 0.9 (16:9), track
+    shrink (12), and the segmenter's per-script budgets. Goldens, PNG baselines and the 30
+    catalogue previews regenerated; browser parity holds at 0 pixels differing.
+  - A11 calls `fitBudget` at EDG initialisation from the project aspect and default style;
+    A15 offers "Reflow captions" (a `Resegment` op) when a style change moves the budget.
+    Neither is implemented here.
 
 - **A16 — `@montaj/render-core`, `@montaj/render-canvaskit`, the 30 system styles and
   the editor's caption canvas.**
@@ -271,6 +391,72 @@ DrawCommand[]`, pure TypeScript, HarfBuzz-wasm shaping (`harfbuzzjs` 1.6.1, pinn
     certificate, suppression, retry and idempotency semantics, both bell endpoints)
     plus an HTTP suite for the `text/plain` webhook body. `apps/api` sits at 93.9%
     lines and 87.2% branches against the CONTRACTS section 9 gate of 75/70.
+- **A10 — worker-ai: vendor adapters, two-signal LID, routing chain, forced
+  alignment, diarisation and the result cache.**
+  - `worker_ai/providers/elevenlabs.py`, `sarvam.py`, `assemblyai.py`: the three
+    vendor adapters of decision **D12**, behind the A09 `Provider` interface.
+    Scribe v2 is one multipart request per chunk with word timestamps and
+    diarisation included, which is why a Scribe-routed job runs neither the
+    aligner nor pyannote. Saaras v4 is **Batch only** (init, blob upload, start,
+    poll, download) because its REST endpoint caps at 30 s of audio, and returns
+    chunk-level timestamps only, which is why its lane is `alignment: required`
+    (RR-02 F1). Universal-2 is upload / submit / poll and speaks **milliseconds**
+    where every other vendor speaks seconds.
+  - `worker_ai/providers/http.py`: one retry policy for every vendor — 429 and
+    5xx retried with `Retry-After` honoured and jittered exponential backoff,
+    every other 4xx fatal, and no credential ever in a log line or an exception
+    message.
+  - **No vendor key exists yet (A00-06)**, so every adapter is driven by recorded
+    HTTP under `worker_ai/fixtures/vendor/` replayed through
+    `httpx2.MockTransport` (`evals/replay.py`). `tests/test_vendor_smoke.py` is
+    the documented manual path for the day the keys arrive, skipped unless
+    `RUN_VENDOR_SMOKE=1`.
+  - `worker_ai/lid.py`: the two-signal language identification of **D14** —
+    Whisper LID over 60 s + two 15 s windows (or the routed provider's own answer)
+    plus a local classifier on the first chunk. The code-mix lane needs _both_
+    signals on Hindi/Hinglish and `codeMixScore ≥ 0.3`, because RR-02 F4 measured
+    IndicLID's romanised head at F1 0.75 and it cannot carry that decision alone.
+    A disagreement takes the acoustic signal and raises `lowConfidence`. The whole
+    decision is logged per job and travels in the completion `result`.
+  - `worker_ai/routing.py`: `resolve_chain` returns every candidate a deployment
+    can run, primary first, so `ai.transcribe` falls through to the next vendor on
+    a `ProviderError` instead of failing the job. Admin weights are laid over
+    `routing.yaml` from `ROUTING_OVERRIDES_JSON` and, when B13 ships it, from
+    `GET /internal/routing`. **Naming Bhashini in a lane is now a load-time
+    error** (`NEVER_ROUTE`): its public API is proof-of-concept-only by its own
+    terms (RR-02 F3, D63).
+  - `worker_ai/alignment/ctc.py`: CTC forced alignment in numpy — the Viterbi pass
+    over the blank-interleaved lattice, with the repeated-character rule that is
+    the classic place a hand-rolled aligner goes wrong. `IndicWav2VecAligner`
+    (MIT) and `MmsAligner` load ONNX checkpoints lazily from
+    `WORKER_AI_ALIGN_MODEL_DIR`; `ElevenLabsForcedAligner` is the paid rung; the
+    proportional + VAD fallback still needs no model. Roman Hinglish is projected
+    onto Devanagari and MMS input is romanised first, both by rule tables.
+  - `worker_ai/diarisation/pyannote.py` and `mapping.py`: pyannote
+    **community-1** over the whole file through the D15 model server, with speaker
+    labels joined onto words by overlap (nearest turn when a word overlaps none).
+    Where the provider already labelled the words — Scribe does, and it is priced
+    in — pyannote does not run. The **CC-BY-4.0 attribution** is a module constant
+    and ships in `engineVersions`.
+  - `worker_ai/cache.py`: the `09 §1` result cache, keyed by
+    `contentHash + language + provider + model` (plus the lane's mode and the
+    chunk span), 30-day TTL, per-entry size cap, Redis or memory or off. A hit
+    skips the vendor call and sets `usage.cached`. A cache outage is a miss, never
+    a failure.
+  - `worker_ai/metrics.py` and `GET /metrics`: Prometheus counters per provider,
+    language and lane — calls by outcome, media seconds, estimated paise, cache
+    hits, routing fallbacks. No workspace, project or media id is ever a label.
+  - `worker_ai/fixtures/speech-5s/`: a five-second **CC0** speech-shaped clip,
+    generated by the committed `make_clip.py`, so the `slow` LocalWhisper test
+    feeds a model real audio and the eval harness's vendor lanes have media.
+  - The eval CLI scores every adapter: `evals run --set vendor-replay --provider
+sarvam` replays the recorded session, `--live` calls the configured vendor.
+  - **Security fix:** `httpx2` logs every request URL at INFO, and Sarvam's Batch
+    API hands back Azure blob SAS URLs with the signature in the query string —
+    so that one line would have written a live credential into the pod's logs on
+    every job. `logging_setup.configure_logging` now holds the HTTP client
+    loggers at WARNING, and `providers/http.py` logs the path with the query
+    string stripped (THREAT-MODEL T21).
 
 - **A09 — worker-ai: the BullMQ Python worker, provider interface, VAD and
   chunking, alignment and diarisation registries, evals.**
@@ -798,6 +984,30 @@ DrawCommand[]`, pure TypeScript, HarfBuzz-wasm shaping (`harfbuzzjs` 1.6.1, pinn
     credential-shaped is committed.
 
 ### Fixed
+
+- **A08c — `RedisRealtimeBus` could not subscribe against a real Redis.** Reported
+  by A12. `RedisService` builds its client with `lazyConnect: true` and
+  `enableOfflineQueue: false`; `duplicate()` inherits both, so the realtime
+  subscriber sat in `wait` and its very first `SUBSCRIBE` was rejected outright
+  with `Stream isn't writeable and enableOfflineQueue options is false` rather than
+  being queued until the socket opened. Nothing retried it, so every room was
+  silently never delivered to — in production only, because the realtime e2e ran
+  over `InMemoryRealtimeBus` and the Redis fake reported `ready` from its first
+  moment. `RedisRealtimeBus` now connects each client explicitly before issuing a
+  command (subscriber _and_ the shared publishing client, which has the same
+  problem on an instance whose first Redis traffic is a realtime publish), waits
+  for `ready` when another caller is already connecting, and skips an
+  `UNSUBSCRIBE` on a connection that never came up.
+  - `RealtimeGateway` no longer lets a fan-out failure escape: a room whose
+    subscription cannot be established is refused with
+    `refused: [{room, reason: "unavailable"}]` and its local membership rolled
+    back, and the fire-and-forget frame handler catches instead of turning a
+    rejection into a process exit.
+  - `apps/api/test/realtime-redis.e2e-spec.ts` runs the real bus, the real
+    `RedisService` options and two gateway instances against the compose Redis,
+    publishing on one and receiving on the other; the unit suite gained a Redis
+    fake with the lazy lifecycle, because the old one was `ready` from the start
+    and could never have caught this.
 
 - **A08b — `jobKey` deduplication was scoped globally, not per workspace.** A08's
   `jobs_live_job_key_key` was `UNIQUE (job_key) WHERE status IN

@@ -12,7 +12,8 @@
     "sizePct": 3.4,
     "lineHeight": 1.24,
     "letterSpacingEm": 0.01,
-    "textTransform": "uppercase"
+    "textTransform": "uppercase",
+    "scriptScale": { "taml": 0.71 }
   },
   "colors": {
     "text": "#ffffff",

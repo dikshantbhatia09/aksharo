@@ -1,0 +1,41 @@
+{
+  "provider": "sarvam",
+  "baseUrl": "https://api.sarvam.test",
+  "exchanges": [
+    {
+      "method": "POST",
+      "path": "/speech-to-text/job/init",
+      "status": 200,
+      "json": {
+        "job_id": "job-2",
+        "input_storage_path": "https://sarvamblob.test/job-1?sv=2026-01-01&sig=replay",
+        "output_storage_path": "https://sarvamblob.test/job-1-out?sv=2026-01-01&sig=replay"
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "sarvamblob.test/job-1/",
+      "status": 201,
+      "text": ""
+    },
+    {
+      "method": "POST",
+      "path": "/speech-to-text/job",
+      "status": 200,
+      "json": {
+        "job_id": "job-2",
+        "job_state": "Pending"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/speech-to-text/job/job-2/status",
+      "status": 200,
+      "json": {
+        "job_id": "job-2",
+        "job_state": "Failed",
+        "error_message": "audio could not be decoded"
+      }
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { type Prisma } from "@prisma/client";
 
-import { newId } from "@montaj/edg";
+import { buildWordIndex, newId, type ProjectionIssue, validateProjection } from "@montaj/edg";
 import {
   applyOps,
   type EdgRepository as EdgRepositoryContract,
@@ -187,6 +187,26 @@ export class EdgRaceLostError extends Error {
 export class SnapshotNotFoundError extends Error {
   override readonly name = "SnapshotNotFoundError";
   readonly code = EDG_ERROR_CODES.snapshotNotFound;
+}
+
+/**
+ * Raised when a snapshot cannot be restored over the document as it now stands.
+ *
+ * The transcript is not rolled back with the captions (words live in their own
+ * table, and a spelling fixed after the snapshot must stay fixed), so a snapshot
+ * old enough to predate a `DeleteWord` can name a word that is no longer live.
+ * Writing it would leave a caption bounded by a word nothing can render. The
+ * restore is refused instead, naming the ids.
+ */
+export class RestoreInvalidError extends Error {
+  override readonly name = "RestoreInvalidError";
+  readonly code = EDG_ERROR_CODES.restoreInvalid;
+  constructor(
+    readonly danglingWordIds: string[],
+    readonly issues: ProjectionIssue[],
+  ) {
+    super(`snapshot cannot be restored: ${issues.length} projection issue(s)`);
+  }
 }
 
 /** Field-by-field identity, in a fixed key order, so a diff is a string compare. */
@@ -1168,7 +1188,17 @@ export class EdgRepository implements EdgRepositoryContract {
 
           const stored = EdgSnapshotSchema.parse(row.snapshot);
           const revision = document.revision + 1;
-          const target = stored.projection;
+
+          // The document the restore would write. The words are the
+          // transcript's, not the document's, so the live reference is kept
+          // rather than the one the snapshot froze.
+          const target: EdgProjection = {
+            ...stored.projection,
+            meta: { ...stored.projection.meta, revision },
+            transcript: document.hot.transcript,
+          };
+
+          await this.assertRestorable(tx, document, target);
 
           const existing = await tx.edgSegment.findMany({
             where: { edgId: input.edgId },
@@ -1216,12 +1246,10 @@ export class EdgRepository implements EdgRepositoryContract {
 
           await this.restorePasses(tx, input.edgId, target);
 
-          // The words are the transcript's, not the document's: keep the live
-          // reference rather than the one the snapshot froze.
           const hot: EdgHot = {
-            meta: { ...target.meta, revision },
+            meta: target.meta,
             media: target.media,
-            transcript: document.hot.transcript,
+            transcript: target.transcript,
             canvas: target.canvas,
             styles: target.styles,
             ...(target.audio === undefined ? {} : { audio: target.audio }),
@@ -1250,6 +1278,54 @@ export class EdgRepository implements EdgRepositoryContract {
       if (error instanceof CommitAbort) throw new EdgRaceLostError();
       throw error;
     }
+  }
+
+  /**
+   * Refuse a restore that would write a caption nobody can render.
+   *
+   * The transcript is deliberately not rolled back with the document, so a
+   * snapshot old enough to predate a `DeleteWord` can still name that word. The
+   * projection is therefore checked against the transcript **as it now stands**
+   * before a single row is written: `validateProjection` for every invariant the
+   * document has to hold (D28 — unique ids, ascending `seq`, time order, word
+   * ranges that run forwards, emphasis inside its own segment, item ownership),
+   * with a word index built from the **live** words only. A tombstoned word is
+   * as good as a missing one here: it will never render, so a segment bounded by
+   * it is exactly as broken as one bounded by an id that never existed.
+   *
+   * The whole transcript is read for this. A restore is a rare, deliberate,
+   * human action — unlike an op batch, which is why that path has a working set
+   * and this one does not.
+   */
+  private async assertRestorable(
+    tx: PrismaTransaction,
+    document: DocumentRow,
+    target: EdgProjection,
+  ): Promise<void> {
+    const rows = await this.readChunkRows(tx, document.hot.transcript.transcriptId);
+    const live: TranscriptChunk[] = rows
+      .map(toChunk)
+      .map((chunk) => ({ ...chunk, words: chunk.words.filter((word) => word.deleted !== true) }));
+    const wordIndex = buildWordIndex(live);
+
+    const issues = validateProjection(target, { wordIndex });
+    if (issues.length === 0) return;
+
+    const dangling = new Set<string>();
+    for (const segment of target.segments) {
+      const referenced = [
+        segment.startWordId,
+        segment.endWordId,
+        ...(segment.emphasis ?? []).map((entry) => entry.wordId),
+      ];
+      for (const wordId of referenced) if (!wordIndex.has(wordId)) dangling.add(wordId);
+    }
+
+    this.logger.warn(
+      { edgId: document.id, issues: issues.length, dangling: dangling.size },
+      "snapshot restore refused: the transcript has moved on",
+    );
+    throw new RestoreInvalidError([...dangling].sort(), issues);
   }
 
   private async restorePasses(

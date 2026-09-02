@@ -1,0 +1,112 @@
+{
+  "provider": "serverless-whisper",
+  "baseUrl": "https://gpu.test",
+  "exchanges": [
+    {
+      "method": "POST",
+      "path": "/transcribe",
+      "status": 200,
+      "json": {
+        "language": "hi",
+        "languageProbability": 0.91,
+        "durationS": 4.0,
+        "model": "large-v3-turbo",
+        "requestId": "gpu-1",
+        "words": [
+          {
+            "start": 0.12,
+            "end": 0.44,
+            "word": "toh",
+            "probability": 0.9
+          },
+          {
+            "start": 0.48,
+            "end": 0.8,
+            "word": "aaj",
+            "probability": 0.9
+          },
+          {
+            "start": 0.84,
+            "end": 1.12,
+            "word": "hum",
+            "probability": 0.9
+          },
+          {
+            "start": 1.16,
+            "end": 1.52,
+            "word": "baat",
+            "probability": 0.9
+          },
+          {
+            "start": 1.56,
+            "end": 2.1,
+            "word": "karenge",
+            "probability": 0.9
+          },
+          {
+            "start": 2.2,
+            "end": 2.62,
+            "word": "video",
+            "probability": 0.9
+          },
+          {
+            "start": 2.66,
+            "end": 3.14,
+            "word": "editing",
+            "probability": 0.9
+          },
+          {
+            "start": 3.18,
+            "end": 3.32,
+            "word": "ke",
+            "probability": 0.9
+          },
+          {
+            "start": 3.36,
+            "end": 3.7,
+            "word": "baare",
+            "probability": 0.9
+          },
+          {
+            "start": 3.74,
+            "end": 3.98,
+            "word": "mein",
+            "probability": 0.9
+          }
+        ]
+      },
+      "repeat": 8
+    },
+    {
+      "method": "POST",
+      "path": "/diarise",
+      "status": 200,
+      "json": {
+        "model": "pyannote/speaker-diarization-community-1",
+        "turns": [
+          {
+            "speaker": "SPEAKER_00",
+            "start": 0.0,
+            "end": 2.15
+          },
+          {
+            "speaker": "SPEAKER_01",
+            "start": 2.16,
+            "end": 4.0
+          }
+        ]
+      },
+      "repeat": 4
+    },
+    {
+      "method": "POST",
+      "path": "/detect-language",
+      "status": 200,
+      "json": {
+        "language": "hi",
+        "probability": 0.88
+      },
+      "repeat": 4
+    }
+  ]
+}

@@ -50,6 +50,9 @@ importers:
       '@montaj/edg':
         specifier: workspace:*
         version: link:../../packages/edg
+      '@montaj/render-core':
+        specifier: workspace:*
+        version: link:../../packages/render-core
       '@nestjs/common':
         specifier: ^11.2.3
         version: 11.2.3(reflect-metadata@0.2.2)(rxjs@7.8.2)

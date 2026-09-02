@@ -251,11 +251,17 @@ export class EdgController {
     description:
       "History is never rewritten: the restore is appended, so restoring a later " +
       "snapshot undoes it. The transcript is not rolled back — words live in their " +
-      "own table and a spelling fixed after the snapshot stays fixed.",
+      "own table and a spelling fixed after the snapshot stays fixed. A snapshot " +
+      "that names a word the transcript no longer has live is refused with " +
+      "`edg/restore_invalid` and the dangling ids, rather than written as a " +
+      "caption nothing can render.",
     operationId: "restoreEdgSnapshot",
   })
   @ApiOkResponse({ type: RestoreResultDto })
   @ApiNotFoundResponse({ description: "`edg/snapshot_not_found`." })
+  @ApiConflictResponse({
+    description: "`edg/restore_invalid` — `details.danglingWordIds` names the words.",
+  })
   async restore(
     @CurrentUser() principal: AuthPrincipal,
     @Param("projectId") projectId: string,

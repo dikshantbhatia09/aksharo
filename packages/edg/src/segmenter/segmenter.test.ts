@@ -393,3 +393,43 @@ describe("script detection", () => {
     expect(limitsFor("tamil").maxCharsPerLine).toBe(22);
   });
 });
+
+describe("per-script character budgets (D78)", () => {
+  const sample = words([{ t: "editing" }, { t: "transcript" }, { t: "brother" }, { t: "simple" }]);
+
+  it("takes a budget per script, which is what fitBudget produces", () => {
+    const tight = segmentWords(sample, {
+      ...DEFAULT_SEGMENTER_PARAMS,
+      maxCharsByScript: { latin: 10 },
+    });
+    const loose = segmentWords(sample, {
+      ...DEFAULT_SEGMENTER_PARAMS,
+      maxCharsByScript: { latin: 32 },
+    });
+    expect(tight.length).toBeGreaterThan(loose.length);
+  });
+
+  it("beats the flat maxChars where both name the script", () => {
+    const both = segmentWords(sample, {
+      ...DEFAULT_SEGMENTER_PARAMS,
+      maxChars: 32,
+      maxCharsByScript: { latin: 10 },
+    });
+    const flatOnly = segmentWords(sample, { ...DEFAULT_SEGMENTER_PARAMS, maxChars: 10 });
+    expect(both.length).toBe(flatOnly.length);
+  });
+
+  it("falls back to maxChars, then to the readability table, for scripts it omits", () => {
+    const fallback = segmentWords(sample, {
+      ...DEFAULT_SEGMENTER_PARAMS,
+      maxChars: 10,
+      maxCharsByScript: { tamil: 8 },
+    });
+    expect(fallback.length).toBe(
+      segmentWords(sample, { ...DEFAULT_SEGMENTER_PARAMS, maxChars: 10 }).length,
+    );
+    expect(
+      segmentWords(sample, { ...DEFAULT_SEGMENTER_PARAMS, maxCharsByScript: { tamil: 8 } }).length,
+    ).toBe(segmentWords(sample, DEFAULT_SEGMENTER_PARAMS).length);
+  });
+});

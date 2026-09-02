@@ -2,9 +2,14 @@
 
 A provider is **enabled** when three things hold:
 
-1. its adapter is implemented (A10 shells are registered but never enabled);
+1. its adapter is implemented (a registered-but-unimplemented shell never is);
 2. every credential it needs is present in the environment;
 3. its feature flag is not switched off — ``asr.<name>`` in ``FEATURE_FLAGS_JSON``.
+
+Bhashini is deliberately **not registered at all**: its public API is
+proof-of-concept only by its own terms (RR-02 F3, D63), so it has no adapter, no
+flag and no row here, and ``worker_ai.routing.NEVER_ROUTE`` makes naming it in
+``routing.yaml`` a load-time error.
 
 Anything else is reported with a reason rather than hidden, because "why is the
 Hinglish lane running on the mock?" has to be answerable from ``GET /providers``
@@ -109,7 +114,7 @@ class ProviderRegistry:
         if registration is None:
             return "no adapter is registered under that name"
         if not registration.implemented:
-            return "the adapter lands in A10"
+            return "the adapter is not implemented yet"
         if not self._settings.flag(registration.flag, default=True):
             return f"feature flag {registration.flag} is off"
         return registration.unmet()
@@ -141,6 +146,36 @@ class ProviderRegistry:
         if registration is None or not self.enabled(name):
             return False
         return registration.template.supports(capability)
+
+    def covers(self, name: str, language: str) -> bool:
+        """True when the adapter declares ``language`` — or declares nothing.
+
+        An empty ``capabilities.languages`` means "any language", which is the
+        honest answer for a 99-language model. The routing table is the authority
+        inside a lane; this is the guard for a candidate borrowed from the
+        default lane (see :func:`worker_ai.routing.resolve_chain`).
+        """
+        registration = self._registrations.get(name)
+        if registration is None:
+            return False
+        declared = registration.template.capabilities.languages
+        if not declared:
+            return True
+        wanted = language.strip().casefold()
+        base = wanted.split("-")[0]
+        return any(tag.casefold() in {wanted, base} for tag in declared)
+
+    def max_parallel_requests(self, name: str) -> int:
+        """The adapter's own ceiling on concurrent calls; 0 when it declares none.
+
+        A vendor rate limit is bought per account (RR-02 F1: Sarvam is 60 req/min
+        on Starter), so ``routing.yaml`` can raise or lower this per deployment
+        with ``maxParallelChunks``.
+        """
+        registration = self._registrations.get(name)
+        if registration is None:
+            return 0
+        return int(getattr(registration.template, "max_parallel_requests", 0) or 0)
 
     async def get(self, name: str) -> Provider:
         """The cached instance of ``name``.
@@ -204,23 +239,31 @@ def build_registry(settings: Settings) -> ProviderRegistry:
         ),
         _Registration(
             name="elevenlabs",
-            factory=lambda: ElevenLabsScribeProvider(settings.elevenlabs_api_key),
+            factory=lambda: ElevenLabsScribeProvider(
+                settings.elevenlabs_api_key,
+                base_url=settings.elevenlabs_base_url,
+                zero_retention=settings.elevenlabs_zero_retention,
+            ),
             template=ElevenLabsScribeProvider(""),
-            implemented=False,
+            implemented=True,
             unmet=credential(settings.elevenlabs_api_key, "ELEVENLABS_API_KEY"),
         ),
         _Registration(
             name="sarvam",
-            factory=lambda: SarvamSaarasProvider(settings.sarvam_api_key),
+            factory=lambda: SarvamSaarasProvider(
+                settings.sarvam_api_key, base_url=settings.sarvam_base_url
+            ),
             template=SarvamSaarasProvider(""),
-            implemented=False,
+            implemented=True,
             unmet=credential(settings.sarvam_api_key, "SARVAM_API_KEY"),
         ),
         _Registration(
             name="assemblyai",
-            factory=lambda: AssemblyAiProvider(settings.assemblyai_api_key),
+            factory=lambda: AssemblyAiProvider(
+                settings.assemblyai_api_key, base_url=settings.assemblyai_base_url
+            ),
             template=AssemblyAiProvider(""),
-            implemented=False,
+            implemented=True,
             unmet=credential(settings.assemblyai_api_key, "ASSEMBLYAI_API_KEY"),
         ),
     )

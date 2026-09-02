@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import type { TranscriptChunk, Word } from "@montaj/edg/schemas";
-import { DEFAULT_SEGMENTER_PARAMS, segmentWords } from "@montaj/edg/segmenter";
+import { DEFAULT_SEGMENTER_PARAMS, limitsFor, segmentWords } from "@montaj/edg/segmenter";
+import { createFixtureRenderer } from "@montaj/render-core/testing";
 
 import {
   aspectOf,
@@ -9,6 +10,7 @@ import {
   canvasAspectFor,
   fitCapFor,
   resolveBudgets,
+  systemStyle,
 } from "./caption-budgets.js";
 import {
   CAPTION_BOUNDS,
@@ -18,6 +20,7 @@ import {
   speakersFrom,
 } from "./transcript-init.js";
 
+import type { CaptionRenderContext } from "./caption-budgets.js";
 
 function chunk(words: Word[], chunkIdx = 0): TranscriptChunk {
   return {
@@ -209,9 +212,8 @@ describe("caption budgets (D78)", () => {
     expect(
       fitCapFor({
         script: "latin",
-        aspect: "9:16",
         canvas: { width: 1080, height: 1920 },
-        styleRef: "clean-bold",
+        styleRef: DEFAULT_STYLE_REF,
       }),
     ).toBeUndefined();
   });
@@ -225,7 +227,7 @@ describe("caption budgets (D78)", () => {
       maxLines: 2,
       script: "devanagari",
       aspect: "9:16",
-      styleRef: "clean-bold",
+      styleRef: DEFAULT_STYLE_REF,
       source: "readability",
       readabilityChars: 24,
     });
@@ -242,5 +244,93 @@ describe("caption budgets (D78)", () => {
     });
     expect(input.segmenter).toMatchObject({ maxChars: 22, maxLines: 2 });
     expect(input.engineVersions).toMatchObject({ segmenter: "readability@1" });
+  });
+});
+
+/**
+ * The fit half of D78, driven through the **real** `fitBudget` and the real
+ * shaper.
+ *
+ * Nothing binds `CAPTION_RENDER_CONTEXT` in production yet — A18b registers the
+ * subset faces — so this is the test that proves the call is wired rather than
+ * declared: the day a registry exists, the behaviour asserted here is what
+ * transcription starts doing.
+ */
+describe("the fit half (A16d's fitBudget)", () => {
+  let render: CaptionRenderContext;
+
+  beforeAll(async () => {
+    render = await createFixtureRenderer();
+  }, 60_000);
+
+  it("names a style the catalogue actually has, so the budget can be measured", () => {
+    expect(systemStyle(DEFAULT_STYLE_REF)).toBeDefined();
+    // The string `EdgService` falls back to is not in the catalogue (reported).
+    expect(systemStyle("clean-bold")).toBeUndefined();
+  });
+
+  it("measures a real budget and never exceeds the readability cap", () => {
+    for (const script of ["latin", "devanagari", "tamil"] as const) {
+      const budget = fitCapFor({
+        script,
+        canvas: { width: 1080, height: 1920 },
+        styleRef: DEFAULT_STYLE_REF,
+        render,
+      });
+      expect(budget, script).toBeDefined();
+      expect(budget?.maxChars).toBeGreaterThan(0);
+      expect(budget?.maxChars).toBeLessThanOrEqual(limitsFor(script).maxCharsPerLine);
+      expect(budget?.maxLines).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("flows into resolveBudgets, which then reports itself as measured", () => {
+    const measured = resolveBudgets({
+      script: "latin",
+      aspect: "r9x16",
+      styleRef: DEFAULT_STYLE_REF,
+      render,
+    });
+    expect(measured.source).toBe("fit");
+    expect(measured.fitChars).toBeGreaterThan(0);
+    expect(measured.maxChars).toBeLessThanOrEqual(measured.readabilityChars);
+    expect(budgetsForMeta(measured)["segmenter"]).toBe("fit@1");
+  });
+
+  it("still lets a workspace preference narrow a measured budget", () => {
+    const measured = resolveBudgets({ script: "latin", styleRef: DEFAULT_STYLE_REF, render });
+    const narrowed = resolveBudgets({
+      script: "latin",
+      styleRef: DEFAULT_STYLE_REF,
+      render,
+      preferences: { maxChars: 14 },
+    });
+    // Every cap is a cap: the answer is the smallest of the three, never the
+    // preference on its own.
+    expect(narrowed.maxChars).toBe(Math.min(14, measured.maxChars));
+
+    const widened = resolveBudgets({
+      script: "latin",
+      styleRef: DEFAULT_STYLE_REF,
+      render,
+      preferences: { maxChars: 60 },
+    });
+    expect(widened.maxChars).toBe(measured.maxChars);
+  });
+
+  it("falls back to the readability cap rather than guessing when it cannot measure", () => {
+    // An unknown style id: no `StyleDoc`, so no metrics, so no fit half.
+    expect(
+      fitCapFor({
+        script: "latin",
+        canvas: { width: 1080, height: 1920 },
+        styleRef: "not-a-style",
+        render,
+      }),
+    ).toBeUndefined();
+    expect(resolveBudgets({ script: "latin", styleRef: "not-a-style", render })).toMatchObject({
+      source: "readability",
+      maxChars: 32,
+    });
   });
 });

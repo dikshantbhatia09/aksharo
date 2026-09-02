@@ -32,7 +32,7 @@ Nothing here interprets an op. If a verdict looks wrong, it is wrong in
 | `GET`  | `/projects/{id}/edg/snapshots`                    | viewer | Revisions a snapshot exists at, newest first.                    |
 | `POST` | `/projects/{id}/edg/ops`                          | editor | `OpBatchRequest` → `OpBatchResponse`; 409 `edg/conflict`.        |
 | `POST` | `/projects/{id}/edg/resegment`                    | editor | Server-minted `Resegment` op.                                    |
-| `POST` | `/projects/{id}/edg/snapshots/{n}/restore`        | editor | Appends a revision that replaces the state.                      |
+| `POST` | `/projects/{id}/edg/snapshots/{n}/restore`        | editor | Appends a revision replacing the state; 409 if it dangles.       |
 | `POST` | `/internal/projects/{id}/edg/ops`                 | HMAC   | The worker surface: the only writer that may submit `MergePass`. |
 
 `@Roles("editor")` admits editor, admin and owner; a viewer reads and is refused
@@ -149,6 +149,18 @@ that writes a second generation beside the first is picked up without a migratio
 A restore deliberately does **not** roll the transcript back: words live in their
 own table with their own revision, and restoring captions must not un-correct a
 spelling the user fixed afterwards.
+
+That is also why a restore can fail. A snapshot old enough to predate a
+`DeleteWord` still names that word, and writing it would leave a caption bounded
+by something nothing can render. So before a single row is written, the
+projection the restore would produce is run through `validateProjection` against
+the transcript **as it now stands** — with a word index built from the **live**
+words only, because a tombstoned word is as good as a missing one here. Any issue
+refuses the whole restore with `409 edg/restore_invalid`, whose
+`details.danglingWordIds` names the words and `details.issues` carries the
+validator's findings. The whole transcript is read for that check: a restore is a
+rare, deliberate, human action, which is exactly why it can afford what an op
+batch cannot.
 
 ## Idempotency
 

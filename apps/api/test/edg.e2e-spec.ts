@@ -679,6 +679,68 @@ describe.skipIf(!available)("EDG", () => {
       expect(stale.body.error.code).toBe("edg/too_stale");
     });
 
+    it("refuses a snapshot that names a word the transcript no longer has live", async () => {
+      const project = await ctx.seed({ words: 240, chunkSize: 60 });
+      const token = ctx.token();
+
+      // `initialise` snapshots revision 1, and one of its captions is bounded by
+      // word 0:0. Deleting that word shrinks the live caption onto its neighbour,
+      // but the snapshot still names it.
+      const bounded = project.segments.find((segment) => segment.startWordId === "0:0");
+      expect(bounded).toBeDefined();
+
+      const deleted = await call<{ revision: number; rejected: unknown[] }>(
+        "POST",
+        `/projects/${project.projectId}/edg/ops`,
+        { token, body: batch(1, [{ opId: newId(), type: "DeleteWord", wordId: "0:0" }]) },
+      );
+      expect(deleted.status).toBe(200);
+      expect(deleted.body.rejected).toEqual([]);
+
+      const restored = await call<{
+        error: { code: string; details: { danglingWordIds: string[]; issues: unknown[] } };
+      }>("POST", `/projects/${project.projectId}/edg/snapshots/1/restore`, { token });
+
+      expect(restored.status).toBe(409);
+      expect(restored.body.error.code).toBe("edg/restore_invalid");
+      expect(restored.body.error.details.danglingWordIds).toContain("0:0");
+      expect(restored.body.error.details.issues.length).toBeGreaterThan(0);
+
+      // Nothing was written: no revision was appended and the shrunk caption stands.
+      const document = await ctx.prisma.edgDocument.findUniqueOrThrow({
+        where: { id: project.edgId },
+      });
+      expect(document.revision).toBe(deleted.body.revision);
+      const row = await ctx.prisma.edgSegment.findUniqueOrThrow({ where: { id: bounded!.id } });
+      expect(row.startWordId).not.toBe("0:0");
+    });
+
+    it("accepts the same restore when no word was deleted", async () => {
+      const project = await ctx.seed({ words: 240, chunkSize: 60 });
+      const token = ctx.token();
+      const segment = project.segments[0]!;
+
+      const edited = await call<{ revision: number }>(
+        "POST",
+        `/projects/${project.projectId}/edg/ops`,
+        { token, body: batch(1, [setText(segment.id, "badla hua")]) },
+      );
+      expect(edited.status).toBe(200);
+
+      const restored = await call<{ revision: number; segments: number }>(
+        "POST",
+        `/projects/${project.projectId}/edg/snapshots/1/restore`,
+        { token },
+      );
+
+      expect(restored.status).toBe(200);
+      expect(restored.body.revision).toBe(edited.body.revision + 1);
+      expect(restored.body.segments).toBe(project.segments.length);
+
+      const row = await ctx.prisma.edgSegment.findUniqueOrThrow({ where: { id: segment.id } });
+      expect(row.textOverrides).toEqual({});
+    });
+
     it("404s a restore of a revision that has no snapshot", async () => {
       const project = await ctx.seed();
       const result = await call<{ error: { code: string } }>(

@@ -149,11 +149,19 @@ maxChars = min(readability cap, fit cap, the workspace's own preference)
 maxLines = min(2, …)
 ```
 
-`src/edg/init/caption-budgets.ts` is the seam. `fitBudget` from
-`@montaj/render-core` (A16d) is the fit half; until it lands, `fitCapFor` returns
-nothing and the `min` is the readability cap alone — which is the correct
-conservative answer, not a placeholder. **One function changes** when A16d is on
-main.
+`src/edg/init/caption-budgets.ts` holds it, and the fit half really is
+`fitBudget` from `@montaj/render-core` (A16d) — called, not stubbed. What it needs
+is a `CaptionRenderContext` (a `FontRegistry` and a `Shaper`), and **A18b** is the
+work package that registers the production subset faces. Until something binds
+`CAPTION_RENDER_CONTEXT`, `fitCapFor` answers `undefined` and the budget is the
+readability cap, reported as `source: "readability"`.
+
+That is deliberate, not a placeholder: `averageAdvanceEm` raises `render/no-font`
+rather than guessing, and a budget measured against a stand-in face would be a
+wrong number wearing the word "measured". The call is covered now —
+`transcript-init.test.ts` drives it through `createFixtureRenderer` and asserts
+`min(readability, fit, preference)` — so binding a registry is the only change
+left.
 
 The canvas comes from `projects.aspect`, except that landscape footage overrides
 an _untouched_ 9:16 default (the probe's dimensions win over a default nobody

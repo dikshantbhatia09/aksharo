@@ -1,4 +1,4 @@
-import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional, type OnModuleInit } from "@nestjs/common";
 import { z } from "zod";
 
 import { segmentScript } from "@montaj/edg/segmenter";
@@ -8,13 +8,17 @@ import { quoteTranscription, settlementFor } from "./transcripts.quote.js";
 import { TranscriptsRepository } from "./transcripts.repository.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { EdgService } from "../edg/index.js";
-import { edgInitInputFor, resolveBudgets } from "../edg/init/index.js";
+import { CAPTION_RENDER_CONTEXT, edgInitInputFor, resolveBudgets } from "../edg/init/index.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 import { JobEventsService } from "../jobs/job-events.service.js";
 
 import type { Correction, GlossaryTerm } from "./postprocess/index.js";
 import type { IngestChunk, ProviderSubmissionInput } from "./transcripts.repository.js";
-import type { CaptionBudgets, CaptionPreferences } from "../edg/init/index.js";
+import type {
+  CaptionBudgets,
+  CaptionPreferences,
+  CaptionRenderContext,
+} from "../edg/init/index.js";
 import type {
   JobCompletionContext,
   JobCompletionHandler,
@@ -215,6 +219,14 @@ export class TranscribeCompletionHandler implements JobCompletionHandler, OnModu
     private readonly glossary: MemoryGlossarySource,
     private readonly events: JobEventsService,
     private readonly registry: JobCompletionRegistry,
+    /**
+     * The font stack the caption fit budget measures through (D78). Optional:
+     * A18b registers the production subset faces, and until it binds this the
+     * budget is the `09 §3` readability cap alone.
+     */
+    @Optional()
+    @Inject(CAPTION_RENDER_CONTEXT)
+    private readonly render?: CaptionRenderContext,
   ) {}
 
   onModuleInit(): void {
@@ -388,6 +400,7 @@ export class TranscribeCompletionHandler implements JobCompletionHandler, OnModu
     );
     return resolveBudgets({
       script,
+      ...(this.render === undefined ? {} : { render: this.render }),
       aspect: project?.aspect ?? null,
       ...(project?.mediaAssets[0] === undefined ? {} : { media: project.mediaAssets[0] }),
       ...(preferences.styleRef === undefined ? {} : { styleRef: preferences.styleRef }),

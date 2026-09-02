@@ -8,12 +8,18 @@
 export {
   aspectOf,
   budgetsForMeta,
+  CAPTION_RENDER_CONTEXT,
   canvasAspectFor,
   CANVAS_SIZES,
   fitCapFor,
   resolveBudgets,
+  systemStyle,
 } from "./caption-budgets.js";
-export type { CaptionBudgets, ResolveBudgetsInput } from "./caption-budgets.js";
+export type {
+  CaptionBudgets,
+  CaptionRenderContext,
+  ResolveBudgetsInput,
+} from "./caption-budgets.js";
 export {
   CAPTION_BOUNDS,
   DEFAULT_STYLE_REF,

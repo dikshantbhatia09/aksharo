@@ -40,8 +40,15 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from worker_ai.alignment import AlignerRegistry
+from worker_ai.cache import MemoryResultCache, NullResultCache, RedisResultCache, ResultCache
 from worker_ai.callbacks import CallbackClient, JobCompletion, JobError
 from worker_ai.diarisation import DiariserRegistry
+from worker_ai.lid import (
+    GpuLanguageIdentifier,
+    IndicLidClassifier,
+    LanguageIdentifier,
+    WhisperLanguageIdentifier,
+)
 from worker_ai.logging_setup import get_logger
 from worker_ai.processors import (
     JobContext,
@@ -56,7 +63,7 @@ from worker_ai.processors import (
 )
 from worker_ai.providers.registry import build_registry
 from worker_ai.queues import AI_QUEUES, parse_envelope
-from worker_ai.routing import load_routing_table
+from worker_ai.routing import RoutingTable, load_overrides, load_routing_table
 from worker_ai.settings import Settings
 from worker_ai.storage import ObjectStore, StorageError
 from worker_ai.vad import load_vad
@@ -118,12 +125,107 @@ def build_services(settings: Settings, *, callbacks: CallbackClient | None = Non
         callbacks=callbacks
         or CallbackClient(settings.api_origin, settings.internal_callback_secret),
         providers=build_registry(settings),
-        routing=load_routing_table(settings.routing_file or None),
-        aligners=AlignerRegistry.default(),
-        diarisers=DiariserRegistry.default(),
+        routing=build_routing_table(settings),
+        aligners=AlignerRegistry.from_settings(settings),
+        diarisers=DiariserRegistry.from_settings(settings),
         vad=load_vad(settings.vad_model_path),
         derived_store=store,
+        cache=build_cache(settings),
+        language_id=build_language_identifier(settings),
+        text_lid=IndicLidClassifier(settings.indiclid_dir),
     )
+
+
+def build_routing_table(settings: Settings) -> RoutingTable:
+    """``routing.yaml`` with the admin weights of `09 §1` laid over it.
+
+    Two sources, in order: ``ROUTING_OVERRIDES_JSON`` in the environment, then
+    the API's ``GET /internal/routing`` when ``WORKER_AI_ROUTING_OVERRIDES_FROM_API``
+    is on. The API endpoint belongs to the admin console (B13) and does not exist
+    on ``main`` yet, so the fetch is opt-in and a 404 is not an error — the worker
+    logs it once and runs the table as written.
+    """
+    table = load_routing_table(settings.routing_file or None)
+    overrides = load_overrides(settings.routing_overrides_json)
+    if settings.routing_overrides_from_api:
+        overrides = {**overrides, **fetch_routing_overrides(settings)}
+    if not overrides:
+        return table
+    _log.info("routing overrides applied", extra={"lanes": len(overrides.get("lanes", {}) or {})})
+    return table.apply_overrides(overrides)
+
+
+def fetch_routing_overrides(settings: Settings) -> dict[str, Any]:
+    """``GET {API_ORIGIN}/internal/routing``, signed like every internal call.
+
+    Returns ``{}`` on any failure — a missing endpoint, a bad signature, an
+    unreachable API. Routing weights are a tuning knob; a worker that refuses to
+    boot without them would turn an admin-console outage into an ASR outage.
+    """
+    import hashlib
+    import hmac
+    import time
+
+    import httpx2
+
+    path = "/internal/routing"
+    timestamp = str(int(time.time()))
+    signature = hmac.new(
+        settings.internal_callback_secret.encode("utf-8"),
+        (timestamp + ".").encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    try:
+        response = httpx2.get(
+            settings.api_origin + path,
+            headers={
+                "x-montaj-timestamp": timestamp,
+                "x-montaj-signature": signature,
+            },
+            timeout=5.0,
+        )
+    except httpx2.HTTPError as error:
+        _log.warning("routing overrides unavailable", extra={"reason": type(error).__name__})
+        return {}
+    if response.status_code == 404:
+        _log.info("the API exposes no /internal/routing yet; using routing.yaml as written")
+        return {}
+    if response.status_code >= 400:
+        _log.warning("routing overrides refused", extra={"status": response.status_code})
+        return {}
+    try:
+        parsed: Any = response.json()
+    except ValueError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def build_cache(settings: Settings) -> ResultCache:
+    """The `09 §1` result cache for this deployment."""
+    kind = settings.cache_kind
+    if kind == "redis":
+        return RedisResultCache(
+            settings.redis_url, max_entry_bytes=settings.cache_max_entry_bytes
+        )
+    if kind == "memory":
+        return MemoryResultCache(max_entry_bytes=settings.cache_max_entry_bytes)
+    return NullResultCache()
+
+
+def build_language_identifier(settings: Settings) -> LanguageIdentifier | None:
+    """Signal 1 of the two-signal LID (D14): the best acoustic model available.
+
+    faster-whisper when the ``local-asr`` extra is installed, otherwise the D15
+    model server, otherwise ``None`` — and ``None`` means ``ai.transcribe`` uses
+    the language the routed ASR provider reported, which every adapter returns.
+    """
+    whisper = WhisperLanguageIdentifier(model_name=settings.whisper_model)
+    if whisper.available() is None:
+        return whisper
+    gpu = GpuLanguageIdentifier(settings.gpu_provider_url, token=settings.gpu_provider_token)
+    if gpu.available() is None:
+        return gpu
+    return None
 
 
 def make_handler(queue: str, services: Services) -> Handler:

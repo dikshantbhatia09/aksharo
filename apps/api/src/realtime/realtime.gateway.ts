@@ -196,7 +196,20 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnApplicationShu
       connection.missedPongs = 0;
     });
     socket.on("message", (raw: Buffer | ArrayBuffer | Buffer[]) => {
-      void this.onFrame(connection, raw);
+      void this.onFrame(connection, raw).catch((error: unknown) => {
+        // `void` on a rejecting promise is an unhandled rejection, which Node
+        // turns into a process exit. A bad frame — or a Redis that just went
+        // away under `join()` — must cost one socket at most, never the API.
+        this.logger.warn(
+          { connectionId: connection.id, err: describeError(error) },
+          "realtime frame handler failed",
+        );
+        send(connection.socket, {
+          t: "error",
+          code: "realtime/unavailable",
+          message: "The request could not be completed.",
+        });
+      });
     });
     socket.on("close", () => {
       void this.drop(connection);
@@ -277,7 +290,12 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnApplicationShu
         refused.push({ room, reason: decision.reason });
         continue;
       }
-      await this.join(connection, room);
+      // A room the bus could not be subscribed to is refused rather than silently
+      // joined: a client told it is in a room it will get no events for is worse
+      // than one told to try again.
+      if (!(await this.join(connection, room))) {
+        refused.push({ room, reason: "unavailable" });
+      }
     }
 
     send(connection.socket, {
@@ -292,16 +310,29 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnApplicationShu
     send(connection.socket, { t: "subscribed", rooms: [...connection.rooms] });
   }
 
-  private async join(connection: Connection, room: string): Promise<void> {
-    connection.rooms.add(room);
+  /** `false` when the fan-out subscription could not be established. */
+  private async join(connection: Connection, room: string): Promise<boolean> {
     const members = this.rooms.get(room);
-    if (members === undefined) {
-      this.rooms.set(room, new Set([connection.id]));
-      // First socket for this room on this instance: start listening for it.
-      await this.bus.subscribe(roomChannel(this.prefix, room));
-      return;
+    if (members !== undefined) {
+      members.add(connection.id);
+      connection.rooms.add(room);
+      return true;
     }
-    members.add(connection.id);
+
+    // First socket for this room on this instance: start listening for it.
+    this.rooms.set(room, new Set([connection.id]));
+    connection.rooms.add(room);
+    try {
+      await this.bus.subscribe(roomChannel(this.prefix, room));
+      return true;
+    } catch (error) {
+      // Roll the membership back, or the room would look joined on this instance
+      // and never receive anything.
+      this.rooms.delete(room);
+      connection.rooms.delete(room);
+      this.logger.warn({ room, err: describeError(error) }, "could not subscribe to room");
+      return false;
+    }
   }
 
   private async leave(connection: Connection, room: string): Promise<void> {
@@ -311,7 +342,13 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnApplicationShu
     members.delete(connection.id);
     if (members.size > 0) return;
     this.rooms.delete(room);
-    await this.bus.unsubscribe(roomChannel(this.prefix, room));
+    try {
+      await this.bus.unsubscribe(roomChannel(this.prefix, room));
+    } catch (error) {
+      // Leaving is best effort: the local membership is already gone, so the worst
+      // a failed UNSUBSCRIBE costs is one idle Redis subscription.
+      this.logger.debug({ room, err: describeError(error) }, "could not unsubscribe from room");
+    }
   }
 
   private async drop(connection: Connection): Promise<void> {
@@ -380,6 +417,10 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnApplicationShu
       }
     }
   }
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function toText(raw: Buffer | ArrayBuffer | Buffer[]): string {

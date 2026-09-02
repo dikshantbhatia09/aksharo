@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  JOB_EVENT_RETENTION_TASK,
-  JobEventRetentionTask,
-} from "./job-event-retention.task.js";
+import { JOB_EVENT_RETENTION_TASK, JobEventRetentionTask } from "./job-event-retention.task.js";
 import { JOB_EVENT_RETENTION_BATCH, JOB_EVENT_RETENTION_MAX_BATCHES } from "../jobs.config.js";
 
 import type { PrismaService } from "../../common/prisma/prisma.service.js";
@@ -57,9 +54,9 @@ describe("sweep", () => {
   });
 
   it("gives up at the batch ceiling, so one bad night cannot run into the morning", async () => {
-    h = harness(new Array<number>(JOB_EVENT_RETENTION_MAX_BATCHES + 5).fill(
-      JOB_EVENT_RETENTION_BATCH,
-    ));
+    h = harness(
+      new Array<number>(JOB_EVENT_RETENTION_MAX_BATCHES + 5).fill(JOB_EVENT_RETENTION_BATCH),
+    );
     await h.task.sweep();
     expect(h.executeRaw).toHaveBeenCalledTimes(JOB_EVENT_RETENTION_MAX_BATCHES);
   });

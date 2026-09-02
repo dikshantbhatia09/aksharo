@@ -49,8 +49,15 @@ export const CAPTION_BOUNDS = {
   maxChars: { min: 12, max: 60 },
 } as const;
 
-/** The default style a project's captions start on (A19 owns the catalogue). */
-export const DEFAULT_STYLE_REF = "clean-bold";
+/**
+ * The style a project's captions start on.
+ *
+ * A real id from `@montaj/caption-styles`' system catalogue, which matters now
+ * that the fit budget looks the style up to measure it (D78): `EdgService`'s own
+ * fallback string `clean-bold` is not in the catalogue, so a document created
+ * without an explicit `styleRef` could never be measured. Raised in the A11 report.
+ */
+export const DEFAULT_STYLE_REF = "vertical-clean";
 
 export interface TranscriptEdgInitOptions {
   readonly transcriptId: string;
