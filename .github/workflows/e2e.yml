@@ -1,0 +1,111 @@
+name: Gate A e2e + X02 load
+
+# Dedicated from `ci.yml`'s "Playwright smoke" job (which runs the whole
+# `apps/web/e2e/` suite against locally-spawned api/web processes, both
+# browsers, on every push): this workflow is the compose-stack version of
+# the same journey — `docker-compose.test.yml`'s api/web/worker-media/
+# worker-ai/render services, migrated and seeded for real — plus the X02
+# load harness, on PRs into a wave branch (A23 brief acceptance criterion 1
+# names this explicitly; `ci.yml`'s existing lane already gates every push).
+
+on:
+  pull_request:
+    branches: ["wave/**"]
+
+concurrency:
+  group: gate-a-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  gate-a:
+    name: Gate A journey (compose stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Write a CI .env
+        run: |
+          cp .env.example .env
+          # Point at docker-compose.test.yml's exposed ports (not the
+          # docker-compose.yml defaults .env.example otherwise carries) —
+          # same values scripts/verify-wave.mjs's writeCloneEnv() writes.
+          cat >> .env <<'EOF'
+          DATABASE_URL=postgresql://montaj:montaj@127.0.0.1:59432/montaj_e2e?schema=public
+          REDIS_URL=redis://127.0.0.1:59379
+          S3_ENDPOINT=http://127.0.0.1:59000
+          R2_ENDPOINT=http://127.0.0.1:59000
+          S3_ACCESS_KEY=montaj-e2e
+          S3_SECRET_KEY=montaj-e2e-secret
+          R2_ACCESS_KEY=montaj-e2e
+          R2_SECRET_KEY=montaj-e2e-secret
+          API_ORIGIN=http://127.0.0.1:59923
+          WEB_ORIGIN=http://127.0.0.1:59924
+          API_PORT=59923
+          WEB_PORT=59924
+          INTERNAL_CALLBACK_SECRET=ci-internal-callback-secret
+          LLM_PROVIDER=mock
+          EOF
+          node -e "
+            const fs = require('node:fs');
+            const { execSync } = require('node:child_process');
+            let env = fs.readFileSync('.env', 'utf8');
+            const priv = execSync('openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048').toString();
+            fs.writeFileSync('/tmp/jwt.key', priv);
+            const pub = execSync('openssl rsa -in /tmp/jwt.key -pubout').toString();
+            // .env.example's JWT keys are one line each, with a literal
+            // backslash-n (packages/config/src/env.ts's unescapeNewlines
+            // turns it back into a real PEM at load time) -- not a real
+            // multi-line quoted PEM the way a worktree .env uses.
+            const escapedPriv = priv.trim().replace(/\r?\n/g, '\\\\n');
+            const escapedPub = pub.trim().replace(/\r?\n/g, '\\\\n');
+            env = env.replace(/^JWT_PRIVATE_KEY=.*$/m, 'JWT_PRIVATE_KEY=\"' + escapedPriv + '\"');
+            env = env.replace(/^JWT_PUBLIC_KEY=.*$/m, 'JWT_PUBLIC_KEY=\"' + escapedPub + '\"');
+            fs.writeFileSync('.env', env);
+          "
+
+      - name: docker compose up (the e2e test stack)
+        # Also seeds the sample project (`pnpm --filter @montaj/api
+        # db:seed:sample`, run inside the `api` container once it is
+        # healthy) — see `scripts/e2e-stack.mjs`.
+        run: pnpm e2e:stack up
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @montaj/web exec playwright install --with-deps chromium webkit
+
+      - name: Gate A journey (chromium + webkit)
+        run: pnpm --filter @montaj/web exec playwright test e2e/gate-a.spec.ts
+
+      - name: X02 load harness
+        run: node load/run.mjs
+
+      - name: Upload verification artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-a-verification
+          path: |
+            apps/web/playwright-report/
+            docs/verification/
+          retention-days: 14
+
+      - name: docker compose down
+        if: always()
+        run: pnpm e2e:stack down

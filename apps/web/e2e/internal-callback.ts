@@ -70,3 +70,48 @@ export async function completeJobForTest(
   }
   return ack;
 }
+
+export interface MediaPatchAck {
+  readonly mediaId: string;
+  readonly status: string;
+}
+
+/**
+ * `PATCH /internal/media/{id}` (`internal-media.controller.ts`) — the real
+ * `worker-media`'s write-back path for `media.probe`/`media.proxy` results
+ * (technical facts, derived-object keys, and the `status` flip to `ready`).
+ * `completeJobForTest` alone only marks the *job* succeeded; a suite that
+ * then calls `POST /projects/{id}/transcribe` needs the *media asset*
+ * itself at `status: "ready"`, which is this route's job, not the job
+ * completion registry's (there is no registered completion handler for
+ * `media.proxy` — see `gate-a.spec.ts`'s note on this).
+ */
+export async function patchMediaForTest(
+  mediaId: string,
+  patch: Record<string, unknown>,
+): Promise<MediaPatchAck> {
+  const env = loadRepoEnv();
+  const secret = env["INTERNAL_CALLBACK_SECRET"];
+  if (secret === undefined || secret === "") {
+    throw new Error("INTERNAL_CALLBACK_SECRET is not set — copy .env.example to .env first.");
+  }
+
+  const body = JSON.stringify(patch);
+  const timestamp = Math.floor(Date.now() / 1000);
+  const response = await fetch(`${API_ORIGIN}/internal/media/${mediaId}`, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json",
+      "x-montaj-attempt": "e2e-media-patch",
+      "x-montaj-timestamp": String(timestamp),
+      "x-montaj-signature": sign(secret, timestamp, body),
+    },
+    body,
+  });
+  if (!response.ok) {
+    throw new Error(
+      `patchMediaForTest(${mediaId}) -> HTTP ${String(response.status)}: ${await response.text()}`,
+    );
+  }
+  return (await response.json()) as MediaPatchAck;
+}
