@@ -10,9 +10,7 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:24.762Z"
     },
     "bold-drop": {
@@ -22,9 +20,7 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:26.562Z"
     },
     "box-block": {
@@ -34,9 +30,7 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:27.496Z"
     },
     "bubble-soft": {
@@ -46,9 +40,7 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:28.842Z"
     },
     "caption-card": {
@@ -58,9 +50,7 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:30.260Z"
     },
     "duo-tone": {
@@ -70,9 +60,7 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:31.873Z"
     },
     "glitch-shift": {
@@ -82,9 +70,7 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:33.221Z"
     },
     "gradient-sweep": {
@@ -94,9 +80,7 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:34.451Z"
     },
     "highlight-marker": {
@@ -106,9 +90,7 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:35.620Z"
     },
     "hype-bold": {
@@ -118,9 +100,7 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:37.285Z"
     },
     "impact-shout": {
@@ -140,9 +120,7 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "karaoke_non_latin_disabled"
-      ],
+      "warnings": ["karaoke_non_latin_disabled"],
       "measuredAt": "2026-09-02T10:51:38.978Z"
     },
     "liquid-glass": {
@@ -152,9 +130,7 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:40.117Z"
     },
     "minimal-lower-third": {
@@ -174,9 +150,7 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "glow_reduced_to_outline"
-      ],
+      "warnings": ["glow_reduced_to_outline"],
       "measuredAt": "2026-09-02T10:51:41.881Z"
     },
     "news-ticker": {
@@ -186,9 +160,7 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:42.557Z"
     },
     "outline-only": {
@@ -198,9 +170,7 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:44.077Z"
     },
     "podcast-duo": {
@@ -210,9 +180,7 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:45.507Z"
     },
     "prism-split": {
@@ -222,9 +190,7 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:47.149Z"
     },
     "punch-pop": {
@@ -234,9 +200,7 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:49.264Z"
     },
     "quote-frame": {
@@ -266,9 +230,7 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:53.250Z"
     },
     "stroke-heavy": {
@@ -278,9 +240,7 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:54.492Z"
     },
     "subtitle-classic": {
@@ -300,9 +260,7 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:57.499Z"
     },
     "typewriter-mono": {
@@ -312,9 +270,7 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:51:58.210Z"
     },
     "vertical-clean": {
@@ -334,9 +290,7 @@
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:52:00.678Z"
     },
     "word-pop": {
@@ -346,9 +300,7 @@
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
-      "warnings": [
-        "word_highlight_per_word_events"
-      ],
+      "warnings": ["word_highlight_per_word_events"],
       "measuredAt": "2026-09-02T10:52:02.000Z"
     }
   }

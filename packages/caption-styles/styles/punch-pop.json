@@ -6,11 +6,7 @@
   "minPlan": "free",
   "typography": {
     "fontFamily": "Inter",
-    "fallbacks": [
-      "Noto Sans Devanagari",
-      "Noto Sans Tamil",
-      "Noto Sans"
-    ],
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
     "weight": 900,
     "italic": false,
     "sizePct": 6.4,
