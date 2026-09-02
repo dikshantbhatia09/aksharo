@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
+
 import { Controller, Get, Headers, HttpCode, HttpStatus, Res, UseGuards } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
-import { createHash } from "node:crypto";
 
 import { InternalSignatureGuard } from "./internal-signature.guard.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";

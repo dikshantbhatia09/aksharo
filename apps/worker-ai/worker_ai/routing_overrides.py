@@ -37,16 +37,29 @@ import hashlib
 import hmac
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any, Protocol
 
 import httpx2
 
 from worker_ai.logging_setup import get_logger
 
-if TYPE_CHECKING:
-    from worker_ai.settings import Settings
-
 __all__ = ["fetch_overrides", "reset_cache_for_tests"]
+
+
+class _OverrideSettings(Protocol):
+    """The two fields this module reads off `Settings` — structural, not
+    `Settings` itself, so a test double (or D08's future `routing_freeze`
+    flag, read separately via `getattr`) satisfies it without importing the
+    real, larger `Settings` dataclass. Properties, not plain attributes: both
+    `Settings` and this module's test doubles are frozen dataclasses, and a
+    plain-attribute `Protocol` member expects a settable variable."""
+
+    @property
+    def api_origin(self) -> str: ...
+
+    @property
+    def internal_callback_secret(self) -> str: ...
+
 
 _log = get_logger(__name__)
 
@@ -71,7 +84,7 @@ def reset_cache_for_tests() -> None:
     _cache.clear()
 
 
-def fetch_overrides(settings: Settings) -> dict[str, Any]:
+def fetch_overrides(settings: _OverrideSettings) -> dict[str, Any]:
     """The current routing overrides, cached for 60s and revalidated by ETag.
 
     Returns ``{}`` when nothing has ever been fetched successfully. Never
@@ -110,7 +123,7 @@ def fetch_overrides(settings: Settings) -> dict[str, Any]:
         return entry.body
 
     if response.status_code == 404:
-        _log.info("the API exposes no /internal/routing/overrides yet; using routing.yaml as written")
+        _log.info("the API exposes no /internal/routing/overrides yet; running routing.yaml as-is")
         return entry.body if entry is not None else {}
 
     if response.status_code >= 400:

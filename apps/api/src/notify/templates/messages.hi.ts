@@ -192,7 +192,9 @@ export const HI_MESSAGES: MessageCatalogue = {
         "{resolutionNote}",
       ],
       cta: "शेयरिंग के बारे में जानें",
-      footnotes: ["यह मैसेज सिर्फ़ समीक्षा की पुष्टि है; आपकी ओर से कोई और कार्रवाई ज़रूरी नहीं है।"],
+      footnotes: [
+        "यह मैसेज सिर्फ़ समीक्षा की पुष्टि है; आपकी ओर से कोई और कार्रवाई ज़रूरी नहीं है।",
+      ],
     },
 
     "support-ticket-reply": {

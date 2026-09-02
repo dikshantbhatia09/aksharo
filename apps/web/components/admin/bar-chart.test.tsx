@@ -31,7 +31,9 @@ describe("BarChart", () => {
   });
 
   it("truncates a long label under the bar", () => {
-    render(<BarChart title="Long labels" data={[{ label: "a-very-long-source-name", value: 1 }]} />);
+    render(
+      <BarChart title="Long labels" data={[{ label: "a-very-long-source-name", value: 1 }]} />,
+    );
     expect(screen.getByText("a-very-lo…")).toBeInTheDocument();
   });
 });

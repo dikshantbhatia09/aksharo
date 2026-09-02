@@ -15,7 +15,11 @@ import { JobsModule } from "../jobs/jobs.module.js";
  */
 @Module({
   imports: [JobsModule],
-  controllers: [InternalJobsController, InternalMediaController, InternalRoutingOverridesController],
+  controllers: [
+    InternalJobsController,
+    InternalMediaController,
+    InternalRoutingOverridesController,
+  ],
   providers: [InternalSignatureGuard],
   exports: [InternalSignatureGuard],
 })
