@@ -14,7 +14,7 @@
  * clicks. Nothing here talks to the network — every callback is a plain prop,
  * which is what keeps it testable with React Testing Library and no store.
  */
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 import type { Word } from "@montaj/edg";
 
@@ -46,7 +46,18 @@ export interface WordChipProps {
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.6;
 
-export function WordChip({
+/**
+ * Memoised: the adversarial perf test's window is mostly new words every
+ * frame, but a "natural" wheel scroll and the overscan margin both revisit
+ * words whose props have not changed — this skips reconciling the
+ * `contentEditable` span (and its several event handlers) for those. Depends
+ * on `SegmentCard` handing every word a stable `word` reference (the parent
+ * `TranscriptList`'s `getWords` cache) and a stable `onSelect` (its
+ * `handleWordSelect`, `useCallback`-memoised per segment).
+ */
+export const WordChip = memo(WordChipImpl);
+
+function WordChipImpl({
   word,
   script,
   active = false,
@@ -144,3 +155,5 @@ export function WordChip({
     </span>
   );
 }
+
+WordChipImpl.displayName = "WordChipImpl";
