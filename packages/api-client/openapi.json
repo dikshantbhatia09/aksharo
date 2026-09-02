@@ -18450,6 +18450,1329 @@
           "webhooks"
         ]
       }
+    },
+    "/projects/{projectId}/share-links": {
+      "post": {
+        "operationId": "createShareLink",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "default": "view",
+                    "type": "string",
+                    "enum": [
+                      "view",
+                      "comment",
+                      "approve"
+                    ]
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 6,
+                    "maxLength": 200
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "maxViews": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000
+                  },
+                  "clientTag": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new share link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "projectId": {
+                      "type": "string"
+                    },
+                    "token": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "view",
+                        "comment",
+                        "approve"
+                      ]
+                    },
+                    "hasPassword": {
+                      "type": "boolean"
+                    },
+                    "expiresAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "maxViews": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "viewCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "clientTag": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "reportCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "revokedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "autoDisabled": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "token",
+                    "scope",
+                    "hasPassword",
+                    "expiresAt",
+                    "maxViews",
+                    "viewCount",
+                    "clientTag",
+                    "reportCount",
+                    "revokedAt",
+                    "autoDisabled",
+                    "createdAt",
+                    "url"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a share link for review",
+        "tags": [
+          "share-links"
+        ]
+      },
+      "get": {
+        "operationId": "listShareLinks",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Share links for the project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "projectId": {
+                        "type": "string"
+                      },
+                      "token": {
+                        "type": "string"
+                      },
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "view",
+                          "comment",
+                          "approve"
+                        ]
+                      },
+                      "hasPassword": {
+                        "type": "boolean"
+                      },
+                      "expiresAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "maxViews": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "viewCount": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "clientTag": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "reportCount": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "revokedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "autoDisabled": {
+                        "type": "boolean"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "projectId",
+                      "token",
+                      "scope",
+                      "hasPassword",
+                      "expiresAt",
+                      "maxViews",
+                      "viewCount",
+                      "clientTag",
+                      "reportCount",
+                      "revokedAt",
+                      "autoDisabled",
+                      "createdAt",
+                      "url"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List a project's share links",
+        "tags": [
+          "share-links"
+        ]
+      }
+    },
+    "/projects/{projectId}/share-links/{shareLinkId}": {
+      "delete": {
+        "operationId": "revokeShareLink",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shareLinkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke a share link",
+        "tags": [
+          "share-links"
+        ]
+      }
+    },
+    "/s/{token}": {
+      "get": {
+        "operationId": "resolveShareLink",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Share-link state for the viewer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projectId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "view",
+                        "comment",
+                        "approve"
+                      ]
+                    },
+                    "requiresPassword": {
+                      "type": "boolean"
+                    },
+                    "unlocked": {
+                      "type": "boolean"
+                    },
+                    "expired": {
+                      "type": "boolean"
+                    },
+                    "revoked": {
+                      "type": "boolean"
+                    },
+                    "reviewStatus": {
+                      "type": "string"
+                    },
+                    "aspect": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "projectId",
+                    "title",
+                    "scope",
+                    "requiresPassword",
+                    "unlocked",
+                    "expired",
+                    "revoked",
+                    "reviewStatus",
+                    "aspect"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "Resolve a share link",
+        "tags": [
+          "share-public"
+        ]
+      }
+    },
+    "/s/{token}/unlock": {
+      "post": {
+        "operationId": "unlockShareLink",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unlock a password-gated share link",
+        "tags": [
+          "share-public"
+        ]
+      }
+    },
+    "/s/{token}/report": {
+      "post": {
+        "operationId": "reportShareLink",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "category": {
+                    "default": "other",
+                    "type": "string",
+                    "enum": [
+                      "ncii",
+                      "impersonation",
+                      "copyright",
+                      "other"
+                    ]
+                  },
+                  "reporterContact": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 320
+                  },
+                  "details": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Report abuse on a shared preview (F-504)",
+        "tags": [
+          "share-public"
+        ]
+      }
+    },
+    "/s/{token}/decision": {
+      "post": {
+        "operationId": "decideShareLink",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approved",
+                      "changes_requested"
+                    ]
+                  }
+                },
+                "required": [
+                  "decision"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Approve or request changes (scope `approve` only)",
+        "tags": [
+          "share-public"
+        ]
+      }
+    },
+    "/projects/{projectId}/comments": {
+      "get": {
+        "operationId": "listComments",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Comments for the project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "projectId": {
+                        "type": "string"
+                      },
+                      "shareLinkId": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "authorId": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "authorName": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "body": {
+                        "type": "string"
+                      },
+                      "atMs": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "segmentId": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "parentId": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "resolvedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "projectId",
+                      "shareLinkId",
+                      "authorId",
+                      "authorName",
+                      "body",
+                      "atMs",
+                      "segmentId",
+                      "parentId",
+                      "resolvedAt",
+                      "createdAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List a project's comments",
+        "tags": [
+          "comments"
+        ]
+      },
+      "post": {
+        "operationId": "addComment",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "atMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "segmentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "parentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "author": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "email": {
+                        "type": "string",
+                        "format": "email",
+                        "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "body"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Add a comment as a workspace member",
+        "tags": [
+          "comments"
+        ]
+      }
+    },
+    "/projects/{projectId}/comments/{commentId}": {
+      "patch": {
+        "operationId": "resolveComment",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "commentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "resolved": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "resolved"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Resolve or reopen a comment",
+        "tags": [
+          "comments"
+        ]
+      }
+    },
+    "/s/{token}/comments": {
+      "get": {
+        "operationId": "listShareComments",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List comments through a share link",
+        "tags": [
+          "comments"
+        ]
+      },
+      "post": {
+        "operationId": "addShareComment",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "atMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "segmentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "parentId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "author": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "email": {
+                        "type": "string",
+                        "format": "email",
+                        "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "body"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Comment through a share link",
+        "tags": [
+          "comments"
+        ]
+      }
+    },
+    "/batch/quote": {
+      "post": {
+        "operationId": "quoteBatch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "durationMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "durationMs"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "items"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Quote a batch's transcription credits",
+        "tags": [
+          "batch"
+        ]
+      }
+    },
+    "/batch": {
+      "post": {
+        "description": "Creates N projects (via A06's batch-create) tagged with one batch id.",
+        "operationId": "createBatch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projects": {
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "folderId": {
+                          "type": "string",
+                          "minLength": 26,
+                          "maxLength": 26,
+                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                        },
+                        "clientTag": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "aspect": {
+                          "type": "string",
+                          "enum": [
+                            "9:16",
+                            "16:9",
+                            "1:1",
+                            "4:5"
+                          ]
+                        },
+                        "sourceLanguage": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 16
+                        }
+                      },
+                      "required": [
+                        "title"
+                      ]
+                    }
+                  },
+                  "folderId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  },
+                  "clientTag": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "settings": {
+                    "type": "object",
+                    "properties": {
+                      "languages": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 16
+                        }
+                      },
+                      "stylePresetId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26,
+                        "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                      },
+                      "exportPresetId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26,
+                        "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                      },
+                      "audioClean": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "durationsMs": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  }
+                },
+                "required": [
+                  "projects"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new batch and its projects.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "languages": {
+                          "minItems": 1,
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 16
+                          }
+                        },
+                        "stylePresetId": {
+                          "type": "string",
+                          "minLength": 26,
+                          "maxLength": 26,
+                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                        },
+                        "exportPresetId": {
+                          "type": "string",
+                          "minLength": 26,
+                          "maxLength": 26,
+                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                        },
+                        "audioClean": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "creditsQuoted": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "projects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "projectId": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "latestJobStatus": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "latestJobType": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "latestJobError": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "projectId",
+                          "title",
+                          "status",
+                          "latestJobStatus",
+                          "latestJobType",
+                          "latestJobError"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "settings",
+                    "creditsQuoted",
+                    "createdAt",
+                    "projects"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a batch of projects",
+        "tags": [
+          "batch"
+        ]
+      }
+    },
+    "/batch/{batchId}/apply": {
+      "post": {
+        "operationId": "applyBatch",
+        "parameters": [
+          {
+            "name": "batchId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "settings": {
+                    "type": "object",
+                    "properties": {
+                      "languages": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 16
+                        }
+                      },
+                      "stylePresetId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26,
+                        "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                      },
+                      "exportPresetId": {
+                        "type": "string",
+                        "minLength": 26,
+                        "maxLength": 26,
+                        "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                      },
+                      "audioClean": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Enqueue transcription for every project in the batch",
+        "tags": [
+          "batch"
+        ]
+      }
+    },
+    "/batch/{batchId}": {
+      "get": {
+        "operationId": "getBatch",
+        "parameters": [
+          {
+            "name": "batchId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch and its per-project status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "languages": {
+                          "minItems": 1,
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 16
+                          }
+                        },
+                        "stylePresetId": {
+                          "type": "string",
+                          "minLength": 26,
+                          "maxLength": 26,
+                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                        },
+                        "exportPresetId": {
+                          "type": "string",
+                          "minLength": 26,
+                          "maxLength": 26,
+                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                        },
+                        "audioClean": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "creditsQuoted": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "projects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "projectId": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "latestJobStatus": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "latestJobType": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "latestJobError": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "projectId",
+                          "title",
+                          "status",
+                          "latestJobStatus",
+                          "latestJobType",
+                          "latestJobError"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "settings",
+                    "creditsQuoted",
+                    "createdAt",
+                    "projects"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Batch progress: per-project status",
+        "tags": [
+          "batch"
+        ]
+      }
     }
   },
   "info": {
