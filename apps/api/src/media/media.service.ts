@@ -308,8 +308,9 @@ export class MediaService {
     workspaceId: string,
     mediaId: string,
     etags: readonly string[],
+    projectId?: string,
   ): Promise<CompletedUpload> {
-    const { media, project } = await this.require(workspaceId, mediaId);
+    const { media, project } = await this.require(workspaceId, mediaId, projectId);
 
     // Already complete: answer with the same two job ids rather than a 409. A
     // client that retries after a dropped response has done nothing wrong, and

@@ -115,19 +115,24 @@ export class MediaController {
   @ApiOperation({
     summary: "Finish an upload (project-scoped form)",
     description:
-      "Identical to `completeMediaUpload`; this is the path " +
-      "`07-api-and-contracts.md` spells, kept so a client can stay inside " +
-      "`/projects/{id}` for the whole ingest.",
+      "`completeMediaUpload` under the path `07-api-and-contracts.md` spells, " +
+      "kept so a client can stay inside `/projects/{id}` for the whole ingest. " +
+      "Slightly stricter than the unscoped form: the media must be in the " +
+      "project the path names.",
     operationId: "completeProjectMediaUpload",
   })
   @ApiBody(zodBody(completeUploadSchema))
   @ApiCreatedResponse(zodResponse(completedUploadSchema, "The media and its two jobs."))
   async completeInProject(
     @CurrentWorkspace() workspaceId: string,
+    @Param("projectId") projectId: string,
     @Param("mediaId") mediaId: string,
     @Body() body: CompleteUploadDto,
   ): Promise<CompletedUpload> {
-    return this.media.complete(workspaceId, mediaId, body.etags);
+    // The path names a project, so it is enforced: a media id from a *different*
+    // project of the same workspace is a 404 here even though the unscoped route
+    // would take it.
+    return this.media.complete(workspaceId, mediaId, body.etags, projectId);
   }
 
   @Post("media/:mediaId/replace")
