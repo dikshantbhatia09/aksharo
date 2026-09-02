@@ -443,6 +443,9 @@ enum CreditLotSource {
   referral
   adjust
   reversal
+  /// Academy exactly-once track-completion reward (M03, CONTRACTS §4). Was
+  /// granted as `adjust` by B12 before this enum value existed.
+  academy
 }
 
 enum CreditHoldStatus {
