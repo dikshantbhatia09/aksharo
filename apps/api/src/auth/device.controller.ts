@@ -112,6 +112,7 @@ export class DeviceController {
   }
 
   @Get("code/:userCode")
+  @RateLimit(RATE_LIMITS.deviceDescribeUser)
   @ApiOperation({
     summary: "What is asking for approval",
     description:

@@ -8,7 +8,39 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+### Added
+
+- **X01 — security review before Gate C.** Threat-model audit re-verifying
+  every `docs/THREAT-MODEL.md` row (T1-T25) against implementing code and
+  tests: `docs/security/threat-model-audit-2026-09-03.md`. Local `pnpm audit`
+  and `pip-audit` triage (all findings are transitive build/desktop-packaging
+  deps, none reachable at runtime — Electron flagged High for a follow-up
+  version bump), a local secret-scan sweep (clean — 53 hits, all test
+  fixtures/local dev creds, no real secrets), and a pen-test hand-off doc with
+  in-scope surfaces, a seeded test-account procedure, and rules of engagement:
+  `docs/security/pentest-scope.md` (includes the H-26 human-action text to
+  engage an external tester before Gate C).
+
 ### Fixed
+
+- **X01 — `GET /auth/device/code/:userCode` had no rate limit.** The
+  approval-screen lookup requires an authenticated session (correct per
+  THREAT-MODEL T3) but carried no `@RateLimit` decorator, unlike its sibling
+  device-code routes; `RateLimitGuard` is a no-op with no rule attached, so
+  any signed-in account could grind the 8-character user-code space to read
+  someone else's pending device grant (host app, OS, IP, coarse location).
+  Added a `deviceDescribeUser` bucket (`apps/api/src/auth/auth.constants.ts`)
+  and applied it to the route (`apps/api/src/auth/device.controller.ts`), with
+  a new negative test in `apps/api/test/auth.e2e-spec.ts`.
+- **X01 — no security response headers on the web app or the API.** Neither
+  `apps/web/next.config.ts` nor `apps/web/middleware.ts` set CSP, HSTS,
+  `X-Frame-Options`/`frame-ancestors`, or `Referrer-Policy`, and
+  `apps/api/src/main.ts` never installed `helmet`. Added a `headers()`
+  function to `next.config.ts` (CSP, HSTS, no-sniff, deny-framing,
+  strict-origin-when-cross-origin referrer policy, a conservative
+  Permissions-Policy) with a new test (`apps/web/next.config.test.ts`), and
+  `helmet()` to the API's bootstrap with CSP left off (Swagger UI at `/docs`
+  needs inline scripts) but HSTS/frameguard/referrer-policy applied.
 
 - **A23b — a real Postgres 40P01 ("deadlock detected") in `auth-harness.ts`'s
   `reset()`.** Several background writers the API starts inside a test app

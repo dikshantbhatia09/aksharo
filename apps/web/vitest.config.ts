@@ -38,9 +38,15 @@ export default mergeConfig(
           "components/**/*.{test,spec}.{ts,tsx}",
           "app/**/*.{test,spec}.{ts,tsx}",
           "middleware.test.ts",
+          "next.config.test.ts",
         ],
         coverage: {
-          include: ["lib/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "middleware.ts"],
+          include: [
+            "lib/**/*.{ts,tsx}",
+            "components/**/*.{ts,tsx}",
+            "middleware.ts",
+            "next.config.ts",
+          ],
           // `use-canvaskit.ts` instantiates two wasm modules against a DOM; the
           // Playwright lane covers it, and a jsdom stand-in would only assert
           // that the mock was called.
