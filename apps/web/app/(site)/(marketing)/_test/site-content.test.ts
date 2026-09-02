@@ -11,11 +11,12 @@ import { ACTIVATION_STEPS, HOST_SURFACES } from "@/content/site/plugins-data";
 import {
   formatPrice,
   minorToUnit,
-  PLAN_CATALOGUE,
+  FALLBACK_PLAN_CATALOGUE,
   PLAN_MATRIX,
   planByKey,
 } from "@/content/site/pricing-data";
 import { OUR_OBJECTIONS, PAUSE_OBJECTIONS } from "@/content/site/pricing-faq";
+import { mergeLivePlans } from "@/content/site/pricing-live";
 
 /**
  * The content layer is data, not UI — Playwright proves it renders correctly
@@ -46,7 +47,7 @@ function collectStrings(value: unknown): void {
   FOOTER_LEGAL_NAV,
   OUR_OBJECTIONS,
   PAUSE_OBJECTIONS,
-  PLAN_CATALOGUE,
+  FALLBACK_PLAN_CATALOGUE,
   PLAN_MATRIX,
   HOST_SURFACES,
   ACTIVATION_STEPS,
@@ -81,14 +82,63 @@ describe("pricing-data", () => {
 
   it("gives every plan in PLAN_MATRIX a value, for every plan key", () => {
     for (const row of PLAN_MATRIX) {
-      for (const plan of PLAN_CATALOGUE) {
+      for (const plan of FALLBACK_PLAN_CATALOGUE) {
         expect(row.values[plan.key], `${row.label} / ${plan.key}`).toBeDefined();
       }
     }
   });
 
   it("marks exactly one plan as most popular", () => {
-    expect(PLAN_CATALOGUE.filter((plan) => plan.mostPopular)).toHaveLength(1);
+    expect(FALLBACK_PLAN_CATALOGUE.filter((plan) => plan.mostPopular)).toHaveLength(1);
+  });
+});
+
+describe("pricing-live: mergeLivePlans", () => {
+  const apiPlans = FALLBACK_PLAN_CATALOGUE.map((plan) => ({
+    key: plan.key,
+    name: `API ${plan.name}`,
+    prices: {
+      INR: { ...plan.prices.INR },
+      USD: { ...plan.prices.USD },
+    },
+    creditsPerMonthTenths: plan.creditsPerMonth * 10,
+    seatPrice: plan.seatPrice,
+    hasHalfyear: {
+      INR: plan.prices.INR.halfyear !== undefined,
+      USD: plan.prices.USD.halfyear !== undefined,
+    },
+  }));
+
+  it("merges the API's numbers onto this file's marketing copy, in ladder order", () => {
+    const merged = mergeLivePlans(apiPlans);
+    expect(merged.map((plan) => plan.key)).toEqual(FALLBACK_PLAN_CATALOGUE.map((plan) => plan.key));
+    for (const [index, plan] of merged.entries()) {
+      const fallback = FALLBACK_PLAN_CATALOGUE[index]!;
+      // The name comes from the API (it could change independently of this
+      // file); the marketing copy comes from the fallback, because the API
+      // does not carry it.
+      expect(plan.name).toBe(`API ${fallback.name}`);
+      expect(plan.tagline).toBe(fallback.tagline);
+      expect(plan.highlights).toEqual(fallback.highlights);
+      expect(plan.mostPopular).toBe(fallback.mostPopular);
+      expect(plan.creditsPerMonth).toBe(fallback.creditsPerMonth);
+      expect(plan.prices).toEqual(fallback.prices);
+    }
+  });
+
+  it("drops a plan the API returns that this page has no marketing copy for", () => {
+    const merged = mergeLivePlans([
+      ...apiPlans,
+      {
+        key: "unknown-future-plan" as (typeof apiPlans)[number]["key"],
+        name: "Mystery",
+        prices: { INR: { month: 1, year: 1 }, USD: { month: 1, year: 1 } },
+        creditsPerMonthTenths: 10,
+        seatPrice: null,
+        hasHalfyear: { INR: false, USD: false },
+      },
+    ]);
+    expect(merged.map((plan) => plan.key)).toEqual(FALLBACK_PLAN_CATALOGUE.map((plan) => plan.key));
   });
 });
 

@@ -216,3 +216,78 @@ export function worstCaseHoldTenths(
 export function formatCredits(tenths: number): string {
   return (tenths / TENTHS_PER_CREDIT).toFixed(1).replace(/\.0$/, "");
 }
+
+/**
+ * A quote for one job: what to reserve at enqueue and what to settle on
+ * completion, both computed from the same `@montaj/config` burn rate.
+ *
+ * This is the shape B02's brief calls `quote(operation, media minutes)` — a
+ * producer (A11 transcripts/post-processing, A21 exports, A22 translation) that
+ * probed a media duration hands it straight to {@link quote} instead of
+ * re-deriving `creditCostTenths`/`worstCaseHoldTenths` math (and the ms/minute
+ * conversion) by hand, which is how A08's `media.constants.ts` warns a hard-coded
+ * worst case can drift from `BURN_RATES`.
+ */
+export interface CreditQuote {
+  readonly operation: CreditOperation;
+  /** Reserve this many tenths at enqueue (CONTRACTS §4 `reserve.worstCaseTenths`). */
+  readonly holdTenths: number;
+  /** Settle this many tenths once the job's real output duration is known. */
+  readonly costTenths: number;
+}
+
+export interface QuoteOptions {
+  readonly tier?: EngineTier;
+  /** Number of target languages, for `translation`; defaults to 1. */
+  readonly targetLanguages?: number;
+  /** The work runs on the user's own machine, so the local rate applies. */
+  readonly local?: boolean;
+  /**
+   * Source media minutes, for an operation whose hold basis differs from its
+   * settle basis (today only `promptedEdit`, held on source minutes). Defaults to
+   * `mediaMinutes` when omitted, so most callers never pass it.
+   */
+  readonly sourceMediaMinutes?: number;
+}
+
+/**
+ * Quote one job on `@montaj/config`'s burn rates, in minutes rather than
+ * milliseconds — the unit a producer already has after probing media or reading
+ * an EDG's `durationMs / 60_000`.
+ *
+ * `mediaMinutes` is the operation's own basis (media minutes for transcription
+ * and translation, output minutes for `cloudRender`, source minutes for the edit
+ * passes, finished minutes for `sfxMusicPass`/`promptedEdit`/`chaptersSummaryHook`
+ * — see {@link BurnRate.basis}), never negative; a caller with a duration in
+ * milliseconds divides by 60,000 first.
+ */
+export function quote(
+  operation: CreditOperation,
+  mediaMinutes: number,
+  options: QuoteOptions = {},
+): CreditQuote {
+  if (!Number.isFinite(mediaMinutes) || mediaMinutes < 0) {
+    throw new RangeError(
+      `mediaMinutes must be a finite, non-negative number, received ${mediaMinutes}`,
+    );
+  }
+  const durationMs = mediaMinutes * 60_000;
+  const costInput: CreditCostInput = {
+    operation,
+    durationMs,
+    ...(options.tier === undefined ? {} : { tier: options.tier }),
+    ...(options.targetLanguages === undefined ? {} : { targetLanguages: options.targetLanguages }),
+    ...(options.local === undefined ? {} : { local: options.local }),
+  };
+
+  return {
+    operation,
+    costTenths: creditCostTenths(costInput),
+    holdTenths: worstCaseHoldTenths({
+      ...costInput,
+      ...(options.sourceMediaMinutes === undefined
+        ? {}
+        : { sourceDurationMs: options.sourceMediaMinutes * 60_000 }),
+    }),
+  };
+}

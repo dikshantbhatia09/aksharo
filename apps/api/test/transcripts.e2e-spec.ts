@@ -296,6 +296,45 @@ async function seed(): Promise<void> {
       currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000),
     },
   });
+
+  // B02's real ledger enforces an actual balance: a subscription alone is a
+  // plan, not credits. Fund the account directly (as `prisma/seed.ts` funds
+  // the demo workspace) so `reserve()` has something to hold against — this
+  // suite is about transcription mechanics, not the ledger, which has its own
+  // `test/credits-ledger.e2e-spec.ts`.
+  const accountId = id("CACC");
+  await prisma.creditAccount.create({
+    data: {
+      id: accountId,
+      workspaceId: WORKSPACE,
+      balanceTenths: plan.creditsPerMonthTenths,
+      monthlyGrantTenths: plan.creditsPerMonthTenths,
+      grantResetAt: new Date(Date.now() + 30 * 86_400_000),
+    },
+  });
+  const lotId = id("CLOT");
+  await prisma.creditLot.create({
+    data: {
+      id: lotId,
+      accountId,
+      source: "grant",
+      grantedTenths: plan.creditsPerMonthTenths,
+      remainingTenths: plan.creditsPerMonthTenths,
+      expiresAt: new Date(Date.now() + 30 * 86_400_000),
+    },
+  });
+  await prisma.creditLedger.create({
+    data: {
+      id: id("CLED"),
+      accountId,
+      deltaTenths: plan.creditsPerMonthTenths,
+      kind: "grant",
+      refType: "plan",
+      refId: plan.id,
+      lotId,
+      balanceAfterTenths: plan.creditsPerMonthTenths,
+    },
+  });
 }
 
 async function cleanup(): Promise<void> {

@@ -26,6 +26,11 @@ import { UsersModule } from "../users/users.module.js";
     WorkspaceMemberGuard,
     { provide: WORKSPACE_NOTIFIER, useClass: LoggingWorkspaceNotifier },
   ],
-  exports: [WorkspacesService, MembersService, EntitlementService],
+  // `WorkspaceMemberGuard` is exported so a route wearing it can live outside
+  // this module — B02's `CreditsController` mounts `/workspaces/:id/usage` and
+  // `/workspaces/:id/credits` under it (THREAT-MODEL T4), and Nest can only
+  // resolve a guard passed to `@UseGuards` as a class if it is a provider of a
+  // module reachable from the one declaring the route.
+  exports: [WorkspacesService, MembersService, EntitlementService, WorkspaceMemberGuard],
 })
 export class WorkspacesModule {}

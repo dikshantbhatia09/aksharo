@@ -4,12 +4,18 @@ import { PricingContent } from "./_components/pricing-content";
 
 import type { Metadata } from "next";
 
+import { getPlanCatalogue } from "@/content/site/pricing-live";
+import { readRuntimeConfig } from "@/lib/runtime-config";
+
 /**
  * A thin server wrapper: `generateMetadata`/`metadata` can only be exported
  * from a Server Component, and the pricing page's currency and billing-interval
  * toggles need client state — so the interactive body lives in
- * `_components/pricing-content.tsx` and this file only supplies the metadata
- * Next's App Router requires a server component for.
+ * `_components/pricing-content.tsx`. This file also owns the one server-side
+ * concern the client component cannot: fetching the plan catalogue
+ * (`content/site/pricing-live.ts` — live `GET /billing/plans` with ISR,
+ * falling back to the static mirror when the API is unreachable) before
+ * rendering, so the client component always receives finished data as props.
  */
 export const metadata: Metadata = {
   title: "Pricing",
@@ -24,6 +30,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function PricingPage(): React.JSX.Element {
-  return <PricingContent />;
+export default async function PricingPage(): Promise<React.JSX.Element> {
+  const { apiOrigin } = readRuntimeConfig();
+  const { plans, source } = await getPlanCatalogue(apiOrigin);
+  return <PricingContent plans={plans} source={source} />;
 }
