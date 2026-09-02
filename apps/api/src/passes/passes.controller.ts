@@ -19,7 +19,13 @@ import {
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 
-import { PassAcceptedDto, PassSummaryListDto, StartAutocutRequestDto } from "./passes.dto.js";
+import {
+  PassAcceptedDto,
+  PassSummaryListDto,
+  StartAutocutRequestDto,
+  StartReframeRequestDto,
+  StartZoomRequestDto,
+} from "./passes.dto.js";
 import { PassesService } from "./passes.service.js";
 import { CurrentUser, JwtAuthGuard, Roles, RolesGuard } from "../common/guards/index.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
@@ -73,6 +79,63 @@ export class PassesController {
       projectId,
       workspaceId: principal.workspaceId,
       preset: body.preset,
+      ...(body.options === undefined ? {} : { options: body.options }),
+    });
+  }
+
+  @Post("zoom")
+  @Roles("editor")
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: "Start a zoom pass",
+    description:
+      "Quotes the job from the primary media's probed duration (`reframeZoomPass` burn " +
+      "rate, source minutes), holds the credits and enqueues `ai.pass`. Proposed punch-in " +
+      "events land as `edg_pass_items` (kind `zoom`, state `proposed`) once the worker's " +
+      "completion arrives and `MergePass` merges them; watch `job.completed` on the " +
+      "project's realtime room, or poll `GET /jobs/{id}`.",
+    operationId: "startZoomPass",
+  })
+  @ApiOkResponse({ type: PassAcceptedDto, description: "Accepted and queued." })
+  @ApiConflictResponse({ description: "`pass/media_not_ready`." })
+  @ApiPaymentRequiredResponse({ description: "`credits/insufficient`." })
+  async startZoom(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("projectId") projectId: string,
+    @Body() body: StartZoomRequestDto,
+  ): Promise<PassAcceptedDto> {
+    return this.passes.startZoom({
+      projectId,
+      workspaceId: principal.workspaceId,
+      preset: body.preset,
+    });
+  }
+
+  @Post("reframe")
+  @Roles("editor")
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: "Start a reframe pass",
+    description:
+      "Quotes the job from the primary media's probed duration (`reframeZoomPass` burn " +
+      "rate, source minutes), holds the credits and enqueues `ai.pass`. A crop-window " +
+      "keyframe curve lands as one `edg_pass_items` row (kind `reframe`, state " +
+      "`proposed`) once the worker's completion arrives and `MergePass` merges it; watch " +
+      "`job.completed` on the project's realtime room, or poll `GET /jobs/{id}`.",
+    operationId: "startReframePass",
+  })
+  @ApiOkResponse({ type: PassAcceptedDto, description: "Accepted and queued." })
+  @ApiConflictResponse({ description: "`pass/media_not_ready`." })
+  @ApiPaymentRequiredResponse({ description: "`credits/insufficient`." })
+  async startReframe(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("projectId") projectId: string,
+    @Body() body: StartReframeRequestDto,
+  ): Promise<PassAcceptedDto> {
+    return this.passes.startReframe({
+      projectId,
+      workspaceId: principal.workspaceId,
+      aspect: body.aspect,
       ...(body.options === undefined ? {} : { options: body.options }),
     });
   }
