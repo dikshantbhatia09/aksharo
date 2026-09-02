@@ -22,6 +22,12 @@ export const JOB_ERROR_CODES = {
   signatureInvalid: "jobs/signature_invalid",
   /** `X-Montaj-Timestamp` outside the replay window (THREAT-MODEL T8). */
   timestampSkew: "jobs/timestamp_skew",
+  /** No such dead-letter entry, by entry id or by job id (A08b). */
+  dlqNotFound: "jobs/dlq_not_found",
+  /** The dead letter has already been replayed or discarded (A08b). */
+  dlqAlreadyResolved: "jobs/dlq_already_resolved",
+  /** The job is live again, so its dead letter is stale and cannot be replayed. */
+  dlqJobNotFailed: "jobs/dlq_job_not_failed",
 } as const;
 
 export type JobErrorCode = (typeof JOB_ERROR_CODES)[keyof typeof JOB_ERROR_CODES];

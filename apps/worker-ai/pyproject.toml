@@ -16,17 +16,33 @@ dependencies = [
   "fastapi==0.141.1",
   "uvicorn[standard]==0.52.4",
   "python-dotenv==1.2.3",
+  # Signed callbacks (CONTRACTS section 3) and the serverless-GPU adapter.
+  "httpx2==2.12.0",
+  # Derived-media reads from R2/MinIO (CONTRACTS section 6).
+  "boto3==1.43.86",
+  # routing.yaml — the v2 routing table as data.
+  "PyYAML==6.0.3",
+  # VAD framing maths and the ONNX Silero session.
+  "numpy==2.5.2",
+  "onnxruntime==1.29.0",
+  # Eval harness: WER/CER.
+  "jiwer==4.0.0",
 ]
 
 [project.optional-dependencies]
+# faster-whisper drags in ctranslate2 and a model download, so it is opt-in: the
+# CPU Docker image installs it, `LocalWhisperProvider` imports it lazily, and the
+# `slow` test skips when it is absent.
+local-asr = ["faster-whisper==1.2.1"]
 dev = [
   "ruff==0.16.5",
   "mypy==2.3.1",
   "pytest==9.1.1",
   "pytest-asyncio==1.4.0",
+  "pytest-cov==7.1.0",
   "hypothesis==6.167.1",
-  # starlette.testclient requires httpx2 as of Starlette 0.5x.
-  "httpx2==2.12.0",
+  "pip-tools==7.6.1",
+  "types-PyYAML==6.0.12.20260815",
 ]
 
 [project.scripts]
@@ -35,6 +51,11 @@ montaj-worker-ai = "worker_ai.__main__:run"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["worker_ai*"]
+
+[tool.setuptools.package-data]
+# The routing table and the eval fixtures are data the worker reads at runtime,
+# so a container built from the wheel must carry them.
+worker_ai = ["routing.yaml", "py.typed", "fixtures/**/*.yaml", "fixtures/**/*.json"]
 
 # ---------------------------------------------------------------------------
 # ruff — lint + format
@@ -86,8 +107,17 @@ exclude = ["^\\.venv/", "^build/", "^dist/"]
 mypy_path = "."
 
 [[tool.mypy.overrides]]
-# The BullMQ package ships no type information.
-module = ["bullmq.*"]
+# Packages that ship no type information. Nothing from any of them is ever named
+# in a signature, so `disallow_any_unimported` still holds: each is wrapped by a
+# Protocol or a small typed adapter in this package.
+module = [
+  "bullmq.*",
+  "boto3.*",
+  "botocore.*",
+  "onnxruntime.*",
+  "jiwer.*",
+  "faster_whisper.*",
+]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------
@@ -96,7 +126,31 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 minversion = "9.0"
 testpaths = ["tests"]
-addopts = "-ra --strict-markers --strict-config"
+addopts = "-ra --strict-markers --strict-config --cov=worker_ai --cov-branch --cov-report=term-missing --cov-fail-under=75"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = ["error"]
+markers = [
+  "slow: needs a real model download or GPU; runs only with RUN_SLOW=1",
+  "integration: needs the compose stack (Redis) and a running API; RUN_INTEGRATION=1",
+]
+
+# ---------------------------------------------------------------------------
+# coverage — CONTRACTS section 9 gate for apps/worker-ai is 75 lines / 70 branches
+# ---------------------------------------------------------------------------
+[tool.coverage.run]
+branch = true
+source = ["worker_ai"]
+omit = [
+  # Process wiring: exercised by the integration run, not by unit tests.
+  "worker_ai/__main__.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "@abstractmethod",
+  '\.\.\.',
+]

@@ -1,0 +1,72 @@
+# PLACEHOLDER — the serverless-GPU model-server image (decision **D15**). A10 builds it.
+#
+# This file documents the contract so the CPU worker's `ServerlessWhisperProvider`
+# and the Terraform in `infra/` can be written against something concrete. It is
+# deliberately not built by CI: nothing in Wave 1 needs a GPU, and a CUDA base
+# layer is ~4 GB.
+#
+# ---------------------------------------------------------------------------
+# What runs in it (D15, `09 §9`)
+# ---------------------------------------------------------------------------
+# One model server, co-hosting the three models that all need the same GPU so a
+# transcript never crosses an instance boundary mid-file:
+#
+#   * faster-whisper `large-v3-turbo`  (float16, CTranslate2)
+#   * the forced aligners of `09 §2`   (IndicWav2Vec CTC, Meta MMS)
+#   * pyannote community-1 diarisation (CC-BY-4.0 — attribution required)
+#
+# Weights are baked into the image, never downloaded at boot: a per-second
+# serverless instance that spends 40 s pulling from Hugging Face has already lost
+# the latency budget of `09 §9` (ASR ≤ 30 s for a 5-minute clip).
+#
+# ---------------------------------------------------------------------------
+# The HTTP contract `providers/serverless_whisper.py` speaks
+# ---------------------------------------------------------------------------
+#   POST /transcribe
+#   Authorization: Bearer {GPU_PROVIDER_TOKEN}
+#   { "audio": "<https url or base64 wav>", "language": "hi",
+#     "wordTimestamps": true, "hints": ["..."], "model": "large-v3-turbo" }
+#
+#   200 { "language": "hi", "languageProbability": 0.98, "durationS": 41.2,
+#         "model": "large-v3-turbo", "requestId": "...",
+#         "words": [{ "start": 0.12, "end": 0.44, "word": "toh", "probability": 0.94 }],
+#         "segments": [{ "start": 0.0, "end": 4.1, "text": "..." }] }
+#
+# Times on the wire are **seconds**; the adapter converts to integer milliseconds.
+# `GET /health` must answer without touching a model, so a cold instance is
+# reported ready only once the weights are resident.
+#
+# Retention: the instance holds audio for the duration of the request and nothing
+# is written to disk, which is the `retentionClass: ephemeral` the adapter records
+# in `provider_submissions`.
+#
+# ---------------------------------------------------------------------------
+# Sketch (A10 completes and pins every version)
+# ---------------------------------------------------------------------------
+# FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+#
+# RUN apt-get update && apt-get install --no-install-recommends -y \
+#         python3.12 python3-pip ffmpeg ca-certificates \
+#     && rm -rf /var/lib/apt/lists/*
+#
+# COPY requirements-gpu.lock ./
+# RUN python3.12 -m pip install --no-cache-dir -r requirements-gpu.lock
+#
+# # Bake the weights. Each RUN is its own layer so a model change does not
+# # invalidate the others.
+# RUN python3.12 -c "from faster_whisper import WhisperModel; \
+#       WhisperModel('large-v3-turbo', device='cuda', compute_type='float16')"
+# RUN python3.12 -c "import pyannote.audio  # community-1, CC-BY-4.0"
+#
+# ENV MODEL_NAME=large-v3-turbo COMPUTE_TYPE=float16 WARM_FLOOR=1
+# EXPOSE 8000
+# CMD ["python3.12", "-m", "gpu_server"]
+#
+# ---------------------------------------------------------------------------
+# Operational notes for A10
+# ---------------------------------------------------------------------------
+# * Warm floor of one instance per region (D15); scale to zero everywhere else.
+# * Reserved L4/L40S only above ~150 000 media-minutes per month, after measuring
+#   real L4 RTF — not before.
+# * The image is the unit of rollback: pin it by digest in the Helm values so a
+#   model regression is one value change.

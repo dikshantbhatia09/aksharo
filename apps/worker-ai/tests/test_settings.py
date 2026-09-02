@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -11,8 +12,12 @@ from hypothesis import strategies as st
 
 from worker_ai.settings import (
     CONTRACT_ENV_VARS,
+    DEFAULT_CONCURRENCY,
+    DEFAULT_CONTROL_PORT,
     REQUIRED_ENV_VARS,
+    WORKER_ENV_VARS,
     EnvValidationError,
+    load_repo_dotenv,
     load_settings,
 )
 
@@ -110,3 +115,112 @@ def test_never_returns_partial_settings(source: dict[str, str]) -> None:
     assert settings.redis_url.startswith(("redis://", "rediss://"))
     assert settings.api_origin.startswith(("http://", "https://"))
     assert len(settings.internal_callback_secret) >= 32
+
+
+# ---------------------------------------------------------------------------
+# A09: deployment naming, storage and feature flags
+# ---------------------------------------------------------------------------
+
+
+def test_worker_variables_are_documented_and_not_in_the_frozen_contract_list() -> None:
+    """`WORKER_ENV_VARS` is deployment naming, like `MONTAJ_QUEUE_PREFIX` in the API."""
+    assert not set(WORKER_ENV_VARS) & set(CONTRACT_ENV_VARS)
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+    for name in WORKER_ENV_VARS:
+        assert name in readme, f"{name} is not documented in the worker README"
+
+
+def test_deployment_defaults_match_the_documented_ones() -> None:
+    settings = load_settings(VALID_ENV)
+    assert settings.queue_prefix == "bull"
+    assert settings.concurrency == DEFAULT_CONCURRENCY
+    assert settings.control_port == DEFAULT_CONTROL_PORT
+    assert settings.queues == ()
+    assert settings.whisper_model == "small"
+
+
+def test_the_queue_prefix_can_be_isolated_for_a_parallel_run() -> None:
+    settings = load_settings({**VALID_ENV, "MONTAJ_QUEUE_PREFIX": "a09"})
+    assert settings.queue_prefix == "a09"
+
+
+def test_a_trailing_slash_on_the_api_origin_is_dropped() -> None:
+    """Otherwise every callback path would carry a double slash."""
+    settings = load_settings({**VALID_ENV, "API_ORIGIN": "https://api.example.com/"})
+    assert settings.api_origin == "https://api.example.com"
+
+
+@pytest.mark.parametrize("name", ["WORKER_AI_CONCURRENCY", "WORKER_AI_PORT"])
+@pytest.mark.parametrize("value", ["nonsense", "0", "-4"])
+def test_rejects_a_non_positive_integer(name: str, value: str) -> None:
+    with pytest.raises(EnvValidationError, match=f"{name}: must be a positive integer"):
+        load_settings({**VALID_ENV, name: value})
+
+
+def test_rejects_a_gpu_url_that_is_not_http() -> None:
+    with pytest.raises(EnvValidationError, match="GPU_PROVIDER_URL"):
+        load_settings({**VALID_ENV, "GPU_PROVIDER_URL": "grpc://gpu.example"})
+
+
+def test_rejects_feature_flags_that_are_not_a_json_object() -> None:
+    with pytest.raises(EnvValidationError, match="FEATURE_FLAGS_JSON"):
+        load_settings({**VALID_ENV, "FEATURE_FLAGS_JSON": "not json"})
+    with pytest.raises(EnvValidationError, match="FEATURE_FLAGS_JSON"):
+        load_settings({**VALID_ENV, "FEATURE_FLAGS_JSON": "[1,2]"})
+
+
+def test_feature_flags_read_booleans_strings_and_defaults() -> None:
+    settings = load_settings(
+        {**VALID_ENV, "FEATURE_FLAGS_JSON": '{"a": true, "b": "off", "c": "yes", "d": 0}'}
+    )
+    assert settings.flag("a") is True
+    assert settings.flag("b") is False
+    assert settings.flag("c") is True
+    assert settings.flag("d") is False
+    assert settings.flag("unknown") is True
+    assert settings.flag("unknown", default=False) is False
+
+
+def test_the_bucket_settings_know_when_they_are_incomplete() -> None:
+    settings = load_settings(VALID_ENV)
+    assert settings.derived_bucket.configured is False
+
+    configured = load_settings(
+        {
+            **VALID_ENV,
+            "R2_ENDPOINT": "http://localhost:9000",
+            "R2_BUCKET_DERIVED": "montaj-derived",
+            "R2_ACCESS_KEY": "key",
+            "R2_SECRET_KEY": "secret",
+        }
+    )
+    assert configured.derived_bucket.configured is True
+    assert configured.derived_bucket.region == "auto"
+
+
+def test_the_mock_is_allowed_only_when_nothing_better_is_configured() -> None:
+    assert load_settings(VALID_ENV).mock_allowed is True
+    assert load_settings({**VALID_ENV, "SARVAM_API_KEY": "sk"}).mock_allowed is False
+    assert (
+        load_settings({**VALID_ENV, "GPU_PROVIDER_URL": "https://gpu.example"}).mock_allowed
+        is False
+    )
+    assert (
+        load_settings(
+            {**VALID_ENV, "SARVAM_API_KEY": "sk", "WORKER_AI_ALLOW_MOCK": "true"}
+        ).mock_allowed
+        is True
+    )
+
+
+def test_load_repo_dotenv_finds_the_repository_env(tmp_path: Path) -> None:
+    nested = tmp_path / "a" / "b"
+    nested.mkdir(parents=True)
+    (tmp_path / ".env").write_text("MONTAJ_DOTENV_PROBE=1\n", encoding="utf-8")
+    assert load_repo_dotenv(nested) == tmp_path / ".env"
+    assert os.environ.pop("MONTAJ_DOTENV_PROBE") == "1"
+
+
+def test_load_repo_dotenv_returns_none_when_there_is_no_env(tmp_path: Path) -> None:
+    # An empty temporary root has no `.env` above it on any CI runner.
+    assert load_repo_dotenv(tmp_path) in (None, *(parent / ".env" for parent in tmp_path.parents))

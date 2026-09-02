@@ -58,6 +58,180 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     within D33's parity SLO. `render-core` sits at 99% lines / 93% branches against the
     90/85 gate, and a two-line 1080p frame lays out and draws in **0.11 ms** (p50)
     against a 2 ms target.
+- **A09 — worker-ai: the BullMQ Python worker, provider interface, VAD and
+  chunking, alignment and diarisation registries, evals.**
+  - `apps/worker-ai/worker_ai/runtime.py`: one `bullmq.Worker` per `ai.*` queue.
+    `ai.vad`, `ai.transcribe`, `ai.align` and `ai.diarise` are implemented;
+    `ai.translate`, `ai.transliterate`, `ai.clean`, `ai.pass` and `ai.llm` are
+    consumed and answered `worker/not_implemented` naming the work package that
+    owns them, so a producer gets an error in seconds instead of a job that rots
+    in Redis until the queue-wait sweeper finds it.
+  - **Retry semantics against A08.** A job has two BullMQ attempts but one
+    `attemptId`, so a failed completion posted on a non-final attempt would move
+    the row to `failed` and make the retry invisible. The worker therefore posts a
+    failed completion only on the final attempt (`finalAttempt: true`) or when the
+    error is non-retryable (`error.retryable: false`) — the two flags
+    `markDeadLetterIfFinal` reads — and re-raises either way.
+  - `worker_ai/callbacks.py`: the signed progress and completion client of
+    CONTRACTS section 3. The body is serialised once, signed as those exact bytes
+    and posted unchanged; the worker signs with the primary
+    `INTERNAL_CALLBACK_SECRET` only (`INTERNAL_CALLBACK_SECRET_NEXT` is the API's
+    verification key during a roll). Bounded retries on transport, 5xx and 429;
+    a 4xx is fatal; `applied: false` is reported as the success it is.
+  - `worker_ai/vad.py` and `chunking.py`: decision **D14** — a full-file VAD pass,
+    then nominal 10-minute chunks cut at the longest silence within ±30 s, never
+    mid-region, no overlap. Silero v5 through onnxruntime (torch-free) when a model
+    file is configured, and a deterministic energy backend otherwise, which is what
+    CI and the property tests run on.
+  - `worker_ai/providers/`: the `Provider` interface with a capability record, a
+    cost estimate and a `ProviderSubmission` trail, plus a registry that reports
+    *why* an adapter is disabled. `MockProvider` (deterministic, Hinglish sample),
+    `LocalWhisperProvider` (faster-whisper, optional `local-asr` extra) and
+    `ServerlessWhisperProvider` (the D15 per-second GPU endpoint) ship; ElevenLabs
+    Scribe v2, Sarvam Saaras v4 and AssemblyAI are shells carrying their
+    capabilities and prices until A10.
+  - `worker_ai/routing.yaml` + `routing.py`: the v2 routing table of `09 §1`
+    (decision **D12**) as data, read-only, with a resolver that walks a lane and
+    takes the first provider the deployment enables.
+  - `worker_ai/alignment/` and `diarisation/`: the **D13** registries.
+    `ProportionalAligner` distributes words by character length onto the VAD speech
+    timeline and repairs monotonicity — the always-available rung; IndicWav2Vec,
+    MMS and ElevenLabs FA are shells with their models and licences recorded.
+    `NoopDiariser` labels every region `S1`; the pyannote community-1 shell records
+    the model name and its CC-BY-4.0 licence.
+  - `worker_ai/transcript.py`: stable `"<chunkIdx>:<n>"` word ids, chunk-local and
+    dense, with the post-processing hook A11 replaces.
+  - `worker_ai/control.py`: `GET /health`, `GET /providers` (every adapter, its
+    enable flag and its reason, plus the routing table and both registries) and a
+    `POST /evals/run` stub, on port 8091, pod-internal.
+  - `worker_ai/evals/`: a fixture-manifest format, WER/CER over normalised text
+    (Devanagari danda included), a runner and
+    `python -m worker_ai.evals run --set fixtures/hinglish-mini --max-wer 0.15`,
+    which is the gate `09 §8` needs to block a routing change on a regression.
+  - `apps/worker-ai/Dockerfile` (CPU: ffmpeg, onnxruntime, faster-whisper and the
+    Silero model baked in) and `Dockerfile.gpu`, a placeholder documenting the
+    serverless-GPU image contract of D15.
+  - `worker_ai/policies.py`: A08b's retry, stall and heartbeat table, mirrored from
+    `apps/api/src/jobs/jobs.config.ts` and pinned by a parity test that parses the
+    TypeScript. `attempts` and `backoff` reach the worker inside the job options,
+    but `lockDurationMs`, `stalledIntervalMs` and `maxStalledCount` are `Worker`
+    constructor options a worker has to read — and **the progress callback is the
+    heartbeat**, so `JobContext.heartbeat()` reposts the last percentage every
+    third of the lock and `ai.transcribe` beats while a chunk is inside a provider.
+    Without it a ten-minute chunk on a two-minute lock would be declared stalled
+    and handed to a second worker mid-transcription.
+  - Tests: 321 unit and property tests with the CONTRACTS section 9 coverage gate,
+    a callback suite verified against a server that implements the section 3
+    signature, and `tests/test_integration.py` — a real BullMQ job from the API's
+    own producer modules, consumed by a real worker, completing against the real
+    API (`RUN_INTEGRATION=1`).
+- **A05 — api: users, workspaces (tax profile), memberships, consent, privacy.**
+  - `apps/api/src/users/`: `GET`/`PATCH /me` (name, avatar, locale, onboarding
+    state, marketing opt-in, with a change to the opt-in also appending a
+    `consent_records` row); `GET /me/data`, the DPDP access and portability right
+    — a `dsr_requests` row of kind `export`, a JSON bundle of every row the
+    account holds, and a single-use download link carrying 256 bits of entropy
+    that expires in an hour; `DELETE /me`, the erasure right — a `dsr_requests`
+    row of kind `erasure`, the account marked deleted, the address anonymised to
+    an RFC 2606 `.invalid` mailbox and every session revoked in one transaction
+    (the cascade over media and transcripts is B16). Both stamp `dueAt` 30 days
+    out (DPDP Rule 14). The module also owns `AuditService`, the `audit_log` +
+    `access_logs` writer every other A05 module uses.
+  - `apps/api/src/workspaces/`: `GET`/`POST /workspaces`, `GET`/`PATCH`/`DELETE
+/workspaces/{id}` (settings merged rather than replaced; a personal workspace
+    that is the caller's only one cannot be deleted); `PUT
+/workspaces/{id}/tax-profile` with the D41 rules — India requires a State code
+    from the 36 live GST codes, an optional GSTIN is checked against its base-36
+    check digit and must name that same State, currency is derived
+    (`IN → INR`, else `USD`) and locked once a subscription exists, and confirming
+    a profile stamps the new `billingCountryConfirmedAt` that B01 requires before a
+    checkout; `GET /workspaces/{id}/entitlement`, the Free-plan stub cached in
+    Redis for 60 seconds (B02 computes it for real); members
+    (`GET`/`POST /workspaces/{id}/members`, `PATCH`/`DELETE .../{membershipId}`)
+    with exactly one immutable owner, no granting a role above your own, and every
+    session of a removed member revoked at once; and `/invitations` — accepted from
+    the invitee's own verified address, so the id in the mail is a lookup key
+    rather than a bearer secret.
+  - `WorkspaceMemberGuard` on **every** `/workspaces/:id` route (THREAT-MODEL T4):
+    the id in the path must be the token's `ws` claim, an active membership must
+    still exist, and the principal's role is replaced with the one in the database
+    so a demotion bites on the next request rather than at the end of the token's
+    fifteen minutes. `test/workspace-guard.e2e-spec.ts` enumerates the shipped
+    route table from the router and drives every `:id` route as a stranger, as a
+    removed member and with no token, so a route added without the guard fails
+    without anybody editing the test.
+  - `apps/api/src/consents/`: `GET`/`POST /consents` over an append-only
+    `consent_records` log (a refusal is a row, a withdrawal closes the grants it
+    supersedes, and `users.marketingOptIn` / `analyticsConsentAt` /
+    `memoryConsentAt` are mirrored in the same transaction); `reconsentRequired`
+    reports an answer given against an older notice (D61, D62).
+  - `apps/api/src/privacy/`: `GET /privacy/notice`, the itemised notice's version
+    and purpose list, public because a person has to read it before creating an
+    account; and `GET /admin/parental-waitlist`, which lives in A08b's
+    `AdminModule` behind `AdminGuard` (`users.is_admin`) because the waiting list
+    belongs to nobody's workspace and no membership could authorise reading it.
+  - **Schema:** `workspaces.billing_country_confirmed_at` (the sign-up default is a
+    guess, not a statement the customer made) and the `parental_waitlist` table
+    (`sha256(address)`, jurisdiction, age bracket, `notifiedAt`), which
+    `ParentalWaitlistService` drains A04's Redis hash into at boot. Migration
+    `20260902030000_a05_billing_country_confirmed_and_parental_waitlist`.
+  - No new environment variables and no new feature flags; `pnpm gen:client`
+    regenerated `packages/api-client` (53 operations).
+  - `apps/api/test/db-harness.ts`: the Docker probe waits 60 s rather than 20 s.
+    Vitest collects the suite files in parallel, so every Docker-backed suite
+    probes the daemon at once, and A05 took that from three suites to five; a
+    timeout there does not fail a run, it silently skips every integration suite.
+    A daemon that is genuinely absent still fails in milliseconds.
+- **A08b — api: dead-letter queue, admin replay, retry/stall policy, job-event
+  retention.**
+  - `apps/api/prisma`: the `dlq` table (migration
+    `20260902030000_a08b_dlq_replay`) — one row per attempt that exhausted its
+    retry budget, carrying the queue, the payload, the last error, the attempt
+    ordinal and the credit hold a replay has to reserve again — plus
+    `jobs.dlq` / `dlq_reason` / `dlq_at` / `attempt_no` and `users.is_admin`. The
+    migration **backfills** from the `job.dead_lettered` events A08 wrote when
+    there was nowhere else to put them, so no dead letter is lost.
+  - `apps/api/src/jobs/dlq.service.ts`: the dead-letter path. The copy is taken
+    from the job row _before_ the completion update, so it remembers the hold, and
+    it is idempotent on `(jobId, attemptId)` so an at-least-once callback writes
+    one row. **Replay** claims the entry with a conditional update (two admins,
+    one replay), reuses the same `jobs` row, mints a fresh `attemptId` and
+    increments `attempt_no` — which makes the old attempt's late callback a
+    `stale_attempt` no-op (THREAT-MODEL T8) — reserves credits again through the
+    facade, and adds the BullMQ job last, so every earlier failure unwinds with
+    nothing enqueued. **Discard** releases the hold and records a mandatory reason.
+  - `apps/api/src/admin`: `AdminGuard`, which reads `users.is_admin` from the
+    database on every request rather than from a token claim, so revoking an admin
+    takes effect at once; and `GET /admin/dlq`, `/admin/dlq/stats`,
+    `/admin/dlq/{id}`, `POST /admin/dlq/{id}/replay`, `/{id}/discard` and the bulk
+    `/admin/dlq/replay` and `/admin/dlq/discard`, which **dry-run by default**.
+    Every replay and discard writes an `audit_log` row (THREAT-MODEL T20); a
+    non-admin is 403.
+  - **Retry and stall policy per queue** (`jobs.config.ts`): attempts (media 3,
+    ai 2, render 2, notify 5), exponential backoff **with jitter** — an
+    un-jittered backoff retries a whole outage into the same dead provider at the
+    same millisecond — and lock durations and stall intervals tuned per queue,
+    with ten minutes on `ai.transcribe`, `ai.diarise` and `render.video`.
+    `heartbeatIntervalMs()` is a third of the lock, and the heartbeat is the
+    existing progress callback.
+  - **Job-event retention** (D47): `jobs.event-retention`, nightly, deletes rows
+    past their own `data.retainUntil` in batches, falling back to `at` for rows
+    written before the marker existed. `dlq` rows are never purged.
+  - **Metrics** and `GET /internal/metrics`, a Prometheus exposition rendered from
+    an in-process registry that also mirrors into the OpenTelemetry metrics API.
+    Names follow `infra/observability/METRICS.md` — `montaj_job_completed_total`,
+    `montaj_queue_dlq_depth`, `montaj_queue_wait_duration_seconds`,
+    `montaj_job_attempts`, `montaj_dlq_resolved_total` — with the A08b brief's
+    `montaj_jobs_failed_total`, `montaj_dlq_depth` and `montaj_job_queue_wait_ms`
+    emitted as aliases of the same data, because the shipped dashboards and the
+    `MontajDlqNonEmpty` / `MontajDlqGrowing` rules query the METRICS.md names.
+  - `tools/runbooks/dlq-replay.js`: `stats`, `list`, `show`, `replay` and
+    `discard` against the admin API — not against Postgres, because the policy a
+    replay has to honour lives in `DlqService`. `replay` and `discard` are dry runs
+    unless `--confirm`, and refuse to run with no target.
+    `docs/runbooks/dlq-replay.md` is rewritten around the real commands.
+  - New optional environment variable `MONTAJ_METRICS_TOKEN` (non-contract): when
+    set, `GET /internal/metrics` requires it as a bearer token.
 
 - **A02b — `@montaj/edg` ops engine: apply, rebase, segmenter, snapshots, migrations.**
   - `@montaj/edg/ops`: `EdgState` (hot document, segments by id in `seq` order,
@@ -406,6 +580,18 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     CONTRACTS section 1 exactly, that the lifecycle rules encode the retention
     contract, that worker egress is denied by default, and that nothing
     credential-shaped is committed.
+
+### Fixed
+
+- **A08b — `jobKey` deduplication was scoped globally, not per workspace.** A08's
+  `jobs_live_job_key_key` was `UNIQUE (job_key) WHERE status IN
+('queued','running')` with no workspace column, so two tenants with the same
+  live job key collided and the second enqueue failed with an unexplainable unique
+  violation. `prisma/sql/0005-a08b-dlq.sql` replaces it with
+  `jobs_live_workspace_job_key_key` on `(workspace_id, job_key)`, and
+  `JobsService.enqueue` now handles the unique violation by returning the existing
+  job — the `findLiveByKey` read cannot exclude a writer that commits a
+  microsecond later, so the index is the actual guarantee.
 
 ### Changed
 

@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AdmissionService } from "./admission.service.js";
 import { createFakePrisma, FakeDb, FakeQueueRegistry } from "../../test/fakes.js";
 import { AppException } from "../common/errors/error-codes.js";
+import { MetricsService } from "../common/metrics/metrics.service.js";
 import { CreditsInsufficientError } from "../credits/credits.facade.js";
 import { isJobEnvelope } from "./contracts/job-envelope.js";
+import { DlqService } from "./dlq.service.js";
 import { JobEventsService } from "./job-events.service.js";
 import { PLAN_MAX_QUEUE_WAIT_MS, PLAN_PRIORITY } from "./jobs.config.js";
 import { JobsService } from "./jobs.service.js";
@@ -20,6 +22,8 @@ const PROJECT = "01JCPROJECT000000000000000";
 
 interface Harness {
   jobs: JobsService;
+  dlq: DlqService;
+  metrics: MetricsService;
   db: FakeDb;
   queues: FakeQueueRegistry;
   credits: {
@@ -49,16 +53,28 @@ function harness(): Harness {
     jobCompleted: vi.fn(async () => undefined),
   };
 
+  const metrics = new MetricsService();
+  const events = new JobEventsService(prisma);
+  const dlq = new DlqService(
+    prisma,
+    queues as unknown as QueueRegistry,
+    events,
+    metrics,
+    realtime as unknown as RealtimePublisher,
+    credits as unknown as CreditsFacade,
+  );
   const jobs = new JobsService(
     prisma,
     queues as unknown as QueueRegistry,
     new AdmissionService(prisma),
-    new JobEventsService(prisma),
+    events,
     realtime as unknown as RealtimePublisher,
+    dlq,
+    metrics,
     credits as unknown as CreditsFacade,
   );
 
-  return { jobs, db, queues, credits, realtime };
+  return { jobs, dlq, metrics, db, queues, credits, realtime };
 }
 
 const ENQUEUE = {
