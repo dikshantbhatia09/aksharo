@@ -131,6 +131,41 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     columns) plus `consumes_signup_gift`/`consumes_nine_pass`; `exports.status`
     (`pending_browser|succeeded|failed`), `workspace_id` and `checksum`;
     `workspaces.signup_gift_consumed_at`.
+- **B02 — the credits ledger: lots, atomic reserve, holds/settle/release/reversal,
+  grants and expiry, the entitlements engine and the real `CreditsFacade`.**
+  - **`LedgerCreditsFacade`** replaces A08's `NoopCreditsFacade` behind `CREDITS_FACADE`
+    (CONTRACTS §4), unchanged interface. Every balance move is a single conditional
+    `UPDATE credit_accounts SET balance_tenths = balance_tenths ± $amt WHERE … RETURNING`
+    plus one `credit_ledger` row in the same transaction (06 invariant 1, D32). Lots
+    are consumed soonest-expiring first then FIFO (`apps/api/src/credits/lot-allocation.ts`,
+    pure and unit-tested); `settle` is idempotent via a claim-first CAS on
+    `credit_holds.status`; over-settlement attempts a delta charge folded into the
+    same hold (`credit_holds.job_id` is unique, so a delta is not a second hold row)
+    and settles only what is held — `needs_credits` — when it cannot be covered.
+  - **Reversal, expiry, monthly reset, reconcile** beyond the frozen interface: `reverse()`
+    creates a new lot inheriting the original lot's expiry (split proportionally when a
+    hold spanned more than one lot); `expireLots()` sweeps expired lots into an `expire`
+    ledger entry; `resetMonthlyGrants()` grants the anniversary allowance, idempotent
+    under an at-least-once scheduler; `CreditReconcileService` recomputes Σ lots and Σ
+    ledger against the cached balance (detection only).
+  - **Entitlements engine.** `EntitlementService.compute()` (A05's stub) now resolves
+    the workspace's live subscription plan (an active week pass raises it to at least
+    Starter) and merges the plan's seeded entitlement JSON with computed feature
+    flags; still a 60 s Redis cache with the existing invalidation hook.
+    `@RequiresEntitlement(check)` + `RequiresEntitlementGuard` (new `entitlements`
+    module) gate a route on it.
+  - **`quote(operation, mediaMinutes)`** in `@montaj/config`'s `credits.ts`: one call
+    for a producer's `{holdTenths, costTenths}`, replacing hand-rolled worst-case math.
+  - **Usage API**: `GET /workspaces/{id}/credits` (balance, next reset, live lots) and
+    `GET /workspaces/{id}/usage` (ledger history, per-job attribution, cursor paging).
+  - **Runbooks**: `tools/runbooks/credits-orphaned-holds.js` and `billing-reconcile.js`
+    (+ `docs/runbooks/*.md`), driving new `/admin/credits/*` routes.
+  - **Concurrency property test** (`test/credits-ledger.property.spec.ts`, fast-check,
+    `pnpm --filter @montaj/api test:property`): N=50 concurrent workers, 2,000 random
+    `reserve`/`settle`/`release`/`reverse`/`grantLot`/`expireLots` operations against one
+    account, asserting `balance = Σ lots = Σ ledger ≥ 0` after every batch.
+  - A11/A21/A22 (the intended `quote()` callers) had not landed when this WP was
+    written; nothing there to switch over yet.
 
 - **B01 — api: billing core — `BillingProvider` (Razorpay + fake), plan
   catalogue, checkout with the ₹15,000 UPI mandate rule, passes/top-ups,

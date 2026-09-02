@@ -26,6 +26,7 @@ import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness
 import { PrismaService } from "../src/common/prisma/prisma.service.js";
 import { RedisService } from "../src/common/redis/redis.service.js";
 import { ENV } from "../src/config/config.module.js";
+import { CREDITS_FACADE } from "../src/credits/credits.facade.js";
 import { NoopCreditsFacade } from "../src/credits/noop-credits.facade.js";
 import {
   ATTEMPT_HEADER,
@@ -253,6 +254,15 @@ beforeAll(async () => {
       JWT_PUBLIC_KEY: PEM_PUBLIC,
       INTERNAL_CALLBACK_SECRET: CALLBACK_SECRET,
     } as Env)
+    // This suite is about the job state machine (envelope, callbacks, realtime,
+    // admission) — not about ledger balances — and it reads its assertions off
+    // `NoopCreditsFacade.holdStatus()`, which B02's real `LedgerCreditsFacade`
+    // does not expose. Bind `CREDITS_FACADE` to the SAME `NoopCreditsFacade`
+    // instance the suite fetches below, rather than the one `CreditsModule`
+    // binds it to in production, so a fixture workspace with no grant is not a
+    // `credits/insufficient` before the first job is even queued.
+    .overrideProvider(CREDITS_FACADE)
+    .useFactory({ factory: (noop: NoopCreditsFacade) => noop, inject: [NoopCreditsFacade] })
     .compile();
 
   app = moduleRef.createNestApplication({ logger: false, rawBody: true });

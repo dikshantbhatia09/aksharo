@@ -29,6 +29,8 @@ import { BILLING_PROVIDER } from "../src/billing/provider.js";
 import { type FakeProvider } from "../src/billing/providers/fake.provider.js";
 import { HttpExceptionFilter } from "../src/common/errors/http-exception.filter.js";
 import { resetEnvCache } from "../src/config/config.module.js";
+import { CREDITS_FACADE } from "../src/credits/credits.facade.js";
+import { NoopCreditsFacade } from "../src/credits/noop-credits.facade.js";
 import { setupOpenApi } from "../src/openapi.js";
 
 import type { INestApplication } from "@nestjs/common";
@@ -114,7 +116,18 @@ export async function createBillingTestContext(): Promise<BillingTestContext | n
   delete process.env["RAZORPAY_WEBHOOK_SECRET"];
   resetEnvCache();
 
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    // This suite is about billing's OWN logic — checkout, webhooks, dunning —
+    // and `week_pass checkout … grants credits through CreditsFacade.grantLot`
+    // spies on `NoopCreditsFacade.grantLot` to assert billing calls it with the
+    // right arguments, not on the ledger actually moving money (B02's own
+    // suite, `test/credits-ledger.e2e-spec.ts`, covers that). Bind
+    // `CREDITS_FACADE` to the SAME `NoopCreditsFacade` instance the tests
+    // fetch and spy on, rather than the real `LedgerCreditsFacade`
+    // `CreditsModule` binds it to in production.
+    .overrideProvider(CREDITS_FACADE)
+    .useFactory({ factory: (noop: NoopCreditsFacade) => noop, inject: [NoopCreditsFacade] })
+    .compile();
   const app = moduleRef.createNestApplication({ logger: false, rawBody: true });
   app.useGlobalFilters(new HttpExceptionFilter());
   setupOpenApi(app);
