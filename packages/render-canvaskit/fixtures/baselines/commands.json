@@ -1,0 +1,3857 @@
+{
+ "canvas": {
+  "width": 540,
+  "height": 960
+ },
+ "background": "#1a1a20ff",
+ "frames": {
+  "punch-pop-hinglish": [
+   {
+    "kind": "group",
+    "id": "segment:fx-hinglish",
+    "children": [
+     {
+      "kind": "shadow",
+      "dx": 0,
+      "dy": 3.686,
+      "sigma": 4.047,
+      "color": "#0000008c",
+      "children": [
+       {
+        "kind": "transform",
+        "matrix": [
+         1.18,
+         0,
+         0,
+         1.18,
+         -21.168,
+         -116.885
+        ],
+        "children": [
+         {
+          "kind": "text",
+          "run": {
+           "fontId": "noto-sans-devanagari-900",
+           "fontSizePx": 61.44,
+           "glyphs": [
+            54,
+            38
+           ],
+           "positions": [
+            94.005,
+            673.198,
+            127.613,
+            673.198
+           ],
+           "clusters": [
+            0,
+            0
+           ],
+           "text": "के"
+          },
+          "stroke": {
+           "paint": {
+            "type": "solid",
+            "color": "#0b0b0fff"
+           },
+           "widthPx": 5.53,
+           "join": "round",
+           "cap": "round"
+          }
+         },
+         {
+          "kind": "text",
+          "run": {
+           "fontId": "noto-sans-devanagari-900",
+           "fontSizePx": 61.44,
+           "glyphs": [
+            54,
+            38
+           ],
+           "positions": [
+            94.005,
+            673.198,
+            127.613,
+            673.198
+           ],
+           "clusters": [
+            0,
+            0
+           ],
+           "text": "के"
+          },
+          "fill": {
+           "paint": {
+            "type": "solid",
+            "color": "#ffd400ff"
+           }
+          }
+         }
+        ]
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "noto-sans-devanagari-900",
+         "fontSizePx": 61.44,
+         "glyphs": [
+          76,
+          29,
+          80,
+          38
+         ],
+         "positions": [
+          156.551,
+          673.198,
+          191.633,
+          673.198,
+          206.932,
+          673.198,
+          231.446,
+          673.198
+         ],
+         "clusters": [
+          0,
+          0,
+          2,
+          2
+         ],
+         "text": "बारे"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#0b0b0fff"
+         },
+         "widthPx": 5.53,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "noto-sans-devanagari-900",
+         "fontSizePx": 61.44,
+         "glyphs": [
+          76,
+          29,
+          80,
+          38
+         ],
+         "positions": [
+          156.551,
+          673.198,
+          191.633,
+          673.198,
+          206.932,
+          673.198,
+          231.446,
+          673.198
+         ],
+         "clusters": [
+          0,
+          0,
+          2,
+          2
+         ],
+         "text": "बारे"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "noto-sans-devanagari-900",
+         "fontSizePx": 61.44,
+         "glyphs": [
+          78,
+          446
+         ],
+         "positions": [
+          247.421,
+          673.198,
+          284.162,
+          673.198
+         ],
+         "clusters": [
+          0,
+          0
+         ],
+         "text": "में"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#0b0b0fff"
+         },
+         "widthPx": 5.53,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "noto-sans-devanagari-900",
+         "fontSizePx": 61.44,
+         "glyphs": [
+          78,
+          446
+         ],
+         "positions": [
+          247.421,
+          673.198,
+          284.162,
+          673.198
+         ],
+         "clusters": [
+          0,
+          0
+         ],
+         "text": "में"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "inter-900",
+         "fontSizePx": 61.44,
+         "glyphs": [
+          35,
+          34,
+          34,
+          53
+         ],
+         "positions": [
+          299.522,
+          673.198,
+          338.844,
+          673.198,
+          377.489,
+          673.198,
+          411.834,
+          673.198
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3
+         ],
+         "text": "BAAT"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#0b0b0fff"
+         },
+         "widthPx": 5.53,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "inter-900",
+         "fontSizePx": 61.44,
+         "glyphs": [
+          35,
+          34,
+          34,
+          53
+         ],
+         "positions": [
+          299.522,
+          673.198,
+          338.844,
+          673.198,
+          377.489,
+          673.198,
+          411.834,
+          673.198
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3
+         ],
+         "text": "BAAT"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "karaoke-fill-hindi": [
+   {
+    "kind": "group",
+    "id": "segment:fx-hindi",
+    "children": [
+     {
+      "kind": "roundRect",
+      "rect": [
+       34.928,
+       625.75,
+       505.072,
+       737.872
+      ],
+      "radiusX": 22.424,
+      "radiusY": 22.424,
+      "fill": {
+       "paint": {
+        "type": "solid",
+        "color": "#101018ff"
+       },
+       "opacity": 0.55
+      }
+     },
+     {
+      "kind": "text",
+      "run": {
+       "fontId": "noto-sans-devanagari-700",
+       "fontSizePx": 37.599,
+       "glyphs": [
+        71,
+        38,
+        55,
+        40
+       ],
+       "positions": [
+        43.2,
+        674.216,
+        62.902,
+        674.216,
+        62.977,
+        674.216,
+        93.734,
+        674.216
+       ],
+       "clusters": [
+        0,
+        0,
+        2,
+        2
+       ],
+       "text": "देखो"
+      },
+      "fill": {
+       "paint": {
+        "type": "solid",
+        "color": "#ffffffff"
+       }
+      }
+     },
+     {
+      "kind": "text",
+      "run": {
+       "fontId": "noto-sans-devanagari-700",
+       "fontSizePx": 37.599,
+       "glyphs": [
+        74,
+        86,
+        81,
+        38
+       ],
+       "positions": [
+        113.06,
+        674.216,
+        134.228,
+        674.216,
+        154.006,
+        674.216,
+        179.498,
+        674.216
+       ],
+       "clusters": [
+        0,
+        1,
+        2,
+        2
+       ],
+       "text": "पहले"
+      },
+      "fill": {
+       "paint": {
+        "type": "solid",
+        "color": "#ffffffff"
+       }
+      }
+     },
+     {
+      "kind": "text",
+      "run": {
+       "fontId": "noto-sans-devanagari-700",
+       "fontSizePx": 37.599,
+       "glyphs": [
+        64,
+        442,
+        29,
+        98,
+        85,
+        479,
+        232,
+        183,
+        64
+       ],
+       "positions": [
+        189.086,
+        674.216,
+        206.758,
+        674.216,
+        208.036,
+        674.216,
+        217.774,
+        674.216,
+        217.586,
+        674.216,
+        242.816,
+        674.216,
+        252.554,
+        674.216,
+        281.242,
+        674.216,
+        292.823,
+        674.216
+       ],
+       "clusters": [
+        0,
+        0,
+        0,
+        0,
+        5,
+        6,
+        6,
+        10,
+        12
+       ],
+       "text": "ट्रांसक्रिप्ट"
+      },
+      "fill": {
+       "paint": {
+        "type": "solid",
+        "color": "#ffffffff"
+       }
+      }
+     },
+     {
+      "kind": "text",
+      "run": {
+       "fontId": "noto-sans-devanagari-700",
+       "fontSizePx": 37.599,
+       "glyphs": [
+        81,
+        40
+       ],
+       "positions": [
+        321.361,
+        674.216,
+        346.853,
+        674.216
+       ],
+       "clusters": [
+        0,
+        0
+       ],
+       "text": "लो"
+      },
+      "fill": {
+       "paint": {
+        "type": "solid",
+        "color": "#ffffffff"
+       }
+      }
+     },
+     {
+      "kind": "text",
+      "run": {
+       "fontId": "noto-sans-devanagari-700",
+       "fontSizePx": 37.599,
+       "glyphs": [
+        479,
+        75,
+        80
+       ],
+       "positions": [
+        366.179,
+        674.216,
+        375.918,
+        674.216,
+        404.719,
+        674.216
+       ],
+       "clusters": [
+        0,
+        0,
+        2
+       ],
+       "text": "फिर"
+      },
+      "fill": {
+       "paint": {
+        "type": "solid",
+        "color": "#ffffff66"
+       }
+      }
+     },
+     {
+      "kind": "text",
+      "run": {
+       "fontId": "noto-sans-devanagari-700",
+       "fontSizePx": 37.599,
+       "glyphs": [
+        54,
+        29,
+        64,
+        40
+       ],
+       "positions": [
+        429.685,
+        674.216,
+        458.561,
+        674.216,
+        468.112,
+        674.216,
+        487.062,
+        674.216
+       ],
+       "clusters": [
+        0,
+        0,
+        2,
+        2
+       ],
+       "text": "काटो"
+      },
+      "fill": {
+       "paint": {
+        "type": "solid",
+        "color": "#ffffff66"
+       }
+      }
+     },
+     {
+      "kind": "text",
+      "run": {
+       "fontId": "noto-sans-devanagari-700",
+       "fontSizePx": 37.599,
+       "glyphs": [
+        76,
+        432,
+        69
+       ],
+       "positions": [
+        186.924,
+        718.583,
+        208.205,
+        718.583,
+        227.983,
+        718.583
+       ],
+       "clusters": [
+        0,
+        1,
+        3
+       ],
+       "text": "बहुत"
+      },
+      "fill": {
+       "paint": {
+        "type": "solid",
+        "color": "#ffffff66"
+       }
+      }
+     },
+     {
+      "kind": "text",
+      "run": {
+       "fontId": "noto-sans-devanagari-700",
+       "fontSizePx": 37.599,
+       "glyphs": [
+        4,
+        85,
+        29,
+        73
+       ],
+       "positions": [
+        259.002,
+        718.583,
+        297.241,
+        718.583,
+        322.658,
+        718.583,
+        332.208,
+        718.583
+       ],
+       "clusters": [
+        0,
+        1,
+        1,
+        3
+       ],
+       "text": "आसान"
+      },
+      "fill": {
+       "paint": {
+        "type": "solid",
+        "color": "#ffffff66"
+       }
+      }
+     }
+    ]
+   }
+  ],
+  "vertical-clean-tamil": [
+   {
+    "kind": "group",
+    "id": "segment:fx-tamil",
+    "children": [
+     {
+      "kind": "shadow",
+      "dx": 0,
+      "dy": 0.71,
+      "sigma": 2.414,
+      "color": "#00000073",
+      "children": [
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "noto-sans-tamil-700",
+         "fontSizePx": 23.675,
+         "glyphs": [
+          6,
+          84,
+          141
+         ],
+         "positions": [
+          59.4,
+          750.67,
+          86.058,
+          750.67,
+          114.752,
+          750.67
+         ],
+         "clusters": [
+          0,
+          1,
+          3
+         ],
+         "text": "இன்று"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "noto-sans-tamil-700",
+         "fontSizePx": 23.675,
+         "glyphs": [
+          24,
+          39,
+          86
+         ],
+         "positions": [
+          147.778,
+          750.67,
+          166.458,
+          750.67,
+          181.61,
+          750.67
+         ],
+         "clusters": [
+          0,
+          0,
+          2
+         ],
+         "text": "நாம்"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "noto-sans-tamil-700",
+         "fontSizePx": 23.675,
+         "glyphs": [
+          153,
+          112,
+          45,
+          28,
+          39
+         ],
+         "positions": [
+          208.078,
+          750.67,
+          232.795,
+          750.67,
+          249.699,
+          750.67,
+          266.745,
+          750.67,
+          289.544,
+          750.67
+         ],
+         "clusters": [
+          0,
+          2,
+          4,
+          4,
+          4
+         ],
+         "text": "வீடியோ"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "noto-sans-tamil-700",
+         "fontSizePx": 23.675,
+         "glyphs": [
+          10,
+          112,
+          80,
+          112,
+          76
+         ],
+         "positions": [
+          310.851,
+          750.67,
+          329.815,
+          750.67,
+          348.684,
+          750.67,
+          365.09,
+          750.67,
+          383.959,
+          750.67
+         ],
+         "clusters": [
+          0,
+          1,
+          3,
+          5,
+          7
+         ],
+         "text": "எடிட்டிங்"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "noto-sans-tamil-700",
+         "fontSizePx": 23.675,
+         "glyphs": [
+          26,
+          89,
+          30,
+          165
+         ],
+         "positions": [
+          414.831,
+          750.67,
+          433.25,
+          750.67,
+          453.824,
+          750.67,
+          474.397,
+          750.67
+         ],
+         "clusters": [
+          0,
+          1,
+          3,
+          3
+         ],
+         "text": "பற்றி"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "noto-sans-tamil-700",
+         "fontSizePx": 23.675,
+         "glyphs": [
+          45,
+          26,
+          106,
+          45,
+          34,
+          39,
+          86
+         ],
+         "positions": [
+          203.391,
+          780.263,
+          220.437,
+          780.263,
+          238.856,
+          780.263,
+          259.382,
+          780.263,
+          276.428,
+          780.263,
+          301.144,
+          780.263,
+          316.296,
+          780.263
+         ],
+         "clusters": [
+          0,
+          0,
+          2,
+          4,
+          4,
+          4,
+          6
+         ],
+         "text": "பேசுவோம்"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "prism-split-english": [
+   {
+    "kind": "group",
+    "id": "segment:fx-english",
+    "children": [
+     {
+      "kind": "shadow",
+      "dx": 0,
+      "dy": 1.395,
+      "sigma": 2.916,
+      "color": "#00000073",
+      "children": [
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          40,
+          38,
+          53
+         ],
+         "positions": [
+          47.896,
+          642.622,
+          72.934,
+          642.622,
+          91.975,
+          642.622
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "GET"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#101018ff"
+         },
+         "widthPx": 2.092,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          40,
+          38,
+          53
+         ],
+         "positions": [
+          47.896,
+          642.622,
+          72.934,
+          642.622,
+          91.975,
+          642.622
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "GET"
+        },
+        "fill": {
+         "paint": {
+          "type": "linear-gradient",
+          "from": [
+           42.874,
+           639.346
+          ],
+          "to": [
+           497.126,
+           657.197
+          ],
+          "stops": [
+           {
+            "offset": 0,
+            "color": "#ff2e63ff"
+           },
+           {
+            "offset": 0.5,
+            "color": "#ffd400ff"
+           },
+           {
+            "offset": 1,
+            "color": "#3fa7d6ff"
+           }
+          ]
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          53,
+          41,
+          38
+         ],
+         "positions": [
+          120.082,
+          642.622,
+          139.123,
+          642.622,
+          164.615,
+          642.622
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "THE"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#101018ff"
+         },
+         "widthPx": 2.092,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          53,
+          41,
+          38
+         ],
+         "positions": [
+          120.082,
+          642.622,
+          139.123,
+          642.622,
+          164.615,
+          642.622
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "THE"
+        },
+        "fill": {
+         "paint": {
+          "type": "linear-gradient",
+          "from": [
+           42.874,
+           639.346
+          ],
+          "to": [
+           497.126,
+           657.197
+          ],
+          "stops": [
+           {
+            "offset": 0,
+            "color": "#ff2e63ff"
+           },
+           {
+            "offset": 0.5,
+            "color": "#ffd400ff"
+           },
+           {
+            "offset": 1,
+            "color": "#3fa7d6ff"
+           }
+          ]
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          53,
+          51,
+          34,
+          47,
+          52,
+          36,
+          51,
+          42,
+          49,
+          53
+         ],
+         "positions": [
+          192.722,
+          642.622,
+          211.763,
+          642.622,
+          233.105,
+          642.622,
+          255.04,
+          642.622,
+          281.194,
+          642.622,
+          299.991,
+          642.622,
+          321.681,
+          642.622,
+          343.023,
+          642.622,
+          354.497,
+          642.622,
+          375.246,
+          642.622
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+         ],
+         "text": "TRANSCRIPT"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#101018ff"
+         },
+         "widthPx": 2.092,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          53,
+          51,
+          34,
+          47,
+          52,
+          36,
+          51,
+          42,
+          49,
+          53
+         ],
+         "positions": [
+          192.722,
+          642.622,
+          211.763,
+          642.622,
+          233.105,
+          642.622,
+          255.04,
+          642.622,
+          281.194,
+          642.622,
+          299.991,
+          642.622,
+          321.681,
+          642.622,
+          343.023,
+          642.622,
+          354.497,
+          642.622,
+          375.246,
+          642.622
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+         ],
+         "text": "TRANSCRIPT"
+        },
+        "fill": {
+         "paint": {
+          "type": "linear-gradient",
+          "from": [
+           42.874,
+           639.346
+          ],
+          "to": [
+           497.126,
+           657.197
+          ],
+          "stops": [
+           {
+            "offset": 0,
+            "color": "#ff2e63ff"
+           },
+           {
+            "offset": 0.5,
+            "color": "#ffd400ff"
+           },
+           {
+            "offset": 1,
+            "color": "#3fa7d6ff"
+           }
+          ]
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          39,
+          42,
+          51,
+          52,
+          53
+         ],
+         "positions": [
+          403.353,
+          642.622,
+          421.103,
+          642.622,
+          432.577,
+          642.622,
+          453.919,
+          642.622,
+          472.715,
+          642.622
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4
+         ],
+         "text": "FIRST"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#101018ff"
+         },
+         "widthPx": 2.092,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          39,
+          42,
+          51,
+          52,
+          53
+         ],
+         "positions": [
+          403.353,
+          642.622,
+          421.103,
+          642.622,
+          432.577,
+          642.622,
+          453.919,
+          642.622,
+          472.715,
+          642.622
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4
+         ],
+         "text": "FIRST"
+        },
+        "fill": {
+         "paint": {
+          "type": "linear-gradient",
+          "from": [
+           42.874,
+           639.346
+          ],
+          "to": [
+           497.126,
+           657.197
+          ],
+          "stops": [
+           {
+            "offset": 0,
+            "color": "#ff2e63ff"
+           },
+           {
+            "offset": 0.5,
+            "color": "#ffd400ff"
+           },
+           {
+            "offset": 1,
+            "color": "#3fa7d6ff"
+           }
+          ]
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          53,
+          41,
+          38,
+          47
+         ],
+         "positions": [
+          37.8,
+          680.982,
+          56.841,
+          680.982,
+          82.332,
+          680.982,
+          101.373,
+          680.982
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3
+         ],
+         "text": "THEN"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#101018ff"
+         },
+         "widthPx": 2.092,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          53,
+          41,
+          38,
+          47
+         ],
+         "positions": [
+          37.8,
+          680.982,
+          56.841,
+          680.982,
+          82.332,
+          680.982,
+          101.373,
+          680.982
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3
+         ],
+         "text": "THEN"
+        },
+        "fill": {
+         "paint": {
+          "type": "linear-gradient",
+          "from": [
+           42.874,
+           639.346
+          ],
+          "to": [
+           497.126,
+           657.197
+          ],
+          "stops": [
+           {
+            "offset": 0,
+            "color": "#ff2e63ff"
+           },
+           {
+            "offset": 0.5,
+            "color": "#ffd400ff"
+           },
+           {
+            "offset": 1,
+            "color": "#3fa7d6ff"
+           }
+          ]
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          36,
+          54,
+          53
+         ],
+         "positions": [
+          136.594,
+          680.982,
+          158.285,
+          680.982,
+          183.428,
+          680.982
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "CUT"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#101018ff"
+         },
+         "widthPx": 2.092,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          36,
+          54,
+          53
+         ],
+         "positions": [
+          136.594,
+          680.982,
+          158.285,
+          680.982,
+          183.428,
+          680.982
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "CUT"
+        },
+        "fill": {
+         "paint": {
+          "type": "linear-gradient",
+          "from": [
+           42.874,
+           639.346
+          ],
+          "to": [
+           497.126,
+           657.197
+          ],
+          "stops": [
+           {
+            "offset": 0,
+            "color": "#ff2e63ff"
+           },
+           {
+            "offset": 0.5,
+            "color": "#ffd400ff"
+           },
+           {
+            "offset": 1,
+            "color": "#3fa7d6ff"
+           }
+          ]
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          42,
+          53
+         ],
+         "positions": [
+          211.536,
+          680.982,
+          223.009,
+          680.982
+         ],
+         "clusters": [
+          0,
+          1
+         ],
+         "text": "IT"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#101018ff"
+         },
+         "widthPx": 2.092,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          42,
+          53
+         ],
+         "positions": [
+          211.536,
+          680.982,
+          223.009,
+          680.982
+         ],
+         "clusters": [
+          0,
+          1
+         ],
+         "text": "IT"
+        },
+        "fill": {
+         "paint": {
+          "type": "linear-gradient",
+          "from": [
+           42.874,
+           639.346
+          ],
+          "to": [
+           497.126,
+           657.197
+          ],
+          "stops": [
+           {
+            "offset": 0,
+            "color": "#ff2e63ff"
+           },
+           {
+            "offset": 0.5,
+            "color": "#ffd400ff"
+           },
+           {
+            "offset": 1,
+            "color": "#3fa7d6ff"
+           }
+          ]
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          42,
+          52
+         ],
+         "positions": [
+          251.116,
+          680.982,
+          262.59,
+          680.982
+         ],
+         "clusters": [
+          0,
+          1
+         ],
+         "text": "IS"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#101018ff"
+         },
+         "widthPx": 2.092,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          42,
+          52
+         ],
+         "positions": [
+          251.116,
+          680.982,
+          262.59,
+          680.982
+         ],
+         "clusters": [
+          0,
+          1
+         ],
+         "text": "IS"
+        },
+        "fill": {
+         "paint": {
+          "type": "linear-gradient",
+          "from": [
+           42.874,
+           639.346
+          ],
+          "to": [
+           497.126,
+           657.197
+          ],
+          "stops": [
+           {
+            "offset": 0,
+            "color": "#ff2e63ff"
+           },
+           {
+            "offset": 0.5,
+            "color": "#ffd400ff"
+           },
+           {
+            "offset": 1,
+            "color": "#3fa7d6ff"
+           }
+          ]
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          53,
+          41,
+          34,
+          53
+         ],
+         "positions": [
+          290.453,
+          680.982,
+          309.493,
+          680.982,
+          334.985,
+          680.982,
+          354.479,
+          680.982
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3
+         ],
+         "text": "THAT"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#101018ff"
+         },
+         "widthPx": 2.092,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          53,
+          41,
+          34,
+          53
+         ],
+         "positions": [
+          290.453,
+          680.982,
+          309.493,
+          680.982,
+          334.985,
+          680.982,
+          354.479,
+          680.982
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3
+         ],
+         "text": "THAT"
+        },
+        "fill": {
+         "paint": {
+          "type": "linear-gradient",
+          "from": [
+           42.874,
+           639.346
+          ],
+          "to": [
+           497.126,
+           657.197
+          ],
+          "stops": [
+           {
+            "offset": 0,
+            "color": "#ff2e63ff"
+           },
+           {
+            "offset": 0.5,
+            "color": "#ffd400ff"
+           },
+           {
+            "offset": 1,
+            "color": "#3fa7d6ff"
+           }
+          ]
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          52,
+          42,
+          46,
+          49,
+          45,
+          38
+         ],
+         "positions": [
+          382.587,
+          680.982,
+          401.383,
+          680.982,
+          412.856,
+          680.982,
+          444.137,
+          680.982,
+          464.886,
+          680.982,
+          482.811,
+          680.982
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+         ],
+         "text": "SIMPLE"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#101018ff"
+         },
+         "widthPx": 2.092,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-900",
+         "fontSizePx": 34.873,
+         "glyphs": [
+          52,
+          42,
+          46,
+          49,
+          45,
+          38
+         ],
+         "positions": [
+          382.587,
+          680.982,
+          401.383,
+          680.982,
+          412.856,
+          680.982,
+          444.137,
+          680.982,
+          464.886,
+          680.982,
+          482.811,
+          680.982
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+         ],
+         "text": "SIMPLE"
+        },
+        "fill": {
+         "paint": {
+          "type": "linear-gradient",
+          "from": [
+           42.874,
+           639.346
+          ],
+          "to": [
+           497.126,
+           657.197
+          ],
+          "stops": [
+           {
+            "offset": 0,
+            "color": "#ff2e63ff"
+           },
+           {
+            "offset": 0.5,
+            "color": "#ffd400ff"
+           },
+           {
+            "offset": 1,
+            "color": "#3fa7d6ff"
+           }
+          ]
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "liquid-glass-english": [
+   {
+    "kind": "group",
+    "id": "segment:fx-english",
+    "children": [
+     {
+      "kind": "shadow",
+      "dx": 0,
+      "dy": 0.954,
+      "sigma": 3.07,
+      "color": "#00000040",
+      "children": [
+       {
+        "kind": "blur",
+        "sigmaX": 7.844,
+        "sigmaY": 7.844,
+        "backdrop": true,
+        "bounds": [
+         55.26,
+         673.811,
+         484.74,
+         777.54
+        ],
+        "children": [
+         {
+          "kind": "roundRect",
+          "rect": [
+           55.26,
+           673.811,
+           484.74,
+           777.54
+          ],
+          "radiusX": 37.342,
+          "radiusY": 37.342,
+          "fill": {
+           "paint": {
+            "type": "solid",
+            "color": "#ffffffff"
+           },
+           "opacity": 0.16
+          }
+         }
+        ]
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "inter-700",
+         "fontSizePx": 31.799,
+         "glyphs": [
+          40,
+          70,
+          85
+         ],
+         "positions": [
+          64.8,
+          717.344,
+          88.109,
+          717.344,
+          106.203,
+          717.344
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "Get"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "inter-700",
+         "fontSizePx": 31.799,
+         "glyphs": [
+          85,
+          73,
+          70
+         ],
+         "positions": [
+          126.109,
+          717.344,
+          137.747,
+          717.344,
+          157.558,
+          717.344
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "the"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "inter-700",
+         "fontSizePx": 31.799,
+         "glyphs": [
+          85,
+          83,
+          66,
+          79,
+          84,
+          68,
+          83,
+          74,
+          81,
+          85
+         ],
+         "positions": [
+          183.92,
+          717.344,
+          195.558,
+          717.344,
+          208.214,
+          717.344,
+          226.213,
+          717.344,
+          246.023,
+          717.344,
+          261.414,
+          717.344,
+          276.837,
+          717.344,
+          290.129,
+          717.344,
+          298.492,
+          717.344,
+          318.208,
+          717.344
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+         ],
+         "text": "transcript"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "inter-700",
+         "fontSizePx": 31.799,
+         "glyphs": [
+          236,
+          83,
+          84,
+          85
+         ],
+         "positions": [
+          338.114,
+          717.344,
+          357.416,
+          717.344,
+          370.708,
+          717.344,
+          386.099,
+          717.344
+         ],
+         "clusters": [
+          0,
+          2,
+          3,
+          4
+         ],
+         "text": "first"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "inter-700",
+         "fontSizePx": 31.799,
+         "glyphs": [
+          85,
+          73,
+          70,
+          79
+         ],
+         "positions": [
+          406.005,
+          717.344,
+          417.644,
+          717.344,
+          437.454,
+          717.344,
+          455.548,
+          717.344
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3
+         ],
+         "text": "then"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "inter-700",
+         "fontSizePx": 31.799,
+         "glyphs": [
+          68,
+          86,
+          85
+         ],
+         "positions": [
+          127.778,
+          758.683,
+          143.201,
+          758.683,
+          163.012,
+          758.683
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "cut"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "inter-700",
+         "fontSizePx": 31.799,
+         "glyphs": [
+          74,
+          85
+         ],
+         "positions": [
+          182.918,
+          758.683,
+          191.281,
+          758.683
+         ],
+         "clusters": [
+          0,
+          1
+         ],
+         "text": "it"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffb3"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "inter-700",
+         "fontSizePx": 31.799,
+         "glyphs": [
+          74,
+          84
+         ],
+         "positions": [
+          211.187,
+          758.683,
+          219.551,
+          758.683
+         ],
+         "clusters": [
+          0,
+          1
+         ],
+         "text": "is"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffb3"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "inter-700",
+         "fontSizePx": 31.799,
+         "glyphs": [
+          85,
+          73,
+          66,
+          85
+         ],
+         "positions": [
+          243.209,
+          758.683,
+          254.848,
+          758.683,
+          274.659,
+          758.683,
+          292.657,
+          758.683
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3
+         ],
+         "text": "that"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffb3"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "inter-700",
+         "fontSizePx": 31.799,
+         "glyphs": [
+          84,
+          74,
+          78,
+          81,
+          77,
+          70
+         ],
+         "positions": [
+          312.563,
+          758.683,
+          327.954,
+          758.683,
+          336.317,
+          758.683,
+          366.208,
+          758.683,
+          385.924,
+          758.683,
+          394.287,
+          758.683
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+         ],
+         "text": "simple"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffb3"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "glitch-shift-hinglish": [
+   {
+    "kind": "group",
+    "id": "segment:fx-hinglish",
+    "children": [
+     {
+      "kind": "shadow",
+      "dx": 0,
+      "dy": 1.786,
+      "sigma": 3.249,
+      "color": "#00000099",
+      "children": [
+       {
+        "kind": "transform",
+        "matrix": [
+         1,
+         0,
+         0,
+         1,
+         -0.334,
+         0.35
+        ],
+        "children": [
+         {
+          "kind": "group",
+          "id": "raster:left",
+          "opacity": 0.55,
+          "children": [
+           {
+            "kind": "text",
+            "run": {
+             "fontId": "anton-400",
+             "fontSizePx": 59.52,
+             "glyphs": [
+              38,
+              37,
+              42,
+              53,
+              42,
+              47,
+              40
+             ],
+             "positions": [
+              72.84,
+              503.094,
+              106.528,
+              503.094,
+              150.573,
+              503.094,
+              171.346,
+              503.094,
+              205.034,
+              503.094,
+              225.806,
+              503.094,
+              271.637,
+              503.094
+             ],
+             "clusters": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+             ],
+             "text": "EDITING"
+            },
+            "stroke": {
+             "paint": {
+              "type": "solid",
+              "color": "#07070cff"
+             },
+             "widthPx": 4.166,
+             "join": "round",
+             "cap": "round"
+            }
+           },
+           {
+            "kind": "text",
+            "run": {
+             "fontId": "anton-400",
+             "fontSizePx": 59.52,
+             "glyphs": [
+              38,
+              37,
+              42,
+              53,
+              42,
+              47,
+              40
+             ],
+             "positions": [
+              72.84,
+              503.094,
+              106.528,
+              503.094,
+              150.573,
+              503.094,
+              171.346,
+              503.094,
+              205.034,
+              503.094,
+              225.806,
+              503.094,
+              271.637,
+              503.094
+             ],
+             "clusters": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+             ],
+             "text": "EDITING"
+            },
+            "fill": {
+             "paint": {
+              "type": "solid",
+              "color": "#ffffffff"
+             }
+            }
+           },
+           {
+            "kind": "text",
+            "run": {
+             "fontId": "noto-sans-devanagari-400",
+             "fontSizePx": 59.52,
+             "glyphs": [
+              54,
+              38
+             ],
+             "positions": [
+              331.038,
+              503.094,
+              363.595,
+              503.094
+             ],
+             "clusters": [
+              0,
+              0
+             ],
+             "text": "के"
+            },
+            "stroke": {
+             "paint": {
+              "type": "solid",
+              "color": "#07070cff"
+             },
+             "widthPx": 4.166,
+             "join": "round",
+             "cap": "round"
+            }
+           },
+           {
+            "kind": "text",
+            "run": {
+             "fontId": "noto-sans-devanagari-400",
+             "fontSizePx": 59.52,
+             "glyphs": [
+              54,
+              38
+             ],
+             "positions": [
+              331.038,
+              503.094,
+              363.595,
+              503.094
+             ],
+             "clusters": [
+              0,
+              0
+             ],
+             "text": "के"
+            },
+            "fill": {
+             "paint": {
+              "type": "solid",
+              "color": "#ff2e63ff"
+             }
+            }
+           },
+           {
+            "kind": "text",
+            "run": {
+             "fontId": "noto-sans-devanagari-400",
+             "fontSizePx": 59.52,
+             "glyphs": [
+              76,
+              29,
+              80,
+              38
+             ],
+             "positions": [
+              392.82,
+              503.094,
+              426.805,
+              503.094,
+              442.816,
+              503.094,
+              466.565,
+              503.094
+             ],
+             "clusters": [
+              0,
+              0,
+              2,
+              2
+             ],
+             "text": "बारे"
+            },
+            "stroke": {
+             "paint": {
+              "type": "solid",
+              "color": "#07070cff"
+             },
+             "widthPx": 4.166,
+             "join": "round",
+             "cap": "round"
+            }
+           },
+           {
+            "kind": "text",
+            "run": {
+             "fontId": "noto-sans-devanagari-400",
+             "fontSizePx": 59.52,
+             "glyphs": [
+              76,
+              29,
+              80,
+              38
+             ],
+             "positions": [
+              392.82,
+              503.094,
+              426.805,
+              503.094,
+              442.816,
+              503.094,
+              466.565,
+              503.094
+             ],
+             "clusters": [
+              0,
+              0,
+              2,
+              2
+             ],
+             "text": "बारे"
+            },
+            "fill": {
+             "paint": {
+              "type": "solid",
+              "color": "#ffffffff"
+             }
+            }
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "kind": "transform",
+        "matrix": [
+         1,
+         0,
+         0,
+         1,
+         0.334,
+         -0.35
+        ],
+        "children": [
+         {
+          "kind": "group",
+          "id": "raster:right",
+          "opacity": 0.55,
+          "children": [
+           {
+            "kind": "text",
+            "run": {
+             "fontId": "anton-400",
+             "fontSizePx": 59.52,
+             "glyphs": [
+              38,
+              37,
+              42,
+              53,
+              42,
+              47,
+              40
+             ],
+             "positions": [
+              72.84,
+              503.094,
+              106.528,
+              503.094,
+              150.573,
+              503.094,
+              171.346,
+              503.094,
+              205.034,
+              503.094,
+              225.806,
+              503.094,
+              271.637,
+              503.094
+             ],
+             "clusters": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+             ],
+             "text": "EDITING"
+            },
+            "stroke": {
+             "paint": {
+              "type": "solid",
+              "color": "#07070cff"
+             },
+             "widthPx": 4.166,
+             "join": "round",
+             "cap": "round"
+            }
+           },
+           {
+            "kind": "text",
+            "run": {
+             "fontId": "anton-400",
+             "fontSizePx": 59.52,
+             "glyphs": [
+              38,
+              37,
+              42,
+              53,
+              42,
+              47,
+              40
+             ],
+             "positions": [
+              72.84,
+              503.094,
+              106.528,
+              503.094,
+              150.573,
+              503.094,
+              171.346,
+              503.094,
+              205.034,
+              503.094,
+              225.806,
+              503.094,
+              271.637,
+              503.094
+             ],
+             "clusters": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+             ],
+             "text": "EDITING"
+            },
+            "fill": {
+             "paint": {
+              "type": "solid",
+              "color": "#ffffffff"
+             }
+            }
+           },
+           {
+            "kind": "text",
+            "run": {
+             "fontId": "noto-sans-devanagari-400",
+             "fontSizePx": 59.52,
+             "glyphs": [
+              54,
+              38
+             ],
+             "positions": [
+              331.038,
+              503.094,
+              363.595,
+              503.094
+             ],
+             "clusters": [
+              0,
+              0
+             ],
+             "text": "के"
+            },
+            "stroke": {
+             "paint": {
+              "type": "solid",
+              "color": "#07070cff"
+             },
+             "widthPx": 4.166,
+             "join": "round",
+             "cap": "round"
+            }
+           },
+           {
+            "kind": "text",
+            "run": {
+             "fontId": "noto-sans-devanagari-400",
+             "fontSizePx": 59.52,
+             "glyphs": [
+              54,
+              38
+             ],
+             "positions": [
+              331.038,
+              503.094,
+              363.595,
+              503.094
+             ],
+             "clusters": [
+              0,
+              0
+             ],
+             "text": "के"
+            },
+            "fill": {
+             "paint": {
+              "type": "solid",
+              "color": "#ff2e63ff"
+             }
+            }
+           },
+           {
+            "kind": "text",
+            "run": {
+             "fontId": "noto-sans-devanagari-400",
+             "fontSizePx": 59.52,
+             "glyphs": [
+              76,
+              29,
+              80,
+              38
+             ],
+             "positions": [
+              392.82,
+              503.094,
+              426.805,
+              503.094,
+              442.816,
+              503.094,
+              466.565,
+              503.094
+             ],
+             "clusters": [
+              0,
+              0,
+              2,
+              2
+             ],
+             "text": "बारे"
+            },
+            "stroke": {
+             "paint": {
+              "type": "solid",
+              "color": "#07070cff"
+             },
+             "widthPx": 4.166,
+             "join": "round",
+             "cap": "round"
+            }
+           },
+           {
+            "kind": "text",
+            "run": {
+             "fontId": "noto-sans-devanagari-400",
+             "fontSizePx": 59.52,
+             "glyphs": [
+              76,
+              29,
+              80,
+              38
+             ],
+             "positions": [
+              392.82,
+              503.094,
+              426.805,
+              503.094,
+              442.816,
+              503.094,
+              466.565,
+              503.094
+             ],
+             "clusters": [
+              0,
+              0,
+              2,
+              2
+             ],
+             "text": "बारे"
+            },
+            "fill": {
+             "paint": {
+              "type": "solid",
+              "color": "#ffffffff"
+             }
+            }
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "anton-400",
+         "fontSizePx": 59.52,
+         "glyphs": [
+          38,
+          37,
+          42,
+          53,
+          42,
+          47,
+          40
+         ],
+         "positions": [
+          72.84,
+          503.094,
+          106.528,
+          503.094,
+          150.573,
+          503.094,
+          171.346,
+          503.094,
+          205.034,
+          503.094,
+          225.806,
+          503.094,
+          271.637,
+          503.094
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+         ],
+         "text": "EDITING"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#07070cff"
+         },
+         "widthPx": 4.166,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "anton-400",
+         "fontSizePx": 59.52,
+         "glyphs": [
+          38,
+          37,
+          42,
+          53,
+          42,
+          47,
+          40
+         ],
+         "positions": [
+          72.84,
+          503.094,
+          106.528,
+          503.094,
+          150.573,
+          503.094,
+          171.346,
+          503.094,
+          205.034,
+          503.094,
+          225.806,
+          503.094,
+          271.637,
+          503.094
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+         ],
+         "text": "EDITING"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "noto-sans-devanagari-400",
+         "fontSizePx": 59.52,
+         "glyphs": [
+          54,
+          38
+         ],
+         "positions": [
+          331.038,
+          503.094,
+          363.595,
+          503.094
+         ],
+         "clusters": [
+          0,
+          0
+         ],
+         "text": "के"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#07070cff"
+         },
+         "widthPx": 4.166,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "noto-sans-devanagari-400",
+         "fontSizePx": 59.52,
+         "glyphs": [
+          54,
+          38
+         ],
+         "positions": [
+          331.038,
+          503.094,
+          363.595,
+          503.094
+         ],
+         "clusters": [
+          0,
+          0
+         ],
+         "text": "के"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ff2e63ff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "noto-sans-devanagari-400",
+         "fontSizePx": 59.52,
+         "glyphs": [
+          76,
+          29,
+          80,
+          38
+         ],
+         "positions": [
+          392.82,
+          503.094,
+          426.805,
+          503.094,
+          442.816,
+          503.094,
+          466.565,
+          503.094
+         ],
+         "clusters": [
+          0,
+          0,
+          2,
+          2
+         ],
+         "text": "बारे"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#07070cff"
+         },
+         "widthPx": 4.166,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "noto-sans-devanagari-400",
+         "fontSizePx": 59.52,
+         "glyphs": [
+          76,
+          29,
+          80,
+          38
+         ],
+         "positions": [
+          392.82,
+          503.094,
+          426.805,
+          503.094,
+          442.816,
+          503.094,
+          466.565,
+          503.094
+         ],
+         "clusters": [
+          0,
+          0,
+          2,
+          2
+         ],
+         "text": "बारे"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#ffffffff"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "neon-glow-english": [
+   {
+    "kind": "group",
+    "id": "segment:fx-english",
+    "children": [
+     {
+      "kind": "shadow",
+      "dx": 0,
+      "dy": 0,
+      "sigma": 8.027,
+      "color": "#31f5ffd9",
+      "children": [
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          40,
+          38,
+          53
+         ],
+         "positions": [
+          52.636,
+          663.042,
+          77.015,
+          663.042,
+          95.789,
+          663.042
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "GET"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#0a1f27ff"
+         },
+         "widthPx": 1.63,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          40,
+          38,
+          53
+         ],
+         "positions": [
+          52.636,
+          663.042,
+          77.015,
+          663.042,
+          95.789,
+          663.042
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "GET"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#eafcffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          53,
+          41,
+          38
+         ],
+         "positions": [
+          123.037,
+          663.042,
+          141.811,
+          663.042,
+          166.614,
+          663.042
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "THE"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#0a1f27ff"
+         },
+         "widthPx": 1.63,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          53,
+          41,
+          38
+         ],
+         "positions": [
+          123.037,
+          663.042,
+          141.811,
+          663.042,
+          166.614,
+          663.042
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "THE"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#eafcffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          53,
+          51,
+          34,
+          47,
+          52,
+          36,
+          51,
+          42,
+          49,
+          53
+         ],
+         "positions": [
+          193.862,
+          663.042,
+          212.636,
+          663.042,
+          233.561,
+          663.042,
+          255.04,
+          663.042,
+          280.462,
+          663.042,
+          299.008,
+          663.042,
+          320.259,
+          663.042,
+          341.184,
+          663.042,
+          352.885,
+          663.042,
+          373.255,
+          663.042
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+         ],
+         "text": "TRANSCRIPT"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#0a1f27ff"
+         },
+         "widthPx": 1.63,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          53,
+          51,
+          34,
+          47,
+          52,
+          36,
+          51,
+          42,
+          49,
+          53
+         ],
+         "positions": [
+          193.862,
+          663.042,
+          212.636,
+          663.042,
+          233.561,
+          663.042,
+          255.04,
+          663.042,
+          280.462,
+          663.042,
+          299.008,
+          663.042,
+          320.259,
+          663.042,
+          341.184,
+          663.042,
+          352.885,
+          663.042,
+          373.255,
+          663.042
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+         ],
+         "text": "TRANSCRIPT"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#eafcffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          39,
+          42,
+          51,
+          52,
+          53
+         ],
+         "positions": [
+          400.503,
+          663.042,
+          418.071,
+          663.042,
+          429.772,
+          663.042,
+          450.697,
+          663.042,
+          469.242,
+          663.042
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4
+         ],
+         "text": "FIRST"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#0a1f27ff"
+         },
+         "widthPx": 1.63,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          39,
+          42,
+          51,
+          52,
+          53
+         ],
+         "positions": [
+          400.503,
+          663.042,
+          418.071,
+          663.042,
+          429.772,
+          663.042,
+          450.697,
+          663.042,
+          469.242,
+          663.042
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4
+         ],
+         "text": "FIRST"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#eafcffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          53,
+          41,
+          38,
+          47
+         ],
+         "positions": [
+          43.2,
+          700.85,
+          61.974,
+          700.85,
+          86.777,
+          700.85,
+          105.551,
+          700.85
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3
+         ],
+         "text": "THEN"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#0a1f27ff"
+         },
+         "widthPx": 1.63,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          53,
+          41,
+          38,
+          47
+         ],
+         "positions": [
+          43.2,
+          700.85,
+          61.974,
+          700.85,
+          86.777,
+          700.85,
+          105.551,
+          700.85
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3
+         ],
+         "text": "THEN"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#eafcffff"
+         }
+        }
+       },
+       {
+        "kind": "shadow",
+        "dx": 0,
+        "dy": 0,
+        "sigma": 5.465,
+        "color": "#31f5ffff",
+        "shadowOnly": true,
+        "children": [
+         {
+          "kind": "text",
+          "run": {
+           "fontId": "montserrat-700",
+           "fontSizePx": 32.593,
+           "glyphs": [
+            36,
+            54,
+            53
+           ],
+           "positions": [
+            139.448,
+            700.85,
+            160.699,
+            700.85,
+            185.176,
+            700.85
+           ],
+           "clusters": [
+            0,
+            1,
+            2
+           ],
+           "text": "CUT"
+          },
+          "fill": {
+           "paint": {
+            "type": "solid",
+            "color": "#31f5ffff"
+           }
+          }
+         }
+        ]
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          36,
+          54,
+          53
+         ],
+         "positions": [
+          139.448,
+          700.85,
+          160.699,
+          700.85,
+          185.176,
+          700.85
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "CUT"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#0a1f27ff"
+         },
+         "widthPx": 1.63,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          36,
+          54,
+          53
+         ],
+         "positions": [
+          139.448,
+          700.85,
+          160.699,
+          700.85,
+          185.176,
+          700.85
+         ],
+         "clusters": [
+          0,
+          1,
+          2
+         ],
+         "text": "CUT"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#31f5ffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          42,
+          53
+         ],
+         "positions": [
+          212.424,
+          700.85,
+          224.125,
+          700.85
+         ],
+         "clusters": [
+          0,
+          1
+         ],
+         "text": "IT"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#0a1f27ff"
+         },
+         "widthPx": 1.63,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          42,
+          53
+         ],
+         "positions": [
+          212.424,
+          700.85,
+          224.125,
+          700.85
+         ],
+         "clusters": [
+          0,
+          1
+         ],
+         "text": "IT"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#eafcffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          42,
+          52
+         ],
+         "positions": [
+          251.373,
+          700.85,
+          263.074,
+          700.85
+         ],
+         "clusters": [
+          0,
+          1
+         ],
+         "text": "IS"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#0a1f27ff"
+         },
+         "widthPx": 1.63,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          42,
+          52
+         ],
+         "positions": [
+          251.373,
+          700.85,
+          263.074,
+          700.85
+         ],
+         "clusters": [
+          0,
+          1
+         ],
+         "text": "IS"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#eafcffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          53,
+          41,
+          34,
+          53
+         ],
+         "positions": [
+          290.094,
+          700.85,
+          308.867,
+          700.85,
+          333.671,
+          700.85,
+          352.868,
+          700.85
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3
+         ],
+         "text": "THAT"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#0a1f27ff"
+         },
+         "widthPx": 1.63,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          53,
+          41,
+          34,
+          53
+         ],
+         "positions": [
+          290.094,
+          700.85,
+          308.867,
+          700.85,
+          333.671,
+          700.85,
+          352.868,
+          700.85
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3
+         ],
+         "text": "THAT"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#eafcffff"
+         }
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          52,
+          42,
+          46,
+          49,
+          45,
+          38
+         ],
+         "positions": [
+          380.116,
+          700.85,
+          398.662,
+          700.85,
+          410.363,
+          700.85,
+          440.577,
+          700.85,
+          460.947,
+          700.85,
+          478.678,
+          700.85
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+         ],
+         "text": "SIMPLE"
+        },
+        "stroke": {
+         "paint": {
+          "type": "solid",
+          "color": "#0a1f27ff"
+         },
+         "widthPx": 1.63,
+         "join": "round",
+         "cap": "round"
+        }
+       },
+       {
+        "kind": "text",
+        "run": {
+         "fontId": "montserrat-700",
+         "fontSizePx": 32.593,
+         "glyphs": [
+          52,
+          42,
+          46,
+          49,
+          45,
+          38
+         ],
+         "positions": [
+          380.116,
+          700.85,
+          398.662,
+          700.85,
+          410.363,
+          700.85,
+          440.577,
+          700.85,
+          460.947,
+          700.85,
+          478.678,
+          700.85
+         ],
+         "clusters": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+         ],
+         "text": "SIMPLE"
+        },
+        "fill": {
+         "paint": {
+          "type": "solid",
+          "color": "#eafcffff"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

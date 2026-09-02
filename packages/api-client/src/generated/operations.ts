@@ -26,6 +26,13 @@ export const API_OPERATIONS = [
     summary: "Accept an invitation",
   },
   {
+    operationId: "applyEdgOps",
+    method: "POST",
+    path: "/projects/{projectId}/edg/ops",
+    tags: ["edg"],
+    summary: "Apply a batch of ops (CONTRACTS §2)",
+  },
+  {
     operationId: "AuthController_consumeMagicLink",
     method: "POST",
     path: "/auth/magic-link/consume",
@@ -313,6 +320,13 @@ export const API_OPERATIONS = [
     summary: "Fetch one project",
   },
   {
+    operationId: "getProjectEdg",
+    method: "GET",
+    path: "/projects/{projectId}/edg",
+    tags: ["edg"],
+    summary: "The hot document, its revision and the first page of segments",
+  },
+  {
     operationId: "getReadiness",
     method: "GET",
     path: "/health/ready",
@@ -369,6 +383,41 @@ export const API_OPERATIONS = [
     summary: "List dead-lettered jobs, newest first",
   },
   {
+    operationId: "listEdgPasses",
+    method: "GET",
+    path: "/projects/{projectId}/edg/passes",
+    tags: ["edg"],
+    summary: "Every AI pass on the document, with its items",
+  },
+  {
+    operationId: "listEdgPassItems",
+    method: "GET",
+    path: "/projects/{projectId}/edg/passes/{passId}/items",
+    tags: ["edg"],
+    summary: "One pass's proposals, optionally filtered by review state",
+  },
+  {
+    operationId: "listEdgRevisions",
+    method: "GET",
+    path: "/projects/{projectId}/edg/revisions",
+    tags: ["edg"],
+    summary: "The op log from `from` onwards",
+  },
+  {
+    operationId: "listEdgSegments",
+    method: "GET",
+    path: "/projects/{projectId}/edg/segments",
+    tags: ["edg"],
+    summary: "One page of segments, ordered by `seq`",
+  },
+  {
+    operationId: "listEdgSnapshots",
+    method: "GET",
+    path: "/projects/{projectId}/edg/snapshots",
+    tags: ["edg"],
+    summary: "Revisions a snapshot was taken at, newest first",
+  },
+  {
     operationId: "listFolders",
     method: "GET",
     path: "/folders",
@@ -395,6 +444,13 @@ export const API_OPERATIONS = [
     path: "/jobs",
     tags: ["jobs"],
     summary: "List the workspace's jobs, newest first",
+  },
+  {
+    operationId: "listMyNotifications",
+    method: "GET",
+    path: "/me/notifications",
+    tags: ["notifications"],
+    summary: "List your notifications, newest first",
   },
   {
     operationId: "listParentalWaitlist",
@@ -430,6 +486,13 @@ export const API_OPERATIONS = [
     path: "/workspaces",
     tags: ["workspaces"],
     summary: "The workspaces the caller belongs to",
+  },
+  {
+    operationId: "markNotificationRead",
+    method: "POST",
+    path: "/me/notifications/{id}/read",
+    tags: ["notifications"],
+    summary: "Mark one notification read",
   },
   {
     operationId: "OAuthController_callback",
@@ -486,6 +549,20 @@ export const API_OPERATIONS = [
     path: "/me/data",
     tags: ["me"],
     summary: "Export everything the account holds about you",
+  },
+  {
+    operationId: "resegmentEdg",
+    method: "POST",
+    path: "/projects/{projectId}/edg/resegment",
+    tags: ["edg"],
+    summary: "Re-run segmentation over the whole document",
+  },
+  {
+    operationId: "restoreEdgSnapshot",
+    method: "POST",
+    path: "/projects/{projectId}/edg/snapshots/{revision}/restore",
+    tags: ["edg"],
+    summary: "Restore a snapshot as a new revision",
   },
   {
     operationId: "setConsent",

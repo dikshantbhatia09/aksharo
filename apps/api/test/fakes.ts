@@ -17,7 +17,15 @@ import { monotonicFactory } from "ulid";
  */
 const ulid = monotonicFactory();
 
-import type { AuditLog, DlqEntry, Job, JobEvent, JobStatus, PlanKey } from "@prisma/client";
+import type {
+  AuditLog,
+  DlqEntry,
+  Job,
+  JobEvent,
+  JobStatus,
+  Notification,
+  PlanKey,
+} from "@prisma/client";
 
 type Row = Record<string, unknown>;
 
@@ -118,6 +126,23 @@ export class FakeDb {
   readonly dlq = new Map<string, DlqEntry>();
   readonly users = new Map<string, FakeUser>();
   readonly audit: AuditLog[] = [];
+  /** A25: in-app notifications. */
+  readonly notifications = new Map<string, Notification>();
+
+  notification(overrides: Partial<Notification> = {}): Notification {
+    const row: Notification = {
+      id: overrides.id ?? ulid(),
+      userId: "01JCUSER00000000000000000A",
+      workspaceId: null,
+      kind: "export-ready",
+      data: {},
+      readAt: null,
+      createdAt: new Date(),
+      ...overrides,
+    };
+    this.notifications.set(row.id, row);
+    return row;
+  }
 
   user(overrides: Partial<FakeUser> = {}): FakeUser {
     const user: FakeUser = {
@@ -316,6 +341,43 @@ export function createFakePrisma(db: FakeDb) {
       findUnique: async ({ where }: { where: { id: string } }): Promise<FakeUser | null> =>
         db.users.get(where.id) ?? null,
     },
+    notification: {
+      create: async ({ data }: { data: Row }): Promise<Notification> =>
+        db.notification(data as Partial<Notification>),
+      findMany: async (args: Row): Promise<Notification[]> =>
+        paginate(
+          sort(
+            [...db.notifications.values()].filter((row) =>
+              matches(row as unknown as Row, args["where"] as Row),
+            ),
+            args["orderBy"] as Row,
+          ),
+          args,
+        ),
+      findFirst: async (args: Row): Promise<Notification | null> =>
+        [...db.notifications.values()].find((row) =>
+          matches(row as unknown as Row, args["where"] as Row),
+        ) ?? null,
+      count: async (args: Row): Promise<number> =>
+        [...db.notifications.values()].filter((row) =>
+          matches(row as unknown as Row, args["where"] as Row),
+        ).length,
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: Row;
+        data: Row;
+      }): Promise<{ count: number }> => {
+        let count = 0;
+        for (const row of [...db.notifications.values()]) {
+          if (!matches(row as unknown as Row, where)) continue;
+          db.notifications.set(row.id, { ...row, ...data } as Notification);
+          count += 1;
+        }
+        return { count };
+      },
+    },
     auditLog: {
       create: async ({ data }: { data: Row }): Promise<AuditLog> => {
         const row = { at: new Date(), ...data } as unknown as AuditLog;
@@ -359,13 +421,7 @@ export function createFakePrisma(db: FakeDb) {
           ),
           args,
         ),
-      update: async ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: Row;
-      }): Promise<DlqEntry> => {
+      update: async ({ where, data }: { where: { id: string }; data: Row }): Promise<DlqEntry> => {
         const current = db.dlq.get(where.id);
         if (current === undefined) throw new Error(`no dlq entry ${where.id}`);
         const next = { ...current, ...data } as DlqEntry;
@@ -450,3 +506,81 @@ export function createFakeRedis() {
     onModuleDestroy: async (): Promise<void> => undefined,
   };
 }
+
+/**
+ * A Redis stand-in with actual storage, for the notify suites (A25).
+ *
+ * {@link createFakeRedis} answers enough for a module graph to construct; this one
+ * remembers what was written, because suppression, delivery receipts and the
+ * development outbox are all "did the right key end up with the right value?".
+ * Only the commands that module issues are implemented.
+ */
+export function createMemoryRedis() {
+  const store = new Map<string, string>();
+  const lists = new Map<string, string[]>();
+
+  const client = {
+    status: "ready" as const,
+    store,
+    lists,
+    on: () => client,
+    async get(key: string): Promise<string | null> {
+      return store.get(key) ?? null;
+    },
+    async set(key: string, value: string): Promise<"OK"> {
+      store.set(key, value);
+      return "OK";
+    },
+    async del(...keys: string[]): Promise<number> {
+      let removed = 0;
+      for (const key of keys) {
+        if (store.delete(key)) removed += 1;
+        if (lists.delete(key)) removed += 1;
+      }
+      return removed;
+    },
+    async exists(key: string): Promise<number> {
+      return store.has(key) || lists.has(key) ? 1 : 0;
+    },
+    async lrange(key: string, start: number, stop: number): Promise<string[]> {
+      const list = lists.get(key) ?? [];
+      return stop === -1 ? list.slice(start) : list.slice(start, stop + 1);
+    },
+    multi() {
+      const operations: (() => void)[] = [];
+      const chain = {
+        lpush(key: string, value: string) {
+          operations.push(() => {
+            lists.set(key, [value, ...(lists.get(key) ?? [])]);
+          });
+          return chain;
+        },
+        ltrim(key: string, start: number, stop: number) {
+          operations.push(() => {
+            lists.set(key, (lists.get(key) ?? []).slice(start, stop + 1));
+          });
+          return chain;
+        },
+        expire() {
+          return chain;
+        },
+        async exec(): Promise<unknown[]> {
+          for (const operation of operations) operation();
+          return [];
+        },
+      };
+      return chain;
+    },
+    disconnect: () => undefined,
+    async quit(): Promise<"OK"> {
+      return "OK";
+    },
+    async ping(): Promise<"PONG"> {
+      return "PONG";
+    },
+  };
+
+  return client;
+}
+
+export type MemoryRedis = ReturnType<typeof createMemoryRedis>;

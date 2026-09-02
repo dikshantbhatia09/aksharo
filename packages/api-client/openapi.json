@@ -35,11 +35,18 @@
                     },
                     "jurisdiction": {
                       "type": "string",
-                      "enum": ["IN", "EU", "OTHER"]
+                      "enum": [
+                        "IN",
+                        "EU",
+                        "OTHER"
+                      ]
                     },
                     "ageBracket": {
                       "type": "string",
-                      "enum": ["adult", "minor"]
+                      "enum": [
+                        "adult",
+                        "minor"
+                      ]
                     },
                     "marketingOptIn": {
                       "type": "boolean"
@@ -69,7 +76,10 @@
                           "type": "string"
                         }
                       },
-                      "required": ["id", "role"]
+                      "required": [
+                        "id",
+                        "role"
+                      ]
                     }
                   },
                   "required": [
@@ -102,7 +112,9 @@
           }
         ],
         "summary": "The signed-in person's profile",
-        "tags": ["me"]
+        "tags": [
+          "me"
+        ]
       },
       "patch": {
         "description": "A change to `marketingOptIn` also writes a `consent_records` row, because the DPDP notice-and-choice record has to say when and from where the choice was made (D61).",
@@ -186,11 +198,18 @@
                     },
                     "jurisdiction": {
                       "type": "string",
-                      "enum": ["IN", "EU", "OTHER"]
+                      "enum": [
+                        "IN",
+                        "EU",
+                        "OTHER"
+                      ]
                     },
                     "ageBracket": {
                       "type": "string",
-                      "enum": ["adult", "minor"]
+                      "enum": [
+                        "adult",
+                        "minor"
+                      ]
                     },
                     "marketingOptIn": {
                       "type": "boolean"
@@ -220,7 +239,10 @@
                           "type": "string"
                         }
                       },
-                      "required": ["id", "role"]
+                      "required": [
+                        "id",
+                        "role"
+                      ]
                     }
                   },
                   "required": [
@@ -253,7 +275,9 @@
           }
         ],
         "summary": "Update name, avatar, locale, onboarding state or marketing opt-in",
-        "tags": ["me"]
+        "tags": [
+          "me"
+        ]
       },
       "delete": {
         "description": "Records a `dsr_requests` row of kind `erasure`, marks the account deleted, anonymises the address and revokes every session immediately. The cascade over media, transcripts and derived objects is B16 and has 30 days to run.",
@@ -272,7 +296,13 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["received", "verifying", "in_progress", "completed", "rejected"]
+                      "enum": [
+                        "received",
+                        "verifying",
+                        "in_progress",
+                        "completed",
+                        "rejected"
+                      ]
                     },
                     "requestedAt": {
                       "type": "string"
@@ -286,7 +316,13 @@
                       "maximum": 9007199254740991
                     }
                   },
-                  "required": ["requestId", "status", "requestedAt", "dueAt", "sessionsRevoked"]
+                  "required": [
+                    "requestId",
+                    "status",
+                    "requestedAt",
+                    "dueAt",
+                    "sessionsRevoked"
+                  ]
                 }
               }
             }
@@ -301,7 +337,9 @@
           }
         ],
         "summary": "Erase the account",
-        "tags": ["me"]
+        "tags": [
+          "me"
+        ]
       }
     },
     "/me/data": {
@@ -322,7 +360,13 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["received", "verifying", "in_progress", "completed", "rejected"]
+                      "enum": [
+                        "received",
+                        "verifying",
+                        "in_progress",
+                        "completed",
+                        "rejected"
+                      ]
                     },
                     "requestedAt": {
                       "type": "string"
@@ -342,7 +386,12 @@
                       "maximum": 9007199254740991
                     }
                   },
-                  "required": ["requestId", "status", "requestedAt", "dueAt"]
+                  "required": [
+                    "requestId",
+                    "status",
+                    "requestedAt",
+                    "dueAt"
+                  ]
                 }
               }
             }
@@ -360,7 +409,9 @@
           }
         ],
         "summary": "Export everything the account holds about you",
-        "tags": ["me"]
+        "tags": [
+          "me"
+        ]
       }
     },
     "/auth/signup": {
@@ -402,7 +453,11 @@
                   },
                   "jurisdiction": {
                     "type": "string",
-                    "enum": ["IN", "EU", "OTHER"]
+                    "enum": [
+                      "IN",
+                      "EU",
+                      "OTHER"
+                    ]
                   },
                   "consents": {
                     "type": "object",
@@ -419,7 +474,12 @@
                     }
                   }
                 },
-                "required": ["email", "password", "dateOfBirth", "jurisdiction"]
+                "required": [
+                  "email",
+                  "password",
+                  "dateOfBirth",
+                  "jurisdiction"
+                ]
               }
             }
           }
@@ -434,13 +494,18 @@
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": ["verification_sent"]
+                      "enum": [
+                        "verification_sent"
+                      ]
                     },
                     "email": {
                       "type": "string"
                     }
                   },
-                  "required": ["status", "email"]
+                  "required": [
+                    "status",
+                    "email"
+                  ]
                 }
               }
             }
@@ -453,7 +518,9 @@
           }
         },
         "summary": "Create an account",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/verify-email": {
@@ -473,7 +540,9 @@
                     "maxLength": 256
                   }
                 },
-                "required": ["token"]
+                "required": [
+                  "token"
+                ]
               }
             }
           }
@@ -484,7 +553,9 @@
           }
         },
         "summary": "Confirm an email address with a single-use token",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/login": {
@@ -513,10 +584,21 @@
                   },
                   "kind": {
                     "type": "string",
-                    "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
+                    "enum": [
+                      "web",
+                      "desktop",
+                      "bridge",
+                      "premiere",
+                      "ae",
+                      "resolve",
+                      "api"
+                    ]
                   }
                 },
-                "required": ["email", "password"]
+                "required": [
+                  "email",
+                  "password"
+                ]
               }
             }
           }
@@ -542,7 +624,9 @@
                     },
                     "tokenType": {
                       "type": "string",
-                      "enum": ["Bearer"]
+                      "enum": [
+                        "Bearer"
+                      ]
                     },
                     "sessionId": {
                       "type": "string",
@@ -554,11 +638,24 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": ["owner", "admin", "editor", "viewer"]
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "bridge",
+                        "premiere",
+                        "ae",
+                        "resolve",
+                        "api"
+                      ]
                     }
                   },
                   "required": [
@@ -580,7 +677,9 @@
           }
         },
         "summary": "Sign in with email and password",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/magic-link": {
@@ -602,7 +701,9 @@
                     "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   }
                 },
-                "required": ["email"]
+                "required": [
+                  "email"
+                ]
               }
             }
           }
@@ -613,7 +714,9 @@
           }
         },
         "summary": "Email a single-use sign-in link (15 minutes)",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/magic-link/consume": {
@@ -634,10 +737,20 @@
                   },
                   "kind": {
                     "type": "string",
-                    "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
+                    "enum": [
+                      "web",
+                      "desktop",
+                      "bridge",
+                      "premiere",
+                      "ae",
+                      "resolve",
+                      "api"
+                    ]
                   }
                 },
-                "required": ["token"]
+                "required": [
+                  "token"
+                ]
               }
             }
           }
@@ -663,7 +776,9 @@
                     },
                     "tokenType": {
                       "type": "string",
-                      "enum": ["Bearer"]
+                      "enum": [
+                        "Bearer"
+                      ]
                     },
                     "sessionId": {
                       "type": "string",
@@ -675,11 +790,24 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": ["owner", "admin", "editor", "viewer"]
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "bridge",
+                        "premiere",
+                        "ae",
+                        "resolve",
+                        "api"
+                      ]
                     }
                   },
                   "required": [
@@ -698,7 +826,9 @@
           }
         },
         "summary": "Exchange a magic-link token for tokens",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/refresh": {
@@ -719,7 +849,9 @@
                     "maxLength": 256
                   }
                 },
-                "required": ["refreshToken"]
+                "required": [
+                  "refreshToken"
+                ]
               }
             }
           }
@@ -745,7 +877,9 @@
                     },
                     "tokenType": {
                       "type": "string",
-                      "enum": ["Bearer"]
+                      "enum": [
+                        "Bearer"
+                      ]
                     },
                     "sessionId": {
                       "type": "string",
@@ -757,11 +891,24 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": ["owner", "admin", "editor", "viewer"]
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "bridge",
+                        "premiere",
+                        "ae",
+                        "resolve",
+                        "api"
+                      ]
                     }
                   },
                   "required": [
@@ -783,7 +930,9 @@
           }
         },
         "summary": "Rotate a refresh token",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/logout": {
@@ -804,7 +953,9 @@
                     "maxLength": 256
                   }
                 },
-                "required": ["refreshToken"]
+                "required": [
+                  "refreshToken"
+                ]
               }
             }
           }
@@ -815,7 +966,9 @@
           }
         },
         "summary": "Revoke a refresh-token family",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/token/exchange": {
@@ -835,7 +988,9 @@
                     "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
                   }
                 },
-                "required": ["workspaceId"]
+                "required": [
+                  "workspaceId"
+                ]
               }
             }
           }
@@ -861,7 +1016,9 @@
                     },
                     "tokenType": {
                       "type": "string",
-                      "enum": ["Bearer"]
+                      "enum": [
+                        "Bearer"
+                      ]
                     },
                     "sessionId": {
                       "type": "string",
@@ -873,11 +1030,24 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": ["owner", "admin", "editor", "viewer"]
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "bridge",
+                        "premiere",
+                        "ae",
+                        "resolve",
+                        "api"
+                      ]
                     }
                   },
                   "required": [
@@ -899,7 +1069,9 @@
           }
         },
         "summary": "Switch the active workspace",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/sessions": {
@@ -922,7 +1094,15 @@
                       },
                       "kind": {
                         "type": "string",
-                        "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
+                        "enum": [
+                          "web",
+                          "desktop",
+                          "bridge",
+                          "premiere",
+                          "ae",
+                          "resolve",
+                          "api"
+                        ]
                       },
                       "workspaceId": {
                         "type": "string",
@@ -968,7 +1148,9 @@
           }
         },
         "summary": "List this account's live sessions",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/sessions/{sessionId}": {
@@ -990,7 +1172,9 @@
           }
         },
         "summary": "Revoke one session (and its refresh-token family)",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/parental-waitlist": {
@@ -1014,10 +1198,16 @@
                   },
                   "jurisdiction": {
                     "type": "string",
-                    "enum": ["IN", "EU", "OTHER"]
+                    "enum": [
+                      "IN",
+                      "EU",
+                      "OTHER"
+                    ]
                   }
                 },
-                "required": ["email"]
+                "required": [
+                  "email"
+                ]
               }
             }
           }
@@ -1028,7 +1218,9 @@
           }
         },
         "summary": "Join the parental-consent waitlist",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/oauth/google/start": {
@@ -1041,7 +1233,11 @@
             "required": false,
             "in": "query",
             "schema": {
-              "enum": ["web", "desktop", "bridge"],
+              "enum": [
+                "web",
+                "desktop",
+                "bridge"
+              ],
               "type": "string"
             }
           },
@@ -1060,7 +1256,9 @@
           }
         },
         "summary": "Begin Google sign-in",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/oauth/google/callback": {
@@ -1099,7 +1297,9 @@
           }
         },
         "summary": "Google redirects here",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/oauth/complete": {
@@ -1125,7 +1325,11 @@
                   },
                   "jurisdiction": {
                     "type": "string",
-                    "enum": ["IN", "EU", "OTHER"]
+                    "enum": [
+                      "IN",
+                      "EU",
+                      "OTHER"
+                    ]
                   },
                   "consents": {
                     "type": "object",
@@ -1142,7 +1346,9 @@
                     }
                   }
                 },
-                "required": ["code"]
+                "required": [
+                  "code"
+                ]
               }
             }
           }
@@ -1168,7 +1374,9 @@
                     },
                     "tokenType": {
                       "type": "string",
-                      "enum": ["Bearer"]
+                      "enum": [
+                        "Bearer"
+                      ]
                     },
                     "sessionId": {
                       "type": "string",
@@ -1180,11 +1388,24 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": ["owner", "admin", "editor", "viewer"]
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "bridge",
+                        "premiere",
+                        "ae",
+                        "resolve",
+                        "api"
+                      ]
                     }
                   },
                   "required": [
@@ -1203,7 +1424,9 @@
           }
         },
         "summary": "Exchange the handoff code for tokens",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/device/code": {
@@ -1220,11 +1443,23 @@
                 "properties": {
                   "clientKind": {
                     "type": "string",
-                    "enum": ["desktop", "bridge", "premiere", "ae", "resolve"]
+                    "enum": [
+                      "desktop",
+                      "bridge",
+                      "premiere",
+                      "ae",
+                      "resolve"
+                    ]
                   },
                   "hostApp": {
                     "type": "string",
-                    "enum": ["web", "desktop", "premiere", "ae", "resolve"]
+                    "enum": [
+                      "web",
+                      "desktop",
+                      "premiere",
+                      "ae",
+                      "resolve"
+                    ]
                   },
                   "deviceInfo": {
                     "type": "object",
@@ -1234,7 +1469,9 @@
                     }
                   }
                 },
-                "required": ["clientKind"]
+                "required": [
+                  "clientKind"
+                ]
               }
             }
           }
@@ -1284,7 +1521,9 @@
           }
         },
         "summary": "Start a device sign-in",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/device/token": {
@@ -1305,7 +1544,9 @@
                     "maxLength": 256
                   }
                 },
-                "required": ["deviceCode"]
+                "required": [
+                  "deviceCode"
+                ]
               }
             }
           }
@@ -1331,7 +1572,9 @@
                     },
                     "tokenType": {
                       "type": "string",
-                      "enum": ["Bearer"]
+                      "enum": [
+                        "Bearer"
+                      ]
                     },
                     "sessionId": {
                       "type": "string",
@@ -1343,11 +1586,24 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": ["owner", "admin", "editor", "viewer"]
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "bridge",
+                        "premiere",
+                        "ae",
+                        "resolve",
+                        "api"
+                      ]
                     }
                   },
                   "required": [
@@ -1369,7 +1625,9 @@
           }
         },
         "summary": "Poll for the result",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/device/code/{userCode}": {
@@ -1399,12 +1657,26 @@
                     },
                     "clientKind": {
                       "type": "string",
-                      "enum": ["web", "desktop", "bridge", "premiere", "ae", "resolve", "api"]
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "bridge",
+                        "premiere",
+                        "ae",
+                        "resolve",
+                        "api"
+                      ]
                     },
                     "hostApp": {
                       "nullable": true,
                       "type": "string",
-                      "enum": ["web", "desktop", "premiere", "ae", "resolve"]
+                      "enum": [
+                        "web",
+                        "desktop",
+                        "premiere",
+                        "ae",
+                        "resolve"
+                      ]
                     },
                     "deviceInfo": {
                       "type": "object",
@@ -1433,14 +1705,24 @@
                       "type": "string"
                     }
                   },
-                  "required": ["userCode", "clientKind", "hostApp", "deviceInfo", "ip", "location", "expiresAt"]
+                  "required": [
+                    "userCode",
+                    "clientKind",
+                    "hostApp",
+                    "deviceInfo",
+                    "ip",
+                    "location",
+                    "expiresAt"
+                  ]
                 }
               }
             }
           }
         },
         "summary": "What is asking for approval",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/device/approve": {
@@ -1466,10 +1748,15 @@
                   },
                   "decision": {
                     "type": "string",
-                    "enum": ["approve", "deny"]
+                    "enum": [
+                      "approve",
+                      "deny"
+                    ]
                   }
                 },
-                "required": ["userCode"]
+                "required": [
+                  "userCode"
+                ]
               }
             }
           }
@@ -1480,7 +1767,9 @@
           }
         },
         "summary": "Approve or decline a device sign-in",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/workspaces": {
@@ -1509,18 +1798,29 @@
                       },
                       "type": {
                         "type": "string",
-                        "enum": ["personal", "team", "agency"]
+                        "enum": [
+                          "personal",
+                          "team",
+                          "agency"
+                        ]
                       },
                       "ownerId": {
                         "type": "string"
                       },
                       "region": {
                         "type": "string",
-                        "enum": ["in", "eu", "us"]
+                        "enum": [
+                          "in",
+                          "eu",
+                          "us"
+                        ]
                       },
                       "currency": {
                         "type": "string",
-                        "enum": ["INR", "USD"]
+                        "enum": [
+                          "INR",
+                          "USD"
+                        ]
                       },
                       "billingCountry": {
                         "type": "string"
@@ -1550,7 +1850,12 @@
                         "properties": {
                           "defaultAspect": {
                             "type": "string",
-                            "enum": ["9:16", "16:9", "1:1", "4:5"]
+                            "enum": [
+                              "9:16",
+                              "16:9",
+                              "1:1",
+                              "4:5"
+                            ]
                           },
                           "defaultLanguage": {
                             "type": "string",
@@ -1578,7 +1883,12 @@
                       },
                       "role": {
                         "type": "string",
-                        "enum": ["owner", "admin", "editor", "viewer"]
+                        "enum": [
+                          "owner",
+                          "admin",
+                          "editor",
+                          "viewer"
+                        ]
                       },
                       "memberCount": {
                         "type": "integer",
@@ -1625,7 +1935,9 @@
           }
         ],
         "summary": "The workspaces the caller belongs to",
-        "tags": ["workspaces"]
+        "tags": [
+          "workspaces"
+        ]
       },
       "post": {
         "description": "The caller becomes its owner. Region and currency follow their declared jurisdiction and the billing country starts **unconfirmed** — a guess until somebody sets a tax profile on it.",
@@ -1651,10 +1963,15 @@
                   },
                   "type": {
                     "type": "string",
-                    "enum": ["team", "agency"]
+                    "enum": [
+                      "team",
+                      "agency"
+                    ]
                   }
                 },
-                "required": ["name"]
+                "required": [
+                  "name"
+                ]
               }
             }
           }
@@ -1678,18 +1995,29 @@
                     },
                     "type": {
                       "type": "string",
-                      "enum": ["personal", "team", "agency"]
+                      "enum": [
+                        "personal",
+                        "team",
+                        "agency"
+                      ]
                     },
                     "ownerId": {
                       "type": "string"
                     },
                     "region": {
                       "type": "string",
-                      "enum": ["in", "eu", "us"]
+                      "enum": [
+                        "in",
+                        "eu",
+                        "us"
+                      ]
                     },
                     "currency": {
                       "type": "string",
-                      "enum": ["INR", "USD"]
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
                     },
                     "billingCountry": {
                       "type": "string"
@@ -1719,7 +2047,12 @@
                       "properties": {
                         "defaultAspect": {
                           "type": "string",
-                          "enum": ["9:16", "16:9", "1:1", "4:5"]
+                          "enum": [
+                            "9:16",
+                            "16:9",
+                            "1:1",
+                            "4:5"
+                          ]
                         },
                         "defaultLanguage": {
                           "type": "string",
@@ -1747,7 +2080,12 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": ["owner", "admin", "editor", "viewer"]
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
                     },
                     "memberCount": {
                       "type": "integer",
@@ -1796,7 +2134,9 @@
           }
         ],
         "summary": "Create a team or agency workspace",
-        "tags": ["workspaces"]
+        "tags": [
+          "workspaces"
+        ]
       }
     },
     "/workspaces/{id}": {
@@ -1831,18 +2171,29 @@
                     },
                     "type": {
                       "type": "string",
-                      "enum": ["personal", "team", "agency"]
+                      "enum": [
+                        "personal",
+                        "team",
+                        "agency"
+                      ]
                     },
                     "ownerId": {
                       "type": "string"
                     },
                     "region": {
                       "type": "string",
-                      "enum": ["in", "eu", "us"]
+                      "enum": [
+                        "in",
+                        "eu",
+                        "us"
+                      ]
                     },
                     "currency": {
                       "type": "string",
-                      "enum": ["INR", "USD"]
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
                     },
                     "billingCountry": {
                       "type": "string"
@@ -1872,7 +2223,12 @@
                       "properties": {
                         "defaultAspect": {
                           "type": "string",
-                          "enum": ["9:16", "16:9", "1:1", "4:5"]
+                          "enum": [
+                            "9:16",
+                            "16:9",
+                            "1:1",
+                            "4:5"
+                          ]
                         },
                         "defaultLanguage": {
                           "type": "string",
@@ -1900,7 +2256,12 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": ["owner", "admin", "editor", "viewer"]
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
                     },
                     "memberCount": {
                       "type": "integer",
@@ -1949,7 +2310,9 @@
           }
         ],
         "summary": "One workspace",
-        "tags": ["workspaces"]
+        "tags": [
+          "workspaces"
+        ]
       },
       "patch": {
         "description": "`settings` is merged, not replaced, so a partial patch keeps the rest.",
@@ -1987,7 +2350,12 @@
                     "properties": {
                       "defaultAspect": {
                         "type": "string",
-                        "enum": ["9:16", "16:9", "1:1", "4:5"]
+                        "enum": [
+                          "9:16",
+                          "16:9",
+                          "1:1",
+                          "4:5"
+                        ]
                       },
                       "defaultLanguage": {
                         "type": "string",
@@ -2029,18 +2397,29 @@
                     },
                     "type": {
                       "type": "string",
-                      "enum": ["personal", "team", "agency"]
+                      "enum": [
+                        "personal",
+                        "team",
+                        "agency"
+                      ]
                     },
                     "ownerId": {
                       "type": "string"
                     },
                     "region": {
                       "type": "string",
-                      "enum": ["in", "eu", "us"]
+                      "enum": [
+                        "in",
+                        "eu",
+                        "us"
+                      ]
                     },
                     "currency": {
                       "type": "string",
-                      "enum": ["INR", "USD"]
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
                     },
                     "billingCountry": {
                       "type": "string"
@@ -2070,7 +2449,12 @@
                       "properties": {
                         "defaultAspect": {
                           "type": "string",
-                          "enum": ["9:16", "16:9", "1:1", "4:5"]
+                          "enum": [
+                            "9:16",
+                            "16:9",
+                            "1:1",
+                            "4:5"
+                          ]
                         },
                         "defaultLanguage": {
                           "type": "string",
@@ -2098,7 +2482,12 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": ["owner", "admin", "editor", "viewer"]
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
                     },
                     "memberCount": {
                       "type": "integer",
@@ -2150,7 +2539,9 @@
           }
         ],
         "summary": "Rename a workspace or change its settings",
-        "tags": ["workspaces"]
+        "tags": [
+          "workspaces"
+        ]
       },
       "delete": {
         "description": "Soft delete; every session scoped to it is revoked. Refused when it is the caller's only workspace — `DELETE /me` is how a person leaves altogether.",
@@ -2182,7 +2573,9 @@
           }
         ],
         "summary": "Delete a workspace",
-        "tags": ["workspaces"]
+        "tags": [
+          "workspaces"
+        ]
       }
     },
     "/workspaces/{id}/tax-profile": {
@@ -2225,7 +2618,9 @@
                     "maxLength": 200
                   }
                 },
-                "required": ["billingCountry"]
+                "required": [
+                  "billingCountry"
+                ]
               }
             }
           }
@@ -2249,18 +2644,29 @@
                     },
                     "type": {
                       "type": "string",
-                      "enum": ["personal", "team", "agency"]
+                      "enum": [
+                        "personal",
+                        "team",
+                        "agency"
+                      ]
                     },
                     "ownerId": {
                       "type": "string"
                     },
                     "region": {
                       "type": "string",
-                      "enum": ["in", "eu", "us"]
+                      "enum": [
+                        "in",
+                        "eu",
+                        "us"
+                      ]
                     },
                     "currency": {
                       "type": "string",
-                      "enum": ["INR", "USD"]
+                      "enum": [
+                        "INR",
+                        "USD"
+                      ]
                     },
                     "billingCountry": {
                       "type": "string"
@@ -2290,7 +2696,12 @@
                       "properties": {
                         "defaultAspect": {
                           "type": "string",
-                          "enum": ["9:16", "16:9", "1:1", "4:5"]
+                          "enum": [
+                            "9:16",
+                            "16:9",
+                            "1:1",
+                            "4:5"
+                          ]
                         },
                         "defaultLanguage": {
                           "type": "string",
@@ -2318,7 +2729,12 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": ["owner", "admin", "editor", "viewer"]
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
                     },
                     "memberCount": {
                       "type": "integer",
@@ -2370,7 +2786,9 @@
           }
         ],
         "summary": "Set the billing country, State and GSTIN",
-        "tags": ["workspaces"]
+        "tags": [
+          "workspaces"
+        ]
       }
     },
     "/workspaces/{id}/entitlement": {
@@ -2400,7 +2818,13 @@
                     },
                     "planKey": {
                       "type": "string",
-                      "enum": ["free", "starter", "creator", "studio", "agency"]
+                      "enum": [
+                        "free",
+                        "starter",
+                        "creator",
+                        "studio",
+                        "agency"
+                      ]
                     },
                     "planName": {
                       "type": "string"
@@ -2452,7 +2876,9 @@
           }
         ],
         "summary": "What this workspace may do",
-        "tags": ["workspaces"]
+        "tags": [
+          "workspaces"
+        ]
       }
     },
     "/workspaces/{id}/members": {
@@ -2499,11 +2925,21 @@
                       },
                       "role": {
                         "type": "string",
-                        "enum": ["owner", "admin", "editor", "viewer"]
+                        "enum": [
+                          "owner",
+                          "admin",
+                          "editor",
+                          "viewer"
+                        ]
                       },
                       "status": {
                         "type": "string",
-                        "enum": ["invited", "active", "suspended", "removed"]
+                        "enum": [
+                          "invited",
+                          "active",
+                          "suspended",
+                          "removed"
+                        ]
                       },
                       "seatBilled": {
                         "type": "boolean"
@@ -2538,7 +2974,9 @@
           }
         ],
         "summary": "The workspace's members and outstanding invitations",
-        "tags": ["workspaces"]
+        "tags": [
+          "workspaces"
+        ]
       },
       "post": {
         "description": "Creates a pending `memberships` row and sends the invitation. The row becomes a membership only when that person accepts it themselves, from a verified address.",
@@ -2569,10 +3007,17 @@
                   },
                   "role": {
                     "type": "string",
-                    "enum": ["admin", "editor", "viewer"]
+                    "enum": [
+                      "admin",
+                      "editor",
+                      "viewer"
+                    ]
                   }
                 },
-                "required": ["email", "role"]
+                "required": [
+                  "email",
+                  "role"
+                ]
               }
             }
           }
@@ -2606,11 +3051,21 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": ["owner", "admin", "editor", "viewer"]
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["invited", "active", "suspended", "removed"]
+                      "enum": [
+                        "invited",
+                        "active",
+                        "suspended",
+                        "removed"
+                      ]
                     },
                     "seatBilled": {
                       "type": "boolean"
@@ -2647,7 +3102,9 @@
           }
         ],
         "summary": "Invite an address to the workspace",
-        "tags": ["workspaces"]
+        "tags": [
+          "workspaces"
+        ]
       }
     },
     "/workspaces/{id}/members/{membershipId}": {
@@ -2681,10 +3138,16 @@
                 "properties": {
                   "role": {
                     "type": "string",
-                    "enum": ["admin", "editor", "viewer"]
+                    "enum": [
+                      "admin",
+                      "editor",
+                      "viewer"
+                    ]
                   }
                 },
-                "required": ["role"]
+                "required": [
+                  "role"
+                ]
               }
             }
           }
@@ -2718,11 +3181,21 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": ["owner", "admin", "editor", "viewer"]
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["invited", "active", "suspended", "removed"]
+                      "enum": [
+                        "invited",
+                        "active",
+                        "suspended",
+                        "removed"
+                      ]
                     },
                     "seatBilled": {
                       "type": "boolean"
@@ -2762,7 +3235,9 @@
           }
         ],
         "summary": "Change a member's role",
-        "tags": ["workspaces"]
+        "tags": [
+          "workspaces"
+        ]
       },
       "delete": {
         "description": "Every session that member holds in this workspace is revoked at once.",
@@ -2805,7 +3280,9 @@
           }
         ],
         "summary": "Remove a member or withdraw an invitation",
-        "tags": ["workspaces"]
+        "tags": [
+          "workspaces"
+        ]
       }
     },
     "/invitations": {
@@ -2834,7 +3311,12 @@
                       },
                       "role": {
                         "type": "string",
-                        "enum": ["owner", "admin", "editor", "viewer"]
+                        "enum": [
+                          "owner",
+                          "admin",
+                          "editor",
+                          "viewer"
+                        ]
                       },
                       "invitedEmail": {
                         "nullable": true,
@@ -2844,7 +3326,14 @@
                         "type": "string"
                       }
                     },
-                    "required": ["id", "workspaceId", "workspaceName", "role", "invitedEmail", "createdAt"]
+                    "required": [
+                      "id",
+                      "workspaceId",
+                      "workspaceName",
+                      "role",
+                      "invitedEmail",
+                      "createdAt"
+                    ]
                   }
                 }
               }
@@ -2860,7 +3349,9 @@
           }
         ],
         "summary": "Invitations waiting for the caller's address",
-        "tags": ["invitations"]
+        "tags": [
+          "invitations"
+        ]
       }
     },
     "/invitations/{id}/accept": {
@@ -2890,14 +3381,25 @@
                     },
                     "role": {
                       "type": "string",
-                      "enum": ["owner", "admin", "editor", "viewer"]
+                      "enum": [
+                        "owner",
+                        "admin",
+                        "editor",
+                        "viewer"
+                      ]
                     },
                     "next": {
                       "type": "string",
-                      "enum": ["POST /auth/token/exchange"]
+                      "enum": [
+                        "POST /auth/token/exchange"
+                      ]
                     }
                   },
-                  "required": ["workspaceId", "role", "next"]
+                  "required": [
+                    "workspaceId",
+                    "role",
+                    "next"
+                  ]
                 }
               }
             }
@@ -2915,7 +3417,9 @@
           }
         ],
         "summary": "Accept an invitation",
-        "tags": ["invitations"]
+        "tags": [
+          "invitations"
+        ]
       }
     },
     "/invitations/{id}": {
@@ -2948,7 +3452,9 @@
           }
         ],
         "summary": "Decline an invitation",
-        "tags": ["invitations"]
+        "tags": [
+          "invitations"
+        ]
       }
     },
     "/consents": {
@@ -2977,7 +3483,13 @@
                         "properties": {
                           "purpose": {
                             "type": "string",
-                            "enum": ["analytics", "memory", "marketing", "share_upload", "affiliate"]
+                            "enum": [
+                              "analytics",
+                              "memory",
+                              "marketing",
+                              "share_upload",
+                              "affiliate"
+                            ]
                           },
                           "granted": {
                             "type": "boolean"
@@ -2998,11 +3510,22 @@
                             "type": "boolean"
                           }
                         },
-                        "required": ["purpose", "granted", "version", "decidedAt", "withdrawnAt", "recorded"]
+                        "required": [
+                          "purpose",
+                          "granted",
+                          "version",
+                          "decidedAt",
+                          "withdrawnAt",
+                          "recorded"
+                        ]
                       }
                     }
                   },
-                  "required": ["noticeVersion", "reconsentRequired", "purposes"]
+                  "required": [
+                    "noticeVersion",
+                    "reconsentRequired",
+                    "purposes"
+                  ]
                 }
               }
             }
@@ -3017,7 +3540,9 @@
           }
         ],
         "summary": "The caller's current answer for every purpose",
-        "tags": ["consents"]
+        "tags": [
+          "consents"
+        ]
       },
       "post": {
         "description": "Appends a `consent_records` row with the caller's address, user agent and the current notice version. A refusal is recorded as a row, not as an absent row: the record has to show what was asked as well as what was agreed.",
@@ -3032,13 +3557,22 @@
                 "properties": {
                   "purpose": {
                     "type": "string",
-                    "enum": ["analytics", "memory", "marketing", "share_upload", "affiliate"]
+                    "enum": [
+                      "analytics",
+                      "memory",
+                      "marketing",
+                      "share_upload",
+                      "affiliate"
+                    ]
                   },
                   "granted": {
                     "type": "boolean"
                   }
                 },
-                "required": ["purpose", "granted"]
+                "required": [
+                  "purpose",
+                  "granted"
+                ]
               }
             }
           }
@@ -3064,7 +3598,13 @@
                         "properties": {
                           "purpose": {
                             "type": "string",
-                            "enum": ["analytics", "memory", "marketing", "share_upload", "affiliate"]
+                            "enum": [
+                              "analytics",
+                              "memory",
+                              "marketing",
+                              "share_upload",
+                              "affiliate"
+                            ]
                           },
                           "granted": {
                             "type": "boolean"
@@ -3085,11 +3625,22 @@
                             "type": "boolean"
                           }
                         },
-                        "required": ["purpose", "granted", "version", "decidedAt", "withdrawnAt", "recorded"]
+                        "required": [
+                          "purpose",
+                          "granted",
+                          "version",
+                          "decidedAt",
+                          "withdrawnAt",
+                          "recorded"
+                        ]
                       }
                     }
                   },
-                  "required": ["noticeVersion", "reconsentRequired", "purposes"]
+                  "required": [
+                    "noticeVersion",
+                    "reconsentRequired",
+                    "purposes"
+                  ]
                 }
               }
             }
@@ -3107,7 +3658,9 @@
           }
         ],
         "summary": "Grant or withdraw one purpose",
-        "tags": ["consents"]
+        "tags": [
+          "consents"
+        ]
       }
     },
     "/privacy/notice": {
@@ -3167,18 +3720,34 @@
                             "type": "boolean"
                           }
                         },
-                        "required": ["purpose", "title", "summary", "essential", "defaultGranted"]
+                        "required": [
+                          "purpose",
+                          "title",
+                          "summary",
+                          "essential",
+                          "defaultGranted"
+                        ]
                       }
                     }
                   },
-                  "required": ["version", "effectiveFrom", "url", "contactEmail", "responseDays", "rights", "purposes"]
+                  "required": [
+                    "version",
+                    "effectiveFrom",
+                    "url",
+                    "contactEmail",
+                    "responseDays",
+                    "rights",
+                    "purposes"
+                  ]
                 }
               }
             }
           }
         },
         "summary": "The current itemised privacy notice",
-        "tags": ["privacy"]
+        "tags": [
+          "privacy"
+        ]
       }
     },
     "/jobs": {
@@ -3207,7 +3776,9 @@
           }
         ],
         "summary": "List the workspace's jobs, newest first",
-        "tags": ["jobs"]
+        "tags": [
+          "jobs"
+        ]
       }
     },
     "/jobs/{id}": {
@@ -3247,7 +3818,9 @@
           }
         ],
         "summary": "Fetch one job",
-        "tags": ["jobs"]
+        "tags": [
+          "jobs"
+        ]
       }
     },
     "/jobs/{id}/events": {
@@ -3288,7 +3861,9 @@
           }
         ],
         "summary": "The job's event log, oldest first",
-        "tags": ["jobs"]
+        "tags": [
+          "jobs"
+        ]
       }
     },
     "/jobs/{id}/cancel": {
@@ -3332,7 +3907,83 @@
           }
         ],
         "summary": "Cancel a queued or running job",
-        "tags": ["jobs"]
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/me/notifications": {
+      "get": {
+        "description": "Cursor pagination: pass the previous page's `nextCursor` as `cursor`. `unread` is the badge count and covers every page, not just this one.",
+        "operationId": "listMyNotifications",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List your notifications, newest first",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/me/notifications/{id}/read": {
+      "post": {
+        "description": "Idempotent: a second call keeps the first `readAt`.",
+        "operationId": "markNotificationRead",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`notify/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mark one notification read",
+        "tags": [
+          "notifications"
+        ]
       }
     },
     "/projects": {
@@ -3382,11 +4033,20 @@
                           },
                           "aspect": {
                             "type": "string",
-                            "enum": ["9:16", "16:9", "1:1", "4:5"]
+                            "enum": [
+                              "9:16",
+                              "16:9",
+                              "1:1",
+                              "4:5"
+                            ]
                           },
                           "status": {
                             "type": "string",
-                            "enum": ["draft", "active", "archived"]
+                            "enum": [
+                              "draft",
+                              "active",
+                              "archived"
+                            ]
                           },
                           "thumbnailKey": {
                             "nullable": true,
@@ -3443,7 +4103,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["items", "nextCursor"]
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
                 }
               }
             }
@@ -3461,7 +4124,9 @@
           }
         ],
         "summary": "List the workspace's projects, newest first",
-        "tags": ["projects"]
+        "tags": [
+          "projects"
+        ]
       },
       "post": {
         "description": "The retention window opens now, at the plan's length, and every upload pushes it out again (D47).",
@@ -3492,7 +4157,12 @@
                   },
                   "aspect": {
                     "type": "string",
-                    "enum": ["9:16", "16:9", "1:1", "4:5"]
+                    "enum": [
+                      "9:16",
+                      "16:9",
+                      "1:1",
+                      "4:5"
+                    ]
                   },
                   "sourceLanguage": {
                     "type": "string",
@@ -3500,7 +4170,9 @@
                     "maxLength": 16
                   }
                 },
-                "required": ["title"]
+                "required": [
+                  "title"
+                ]
               }
             }
           }
@@ -3542,11 +4214,20 @@
                     },
                     "aspect": {
                       "type": "string",
-                      "enum": ["9:16", "16:9", "1:1", "4:5"]
+                      "enum": [
+                        "9:16",
+                        "16:9",
+                        "1:1",
+                        "4:5"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["draft", "active", "archived"]
+                      "enum": [
+                        "draft",
+                        "active",
+                        "archived"
+                      ]
                     },
                     "thumbnailKey": {
                       "nullable": true,
@@ -3616,7 +4297,9 @@
           }
         ],
         "summary": "Create a project",
-        "tags": ["projects"]
+        "tags": [
+          "projects"
+        ]
       }
     },
     "/projects/batch": {
@@ -3656,7 +4339,12 @@
                         },
                         "aspect": {
                           "type": "string",
-                          "enum": ["9:16", "16:9", "1:1", "4:5"]
+                          "enum": [
+                            "9:16",
+                            "16:9",
+                            "1:1",
+                            "4:5"
+                          ]
                         },
                         "sourceLanguage": {
                           "type": "string",
@@ -3664,7 +4352,9 @@
                           "maxLength": 16
                         }
                       },
-                      "required": ["title"]
+                      "required": [
+                        "title"
+                      ]
                     }
                   },
                   "folderId": {
@@ -3679,7 +4369,9 @@
                     "maxLength": 64
                   }
                 },
-                "required": ["projects"]
+                "required": [
+                  "projects"
+                ]
               }
             }
           }
@@ -3726,11 +4418,20 @@
                           },
                           "aspect": {
                             "type": "string",
-                            "enum": ["9:16", "16:9", "1:1", "4:5"]
+                            "enum": [
+                              "9:16",
+                              "16:9",
+                              "1:1",
+                              "4:5"
+                            ]
                           },
                           "status": {
                             "type": "string",
-                            "enum": ["draft", "active", "archived"]
+                            "enum": [
+                              "draft",
+                              "active",
+                              "archived"
+                            ]
                           },
                           "thumbnailKey": {
                             "nullable": true,
@@ -3783,7 +4484,9 @@
                       }
                     }
                   },
-                  "required": ["created"]
+                  "required": [
+                    "created"
+                  ]
                 }
               }
             }
@@ -3801,7 +4504,9 @@
           }
         ],
         "summary": "Create several projects at once",
-        "tags": ["projects"]
+        "tags": [
+          "projects"
+        ]
       }
     },
     "/projects/{projectId}": {
@@ -3854,11 +4559,20 @@
                     },
                     "aspect": {
                       "type": "string",
-                      "enum": ["9:16", "16:9", "1:1", "4:5"]
+                      "enum": [
+                        "9:16",
+                        "16:9",
+                        "1:1",
+                        "4:5"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["draft", "active", "archived"]
+                      "enum": [
+                        "draft",
+                        "active",
+                        "archived"
+                      ]
                     },
                     "thumbnailKey": {
                       "nullable": true,
@@ -3928,7 +4642,9 @@
           }
         ],
         "summary": "Fetch one project",
-        "tags": ["projects"]
+        "tags": [
+          "projects"
+        ]
       },
       "patch": {
         "description": "Archiving is `status: \"archived\"`; there is no separate route for it.",
@@ -3970,7 +4686,12 @@
                   },
                   "aspect": {
                     "type": "string",
-                    "enum": ["9:16", "16:9", "1:1", "4:5"]
+                    "enum": [
+                      "9:16",
+                      "16:9",
+                      "1:1",
+                      "4:5"
+                    ]
                   },
                   "sourceLanguage": {
                     "nullable": true,
@@ -3980,7 +4701,11 @@
                   },
                   "status": {
                     "type": "string",
-                    "enum": ["draft", "active", "archived"]
+                    "enum": [
+                      "draft",
+                      "active",
+                      "archived"
+                    ]
                   }
                 }
               }
@@ -4024,11 +4749,20 @@
                     },
                     "aspect": {
                       "type": "string",
-                      "enum": ["9:16", "16:9", "1:1", "4:5"]
+                      "enum": [
+                        "9:16",
+                        "16:9",
+                        "1:1",
+                        "4:5"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["draft", "active", "archived"]
+                      "enum": [
+                        "draft",
+                        "active",
+                        "archived"
+                      ]
                     },
                     "thumbnailKey": {
                       "nullable": true,
@@ -4098,7 +4832,9 @@
           }
         ],
         "summary": "Rename, re-file, re-tag or archive a project",
-        "tags": ["projects"]
+        "tags": [
+          "projects"
+        ]
       },
       "delete": {
         "description": "A soft delete: the row is marked and the objects go when retention runs (D47), so an accidental click is recoverable until then.",
@@ -4145,7 +4881,9 @@
           }
         ],
         "summary": "Delete a project",
-        "tags": ["projects"]
+        "tags": [
+          "projects"
+        ]
       }
     },
     "/folders": {
@@ -4190,7 +4928,15 @@
                         "type": "string"
                       }
                     },
-                    "required": ["id", "workspaceId", "name", "parentId", "position", "projectCount", "createdAt"]
+                    "required": [
+                      "id",
+                      "workspaceId",
+                      "name",
+                      "parentId",
+                      "position",
+                      "projectCount",
+                      "createdAt"
+                    ]
                   }
                 }
               }
@@ -4209,7 +4955,9 @@
           }
         ],
         "summary": "The workspace's folders",
-        "tags": ["projects"]
+        "tags": [
+          "projects"
+        ]
       },
       "post": {
         "operationId": "createFolder",
@@ -4238,7 +4986,9 @@
                     "maximum": 100000
                   }
                 },
-                "required": ["name"]
+                "required": [
+                  "name"
+                ]
               }
             }
           }
@@ -4278,7 +5028,15 @@
                       "type": "string"
                     }
                   },
-                  "required": ["id", "workspaceId", "name", "parentId", "position", "projectCount", "createdAt"]
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "name",
+                    "parentId",
+                    "position",
+                    "projectCount",
+                    "createdAt"
+                  ]
                 }
               }
             }
@@ -4299,7 +5057,9 @@
           }
         ],
         "summary": "Create a folder",
-        "tags": ["projects"]
+        "tags": [
+          "projects"
+        ]
       }
     },
     "/folders/{folderId}": {
@@ -4350,7 +5110,15 @@
                       "type": "string"
                     }
                   },
-                  "required": ["id", "workspaceId", "name", "parentId", "position", "projectCount", "createdAt"]
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "name",
+                    "parentId",
+                    "position",
+                    "projectCount",
+                    "createdAt"
+                  ]
                 }
               }
             }
@@ -4371,7 +5139,9 @@
           }
         ],
         "summary": "Fetch one folder",
-        "tags": ["projects"]
+        "tags": [
+          "projects"
+        ]
       },
       "patch": {
         "description": "Moving a folder inside itself or one of its descendants is `project/folder_cycle`.",
@@ -4450,7 +5220,15 @@
                       "type": "string"
                     }
                   },
-                  "required": ["id", "workspaceId", "name", "parentId", "position", "projectCount", "createdAt"]
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "name",
+                    "parentId",
+                    "position",
+                    "projectCount",
+                    "createdAt"
+                  ]
                 }
               }
             }
@@ -4474,7 +5252,9 @@
           }
         ],
         "summary": "Rename, move or reorder a folder",
-        "tags": ["projects"]
+        "tags": [
+          "projects"
+        ]
       },
       "delete": {
         "description": "Refused while projects or child folders are still in it (`project/folder_not_empty`): silently orphaning what is inside is how somebody loses work they can still see.",
@@ -4524,7 +5304,9 @@
           }
         ],
         "summary": "Delete an empty folder",
-        "tags": ["projects"]
+        "tags": [
+          "projects"
+        ]
       }
     },
     "/projects/{projectId}/media": {
@@ -4562,7 +5344,10 @@
                       },
                       "bucket": {
                         "type": "string",
-                        "enum": ["s3", "r2"]
+                        "enum": [
+                          "s3",
+                          "r2"
+                        ]
                       },
                       "storageKey": {
                         "type": "string"
@@ -4615,7 +5400,15 @@
                       },
                       "status": {
                         "type": "string",
-                        "enum": ["pending", "uploading", "uploaded", "probing", "ready", "failed", "purged"]
+                        "enum": [
+                          "pending",
+                          "uploading",
+                          "uploaded",
+                          "probing",
+                          "ready",
+                          "failed",
+                          "purged"
+                        ]
                       },
                       "needsRealign": {
                         "type": "boolean"
@@ -4658,7 +5451,13 @@
                             }
                           }
                         },
-                        "required": ["proxy", "audio16k", "audio48k", "waveform", "thumbs"]
+                        "required": [
+                          "proxy",
+                          "audio16k",
+                          "audio48k",
+                          "waveform",
+                          "thumbs"
+                        ]
                       },
                       "createdAt": {
                         "type": "string"
@@ -4708,7 +5507,9 @@
           }
         ],
         "summary": "The project's media, oldest first",
-        "tags": ["media"]
+        "tags": [
+          "media"
+        ]
       }
     },
     "/projects/{projectId}/media/init": {
@@ -4754,10 +5555,18 @@
                   },
                   "role": {
                     "type": "string",
-                    "enum": ["primary", "broll", "audio"]
+                    "enum": [
+                      "primary",
+                      "broll",
+                      "audio"
+                    ]
                   }
                 },
-                "required": ["filename", "size", "mime"]
+                "required": [
+                  "filename",
+                  "size",
+                  "mime"
+                ]
               }
             }
           }
@@ -4782,7 +5591,10 @@
                     },
                     "bucket": {
                       "type": "string",
-                      "enum": ["s3", "r2"]
+                      "enum": [
+                        "s3",
+                        "r2"
+                      ]
                     },
                     "partSizeBytes": {
                       "type": "integer",
@@ -4803,7 +5615,10 @@
                             "type": "string"
                           }
                         },
-                        "required": ["partNumber", "url"]
+                        "required": [
+                          "partNumber",
+                          "url"
+                        ]
                       }
                     },
                     "expiresAt": {
@@ -4827,7 +5642,10 @@
                         },
                         "bucket": {
                           "type": "string",
-                          "enum": ["s3", "r2"]
+                          "enum": [
+                            "s3",
+                            "r2"
+                          ]
                         },
                         "storageKey": {
                           "type": "string"
@@ -4880,7 +5698,15 @@
                         },
                         "status": {
                           "type": "string",
-                          "enum": ["pending", "uploading", "uploaded", "probing", "ready", "failed", "purged"]
+                          "enum": [
+                            "pending",
+                            "uploading",
+                            "uploaded",
+                            "probing",
+                            "ready",
+                            "failed",
+                            "purged"
+                          ]
                         },
                         "needsRealign": {
                           "type": "boolean"
@@ -4923,7 +5749,13 @@
                               }
                             }
                           },
-                          "required": ["proxy", "audio16k", "audio48k", "waveform", "thumbs"]
+                          "required": [
+                            "proxy",
+                            "audio16k",
+                            "audio48k",
+                            "waveform",
+                            "thumbs"
+                          ]
                         },
                         "createdAt": {
                           "type": "string"
@@ -4985,14 +5817,24 @@
           }
         ],
         "summary": "Begin an upload",
-        "tags": ["media"]
+        "tags": [
+          "media"
+        ]
       }
     },
     "/projects/{projectId}/media/{mediaId}/complete": {
       "post": {
-        "description": "Identical to `completeMediaUpload`; this is the path `07-api-and-contracts.md` spells, kept so a client can stay inside `/projects/{id}` for the whole ingest.",
+        "description": "`completeMediaUpload` under the path `07-api-and-contracts.md` spells, kept so a client can stay inside `/projects/{id}` for the whole ingest. Slightly stricter than the unscoped form: the media must be in the project the path names.",
         "operationId": "completeProjectMediaUpload",
         "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "mediaId",
             "required": true,
@@ -5020,7 +5862,9 @@
                     }
                   }
                 },
-                "required": ["etags"]
+                "required": [
+                  "etags"
+                ]
               }
             }
           }
@@ -5047,7 +5891,10 @@
                         },
                         "bucket": {
                           "type": "string",
-                          "enum": ["s3", "r2"]
+                          "enum": [
+                            "s3",
+                            "r2"
+                          ]
                         },
                         "storageKey": {
                           "type": "string"
@@ -5100,7 +5947,15 @@
                         },
                         "status": {
                           "type": "string",
-                          "enum": ["pending", "uploading", "uploaded", "probing", "ready", "failed", "purged"]
+                          "enum": [
+                            "pending",
+                            "uploading",
+                            "uploaded",
+                            "probing",
+                            "ready",
+                            "failed",
+                            "purged"
+                          ]
                         },
                         "needsRealign": {
                           "type": "boolean"
@@ -5143,7 +5998,13 @@
                               }
                             }
                           },
-                          "required": ["proxy", "audio16k", "audio48k", "waveform", "thumbs"]
+                          "required": [
+                            "proxy",
+                            "audio16k",
+                            "audio48k",
+                            "waveform",
+                            "thumbs"
+                          ]
                         },
                         "createdAt": {
                           "type": "string"
@@ -5180,7 +6041,11 @@
                       "type": "string"
                     }
                   },
-                  "required": ["media", "probeJobId", "proxyJobId"]
+                  "required": [
+                    "media",
+                    "probeJobId",
+                    "proxyJobId"
+                  ]
                 }
               }
             }
@@ -5198,7 +6063,9 @@
           }
         ],
         "summary": "Finish an upload (project-scoped form)",
-        "tags": ["media"]
+        "tags": [
+          "media"
+        ]
       }
     },
     "/projects/{projectId}/media/{mediaId}/replace": {
@@ -5252,10 +6119,18 @@
                   },
                   "role": {
                     "type": "string",
-                    "enum": ["primary", "broll", "audio"]
+                    "enum": [
+                      "primary",
+                      "broll",
+                      "audio"
+                    ]
                   }
                 },
-                "required": ["filename", "size", "mime"]
+                "required": [
+                  "filename",
+                  "size",
+                  "mime"
+                ]
               }
             }
           }
@@ -5280,7 +6155,10 @@
                     },
                     "bucket": {
                       "type": "string",
-                      "enum": ["s3", "r2"]
+                      "enum": [
+                        "s3",
+                        "r2"
+                      ]
                     },
                     "partSizeBytes": {
                       "type": "integer",
@@ -5301,7 +6179,10 @@
                             "type": "string"
                           }
                         },
-                        "required": ["partNumber", "url"]
+                        "required": [
+                          "partNumber",
+                          "url"
+                        ]
                       }
                     },
                     "expiresAt": {
@@ -5325,7 +6206,10 @@
                         },
                         "bucket": {
                           "type": "string",
-                          "enum": ["s3", "r2"]
+                          "enum": [
+                            "s3",
+                            "r2"
+                          ]
                         },
                         "storageKey": {
                           "type": "string"
@@ -5378,7 +6262,15 @@
                         },
                         "status": {
                           "type": "string",
-                          "enum": ["pending", "uploading", "uploaded", "probing", "ready", "failed", "purged"]
+                          "enum": [
+                            "pending",
+                            "uploading",
+                            "uploaded",
+                            "probing",
+                            "ready",
+                            "failed",
+                            "purged"
+                          ]
                         },
                         "needsRealign": {
                           "type": "boolean"
@@ -5421,7 +6313,13 @@
                               }
                             }
                           },
-                          "required": ["proxy", "audio16k", "audio48k", "waveform", "thumbs"]
+                          "required": [
+                            "proxy",
+                            "audio16k",
+                            "audio48k",
+                            "waveform",
+                            "thumbs"
+                          ]
                         },
                         "createdAt": {
                           "type": "string"
@@ -5483,7 +6381,9 @@
           }
         ],
         "summary": "Replace a media item's bytes",
-        "tags": ["media"]
+        "tags": [
+          "media"
+        ]
       }
     },
     "/projects/{projectId}/media/{mediaId}/urls": {
@@ -5541,7 +6441,11 @@
                       "type": "string"
                     }
                   },
-                  "required": ["mediaId", "thumbs", "expiresAt"]
+                  "required": [
+                    "mediaId",
+                    "thumbs",
+                    "expiresAt"
+                  ]
                 }
               }
             }
@@ -5562,7 +6466,9 @@
           }
         ],
         "summary": "Signed URLs for the derived objects",
-        "tags": ["media"]
+        "tags": [
+          "media"
+        ]
       }
     },
     "/projects/{projectId}/import": {
@@ -5588,7 +6494,12 @@
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "enum": ["srt", "vtt", "ass", "txt"]
+                    "enum": [
+                      "srt",
+                      "vtt",
+                      "ass",
+                      "txt"
+                    ]
                   },
                   "content": {
                     "type": "string",
@@ -5607,7 +6518,10 @@
                     "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
                   }
                 },
-                "required": ["kind", "content"]
+                "required": [
+                  "kind",
+                  "content"
+                ]
               }
             }
           }
@@ -5625,7 +6539,12 @@
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["srt", "vtt", "ass", "txt"]
+                      "enum": [
+                        "srt",
+                        "vtt",
+                        "ass",
+                        "txt"
+                      ]
                     },
                     "key": {
                       "type": "string"
@@ -5648,7 +6567,15 @@
                       "type": "string"
                     }
                   },
-                  "required": ["mediaId", "kind", "key", "cueCount", "timed", "warnings", "jobId"]
+                  "required": [
+                    "mediaId",
+                    "kind",
+                    "key",
+                    "cueCount",
+                    "timed",
+                    "warnings",
+                    "jobId"
+                  ]
                 }
               }
             }
@@ -5669,7 +6596,9 @@
           }
         ],
         "summary": "Import an existing subtitle file",
-        "tags": ["media"]
+        "tags": [
+          "media"
+        ]
       }
     },
     "/projects/{projectId}/import-url": {
@@ -5700,7 +6629,12 @@
                   },
                   "kind": {
                     "type": "string",
-                    "enum": ["srt", "vtt", "ass", "txt"]
+                    "enum": [
+                      "srt",
+                      "vtt",
+                      "ass",
+                      "txt"
+                    ]
                   },
                   "language": {
                     "type": "string",
@@ -5714,7 +6648,9 @@
                     "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
                   }
                 },
-                "required": ["url"]
+                "required": [
+                  "url"
+                ]
               }
             }
           }
@@ -5732,7 +6668,12 @@
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["srt", "vtt", "ass", "txt"]
+                      "enum": [
+                        "srt",
+                        "vtt",
+                        "ass",
+                        "txt"
+                      ]
                     },
                     "key": {
                       "type": "string"
@@ -5755,7 +6696,15 @@
                       "type": "string"
                     }
                   },
-                  "required": ["mediaId", "kind", "key", "cueCount", "timed", "warnings", "jobId"]
+                  "required": [
+                    "mediaId",
+                    "kind",
+                    "key",
+                    "cueCount",
+                    "timed",
+                    "warnings",
+                    "jobId"
+                  ]
                 }
               }
             }
@@ -5776,7 +6725,9 @@
           }
         ],
         "summary": "Import a subtitle file from a URL",
-        "tags": ["media"]
+        "tags": [
+          "media"
+        ]
       }
     },
     "/media/{mediaId}": {
@@ -5811,7 +6762,10 @@
                     },
                     "bucket": {
                       "type": "string",
-                      "enum": ["s3", "r2"]
+                      "enum": [
+                        "s3",
+                        "r2"
+                      ]
                     },
                     "storageKey": {
                       "type": "string"
@@ -5864,7 +6818,15 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["pending", "uploading", "uploaded", "probing", "ready", "failed", "purged"]
+                      "enum": [
+                        "pending",
+                        "uploading",
+                        "uploaded",
+                        "probing",
+                        "ready",
+                        "failed",
+                        "purged"
+                      ]
                     },
                     "needsRealign": {
                       "type": "boolean"
@@ -5907,7 +6869,13 @@
                           }
                         }
                       },
-                      "required": ["proxy", "audio16k", "audio48k", "waveform", "thumbs"]
+                      "required": [
+                        "proxy",
+                        "audio16k",
+                        "audio48k",
+                        "waveform",
+                        "thumbs"
+                      ]
                     },
                     "createdAt": {
                       "type": "string"
@@ -5956,7 +6924,9 @@
           }
         ],
         "summary": "Fetch one media asset",
-        "tags": ["media"]
+        "tags": [
+          "media"
+        ]
       }
     },
     "/media/{mediaId}/complete": {
@@ -5991,7 +6961,9 @@
                     }
                   }
                 },
-                "required": ["etags"]
+                "required": [
+                  "etags"
+                ]
               }
             }
           }
@@ -6018,7 +6990,10 @@
                         },
                         "bucket": {
                           "type": "string",
-                          "enum": ["s3", "r2"]
+                          "enum": [
+                            "s3",
+                            "r2"
+                          ]
                         },
                         "storageKey": {
                           "type": "string"
@@ -6071,7 +7046,15 @@
                         },
                         "status": {
                           "type": "string",
-                          "enum": ["pending", "uploading", "uploaded", "probing", "ready", "failed", "purged"]
+                          "enum": [
+                            "pending",
+                            "uploading",
+                            "uploaded",
+                            "probing",
+                            "ready",
+                            "failed",
+                            "purged"
+                          ]
                         },
                         "needsRealign": {
                           "type": "boolean"
@@ -6114,7 +7097,13 @@
                               }
                             }
                           },
-                          "required": ["proxy", "audio16k", "audio48k", "waveform", "thumbs"]
+                          "required": [
+                            "proxy",
+                            "audio16k",
+                            "audio48k",
+                            "waveform",
+                            "thumbs"
+                          ]
                         },
                         "createdAt": {
                           "type": "string"
@@ -6151,7 +7140,11 @@
                       "type": "string"
                     }
                   },
-                  "required": ["media", "probeJobId", "proxyJobId"]
+                  "required": [
+                    "media",
+                    "probeJobId",
+                    "proxyJobId"
+                  ]
                 }
               }
             }
@@ -6172,7 +7165,9 @@
           }
         ],
         "summary": "Finish an upload and start the pipeline",
-        "tags": ["media"]
+        "tags": [
+          "media"
+        ]
       }
     },
     "/admin/dlq": {
@@ -6204,7 +7199,9 @@
           }
         ],
         "summary": "List dead-lettered jobs, newest first",
-        "tags": ["admin"]
+        "tags": [
+          "admin"
+        ]
       }
     },
     "/admin/dlq/stats": {
@@ -6236,7 +7233,9 @@
           }
         ],
         "summary": "Per-queue dead-letter counts",
-        "tags": ["admin"]
+        "tags": [
+          "admin"
+        ]
       }
     },
     "/admin/dlq/replay": {
@@ -6278,7 +7277,9 @@
           }
         ],
         "summary": "Replay many dead letters",
-        "tags": ["admin"]
+        "tags": [
+          "admin"
+        ]
       }
     },
     "/admin/dlq/discard": {
@@ -6320,7 +7321,9 @@
           }
         ],
         "summary": "Discard many dead letters",
-        "tags": ["admin"]
+        "tags": [
+          "admin"
+        ]
       }
     },
     "/admin/dlq/{id}": {
@@ -6363,7 +7366,9 @@
           }
         ],
         "summary": "One dead letter, by entry id or by job id",
-        "tags": ["admin"]
+        "tags": [
+          "admin"
+        ]
       }
     },
     "/admin/dlq/{id}/replay": {
@@ -6410,7 +7415,9 @@
           }
         ],
         "summary": "Replay one dead letter",
-        "tags": ["admin"]
+        "tags": [
+          "admin"
+        ]
       }
     },
     "/admin/dlq/{id}/discard": {
@@ -6467,7 +7474,9 @@
           }
         ],
         "summary": "Discard one dead letter",
-        "tags": ["admin"]
+        "tags": [
+          "admin"
+        ]
       }
     },
     "/admin/parental-waitlist": {
@@ -6505,11 +7514,18 @@
                           },
                           "jurisdiction": {
                             "type": "string",
-                            "enum": ["IN", "EU", "OTHER"]
+                            "enum": [
+                              "IN",
+                              "EU",
+                              "OTHER"
+                            ]
                           },
                           "ageBracket": {
                             "type": "string",
-                            "enum": ["adult", "minor"]
+                            "enum": [
+                              "adult",
+                              "minor"
+                            ]
                           },
                           "createdAt": {
                             "type": "string"
@@ -6519,11 +7535,22 @@
                             "type": "string"
                           }
                         },
-                        "required": ["id", "emailHash", "jurisdiction", "ageBracket", "createdAt", "notifiedAt"]
+                        "required": [
+                          "id",
+                          "emailHash",
+                          "jurisdiction",
+                          "ageBracket",
+                          "createdAt",
+                          "notifiedAt"
+                        ]
                       }
                     }
                   },
-                  "required": ["total", "nextCursor", "items"]
+                  "required": [
+                    "total",
+                    "nextCursor",
+                    "items"
+                  ]
                 }
               }
             }
@@ -6541,7 +7568,441 @@
           }
         ],
         "summary": "The parental-consent waiting list, oldest first",
-        "tags": ["admin"]
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg": {
+      "get": {
+        "description": "The hot state is under 64 KB. Segments are paged — `nextCursor` continues at `/edg/segments` — because a long-form project has thousands and an editor opens on the first screenful.",
+        "operationId": "getProjectEdg",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EdgDocumentDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The hot document, its revision and the first page of segments",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/segments": {
+      "get": {
+        "description": "The cursor is the previous page's last `seq`, so an edit three pages back cannot make a later page skip a caption.",
+        "operationId": "listEdgSegments",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One page of segments, ordered by `seq`",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/passes": {
+      "get": {
+        "operationId": "listEdgPasses",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every AI pass on the document, with its items",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/passes/{passId}/items": {
+      "get": {
+        "operationId": "listEdgPassItems",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "passId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassItemListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One pass's proposals, optionally filtered by review state",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/revisions": {
+      "get": {
+        "description": "A revision with no ops replaced the state wholesale (a snapshot restore); a client that finds one between its base and now must reload rather than replay.",
+        "operationId": "listEdgRevisions",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The op log from `from` onwards",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/snapshots": {
+      "get": {
+        "operationId": "listEdgSnapshots",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revisions a snapshot was taken at, newest first",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/ops": {
+      "post": {
+        "description": "A batch written against an older revision is rebased server-side and applied; the ops that had to be rewritten come back under `rebased`. Two writers who typed different text into the same caption cannot be reconciled by the server, so that is a 409 `edg/conflict` carrying `{latestRevision, opsSince, conflicts}` — never the document. More than 200 revisions behind is `edg/too_stale`: reload.",
+        "operationId": "applyEdgOps",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpBatchRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpBatchResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — a viewer may not write."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          },
+          "409": {
+            "description": "`edg/conflict` or `edg/too_stale`."
+          },
+          "429": {
+            "description": "`common/rate_limited` — the workspace op budget."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Apply a batch of ops (CONTRACTS §2)",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/resegment": {
+      "post": {
+        "description": "The server mints the `Resegment` op, so the audited record of what happened carries an id this API can vouch for. Every previous segment id is tombstoned; style, position and `hidden` are inherited by whichever new segment overlaps.",
+        "operationId": "resegmentEdg",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResegmentRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpBatchResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          },
+          "409": {
+            "description": "`edg/conflict` or `edg/too_stale`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Re-run segmentation over the whole document",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/snapshots/{revision}/restore": {
+      "post": {
+        "description": "History is never rewritten: the restore is appended, so restoring a later snapshot undoes it. The transcript is not rolled back — words live in their own table and a spelling fixed after the snapshot stays fixed.",
+        "operationId": "restoreEdgSnapshot",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revision",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`edg/snapshot_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Restore a snapshot as a new revision",
+        "tags": [
+          "edg"
+        ]
       }
     },
     "/health": {
@@ -6561,7 +8022,9 @@
           }
         },
         "summary": "Liveness probe",
-        "tags": ["health"]
+        "tags": [
+          "health"
+        ]
       }
     },
     "/health/ready": {
@@ -6591,7 +8054,9 @@
           }
         },
         "summary": "Readiness probe (db, redis, storage)",
-        "tags": ["health"]
+        "tags": [
+          "health"
+        ]
       }
     }
   },
@@ -6647,7 +8112,13 @@
           },
           "status": {
             "type": "string",
-            "enum": ["queued", "running", "succeeded", "failed", "cancelled"]
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
           },
           "priority": {
             "type": "number",
@@ -6717,7 +8188,16 @@
             "format": "date-time"
           }
         },
-        "required": ["id", "type", "status", "priority", "progress", "jobKey", "creditsChargedTenths", "queuedAt"]
+        "required": [
+          "id",
+          "type",
+          "status",
+          "priority",
+          "progress",
+          "jobKey",
+          "creditsChargedTenths",
+          "queuedAt"
+        ]
       },
       "JobPageDto": {
         "type": "object",
@@ -6734,7 +8214,9 @@
             "description": "Pass as `cursor` for the next page."
           }
         },
-        "required": ["items"]
+        "required": [
+          "items"
+        ]
       },
       "JobEventDto": {
         "type": "object",
@@ -6748,7 +8230,12 @@
           },
           "level": {
             "type": "string",
-            "enum": ["debug", "info", "warn", "error"]
+            "enum": [
+              "debug",
+              "info",
+              "warn",
+              "error"
+            ]
           },
           "message": {
             "type": "string"
@@ -6758,7 +8245,12 @@
             "nullable": true
           }
         },
-        "required": ["id", "at", "level", "message"]
+        "required": [
+          "id",
+          "at",
+          "level",
+          "message"
+        ]
       },
       "JobEventPageDto": {
         "type": "object",
@@ -6774,7 +8266,83 @@
             "nullable": true
           }
         },
-        "required": ["items"]
+        "required": [
+          "items"
+        ]
+      },
+      "NotificationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "01JBZ0Q4T7R8N4H1V0J9K2M3P5",
+            "description": "ULID."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "verify-email",
+              "magic-link",
+              "password-changed",
+              "device-approval",
+              "login-new-device",
+              "parental-waitlist",
+              "renewal-notice",
+              "low-credits",
+              "export-ready",
+              "share-comment"
+            ],
+            "description": "What happened. The client renders its own wording per locale, so the row carries no text of its own."
+          },
+          "workspaceId": {
+            "type": "object",
+            "nullable": true,
+            "description": "Workspace this belongs to, if any."
+          },
+          "data": {
+            "type": "object",
+            "description": "Template variables: project name, minutes remaining, a deep link."
+          },
+          "readAt": {
+            "type": "object",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "data",
+          "createdAt"
+        ]
+      },
+      "NotificationPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationDto"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true,
+            "description": "Pass as `cursor` for the next page."
+          },
+          "unread": {
+            "type": "number",
+            "description": "Unread rows for this user across every page — the bell's badge."
+          }
+        },
+        "required": [
+          "items",
+          "unread"
+        ]
       },
       "DlqEntryDto": {
         "type": "object",
@@ -6849,7 +8417,11 @@
           },
           "status": {
             "type": "string",
-            "enum": ["pending", "replayed", "discarded"]
+            "enum": [
+              "pending",
+              "replayed",
+              "discarded"
+            ]
           },
           "resolvedBy": {
             "type": "object",
@@ -6893,7 +8465,9 @@
             "nullable": true
           }
         },
-        "required": ["items"]
+        "required": [
+          "items"
+        ]
       },
       "DlqQueueStatsDto": {
         "type": "object",
@@ -6941,7 +8515,13 @@
             "description": "Distinct error codes among the pending rows."
           }
         },
-        "required": ["queue", "pending", "replayed", "discarded", "distinctErrors"]
+        "required": [
+          "queue",
+          "pending",
+          "replayed",
+          "discarded",
+          "distinctErrors"
+        ]
       },
       "DlqStatsDto": {
         "type": "object",
@@ -6957,7 +8537,10 @@
             "description": "Pending entries across every queue."
           }
         },
-        "required": ["queues", "pending"]
+        "required": [
+          "queues",
+          "pending"
+        ]
       },
       "BulkReplayDlqDto": {
         "type": "object",
@@ -6977,13 +8560,24 @@
           },
           "outcome": {
             "type": "string",
-            "enum": ["replayed", "discarded", "would_replay", "would_discard", "failed"]
+            "enum": [
+              "replayed",
+              "discarded",
+              "would_replay",
+              "would_discard",
+              "failed"
+            ]
           },
           "error": {
             "type": "string"
           }
         },
-        "required": ["entryId", "jobId", "queue", "outcome"]
+        "required": [
+          "entryId",
+          "jobId",
+          "queue",
+          "outcome"
+        ]
       },
       "BulkOutcomeDto": {
         "type": "object",
@@ -7012,7 +8606,14 @@
             }
           }
         },
-        "required": ["selected", "replayed", "discarded", "failed", "dryRun", "entries"]
+        "required": [
+          "selected",
+          "replayed",
+          "discarded",
+          "failed",
+          "dryRun",
+          "entries"
+        ]
       },
       "BulkDiscardDlqDto": {
         "type": "object",
@@ -7055,7 +8656,13 @@
             ]
           }
         },
-        "required": ["entryId", "jobId", "attemptId", "attemptNo", "queue"]
+        "required": [
+          "entryId",
+          "jobId",
+          "attemptId",
+          "attemptNo",
+          "queue"
+        ]
       },
       "DiscardDlqDto": {
         "type": "object",
@@ -7097,7 +8704,309 @@
             "description": "Whether a credit hold was actually released."
           }
         },
-        "required": ["entryId", "jobId", "queue", "reason", "holdReleased"]
+        "required": [
+          "entryId",
+          "jobId",
+          "queue",
+          "reason",
+          "holdReleased"
+        ]
+      },
+      "EdgDocumentDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number",
+            "description": "Compare-and-swap counter; one accepted batch raises it by 1."
+          },
+          "schemaVersion": {
+            "type": "number",
+            "description": "EDG schema generation (D28). Always 2 in this wave."
+          },
+          "hot": {
+            "type": "object",
+            "description": "`EdgHot` from `@montaj/edg` (CONTRACTS §2): meta, media, transcript, canvas, styles."
+          },
+          "segments": {
+            "description": "First page of segments, in `seq` order.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true,
+            "description": "Pass as `cursor` to `/edg/segments` for the next page."
+          },
+          "passes": {
+            "description": "Passes with their items.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "revision",
+          "schemaVersion",
+          "hot",
+          "segments",
+          "passes",
+          "updatedAt"
+        ]
+      },
+      "SegmentPageDto": {
+        "type": "object",
+        "properties": {
+          "segments": {
+            "description": "`Segment[]` from `@montaj/edg`, in `seq` order.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "nextCursor": {
+            "type": "object",
+            "nullable": true
+          },
+          "revision": {
+            "type": "number",
+            "description": "Revision the page was read at."
+          }
+        },
+        "required": [
+          "segments",
+          "revision"
+        ]
+      },
+      "PassListDto": {
+        "type": "object",
+        "properties": {
+          "passes": {
+            "description": "`Pass[]` from `@montaj/edg`.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "passes"
+        ]
+      },
+      "PassItemListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "`PassItem[]` from `@montaj/edg`.",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "RevisionDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number"
+          },
+          "ops": {
+            "description": "The ops as applied. Empty means the state was replaced (a snapshot restore).",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "clientOpIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "author": {
+            "type": "object",
+            "nullable": true,
+            "description": "User id, or null for a worker."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "web",
+              "desktop",
+              "premiere",
+              "ae",
+              "resolve",
+              "worker"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "revision",
+          "ops",
+          "clientOpIds",
+          "source",
+          "at"
+        ]
+      },
+      "RevisionPageDto": {
+        "type": "object",
+        "properties": {
+          "revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RevisionDto"
+            }
+          },
+          "latestRevision": {
+            "type": "number"
+          },
+          "nextFrom": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "revisions",
+          "latestRevision"
+        ]
+      },
+      "SnapshotDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "revision",
+          "createdAt"
+        ]
+      },
+      "SnapshotListDto": {
+        "type": "object",
+        "properties": {
+          "snapshots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SnapshotDto"
+            }
+          }
+        },
+        "required": [
+          "snapshots"
+        ]
+      },
+      "OpBatchRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "OpRejectionDto": {
+        "type": "object",
+        "properties": {
+          "opId": {
+            "type": "string",
+            "description": "The client op id that did not land."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "stale",
+              "conflict",
+              "invalid",
+              "invalid-range",
+              "not-contiguous",
+              "unknown-id",
+              "invariant",
+              "rebased-away",
+              "stale-after-resegment",
+              "forbidden",
+              "rate-limited"
+            ],
+            "description": "Closed enum (`packages/edg` README). Never free text."
+          },
+          "message": {
+            "type": "string",
+            "description": "Operator-facing detail; not for end users."
+          }
+        },
+        "required": [
+          "opId",
+          "reason"
+        ]
+      },
+      "OpBatchResponseDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number",
+            "description": "The revision after the batch; unchanged when nothing applied."
+          },
+          "applied": {
+            "description": "Op ids applied as written.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rebased": {
+            "description": "Op ids applied after a server-side rebase.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rejected": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpRejectionDto"
+            }
+          }
+        },
+        "required": [
+          "revision",
+          "applied",
+          "rebased",
+          "rejected"
+        ]
+      },
+      "ResegmentRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RestoreResultDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number",
+            "description": "The new revision the restore appended."
+          },
+          "segments": {
+            "type": "number",
+            "description": "Live segments after the restore."
+          }
+        },
+        "required": [
+          "revision",
+          "segments"
+        ]
       },
       "HealthResponseDto": {
         "type": "object",
@@ -7105,7 +9014,9 @@
           "status": {
             "type": "string",
             "example": "ok",
-            "enum": ["ok"]
+            "enum": [
+              "ok"
+            ]
           },
           "version": {
             "type": "string",
@@ -7113,14 +9024,20 @@
             "description": "Deployed API version."
           }
         },
-        "required": ["status", "version"]
+        "required": [
+          "status",
+          "version"
+        ]
       },
       "DependencyCheckDto": {
         "type": "object",
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["up", "down"]
+            "enum": [
+              "up",
+              "down"
+            ]
           },
           "latencyMs": {
             "type": "number",
@@ -7132,7 +9049,10 @@
             "description": "Present only when the check failed."
           }
         },
-        "required": ["status", "latencyMs"]
+        "required": [
+          "status",
+          "latencyMs"
+        ]
       },
       "ReadinessChecksDto": {
         "type": "object",
@@ -7147,14 +9067,21 @@
             "$ref": "#/components/schemas/DependencyCheckDto"
           }
         },
-        "required": ["db", "redis", "storage"]
+        "required": [
+          "db",
+          "redis",
+          "storage"
+        ]
       },
       "ReadinessResponseDto": {
         "type": "object",
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["ok", "degraded"]
+            "enum": [
+              "ok",
+              "degraded"
+            ]
           },
           "version": {
             "type": "string",
@@ -7164,7 +9091,11 @@
             "$ref": "#/components/schemas/ReadinessChecksDto"
           }
         },
-        "required": ["status", "version", "checks"]
+        "required": [
+          "status",
+          "version",
+          "checks"
+        ]
       }
     }
   }

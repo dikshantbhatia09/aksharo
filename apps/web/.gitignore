@@ -1,0 +1,6 @@
+# Renderer runtime assets, written by `pnpm --filter @montaj/web assets:render`
+# (scripts/copy-render-assets.mjs). They are copies of files that already live in
+# `canvaskit-wasm` and `@montaj/render-core/fixtures`, so committing them would
+# only duplicate 7 MB and let the two drift.
+public/canvaskit/
+public/fonts/

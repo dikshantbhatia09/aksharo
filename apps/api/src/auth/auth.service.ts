@@ -120,7 +120,9 @@ export class AuthService {
     const existing = await this.users.findByEmail(email);
     if (existing !== null && existing.deletedAt === null) {
       // Same response either way; only the mailbox owner learns the difference.
-      if (existing.emailVerifiedAt === null) await this.sendVerificationEmail(existing.id, email);
+      if (existing.emailVerifiedAt === null) {
+        await this.sendVerificationEmail(existing.id, email, existing);
+      }
       this.logger.log({ reason: "duplicate" }, "sign-up for an existing address");
       return { status: "verification_sent", email };
     }
@@ -139,7 +141,12 @@ export class AuthService {
       ...(input.ua === undefined ? {} : { ua: input.ua }),
     });
 
-    await this.sendVerificationEmail(created.userId, email);
+    // The row was written a line ago, so its locale and name are the input's —
+    // reading them back would be a query for values already in hand.
+    await this.sendVerificationEmail(created.userId, email, {
+      locale: input.locale ?? null,
+      name: input.name ?? null,
+    });
     await this.audit.record({
       action: AUTH_AUDIT_ACTIONS.signupStarted,
       resource: "user",
@@ -197,7 +204,7 @@ export class AuthService {
     }
 
     if (user.emailVerifiedAt === null) {
-      await this.sendVerificationEmail(user.id, email);
+      await this.sendVerificationEmail(user.id, email, user);
       throw new AppException(
         AUTH_ERRORS.emailNotVerified,
         "Confirm your email address first. We have sent you a new link.",
@@ -236,6 +243,7 @@ export class AuthService {
         template: "magic_link",
         token,
         link: this.mailer.webLink("/auth/magic-link", { token }),
+        ...mailRecipient(user),
       });
       await this.audit.record({
         action: AUTH_AUDIT_ACTIONS.magicLinkRequested,
@@ -434,7 +442,18 @@ export class AuthService {
     return { workspaceId, role: membership.role };
   }
 
-  private async sendVerificationEmail(userId: string, email: string): Promise<void> {
+  /**
+   * `recipient` is what the message is rendered from: A25 writes in the
+   * recipient's own language and greets them by name, and `users.locale` is the
+   * only place either is recorded. It is optional because one caller — the
+   * sign-up that has just created the row — has the values in hand and should not
+   * read them back.
+   */
+  private async sendVerificationEmail(
+    userId: string,
+    email: string,
+    recipient: MailRecipient = {},
+  ): Promise<void> {
     const token = randomToken(URL_TOKEN_BYTES);
     await this.redis.client.set(
       redisKeys.emailVerification(sha256Hex(token)),
@@ -447,6 +466,7 @@ export class AuthService {
       template: "email_verification",
       token,
       link: this.mailer.webLink("/auth/verify-email", { token }),
+      ...mailRecipient(recipient),
     });
   }
 
@@ -483,4 +503,29 @@ function invalidCredentials(): AppException {
     "That email address and password do not match.",
     HttpStatus.UNAUTHORIZED,
   );
+}
+
+/**
+ * What A25's templates need about the person, from whatever row is already in
+ * hand: `users.locale` and `users.name`, both nullable.
+ */
+interface MailRecipient {
+  readonly locale?: string | null;
+  readonly name?: string | null;
+}
+
+/**
+ * The recipient's language and name, as `AuthMail` fields.
+ *
+ * Absent keys rather than `undefined` ones, because `AuthMail` is spread into the
+ * notify payload and an explicit `undefined` would override the template's own
+ * fallback ("Hi there" / "नमस्ते जी") with nothing at all.
+ */
+function mailRecipient(recipient: MailRecipient): { locale?: string; name?: string } {
+  return {
+    ...(recipient.locale === undefined || recipient.locale === null
+      ? {}
+      : { locale: recipient.locale }),
+    ...(recipient.name === undefined || recipient.name === null ? {} : { name: recipient.name }),
+  };
 }

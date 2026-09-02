@@ -1,0 +1,79 @@
+{
+  "id": "prism-split",
+  "name": "Prism Split",
+  "version": 2,
+  "category": "bold",
+  "minPlan": "creator",
+  "typography": {
+    "fontFamily": "Montserrat",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 900,
+    "italic": false,
+    "sizePct": 6,
+    "lineHeight": 1.1,
+    "letterSpacingEm": -0.01,
+    "textTransform": "uppercase"
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#ffffff",
+    "accent": "#ffd400"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 20,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#101018",
+    "widthPct": 6
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 4,
+    "blurPct": 12,
+    "opacity": 0.45
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.72,
+    "align": "center",
+    "maxWidthPct": 86,
+    "maxLines": 2,
+    "safeAreaPct": 12
+  },
+  "animation": {
+    "in": {
+      "type": "slide-up",
+      "durationMs": 180
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 140
+    },
+    "wordHighlight": {
+      "type": "scale",
+      "durationMs": 130,
+      "scale": 1.14
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "pop",
+      "label": "Pop",
+      "scale": 1.22,
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/prism-split.mp4"
+}

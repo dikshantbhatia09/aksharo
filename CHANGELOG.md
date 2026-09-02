@@ -55,6 +55,199 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     when the filename's extension is one we know, and the extension that reaches a
     key is chosen from the same lists, never from the filename directly.
 
+- **A12 — api: the EDG module (hot document, `/edg/ops` with server-side rebase
+  and compare-and-swap, revisions, snapshots and restore, realtime `edg.ops`).**
+  - `apps/api/src/edg/edg.repository.ts`: A02b's `EdgRepository` over Prisma. One
+    batch is one transaction — `SELECT … FOR UPDATE` on the document row,
+    `rebaseOps` against the ops since the client's base, `applyOps` on a partial
+    state, row-level writes, then
+    `UPDATE edg_documents SET revision = revision + 1 … WHERE revision = $observed
+RETURNING revision`. The lock makes read-decide-write atomic; the CAS is the
+    same invariant written into the statement rather than into a convention, so
+    `edg_documents.revision` rises by exactly one per accepted batch (06
+    invariant 3) even if a later caller forgets the lock.
+  - **The working set** (`edg.working-set.ts`). A batch reads the rows its ops
+    name plus exactly the neighbours `@montaj/edg/ops` reaches for — the segment
+    after the last one addressed (a split mints a `seq` between them), everything
+    between the addressed ones (a merge checks contiguity), the segments a deleted
+    word bounds, and one transcript chunk either side of each one named. Most
+    edits read no words at all: setting text, style, position or `hidden` never
+    asks the engine about a word. Measured on the compose Postgres, a single-op
+    batch is **median 33 ms, p95 67 ms on a 9,000-segment document** — no slower
+    than on a twelve-segment one, which is the claim the design makes.
+    `Resegment` is the one op with no bounded form and says so rather than
+    guessing.
+  - **Rebase, or 409.** A client that is behind is rebased server-side and
+    applied (`OpBatchResponse.rebased`). Two things the server may not decide for
+    the user come back as `409`: a `conflict` verdict — two writers typing
+    different text into the same caption or correcting the same word — carrying
+    `{latestRevision, opsSince, conflicts}` with **both texts** and never the
+    document (D29); and `edg/too_stale` past 200 revisions or across a state
+    replacement.
+  - **Word edits touch one row.** `EditWord`, `DeleteWord` and `InsertWordAfter`
+    patch only the `transcript_chunks` row the word lives in, raise its
+    `next_word_seq` (ids are never reused, 06 invariant 4), and move
+    `transcripts.current_revision` only when a word actually changed.
+  - **Snapshots** every 100 revisions (`SNAPSHOT_EVERY`, D28) plus one at
+    creation, stored without the transcript chunks — they live in their own
+    table. `POST /edg/snapshots/{n}/restore` **appends** a revision that replaces
+    the state; history is never rewritten, so restoring a later snapshot undoes
+    it. A revision with no ops is the log's way of saying "the state was
+    replaced", and anybody rebasing across one is told to reload.
+  - **Idempotency** on `edg_revisions.client_op_ids` with a GIN index
+    (`prisma/sql/0006-a12-edg.sql`): a retry after a dropped response returns the
+    revision the first attempt produced instead of applying the edit twice.
+  - **Rate limiting** per workspace — 20 batches of burst refilling at 5/s —
+    because one seat with twenty tabs is one document being edited. Exhaustion is
+    `429 common/rate_limited` whose `details.rejected` marks every op
+    `rate-limited`, the one reason in `packages/edg`'s closed enum the API raises
+    and the engine never does. Fails open on a Redis outage.
+  - **`MergePass` is worker-only.** "worker" is never a claim in a user's token;
+    the only route that submits ops as one is
+    `POST /internal/projects/{id}/edg/ops`, behind the CONTRACTS §3 HMAC.
+  - `EdgService.initialise(projectId, transcript)` — the entry point A11 calls
+    once a transcript is segmented. Idempotent by project.
+  - Realtime `edg.ops {revision, ops, source}` to `project:{id}` after the commit
+    (CONTRACTS §7); the envelope's `at` is the server time.
+  - Schema: `edg_pass_items.keyframes_ref` (CONTRACTS §2 freezes
+    `PassItem.keyframesRef`; the table had only the bytes column) and
+    `edg_segments (edg_id, start_word_id)` / `(edg_id, end_word_id)`, which is how
+    a word delete finds the segments it bounds.
+
+- **A16 — `@montaj/render-core`, `@montaj/render-canvaskit`, the 30 system styles and
+  the editor's caption canvas.**
+  - `@montaj/render-core` is implemented: `(StyleDoc, segment, words, time, canvas) →
+DrawCommand[]`, pure TypeScript, HarfBuzz-wasm shaping (`harfbuzzjs` 1.6.1, pinned),
+    a `FontRegistry` abstraction and no system fonts (D33). `layoutSegment` produces
+    absolute geometry; `animate` turns it into commands as a pure function of time;
+    `renderFrame` maps output time to source time through `@montaj/timemap` (D30),
+    resolves each visible segment's effective style and draws them in `seq` order.
+  - The `DrawCommand` union: `text` (shaped glyph ids with paired absolute positions
+    and clusters), `rect`, `roundRect`, `path`, `image`, `group`, `transform`, `clip`,
+    `shadow` and `blur` — the last with a `backdrop` flag for the styles that sample the
+    video behind them. Fills and strokes take a solid or gradient `Paint`. Everything is
+    JSON-serialisable and quantised, so a command list hashes stably and can be stored,
+    diffed and shipped to a worker. `outlineTextCommands()` converts every glyph run to
+    a path for a backend that cannot draw glyph ids, which is how A20's Canvas2D surface
+    executes the same list.
+  - Line breaking reproduces the segmenter's split rather than inventing one: the same
+    greedy character wrap with the same counting rule (base code points, combining marks
+    excluded). Only genuine metric overflow changes anything, and then the answer is
+    shrink-to-fit; re-wrapping by width happens only at the shrink floor, and a break
+    inside a word only when one word alone is too wide — always on a HarfBuzz cluster
+    boundary, so a Devanagari matra or a Tamil conjunct is never cut in half.
+  - Sizes stay relative: type, position and safe area off the canvas height, stroke,
+    shadow, padding and radius off the font size, so one document renders identically at
+    1080×1920 and at the 540p proxy. Document-level overrides are read from
+    `styles.inline.doc` and beaten by a segment's own `overrides`.
+  - `@montaj/render-canvaskit` executes the command list on Skia-WASM (`canvaskit-wasm`
+    0.42.0, pinned): WebGL where available, CPU raster otherwise, both reported to the
+    caller. Per-frame Skia objects live in an arena that is released however the frame
+    ends, and a missing font or image is reported rather than thrown.
+  - The 23 remaining styles in `styles/registry.json` are drawn, so all 30 validate,
+    render and have a committed preview. Four need a capability StyleDoc v2 has no field
+    for (two gradients, one backdrop blur, two raster passes); that ink lives in
+    `render-core`'s `styles/capabilities.ts` keyed by style id rather than in a widened
+    frozen schema.
+  - `apps/web`: `StylePreviewCanvas` (a style drawn live, still or looping its
+    three-second preview), `CaptionStage` (proxy video plus the CanvasKit overlay, safe
+    zones, and a draggable caption box that emits exactly one `SetSegmentPosition` per
+    drop, scrubbed with `requestVideoFrameCallback`), and the Style/Colors/Look/Anim
+    right panel whose every control emits one `SetStyle` at the current scope.
+    `/studio/styles` mounts the panel against the system catalogue.
+  - Tests: golden `DrawCommand[]` hashes for 30 styles × 4 caption fixtures (Hinglish,
+    Hindi, Tamil, English) × 3 instants plus full committed command lists; determinism
+    tests; a chromium Playwright lane that executes a stored command list with CanvasKit
+    and compares the encoded frame against the PNG Skia-in-Node drew from the same list,
+    within D33's parity SLO. `render-core` sits at 99% lines / 93% branches against the
+    90/85 gate, and a two-line 1080p frame lays out and draws in **0.11 ms** (p50)
+    against a 2 ms target.
+- **A25 — api: `notify` consumer, transactional email (SES/SMTP/dev outbox),
+  English and Hindi templates, suppression, in-app notifications.**
+  - `apps/api/src/notify`: a `MailProvider` port with three adapters chosen once
+    at boot by `MAIL_PROVIDER` — `SesProvider` (AWS SDK v3 SESv2, credentials from
+    the pod's IRSA role and region from `S3_REGION`, so there is still no mail key
+    in CONTRACTS section 1), `SmtpProvider` (pooled nodemailer from `SMTP_URL`;
+    Mailpit locally under the new compose profile `mail`), and `DevOutboxProvider`,
+    which writes A04's Redis list at A04's key in A04's entry shape plus the
+    rendered message and refuses to run in production. A misconfigured transport is
+    a startup failure rather than a queue quietly filling with undeliverable jobs.
+  - `NotifyService.enqueue({kind, to, locale, data, idempotencyKey})` — the brief's
+    payload, carried as the `payload` of the frozen CONTRACTS section 3 envelope so
+    a future out-of-process consumer parses the same shape. The idempotency key is
+    the BullMQ job id, which is what makes a repeated enqueue a no-op; a message
+    produced before a user belongs to anything uses the documented sentinel
+    `workspaceId: "none"`, because the envelope requires a non-empty one.
+    Enqueueing never throws for a delivery reason: a notification is a side effect
+    of work the caller cares about, so a Redis hiccup is logged, exactly as
+    `RealtimePublisher` already swallows one.
+  - `NotifyConsumer`: one BullMQ `Worker` inside the API process behind
+    `NOTIFY_WORKER_ENABLED` (default on; `0` for one-shot processes and test runs,
+    the same lever `MONTAJ_SCHEDULER_DISABLED` is for the scheduler). Sending is a
+    render and one HTTPS call, so a second deployable would be a rollout and an
+    on-call surface for work the API is already sized for. Per job: suppression,
+    then a ten-an-hour per-recipient bucket that the account-security kinds skip,
+    then a delivery receipt checked before the render and written after the send —
+    so the queue's five retries cannot deliver the same message twice. A malformed
+    payload or a template missing a variable is an `UnrecoverableError`, because no
+    amount of retrying fixes either.
+  - Ten templates (`verify-email`, `magic-link`, `password-changed`,
+    `device-approval`, `login-new-device`, `parental-waitlist`, `renewal-notice`,
+    `low-credits`, `export-ready`, `share-comment`) as hand-written responsive HTML
+    plus a real text part, from ICU MessageFormat strings in English and Hindi
+    (08 section 6). **No remote images and therefore no tracking pixel**; values are
+    escaped before ICU formats them, so a project called `<b>` is text and not
+    markup; brand words arrive as `{brand}`/`{support}` from
+    `packages/config/src/brand.ts` rather than being written into a string
+    (CONTRACTS section 0). `List-Unsubscribe` (RFC 8058 one-click) only on
+    `low-credits` and `share-comment` — everything else is transactional or, for
+    the pre-debit `renewal-notice`, legally required.
+  - `POST /internal/mail/events`: the SES bounce and complaint feed over SNS,
+    authenticated by the **SNS message signature** rather than by
+    `InternalSignatureGuard`, because SNS will not compute our HMAC. Canonical
+    string, RSA-SHA1/SHA-256 verify, and a signing certificate fetched only from
+    `https://sns.<region>.amazonaws.com/*.pem` (05 section 8's SSRF rule) — without
+    that check the route would let anyone suppress any address they can name. SNS
+    posts `text/plain`, so a middleware parses the body for that one route instead
+    of widening the global parser. A `SubscriptionConfirmation` is verified and
+    logged but never auto-confirmed: confirming is an outbound GET to a URL that
+    arrived in a request.
+  - Suppression: permanent for a hard bounce or any complaint, a fortnight for a
+    transient one, released early by a later `Delivery`. The live set is in Redis
+    keyed by SHA-256 of the address (a Redis dump should not be a mailing list) and
+    every change — including each message _not_ sent — is an `audit_log` row with
+    the address masked, because a cache is not an answer to "why did we stop
+    mailing this customer?".
+  - In-app notifications: a `notifications` table (`id`, `userId`, `workspaceId?`,
+    `kind`, `data`, `readAt`, `createdAt`, both keys cascading so erasure takes the
+    bell with it), `GET /me/notifications` and `POST /me/notifications/{id}/read`
+    scoped to the user from the access token, and a realtime `notification.created`
+    event on the workspace room. Rows carry no body text: wording is rendered per
+    locale at read time, so switching language switches the bell.
+  - A04's `AuthMailerService` is now a thin adapter onto `NotifyService.enqueue`
+    instead of a logger. Its e2e suite completes real sign-up, verification and
+    magic-link flows unchanged — delivery became asynchronous, so `auth-harness`
+    drains the queue before reading the outbox rather than sleeping and hoping.
+  - `MAIL_SNS_TOPIC_ARN` (optional): when set, `POST /internal/mail/events` refuses
+    a correctly signed SNS message published to any other topic, and refuses it
+    before fetching the certificate. The signature proves AWS published the
+    message, not that we own the topic it came from, so an account can sign a
+    perfectly valid bounce for any address from a topic of its own. Unset, any
+    topic is accepted — a deployment that has not configured it is better off
+    receiving bounces than silently discarding them.
+  - Auth mail is written in the recipient's language: `users.locale` (default
+    `en-IN`) reaches `AuthMailerService` from both call sites, and
+    `test/notify-locale.e2e-spec.ts` drives a real sign-up to prove a `hi-IN`
+    account receives the Hindi subject and greeting — a chain that runs from the
+    sign-up request through the stored row, the notify job and the renderer, and
+    that no single-layer test would catch breaking.
+  - `tools/runbooks/mail-outbox.js` prints the development outbox.
+  - 130 notify tests (template snapshots in both languages, provider selection and
+    each adapter, SNS signature verification against a per-run self-signed
+    certificate, suppression, retry and idempotency semantics, both bell endpoints)
+    plus an HTTP suite for the `text/plain` webhook body. `apps/api` sits at 93.9%
+    lines and 87.2% branches against the CONTRACTS section 9 gate of 75/70.
+
 - **A09 — worker-ai: the BullMQ Python worker, provider interface, VAD and
   chunking, alignment and diarisation registries, evals.**
   - `apps/worker-ai/worker_ai/runtime.py`: one `bullmq.Worker` per `ai.*` queue.
@@ -122,6 +315,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     signature, and `tests/test_integration.py` — a real BullMQ job from the API's
     own producer modules, consumed by a real worker, completing against the real
     API (`RUN_INTEGRATION=1`).
+
 - **A05 — api: users, workspaces (tax profile), memberships, consent, privacy.**
   - `apps/api/src/users/`: `GET`/`PATCH /me` (name, avatar, locale, onboarding
     state, marketing opt-in, with a change to the opt-in also appending a
@@ -179,6 +373,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     probes the daemon at once, and A05 took that from three suites to five; a
     timeout there does not fail a run, it silently skips every integration suite.
     A daemon that is genuinely absent still fails in milliseconds.
+
 - **A08b — api: dead-letter queue, admin replay, retry/stall policy, job-event
   retention.**
   - `apps/api/prisma`: the `dlq` table (migration
@@ -611,6 +806,27 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `needs_realign`, `thumb_keys`, `raw_purged_at` and `derived_purged_at`, and
   `MediaRole` gains `subtitle`
   (`prisma/migrations/20260902050000_a06_folders_media_upload`).
+- **A25** — `.env.example`, `packages/config/src/env.ts`, the Terraform secrets
+  contract and the Helm chart all gained `MAIL_PROVIDER`, `MAIL_FROM` and
+  `SMTP_URL`, the three variables CONTRACTS section 1 added after A04, and
+  `GPU_PROVIDER_URL` (non-secret) and `GPU_PROVIDER_TOKEN` (secret, human-filled),
+  the two it added after A09 — A25 was the next work package to touch all four
+  files, so it carried them across rather than leaving the parity check red.
+  `MAIL_SNS_TOPIC_ARN` followed after A25's first review.
+  `apps/worker-ai/worker_ai/settings.py` mirrors that list and its test enforces
+  the mirror, so the six names were added there too and the GPU pair moved out
+  of `WORKER_ENV_VARS`: they are product configuration now, not deployment
+  naming. `infra/scripts/check-contracts-parity.py` reports 38/38 on both sides.
+  `loadEnv()` also gained a cross-field check (`crossFieldProblems`): `ses` and
+  `smtp` require `MAIL_FROM`, and `smtp` requires `SMTP_URL`. It lives beside the
+  schema rather than inside it because a `.superRefine()` would remove
+  `envSchema.shape`, which the contract test walks.
+- **A25** — `REALTIME_EVENTS` gained `notification.created`, now also named in
+  CONTRACTS section 7.
+- **A25** — `UsersService.findByEmail` selects `locale`. It is the only lookup the
+  auth flows do before sending a message, and A25 renders that message in the
+  recipient's language; the alternative was a second query on the sign-in path.
+
 - **A02b** — `OpRejectionReasonSchema` gained `invalid-range`, `not-contiguous`,
   `invariant`, `rebased-away` and `stale-after-resegment`. The reason list is a
   closed enum that the ops engine was always meant to extend rather than send free

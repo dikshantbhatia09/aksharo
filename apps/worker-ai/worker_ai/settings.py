@@ -55,8 +55,9 @@ WORKER_ENV_VARS: tuple[str, ...] = (
     "WORKER_AI_VAD_MODEL",
     "WORKER_AI_WHISPER_MODEL",
     "WORKER_AI_ALLOW_MOCK",
-    "GPU_PROVIDER_URL",
-    "GPU_PROVIDER_TOKEN",
+    # GPU_PROVIDER_URL and GPU_PROVIDER_TOKEN started here and moved into
+    # CONTRACTS section 1 (added 2026-09-02 after A09), so they are product
+    # configuration now and live in CONTRACT_ENV_VARS above.
     "FFMPEG_BIN",
     "FFPROBE_BIN",
 )
@@ -92,9 +93,15 @@ CONTRACT_ENV_VARS: tuple[str, ...] = (
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
     "GPU_PROVIDER",
+    "GPU_PROVIDER_URL",
+    "GPU_PROVIDER_TOKEN",
     "SENTRY_DSN",
     "POSTHOG_KEY",
     "FEATURE_FLAGS_JSON",
+    "MAIL_PROVIDER",
+    "MAIL_FROM",
+    "SMTP_URL",
+    "MAIL_SNS_TOPIC_ARN",
 )
 
 #: Subset this worker cannot start without.
