@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -19,7 +20,7 @@ import {
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 
-import { AdminRefundDto, AdminRefundResultDto } from "./admin-billing.dto.js";
+import { AdminDunningEntryDto, AdminRefundDto, AdminRefundResultDto } from "./admin-billing.dto.js";
 import { AdminBillingService } from "./admin-billing.service.js";
 import { clientIp } from "../../common/guards/principal.js";
 import { AdminRoles } from "../admin-roles.decorator.js";
@@ -42,6 +43,20 @@ import type { AuthenticatedRequest } from "../../common/guards/principal.js";
 @Controller("admin/billing")
 export class AdminBillingController {
   constructor(private readonly billing: AdminBillingService) {}
+
+  @Get("dunning")
+  @ApiOperation({
+    summary: "Subscriptions past due, with mandate status and next actions",
+    description:
+      "Read-only monitor: `graceUntil` (D40's 3-day entitlement grace) and `renewalInitiateAt` " +
+      "(the 48h-ahead retry) are the two 'what happens next, when' fields; the mandate ladder " +
+      "itself is billing/dunning.ts, unchanged by this WP.",
+    operationId: "adminDunningMonitor",
+  })
+  @ApiOkResponse({ type: [AdminDunningEntryDto] })
+  async dunning(): Promise<AdminDunningEntryDto[]> {
+    return this.billing.dunningMonitor();
+  }
 
   @Post("passes/:passPurchaseId/refund")
   @HttpCode(HttpStatus.OK)

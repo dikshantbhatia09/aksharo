@@ -44,3 +44,17 @@ export class AdminRefundResultDto {
   })
   creditNoteSkippedReason?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Mandate/dunning monitor (B13 scope §2, read-only)
+// ---------------------------------------------------------------------------
+
+export class AdminDunningEntryDto {
+  @ApiProperty() subscriptionId!: string;
+  @ApiProperty() workspaceId!: string;
+  @ApiProperty() status!: string;
+  @ApiPropertyOptional({ format: "date-time" }) graceUntil?: string | null;
+  @ApiPropertyOptional({ format: "date-time" }) renewalInitiateAt?: string | null;
+  @ApiPropertyOptional() mandateStatus?: string | null;
+  @ApiPropertyOptional() mandateMethod?: string | null;
+}

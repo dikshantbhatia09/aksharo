@@ -198,6 +198,40 @@ admin-step-up.{controller,service,dto,constants}.ts`: TOTP enrol/verify
   report "open questions" for the seam this leaves: the worker reading its
   table from this store instead of the bundled YAML).
 
+- **B13d — job monitor + cancel, mandate/dunning monitor, TDS reports,
+  affiliate review + chained self-referral hold, DSR/breach (consumed,
+  B16), share-link report resolution, support stub (B12 absent).**
+  `apps/api/src/admin/jobs/**`: cross-tenant job list/stats/cancel — the
+  live-queue half of "job monitor (queues, counts, failed, DLQ)"; A08b's
+  `AdminDlqController` already had the dead-letter half.
+  `apps/api/src/admin/billing/admin-billing.controller.ts` gains `GET
+/admin/billing/dunning` (past-due subscriptions with mandate status/next
+  actions — read-only). `apps/api/src/admin/affiliates/**`: pending-review
+  list, `GET .../tds/:fy/export.csv` (every affiliate's FY gross/TDS/net),
+  `GET .../:id/form16a` (B07's existing PDF stub renderer, wired to a
+  controller for the first time); the 4 existing admin approve/suspend/
+  reject/revoke-code routes in `affiliates.controller.ts` now carry
+  `@AdminRoles("ops", "finance", "superadmin")`. **Orchestrator addendum**
+  (chained self-referral): `referral_rewards.hold_reason` (migration
+  `20260903040000`) — a referred workspace whose owner claimed as referred
+  for a different referrer within 90 days stays `pending` and is held out
+  of `grantForExport`'s auto-grant; `apps/api/src/admin/referrals/**`
+  reviews the queue (`ops`/`finance`/`superadmin`) and approves (settles
+  through the normal cap-check path) or rejects. The addendum's other
+  signal — a bare device/IP fingerprint match against any prior claim — was
+  tried and dropped: it false-positived on every claim sharing a
+  reused/NAT'd IP or common user agent (real traffic, not just this WP's
+  own e2e fixtures), which is exactly the failure mode
+  `immediateRejectionReason`'s narrowly-scoped "same as the referrer's OWN
+  session" check was built to avoid; left as a follow-up rather than shipped
+  as a blunt instrument. `apps/api/src/admin/share/**`: `GET
+/admin/share-reports` + `POST .../:id/resolve` (take-down calls a new
+  `ShareLinksService.adminTakedown`; "notify" is not wired — no
+  NOTIFY_KINDS template exists for it, see "open questions").
+  `apps/api/src/admin/support/admin-support.controller.ts`: a stub
+  (`GET /admin/support/status`) — `apps/api/src/support/**` (B12) had not
+  merged as of this commit.
+
 - **A23 — Gate A e2e journey, sample-project seed, wave verification script,
   X02 load harness.** `apps/web/e2e/gate-a.spec.ts`: sign-up (adult, India)
   through onboarding, a real MinIO upload, transcription completion via the

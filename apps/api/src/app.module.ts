@@ -2,7 +2,10 @@ import { Module } from "@nestjs/common";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 
 import { AdminModule } from "./admin/admin.module.js";
+import { AdminAffiliatesModule } from "./admin/affiliates/admin-affiliates.module.js";
 import { AdminBillingModule } from "./admin/billing/admin-billing.module.js";
+import { AdminReferralsModule } from "./admin/referrals/admin-referrals.module.js";
+import { AdminShareModule } from "./admin/share/admin-share.module.js";
 import { AdminUsersModule } from "./admin/users/admin-users.module.js";
 import { AffiliatesModule } from "./affiliates/affiliates.module.js";
 import { AudioModule } from "./audio/audio.module.js";
@@ -129,6 +132,9 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     InvoicesModule,
     AdminBillingModule,
     AdminUsersModule,
+    AdminReferralsModule,
+    AdminAffiliatesModule,
+    AdminShareModule,
     // B08: team/agency seat + pooled-credit sync, ownership transfer, client
     // tags (`TeamsModule`), device registration/management (`DevicesModule`),
     // licence keys and the plugin activate/heartbeat surface

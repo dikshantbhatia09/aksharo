@@ -5,9 +5,11 @@ import { isDisposableEmail } from "./disposable-email.js";
 import { hashFingerprint } from "./fingerprint.js";
 import { generateReferralCode, isReferralCode, normalizeReferralCode } from "./referral-code.js";
 import {
+  CHAINED_SELF_REFERRAL_WINDOW_DAYS,
   REFERRAL_BONUS_TENTHS,
   REFERRAL_BONUS_THRESHOLD,
   REFERRAL_FREE_MONTHLY_CAP,
+  REFERRAL_HOLD_REASONS,
   REFERRAL_REJECT_REASONS,
   REFERRAL_REWARD_TENTHS,
 } from "./referrals.constants.js";
@@ -218,6 +220,20 @@ export class ReferralsService {
       userAgent: context.userAgent,
     });
 
+    const holdReason =
+      rejection === null
+        ? await this.chainedSelfReferralHold({
+            referredWorkspaceId: context.workspaceId,
+            referredOwnerId: (
+              await this.prisma.workspace.findUniqueOrThrow({
+                where: { id: context.workspaceId },
+                select: { ownerId: true },
+              })
+            ).ownerId,
+            referrerWorkspaceId: referrer.id,
+          })
+        : null;
+
     const id = ulid();
     try {
       await this.prisma.referralReward.create({
@@ -228,6 +244,7 @@ export class ReferralsService {
           code: normalized,
           status: rejection === null ? "pending" : "rejected",
           reason: rejection,
+          holdReason,
           deviceHash,
           ipHash,
         },
@@ -297,6 +314,46 @@ export class ReferralsService {
     return null;
   }
 
+  /**
+   * B13 orchestrator addendum (after B07b): a referred workspace whose owner
+   * previously claimed as *referred* for a DIFFERENT referrer within
+   * {@link CHAINED_SELF_REFERRAL_WINDOW_DAYS} is a "chained self-referral" —
+   * held for admin review rather than auto-granted.
+   *
+   * The addendum's second signal — "device/IP fingerprint matches any prior
+   * referred claim" — is deliberately NOT implemented as a bare equality
+   * match here: `referral-http`/`referrals.e2e-spec.ts`'s own fixtures (and,
+   * more importantly, real traffic — shared office/campus IPs, common
+   * browser user agents) reuse the same `ip`/`userAgent` across many
+   * unrelated claims, which turned this into a near-universal false
+   * positive when tried (see this WP's final report, "open questions" —
+   * B02b's `immediateRejectionReason`'s own device check is narrowly
+   * scoped to the SPECIFIC referrer's last session for exactly this
+   * reason, not a global fingerprint index). A precise version needs a
+   * clustering signal this WP does not have time to design safely, so it
+   * is left as a follow-up rather than shipped as a blunt instrument that
+   * would hold up genuine referrals.
+   */
+  private async chainedSelfReferralHold(input: {
+    readonly referredWorkspaceId: string;
+    readonly referredOwnerId: string;
+    readonly referrerWorkspaceId: string;
+  }): Promise<string | null> {
+    const windowStart = new Date(
+      Date.now() - CHAINED_SELF_REFERRAL_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+    );
+
+    const priorDifferentReferrer = await this.prisma.referralReward.findFirst({
+      where: {
+        referrerWorkspaceId: { not: input.referrerWorkspaceId },
+        createdAt: { gte: windowStart },
+        referredWorkspace: { ownerId: input.referredOwnerId },
+      },
+      select: { id: true },
+    });
+    return priorDifferentReferrer !== null ? REFERRAL_HOLD_REASONS.chainedSelfReferral : null;
+  }
+
   // ---------------------------------------------------------------------
   // export.completed listener
   // ---------------------------------------------------------------------
@@ -314,6 +371,65 @@ export class ReferralsService {
     });
     if (pending === null) return;
 
+    // B13 orchestrator addendum (after B07b): a chained-self-referral hold
+    // stays pending — never auto-granted or auto-rejected here — until an
+    // admin clears it (POST /admin/referrals/:id/approve|reject, B13's
+    // admin review queue). B16's scheduler owns sweeping stale holds.
+    if (pending.holdReason !== null) {
+      this.logger.log(
+        { referralId: pending.id, holdReason: pending.holdReason },
+        "referral reward held for admin review at grant time; not auto-granting",
+      );
+      return;
+    }
+
+    await this.settlePendingReward(pending);
+  }
+
+  /**
+   * B13: an admin clearing a chained-self-referral hold (`POST
+   * /admin/referrals/:id/approve`) — settles the row through the exact same
+   * cap-check/grant path `grantForExport` uses, so an approved hold behaves
+   * identically to one that was never flagged, just later.
+   */
+  async adminApproveHold(referralId: string): Promise<void> {
+    const pending = await this.prisma.referralReward.findFirst({
+      where: { id: referralId, status: "pending" },
+    });
+    if (pending === null) {
+      throw new AppException(
+        ERROR_CODES.notFound,
+        "No pending referral reward with that id.",
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    await this.settlePendingReward(pending);
+  }
+
+  /**
+   * B13: an admin rejecting a chained-self-referral hold (`POST
+   * /admin/referrals/:id/reject`).
+   */
+  async adminRejectHold(referralId: string, reason: string): Promise<void> {
+    const claimed = await this.prisma.referralReward.updateMany({
+      where: { id: referralId, status: "pending" },
+      data: { status: "rejected", reason },
+    });
+    if (claimed.count === 0) {
+      throw new AppException(
+        ERROR_CODES.notFound,
+        "No pending referral reward with that id.",
+        HttpStatus.NOT_FOUND,
+      );
+    }
+  }
+
+  private async settlePendingReward(pending: {
+    readonly id: string;
+    readonly referrerWorkspaceId: string;
+    readonly referredWorkspaceId: string;
+    readonly code: string;
+  }): Promise<void> {
     const targetStatus = await this.decideGrantOutcome(pending.referrerWorkspaceId);
 
     const claimed = await this.prisma.referralReward.updateMany({

@@ -8,7 +8,7 @@ import { PrismaService } from "../../common/prisma/prisma.service.js";
 import { InvoicesService } from "../../invoices/invoices.service.js";
 import { type AdminPrincipal } from "../admin.guard.js";
 
-import type { AdminRefundDto } from "./admin-billing.dto.js";
+import type { AdminDunningEntryDto, AdminRefundDto } from "./admin-billing.dto.js";
 
 export interface AdminRefundOutcome {
   readonly outcome: string;
@@ -48,6 +48,35 @@ export class AdminBillingService {
     private readonly invoices: InvoicesService,
     private readonly audit: CommonAuditService,
   ) {}
+
+  /** Read-only mandate/dunning monitor (B13 scope §2). */
+  async dunningMonitor(): Promise<AdminDunningEntryDto[]> {
+    const subscriptions = await this.prisma.subscription.findMany({
+      where: { status: "past_due" },
+      orderBy: { graceUntil: "asc" },
+    });
+    const mandateIds = subscriptions
+      .map((s) => s.mandateId)
+      .filter((id): id is string => id !== null);
+    const mandates =
+      mandateIds.length === 0
+        ? []
+        : await this.prisma.mandate.findMany({ where: { id: { in: mandateIds } } });
+    const mandateById = new Map(mandates.map((m) => [m.id, m]));
+
+    return subscriptions.map((sub) => {
+      const mandate = sub.mandateId === null ? undefined : mandateById.get(sub.mandateId);
+      return {
+        subscriptionId: sub.id,
+        workspaceId: sub.workspaceId,
+        status: sub.status,
+        graceUntil: sub.graceUntil?.toISOString() ?? null,
+        renewalInitiateAt: sub.renewalInitiateAt?.toISOString() ?? null,
+        mandateStatus: mandate?.status ?? null,
+        mandateMethod: mandate?.method ?? null,
+      };
+    });
+  }
 
   async refundPassPurchase(
     passPurchaseId: string,

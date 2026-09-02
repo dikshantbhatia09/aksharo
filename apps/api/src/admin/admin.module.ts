@@ -8,6 +8,7 @@ import { AdminStepUpService } from "./auth/admin-step-up.service.js";
 import { AdminCreditsController } from "./credits/admin-credits.controller.js";
 import { AdminDlqController } from "./dlq/dlq.controller.js";
 import { AdminFlagsController } from "./flags/admin-flags.controller.js";
+import { AdminJobsController } from "./jobs/admin-jobs.controller.js";
 import { AdminParentalWaitlistController } from "./parental-waitlist.controller.js";
 import { AdminPrivacyController } from "./privacy/admin-privacy.controller.js";
 import { AdminRoutingController } from "./routing/admin-routing.controller.js";
@@ -15,6 +16,7 @@ import { AdminSchedulerController } from "./scheduler/admin-scheduler.controller
 import { AdminStreakController } from "./streak/admin-streak.controller.js";
 import { AdminStreakService } from "./streak/admin-streak.service.js";
 import { AdminStylesController } from "./styles/admin-styles.controller.js";
+import { AdminSupportController } from "./support/admin-support.controller.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { AdminOffersController } from "../offers/admin-offers.controller.js";
 import { OffersModule } from "../offers/offers.module.js";
@@ -47,6 +49,7 @@ import { PrivacyModule } from "../privacy/privacy.module.js";
     AdminStepUpController,
     AdminDlqController,
     AdminFlagsController,
+    AdminJobsController,
     AdminParentalWaitlistController,
     AdminCreditsController,
     AdminOffersController,
@@ -56,6 +59,7 @@ import { PrivacyModule } from "../privacy/privacy.module.js";
     AdminSchedulerController,
     AdminRoutingController,
     AdminStylesController,
+    AdminSupportController,
   ],
   providers: [AdminGuard, AdminStepUpService, AdminStreakService, AdminAcquisitionService],
   exports: [AdminGuard],

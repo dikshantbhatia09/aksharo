@@ -2628,6 +2628,14 @@ model ReferralReward {
   /// Abuse fingerprints captured from the claiming request (THREAT-MODEL T17).
   deviceHash          String?              @map("device_hash")
   ipHash               String?             @map("ip_hash")
+  /// B13 orchestrator addendum (after B07b): set (status stays `pending`) when
+  /// the referred workspace's owner previously claimed as referred for a
+  /// DIFFERENT referrer within 90 days, or its device/IP fingerprint matches
+  /// any prior referred claim — "chained self-referral". Held out of
+  /// `grantForExport`'s auto-grant until an admin clears it
+  /// (`POST /admin/referrals/:id/approve`) or rejects it. Distinct from
+  /// `reason`, which is only ever set once `status = rejected`.
+  holdReason           String?              @map("hold_reason")
   createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
 
   referrerWorkspace Workspace @relation("ReferralRewardReferrer", fields: [referrerWorkspaceId], references: [id], onDelete: Cascade)
