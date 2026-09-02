@@ -52,6 +52,87 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **A15 — web: editor transcript column, EDG op queue, undo/redo, conflict
+  chooser, reflow.** The left column of `/p/{id}` (08 §4) and the store
+  everything else in the editor reads from.
+  - **`EditorStore` (`apps/web/lib/edg/store.ts`)** is a plain class, not a
+    hook: `serverState` (confirmed by the API) and `localState`
+    (`serverState` with `EdgOpQueue.pendingOps()` applied through
+    `@montaj/edg/ops`' own `applyOps`) are kept separate so optimistic edits,
+    a 409 rebase and a realtime `edg.ops` merge all converge on the same
+    function rather than three bespoke reconciliation paths.
+  - **`EdgOpQueue` (`lib/edg/queue.ts`)** batches ops (debounce 250 ms, cap 50
+    a batch — the brief's own numbers; the orchestrator's later "Facts
+    decided" summary says ~400 ms with no cap, a discrepancy reported rather
+    than silently picked), and rebases the still-pending queue against
+    `opsSince` on a 409 using the identical `rebaseOps` the server ran
+    (`packages/edg`'s rebase table). **Found and fixed in this work package:**
+    `edg/too_stale` left the pending batch in place, so `flush()`'s own
+    drain-more-while-in-flight check re-sent the unrebaseable batch forever —
+    an infinite retry loop that reliably ran the test process out of memory.
+    A `stalled` flag (cleared by `EditorStore.reload()`, the same recovery
+    `edg/too_stale` already needed) closes it; `queue.test.ts` asserts
+    `pendingOps()` is empty immediately after the failure, not just
+    eventually.
+  - **Undo/redo (`lib/edg/history.ts`, `ops.ts`'s `computeInverseOps`)** as
+    inverse ops, grouped per action, 100 steps. Most of CONTRACTS §2's ops
+    invert exactly; `DeleteWord` and `MergeSegments` cannot by construction
+    (word and segment ids are never reused, D28) — their inverses are
+    behaviourally exact (same text, timing, style, position) under a _fresh_
+    id, which `ops.test.ts` checks directly. The property test (acceptance
+    criterion 3: 100 random ops undone in order restore the initial
+    projection) draws from the subset with an exact, id-preserving inverse —
+    `EditWord`, `HideSegment`, `SetEmphasis`, `SetSegmentPosition`,
+    `SetStyle` — since only that subset makes "back to the initial
+    projection" a literal equality rather than a visual one.
+  - **Conflict handling never drops a keystroke.** A same-word/same-caption
+    409 surfaces both texts (`ConflictDialog.tsx`); resolving submits the
+    chosen text as an ordinary fresh op, not a special "resolve" endpoint.
+    `store.test.ts` runs two `EditorStore`s against one in-memory fake server
+    (`FakeEdgServer`, the same `applyOps`/`rebaseOps` the real API calls) to
+    prove same-word edits conflict and different-segment edits merge cleanly
+    (acceptance criterion 2).
+  - **Reflow, never silent (orchestrator addendum, D78).** `lib/edg/
+caption-budgets.ts` compares the current style's `fitBudget` against
+    `EdgHot.meta.engineVersions.captionBudgets` (A11's record of what it
+    segmented with); a difference shows `ReflowBanner.tsx`, never an
+    automatic `Resegment`. `fitBudget`'s `belowComfortableMinimum` is
+    surfaced next to `RightPanel` (A16's own file; not this WP's to edit) as
+    "this style shows one short word per caption".
+  - **`TranscriptList.tsx`** virtualises with a hand-rolled variable-height
+    windower (`lib/edg/virtual-list.ts`, prefix-sum + binary search — no
+    external dependency was added for this), because segments vary in height
+    with word count. `WordChip.tsx`: contenteditable, low-confidence
+    underlined amber, fillers dimmed or hidden by toggle, a click selects and
+    seeks, a double-click is "fix spelling everywhere"
+    (`lib/edg/find-replace.ts`'s matcher, shared with Ctrl+F's dialog).
+    `SegmentCard.tsx`: speaker chip, hide/merge buttons, right-click "insert
+    word after". `BulkActionsBar.tsx`: merge-short/split-long
+    (`lib/edg/bulk-actions.ts`, plain ops through the same queue) plus
+    auto-resegment (server-minted, `EditorStore.resegment`).
+  - **Keyboard map (08 §4)**: `Space`/`J`/`K`/`L` (wired to a local
+    `PlayheadStore` scaffold — A17 owns the real one and does not exist yet),
+    `S` split, `M` merge, `E` emphasise, `Del` delete word, `Ctrl+F`,
+    `Ctrl+Z`/`Ctrl+Y`. One `window` listener
+    (`lib/edg/keyboard-shortcuts.ts`), not one per `WordChip`, reading the
+    live selection through a ref so a shortcut fires exactly once regardless
+    of which chip has DOM focus.
+  - **Integrates A16's `CaptionStage`/`RightPanel`** (already on `main`, not
+    rebuilt) rather than the placeholders the original brief text describes —
+    the orchestrator's later addenda assume them. `lib/edg/render-projection.
+ts` bridges `EdgState` (this WP's domain model) to `@montaj/render-core`'s
+    narrower render-only `EdgProjection`.
+  - **Deviations from the literal file boundary**, reported rather than
+    silently taken: `@montaj/edg` added to `apps/web/package.json`
+    (the brief's own "op queue... with `@montaj/edg` `applyOps`" requires it;
+    `pg`/`@types/pg` added as devDependencies for e2e seeding, `pg` chosen
+    over reaching into `apps/api`'s own `node_modules` for `@prisma/client`);
+    `apps/web/middleware.ts` gained `/p` in `PROTECTED` (every other
+    authenticated route redirects server-side before HTML ships; `/p` did
+    not); `apps/web/e2e/*` used for Playwright specs, since the brief's file
+    boundary omits it but the brief itself requires e2e coverage and every
+    other WP's specs already share that directory.
+
 - **A11c — api: unify A11's and A07's completion-handler registries; bind
   `CAPTION_RENDER_CONTEXT` (D78) to the bundled font pack.**
   - A07 (`media.probe`) independently converged on the same `JobCompletionRegistry`

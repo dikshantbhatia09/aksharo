@@ -4,8 +4,9 @@ Next.js 15 (App Router) + React 19 + TypeScript + Tailwind v4. One codebase for
 the marketing site and the studio, split by route group.
 
 **Status:** A13 — the app shell, the auth screens, onboarding, settings and the
-client layer; plus A16's caption canvas and right panel at `/studio/styles`.
-A14–A17 fill in Home, Projects and the editor; A24 the marketing site.
+client layer; A16's caption canvas and right panel at `/studio/styles`; A15's
+editor at `/p/{id}`. A14, A17 fill in Home/Projects and the timeline; A24 the
+marketing site.
 
 ## Route groups
 
@@ -36,6 +37,7 @@ each surface can own its layout and auth boundary.
 | `/settings/*`                            | profile, languages, what Aksharo learned, devices, privacy, notifications        |
 | `/ui-kit`                                | every component state, for screenshot review                                     |
 | `/studio/styles`                         | A16's style harness: the caption canvas and the right panel                      |
+| `/p/{id}`                                | A15's editor: transcript, caption preview, style panel, in one store             |
 | `/api/session`, `/api/session/refresh`   | the only code that may touch the refresh token                                   |
 
 ## Sessions
@@ -54,9 +56,9 @@ That shape has three consequences worth knowing:
 2. Both handlers reject a cross-site request, because a route that writes a
    session cookie is a session-fixation primitive otherwise.
 3. `middleware.ts` redirects a request with no cookie away from `/studio`,
-   `/settings`, `/onboarding` and `/device` before any HTML is sent — a routing
-   decision, not an authorisation one. The shell still rotates on mount, because
-   a cookie is not proof the family is alive.
+   `/settings`, `/onboarding`, `/device` and `/p` before any HTML is sent — a
+   routing decision, not an authorisation one. The shell still rotates on
+   mount, because a cookie is not proof the family is alive.
 
 ## Configuration
 
@@ -115,6 +117,48 @@ fill would visibly lag. Dragging the caption box emits exactly one
 harness, not the editor: A15 replaces the catalogue with the workspace's own from
 the API and wires the ops into the real op queue.
 
+## The editor (A15)
+
+`/p/{id}`: the transcript column (`components/editor/transcript/`, `lib/edg/`)
+plus A16's `CaptionStage`/`RightPanel`, integrated rather than rebuilt.
+
+| Piece                           | What it is                                                                 |
+| ------------------------------- | -------------------------------------------------------------------------- |
+| `lib/edg/store.ts`              | `EditorStore` — server/local `EdgState`, undo/redo, conflicts, resegment   |
+| `lib/edg/queue.ts`              | `EdgOpQueue` — debounced batching, 409 rebase, offline retry               |
+| `lib/edg/ops.ts`                | op builders, the panel-op adapter, `computeInverseOps`                     |
+| `lib/edg/history.ts`            | the 100-step undo/redo stack, grouped per action                           |
+| `lib/edg/virtual-list.ts`       | the transcript's variable-height windower (prefix-sum + binary search)     |
+| `lib/edg/find-replace.ts`       | the matcher Ctrl+F and "fix spelling everywhere" share                     |
+| `lib/edg/bulk-actions.ts`       | merge-short / split-long op planners                                       |
+| `lib/edg/caption-budgets.ts`    | the D78 reflow check against `EdgHot.meta.engineVersions.captionBudgets`   |
+| `lib/edg/keyboard-shortcuts.ts` | the 08 §4 keyboard map, one `window` listener                              |
+| `lib/edg/render-projection.ts`  | `EdgState` → `@montaj/render-core`'s render-only `EdgProjection`           |
+| `lib/edg/playhead.ts`           | a local scaffold for A17's shared `PlayheadStore` (not built yet)          |
+| `components/editor/transcript/` | `WordChip`, `SegmentCard`, `TranscriptList`, dialogs, the bulk-actions bar |
+
+**The store never trusts the network to be the only writer.** Every op is
+applied optimistically (`localState = applyOps(serverState, pending)`); a
+batch's `applied`/`rebased` opIds replay onto `serverState` on success, a 409
+`conflict` shows both texts rather than picking one, and an `edg.ops` realtime
+event from another session is folded in through the same `rebaseOps` the
+server ran — never a second reconciliation path. `edg/too_stale` halts the
+queue until `EditorStore.reload()` (see `CHANGELOG.md`'s A15 entry for the bug
+that finding this the hard way fixed).
+
+**Reflow is an offer, never automatic** (orchestrator addendum, D78): a style
+or aspect change whose `fitBudget` disagrees with the budget recorded at
+initialisation shows a banner; accepting it issues a server-minted
+`Resegment` and reloads the document, because the response never carries it.
+
+**Eager paging, not windowed-by-time.** The brief asks for segments and
+transcript chunks to load "lazily by time window"; this pages every segment
+and chunk up front instead (a 500-a-page segment list is a handful of
+requests even at nine thousand segments) and leans on `TranscriptList`'s
+virtualiser for scroll performance, which is what acceptance criterion 1
+actually measures. Reported as a scoping simplification in the final report,
+not a silent substitution.
+
 ### Runtime assets
 
 CanvasKit's `.wasm` and the subset fonts must be served from the app's own origin —
@@ -159,6 +203,17 @@ suite that pushes eighteen messages through it loses its own.
 `/ui-kit`, the auth screens, the shell, onboarding and every settings screen are
 screenshotted into `e2e/__screenshots__/` (gitignored — they are review
 artefacts) and checked with axe; serious and critical violations fail.
+
+`editor.spec.ts`/`editor-performance.spec.ts` (A15) seed a project through the
+**real** write path rather than a fixture the API never sees: sign in, `POST
+/projects`, one `media_assets` row inserted directly (`role: primary, status:
+ready` — the one step a real upload+ffprobe would otherwise take, out of this
+work package's scope), `POST /transcribe`, then the worker's own signed
+completion callback (`editor-fixtures.ts`, CONTRACTS §3 HMAC) with a small
+Hinglish fixture or, for the performance test, an 18-chunk, ~54,000-word one.
+`editor-performance.spec.ts` scrolls the transcript list programmatically for
+2 s on chromium and asserts ≥ 55 fps (acceptance criterion 1), logging the
+measured number.
 
 ## Notes
 
