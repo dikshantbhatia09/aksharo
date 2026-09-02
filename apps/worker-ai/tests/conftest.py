@@ -72,6 +72,44 @@ def settings() -> Settings:
     return load_settings(VALID_ENV)
 
 
+#: Credentials a repository `.env` may carry that would change what a test sees.
+OPTIONAL_CREDENTIALS: tuple[str, ...] = (
+    "SARVAM_API_KEY",
+    "ELEVENLABS_API_KEY",
+    "ASSEMBLYAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "GPU_PROVIDER_URL",
+    "GPU_PROVIDER_TOKEN",
+    "FEATURE_FLAGS_JSON",
+    "WORKER_AI_ALIGN_MODEL_DIR",
+    "WORKER_AI_INDICLID_DIR",
+    "ROUTING_OVERRIDES_JSON",
+)
+
+
+@pytest.fixture
+def contract_env(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    """Put a known, minimal environment in `os.environ` for the duration of a test.
+
+    Any code path that calls ``load_settings()`` with no argument — the eval CLI's
+    ``--live`` mode, the vendor smoke tests — reads the **process** environment,
+    and `load_repo_dotenv` will fill it from the repository's `.env` if one
+    exists. That makes such a test pass or fail depending on whether the machine
+    running it happens to have credentials lying around, which is not a test.
+
+    Real environment variables beat `.env` (dotenv is loaded with
+    ``override=False``), so setting them here is enough: the required three get
+    valid values and every optional credential is explicitly blanked, so a test
+    asserting "this provider is not configured" means it on every machine.
+    """
+    for name, value in VALID_ENV.items():
+        monkeypatch.setenv(name, value)
+    for name in OPTIONAL_CREDENTIALS:
+        monkeypatch.setenv(name, "")
+    return dict(VALID_ENV)
+
+
 # ---------------------------------------------------------------------------
 # Synthetic audio
 # ---------------------------------------------------------------------------

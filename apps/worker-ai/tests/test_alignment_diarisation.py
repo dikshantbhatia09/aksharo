@@ -14,8 +14,8 @@ from worker_ai.alignment import (
     AlignmentUnavailableError,
     ElevenLabsForcedAligner,
     IndicWav2VecAligner,
-    MmsAligner,
     ProportionalAligner,
+    Xlsr53Aligner,
     distribute,
 )
 from worker_ai.diarisation import (
@@ -35,18 +35,25 @@ REGISTRY = AlignerRegistry.default()
 
 
 def test_the_chain_is_the_order_from_the_pipeline_document() -> None:
-    """IndicWav2Vec -> MMS -> ElevenLabs FA -> proportional + VAD (`09 §2`)."""
+    """IndicWav2Vec -> XLSR-53 -> ElevenLabs FA -> proportional + VAD (`09 §2`, D77)."""
     assert [aligner.name for aligner in REGISTRY.chain("hi")] == [
         "indicwav2vec-ctc",
-        "mms-ctc",
         "elevenlabs-fa",
         "proportional-vad",
     ]
 
 
-def test_a_language_the_indic_heads_do_not_cover_skips_them() -> None:
+def test_a_global_language_gets_the_apache_licensed_rung_not_the_indic_heads() -> None:
+    """D77: rung 3 is per-language XLSR-53, so the split is by language family."""
     assert [aligner.name for aligner in REGISTRY.chain("fr")] == [
-        "mms-ctc",
+        "xlsr53-ctc",
+        "elevenlabs-fa",
+        "proportional-vad",
+    ]
+
+
+def test_a_language_neither_ctc_rung_covers_falls_to_the_paid_and_free_rungs() -> None:
+    assert [aligner.name for aligner in REGISTRY.chain("sw")] == [
         "elevenlabs-fa",
         "proportional-vad",
     ]
@@ -64,8 +71,8 @@ def test_an_empty_chain_is_an_error() -> None:
 
 
 def test_a_chain_of_only_unavailable_aligners_reports_every_reason() -> None:
-    registry = AlignerRegistry(aligners=(IndicWav2VecAligner(), MmsAligner()))
-    with pytest.raises(AlignmentUnavailableError, match=r"indicwav2vec-ctc.*mms-ctc"):
+    registry = AlignerRegistry(aligners=(IndicWav2VecAligner(), ElevenLabsForcedAligner()))
+    with pytest.raises(AlignmentUnavailableError, match=r"indicwav2vec-ctc.*elevenlabs-fa"):
         registry.resolve("hi")
 
 
@@ -80,14 +87,15 @@ def test_describe_reports_availability_for_the_control_app() -> None:
 def test_the_model_backed_aligners_carry_their_model_and_licence() -> None:
     assert IndicWav2VecAligner.licence == "MIT"
     assert IndicWav2VecAligner.model.startswith("ai4bharat/")
-    assert MmsAligner.model.startswith("facebook/mms")
+    assert Xlsr53Aligner.model.startswith("jonatasgrosman/wav2vec2-large-xlsr-53")
+    assert Xlsr53Aligner.licence == "Apache-2.0"
     assert ElevenLabsForcedAligner.cost_per_minute_inr == pytest.approx(0.03)
 
 
 def test_an_unconfigured_model_backed_aligner_says_what_is_missing() -> None:
     """No credential and no checkpoint is a *reason*, never a stack trace."""
     assert "WORKER_AI_ALIGN_MODEL_DIR" in str(IndicWav2VecAligner().available())
-    assert "WORKER_AI_ALIGN_MODEL_DIR" in str(MmsAligner().available())
+    assert "WORKER_AI_ALIGN_MODEL_DIR" in str(Xlsr53Aligner().available())
     assert "ELEVENLABS_API_KEY" in str(ElevenLabsForcedAligner().available())
 
 

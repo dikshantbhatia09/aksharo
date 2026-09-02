@@ -166,7 +166,7 @@ worker_ai/
   processors/        one module per queue
   providers/         Provider interface, registry, the shared vendor HTTP client,
                      mock, local + serverless Whisper, Scribe v2, Saaras v4, Universal-2
-  alignment/         the D13 registry: CTC forced alignment, MMS, ElevenLabs FA,
+  alignment/         the D13 registry: CTC forced alignment (Indic + XLSR-53), ElevenLabs FA,
                      proportional + VAD, and the script projections they need
   diarisation/       the D13 registry: pyannote community-1, noop, the word join
   evals/             manifest format, WER/CER, runner, CLI, vendor replay
@@ -305,7 +305,7 @@ and the chain falls through to something that needs neither.
 | --- | --- | --- | --- |
 | Diarisation | `pyannote/speaker-diarization-community-1` | **CC-BY-4.0** — attribution required, shipped in `engineVersions` | `GPU_PROVIDER_URL` (D15 model server) |
 | Alignment, Indic | `ai4bharat/indicwav2vec` CTC heads | **MIT** | `WORKER_AI_ALIGN_MODEL_DIR/indicwav2vec/<lang>/` |
-| Alignment, breadth | `facebook/mms-300m-1130-forced-aligner` | **CC-BY-NC-4.0 on the common export; the commercial variant is unresolved** — see open questions | `WORKER_AI_ALIGN_MODEL_DIR/mms/multilingual/` |
+| Alignment, global | `jonatasgrosman/wav2vec2-large-xlsr-53-<language>` | **Apache-2.0** | `WORKER_AI_ALIGN_MODEL_DIR/xlsr53/<lang>/` |
 | Alignment, paid | ElevenLabs Forced Alignment | vendor terms | `ELEVENLABS_API_KEY` + flag `align.elevenlabs` |
 | Alignment, fallback | proportional + VAD | none needed | always available |
 | LID, acoustic | faster-whisper | MIT | optional extra `local-asr` |
@@ -324,12 +324,26 @@ $WORKER_AI_ALIGN_MODEL_DIR/
   indicwav2vec/hi/model.onnx      # exported CTC head, float32 [1, N] in
   indicwav2vec/hi/vocab.json      # {"<pad>": 0, "|": 4, "क": 5, ...}
   indicwav2vec/hi/config.json     # optional: {"frameMs": 20}
-  mms/multilingual/model.onnx     # one head for every language
+  xlsr53/fr/model.onnx            # one Apache-2.0 fine-tune per language
 ```
 
-Roman-script Hinglish is projected onto Devanagari before tokenising and MMS
-input is romanised first (`09 §2`); both projections are rule tables in
-`alignment/romanisation.py`, not models.
+Roman-script Hinglish is projected onto Devanagari before tokenising (`09 §2`),
+by a rule table in `alignment/romanisation.py`, not a model. Nothing is
+romanised: every XLSR-53 fine-tune carries its own vocabulary in its own script.
+
+### Meta MMS is excluded (D77)
+
+Rung 3 was `facebook/mms-300m-1130-forced-aligner` until decision **D77**. Its
+widely distributed export is **CC-BY-NC-4.0** — non-commercial — so it is
+excluded from the product: the module is deleted, not disabled, and `mms` sits in
+`routing.NEVER_ROUTE` alongside Bhashini. Naming it in `routing.yaml`, in an
+admin routing override, or in the aligner registry raises at load time rather
+than at the first job that needs it, because a licence exclusion an operator can
+switch back on is not an exclusion.
+
+The replacement splits rung 3 by language family instead of by breadth:
+IndicWav2Vec (MIT) for the eleven Indic languages, XLSR-53 (Apache-2.0) for the
+global ones, and the proportional + VAD fallback for everything neither covers.
 
 ## Caching and cost
 

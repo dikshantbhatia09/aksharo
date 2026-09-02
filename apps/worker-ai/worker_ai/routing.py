@@ -18,11 +18,13 @@ Resolution has three steps, and keeping them apart is what lets an operator read
   the rest of it when a vendor fails (`09 §1`: fallback on provider error or an
   unsupported language).
 
-**Bhashini is not routable.** RR-02 F3 quotes its own documentation: the public
-API is for proof of concept only. :data:`NEVER_ROUTE` makes that a load-time
-error rather than a code review someone has to remember, so a future edit to
-``routing.yaml`` that names it fails the worker's boot instead of sending a
-customer's media somewhere we have no contract for (D63).
+**Some components are not routable at all.** :data:`NEVER_ROUTE` lists them with
+their reason, and naming one — in the file, in an admin override, or in the
+aligner registry — fails the worker's boot rather than waiting for a code review
+someone has to remember. Two entries today, both licence or contract exclusions:
+Bhashini, whose public API is proof-of-concept-only by its own documentation
+(D63, RR-02 F3), and Meta MMS, whose forced-alignment export is CC-BY-NC-4.0 and
+therefore non-commercial (D77).
 """
 
 from __future__ import annotations
@@ -55,12 +57,20 @@ __all__ = [
 #: Shipped alongside this module so the package is self-contained in a container.
 DEFAULT_ROUTING_FILE = Path(__file__).with_name("routing.yaml")
 
-#: Providers that must never appear in a production lane, and why. Loading a
-#: table that names one is an error (D63, RR-02 F3).
+#: Components that must never be routed to, and why. Naming one in a lane, in an
+#: admin override, or in the aligner registry is an error rather than a review
+#: someone has to remember. Both entries are **licence or contract** exclusions,
+#: which is why they are enforced in code and not behind a feature flag: a flag
+#: can be switched on by an operator who does not know what it means.
 NEVER_ROUTE: dict[str, str] = {
     "bhashini": (
         "the Bhashini public API is proof-of-concept only by its own terms; it "
         "stays a shadow-routing challenger until a paid agreement exists (D63)"
+    ),
+    "mms": (
+        "the Meta MMS forced-alignment export is CC-BY-NC-4.0, which is "
+        "non-commercial; it is excluded from the product and rung 3 of the "
+        "`09 §2` chain is XLSR-53 (Apache-2.0) instead (D77)"
     ),
 }
 
@@ -213,6 +223,19 @@ class RoutingTable:
         lanes_raw = overrides.get("lanes")
         if not isinstance(lanes_raw, dict) or not lanes_raw:
             return self
+
+        for lane_override in lanes_raw.values():
+            if not isinstance(lane_override, dict):
+                continue
+            candidates_raw = lane_override.get("candidates")
+            if not isinstance(candidates_raw, dict):
+                continue
+            for provider in candidates_raw:
+                forbidden = NEVER_ROUTE.get(str(provider))
+                if forbidden is not None:
+                    raise RoutingError(
+                        "a routing override names " + repr(provider) + " — " + forbidden
+                    )
 
         lanes: list[RoutingLane] = []
         touched = False

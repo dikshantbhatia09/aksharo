@@ -385,6 +385,41 @@ def test_bhashini_cannot_be_routed_to(tmp_path: Path) -> None:
     assert "bhashini" in NEVER_ROUTE
 
 
+def test_mms_cannot_be_routed_to(tmp_path: Path) -> None:
+    """D77: the MMS forced-alignment export is CC-BY-NC-4.0, so it is excluded."""
+    path = tmp_path / "routing.yaml"
+    path.write_text(
+        "default: global\nlanes:\n"
+        "  - id: global\n    languages: []\n"
+        "    candidates: [{provider: mms, model: mms-300m}]\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(RoutingError, match="non-commercial"):
+        load_routing_table(path)
+
+
+def test_an_override_cannot_reintroduce_an_excluded_component() -> None:
+    """A licence exclusion an operator could switch back on is not an exclusion."""
+    for name in ("mms", "bhashini"):
+        with pytest.raises(RoutingError, match="a routing override names"):
+            TABLE.apply_overrides({"lanes": {"hindi": {"candidates": {name: {"weight": 100}}}}})
+
+
+def test_the_aligner_registry_refuses_an_excluded_component() -> None:
+    from worker_ai.alignment.base import Aligner, AlignerRegistry
+    from worker_ai.providers.base import AlignmentRequest, Word
+
+    class _Revenant(Aligner):
+        name = "mms-ctc"
+        family = "mms"
+
+        async def align(self, request: AlignmentRequest, regions: object = ()) -> tuple[Word, ...]:
+            return ()
+
+    with pytest.raises(ValueError, match="non-commercial"):
+        AlignerRegistry(aligners=(_Revenant(),))
+
+
 # ---------------------------------------------------------------------------
 # Admin overrides (`09 §1`: the weights the admin console edits)
 # ---------------------------------------------------------------------------
