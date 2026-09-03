@@ -8,6 +8,39 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M09: fixed the CSP regression blocking every authenticated Playwright
+  spec at the shared sign-up helper.** `next.config.ts`'s CSP `connect-src`
+  (added by the X01 threat-model hardening) was `'self' https: wss:` — the
+  `https:` keyword only matches TLS origins, so it silently blocked every
+  `fetch()` to a plain-`http://` API, which is what every local dev server
+  and Playwright run uses (`http://127.0.0.1:<port>`, a different port from
+  the web origin so `'self'` did not cover it either). The sign-up request
+  never left the browser (no network entry — just a CSP console error), so
+  `e2e/fixtures.ts#signUpAndVerify`'s `getByTestId("signup-sent")` wait timed
+  out on every authenticated spec (`admin`, `streak`, `share`, `export`,
+  `academy-help`, `team-devices-licensing`, `gate-a`, `plugins`, and more),
+  while public specs (`docs`, `marketing-smoke`) were unaffected. Fixed by
+  listing the API's actual `API_ORIGIN` explicitly in `connect-src` — read at
+  server start, so dev/e2e's `http://` origin and production's `https://`
+  one are both allowed without a wildcard scheme. `apps/web/next.config.ts`,
+  test coverage in `apps/web/next.config.test.ts`.
+  - **Also fixed (found while re-running the spec list):** `WhatsNewModal`
+    (academy/help work) opens the first time any signed-in account reaches
+    the shell and its overlay intercepts pointer events on the rest of the
+    page, which blocked whatever click a spec made next if it did not
+    already know to expect it (`streak`, `export`, `gate-a`). Installed a
+    `Page#addLocatorHandler` in `e2e/fixtures.ts`'s shared `context` fixture
+    that dismisses the modal automatically wherever it appears, covering
+    every spec without each one learning to check for it.
+  - **Known, pre-existing issues found but out of scope for this fix**
+    (neither is the sign-up regression and neither regressed from this
+    change): `streak.spec.ts`'s "Subscription widget" case still fails — the
+    streak widget (`components/streak/streak-widget.tsx`) is not mounted
+    anywhere on `/billing`'s overview page. `export.spec.ts`'s two real
+    browser-export cases still time out waiting for `export-done` — the
+    export pipeline itself does not finish inside the test's timeout in this
+    environment (no GPU worker configured, `GPU_PROVIDER=none`).
+
 - **D05: music pass — sections, mood, BPM, retrieval, placement; beat-alignment
   utility; `RenderManifest.timemap.audio.music[]`.** Fills in `MusicPayload`
   (edg schema and route already prepared by D04c's CONTRACTS §2 amendment).
