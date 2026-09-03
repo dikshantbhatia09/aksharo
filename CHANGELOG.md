@@ -8,6 +8,33 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M20 (increment 1): a local, OpenAI-compatible Ollama LLM provider,
+  selectable with `LLM_PROVIDER=ollama` and no key.** Free-stack mode
+  (2026-09-03 user ruling: no paid keys) needs a local LLM alongside the
+  existing local Whisper (M15). Added `OllamaLlmProvider`
+  (`apps/worker-ai/worker_ai/llm/providers/ollama.py`): calls a local
+  Ollama server's OpenAI-compatible `/v1/chat/completions` endpoint
+  (`LLM_BASE_URL`, default `http://127.0.0.1:11434/v1`) with a model
+  (`LLM_MODEL`, default `qwen2.5:3b`) and `response_format:
+{"type":"json_object"}` for JSON mode; `registry.py` selects it for every
+  `ai.llm` call site (chapters/summary/hooks/keyphrases/music-mood) with no
+  credential required. `apps/worker-ai/worker_ai/llm/service.py`'s existing
+  one-repair-attempt-on-invalid-JSON path applies unchanged. On the
+  in-process planner seam (D07), added `OllamaPlannerClient`
+  (`apps/api/src/prompted-edits/planner-client.ts`), bound by
+  `prompted-edits.module.ts` when `LLM_PROVIDER=ollama`; both it and
+  `AnthropicPlannerClient` now share `parseEditPlanJsonWithRetry`, a new
+  one-retry-with-a-repair-message helper (previously `AnthropicPlannerClient`
+  had no retry at all). `LLM_PROVIDER` gained an `"ollama"` option and
+  `LLM_BASE_URL`/`LLM_MODEL` were added as new optional variables to
+  `packages/config/src/env.ts`'s `CONTRACT_ENV_VARS` (regenerated
+  `contract-env-vars.json`), `.env.example`, and the Python settings mirror
+  (`apps/worker-ai/worker_ai/settings.py`). Unit tests use an injected
+  `httpx2.MockTransport` (`apps/worker-ai/tests/test_llm_ollama.py`) and a
+  mocked `fetch` (`apps/api/src/prompted-edits/planner-client.test.ts`) — no
+  network in CI. A real run against a live Ollama server, prompts
+  `eval:local`, and the free-stack docs land in a follow-up increment.
+
 - **M19: `scripts/local-ai-smoke.mjs` now derives its target database from
   `DATABASE_URL` instead of a hardcoded `montaj_m15`.** The script's `docker
 exec psql` calls used a literal `montaj_m15`, so a run from any other

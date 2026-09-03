@@ -44,6 +44,10 @@ DEFAULT_CONTROL_PORT = 8091
 #: Largest transcription result the `09 §1` cache will store, in bytes.
 DEFAULT_CACHE_MAX_ENTRY_BYTES = 512 * 1024
 
+#: M20 free-stack mode: local, OpenAI-compatible Ollama defaults.
+_DEFAULT_LLM_BASE_URL = "http://127.0.0.1:11434/v1"
+_DEFAULT_LLM_MODEL = "qwen2.5:3b"
+
 #: Deployment naming this worker reads straight from the process environment.
 #:
 #: None of these are in CONTRACTS section 1, which is the frozen list of
@@ -145,6 +149,8 @@ _FALLBACK_CONTRACT_ENV_VARS: tuple[str, ...] = (
     "LLM_PROVIDER",
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL",
     "GPU_PROVIDER",
     "GPU_PROVIDER_URL",
     "GPU_PROVIDER_TOKEN",
@@ -232,6 +238,9 @@ class Settings:
     gpu_provider_url: str = ""
     gpu_provider_token: str = ""
     allow_mock: bool | None = None
+    #: M20 free-stack mode: local, OpenAI-compatible Ollama server; no key.
+    llm_base_url: str = _DEFAULT_LLM_BASE_URL
+    llm_model: str = _DEFAULT_LLM_MODEL
     #: Vendor endpoints. The defaults are the global ones; Indian production
     #: media belongs on the residency endpoints once A00-06 signs the terms.
     elevenlabs_base_url: str = ""
@@ -324,7 +333,7 @@ def load_repo_dotenv(start: Path | None = None) -> Path | None:
     return None
 
 
-_VALID_LLM_PROVIDERS = frozenset({"anthropic", "openai", "mock"})
+_VALID_LLM_PROVIDERS = frozenset({"anthropic", "openai", "ollama", "mock"})
 _VALID_GPU_PROVIDERS = frozenset({"runpod", "modal", "replicate", "none"})
 
 
@@ -417,6 +426,8 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
         assemblyai_api_key=env.get("ASSEMBLYAI_API_KEY", "").strip(),
         anthropic_api_key=env.get("ANTHROPIC_API_KEY", "").strip(),
         openai_api_key=env.get("OPENAI_API_KEY", "").strip(),
+        llm_base_url=env.get("LLM_BASE_URL", "").strip().rstrip("/") or _DEFAULT_LLM_BASE_URL,
+        llm_model=env.get("LLM_MODEL", "").strip() or _DEFAULT_LLM_MODEL,
         sentry_dsn=env.get("SENTRY_DSN", "").strip(),
         raw_bucket=BucketSettings(
             endpoint=env.get("S3_ENDPOINT", "").strip(),

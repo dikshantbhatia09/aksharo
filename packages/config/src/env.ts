@@ -42,6 +42,8 @@ export const CONTRACT_ENV_VARS = [
   "LLM_PROVIDER",
   "ANTHROPIC_API_KEY",
   "OPENAI_API_KEY",
+  "LLM_BASE_URL",
+  "LLM_MODEL",
   "GPU_PROVIDER",
   "GPU_PROVIDER_URL",
   "GPU_PROVIDER_TOKEN",
@@ -115,7 +117,7 @@ const pemKey = (name: string) =>
 /** Unescape `\n` so a single-line PEM from a .env file becomes a real key. */
 const unescapeNewlines = (value: string): string => value.replace(/\\n/g, "\n");
 
-export const LLM_PROVIDERS = ["anthropic", "openai", "mock"] as const;
+export const LLM_PROVIDERS = ["anthropic", "openai", "ollama", "mock"] as const;
 export const MAIL_PROVIDERS = ["ses", "smtp", "dev"] as const;
 export type MailProviderName = (typeof MAIL_PROVIDERS)[number];
 
@@ -184,6 +186,24 @@ export const envSchema = z.object({
   LLM_PROVIDER: z.enum(LLM_PROVIDERS).default("mock"),
   ANTHROPIC_API_KEY: optionalSecret(),
   OPENAI_API_KEY: optionalSecret(),
+  // M20 free-stack mode: a local, OpenAI-compatible Ollama server. No key
+  // needed — `LLM_PROVIDER=ollama` is selectable without ANTHROPIC_API_KEY or
+  // OPENAI_API_KEY ever being set. Defaults match a stock local Ollama
+  // install (`ollama pull qwen2.5:3b`), so a bare `LLM_PROVIDER=ollama` with
+  // both of these left empty still works out of the box.
+  LLM_BASE_URL: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) =>
+      value === undefined || value === "" ? "http://127.0.0.1:11434/v1" : value,
+    )
+    .refine((value) => /^https?:\/\/[^\s]+$/.test(value), "LLM_BASE_URL must be an http(s) URL"),
+  LLM_MODEL: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value === undefined || value === "" ? "qwen2.5:3b" : value)),
 
   // --- GPU (A09; the endpoint the serverless pool is invoked at) ---
   GPU_PROVIDER: z.enum(GPU_PROVIDERS).default("none"),
