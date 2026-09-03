@@ -783,19 +783,20 @@ function retimeInlineKeyframes(
   return bytesToBase64(encodeKeyframes(retimed));
 }
 
-const EDITABLE_ITEM_KINDS = new Set(["cut", "zoom", "reframe", "sfx"]);
+const EDITABLE_ITEM_KINDS = new Set(["cut", "zoom", "reframe", "sfx", "music"]);
+const PAYLOAD_TRACKS_PLACEMENT_KINDS = new Set(["sfx", "music"]);
 
 /**
- * User-driven drag-to-adjust on a proposed/accepted cut/zoom/reframe/sfx item
- * (CONTRACTS §2, added after B20; `sfx` added D04c). Clamps to the media
- * duration and to neighbouring *accepted* items of the same kind (a proposed
- * item may overlap another proposal freely — only accepted items are
- * load-bearing on the timemap), then re-times any inline keyframe curve
- * linearly. An `sfx` item's `payload.startMs`/`payload.durationMs`
- * (CONTRACTS §2, `SfxPayload`) are kept in lockstep with the item's own
- * `startMs`/`endMs` here, rather than left to drift, since a render-manifest
- * consumer reads only `payload` for placement (`SfxTrack`, `packages/
- * render-manifest`).
+ * User-driven drag-to-adjust on a proposed/accepted cut/zoom/reframe/sfx/music
+ * item (CONTRACTS §2, added after B20; `sfx` added D04c, `music` added D05).
+ * Clamps to the media duration and to neighbouring *accepted* items of the
+ * same kind (a proposed item may overlap another proposal freely — only
+ * accepted items are load-bearing on the timemap), then re-times any inline
+ * keyframe curve linearly. An `sfx`/`music` item's `payload.startMs`/
+ * `payload.durationMs` (CONTRACTS §2, `SfxPayload`/`MusicPayload`) are kept
+ * in lockstep with the item's own `startMs`/`endMs` here, rather than left to
+ * drift, since a render-manifest consumer reads only `payload` for placement
+ * (`SfxTrack`/`MusicTrack`, `packages/render-manifest`).
  */
 function applyEditPassItem(draft: EdgDraft, op: EditPassItemOp): void {
   const item = draft.items.get(op.itemId);
@@ -805,7 +806,7 @@ function applyEditPassItem(draft: EdgDraft, op: EditPassItemOp): void {
     fail("invalid", `pass item ${op.itemId} is ${item.state}, not proposed or accepted`);
   }
   if (!EDITABLE_ITEM_KINDS.has(item.kind)) {
-    fail("invalid", `pass item ${op.itemId} is a ${item.kind}, not cut/zoom/reframe`);
+    fail("invalid", `pass item ${op.itemId} is a ${item.kind}, not cut/zoom/reframe/sfx/music`);
   }
 
   const durationMs = mediaDurationMs(draft);
@@ -839,7 +840,7 @@ function applyEditPassItem(draft: EdgDraft, op: EditPassItemOp): void {
           ...payload,
           keyframes: retimeInlineKeyframes(inlineKeyframes, oldDurationMs, newDurationMs),
         };
-  if (item.kind === "sfx") {
+  if (PAYLOAD_TRACKS_PLACEMENT_KINDS.has(item.kind)) {
     nextPayload = { ...nextPayload, startMs, durationMs: newDurationMs };
   }
 

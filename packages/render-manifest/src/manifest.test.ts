@@ -101,6 +101,37 @@ describe("the schema", () => {
     expect(parsed.timemap.audio?.sfx?.[0]).toMatchObject({ packId: "fixture-pack-01", gainDb: -6 });
   });
 
+  it("parses accepted music beds on the timemap (D05)", () => {
+    const manifest = signedFixtureManifest(SECRET, {
+      timemap: {
+        audio: {
+          music: [
+            {
+              itemId: "01JA20MSCBEDEVENT000000000",
+              startMs: 0,
+              endMs: 20_000,
+              assetId: "01JA20MSCASSET0000000000000",
+              packId: "fixture-pack-01",
+              storageKey: "packs/fixture-pack-01/01JA20MSCASSET0000000000000.wav",
+              gainDb: -18,
+              loopPolicy: "loop",
+              bedDuck: { depthDb: -12, attackMs: 150, releaseMs: 150 },
+              mood: ["calm"],
+              bpm: 92,
+            },
+          ],
+        },
+      },
+    });
+    const parsed = RenderManifestSchema.parse(manifest);
+    expect(parsed.timemap.audio?.music).toHaveLength(1);
+    expect(parsed.timemap.audio?.music?.[0]).toMatchObject({
+      packId: "fixture-pack-01",
+      loopPolicy: "loop",
+      bpm: 92,
+    });
+  });
+
   it("omits timemap.audio just fine — every manifest built before D04c stays valid", () => {
     const manifest = signedFixtureManifest(SECRET);
     const parsed = RenderManifestSchema.parse(manifest);

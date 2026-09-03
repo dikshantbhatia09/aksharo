@@ -17,6 +17,7 @@ import type {
   Aspect,
   AudioStrategy,
   KeyframeTrack,
+  MusicTrack,
   OutputKind,
   RenderPreset,
   SfxTrack,
@@ -91,6 +92,13 @@ export interface BuildManifestInput {
    * alongside its `keyframeTracks` line).
    */
   readonly sfxTracks?: readonly SfxTrack[];
+  /**
+   * Accepted `music` items (D05's field; wired by `../passes/music-tracks.ts`'s
+   * `resolveMusicTracks`, called from `exports.service.ts`'s `requestExport`
+   * alongside its `sfxTracks` line). Populated here only — mixing it into the
+   * export is D04d's job, out of this module's scope.
+   */
+  readonly musicTracks?: readonly MusicTrack[];
   readonly outputDurationMs: number;
   readonly decision: ExportDecision;
   readonly kind: "video" | "subtitle";
@@ -210,7 +218,14 @@ export function buildRenderManifest(input: BuildManifestInput): BuiltManifest {
       // items via `../passes/sfx-tracks.ts`. Always an object (never omitted)
       // so a render consumer can read `manifest.timemap.audio?.sfx ?? []`
       // without an extra optional-chain hop for the wrapper itself.
-      audio: { sfx: input.sfxTracks ? [...input.sfxTracks] : [] },
+      // Accepted music beds, resolved by the caller (D05) from `edg.passes`
+      // items via `../passes/music-tracks.ts` — same "always an object"
+      // convention as `sfx` above, so a consumer reads
+      // `manifest.timemap.audio?.music ?? []` without an extra hop.
+      audio: {
+        sfx: input.sfxTracks ? [...input.sfxTracks] : [],
+        music: input.musicTracks ? [...input.musicTracks] : [],
+      },
     },
     output: {
       kind: input.outputKind,

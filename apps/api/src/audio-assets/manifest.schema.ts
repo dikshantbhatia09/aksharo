@@ -56,6 +56,16 @@ export const manifestAssetSchema = z.object({
   mood: z.array(z.string().min(1)).default([]),
   bpm: z.number().int().positive().optional(),
   musicalKey: z.string().max(16).optional(),
+  /**
+   * D05: a music bed's loop-point offsets, milliseconds from the start (
+   * `introMs`) and from the end (`outroMs`) of the measured file —
+   * `AudioAsset.introMs`/`outroMs` (D04a) already carry these columns; D05 is
+   * the first pass to populate them. The loop region a music pass can safely
+   * repeat is `[introMs, durationMs - outroMs]`; a one-shot cue (most `sfx`
+   * assets) leaves both unset.
+   */
+  introMs: z.number().int().min(0).optional(),
+  outroMs: z.number().int().min(0).optional(),
   /** Path to the source WAV, relative to the manifest file. */
   filePath: z.string().min(1),
 

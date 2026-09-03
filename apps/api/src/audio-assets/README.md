@@ -46,3 +46,18 @@ The `ai.pass` producer/completion wiring for `passType: "sfx"` (needs
 module's file boundary), the Passes-tab SFX card, and the timeline `sfx` lane.
 See the D04a entry in the root `CHANGELOG.md` for the full list of what was
 built and what was deferred, and why.
+
+## D05 update: `music` kind, loop points, `PassesService.startMusic`
+
+D05 populated this table's `mood`/`bpm`/`introMs`/`outroMs` columns (already
+present since D04a, unused until now) for `kind: "music"` rows — the ingest
+CLI (`apps/api/scripts/ingest-audio-pack.ts`) and `manifest.schema.ts` accept
+a manifest asset's `introMs`/`outroMs` loop-point offsets unchanged, and
+`AudioAssetsRepository.findCatalogueWithEmbeddings` now also returns them so
+`PassesService.musicCatalogueOf` can hand `worker_ai.passes.music.
+build_music_items` a `MusicCatalogueAsset` with real loop-point metadata
+rather than just an id and an embedding. The music pass's own analysis,
+retrieval and placement rules live in `apps/worker-ai/worker_ai/passes/
+music/**`; `PassesService.startMusic` is this module's own producer, same
+licence-gate shape (`assetAllowed`, `findCatalogueWithEmbeddings("music")`) as
+`sfxCatalogueOf` uses for `sfx`.

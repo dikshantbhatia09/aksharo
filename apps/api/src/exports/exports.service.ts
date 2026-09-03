@@ -34,6 +34,7 @@ import {
 import { EdgRepository } from "../edg/index.js";
 import { JobsService } from "../jobs/jobs.service.js";
 import { resolveKeyframeTracks } from "../passes/keyframe-tracks.js";
+import { acceptedMusicAssetIds, resolveMusicTracks } from "../passes/music-tracks.js";
 import { acceptedSfxAssetIds, resolveSfxTracks } from "../passes/sfx-tracks.js";
 import { EXPORT_COMPLETED_EVENT } from "../referrals/export-completed.event.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
@@ -243,6 +244,14 @@ export class ExportsService {
     );
     const sfxTracks = resolveSfxTracks(allItems, sfxStorageKeys);
 
+    // D05: same split as sfx above, one kind lower — a storage-key lookup
+    // then a pure projection into the manifest's `timemap.audio.music`
+    // tracks. Populated here only; mixing it into the export is D04d's job.
+    const musicStorageKeys = await this.audioAssets.findStorageKeysByIds(
+      acceptedMusicAssetIds(allItems),
+    );
+    const musicTracks = resolveMusicTracks(allItems, musicStorageKeys);
+
     const { manifest: unsigned } = buildRenderManifest({
       workspaceId: input.workspaceId,
       projectId: input.projectId,
@@ -268,6 +277,7 @@ export class ExportsService {
       timemapEdits: [...timeMap.edits],
       ...(keyframeTracks.length === 0 ? {} : { keyframeTracks }),
       ...(sfxTracks.length === 0 ? {} : { sfxTracks }),
+      ...(musicTracks.length === 0 ? {} : { musicTracks }),
       outputDurationMs,
       decision,
       kind: input.kind,

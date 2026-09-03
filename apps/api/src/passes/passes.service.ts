@@ -9,7 +9,13 @@ import {
   type ReframeAspect,
   type ZoomPreset,
 } from "./passes.errors.js";
-import { quoteAutocut, quoteReframeZoom, quoteSfx, quoteTextFx } from "./passes.quote.js";
+import {
+  quoteAutocut,
+  quoteMusic,
+  quoteReframeZoom,
+  quoteSfx,
+  quoteTextFx,
+} from "./passes.quote.js";
 import { assetAllowed, AudioAssetsRepository } from "../audio-assets/index.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
@@ -124,6 +130,23 @@ export interface StartSfxRequest {
 }
 
 export interface StartSfxAccepted {
+  readonly jobId: string;
+  readonly passId: string;
+  readonly status: string;
+  readonly deduplicated: boolean;
+  readonly quote: {
+    readonly tenths: number;
+    readonly credits: string;
+    readonly durationMs: number;
+  };
+}
+
+export interface StartMusicRequest {
+  readonly projectId: string;
+  readonly workspaceId: string;
+}
+
+export interface StartMusicAccepted {
   readonly jobId: string;
   readonly passId: string;
   readonly status: string;
@@ -455,6 +478,81 @@ export class PassesService {
     };
   }
 
+  /**
+   * `POST /projects/{id}/passes/music` (D05, following D04c's sfx wiring):
+   * quotes on the **finished** timeline (`quoteMusic`, same D07 basis
+   * `startTextFx`/`startSfx` use), holds credits and enqueues `ai.pass` with
+   * everything `worker_ai.passes.music` needs — the worker is stateless, so
+   * the whole licence-allowed `music` catalogue, already narrowed by
+   * `assetAllowed` here, rides in the job payload rather than the worker
+   * querying Postgres itself, the same split `startSfx` uses.
+   *
+   * `sentiment` rides from `sentimentCuesOf`, a small lexicon-based scorer
+   * standing in for B11's LLM client (mocked in every worker test — brief
+   * §2's own instruction) rather than a real prompted call: wiring an actual
+   * `ai.llm` round trip into pass *production* (as opposed to consumption of
+   * its own queue) was out of reach in this pass, and `worker_ai.passes.
+   * music.analysis.detect_sections` only ever reads a plain `(tMs, score)`
+   * list regardless of where it came from, so the seam is ready for B11 to
+   * replace this scorer outright. Flagged in the final report as a
+   * deviation, the same way `startSfx`'s empty `rmsSamples` is.
+   */
+  async startMusic(request: StartMusicRequest): Promise<StartMusicAccepted> {
+    const project = await this.project(request.projectId, request.workspaceId);
+    const media = await this.primaryMedia(project.id);
+    const transcript = await this.transcriptOf(project.id);
+
+    const cutRanges = await this.acceptedCutRangesOf(project.id, request.workspaceId);
+    const removedMs = cutRanges.reduce((total, [s, e]) => total + Math.max(0, e - s), 0);
+    const finishedDurationMs = Math.max(0, (media.durationMs ?? 0) - removedMs);
+
+    const quote = quoteMusic(finishedDurationMs);
+    const passId = newId();
+    const words = await this.wordsOf(transcript);
+    const sentences = await this.segmentsForTextFx(transcript);
+    const speechRanges = speechRangesFromWords(words, media.durationMs ?? 0);
+    const cutTimesMs = cutRanges.flatMap(([s, e]) => [s, e]);
+    const sentiment = sentimentCuesOf(sentences);
+    const storedProtected = await this.storedProtectedRangesOf(project.id, request.workspaceId);
+    const guardedRanges = await this.guardedRangesOf(project.id, request.workspaceId);
+    const catalogue = await this.musicCatalogueOf(request.workspaceId);
+
+    const jobKey = `ai.pass:music:${project.id}`;
+    const { job, deduplicated } = await this.jobs.enqueue({
+      type: "ai.pass",
+      workspaceId: request.workspaceId,
+      projectId: project.id,
+      jobKey,
+      worstCaseTenths: quote.tenths,
+      reason: quote.reason,
+      params: {
+        passId,
+        passType: "music",
+        durationMs: media.durationMs,
+        mediaId: media.id,
+        speechRanges,
+        cutRanges,
+        cutTimesMs,
+        sentiment,
+        protectedRanges: [...storedProtected, ...guardedRanges],
+        catalogue,
+      },
+    });
+
+    this.logger.log(
+      { projectId: project.id, jobId: job.id, passId, tenths: quote.tenths, deduplicated },
+      "music pass enqueued",
+    );
+
+    return {
+      jobId: job.id,
+      passId: deduplicated ? (passIdOf(job.params) ?? passId) : passId,
+      status: job.status,
+      deduplicated,
+      quote: { tenths: quote.tenths, credits: quote.credits, durationMs: finishedDurationMs },
+    };
+  }
+
   // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------
@@ -722,6 +820,48 @@ export class PassesService {
   }
 
   /**
+   * The whole licence-allowed `music` catalogue for this workspace, ready
+   * for `worker_ai.passes.music.build_music_items`'s `MusicCatalogueAsset`
+   * list — same shape and licence gate `sfxCatalogueOf` uses, plus the
+   * mood/BPM/loop-point fields a music bed needs (D04a's `AudioAsset.mood`/
+   * `bpm`/`introMs`/`outroMs`/`durationMs` columns, unused by `sfx` today).
+   */
+  private async musicCatalogueOf(workspaceId: string): Promise<
+    {
+      id: string;
+      packId: string;
+      mood: string[];
+      bpm: number | null;
+      introMs: number | null;
+      outroMs: number | null;
+      durationMs: number | null;
+      embedding: readonly number[];
+      licenceSnapshot: Record<string, unknown>;
+    }[]
+  > {
+    const plan = await resolveWorkspacePlan(this.prisma, workspaceId);
+    const rows = await this.audioAssets.findCatalogueWithEmbeddings("music");
+    return rows
+      .filter(
+        (row) =>
+          assetAllowed(row, { surface: "cloud_render", plan, territory: "WORLD" }).allowed &&
+          row.storageKey !== null &&
+          row.packId !== null,
+      )
+      .map((row) => ({
+        id: row.id,
+        packId: row.packId as string,
+        mood: row.mood,
+        bpm: row.bpm,
+        introMs: row.introMs,
+        outroMs: row.outroMs,
+        durationMs: row.durationMs,
+        embedding: row.embedding,
+        licenceSnapshot: row.licenceSnapshot,
+      }));
+  }
+
+  /**
    * `passes/proxy_required` (B19b ruling 2/4): `zoom`/`reframe` sample the
    * 540p proxy for frames and audio, so a project whose primary media has no
    * proxy yet cannot run either pass.
@@ -799,4 +939,57 @@ function speechRangesFromWords(
   }
   regions.push([start, Math.min(end, durationMs)]);
   return regions;
+}
+
+/**
+ * D05: a tiny lexicon-based sentiment score per transcript sentence, standing
+ * in for B11's LLM client (mocked in every worker test) — `startMusic`'s own
+ * docstring explains why this is a deliberate, reported simplification
+ * rather than a real prompted call. Deterministic, no network: counts a
+ * fixed positive/negative word list against the sentence's own words,
+ * clamped to `[-1, 1]`.
+ */
+const POSITIVE_WORDS = new Set([
+  "great",
+  "amazing",
+  "love",
+  "awesome",
+  "happy",
+  "exciting",
+  "fun",
+  "best",
+  "win",
+  "yes",
+]);
+const NEGATIVE_WORDS = new Set([
+  "bad",
+  "sad",
+  "hate",
+  "terrible",
+  "worst",
+  "fail",
+  "no",
+  "angry",
+  "afraid",
+  "wrong",
+]);
+
+function sentimentScore(text: string): number {
+  const words = text.toLowerCase().match(/[a-z']+/g) ?? [];
+  if (words.length === 0) return 0;
+  let score = 0;
+  for (const word of words) {
+    if (POSITIVE_WORDS.has(word)) score += 1;
+    if (NEGATIVE_WORDS.has(word)) score -= 1;
+  }
+  return Math.max(-1, Math.min(1, score / Math.max(3, words.length)));
+}
+
+function sentimentCuesOf(
+  sentences: { startMs: number; endMs: number; text: string }[],
+): [number, number][] {
+  return sentences.map((sentence) => {
+    const midMs = Math.round((sentence.startMs + sentence.endMs) / 2);
+    return [midMs, sentimentScore(sentence.text)];
+  });
 }
