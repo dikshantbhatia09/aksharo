@@ -2,7 +2,16 @@ import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { z } from "zod";
 
 import { newId } from "@montaj/edg";
-import type { CutPassItem, Pass, ReframePassItem, ZoomPassItem } from "@montaj/edg/schemas";
+import type {
+  CutPassItem,
+  Pass,
+  ReframePassItem,
+  TextFxIntent,
+  TextFxMotionPreset,
+  TitlePassItem,
+  WordId,
+  ZoomPassItem,
+} from "@montaj/edg/schemas";
 
 import { EdgService } from "../edg/index.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
@@ -147,6 +156,37 @@ const ReframeResultSchema = z.object({
   items: z.array(ReframeItemResultSchema).default([]),
 });
 
+/** One title event from `worker_ai.processors.text_fx_pass.process_text_fx` (D06). */
+const TextFxItemResultSchema = z.object({
+  text: z.string().min(1),
+  intent: z.enum(["title", "stat", "quote", "hook"]),
+  startMs: z.number().int().min(0),
+  endMs: z.number().int().min(0),
+  anchorWordIds: z.array(z.string()).default([]),
+  motionPreset: z.enum(["pop", "slide-up", "typewriter", "underline", "count-up", "fade"]),
+  confidence: z.number().min(0).max(1),
+  reason: z.string().min(1),
+});
+
+const TextFxResultSchema = z.object({
+  passId: z.string().min(1),
+  passType: z.literal("textfx"),
+  items: z.array(TextFxItemResultSchema).default([]),
+});
+
+/**
+ * Advisory default placement per intent (`render-core`'s
+ * `DEFAULT_PRESET_BY_INTENT`/slot order mirrored, not imported — this handler
+ * has no TypeScript dependency on `@montaj/render-core`); `placeTitleBox`
+ * recomputes the real per-frame rectangle from the caption's live safe area,
+ * so this only needs to be a reasonable stored default.
+ */
+const DEFAULT_POSITION: { x: number; y: number; anchor: string } = {
+  x: 0.5,
+  y: 0.12,
+  anchor: "top-center",
+};
+
 @Injectable()
 export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit {
   readonly jobType: QueueName = "ai.pass";
@@ -172,6 +212,7 @@ export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit
     const passType = passTypeOf(context.result);
     if (passType === "zoom") return this.handleZoom(context, projectId);
     if (passType === "reframe") return this.handleReframe(context, projectId);
+    if (passType === "textfx") return this.handleTextFx(context, projectId);
     return this.handleAutocut(context, projectId);
   }
 
@@ -337,6 +378,67 @@ export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit
         revision: applied.revision,
       },
       "reframe pass merged into the editing document",
+    );
+
+    return {
+      data: {
+        passId: result.passId,
+        itemCount: items.length,
+        edgRevision: applied.revision,
+      },
+    };
+  }
+
+  private async handleTextFx(
+    context: JobCompletionContext,
+    projectId: string,
+  ): Promise<JobCompletionOutcome> {
+    const { job } = context;
+    const result = TextFxResultSchema.parse(context.result);
+
+    const items: TitlePassItem[] = result.items.map((item) => ({
+      itemId: newId(),
+      passId: result.passId,
+      kind: "title",
+      startMs: item.startMs,
+      endMs: item.endMs,
+      payload: {
+        text: item.text,
+        styleRef: "system:textfx-default",
+        position: DEFAULT_POSITION,
+        animIn: item.motionPreset,
+        animOut: item.motionPreset,
+        intent: item.intent as TextFxIntent,
+        motionPreset: item.motionPreset as TextFxMotionPreset,
+        anchorWordIds: item.anchorWordIds as WordId[],
+        layoutHint: "top-third",
+      },
+      confidence: item.confidence,
+      reason: item.reason,
+      state: "proposed",
+    }));
+
+    const pass: Pass = {
+      passId: result.passId,
+      type: "textfx",
+      engine: "textfx@keyphrases@1",
+      params: {},
+      status: "ready",
+      jobId: job.id,
+      items,
+    };
+
+    const applied = await this.mergePass(projectId, job.workspaceId, pass);
+
+    this.logger.log(
+      {
+        jobId: job.id,
+        projectId,
+        passId: result.passId,
+        items: items.length,
+        revision: applied.revision,
+      },
+      "textfx pass merged into the editing document",
     );
 
     return {

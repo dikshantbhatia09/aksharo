@@ -10,7 +10,7 @@
  */
 import type { ItemState, PassItem } from "@montaj/edg";
 
-export type LaneKind = "cuts" | "zoom" | "reframe" | "audio";
+export type LaneKind = "cuts" | "zoom" | "reframe" | "audio" | "textfx";
 
 export interface LaneItem {
   readonly itemId: string;
@@ -40,6 +40,8 @@ function laneKindOf(itemKind: PassItem["kind"]): LaneKind | undefined {
     case "sfx":
     case "music":
       return "audio";
+    case "title":
+      return "textfx";
     default:
       return undefined;
   }
@@ -50,6 +52,7 @@ const LANE_LABELS: Readonly<Record<LaneKind, string>> = {
   zoom: "Zoom",
   reframe: "Reframe",
   audio: "SFX & music",
+  textfx: "Text FX",
 };
 
 /**
@@ -79,7 +82,7 @@ export function buildLanes(items: readonly PassItem[]): readonly LaneRow[] {
     });
     byLane.set(kind, row);
   }
-  const order: readonly LaneKind[] = ["cuts", "zoom", "reframe", "audio"];
+  const order: readonly LaneKind[] = ["cuts", "zoom", "reframe", "audio", "textfx"];
   return order.map((kind) => ({
     kind,
     // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up

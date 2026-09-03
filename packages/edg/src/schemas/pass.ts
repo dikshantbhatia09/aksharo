@@ -13,6 +13,7 @@ import {
   PresetIdSchema,
   StyleRefSchema,
   UlidSchema,
+  WordIdSchema,
 } from "./primitives.js";
 import { PositionSchema } from "./segment.js";
 
@@ -121,6 +122,16 @@ export const MusicPayloadSchema = z
   })
   .meta({ id: "MusicPayload", title: "MusicPayload" });
 
+/** Text FX key-phrase classification (D06, `03-architecture/09-ai-pipeline.md` §6). */
+export const TextFxIntentSchema = z
+  .enum(["title", "stat", "quote", "hook"])
+  .meta({ id: "TextFxIntent", title: "TextFxIntent" });
+
+/** The six D06 motion presets, shared by the browser and cloud render engines. */
+export const TextFxMotionPresetSchema = z
+  .enum(["pop", "slide-up", "typewriter", "underline", "count-up", "fade"])
+  .meta({ id: "TextFxMotionPreset", title: "TextFxMotionPreset" });
+
 export const TitlePayloadSchema = z
   .object({
     text: z.string().min(1),
@@ -129,6 +140,20 @@ export const TitlePayloadSchema = z
     /** Animation preset ids resolved by `render-core`. */
     animIn: PresetIdSchema,
     animOut: PresetIdSchema,
+    /**
+     * D06 text-fx fields, added 2026-09-03: a title item minted by the
+     * `textfx` pass carries the source key phrase's classification and its
+     * anchor into the transcript, on top of the base fields every `title`
+     * item already had. Optional so an older/other `title` producer (a
+     * manual title, a future non-textfx source) is still a valid payload.
+     */
+    intent: TextFxIntentSchema.optional(),
+    motionPreset: TextFxMotionPresetSchema.optional(),
+    /** `Word.wid`s the key phrase was snapped to (its first and last word). */
+    anchorWordIds: z.array(WordIdSchema).optional(),
+    /** Advisory placement slot; `render-core`'s `placeTitleBox` computes the
+     * actual frame-by-frame rectangle from the caption's live safe area. */
+    layoutHint: z.enum(["top-third", "upper-left", "upper-right", "centre"]).optional(),
   })
   .meta({ id: "TitlePayload", title: "TitlePayload" });
 
@@ -225,6 +250,8 @@ export type ReframePayload = z.infer<typeof ReframePayloadSchema>;
 export type SfxPayload = z.infer<typeof SfxPayloadSchema>;
 export type MusicPayload = z.infer<typeof MusicPayloadSchema>;
 export type TitlePayload = z.infer<typeof TitlePayloadSchema>;
+export type TextFxIntent = z.infer<typeof TextFxIntentSchema>;
+export type TextFxMotionPreset = z.infer<typeof TextFxMotionPresetSchema>;
 export type CutPassItem = z.infer<typeof CutPassItemSchema>;
 export type ZoomPassItem = z.infer<typeof ZoomPassItemSchema>;
 export type ReframePassItem = z.infer<typeof ReframePassItemSchema>;

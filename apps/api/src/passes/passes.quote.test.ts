@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { BURN_RATES } from "@montaj/config";
 
-import { quoteAutocut, quoteReframeZoom, quoteSfx } from "./passes.quote.js";
+import { quoteAutocut, quoteReframeZoom, quoteSfx, quoteTextFx } from "./passes.quote.js";
 
 describe("the autocut pass quote", () => {
   it("charges the CONTRACTS §4 rate from packages/config, not a number of its own", () => {
@@ -78,5 +78,24 @@ describe("the sfx pass quote (D04a)", () => {
 
   it("never quotes zero for a finished timeline that exists", () => {
     expect(quoteSfx(1).tenths).toBeGreaterThan(0);
+  });
+});
+
+describe("the text-fx pass quote", () => {
+  it("charges the CONTRACTS §4 rate from packages/config, on finished minutes", () => {
+    expect(BURN_RATES.textFxPass.ratePerUnitTenths).toBe(10);
+    expect(BURN_RATES.textFxPass.basis).toBe("finishedMinute");
+    expect(quoteTextFx(60_000).tenths).toBe(10);
+  });
+
+  it("quotes a 90-second finished timeline at 1.5 credits", () => {
+    const quote = quoteTextFx(90_000);
+    expect(quote.tenths).toBe(15);
+    expect(quote.credits).toBe("1.5");
+    expect(quote.reason).toBe("ai.pass (textfx) · 1.5 finished minutes");
+  });
+
+  it("never quotes zero for a finished timeline that exists", () => {
+    expect(quoteTextFx(1).tenths).toBeGreaterThan(0);
   });
 });

@@ -49,6 +49,32 @@ describe("the schema", () => {
     expect(RenderManifestSchema.parse(manifest).watermark).toBeNull();
   });
 
+  it("parses accepted text-fx titles on the timemap (D06)", () => {
+    const manifest = signedFixtureManifest(SECRET, {
+      timemap: {
+        titles: [
+          {
+            itemId: "01JA20TXTFX000000000000000",
+            startMs: 0,
+            endMs: 1200,
+            text: "welcome back",
+            intent: "title",
+            motionPreset: "pop",
+          },
+        ],
+      },
+    });
+    const parsed = RenderManifestSchema.parse(manifest);
+    expect(parsed.timemap.titles).toHaveLength(1);
+    expect(parsed.timemap.titles?.[0]).toMatchObject({ text: "welcome back", motionPreset: "pop" });
+  });
+
+  it("omits titles just fine — every manifest built before D06 stays valid", () => {
+    const manifest = signedFixtureManifest(SECRET);
+    const parsed = RenderManifestSchema.parse(manifest);
+    expect(parsed.timemap.titles).toBeUndefined();
+  });
+
   it("parses a subtitle request", () => {
     const manifest = signedFixtureManifest(SECRET, {
       subtitles: { formats: ["srt", "vtt"], scripts: ["roman"], dropFillers: true },

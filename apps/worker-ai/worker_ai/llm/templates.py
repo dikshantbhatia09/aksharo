@@ -168,10 +168,29 @@ def _build_hooks(transcript: TranscriptInput) -> TemplateMessages:
     return TemplateMessages(system=system, user=_render_transcript_block(transcript))
 
 
+def _build_keyphrases(transcript: TranscriptInput) -> TemplateMessages:
+    """Mirrors ``packages/prompts/src/templates/keyphrases.ts``'s system prompt
+    byte for byte where it matters (the JSON shape and the phrase rules) — the
+    D06 consumer B11 left for this pass to wire (``keyphrases.ts``'s own
+    docstring).
+    """
+    system = (
+        "You extract the notable key phrases from a creator's video transcript, "
+        "each anchored to when it was said. "
+        + _GUARDRAIL_PREAMBLE
+        + ' Reply with strict JSON only: {"keyphrases":[{"phrase":string,'
+        '"startMs":number,"endMs":number}]}. '
+        f"At most {transcript.max_phrases} phrases, each 1-6 words taken verbatim "
+        "from the transcript, with the millisecond span where they were spoken."
+    )
+    return TemplateMessages(system=system, user=_render_transcript_block(transcript))
+
+
 _BUILDERS = {
     "chapters": _build_chapters,
     "summary": _build_summary,
     "hooks": _build_hooks,
+    "keyphrases": _build_keyphrases,
 }
 
 
