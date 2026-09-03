@@ -115,12 +115,28 @@ function writeCloneEnv(cloneDir) {
     S3_SECRET_KEY: "montaj-e2e-secret",
     R2_ACCESS_KEY: "montaj-e2e",
     R2_SECRET_KEY: "montaj-e2e-secret",
-    API_ORIGIN: "http://127.0.0.1:59923",
-    WEB_ORIGIN: "http://127.0.0.1:59924",
-    API_PORT: "59923",
-    WEB_PORT: "59924",
     INTERNAL_CALLBACK_SECRET: "verify-wave-internal-callback-secret",
     LLM_PROVIDER: "mock",
+    // NOT the compose stack's exposed ports (59923/59924): `apps/web/e2e`
+    // (the "e2e" step below) reuses an already-healthy `API_ORIGIN` but
+    // *always* builds and starts its own fresh web server
+    // (`webServer[1].reuseExistingServer` is hardcoded `false` in
+    // `playwright.config.ts` — the suite must never test a stale `.next`
+    // build). Pointing these at the compose api/web's own ports made that
+    // fresh web server collide on the port the compose `web` container was
+    // already listening on ("...is already used"), and even a free port
+    // wouth have failed CORS against the *compose* api container, which is
+    // hard-coded at container build time to allow only `http://web:3000`
+    // (`app.enableCors({ origin: [env.WEB_ORIGIN] })` in `apps/api/src/main.ts`)
+    // — found running `verify-wave.mjs --wave 7` end to end for the first
+    // time (M17). Distinct, unused ports let the suite build and run its own
+    // API + web pair against the compose stack's shared Postgres/Redis/MinIO
+    // (via `DATABASE_URL`/`REDIS_URL`/`S3_*` above) exactly as
+    // `pnpm --filter @montaj/web test:e2e` does from a cold shell.
+    API_ORIGIN: "http://127.0.0.1:59925",
+    WEB_ORIGIN: "http://127.0.0.1:59926",
+    API_PORT: "59925",
+    WEB_PORT: "59926",
   };
   for (const [key, value] of Object.entries(replacements)) {
     const pattern = new RegExp(`^${key}=.*$`, "m");
