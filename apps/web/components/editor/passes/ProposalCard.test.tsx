@@ -59,4 +59,27 @@ describe("<ProposalCard />", () => {
     await user.click(screen.getByText("Preview after"));
     expect(onPreview).toHaveBeenCalledWith("after");
   });
+
+  it("shows a text preview and the motion preset for a title item (D06)", () => {
+    const titleItem = item({
+      kind: "title",
+      payload: {
+        text: "10x growth",
+        styleRef: "system:textfx-default",
+        position: { x: 0.5, y: 0.12, anchor: "top-center" },
+        animIn: "count-up",
+        animOut: "count-up",
+        intent: "stat",
+        motionPreset: "count-up",
+      },
+    });
+    render(<ProposalCard item={titleItem} onDecide={vi.fn()} onUndo={vi.fn()} />);
+    expect(screen.getByTestId("proposal-card-title-text")).toHaveTextContent("10x growth");
+    expect(screen.getByTestId("proposal-card-title-preset")).toHaveTextContent("count-up");
+  });
+
+  it("renders no title-text block for a non-title item", () => {
+    render(<ProposalCard item={item()} onDecide={vi.fn()} onUndo={vi.fn()} />);
+    expect(screen.queryByTestId("proposal-card-title-text")).not.toBeInTheDocument();
+  });
 });

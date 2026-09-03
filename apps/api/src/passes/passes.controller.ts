@@ -140,6 +140,29 @@ export class PassesController {
     });
   }
 
+  @Post("textfx")
+  @Roles("editor")
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: "Start a text-fx pass",
+    description:
+      "Quotes the job from the finished (post-cut) timeline (`textFxPass` burn rate, " +
+      "finished minutes), holds the credits and enqueues `ai.pass`. Key-phrase title " +
+      "proposals land as `edg_pass_items` (kind `title`, state `proposed`) once the " +
+      "worker's completion arrives and `MergePass` merges them; watch `job.completed` on " +
+      "the project's realtime room, or poll `GET /jobs/{id}`.",
+    operationId: "startTextFxPass",
+  })
+  @ApiOkResponse({ type: PassAcceptedDto, description: "Accepted and queued." })
+  @ApiConflictResponse({ description: "`pass/media_not_ready` or `pass/transcript_not_ready`." })
+  @ApiPaymentRequiredResponse({ description: "`credits/insufficient`." })
+  async startTextFx(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("projectId") projectId: string,
+  ): Promise<PassAcceptedDto> {
+    return this.passes.startTextFx({ projectId, workspaceId: principal.workspaceId });
+  }
+
   @Get()
   @Roles("viewer")
   @ApiOperation({

@@ -8,6 +8,39 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **D06: text FX pass — key phrases to titles, with a no-overlap layout
+  solver.** New worker pass `textfx` (`apps/worker-ai/worker_ai/passes/
+text_fx.py` + `processors/text_fx_pass.py`): runs the `keyphrases@1`
+  prompt (B11's template, now fully wired end to end — `_build_keyphrases`,
+  `KeyphrasesOutput`, and the mock provider's deterministic generator all
+  landed here) through B11's LLM client, caps proposals at 1 per 20s and 12
+  per 10 min, snaps each phrase to the transcript word(s) it actually covers,
+  classifies intent (`title`/`stat`/`quote`/`hook` from surface cues — a
+  question mark, a digit, a quote) and drops anything inside a protected
+  range or an accepted cut. New `packages/render-core/src/textfx/` module:
+  a deterministic layout solver (`placeTitleBox`, property-tested with
+  `fast-check` for "never overlaps the caption, for any caption position ×
+  title length"), six motion presets (`pop`, `slide-up`, `typewriter`,
+  `underline`, `count-up`, `fade`) as pure phase functions, and
+  `drawTextFxTitle` turning a placement + phase into the same portable
+  `DrawCommand[]` every other item kind emits. API: `POST /projects/{id}/
+passes/textfx` (quoted on the finished timeline, `textFxPass` burn rate —
+  1 credit/finished-minute, `packages/config/src/credits.ts`), a completion
+  handler landing proposals as `PassItem{kind:"title"}` (CONTRACTS' frozen
+  `ItemKind` has no separate `text_fx` kind, so the extra classification
+  fields — `intent`, `motionPreset`, `anchorWordIds`, `layoutHint` — ride on
+  `TitlePayload` as new optional fields, additive to the frozen shape).
+  Editor: `ProposalCard` shows the title's text and motion preset; the
+  timeline gained a `textfx` lane. `RenderManifestSchema.timemap.titles`
+  (optional, not defaulted, same backward-compatible pattern as `keyframes`)
+  carries accepted title items through to a render. **Deviation from the
+  brief:** the actual pixel-level draw path inside `apps/web/lib/export/
+engine.ts` and `apps/render` (compositing `drawTextFxTitle`'s output onto
+  a real frame, plus the render-parity fixture) was not implemented in this
+  pass — the manifest carries the data, but no engine consumes it yet. Left
+  as an explicit follow-up rather than a rushed, untested wiring into the
+  frozen render-parity gate.
+
 - **M08: mounted C11's `PluginActivationCue` in the Passes tab.** C11 shipped
   the cue (`apps/web/components/editor/passes/PluginActivationCue.tsx`) but
   it was never wired into `PassesTab`. This WP adds a `PluginActivationCues`

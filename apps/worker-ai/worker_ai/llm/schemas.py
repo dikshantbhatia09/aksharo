@@ -17,6 +17,8 @@ __all__ = [
     "Chapter",
     "ChaptersOutput",
     "HooksOutput",
+    "Keyphrase",
+    "KeyphrasesOutput",
     "PlatformVariant",
     "SummaryOutput",
     "ValidationOutcome",
@@ -94,12 +96,31 @@ class HooksOutput(BaseModel):
     tiktok: PlatformVariant
 
 
-InsightKind = Literal["chapters", "summary", "hooks"]
+class Keyphrase(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    phrase: str = Field(min_length=1, max_length=80)
+    start_ms: int = Field(ge=0, alias="startMs")
+    end_ms: int = Field(ge=0, alias="endMs")
+
+    @model_validator(mode="after")
+    def _ordered(self) -> Keyphrase:
+        if self.end_ms < self.start_ms:
+            raise ValueError("endMs must not precede startMs")
+        return self
+
+
+class KeyphrasesOutput(BaseModel):
+    keyphrases: tuple[Keyphrase, ...] = Field(default=())
+
+
+InsightKind = Literal["chapters", "summary", "hooks", "keyphrases"]
 
 _SCHEMAS: dict[str, type[BaseModel]] = {
     "chapters": ChaptersOutput,
     "summary": SummaryOutput,
     "hooks": HooksOutput,
+    "keyphrases": KeyphrasesOutput,
 }
 
 

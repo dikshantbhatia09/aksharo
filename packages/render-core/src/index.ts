@@ -280,3 +280,21 @@ export {
   q,
   qRect,
 } from "./units.js";
+
+export { drawTextFxTitle, type TextFxDrawOptions } from "./textfx/draw.js";
+export {
+  placeTitleBox,
+  rectsOverlap,
+  type PlaceTitleOptions,
+  type TextFxSlot,
+  type TitlePlacement,
+  type TitleSize,
+} from "./textfx/layout.js";
+export {
+  DEFAULT_PRESET_BY_INTENT,
+  TEXT_FX_MOTION_PRESETS,
+  textFxPhase,
+  textFxProgress,
+  type TextFxMotionPreset,
+  type TextFxPhase,
+} from "./textfx/presets.js";

@@ -18,19 +18,21 @@ function cutItem(overrides: Partial<PassItem> = {}): PassItem {
 }
 
 describe("buildLanes", () => {
-  it("groups cut/zoom/reframe/sfx/music into four separate lane rows, in order", () => {
+  it("groups cut/zoom/reframe/sfx/music/title into five separate lane rows, in order", () => {
     const items: PassItem[] = [
       cutItem(),
       { ...cutItem(), itemId: "i2", kind: "zoom", payload: {} } as PassItem,
       { ...cutItem(), itemId: "i3", kind: "reframe", payload: {} } as PassItem,
       { ...cutItem(), itemId: "i4", kind: "sfx", payload: {} } as PassItem,
+      { ...cutItem(), itemId: "i5", kind: "title", payload: {} } as PassItem,
     ];
     const lanes = buildLanes(items);
-    expect(lanes.map((l) => l.kind)).toEqual(["cuts", "zoom", "reframe", "audio"]);
+    expect(lanes.map((l) => l.kind)).toEqual(["cuts", "zoom", "reframe", "audio", "textfx"]);
     expect(lanes[0]!.items).toHaveLength(1);
     expect(lanes[1]!.items).toHaveLength(1);
     expect(lanes[2]!.items).toHaveLength(1);
     expect(lanes[3]!.items).toHaveLength(1);
+    expect(lanes[4]!.items).toHaveLength(1);
   });
 
   it("sorts items within a lane by startMs", () => {
@@ -42,15 +44,19 @@ describe("buildLanes", () => {
     expect(lanes[0]!.items.map((i) => i.itemId)).toEqual(["earlier", "later"]);
   });
 
-  it("ignores unknown item kinds (title has no lane yet) without throwing", () => {
-    const items: PassItem[] = [{ ...cutItem(), kind: "title", payload: {} } as PassItem];
+  it("does not throw for an item kind with no lane mapping", () => {
+    const items: PassItem[] = [{ ...cutItem(), kind: "cut", payload: {} } as PassItem];
     expect(() => buildLanes(items)).not.toThrow();
-    const lanes = buildLanes(items);
-    expect(lanes.every((l) => l.items.length === 0)).toBe(true);
   });
 
-  it("always returns exactly the four lanes, even for an empty document", () => {
-    expect(buildLanes([]).map((l) => l.kind)).toEqual(["cuts", "zoom", "reframe", "audio"]);
+  it("always returns exactly the five lanes, even for an empty document", () => {
+    expect(buildLanes([]).map((l) => l.kind)).toEqual([
+      "cuts",
+      "zoom",
+      "reframe",
+      "audio",
+      "textfx",
+    ]);
   });
 });
 

@@ -935,11 +935,41 @@
         },
         "animOut": {
           "$ref": "#/$defs/PresetId"
+        },
+        "intent": {
+          "$ref": "#/$defs/TextFxIntent"
+        },
+        "motionPreset": {
+          "$ref": "#/$defs/TextFxMotionPreset"
+        },
+        "anchorWordIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^\\d+:\\d+$",
+            "title": "WordId",
+            "description": "Stable word id \"<chunkIdx>:<n>\", allocated once and never reused (D28)",
+            "examples": ["0:0", "3:1274"]
+          }
+        },
+        "layoutHint": {
+          "type": "string",
+          "enum": ["top-third", "upper-left", "upper-right", "centre"]
         }
       },
       "required": ["text", "styleRef", "position", "animIn", "animOut"],
       "additionalProperties": false,
       "title": "TitlePayload"
+    },
+    "TextFxIntent": {
+      "type": "string",
+      "enum": ["title", "stat", "quote", "hook"],
+      "title": "TextFxIntent"
+    },
+    "TextFxMotionPreset": {
+      "type": "string",
+      "enum": ["pop", "slide-up", "typewriter", "underline", "count-up", "fade"],
+      "title": "TextFxMotionPreset"
     }
   }
 }

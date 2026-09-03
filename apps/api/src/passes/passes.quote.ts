@@ -71,3 +71,31 @@ export function quoteReframeZoom(kind: "zoom" | "reframe", durationMs: number): 
     reason: `ai.pass (${kind}) · ${minutes.toFixed(1)} source minutes`,
   };
 }
+
+/**
+ * What a text-fx pass costs (D06, brief §4): `BURN_RATES.textFxPass` (basis
+ * `finishedMinute`, 1 credit/min, D07 principle — a pass that reads the
+ * post-cut timeline settles on it rather than the source) already lives in
+ * `@montaj/config`; this only decides which duration to multiply it by.
+ */
+export interface TextFxQuote {
+  readonly durationMs: number;
+  readonly deciMinutes: number;
+  readonly tenths: number;
+  readonly credits: string;
+  readonly reason: string;
+}
+
+export function quoteTextFx(durationMs: number): TextFxQuote {
+  const units = deciMinutes(durationMs);
+  const tenths = creditCostTenths({ operation: "textFxPass", durationMs });
+  const minutes = (units * BILLING_QUANTUM_MS) / 60_000;
+
+  return {
+    durationMs,
+    deciMinutes: units,
+    tenths,
+    credits: formatCredits(tenths),
+    reason: `ai.pass (textfx) · ${minutes.toFixed(1)} finished minutes`,
+  };
+}

@@ -134,6 +134,27 @@ export const KeyframeTrackSchema = z.object({
 export type KeyframeTrack = z.infer<typeof KeyframeTrackSchema>;
 
 /**
+ * One accepted `title` pass item (D06), on the **source** clock — same
+ * convention as `KeyframeTrackSchema`: `startMs`/`endMs` are the item's own
+ * source-timeline range, and a consumer remaps them onto the output clock
+ * with `@montaj/timemap`'s `mapKeyframes`/`mapRange`, using the same
+ * `TimeMap` `manifest.timemap.edits` builds. No packed curve is carried here
+ * — unlike a `zoom`/`reframe` item, a title has no per-frame position curve
+ * of its own; `@montaj/render-core`'s `placeTitleBox` derives its on-screen
+ * rectangle at render time from the caption's own live safe area, so only the
+ * text and its motion preset need to travel.
+ */
+export const TitleTrackSchema = z.object({
+  itemId: Ulid,
+  startMs: WholeMs,
+  endMs: WholeMs,
+  text: z.string().min(1).max(200),
+  intent: z.enum(["title", "stat", "quote", "hook"]),
+  motionPreset: z.enum(["pop", "slide-up", "typewriter", "underline", "count-up", "fade"]),
+});
+export type TitleTrack = z.infer<typeof TitleTrackSchema>;
+
+/**
  * The style documents this render is pinned to.
  *
  * `catalogueSnapshotIds` are content ids of the exact StyleDocs used —
@@ -261,6 +282,13 @@ export const RenderManifestSchema = z.object({
      * being touched; a consumer reads `manifest.timemap.keyframes ?? []`.
      */
     keyframes: z.array(KeyframeTrackSchema).max(2_000).optional(),
+    /**
+     * Accepted text-fx title items (D06). Optional, not defaulted, same
+     * backward-compatibility rule as `keyframes` above — every manifest and
+     * fixture built before this field existed stays valid; a consumer reads
+     * `manifest.timemap.titles ?? []`.
+     */
+    titles: z.array(TitleTrackSchema).max(2_000).optional(),
   }),
   output: OutputSpecSchema,
   audio: AudioSpecSchema,

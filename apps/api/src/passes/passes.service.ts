@@ -9,7 +9,7 @@ import {
   type ReframeAspect,
   type ZoomPreset,
 } from "./passes.errors.js";
-import { quoteAutocut, quoteReframeZoom } from "./passes.quote.js";
+import { quoteAutocut, quoteReframeZoom, quoteTextFx } from "./passes.quote.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { EdgService } from "../edg/index.js";
@@ -88,6 +88,23 @@ export interface StartReframeRequest {
 }
 
 export interface StartReframeZoomAccepted {
+  readonly jobId: string;
+  readonly passId: string;
+  readonly status: string;
+  readonly deduplicated: boolean;
+  readonly quote: {
+    readonly tenths: number;
+    readonly credits: string;
+    readonly durationMs: number;
+  };
+}
+
+export interface StartTextFxRequest {
+  readonly projectId: string;
+  readonly workspaceId: string;
+}
+
+export interface StartTextFxAccepted {
   readonly jobId: string;
   readonly passId: string;
   readonly status: string;
@@ -281,6 +298,69 @@ export class PassesService {
     };
   }
 
+  /**
+   * `POST /projects/{id}/passes/textfx` (D06 §6): key-phrase title
+   * extraction. Unlike `zoom`/`reframe`, this needs no media proxy — the
+   * `keyphrases@1` prompt only reads the transcript's own segments — so it
+   * only needs a transcript, same as `startAutocut`.
+   *
+   * Quoted on the **finished** timeline (`quoteTextFx`, `textFxPass` basis
+   * `finishedMinute` — D07's principle that a pass reading the post-cut
+   * result settles on it): `media.durationMs` minus every accepted `cut`
+   * item's own range, floored at 0 so a fully-cut (degenerate) timeline still
+   * quotes the one-quantum minimum `deciMinutes` already guarantees.
+   */
+  async startTextFx(request: StartTextFxRequest): Promise<StartTextFxAccepted> {
+    const project = await this.project(request.projectId, request.workspaceId);
+    const media = await this.primaryMedia(project.id);
+    const transcript = await this.transcriptOf(project.id);
+
+    const cutRanges = await this.acceptedCutRangesOf(project.id, request.workspaceId);
+    const removedMs = cutRanges.reduce((total, [s, e]) => total + Math.max(0, e - s), 0);
+    const finishedDurationMs = Math.max(0, (media.durationMs ?? 0) - removedMs);
+
+    const quote = quoteTextFx(finishedDurationMs);
+    const passId = newId();
+    const segments = await this.segmentsForTextFx(transcript);
+    const words = await this.wordsOf(transcript);
+    const storedProtected = await this.storedProtectedRangesOf(project.id, request.workspaceId);
+    const guardedRanges = await this.guardedRangesOf(project.id, request.workspaceId);
+
+    const jobKey = `ai.pass:textfx:${project.id}`;
+    const { job, deduplicated } = await this.jobs.enqueue({
+      type: "ai.pass",
+      workspaceId: request.workspaceId,
+      projectId: project.id,
+      jobKey,
+      worstCaseTenths: quote.tenths,
+      reason: quote.reason,
+      params: {
+        passId,
+        passType: "textfx",
+        language: transcript.language,
+        durationMs: media.durationMs,
+        mediaId: media.id,
+        segments,
+        words: words.map((word) => [word.wid, word.s, word.e, word.t]),
+        cutRanges,
+        protectedRanges: [...storedProtected, ...guardedRanges],
+      },
+    });
+
+    this.logger.log(
+      { projectId: project.id, jobId: job.id, passId, tenths: quote.tenths, deduplicated },
+      "textfx pass enqueued",
+    );
+
+    return {
+      jobId: job.id,
+      passId: deduplicated ? (passIdOf(job.params) ?? passId) : passId,
+      status: job.status,
+      deduplicated,
+      quote: { tenths: quote.tenths, credits: quote.credits, durationMs: finishedDurationMs },
+    };
+  }
+
   // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------
@@ -359,6 +439,38 @@ export class PassesService {
       }
     }
     return words;
+  }
+
+  /**
+   * One `{startMs, endMs, text, speaker?}` row per transcript chunk (same
+   * shape and grouping `apps/api/src/insights/insights.service.ts`'s own
+   * `segmentOf` builds for the chapters/summary/hooks prompts) — the
+   * `keyphrases@1` prompt's transcript block, PII-minimised the same way
+   * (text and timestamps only, never a user id or name).
+   */
+  private async segmentsForTextFx(
+    transcript: Transcript,
+  ): Promise<{ startMs: number; endMs: number; text: string; speaker?: string }[]> {
+    const rows = await this.transcripts.allChunks(transcript.id, transcript.currentRevision);
+    const segments: { startMs: number; endMs: number; text: string; speaker?: string }[] = [];
+    for (const row of rows) {
+      const words = (
+        row.words as unknown as { t: string; sp?: string; deleted?: boolean }[]
+      ).filter((word) => word.deleted !== true);
+      const text = words
+        .map((word) => word.t)
+        .join(" ")
+        .trim();
+      if (text === "") continue;
+      const speaker = words.find((word) => word.sp !== undefined)?.sp;
+      segments.push({
+        startMs: row.startMs,
+        endMs: row.endMs,
+        text,
+        ...(speaker === undefined ? {} : { speaker }),
+      });
+    }
+    return segments;
   }
 
   /**

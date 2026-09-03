@@ -1909,6 +1909,13 @@ export const API_OPERATIONS = [
     summary: "Start a reframe pass",
   },
   {
+    operationId: "startTextFxPass",
+    method: "POST",
+    path: "/projects/{projectId}/passes/textfx",
+    tags: ["passes"],
+    summary: "Start a text-fx pass",
+  },
+  {
     operationId: "startZoomPass",
     method: "POST",
     path: "/projects/{projectId}/passes/zoom",
