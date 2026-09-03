@@ -14,7 +14,8 @@
  *
  * Usage: node scripts/verify-wave.mjs --wave <n> [--keep-clone] [--skip <step,step>]
  */
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
+import { generateKeyPairSync } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -88,14 +89,15 @@ function writeCloneEnv(cloneDir) {
   const examplePath = join(cloneDir, ".env.example");
   let env = readFileSync(examplePath, "utf8");
 
-  const privateKey = execFileSync("openssl", [
-    "genpkey",
-    "-algorithm",
-    "RSA",
-    "-pkeyopt",
-    "rsa_keygen_bits:2048",
-  ]).toString();
-  const publicKey = execFileSync("openssl", ["rsa", "-pubout"], { input: privateKey }).toString();
+  // Node is already a hard requirement for this script; an `openssl` CLI is
+  // not present on a stock Windows host. Generate the same PKCS#8 private key
+  // and SPKI public key in-process so the advertised cross-platform entrypoint
+  // remains true.
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    publicKeyEncoding: { type: "spki", format: "pem" },
+  });
 
   const replacements = {
     DATABASE_URL: "postgresql://montaj:montaj@127.0.0.1:59432/montaj_e2e?schema=public",
