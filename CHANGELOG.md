@@ -62,6 +62,107 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     `pass.<kind>.started`); new unit tests for both controllers assert the
     audit call on every mutating route. Neither file was added to
     `EXEMPT_FILES`.
+- **M11: pass follow-ups — auto beat-alignment for music beds, LLM sentiment
+  through the B11 seam, prompted-edit chain retry-from-partial-failure.**
+  - **Auto beat-alignment (D05 follow-up):** `apps/worker-ai/worker_ai/passes/
+music/beats.py` (new) mirrors `packages/timemap/src/beats.ts`'s
+    `alignCutBoundariesToBeats` on the Python side (same ±120 ms
+    `DEFAULT_BEAT_SNAP_TOLERANCE_MS`); `build_music_items` (`placement.py`)
+    snaps a bed's `start_ms` to the nearest beat of the section's `bpm_target`
+    whenever the resolved `loop_policy != "none"` (on by default,
+    `align_to_beat=True`), never landing inside a protected range — a
+    `loopPolicy: "none"` bed, or a snap that would violate tolerance or a
+    protected range, is left at its raw section boundary. New placement-level
+    tests (`tests/test_music_pass.py`) cover snapping, the `"none"`-policy
+    skip, the protected-range refusal and the `align_to_beat=False` opt-out.
+  - **LLM sentiment (D05 follow-up):** `packages/prompts` gains the
+    `music-mood@1` template (`templates/music-mood.ts`, registry entry,
+    per-fixture eval in `eval/music-mood.eval.test.ts` against a deterministic
+    mock scorer) and its Python mirror (`worker_ai/llm/templates.py`,
+    `schemas.py`, `providers/mock.py`). `worker_ai/passes/music/sentiment.py`
+    (new) scores transcript sentences through B11's LLM client seam
+    (`generate_insight`), falling back to the old lexicon scorer — ported
+    from `apps/api`'s now-removed `sentimentCuesOf` stub — on any provider
+    failure or region block; every `Section` (`analysis.py`) carries an
+    explicit `sentiment_source: "lexicon" | "llm"`. `apps/api/src/passes/
+passes.service.ts`'s `startMusic` now ships raw `sentences` (plus
+    `language`/`region`) instead of a precomputed score, matching CONTRACTS'
+    "all AI runs in apps/worker-ai" — the real Anthropic/OpenAI client path is
+    type-checked only (no `ANTHROPIC_API_KEY` on this machine); tests run
+    against the mock provider and the lexicon fallback.
+  - **Chain retry (D07 follow-up):** `POST /projects/{id}/prompted-edits/
+{planId}/retry` (`prompted-edits.controller.ts`, minimal addition —
+    `passes/prompted-chain.ts`'s `fail()` now keeps `currentJobId` and the
+    credit hold on a chain step's failure instead of releasing them, so a
+    retry has a job to identify the failed kind from and a hold to reuse) —
+    re-enqueues the failed pass kind with no new `CreditHold` (`skipCredits:
+true`, same as any other chain-internal step), keeps every completed kind
+    done and every kind still in `remainingKinds` ahead of it, audit-written
+    via `CommonAuditService` (`prompted_edit.plan.retried`). Dedup collision
+    with an in-flight manual pass of the same kind is handled by the existing
+    `JobsService.enqueue` job-key dedup (retry attaches to the live job
+    rather than starting a second one) — proven by a unit test in
+    `prompted-edits.service.test.ts`; the full fail -> retry -> complete path
+    is proven end to end in `apps/api/test/prompted-edits.e2e-spec.ts`.
+
+- **D04b: partner catalogue integration (contract-gated) — H-28 open, plumbing
+  built dark behind `assets.partnerCatalogue` (default off).**
+  - `apps/api/src/partner-catalogue/**`: the `PartnerCatalogue` interface
+    (`search`/`stream`/`grant`/`reportUsage`/`revoke`), `MockPartnerCatalogue`
+    (in-memory fixtures shaped after Epidemic Sound's public Partner API
+    field names — no real partner data, never seeded), and
+    `EpidemicPartnerCatalogue`, a skeleton that throws the H-28 contract-gate
+    error (`partner-catalogue/contract_gate`) on every method until
+    `EPIDEMIC_PARTNER_API_KEY`/`EPIDEMIC_PARTNER_API_SECRET` are set.
+    `PartnerCatalogueService` gates every call on `assets.partnerCatalogue`
+    (`FEATURE_FLAGS_JSON`, default off) and persists grants to
+    `asset_clearance_grants` with a `licenceSnapshot` carrying a
+    `TODO(H-28)` placeholder sentinel until the contract signs
+    (`licence-snapshot.ts`).
+  - `apps/api/prisma`: `asset_clearance_grants` gains `asset_id`,
+    `use_context`, `licence_snapshot` columns (migration
+    `20260903150000_d04b_partner_catalogue_grants`) — the existing D04a
+    grant/usage tables (`asset_clearance_grants`, `asset_usages`) are reused
+    rather than duplicated.
+  - `apps/api/src/audio-assets/asset-allowed.ts`: the licence predicate gains
+    `partnerCatalogueEnabled` (defaults to refuse) and the
+    `partner-catalogue-disabled` reason — every non-`owned` asset is refused
+    on every surface, cloud render included, while the flag is off; proven
+    with property tests.
+  - `apps/api/src/exports/decision.ts`: `hasPartnerCatalogueAssets` refuses
+    the browser export path unconditionally (D43: partner assets are
+    cloud-render-only), with `export/unsupported_in_browser` for an explicit
+    browser request.
+  - `apps/api/src/scheduler/tasks/partner-grant-expiry.task.ts` (hourly) and
+    `partner-usage-report-retry.task.ts` (every 15 min): grant expiry and the
+    B16 usage-report retry sweep, both idempotent and fake-clock-tested.
+  - Tests: interface contract tests against the mock (11), H-28 contract-gate
+    tests against the real adapter skeleton (9), licence-snapshot placeholder
+    tests (3), service unit tests (8), scheduler task tests (9), an e2e spec
+    against a real Postgres proving flag-off refusal / grant persistence /
+    expiry (4), plus new `decision.ts` (6) and `asset-allowed.ts` (3)
+    property/unit tests. Not built in this pass: an HTTP surface for
+    search/grant/revoke, the B13 admin grants table, the Passes-tab D43
+    badge, and render-time grant fetch — see the work package's final report
+    for the full list and reasoning.
+
+- **M12: one shared markdown block parser for docs + help content.**
+  - `apps/web/lib/markdown/blocks.ts`: new pure `parseBlocks()` (paragraphs,
+    headings h1-h3, ordered/unordered lists, fenced code, GFM pipe tables,
+    blockquotes) with a documented cursor-progress invariant and a
+    `fast-check` property test (`blocks.test.ts`) asserting termination and
+    exactly-once line consumption for arbitrary input. Replaces the two
+    hand-rolled, independently-duplicated block parsers previously in
+    `apps/web/lib/docs/markdown.tsx` (X03) and `apps/web/lib/content/
+markdown.tsx` (B12), which carried the identical M07 infinite-loop bug (a
+    paragraph-collection loop that could match its own stop condition on its
+    first line and never advance the cursor).
+  - `apps/web/lib/docs/markdown.tsx` and `apps/web/lib/content/markdown.tsx`
+    are now thin renderers over the shared `parseBlocks()`, keeping their
+    prior, divergent inline policies unchanged (docs: no single-`*` italic,
+    internal-vs-external link `target` policy for plugin-README links;
+    content: single-`*` italic, no link-target policy) and their existing
+    output snapshots/tests, including both files' M07 regression tests.
 
 - **D07: prompted edits — planner, Flash/Pro engines, plan preview, chained
   passes, credits held on source minutes and settled on finished minutes.**

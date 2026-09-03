@@ -9,6 +9,8 @@ import { ExportRetentionTask } from "./tasks/export-retention.task.js";
 import { LedgerReconciliationTask } from "./tasks/ledger-reconciliation.task.js";
 import { MediaRetentionTask } from "./tasks/media-retention.task.js";
 import { MemoryEntryExpiryTask } from "./tasks/memory-entry-expiry.task.js";
+import { PartnerGrantExpiryTask } from "./tasks/partner-grant-expiry.task.js";
+import { PartnerUsageReportRetryTask } from "./tasks/partner-usage-report-retry.task.js";
 import { ProjectRetentionTask } from "./tasks/project-retention.task.js";
 import { ProviderDeletionFollowupTask } from "./tasks/provider-deletion-followup.task.js";
 import { RenewalDunningTask } from "./tasks/renewal-dunning.task.js";
@@ -19,6 +21,7 @@ import { BillingModule } from "../billing/billing.module.js";
 import { HealthModule } from "../health/health.module.js";
 import { MediaModule } from "../media/media.module.js";
 import { OpsModule } from "../ops/ops.module.js";
+import { PartnerCatalogueModule } from "../partner-catalogue/partner-catalogue.module.js";
 
 /**
  * The scheduled tasks B16 owns directly (`06-data-model.md` §Retention jobs).
@@ -35,7 +38,7 @@ import { OpsModule } from "../ops/ops.module.js";
  * the sweep. See the final report's "already covered" table.
  */
 @Module({
-  imports: [MediaModule, BillingModule, HealthModule, OpsModule],
+  imports: [MediaModule, BillingModule, HealthModule, OpsModule, PartnerCatalogueModule],
   providers: [
     MediaRetentionTask,
     ProjectRetentionTask,
@@ -51,6 +54,9 @@ import { OpsModule } from "../ops/ops.module.js";
     UsageReportTask,
     CrashReportRetentionTask,
     EvalNightlyTask,
+    // D04b: partner catalogue grant expiry + usage-report retry.
+    PartnerGrantExpiryTask,
+    PartnerUsageReportRetryTask,
     // X04: publishes the public `status.json` every 5 minutes.
     StatusPublishTask,
   ],

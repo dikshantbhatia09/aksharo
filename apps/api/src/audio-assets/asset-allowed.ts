@@ -30,6 +30,18 @@ export interface AssetAllowedContext {
   readonly territory: string;
   /** Instant to evaluate `termStart`/`termEnd` against; defaults to `Date.now()`. */
   readonly at?: Date;
+  /**
+   * D04b / 2026-09-03 orchestrator launch ruling: `assets.partnerCatalogue`
+   * (`FEATURE_FLAGS_JSON`), the flag every partner-catalogue code path is
+   * gated behind. Defaults to `false` — matching the flag's own default off
+   * — so a caller that forgets to thread it through gets the conservative
+   * answer (refuse every non-`owned` asset) rather than silently allowing
+   * partner assets before the flag is ever read. H-28 (the partner contract)
+   * is still open: while the flag is off, this predicate is the refusal this
+   * work package proves with a test, on every surface, regardless of plan or
+   * clearance state.
+   */
+  readonly partnerCatalogueEnabled?: boolean;
 }
 
 /** The subset of `AudioAsset` the predicate reads — a plain object is enough,
@@ -45,7 +57,8 @@ export type AssetDenyReason =
   | "plan-below-minimum"
   | "clearance-not-established"
   | "term-not-started"
-  | "term-expired";
+  | "term-expired"
+  | "partner-catalogue-disabled";
 
 export interface AssetAllowedResult {
   readonly allowed: boolean;
@@ -66,6 +79,15 @@ export function assetAllowed(
 ): AssetAllowedResult {
   const reasons: AssetDenyReason[] = [];
   const at = context.at ?? new Date();
+
+  // D04b / 2026-09-03 launch ruling: the flag gate runs before every other
+  // partner-specific gate, and refuses on every surface (cloud render
+  // included) — the D43 surface split only ever *widens* which surfaces a
+  // partner asset could reach; it must never widen past "not while the flag
+  // is off".
+  if (asset.provider !== "owned" && context.partnerCatalogueEnabled !== true) {
+    reasons.push("partner-catalogue-disabled");
+  }
 
   if (context.surface !== "cloud_render" && !asset.allowsRawFileDelivery) {
     reasons.push("surface-requires-owned");

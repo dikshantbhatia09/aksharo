@@ -138,6 +138,26 @@ export class PromptedEditsController {
     });
     return result;
   }
+
+  @Post(":planId/retry")
+  @Roles("editor")
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: "Retry a failed prompted-edit plan's current chain step",
+    description:
+      "Re-enqueues the pass kind that failed, keeping every already-completed kind done and " +
+      "every kind still ahead of it in the chain; no new credit hold is minted.",
+    operationId: "retryPromptedEditPlan",
+  })
+  @ApiOkResponse({ type: RunPlanAcceptedDto })
+  @ApiConflictResponse({ description: "`prompted_edit/invalid_status`." })
+  async retry(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("projectId") projectId: string,
+    @Param("planId") planId: string,
+  ): Promise<RunPlanAcceptedDto> {
+    return this.promptedEdits.retry(projectId, principal.workspaceId, planId);
+  }
 }
 
 function toDto(row: PromptedEditPlan): PromptedEditPlanDto {

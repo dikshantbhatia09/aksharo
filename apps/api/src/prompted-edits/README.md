@@ -52,16 +52,27 @@ its own, already covered by the first job's hold — until the last step
 completes, at which point `PromptedChainAdvancer.settle` calls
 `CreditsFacade.settle` once, on the finished duration.
 
-## What is not wired here
+## Retry (M11 follow-up)
 
-- A rejected/failed chain step releases the hold and marks the plan
-  `"failed"` (`PromptedChainAdvancer.onPassFailed`, called from
-  `PassCompletionHandler.handleFailure`), but nothing re-offers the creator
-  a retry from a partially-run plan — a fresh `POST /prompted-edits` starts
-  over.
-- A pass that is already in flight for the project (a manual run from the
-  Passes tab, or a second prompted-edit plan sharing a pass kind) dedupes
-  against the chain's own `jobKey` the same way any two manual pass requests
-  do (`PassesService`'s existing per-kind `jobKey`); a chain step that lands
-  on an existing job whose hold was already taken by that other caller is an
-  edge case this work package did not add a test for.
+`POST /projects/{id}/prompted-edits/{planId}/retry` resumes a `"failed"`
+plan. A rejected/failed chain step (`PromptedChainAdvancer.onPassFailed`,
+called from `PassCompletionHandler.handleFailure`) marks the plan `"failed"`
+but — unlike before this follow-up — **keeps** `currentJobId` (the job that
+failed) and the credit hold open rather than releasing them, exactly so a
+retry has something to identify the failed kind from and a hold to reuse.
+`retry()` reads the failed job's own `params.passType`, re-enqueues that same
+kind through `startChainKind` with **no new `CreditHold`** (`skipCredits:
+true`, same as any other chain-internal step — "no new hold" is the whole
+point: the original hold, still open, is what eventually settles), and
+writes an audit record (`CommonAuditService`, `prompted_edit.plan.retried`).
+Every already-completed kind stays done; `remainingKinds` (what was still
+ahead of the failed step) is untouched.
+
+A pass that is already in flight for the project (a manual run from the
+Passes tab, or a second prompted-edit plan sharing a pass kind) dedupes
+against the chain's own `jobKey` the same way any two manual pass requests
+do (`PassesService`'s existing per-kind `jobKey`, `JobsService.enqueue`'s
+`jobs_live_workspace_job_key_key` constraint) — a retry of a kind that is
+already queued or running elsewhere for the project attaches to that live
+job (`deduplicated: true`) instead of starting a second one; it never
+double-runs.

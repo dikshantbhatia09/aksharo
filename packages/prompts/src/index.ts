@@ -51,6 +51,9 @@ export type { HookPlatform, HooksInput, HooksOutput } from "./templates/hooks.js
 export { keyphrasesTemplate, KEYPHRASES_TEMPLATE_VERSION } from "./templates/keyphrases.js";
 export type { Keyphrase, KeyphrasesInput, KeyphrasesOutput } from "./templates/keyphrases.js";
 
+export { musicMoodTemplate, MUSIC_MOOD_TEMPLATE_VERSION } from "./templates/music-mood.js";
+export type { MusicMoodInput, MusicMoodOutput, MusicMoodScore } from "./templates/music-mood.js";
+
 export {
   loadFillers,
   loadLexiconFile,

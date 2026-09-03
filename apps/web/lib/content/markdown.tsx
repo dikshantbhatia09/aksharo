@@ -1,5 +1,7 @@
 import React from "react";
 
+import { parseBlocks, splitTableRow, type Block } from "@/lib/markdown/blocks";
+
 /**
  * A deliberately small markdown-to-React renderer for the academy/help/
  * changelog body text: headings, paragraphs, bullet and numbered lists,
@@ -9,6 +11,14 @@ import React from "react";
  * MDX compiler to keep this work package's dependency footprint to the two
  * additive, pure-JS libraries (`gray-matter`, `minisearch`) noted in the
  * final report, on a shared 16 GB build host.
+ *
+ * Sits on the shared block parser (`lib/markdown/blocks.ts`, M12), which
+ * replaces this file's previously-duplicated `toBlocks()` — see that
+ * module's doc comment for the M07 infinite-loop bug both copies carried and
+ * the cursor-progress invariant that now prevents it. `lib/docs/markdown.tsx`
+ * (X03) is the sibling renderer over the same shared blocks; it differs only
+ * in inline policy (no single-`*` italic, internal-vs-external link
+ * targets) needed for the plugin READMEs it also renders.
  */
 function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
@@ -41,147 +51,110 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
   return nodes;
 }
 
-interface Block {
-  readonly kind: "h2" | "h3" | "p" | "ul" | "ol" | "code";
-  readonly lines: readonly string[];
+function ContentTable({
+  rows,
+  keyPrefix,
+}: {
+  rows: readonly string[];
+  keyPrefix: string;
+}): React.JSX.Element {
+  const [header, ...body] = rows;
+  const headerCells = splitTableRow(header ?? "");
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="border-border border-b text-left">
+            {headerCells.map((cell, index) => (
+              <th key={`${keyPrefix}-h-${index}`} className="py-2 pr-4 font-medium">
+                {renderInline(cell, `${keyPrefix}-h-${index}`)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {body.map((row, rowIndex) => (
+            <tr key={`${keyPrefix}-r-${rowIndex}`} className="border-border/50 border-b">
+              {splitTableRow(row).map((cell, cellIndex) => (
+                <td key={`${keyPrefix}-r-${rowIndex}-${cellIndex}`} className="text-fg-1 py-2 pr-4">
+                  {renderInline(cell, `${keyPrefix}-r-${rowIndex}-${cellIndex}`)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
-function toBlocks(markdown: string): Block[] {
-  const blocks: Block[] = [];
-  const lines = markdown.split("\n");
-  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
-  const at = (index: number): string => lines[index] ?? "";
-  let i = 0;
-  while (i < lines.length) {
-    const line = at(i);
-    if (line.trim() === "") {
-      i++;
-      continue;
-    }
-    if (line.startsWith("```")) {
-      const code: string[] = [];
-      i++;
-      while (i < lines.length && !at(i).startsWith("```")) {
-        code.push(at(i));
-        i++;
-      }
-      i++; // closing fence
-      blocks.push({ kind: "code", lines: code });
-      continue;
-    }
-    if (line.startsWith("### ")) {
-      blocks.push({ kind: "h3", lines: [line.slice(4)] });
-      i++;
-      continue;
-    }
-    if (line.startsWith("## ")) {
-      blocks.push({ kind: "h2", lines: [line.slice(3)] });
-      i++;
-      continue;
-    }
-    if (/^[-*]\s+/.test(line)) {
-      const items: string[] = [];
-      while (i < lines.length && /^[-*]\s+/.test(at(i))) {
-        items.push(at(i).replace(/^[-*]\s+/, ""));
-        i++;
-      }
-      blocks.push({ kind: "ul", lines: items });
-      continue;
-    }
-    if (/^\d+\.\s+/.test(line)) {
-      const items: string[] = [];
-      while (i < lines.length && /^\d+\.\s+/.test(at(i))) {
-        items.push(at(i).replace(/^\d+\.\s+/, ""));
-        i++;
-      }
-      blocks.push({ kind: "ol", lines: items });
-      continue;
-    }
-    // M07: root-cause fix for the same build-OOM bug fixed in the sibling
-    // `lib/docs/markdown.tsx` (that file's doc comment explains it in full).
-    // This loop must stop collecting paragraph lines only at a line one of
-    // the branches ABOVE would actually treat specially (heading, bullet,
-    // ordered list, code fence) — the same patterns those branches test, not
-    // merely "starts with `-`, `*` or `#`". A line starting with bold text
-    // (`**like this** ...`) starts with `*` but is not a bullet (no `\s+`
-    // after it), so it fails every earlier `if`, falls into this paragraph
-    // branch, and — with the old bare `^[-*#]` check — matched its own stop
-    // condition on its first line: the `while` body never ran, `i` never
-    // advanced, and the outer `while (i < lines.length)` loop spun forever
-    // pushing empty paragraph blocks. This file's own content never
-    // triggered it (no current academy/help/changelog body opens a
-    // paragraph with bold/italic text), but the bug was live here too.
-    const para: string[] = [];
-    while (
-      i < lines.length &&
-      at(i).trim() !== "" &&
-      !/^[-*]\s+|^\d+\.\s+|^#{2,3}\s|^```/.test(at(i))
-    ) {
-      para.push(at(i));
-      i++;
-    }
-    if (para.length === 0) {
-      // Defensive backstop: even if some future branch/pattern mismatch ever
-      // reintroduces a case where nothing above matches and this loop still
-      // collects zero lines, force progress rather than looping forever.
-      para.push(at(i));
-      i++;
-    }
-    blocks.push({ kind: "p", lines: [para.join(" ")] });
+function renderBlock(block: Block, key: string): React.ReactNode {
+  switch (block.kind) {
+    case "h1":
+      return (
+        <h1 key={key} className="text-fg-0 text-2xl font-semibold">
+          {renderInline(block.lines[0] ?? "", key)}
+        </h1>
+      );
+    case "h2":
+      return (
+        <h2 key={key} className="text-fg-0 text-xl font-semibold">
+          {renderInline(block.lines[0] ?? "", key)}
+        </h2>
+      );
+    case "h3":
+      return (
+        <h3 key={key} className="text-fg-0 text-lg font-semibold">
+          {renderInline(block.lines[0] ?? "", key)}
+        </h3>
+      );
+    case "code":
+      return (
+        <pre key={key} className="bg-bg-2 overflow-x-auto rounded-md p-3 text-xs">
+          <code>{block.lines.join("\n")}</code>
+        </pre>
+      );
+    case "table":
+      return <ContentTable key={key} rows={block.lines} keyPrefix={key} />;
+    case "blockquote":
+      return (
+        <blockquote key={key} className="border-border text-fg-1 border-l-2 pl-3 text-sm italic">
+          {block.lines.map((line, lineIndex) => (
+            <p key={`${key}-${lineIndex}`}>{renderInline(line, `${key}-${lineIndex}`)}</p>
+          ))}
+        </blockquote>
+      );
+    case "ul":
+      return (
+        <ul key={key} className="text-fg-1 list-disc pl-5 text-sm leading-relaxed">
+          {block.lines.map((item, itemIndex) => (
+            <li key={`${key}-${itemIndex}`}>{renderInline(item, `${key}-${itemIndex}`)}</li>
+          ))}
+        </ul>
+      );
+    case "ol":
+      return (
+        <ol key={key} className="text-fg-1 list-decimal pl-5 text-sm leading-relaxed">
+          {block.lines.map((item, itemIndex) => (
+            <li key={`${key}-${itemIndex}`}>{renderInline(item, `${key}-${itemIndex}`)}</li>
+          ))}
+        </ol>
+      );
+    case "p":
+    default:
+      return (
+        <p key={key} className="text-fg-1 text-sm leading-relaxed">
+          {renderInline(block.lines[0] ?? "", key)}
+        </p>
+      );
   }
-  return blocks;
 }
 
 export function MarkdownBody({ markdown }: { readonly markdown: string }): React.JSX.Element {
-  const blocks = toBlocks(markdown);
+  const blocks = parseBlocks(markdown);
   return (
     <div className="prose-content flex flex-col gap-4">
-      {blocks.map((block, index) => {
-        const key = `block-${index}`;
-        switch (block.kind) {
-          case "h2":
-            return (
-              <h2 key={key} className="text-fg-0 text-xl font-semibold">
-                {renderInline(block.lines[0] ?? "", key)}
-              </h2>
-            );
-          case "h3":
-            return (
-              <h3 key={key} className="text-fg-0 text-lg font-semibold">
-                {renderInline(block.lines[0] ?? "", key)}
-              </h3>
-            );
-          case "code":
-            return (
-              <pre key={key} className="bg-bg-2 overflow-x-auto rounded-md p-3 text-xs">
-                <code>{block.lines.join("\n")}</code>
-              </pre>
-            );
-          case "ul":
-            return (
-              <ul key={key} className="text-fg-1 list-disc pl-5 text-sm leading-relaxed">
-                {block.lines.map((item, itemIndex) => (
-                  <li key={`${key}-${itemIndex}`}>{renderInline(item, `${key}-${itemIndex}`)}</li>
-                ))}
-              </ul>
-            );
-          case "ol":
-            return (
-              <ol key={key} className="text-fg-1 list-decimal pl-5 text-sm leading-relaxed">
-                {block.lines.map((item, itemIndex) => (
-                  <li key={`${key}-${itemIndex}`}>{renderInline(item, `${key}-${itemIndex}`)}</li>
-                ))}
-              </ol>
-            );
-          case "p":
-          default:
-            return (
-              <p key={key} className="text-fg-1 text-sm leading-relaxed">
-                {renderInline(block.lines[0] ?? "", key)}
-              </p>
-            );
-        }
-      })}
+      {blocks.map((block, index) => renderBlock(block, `block-${index}`))}
     </div>
   );
 }

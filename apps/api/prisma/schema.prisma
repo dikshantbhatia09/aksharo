@@ -3013,7 +3013,8 @@ model AudioAsset {
   createdAt             DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  usages AssetUsage[]
+  usages         AssetUsage[]
+  clearanceGrants AssetClearanceGrant[]
 
   @@unique([provider, providerAssetId])
   @@index([kind])
@@ -3062,17 +3063,30 @@ model AssetClearanceGrant {
   publicUrl         String?              @map("public_url")
   partnerUserId     String?              @map("partner_user_id")
   status            ClearanceGrantStatus @default(pending)
+  /// D04b (`PartnerCatalogue.grant`): the asset this safelisting grant covers.
+  /// Nullable — pre-D04b channel/video-scope grants carried no single asset.
+  assetId           String?              @map("asset_id") @db.Char(26)
+  /// D04b: the placement context the grant was requested for (e.g. `"pass_item"`,
+  /// `"cloud_render"`) — echoed back by `PartnerCatalogue.grant` and by admin.
+  useContext        String?              @map("use_context")
+  /// D04b/H-28 orchestrator addendum (2026-09-03): the licence as it stood at
+  /// grant time (`LicenceSnapshotSchema`, mirrors `EdgPassItem.licenceSnapshot`).
+  /// Until H-28 (the partner contract) signs, every value here is a
+  /// TODO(H-28) placeholder — see `partner-catalogue/licence-snapshot.ts`.
+  licenceSnapshot   Json?                @map("licence_snapshot") @db.JsonB
   createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   expiresAt         DateTime?            @map("expires_at") @db.Timestamptz(6)
   revokedAt         DateTime?            @map("revoked_at") @db.Timestamptz(6)
 
   workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  asset     AudioAsset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)
   usages    AssetUsage[]
 
   @@index([workspaceId])
   @@index([providerLicenceId])
   @@index([expiresAt])
+  @@index([assetId])
   @@map("asset_clearance_grants")
 }
 

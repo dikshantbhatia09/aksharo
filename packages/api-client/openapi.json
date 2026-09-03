@@ -13625,6 +13625,60 @@
         ]
       }
     },
+    "/projects/{projectId}/prompted-edits/{planId}/retry": {
+      "post": {
+        "description": "Re-enqueues the pass kind that failed, keeping every already-completed kind done and every kind still ahead of it in the chain; no new credit hold is minted.",
+        "operationId": "retryPromptedEditPlan",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "planId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunPlanAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found` or `prompted_edit/plan_not_found`."
+          },
+          "409": {
+            "description": "`prompted_edit/invalid_status`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Retry a failed prompted-edit plan's current chain step",
+        "tags": [
+          "prompted-edits"
+        ]
+      }
+    },
     "/projects/{projectId}/transcript/transliterate": {
       "post": {
         "description": "Free (`04 §Credits`). Enqueues `ai.transliterate`, which writes per-word `scripts` variants — Hinglish stays Roman-first, English words are preserved — and never touches `t`, timings or a script the user has already edited via `textOverrides`.",

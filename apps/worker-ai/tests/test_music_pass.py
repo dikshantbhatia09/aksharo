@@ -7,12 +7,15 @@ import itertools
 
 from worker_ai.audio_embed import StubEmbedder
 from worker_ai.passes.music import (
+    DEFAULT_BEAT_SNAP_TOLERANCE_MS,
     MusicCatalogueAsset,
+    Section,
     bpm_target_from_cut_cadence,
     build_music_items,
     classify_mood,
     detect_sections,
     rank_music_assets,
+    snap_start_to_beat,
 )
 
 
@@ -157,3 +160,86 @@ def test_build_music_items_needs_a_catalogue() -> None:
     embedder = StubEmbedder()
     sections = detect_sections(duration_ms=10_000, speech_ranges=[(0, 10_000)], window_ms=10_000)
     assert build_music_items(sections, [], embedder, bpm_target=92) == []
+
+
+def test_snap_start_to_beat_matches_beats_ts_examples() -> None:
+    # Mirrors packages/timemap/src/beats.ts's own worked examples (120 BPM,
+    # 500ms/beat): snaps within tolerance, leaves alone beyond it, respects
+    # a protected range, and is a no-op for a bpm-less bed.
+    assert snap_start_to_beat(490, bpm=120) == 500
+    assert snap_start_to_beat(640, bpm=120) == 640  # 140ms away, over tolerance
+    assert snap_start_to_beat(620, bpm=120, tolerance_ms=DEFAULT_BEAT_SNAP_TOLERANCE_MS) == 500
+    assert snap_start_to_beat(500, bpm=120) == 500  # already on the grid
+    assert snap_start_to_beat(490, bpm=120, protected_ranges=[(400, 600)]) == 490
+    assert snap_start_to_beat(490, bpm=None) == 490
+
+
+def test_build_music_items_snaps_a_looped_beds_start_onto_the_beat() -> None:
+    # 92 BPM -> ~652.17ms/beat; a section starting at 700ms is 48ms from the
+    # nearest beat (652), well inside the default ±120ms tolerance.
+    embedder = StubEmbedder()
+    sections = [Section(s=700, e=20_000, mood="calm", energy=0.1)]
+    section_len = sections[0].e - sections[0].s
+    short_bed = _asset(
+        "short",
+        ("calm",),
+        92,
+        tuple(embedder.embed_text("calm background music")),
+        duration_ms=section_len - 5_000,  # shorter than the section -> loops
+    )
+    items = build_music_items(sections, [short_bed], embedder, bpm_target=92)
+    assert len(items) == 1
+    assert items[0].loop_policy == "loop"
+    assert items[0].start_ms == 652  # nearest 92 BPM beat to 700, rounded
+
+
+def test_build_music_items_leaves_a_non_looping_beds_start_unsnapped() -> None:
+    # No catalogue asset duration -> loop_policy "none" -> beat-alignment is
+    # skipped even though 700ms is well within snapping distance.
+    embedder = StubEmbedder()
+    sections = [Section(s=700, e=20_000, mood="calm", energy=0.1)]
+    bed = _asset("bed", ("calm",), 92, tuple(embedder.embed_text("calm background music")))
+    items = build_music_items(sections, [bed], embedder, bpm_target=92)
+    assert len(items) == 1
+    assert items[0].loop_policy == "none"
+    assert items[0].start_ms == 700
+
+
+def test_build_music_items_never_snaps_a_beds_start_into_a_protected_range() -> None:
+    # The nearest 92 BPM beat to 700ms (652) falls inside protected range
+    # (600, 700), which does not itself overlap the section (700, 20000) --
+    # so the section survives the drop guard but the snap must still be
+    # refused, leaving start_ms at its raw, unsnapped value.
+    embedder = StubEmbedder()
+    sections = [Section(s=700, e=20_000, mood="calm", energy=0.1)]
+    section_len = sections[0].e - sections[0].s
+    short_bed = _asset(
+        "short",
+        ("calm",),
+        92,
+        tuple(embedder.embed_text("calm background music")),
+        duration_ms=section_len - 5_000,
+    )
+    items = build_music_items(
+        sections, [short_bed], embedder, bpm_target=92, protected_ranges=[(600, 700)]
+    )
+    assert len(items) == 1
+    assert items[0].loop_policy == "loop"
+    assert items[0].start_ms == 700
+
+
+def test_build_music_items_align_to_beat_false_disables_snapping() -> None:
+    embedder = StubEmbedder()
+    sections = [Section(s=700, e=20_000, mood="calm", energy=0.1)]
+    section_len = sections[0].e - sections[0].s
+    short_bed = _asset(
+        "short",
+        ("calm",),
+        92,
+        tuple(embedder.embed_text("calm background music")),
+        duration_ms=section_len - 5_000,
+    )
+    items = build_music_items(
+        sections, [short_bed], embedder, bpm_target=92, align_to_beat=False
+    )
+    assert items[0].start_ms == 700

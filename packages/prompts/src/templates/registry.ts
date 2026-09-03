@@ -8,6 +8,7 @@
 import { chaptersTemplate } from "./chapters.js";
 import { hooksTemplate } from "./hooks.js";
 import { keyphrasesTemplate } from "./keyphrases.js";
+import { musicMoodTemplate } from "./music-mood.js";
 import { summaryTemplate } from "./summary.js";
 
 import type { TemplateDefinition } from "./types.js";
@@ -17,6 +18,11 @@ export const TEMPLATE_REGISTRY = {
   summary: summaryTemplate,
   hooks: hooksTemplate,
   keyphrases: keyphrasesTemplate,
+  // Not an "insight" (INSIGHT_KINDS/ai.llm queue) kind — the D05 music pass
+  // calls this template directly through `generate_insight`, the same way
+  // `keyphrases` is registered here for the eval/registry machinery without
+  // being wired into the ai.llm queue's own kind allowlist.
+  musicMood: musicMoodTemplate,
 } as const;
 
 export type TemplateRegistryKind = keyof typeof TEMPLATE_REGISTRY;
