@@ -13,7 +13,14 @@
  *    fetch layer already rotated), retrying a 403 is noise.
  */
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import * as React from "react";
 
 import { useApiClient, useApiContext, useWorkspaceId } from "./context.js";
 import { endpoints } from "./endpoints.js";
@@ -114,6 +121,7 @@ import type {
   LicenseKeyView,
   MemberView,
   MembershipStatus,
+  PackAssetUrl,
   PluginManifestResponse,
   TransferOwnershipRequest,
   TransferOwnershipResult,
@@ -1781,4 +1789,59 @@ export function useRedeliverWebhookDelivery(): UseMutationResult<{ id: string },
         params: { id: workspaceId ?? "", deliveryId },
       }),
   });
+}
+
+// --- Pack-asset URLs (D04d) --------------------------------------------------
+
+/**
+ * One asset's signed URL (`GET /audio-assets/{assetId}/url`), cached ten
+ * minutes (`staleTime` just under the server's own TTL, so a stale cache
+ * entry expires before the URL it holds does) and keyed by asset id alone —
+ * not by workspace, `queryKeys.audioAssetUrl`'s own doc comment.
+ * `assetId === null` (nothing to preview yet) disables the query rather than
+ * firing a request for an empty id.
+ */
+export function useAudioAssetUrl(assetId: string | null): UseQueryResult<PackAssetUrl> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.audioAssetUrl(assetId ?? "none"),
+    enabled: assetId !== null,
+    staleTime: 9 * 60 * 1000,
+    retry: retryPolicy,
+    queryFn: () =>
+      client.call(endpoints.audioAssets.getUrl, { params: { assetId: assetId ?? "" } }),
+  });
+}
+
+/**
+ * Every distinct asset id in `assetIds`, resolved to its signed URL, as a
+ * `Map` — what `ProposalCard`'s `sfx` preview player needs (`PassesTab`'s
+ * `resolveSfxPreviewUrl`, D04c/D04d): a row whose fetch has not settled, or
+ * failed (an asset the licence predicate now refuses — a plan downgrade, a
+ * lapsed partner term), simply has no entry, so the caller renders no
+ * `<audio>` element for it rather than a broken one. Built on `useQueries`
+ * rather than one `useAudioAssetUrl` per row, because the number of rows
+ * changes as passes run and `useQuery` cannot be called a variable number of
+ * times from a loop.
+ */
+export function useAudioAssetUrls(assetIds: readonly string[]): ReadonlyMap<string, string> {
+  const client = useApiClient();
+  const unique = React.useMemo(() => Array.from(new Set(assetIds)), [assetIds]);
+  const results = useQueries({
+    queries: unique.map((assetId) => ({
+      queryKey: queryKeys.audioAssetUrl(assetId),
+      staleTime: 9 * 60 * 1000,
+      retry: retryPolicy,
+      queryFn: () => client.call(endpoints.audioAssets.getUrl, { params: { assetId } }),
+    })),
+  });
+  return React.useMemo(() => {
+    const map = new Map<string, string>();
+    unique.forEach((assetId, index) => {
+      // eslint-disable-next-line security/detect-object-injection -- numeric index into `results`, the same length and order as `unique` (both built from one `.map` over it), not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
+      const url = results[index]?.data?.url;
+      if (url !== undefined) map.set(assetId, url);
+    });
+    return map;
+  }, [unique, results]);
 }

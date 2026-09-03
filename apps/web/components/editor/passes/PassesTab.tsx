@@ -2,7 +2,13 @@
 
 import * as React from "react";
 
-import { useApiContext, useDevices, useEntitlement, type DeviceHost } from "@montaj/api-client";
+import {
+  useApiContext,
+  useAudioAssetUrls,
+  useDevices,
+  useEntitlement,
+  type DeviceHost,
+} from "@montaj/api-client";
 import type { ItemState, Pass, PassItem } from "@montaj/edg";
 import {
   Badge,
@@ -115,8 +121,13 @@ export interface PassesTabProps {
   /**
    * D04c: resolves a signed pack-asset URL for an `sfx` item's `<audio>`
    * preview (`ProposalCard`'s own `sfxPreviewUrl`) — a callback seam, not an
-   * embedded fetch, matching `onPreview`'s existing split; `undefined`
-   * (no resolver, or one returning `undefined`) simply omits the player.
+   * embedded fetch, matching `onPreview`'s existing split. When omitted
+   * (D04d), `PassesTab` resolves it itself via `useAudioAssetUrls`
+   * (`GET /audio-assets/{assetId}/url`), so a caller only needs to pass this
+   * to override the production fetch in a test or storybook fixture.
+   * `undefined` (no resolver, one returning `undefined`, or a fetch that has
+   * not settled or was refused by the licence predicate) simply omits the
+   * player rather than rendering a broken one.
    */
   readonly resolveSfxPreviewUrl?: (item: PassItem) => string | undefined;
 }
@@ -177,6 +188,28 @@ export function PassesTab({
   const rows = React.useMemo(
     () => filterRows(allRows, { kind, status, minConfidence }),
     [allRows, kind, status, minConfidence],
+  );
+
+  // D04d: every `sfx` item's own pack asset, deduplicated — `useAudioAssetUrls`
+  // is called unconditionally (React's rule of hooks), with an empty array
+  // when there is nothing to preview, and its Map is consulted only when the
+  // caller did not supply its own `resolveSfxPreviewUrl`.
+  const sfxAssetIds = React.useMemo(
+    () =>
+      allRows
+        .map((row) => row.item)
+        .filter((item): item is Extract<PassItem, { kind: "sfx" }> => item.kind === "sfx")
+        .map((item) => item.payload.assetId),
+    [allRows],
+  );
+  const sfxPreviewUrls = useAudioAssetUrls(sfxAssetIds);
+  const resolveSfxPreview = React.useCallback(
+    (item: PassItem): string | undefined => {
+      if (resolveSfxPreviewUrl !== undefined) return resolveSfxPreviewUrl(item);
+      if (item.kind !== "sfx") return undefined;
+      return sfxPreviewUrls.get(item.payload.assetId);
+    },
+    [resolveSfxPreviewUrl, sfxPreviewUrls],
   );
   const summary = React.useMemo(
     () => summaryDurations(allRows, sourceDurationMs),
@@ -406,9 +439,7 @@ export function PassesTab({
               {...(onPreview === undefined
                 ? {}
                 : { onPreview: (mode: "before" | "after") => onPreview(row.item, mode) })}
-              {...(resolveSfxPreviewUrl === undefined
-                ? {}
-                : { sfxPreviewUrl: resolveSfxPreviewUrl(row.item) })}
+              sfxPreviewUrl={resolveSfxPreview(row.item)}
             />
           ))
         )}

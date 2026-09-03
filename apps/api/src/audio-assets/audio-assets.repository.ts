@@ -211,6 +211,52 @@ export class AudioAssetsRepository {
   }
 
   /**
+   * One asset by id, with every field `assetAllowed` needs plus its storage
+   * key and pack id (D04d: `GET /audio-assets/{assetId}/url` re-checks the
+   * licence predicate at signing time, not just at pass time) — `null` when
+   * the id does not exist, so the caller turns that into a 404 rather than a
+   * thrown error.
+   */
+  async findById(id: string): Promise<{
+    readonly id: string;
+    readonly provider: AudioProvider;
+    readonly territory: string[];
+    readonly termStart: Date | null;
+    readonly termEnd: Date | null;
+    readonly allowsRawFileDelivery: boolean;
+    readonly clearanceMethod: ClearanceMethod;
+    readonly storageKey: string | null;
+    readonly packId: string | null;
+  } | null> {
+    const row = await this.prisma.audioAsset.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        provider: true,
+        territory: true,
+        termStart: true,
+        termEnd: true,
+        allowsRawFileDelivery: true,
+        clearanceMethod: true,
+        storageKey: true,
+        providerAssetId: true,
+      },
+    });
+    if (row === null) return null;
+    return {
+      id: row.id,
+      provider: row.provider,
+      territory: row.territory,
+      termStart: row.termStart,
+      termEnd: row.termEnd,
+      allowsRawFileDelivery: row.allowsRawFileDelivery,
+      clearanceMethod: row.clearanceMethod,
+      storageKey: row.storageKey,
+      packId: row.providerAssetId?.split(":")[0] ?? null,
+    };
+  }
+
+  /**
    * `id -> storageKey` for a set of asset ids (D04c): what `../passes/
    * sfx-tracks.ts` needs to turn an accepted `sfx` item (which carries only
    * `assetId`/`packId`, CONTRACTS §2) into a render manifest's `SfxTrack`

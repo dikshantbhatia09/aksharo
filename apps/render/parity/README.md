@@ -57,7 +57,6 @@ Exits non-zero (and logs which fixture) if any exceeds `maxDiffPxTolerance`.
 `run.test.ts` asserts the same tolerance on every `pnpm test` run, so a
 regression fails CI before anyone has to read this file.
 
-
 ## Text-fx parity gate (D06b)
 
 A different kind of gate from the one above: not two independently-computed
