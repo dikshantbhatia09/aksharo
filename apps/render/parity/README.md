@@ -114,4 +114,47 @@ already proven generically by `sfx-parity.test.ts`).
 Regenerate with `pnpm --filter @montaj/render parity:sfx`; `run-sfx-
 parity.test.ts` asserts the same tolerance on every `pnpm test` run.
 
-> > > > > > > wp/D04c
+## Audio-mix envelope parity gate (D04e-3)
+
+A different kind of gate again: not two closed-form curves compared
+symbolically (the SFX-duck gate above), but the cloud engine's _actual_
+rendered audio — real ffmpeg, `../src/ffmpeg/audio-mix.ts`'s
+`buildAudioMixPlan`, decoded back to PCM — against a reference signal
+computed directly from the closed-form gain/fade/duck arithmetic both
+engines are meant to agree on (`run-audio-mix-parity.ts`'s
+`referenceMixSamples`, a faithful port of `apps/web/lib/export/
+audio-mix.ts`'s `mixSfxCueIntoChunk`; not an import of it — apps do not
+import one another in this monorepo, the same rule the SFX-duck gate's own
+`browserDuckGainAt` already follows).
+
+`audio-mix-fixtures.ts` is a 6-second clip with three accepted `sfx` cues
+over a silent base, per the WP brief: a "ding" with a 50ms fade in/out, a
+"whoosh" ducked -12dB under a speech range, and a plain "pop". Both signals
+are compared in consecutive 50ms windows, each window's RMS converted to
+dBFS first (`audio-mix-parity.ts`'s `computeAudioMixParity`) — the same
+scale the brief's own tolerance is stated in.
+
+| metric                   | value                        |
+| ------------------------ | ---------------------------- |
+| windows compared         | 120 (6s / 50ms)              |
+| max deviation            | ~0.05 dB                     |
+| tolerance                | 0.5 dB                       |
+| every cue window present | **PASS** (all 3, both sides) |
+
+**One real finding, fixed rather than worked around**: the first version of
+this gate measured a ~2.8 dB deviation, entirely inside the "whoosh" cue's
+duck ramp — nowhere else. The cause was ffmpeg's `volume=eval=frame` filter
+recomputing its expression once per _frame_, not per sample; left at
+whatever frame size the graph otherwise settled on, the ramp ffmpeg actually
+produced was a coarse staircase rather than the smooth trapezoid the
+expression describes (and the browser mixer computes per sample). Fixed in
+`audio-mix.ts` by forcing a small (64-sample, ~1.3ms) frame right before
+every duck filter with `asetnsamples` — a real improvement to the render's
+own audio quality, not a parity-gate-specific hack, and something the
+D04c SFX-duck gate above could never have caught: it evaluates the ffmpeg
+expression symbolically (`expr-eval.ts`), never through a real frame-based
+render.
+
+Regenerate with `pnpm --filter @montaj/render parity:audio-mix`;
+`run-audio-mix-parity.test.ts` asserts the same tolerance on every
+`pnpm test` run.

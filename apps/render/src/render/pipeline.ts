@@ -35,9 +35,10 @@ import {
 import { createRasterPool, defaultPoolSize, type RasterPool } from "./pool.js";
 import { buildRenderTimeMap, parseStyleCatalogue, toEdgProjection } from "./projection.js";
 import { watermarkCommandFor } from "./watermark.js";
+import { speechRangesFromWords, type MusicMixCue, type SfxMixCue } from "../ffmpeg/audio-mix.js";
 import { runEncode } from "../ffmpeg/encode.js";
 import { buildFfmpegArgs, type VideoEncoder } from "../ffmpeg/graph.js";
-import { probeMedia } from "../ffmpeg/probe.js";
+import { probeAudioAsset, probeMedia } from "../ffmpeg/probe.js";
 import { brandAssetKey, contentTypeFor, exportKey, type ObjectStore } from "../storage.js";
 
 import type { RenderVideoPayload } from "../queues.js";
@@ -131,6 +132,60 @@ export async function renderVideo(
       await dependencies.derivedStore.download(manifest.audio.cleanKey, cleanAudioPath);
     }
 
+    // D04e: every accepted `sfx` cue's pack asset, downloaded once per job to
+    // the scratch dir the graph's extra `-i` inputs will read from. The pack
+    // library lives in the derived bucket (`apps/api/src/audio-assets/
+    // README.md`'s "upload to the derived bucket"), the same store the clean
+    // audio track above comes from.
+    const sfxTracks = manifest.timemap.audio?.sfx ?? [];
+    const sfxCues: SfxMixCue[] = [];
+    for (const track of sfxTracks) {
+      const localPath = join(scratch, `sfx-${track.itemId}${extensionOf(track.storageKey)}`);
+      await dependencies.derivedStore.download(track.storageKey, localPath);
+      sfxCues.push({
+        itemId: track.itemId,
+        startMs: track.startMs,
+        endMs: track.endMs,
+        gainDb: track.gainDb,
+        fadeInMs: track.fadeInMs,
+        fadeOutMs: track.fadeOutMs,
+        duck: track.duck,
+        localPath,
+      });
+    }
+    // D04e-4: every accepted `music` bed's pack asset, downloaded the same
+    // way as an `sfx` cue's — `manifest.timemap.audio.music[]` is D05's own
+    // additive field (`packages/render-manifest`'s `MusicTrackSchema`).
+    // `assetDurationMs` (needed to decide whether/how much `buildMusicFilters`
+    // loops a bed) comes from probing the downloaded file itself, since a
+    // pack asset's own duration is not carried on the manifest track.
+    const musicTracks = manifest.timemap.audio?.music ?? [];
+    const musicCues: MusicMixCue[] = [];
+    for (const track of musicTracks) {
+      const localPath = join(scratch, `music-${track.itemId}${extensionOf(track.storageKey)}`);
+      await dependencies.derivedStore.download(track.storageKey, localPath);
+      const assetProbe = await probeAudioAsset(localPath);
+      musicCues.push({
+        itemId: track.itemId,
+        startMs: track.startMs,
+        endMs: track.endMs,
+        gainDb: track.gainDb,
+        loopPolicy: track.loopPolicy,
+        bedDuck: track.bedDuck,
+        localPath,
+        assetDurationMs: assetProbe.durationMs,
+      });
+    }
+
+    // Where speech actually is, on the source clock — the one duck curves
+    // (D04a) need. `timemap` (built next) remaps the *cues*; the words the
+    // ranges are computed from are already on the source clock, so this can
+    // run before the timemap exists.
+    const speechRanges = speechRangesFromWords(
+      payload.projection.words,
+      manifest.timemap.sourceDurationMs,
+    );
+
     const probe = await probeMedia(sourcePath);
     dependencies.onProgress?.(0.02, "source ready");
 
@@ -178,6 +233,9 @@ export async function renderVideo(
       outputPath,
       encoder: dependencies.encoder,
       ...(cropKeyframes.length === 0 ? {} : { cropKeyframes }),
+      ...(sfxCues.length === 0 && musicCues.length === 0
+        ? {}
+        : { sfxCues, musicCues, timemap, speechRanges }),
       ...(dependencies.ffmpegLogLevel === undefined
         ? {}
         : { logLevel: dependencies.ffmpegLogLevel }),

@@ -88,6 +88,13 @@ import {
 import { coverScaleCrop, type RenderManifest } from "@montaj/render-manifest";
 import type { TimeMap } from "@montaj/timemap";
 
+import {
+  mixMusicCuesIntoChunk,
+  mixSfxCuesIntoChunk,
+  speechRangesFromWords,
+  type MusicMixCue,
+  type SfxMixCue,
+} from "./audio-mix";
 import { decideAudioStrategy, isAudioUnmodified } from "./audio-strategy";
 import { sha256Hex } from "./checksum";
 import { outputCropKeyframesFromManifest } from "./keyframe-adapter";
@@ -122,6 +129,22 @@ export interface RunExportOptions {
    * removing it).
    */
   readonly fetchWatermarkAsset?: (assetId: string) => Promise<Uint8Array>;
+  /**
+   * Fetches one pack asset's bytes for an accepted `sfx`/`music` item's
+   * `assetId` (the D04d signed-URL hook, `GET /audio-assets/{assetId}/url`) —
+   * cached per asset by the caller. Unlike the watermark, omitting this while
+   * the manifest carries accepted cues is not a hard error: a decorative cue
+   * missing from an export is not the same risk class as a stripped
+   * watermark, so those cues are silently skipped rather than failing the
+   * whole export.
+   */
+  readonly fetchCueAsset?: (assetId: string) => Promise<Uint8Array>;
+  /**
+   * Decodes one cue asset's bytes to an `AudioBuffer`. Defaults to a scratch
+   * `AudioContext`'s `decodeAudioData`; injectable for tests (jsdom has no
+   * real Web Audio API).
+   */
+  readonly decodeCueAsset?: (bytes: Uint8Array) => Promise<AudioBuffer>;
   readonly target?: ExportTarget;
   readonly suggestedFileName?: string;
   readonly preferFileSystemAccess?: boolean;
@@ -290,6 +313,112 @@ function sourceOf(
   return source instanceof Blob ? new BlobSource(source) : new UrlSource(source);
 }
 
+/** `decodeCueAsset` default: a scratch `AudioContext`, used only to decode —
+ * never connected to an output, closed the moment decoding is done. */
+async function defaultDecodeCueAsset(bytes: Uint8Array): Promise<AudioBuffer> {
+  const ctor =
+    (globalThis as { AudioContext?: typeof AudioContext }).AudioContext ??
+    (globalThis as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (ctor === undefined) {
+    throw new Error("no AudioContext available to decode a cue asset in this environment");
+  }
+  const context = new ctor();
+  try {
+    const buffer = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
+    ) as ArrayBuffer;
+    return await context.decodeAudioData(buffer);
+  } finally {
+    await context.close();
+  }
+}
+
+/**
+ * Decodes every accepted `sfx` cue's pack asset into an in-memory
+ * `SfxMixCue`, one fetch+decode per distinct `assetId` (the same asset can
+ * back more than one accepted cue). Returns `[]` when the manifest carries no
+ * accepted `sfx` items, without requiring `fetchCueAsset` at all — the same
+ * "only pay for what you use" shape `runExport`'s watermark/clean-audio paths
+ * already follow.
+ */
+export async function decodeSfxCues(
+  manifest: RenderManifest,
+  fetchCueAsset: ((assetId: string) => Promise<Uint8Array>) | undefined,
+  decodeCueAsset: (bytes: Uint8Array) => Promise<AudioBuffer>,
+): Promise<SfxMixCue[]> {
+  const tracks = manifest.timemap.audio?.sfx ?? [];
+  if (tracks.length === 0) return [];
+  if (fetchCueAsset === undefined) {
+    throw new Error(
+      "the manifest carries accepted sfx cues but no fetchCueAsset was supplied " +
+        "(see GET /audio-assets/{assetId}/url) — render in the cloud instead.",
+    );
+  }
+  const bufferByAssetId = new Map<string, Promise<AudioBuffer>>();
+  const bufferFor = (assetId: string): Promise<AudioBuffer> => {
+    let cached = bufferByAssetId.get(assetId);
+    if (cached === undefined) {
+      cached = fetchCueAsset(assetId).then(decodeCueAsset);
+      bufferByAssetId.set(assetId, cached);
+    }
+    return cached;
+  };
+  return Promise.all(
+    tracks.map(async (track) => ({
+      itemId: track.itemId,
+      startMs: track.startMs,
+      endMs: track.endMs,
+      gainDb: track.gainDb,
+      fadeInMs: track.fadeInMs,
+      fadeOutMs: track.fadeOutMs,
+      duck: track.duck,
+      buffer: await bufferFor(track.assetId),
+    })),
+  );
+}
+
+/**
+ * `decodeSfxCues`, one kind lower: every accepted `music` bed
+ * (`manifest.timemap.audio?.music`, D05), decoded and cached the same way.
+ * Shares `fetchCueAsset`/`decodeCueAsset` and the same per-asset cache
+ * discipline (a bed asset backing more than one item is fetched once).
+ */
+export async function decodeMusicCues(
+  manifest: RenderManifest,
+  fetchCueAsset: ((assetId: string) => Promise<Uint8Array>) | undefined,
+  decodeCueAsset: (bytes: Uint8Array) => Promise<AudioBuffer>,
+): Promise<MusicMixCue[]> {
+  const tracks = manifest.timemap.audio?.music ?? [];
+  if (tracks.length === 0) return [];
+  if (fetchCueAsset === undefined) {
+    throw new Error(
+      "the manifest carries accepted music beds but no fetchCueAsset was supplied " +
+        "(see GET /audio-assets/{assetId}/url) — render in the cloud instead.",
+    );
+  }
+  const bufferByAssetId = new Map<string, Promise<AudioBuffer>>();
+  const bufferFor = (assetId: string): Promise<AudioBuffer> => {
+    let cached = bufferByAssetId.get(assetId);
+    if (cached === undefined) {
+      cached = fetchCueAsset(assetId).then(decodeCueAsset);
+      bufferByAssetId.set(assetId, cached);
+    }
+    return cached;
+  };
+  return Promise.all(
+    tracks.map(async (track) => ({
+      itemId: track.itemId,
+      startMs: track.startMs,
+      endMs: track.endMs,
+      gainDb: track.gainDb,
+      loopPolicy: track.loopPolicy,
+      bedDuck: track.bedDuck,
+      buffer: await bufferFor(track.assetId),
+    })),
+  );
+}
+
 /** Runs the full pipeline. Resolves with the result; rejects with `ExportCancelledError` on cancellation. */
 export async function runExport(options: RunExportOptions): Promise<EngineResult> {
   const { manifest, signal, onProgress, aacEncodable, aacPolyfillAvailable, fetchWatermarkAsset } =
@@ -314,6 +443,28 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
   const cropKeyframes: CropKeyframe[] = outputCropKeyframesFromManifest(manifest, timemap);
   const fps = manifest.output.fps;
   const totalFrames = Math.max(1, Math.round((outputDurationMs / 1000) * fps));
+
+  // D04e-2: every accepted `sfx` cue, decoded once up front — `applyManifestWatermark` and
+  // the frame loop below do not touch audio, so this can run in parallel with everything
+  // until the audio branch actually needs the buffers.
+  const sfxCues = await decodeSfxCues(
+    manifest,
+    options.fetchCueAsset,
+    options.decodeCueAsset ?? defaultDecodeCueAsset,
+  );
+  // D04e-4: every accepted `music` bed, decoded the same way.
+  const musicCues = await decodeMusicCues(
+    manifest,
+    options.fetchCueAsset,
+    options.decodeCueAsset ?? defaultDecodeCueAsset,
+  );
+  // Where speech actually is, on the source clock — the one duck curves (D04a) need.
+  // `timemap` remaps the *cues*; the words the ranges are computed from are already on the
+  // source clock.
+  const speechRanges = speechRangesFromWords(
+    options.projection.words,
+    manifest.timemap.sourceDurationMs,
+  );
 
   const projection = applyManifestWatermark(options.projection, manifest);
 
@@ -481,6 +632,12 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
     );
     const audioSampleSink = new AudioSampleSink(audioTrack);
     audioCopyTask = (async (): Promise<void> => {
+      // D04e-2: the running position on the *finished* (output) timeline,
+      // across every range's chunks — unlike `elapsedMs` below (which resets
+      // at each splice, for `applySpliceFades`'s own per-range maths), this
+      // never resets, because a cue's own mapped pieces are expressed on that
+      // same output clock (`mixSfxCuesIntoChunk`'s own doc comment).
+      let outputClockMs = 0;
       for (const [rangeIndex, range] of retainedRanges.entries()) {
         throwIfCancelled(signal);
         // A19c (brief §4): a 5 ms linear fade at each splice boundary — the
@@ -504,7 +661,15 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
           try {
             const buffer = sample.toAudioBuffer();
             applySpliceFades(buffer, elapsedMs, rangeDurationMs, fadeInMs, fadeOutMs);
-            elapsedMs += (buffer.length / buffer.sampleRate) * 1000;
+            if (sfxCues.length > 0) {
+              mixSfxCuesIntoChunk(buffer, outputClockMs, sfxCues, timemap, speechRanges);
+            }
+            if (musicCues.length > 0) {
+              mixMusicCuesIntoChunk(buffer, outputClockMs, musicCues, timemap, speechRanges);
+            }
+            const chunkDurationMs = (buffer.length / buffer.sampleRate) * 1000;
+            elapsedMs += chunkDurationMs;
+            outputClockMs += chunkDurationMs;
             await audioSource.add(buffer);
           } finally {
             sample.close();

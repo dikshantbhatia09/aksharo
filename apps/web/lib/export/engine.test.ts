@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import type { RenderManifest } from "@montaj/render-manifest";
+import { fixtureManifest } from "@montaj/render-manifest/testing";
+
 import {
   applySfxDucking,
   applySpliceFades,
   dbToLinear,
+  decodeMusicCues,
+  decodeSfxCues,
   duckGainAt,
   retainedSourceRangesMs,
   SFX_DUCK_DB,
@@ -195,5 +200,202 @@ describe("applySfxDucking (D04a)", () => {
     // eslint-disable-next-line security/detect-object-injection -- centreIndex is a bounded numeric index derived from a fixed sample rate, not attacker-controlled -- reviewed for D04a
     expect(data[centreIndex]).toBeCloseTo(dbToLinear(SFX_DUCK_DB), 3);
     expect(data[0]).toBe(1);
+  });
+});
+
+describe("decodeSfxCues (D04e-2: browser cue mixer wiring)", () => {
+  function manifestWithSfx(overrides: Parameters<typeof fixtureManifest>[0] = {}): RenderManifest {
+    const unsigned = fixtureManifest({
+      timemap: {
+        sourceDurationMs: 10_000,
+        edits: [],
+        snapCutsToFrames: false,
+        audio: {
+          sfx: [
+            {
+              itemId: "01JD04ECFX0000000000000000",
+              startMs: 1_000,
+              endMs: 1_500,
+              assetId: "fixture-ding",
+              packId: "fixture",
+              storageKey: "packs/fixture/ding.wav",
+              gainDb: 0,
+              fadeInMs: 10,
+              fadeOutMs: 10,
+              duck: null,
+            },
+          ],
+        },
+      },
+      ...overrides,
+    });
+    return unsigned as unknown as RenderManifest;
+  }
+
+  it("returns an empty array without requiring fetchCueAsset when the manifest carries no sfx cues", async () => {
+    const manifest = fixtureManifest() as unknown as RenderManifest;
+    const cues = await decodeSfxCues(manifest, undefined, () => {
+      throw new Error("should not decode when there is nothing to decode");
+    });
+    expect(cues).toEqual([]);
+  });
+
+  it("throws when the manifest carries accepted sfx cues but no fetchCueAsset was supplied", async () => {
+    const manifest = manifestWithSfx();
+    await expect(
+      decodeSfxCues(manifest, undefined, () => {
+        throw new Error("unreachable");
+      }),
+    ).rejects.toThrow(/fetchCueAsset/);
+  });
+
+  it("fetches and decodes each track's asset, carrying every manifest field through", async () => {
+    const manifest = manifestWithSfx();
+    const fakeBuffer = { length: 100, sampleRate: 48_000, numberOfChannels: 1 } as AudioBuffer;
+    const fetched: string[] = [];
+    const cues = await decodeSfxCues(
+      manifest,
+      (assetId) => {
+        fetched.push(assetId);
+        return Promise.resolve(new Uint8Array([1, 2, 3]));
+      },
+      () => Promise.resolve(fakeBuffer),
+    );
+    expect(fetched).toEqual(["fixture-ding"]);
+    expect(cues).toEqual([
+      {
+        itemId: "01JD04ECFX0000000000000000",
+        startMs: 1_000,
+        endMs: 1_500,
+        gainDb: 0,
+        fadeInMs: 10,
+        fadeOutMs: 10,
+        duck: null,
+        buffer: fakeBuffer,
+      },
+    ]);
+  });
+
+  it("fetches an asset only once even when two accepted cues share it", async () => {
+    const manifest = manifestWithSfx({
+      timemap: {
+        sourceDurationMs: 10_000,
+        edits: [],
+        snapCutsToFrames: false,
+        audio: {
+          sfx: [
+            {
+              itemId: "01JD04ECFX0000000000000000",
+              startMs: 1_000,
+              endMs: 1_500,
+              assetId: "fixture-ding",
+              packId: "fixture",
+              storageKey: "packs/fixture/ding.wav",
+              gainDb: 0,
+              fadeInMs: 0,
+              fadeOutMs: 0,
+              duck: null,
+            },
+            {
+              itemId: "01JD04ECF20000000000000000",
+              startMs: 3_000,
+              endMs: 3_500,
+              assetId: "fixture-ding",
+              packId: "fixture",
+              storageKey: "packs/fixture/ding.wav",
+              gainDb: -6,
+              fadeInMs: 0,
+              fadeOutMs: 0,
+              duck: null,
+            },
+          ],
+        },
+      },
+    });
+    const fakeBuffer = { length: 100, sampleRate: 48_000, numberOfChannels: 1 } as AudioBuffer;
+    let fetchCount = 0;
+    const cues = await decodeSfxCues(
+      manifest,
+      () => {
+        fetchCount += 1;
+        return Promise.resolve(new Uint8Array([1]));
+      },
+      () => Promise.resolve(fakeBuffer),
+    );
+    expect(fetchCount).toBe(1);
+    expect(cues).toHaveLength(2);
+    expect(cues[0]?.buffer).toBe(cues[1]?.buffer);
+  });
+});
+
+describe("decodeMusicCues (D04e-4: browser music-bed mixer wiring)", () => {
+  function manifestWithMusic(): RenderManifest {
+    const unsigned = fixtureManifest({
+      timemap: {
+        sourceDurationMs: 10_000,
+        edits: [],
+        snapCutsToFrames: false,
+        audio: {
+          music: [
+            {
+              itemId: "01JD04EMFX0000000000000000",
+              startMs: 0,
+              endMs: 6_000,
+              assetId: "fixture-calm-fast",
+              packId: "fixture",
+              storageKey: "packs/fixture/music-calm-fast.wav",
+              gainDb: -10,
+              loopPolicy: "loop",
+              bedDuck: null,
+              mood: ["calm"],
+            },
+          ],
+        },
+      },
+    });
+    return unsigned as unknown as RenderManifest;
+  }
+
+  it("returns an empty array without requiring fetchCueAsset when the manifest carries no music beds", async () => {
+    const manifest = fixtureManifest() as unknown as RenderManifest;
+    const cues = await decodeMusicCues(manifest, undefined, () => {
+      throw new Error("should not decode when there is nothing to decode");
+    });
+    expect(cues).toEqual([]);
+  });
+
+  it("throws when the manifest carries accepted music beds but no fetchCueAsset was supplied", async () => {
+    const manifest = manifestWithMusic();
+    await expect(
+      decodeMusicCues(manifest, undefined, () => {
+        throw new Error("unreachable");
+      }),
+    ).rejects.toThrow(/fetchCueAsset/);
+  });
+
+  it("fetches and decodes each track's asset, carrying every manifest field through", async () => {
+    const manifest = manifestWithMusic();
+    const fakeBuffer = { length: 100, sampleRate: 48_000, numberOfChannels: 1 } as AudioBuffer;
+    const fetched: string[] = [];
+    const cues = await decodeMusicCues(
+      manifest,
+      (assetId) => {
+        fetched.push(assetId);
+        return Promise.resolve(new Uint8Array([1, 2, 3]));
+      },
+      () => Promise.resolve(fakeBuffer),
+    );
+    expect(fetched).toEqual(["fixture-calm-fast"]);
+    expect(cues).toEqual([
+      {
+        itemId: "01JD04EMFX0000000000000000",
+        startMs: 0,
+        endMs: 6_000,
+        gainDb: -10,
+        loopPolicy: "loop",
+        bedDuck: null,
+        buffer: fakeBuffer,
+      },
+    ]);
   });
 });

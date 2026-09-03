@@ -425,3 +425,83 @@ describe("refusals", () => {
     expect(() => graph({}, { sourcePath: null })).toThrow(GraphError);
   });
 });
+
+describe("D04e: sfx/music cue mixing", () => {
+  const CUE = {
+    itemId: "01JCUE0000000000000000000",
+    startMs: 1_000,
+    endMs: 2_000,
+    gainDb: -3,
+    fadeInMs: 20,
+    fadeOutMs: 20,
+    duck: null,
+    localPath: "/tmp/cue.wav",
+  };
+
+  it("adds no extra input or amix when there are no cues — byte-identical to pre-D04e", () => {
+    const plan = graph({}, {});
+    expect(plan.args).not.toContain("/tmp/cue.wav");
+    expect(plan.filterGraph).not.toContain("amix");
+  });
+
+  it("adds one extra ffmpeg input and an amix node for one sfx cue", () => {
+    const plan = graph({}, { sfxCues: [CUE] });
+    expect(plan.args).toContain("/tmp/cue.wav");
+    expect(plan.filterGraph).toContain("amix=inputs=2:normalize=0");
+    expect(plan.hasAudio).toBe(true);
+    // The mixed bus, not the raw source track, is what gets mapped and encoded.
+    expect(plan.args.join(" ")).toContain("[mixout]");
+  });
+
+  it("gives the cue the next free input index after source/overlay", () => {
+    const plan = graph({}, { sfxCues: [CUE] });
+    // Inputs so far: 0 source, 1 overlay pipe — the cue must land on 2.
+    expect(plan.filterGraph).toContain("[2:a]");
+  });
+
+  it("gives the cue index 3 when the render also replaces the audio track", () => {
+    const plan = graph(
+      { audio: { strategy: "replace", cleanKey: "clean/x.wav", codec: "aac", bitrateKbps: 192 } },
+      { cleanAudioPath: "/tmp/clean.wav", sfxCues: [CUE] },
+    );
+    // Inputs: 0 source, 1 overlay pipe, 2 clean audio — cue lands on 3.
+    expect(plan.filterGraph).toContain("[3:a]");
+  });
+
+  it("adds an anullsrc bed and still produces audio when the source has none but a cue does", () => {
+    const plan = graph({}, { sourceHasAudio: false, sfxCues: [CUE] });
+    expect(plan.filterGraph).toContain("anullsrc");
+    expect(plan.hasAudio).toBe(true);
+    expect(plan.args.join(" ")).not.toContain("-an");
+  });
+
+  it("mixes a music cue too, and both land as separate amix inputs", () => {
+    const music = {
+      itemId: "01JMUSIC000000000000000000",
+      startMs: 0,
+      endMs: 4_000,
+      gainDb: -10,
+      loopPolicy: "none" as const,
+      bedDuck: null,
+      localPath: "/tmp/music.wav",
+      assetDurationMs: 4_000,
+    };
+    const plan = graph({}, { sfxCues: [CUE], musicCues: [music] });
+    expect(plan.args).toContain("/tmp/cue.wav");
+    expect(plan.args).toContain("/tmp/music.wav");
+    expect(plan.filterGraph).toContain("amix=inputs=3:normalize=0");
+  });
+
+  it("passes the timemap through so a cue remaps across a cut", () => {
+    const map = buildTimeMap({ sourceDurationMs: 10_000, edits: [cutEdit(0, 500)] });
+    const plan = graph(
+      {
+        timemap: { sourceDurationMs: 10_000, snapCutsToFrames: false, edits: [cutEdit(0, 500)] },
+      },
+      { sfxCues: [{ ...CUE, startMs: 1_000, endMs: 2_000 }], timemap: map },
+    );
+    // The cut removes the first 500ms, so the cue (unaffected by that cut,
+    // entirely after it) ripples left by 500ms on the output clock.
+    expect(plan.filterGraph).toContain("adelay=500|500");
+  });
+});
