@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { useApiContext } from "@montaj/api-client";
+import { useApiContext, useDevices, useEntitlement, type DeviceHost } from "@montaj/api-client";
 import type { ItemState, Pass, PassItem } from "@montaj/edg";
 import {
   Badge,
@@ -15,6 +15,7 @@ import {
   ProgressBar,
 } from "@montaj/ui";
 
+import { PluginActivationCue } from "./PluginActivationCue";
 import { ProposalCard } from "./ProposalCard";
 import { startAutocutPass, type AutocutPreset } from "../../../lib/passes/client";
 import {
@@ -32,6 +33,67 @@ import { usePassRunProgress } from "../../../lib/passes/realtime";
 import { LocalModeNotice } from "../local-mode-gate";
 
 import type { EditorStore } from "../../../lib/edg/store";
+
+import {
+  ADOBE_HOSTS,
+  RESOLVE_HOSTS,
+  activationStateFor,
+  isDeviceLimitReached,
+} from "@/components/plugins/plugin-status";
+
+const NLE_HOSTS: readonly {
+  readonly host: "premiere" | "resolve";
+  readonly hosts: readonly DeviceHost[];
+}[] = [
+  { host: "premiere", hosts: ADOBE_HOSTS },
+  { host: "resolve", hosts: RESOLVE_HOSTS },
+];
+
+/**
+ * Brief M08 §1: mounts C11's `PluginActivationCue` under the apply-to-NLE
+ * affordance, but only when it is actually useful there -- a cue for a host
+ * that is already signed in adds nothing, and a workspace with no plugin
+ * device paired at all has never engaged with the Premiere/Resolve panels,
+ * so this reads as noise rather than a nudge. Shown only once at least one
+ * device is paired *somewhere* and at least one NLE host is not yet signed
+ * in for this workspace; hidden while devices/entitlement are loading or
+ * erroring, exactly like the cue itself.
+ */
+function PluginActivationCues(): React.JSX.Element | null {
+  const devices = useDevices();
+  const entitlement = useEntitlement();
+
+  if (devices.isPending || entitlement.isPending || devices.isError || entitlement.isError) {
+    return null;
+  }
+
+  const deviceList = devices.data ?? [];
+  const anyDevicePaired = deviceList.some((device) => device.revokedAt === null);
+  if (!anyDevicePaired) return null;
+
+  const limit =
+    typeof entitlement.data.entitlements["activeDevices"] === "number"
+      ? (entitlement.data.entitlements["activeDevices"] as number)
+      : 1;
+  const activeCount = deviceList.filter((device) => device.revokedAt === null).length;
+  const atLimit = isDeviceLimitReached(activeCount, limit);
+
+  const pendingHosts = NLE_HOSTS.filter(
+    ({ hosts }) => activationStateFor(deviceList, hosts, atLimit) !== "signed_in",
+  );
+  if (pendingHosts.length === 0) return null;
+
+  return (
+    <div
+      data-testid="passes-plugin-cues"
+      style={{ display: "flex", flexDirection: "column", gap: 4 }}
+    >
+      {pendingHosts.map(({ host }) => (
+        <PluginActivationCue key={host} host={host} />
+      ))}
+    </div>
+  );
+}
 
 export interface PassesTabProps {
   readonly projectId: string;
@@ -241,6 +303,8 @@ export function PassesTab({
           </div>
         ) : null}
       </div>
+
+      {isLocalProject ? null : <PluginActivationCues />}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <select

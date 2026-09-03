@@ -56,30 +56,51 @@ test -- --maxWorkers=2` and `turbo run typecheck --filter=@montaj/web`
   `apps/web/lib/content/markdown.tsx` (B12's own copy of the same
   block-parser structure).** Its `toBlocks()` had the same bare `^[-*#]`
   paragraph stop-condition bug as `lib/docs/markdown.tsx` — a line starting
-  with bold or italic text (`**like this**`, `*like this*`) satisfies that
-  test without being a bullet, so the paragraph-collection loop ran zero
-  iterations, the cursor never advanced, and the outer loop pushed empty
-  paragraph blocks forever. No current academy/help/changelog body happens
-  to open a paragraph that way, so this copy never actually crashed a build,
-  but the bug was live and would have. Fixed with the same narrowed stop
-  condition (this file's own heading branches only match `##`/`###`, so the
-  regex here is `^[-*]\s+|^\d+\.\s+|^#{2,3}\s|^```` ) plus the same
-cursor-progress backstop. Compared the two files in full before choosing
-an approach: they diverge enough (docs' copy adds GFM pipe-table parsing,
-an `h1` block kind, and a different inline-link/target policy; content's
-copy adds single-`*`italic) that extracting one shared block parser
-would not have been a small change, so both copies were fixed
-independently rather than merged — the duplication between`lib/docs/markdown.tsx`and`lib/content/markdown.tsx` remains and is
-worth a dedicated follow-up to unify if a third caller ever needs this
-kind of renderer. Added a regression test to the neighbouring test file in
-each case (`lib/docs/markdown.test.tsx`, and a new
-`lib/content/markdown.test.tsx`— no test file existed for`MarkdownBody`before this) that renders a paragraph opening with`**bold**`and one
-opening with`_emphasis_`and asserts exactly one (non-empty) paragraph is
-produced.`pnpm --filter @montaj/web test -- --maxWorkers=2`, lint and
-typecheck green; `format:changed`/`format:changed:check`clean (this WP's
-convention is scoped formatting, not repo-wide`format:check`, per the
-  brief's formatting rule — ran that instead and it is equivalent for the
-  files this WP touched).
+  with bold or italic text (e.g. two or one leading asterisks) satisfies
+  that test without being a bullet, so the paragraph-collection loop ran
+  zero iterations, the cursor never advanced, and the outer loop pushed
+  empty paragraph blocks forever. No current academy/help/changelog body
+  happens to open a paragraph that way, so this copy never actually crashed
+  a build, but the bug was live and would have. Fixed with the same
+  narrowed stop condition, adapted to this file's own heading branches
+  (level-2 and level-3 headings only), plus the same cursor-progress
+  backstop. Compared the two files in full before choosing an approach:
+  they diverge enough (the docs copy adds GFM pipe-table parsing, a
+  level-1 heading block kind, and a different inline-link target policy;
+  the content copy adds single-asterisk italic) that extracting one shared
+  block parser would not have been a small change, so both copies were
+  fixed independently rather than merged — the duplication between
+  `lib/docs/markdown.tsx` and `lib/content/markdown.tsx` remains and is
+  worth a dedicated follow-up to unify if a third caller ever needs this
+  kind of renderer. Added a regression test to the neighbouring test file
+  in each case (`lib/docs/markdown.test.tsx`, and a new
+  `lib/content/markdown.test.tsx` — no test file existed for
+  `MarkdownBody` before this) that renders a paragraph opening with bold
+  text and one opening with italic text, and asserts exactly one
+  (non-empty) paragraph is produced. `pnpm --filter @montaj/web test --
+maxWorkers=2`, lint and typecheck green; `format:changed` /
+  `format:changed:check` clean (this WP's convention is scoped formatting,
+  not repo-wide `format:check`, per the brief's formatting rule — ran that
+  instead, equivalent for the files this WP touched).
+
+- **M08: mounted C11's `PluginActivationCue` in the Passes tab.** C11 shipped
+  the cue (`apps/web/components/editor/passes/PluginActivationCue.tsx`) but
+  it was never wired into `PassesTab`. This WP adds a `PluginActivationCues`
+  row (rendered next to the run-autocut toolbar, i.e. the apply-to-NLE
+  affordance) that reuses `useDevices`/`useEntitlement` and
+  `components/plugins/plugin-status.ts` — the same activation-state
+  derivation the Plugins page and the cue itself already use — to decide,
+  per Premiere/Resolve host, whether the cue is worth showing: hidden while
+  loading/erroring, hidden entirely once every host is `signed_in`, hidden
+  when the workspace has paired no plugin device at all (nothing to nudge
+  yet), and hidden for a local project (C04b — passes/plugins need the
+  cloud). Otherwise shows one cue per host still short of `signed_in`. No
+  changes to `PluginActivationCue.tsx` itself — its own shown-in-every-state
+  behaviour (used by the Plugins page later) stays intact. Tests added to
+  `PassesTab.test.tsx` cover the matrix: both hosts activated (hidden), one
+  host pending while another device is paired (shown, "Not installed" /
+  "Device limit reached"), no device paired at all (hidden), and local mode
+  (hidden).
 
 - **M06: `eslint-plugin-security` promoted to `error` repo-wide.** C02c drove
   `apps/api`, `apps/web`, `packages/bridge-core` and `apps/desktop` to zero

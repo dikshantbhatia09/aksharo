@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import type { DeviceView, Entitlement } from "@montaj/api-client";
 import type { EdgHot, Pass, PassItem, Segment, TranscriptChunk } from "@montaj/edg";
 
 import { PassesTab } from "./PassesTab";
@@ -10,6 +11,36 @@ import { EditorStore, type EditorStoreInit } from "../../../lib/edg/store";
 import { renderWithProviders } from "@/test/harness";
 
 const PROJECT = "01JPROJECT0000000000000000";
+
+function entitlement(activeDevices: number): Entitlement {
+  return {
+    workspaceId: "01JWORKSPACE",
+    planKey: "free",
+    planName: "Free",
+    creditsPerMonthTenths: 0,
+    seatsIncluded: 1,
+    seatsUsed: 1,
+    entitlements: { activeDevices },
+    computedAt: "2026-09-03T00:00:00.000Z",
+  };
+}
+
+function device(overrides: Partial<DeviceView> = {}): DeviceView {
+  return {
+    id: "d1",
+    name: "Studio PC",
+    platform: "windows",
+    host: "premiere",
+    hostVersion: null,
+    appVersion: null,
+    lastActiveAt: null,
+    leaseUntil: null,
+    revokedAt: null,
+    createdAt: "2026-09-01T00:00:00.000Z",
+    isCurrentSession: false,
+    ...overrides,
+  };
+}
 
 function cutItem(
   itemId: string,
@@ -197,5 +228,91 @@ describe("<PassesTab />", () => {
       <PassesTab projectId={PROJECT} store={store} passes={passes} sourceDurationMs={10_000} />,
     );
     expect(screen.queryByTestId("passes-empty-state")).not.toBeInTheDocument();
+  });
+
+  describe("plugin activation cue (M08)", () => {
+    function renderTab(routes: Record<string, unknown>) {
+      const items = [cutItem("i1", 0, 1000, "proposed", 0.9)];
+      const store = buildStore(items);
+      const passes: Pass[] = [
+        {
+          passId: "pass-1",
+          type: "autocut",
+          engine: "autocut@2",
+          params: {},
+          status: "ready",
+          items,
+        },
+      ];
+      return renderWithProviders(
+        <PassesTab projectId={PROJECT} store={store} passes={passes} sourceDurationMs={10_000} />,
+        { routes },
+      );
+    }
+
+    it("hides the cue once every NLE host is already activated", async () => {
+      renderTab({
+        "/devices": [device({ host: "premiere" }), device({ id: "d2", host: "resolve" })],
+        "/workspaces/01JWORKSPACE/entitlement": entitlement(2),
+      });
+      await screen.findByTestId("passes-tab");
+      await waitFor(() => {
+        expect(screen.queryByTestId("passes-plugin-cues")).not.toBeInTheDocument();
+      });
+    });
+
+    it("shows a cue for a host that is not yet activated when another device is paired", async () => {
+      renderTab({
+        "/devices": [device({ host: "premiere" })],
+        "/workspaces/01JWORKSPACE/entitlement": entitlement(2),
+      });
+      const cue = await screen.findByTestId("passes-plugin-cue-resolve");
+      expect(cue).toHaveTextContent("Not installed");
+      expect(screen.queryByTestId("passes-plugin-cue-premiere")).not.toBeInTheDocument();
+    });
+
+    it("hides the cue entirely when no plugin device is paired at all", async () => {
+      renderTab({
+        "/devices": [],
+        "/workspaces/01JWORKSPACE/entitlement": entitlement(1),
+      });
+      await screen.findByTestId("passes-tab");
+      await waitFor(() => {
+        expect(screen.queryByTestId("passes-plugin-cues")).not.toBeInTheDocument();
+      });
+    });
+
+    it("hides the cue for a local project even when a device is paired but not activated", async () => {
+      const items = [cutItem("i1", 0, 1000, "proposed", 0.9)];
+      const store = buildStore(items);
+      const passes: Pass[] = [
+        {
+          passId: "pass-1",
+          type: "autocut",
+          engine: "autocut@2",
+          params: {},
+          status: "ready",
+          items,
+        },
+      ];
+      renderWithProviders(
+        <PassesTab
+          projectId={PROJECT}
+          store={store}
+          passes={passes}
+          sourceDurationMs={10_000}
+          isLocalProject
+        />,
+        {
+          routes: {
+            "/devices": [device({ host: "premiere" })],
+            "/workspaces/01JWORKSPACE/entitlement": entitlement(1),
+          },
+        },
+      );
+      await screen.findByTestId("passes-tab");
+      expect(screen.queryByTestId("passes-plugin-cues")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("passes-plugin-cue-resolve")).not.toBeInTheDocument();
+    });
   });
 });
