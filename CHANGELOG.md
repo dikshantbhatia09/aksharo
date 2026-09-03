@@ -8,6 +8,32 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M05 — main hygiene: hermetic free-tier daily-cap workspace id in
+  `noop-credits.facade.test.ts`.** Investigated a reported flake in
+  "free-tier daily cap (THREAT-MODEL T23) > gives the allowance back when a
+  hold is released" under `pnpm --filter @montaj/api test -- --maxWorkers=2
+src`, described as cross-file interference on a shared Redis daily-cap key
+  (same workspace id + UTC date). That premise does not hold for the current
+  code: `NoopCreditsFacade`'s free-tier allowance
+  (`apps/api/src/credits/noop-credits.facade.ts`) is tracked entirely
+  in-memory (a `Map` keyed only by `workspaceId`, on the instance) — there is
+  no Redis key, no date component, and no `MONTAJ_REDIS_PREFIX` involvement
+  at all (confirmed against `apps/api/src/common/redis/redis-keys.ts`, which
+  has no daily-cap builder). Each test constructs a fresh
+  `NoopCreditsFacade` in `beforeEach`, and Vitest's default per-file module
+  isolation (never overridden in this repo's Vitest configs) means that even
+  a module-level singleton — which doesn't exist here — could not leak
+  across test files. The full `src` unit suite ran green with
+  `--maxWorkers=2` three times after merging `main` (166/166 files, 1784/1784
+  tests each run) and the file alone twice (18/18), so the failure did not
+  reproduce. Applied the requested hardening anyway as defence-in-depth:
+  `noop-credits.facade.test.ts`'s fixed `WORKSPACE` literal
+  (`01JCWS0000000000000000000A`, a literal also reused verbatim by ~17
+  unrelated test files for unrelated fixtures) is now generated per test run
+  from `Date.now()` and `Math.random()` rather than hard-coded, so a future
+  change to isolation settings or to the facade's storage key would need one
+  fewer coincidence to collide. No product behaviour changed.
+
 - **C02c: Electron major bump, `eslint-plugin-security`, WS ticket exchange
   (X01 follow-ups).** `apps/desktop`'s `electron` `^33.4.11` → `^44.1.1`
   (past X01's `>=39.8.10` floor, fixing the named use-after-free/context-
