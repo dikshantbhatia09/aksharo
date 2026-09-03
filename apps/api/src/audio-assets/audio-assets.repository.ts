@@ -205,4 +205,124 @@ export class AudioAssetsRepository {
         })),
       );
   }
+
+  /**
+   * `id -> storageKey` for a set of asset ids (D04c): what `../passes/
+   * sfx-tracks.ts` needs to turn an accepted `sfx` item (which carries only
+   * `assetId`/`packId`, CONTRACTS §2) into a render manifest's `SfxTrack`
+   * (which carries the pack object's derived key directly, so a render
+   * consumer never has to reconstruct it) — the storage key is assigned once
+   * at ingestion (`upsertRow`) and is not deterministically recoverable from
+   * `assetId` alone (it is keyed by the manifest's own local asset id, not the
+   * minted `audio_assets.id`), so this is the one place it is looked up.
+   */
+  async findStorageKeysByIds(ids: readonly string[]): Promise<ReadonlyMap<string, string>> {
+    if (ids.length === 0) return new Map();
+    const rows = await this.prisma.audioAsset.findMany({
+      where: { id: { in: [...ids] } },
+      select: { id: true, storageKey: true },
+    });
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      if (row.storageKey !== null) map.set(row.id, row.storageKey);
+    }
+    return map;
+  }
+
+  /**
+   * Every embedding-indexed asset of `kind`, with its own 512-dim embedding —
+   * what `sfx.py`'s `build_sfx_items` needs as its `CatalogueAsset` list
+   * (D04c): the worker is stateless and never queries Postgres itself, so the
+   * producer (`PassesService.startSfx`) reads the whole allowed catalogue here
+   * and ships it in the job payload, already filtered by `assetAllowed` in
+   * TypeScript (surface/plan/territory/clearance/term — the same gates
+   * `findRankedByEmbedding`'s SQL only partially expresses).
+   *
+   * `embedding::text` comes back as pgvector's own literal form
+   * (`"[0.1,0.2,...]"`), parsed here rather than asking Postgres to unnest it —
+   * one row at a time, 512 floats each, is cheap either way.
+   */
+  async findCatalogueWithEmbeddings(kind: "sfx" | "music"): Promise<
+    Array<{
+      readonly id: string;
+      readonly provider: AudioProvider;
+      readonly territory: string[];
+      readonly termStart: Date | null;
+      readonly termEnd: Date | null;
+      readonly allowsRawFileDelivery: boolean;
+      readonly clearanceMethod: ClearanceMethod;
+      readonly cueType: string | null;
+      readonly tags: string[];
+      readonly storageKey: string | null;
+      /** The manifest's own pack id, split off `provider_asset_id`'s
+       * `"{packId}:{manifest asset id}"` shape (`upsertRow`) — `audio_assets`
+       * has no first-class `pack_id` column, so this is the one place a
+       * `packId` is recovered for `SfxPayload.packId` (CONTRACTS §2). */
+      readonly packId: string | null;
+      readonly licenceSnapshot: Record<string, unknown>;
+      readonly embedding: readonly number[];
+    }>
+  > {
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        provider: AudioProvider;
+        territory: string[];
+        term_start: Date | null;
+        term_end: Date | null;
+        allows_raw_file_delivery: boolean;
+        clearance_method: ClearanceMethod;
+        cue_type: string | null;
+        tags: string[];
+        licence_type: string | null;
+        licensor: string | null;
+        licence_ref: string | null;
+        licence_version: string | null;
+        requires_attribution: boolean;
+        attribution_text: string | null;
+        storage_key: string | null;
+        provider_asset_id: string | null;
+        embedding_text: string;
+      }>
+    >(Prisma.sql`
+      SELECT id, provider, territory, term_start, term_end, allows_raw_file_delivery,
+             clearance_method, cue_type, tags, licence_type, licensor, licence_ref,
+             licence_version, requires_attribution, attribution_text, storage_key,
+             provider_asset_id, embedding::text AS embedding_text
+      FROM audio_assets
+      WHERE kind = ${kind}::"AudioAssetKind" AND allows_embedding_index = true
+      ORDER BY id ASC
+    `);
+
+    return rows.map((row) => ({
+      id: row.id,
+      provider: row.provider,
+      territory: row.territory,
+      termStart: row.term_start,
+      termEnd: row.term_end,
+      allowsRawFileDelivery: row.allows_raw_file_delivery,
+      clearanceMethod: row.clearance_method,
+      cueType: row.cue_type,
+      tags: row.tags,
+      storageKey: row.storage_key,
+      packId: row.provider_asset_id?.split(":")[0] ?? null,
+      licenceSnapshot: {
+        provider: row.provider,
+        licenceType: row.licence_type,
+        licensor: row.licensor,
+        licenceRef: row.licence_ref,
+        licenceVersion: row.licence_version,
+        requiresAttribution: row.requires_attribution,
+        attributionText: row.attribution_text,
+      },
+      embedding: parseVectorLiteral(row.embedding_text),
+    }));
+  }
+}
+
+/** Parses pgvector's `<=>`-castable text form `"[0.1,0.2,...]"` back to numbers. */
+function parseVectorLiteral(literal: string): number[] {
+  const trimmed = literal.trim().replace(/^\[/, "").replace(/\]$/, "");
+  if (trimmed === "") return [];
+  return trimmed.split(",").map((value) => Number(value));
 }

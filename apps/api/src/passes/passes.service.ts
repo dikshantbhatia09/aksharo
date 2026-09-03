@@ -9,11 +9,13 @@ import {
   type ReframeAspect,
   type ZoomPreset,
 } from "./passes.errors.js";
-import { quoteAutocut, quoteReframeZoom, quoteTextFx } from "./passes.quote.js";
+import { quoteAutocut, quoteReframeZoom, quoteSfx, quoteTextFx } from "./passes.quote.js";
+import { assetAllowed, AudioAssetsRepository } from "../audio-assets/index.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { EdgService } from "../edg/index.js";
 import { JobsService } from "../jobs/jobs.service.js";
+import { resolveWorkspacePlan } from "../jobs/plan.js";
 import { TranscriptsRepository } from "../transcripts/transcripts.repository.js";
 
 import type { MediaAsset, Project, Transcript } from "@prisma/client";
@@ -116,6 +118,23 @@ export interface StartTextFxAccepted {
   };
 }
 
+export interface StartSfxRequest {
+  readonly projectId: string;
+  readonly workspaceId: string;
+}
+
+export interface StartSfxAccepted {
+  readonly jobId: string;
+  readonly passId: string;
+  readonly status: string;
+  readonly deduplicated: boolean;
+  readonly quote: {
+    readonly tenths: number;
+    readonly credits: string;
+    readonly durationMs: number;
+  };
+}
+
 @Injectable()
 export class PassesService {
   private readonly logger = new Logger(PassesService.name);
@@ -125,6 +144,7 @@ export class PassesService {
     private readonly jobs: JobsService,
     private readonly edg: EdgService,
     private readonly transcripts: TranscriptsRepository,
+    private readonly audioAssets: AudioAssetsRepository,
   ) {}
 
   /** `POST /projects/{id}/passes/autocut`. */
@@ -361,6 +381,81 @@ export class PassesService {
     };
   }
 
+  /**
+   * `POST /projects/{id}/passes/sfx` (D04c, following D04a's cue-detection/
+   * retrieval build): quotes on the **finished** timeline (`quoteSfx`, same
+   * D07 basis `startTextFx` uses), holds credits and enqueues `ai.pass` with
+   * everything `worker_ai.passes.sfx.build_sfx_items` needs — the worker is
+   * stateless (no DB, no queue), so the whole licence-allowed catalogue,
+   * already narrowed by `assetAllowed` here, rides in the job payload rather
+   * than the worker querying Postgres itself (`audio-assets/README.md`'s "What
+   * is NOT here" list, now built).
+   *
+   * `rmsSamples` rides empty on purpose: real audio-energy cues need a
+   * decoded proxy, and B19b's proxy-sampling infrastructure is `zoom`/
+   * `reframe`-specific (`worker_ai.processors.reframe_zoom_pass`); wiring the
+   * same sampling into the sfx pass was out of reach in this pass, so the
+   * worker's `detect_energy_cues` simply sees no signal and contributes no
+   * cues — `emphasis`/`question`/`silence_gap` cues (word- and text-derived,
+   * no audio decode needed) still fire. Flagged in the final report rather
+   * than silently narrowing `sfx.py`'s documented four-signal pipeline.
+   */
+  async startSfx(request: StartSfxRequest): Promise<StartSfxAccepted> {
+    const project = await this.project(request.projectId, request.workspaceId);
+    const media = await this.primaryMedia(project.id);
+    const transcript = await this.transcriptOf(project.id);
+
+    const cutRanges = await this.acceptedCutRangesOf(project.id, request.workspaceId);
+    const removedMs = cutRanges.reduce((total, [s, e]) => total + Math.max(0, e - s), 0);
+    const finishedDurationMs = Math.max(0, (media.durationMs ?? 0) - removedMs);
+
+    const quote = quoteSfx(finishedDurationMs);
+    const passId = newId();
+    const words = await this.wordsOf(transcript);
+    const sentences = await this.segmentsForTextFx(transcript);
+    const emphasisWords = await this.sfxEmphasisCuesOf(project.id, request.workspaceId, words);
+    const speechRanges = speechRangesFromWords(words, media.durationMs ?? 0);
+    const storedProtected = await this.storedProtectedRangesOf(project.id, request.workspaceId);
+    const guardedRanges = await this.guardedRangesOf(project.id, request.workspaceId);
+    const catalogue = await this.sfxCatalogueOf(request.workspaceId);
+
+    const jobKey = `ai.pass:sfx:${project.id}`;
+    const { job, deduplicated } = await this.jobs.enqueue({
+      type: "ai.pass",
+      workspaceId: request.workspaceId,
+      projectId: project.id,
+      jobKey,
+      worstCaseTenths: quote.tenths,
+      reason: quote.reason,
+      params: {
+        passId,
+        passType: "sfx",
+        durationMs: media.durationMs,
+        mediaId: media.id,
+        sentences,
+        emphasisWords,
+        speechRanges,
+        rmsSamples: [],
+        cutRanges,
+        protectedRanges: [...storedProtected, ...guardedRanges],
+        catalogue,
+      },
+    });
+
+    this.logger.log(
+      { projectId: project.id, jobId: job.id, passId, tenths: quote.tenths, deduplicated },
+      "sfx pass enqueued",
+    );
+
+    return {
+      jobId: job.id,
+      passId: deduplicated ? (passIdOf(job.params) ?? passId) : passId,
+      status: job.status,
+      deduplicated,
+      quote: { tenths: quote.tenths, credits: quote.credits, durationMs: finishedDurationMs },
+    };
+  }
+
   // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------
@@ -558,6 +653,76 @@ export class PassesService {
   }
 
   /**
+   * Emphasis-word cues for the sfx pass (D04c): same word set `emphasisCuesOf`
+   * resolves for `zoom`, but carrying the word's own text too, since `sfx.py`'s
+   * `detect_emphasis_cues` wants `(t_ms, word_text)` pairs to build its
+   * retrieval query from.
+   */
+  private async sfxEmphasisCuesOf(
+    projectId: string,
+    workspaceId: string,
+    words: { wid: string; s: number; t: string }[],
+  ): Promise<{ tMs: number; text: string }[]> {
+    const wordByWid = new Map(words.map((word) => [word.wid, word]));
+    const cues: { tMs: number; text: string }[] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      let page;
+      try {
+        page = await this.edg.segments(projectId, workspaceId, cursor, 1_000);
+      } catch {
+        return []; // `edg/not_initialised`: no live document yet, no cues.
+      }
+      for (const segment of page.segments) {
+        for (const emphasis of segment.emphasis ?? []) {
+          const word = wordByWid.get(emphasis.wordId);
+          if (word !== undefined) cues.push({ tMs: word.s, text: word.t });
+        }
+      }
+      if (page.nextCursor === null) return cues;
+      cursor = page.nextCursor;
+    }
+  }
+
+  /**
+   * The whole licence-allowed `sfx` catalogue for this workspace, ready for
+   * `worker_ai.passes.sfx.build_sfx_items`'s `CatalogueAsset` list.
+   * `assetAllowed` runs here (surface `cloud_render` — this pass proposes
+   * cues for a cloud-composited timeline, not a raw NLE delivery; territory
+   * `"WORLD"` until a workspace-level territory signal exists, flagged as an
+   * assumption in the final report) so a partner-catalogue asset the plan or
+   * clearance state does not allow never reaches the worker, let alone a user.
+   */
+  private async sfxCatalogueOf(workspaceId: string): Promise<
+    {
+      id: string;
+      packId: string;
+      cueType: string | null;
+      tags: string[];
+      embedding: readonly number[];
+      licenceSnapshot: Record<string, unknown>;
+    }[]
+  > {
+    const plan = await resolveWorkspacePlan(this.prisma, workspaceId);
+    const rows = await this.audioAssets.findCatalogueWithEmbeddings("sfx");
+    return rows
+      .filter(
+        (row) =>
+          assetAllowed(row, { surface: "cloud_render", plan, territory: "WORLD" }).allowed &&
+          row.storageKey !== null &&
+          row.packId !== null,
+      )
+      .map((row) => ({
+        id: row.id,
+        packId: row.packId as string,
+        cueType: row.cueType,
+        tags: row.tags,
+        embedding: row.embedding,
+        licenceSnapshot: row.licenceSnapshot,
+      }));
+  }
+
+  /**
    * `passes/proxy_required` (B19b ruling 2/4): `zoom`/`reframe` sample the
    * 540p proxy for frames and audio, so a project whose primary media has no
    * proxy yet cannot run either pass.
@@ -603,4 +768,36 @@ function passIdOf(params: unknown): string | undefined {
   if (typeof params !== "object" || params === null) return undefined;
   const value = (params as Record<string, unknown>)["passId"];
   return typeof value === "string" && value !== "" ? value : undefined;
+}
+
+/**
+ * Where speech actually is, approximated from word timing alone (no VAD, no
+ * proxy decode): consecutive words closer than `MERGE_GAP_MS` apart are
+ * merged into one region — the same fallback shape `worker_ai.processors.
+ * autocut_pass._regions_from_words` uses when no media is available to
+ * sample. `sfx.py`'s `detect_silence_gap_cues` reads the *gaps between*
+ * these regions as transition-beat cues.
+ */
+const MERGE_GAP_MS = 160;
+
+function speechRangesFromWords(
+  words: { s: number; e: number }[],
+  durationMs: number,
+): [number, number][] {
+  if (words.length === 0) return [];
+  const ordered = [...words].sort((a, b) => a.s - b.s);
+  const regions: [number, number][] = [];
+  let start = ordered[0]?.s ?? 0;
+  let end = ordered[0]?.e ?? 0;
+  for (const word of ordered.slice(1)) {
+    if (word.s - end <= MERGE_GAP_MS) {
+      end = Math.max(end, word.e);
+    } else {
+      regions.push([start, Math.min(end, durationMs)]);
+      start = word.s;
+      end = word.e;
+    }
+  }
+  regions.push([start, Math.min(end, durationMs)]);
+  return regions;
 }

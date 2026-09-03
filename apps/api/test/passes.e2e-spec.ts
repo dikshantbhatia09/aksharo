@@ -831,3 +831,89 @@ describe.skipIf(!CAN_RUN)("textfx pass: producer → worker completion → Merge
     expect(response.body.error.code).toBe("pass/transcript_not_ready");
   });
 });
+
+describe.skipIf(!CAN_RUN)("sfx pass: producer → worker completion → MergePass (D04c)", () => {
+  let sfxJobId: string;
+  let sfxAttemptId: string;
+  let sfxPassId: string;
+
+  it("quotes and enqueues an sfx pass, on the finished timeline", async () => {
+    const response = await request(app.getHttpServer())
+      .post(`/projects/${PROJECT}/passes/sfx`)
+      .set("Authorization", `Bearer ${accessToken()}`)
+      .expect(202);
+
+    expect(response.body).toMatchObject({
+      status: "queued",
+      deduplicated: false,
+      quote: { tenths: 15, credits: "1.5", durationMs: DURATION_MS },
+    });
+    expect(response.body.passId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+
+    sfxJobId = response.body.jobId as string;
+    sfxPassId = response.body.passId as string;
+
+    const job = await prisma.job.findUniqueOrThrow({ where: { id: sfxJobId } });
+    expect(job.type).toBe("ai.pass");
+    const params = job.params as Record<string, unknown>;
+    expect(params["passType"]).toBe("sfx");
+    expect(Array.isArray(params["catalogue"])).toBe(true);
+    expect(Array.isArray(params["speechRanges"])).toBe(true);
+    sfxAttemptId = job.attemptId ?? "";
+  });
+
+  it("accepts a fake worker completion and merges the proposed sfx item", async () => {
+    const body = {
+      status: "succeeded",
+      result: {
+        passId: sfxPassId,
+        passType: "sfx",
+        items: [
+          {
+            startMs: 1_000,
+            endMs: 1_600,
+            assetId: newId(),
+            packId: "fixture-pack",
+            gainDb: -6,
+            fadeInMs: 0,
+            fadeOutMs: 0,
+            duck: { depthDb: -12, attackMs: 150, releaseMs: 150 },
+            licenceSnapshot: { provider: "owned" },
+            cueReason: "emphasis-word → ding",
+            confidence: 0.7,
+            reason: "emphasis-word → ding",
+          },
+        ],
+      },
+      usage: { mediaSeconds: DURATION_MS / 1_000 },
+    };
+
+    const response = await callback(
+      `/internal/jobs/${sfxJobId}/complete`,
+      body,
+      sfxAttemptId,
+    ).expect(200);
+    expect(response.body).toMatchObject({ applied: true, status: "succeeded" });
+  });
+
+  it("lists the merged sfx pass and its item through GET /projects/{id}/passes", async () => {
+    const response = await request(app.getHttpServer())
+      .get(`/projects/${PROJECT}/passes`)
+      .set("Authorization", `Bearer ${accessToken("viewer")}`)
+      .expect(200);
+
+    const passes = response.body.passes as Record<string, unknown>[];
+    const landed = passes.find((pass) => pass["passId"] === sfxPassId);
+    expect(landed).toBeDefined();
+    expect(landed).toMatchObject({ type: "sfx", status: "ready" });
+
+    const items = landed?.["items"] as Record<string, unknown>[];
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ kind: "sfx", state: "proposed" });
+    const payload = items[0]?.["payload"] as Record<string, unknown>;
+    expect(payload["packId"]).toBe("fixture-pack");
+    expect(payload["startMs"]).toBe(1_000);
+    expect(payload["durationMs"]).toBe(600);
+    expect(payload["duck"]).toMatchObject({ depthDb: -12 });
+  });
+});

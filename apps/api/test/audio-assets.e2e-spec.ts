@@ -158,4 +158,14 @@ describe.skipIf(!available)("audio-assets — ingest, idempotency, retrieval, li
       expect(result.allowed).toBe(true);
     }
   }, 60_000);
+
+  it("findCatalogueWithEmbeddings recovers packId and a 512-dim embedding per row (D04c)", async () => {
+    const rows = await repository.findCatalogueWithEmbeddings("sfx");
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row.packId).toBe("fixture-pack-01");
+      expect(row.embedding).toHaveLength(512);
+      expect(row.licenceSnapshot["provider"]).toBe("owned");
+    }
+  }, 60_000);
 });

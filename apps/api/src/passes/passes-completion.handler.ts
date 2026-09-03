@@ -6,6 +6,7 @@ import type {
   CutPassItem,
   Pass,
   ReframePassItem,
+  SfxPassItem,
   TextFxIntent,
   TextFxMotionPreset,
   TitlePassItem,
@@ -174,6 +175,37 @@ const TextFxResultSchema = z.object({
   items: z.array(TextFxItemResultSchema).default([]),
 });
 
+/** A duck curve, or `null` when the cue should never be ducked (D04c). */
+const DuckResultSchema = z
+  .object({
+    depthDb: z.number(),
+    attackMs: z.number().int().min(0),
+    releaseMs: z.number().int().min(0),
+  })
+  .nullable();
+
+/** One SFX cue from `worker_ai.processors.sfx_pass.process_sfx` (D04c). */
+const SfxItemResultSchema = z.object({
+  startMs: z.number().int().min(0),
+  endMs: z.number().int().min(0),
+  assetId: z.string().min(1),
+  packId: z.string().min(1),
+  gainDb: z.number(),
+  fadeInMs: z.number().int().min(0).default(0),
+  fadeOutMs: z.number().int().min(0).default(0),
+  duck: DuckResultSchema,
+  licenceSnapshot: z.record(z.string(), z.unknown()).default({}),
+  cueReason: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+  reason: z.string().min(1),
+});
+
+const SfxResultSchema = z.object({
+  passId: z.string().min(1),
+  passType: z.literal("sfx"),
+  items: z.array(SfxItemResultSchema).default([]),
+});
+
 /**
  * Advisory default placement per intent (`render-core`'s
  * `DEFAULT_PRESET_BY_INTENT`/slot order mirrored, not imported — this handler
@@ -213,6 +245,7 @@ export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit
     if (passType === "zoom") return this.handleZoom(context, projectId);
     if (passType === "reframe") return this.handleReframe(context, projectId);
     if (passType === "textfx") return this.handleTextFx(context, projectId);
+    if (passType === "sfx") return this.handleSfx(context, projectId);
     return this.handleAutocut(context, projectId);
   }
 
@@ -439,6 +472,75 @@ export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit
         revision: applied.revision,
       },
       "textfx pass merged into the editing document",
+    );
+
+    return {
+      data: {
+        passId: result.passId,
+        itemCount: items.length,
+        edgRevision: applied.revision,
+      },
+    };
+  }
+
+  /**
+   * D04c: `worker_ai.processors.sfx_pass.process_sfx`'s cues, one `PassItem
+   * {kind:"sfx"}` each. `itemId` is minted here (the worker's `SfxItem`
+   * dataclass carries none, same as `autocut`'s `CutCandidate`) — unlike
+   * `zoom`/`reframe` there is no keyframe curve needing an id before upload.
+   */
+  private async handleSfx(
+    context: JobCompletionContext,
+    projectId: string,
+  ): Promise<JobCompletionOutcome> {
+    const { job } = context;
+    const result = SfxResultSchema.parse(context.result);
+
+    const items: SfxPassItem[] = result.items.map((item) => ({
+      itemId: newId(),
+      passId: result.passId,
+      kind: "sfx",
+      startMs: item.startMs,
+      endMs: item.endMs,
+      payload: {
+        assetId: item.assetId,
+        packId: item.packId,
+        startMs: item.startMs,
+        durationMs: item.endMs - item.startMs,
+        gainDb: item.gainDb,
+        fadeInMs: item.fadeInMs,
+        fadeOutMs: item.fadeOutMs,
+        duck: item.duck,
+        licenceSnapshot: item.licenceSnapshot,
+        cueReason: item.cueReason,
+      },
+      confidence: item.confidence,
+      reason: item.reason,
+      state: "proposed",
+      licenceSnapshot: item.licenceSnapshot,
+    }));
+
+    const pass: Pass = {
+      passId: result.passId,
+      type: "sfx",
+      engine: "sfx@1",
+      params: {},
+      status: "ready",
+      jobId: job.id,
+      items,
+    };
+
+    const applied = await this.mergePass(projectId, job.workspaceId, pass);
+
+    this.logger.log(
+      {
+        jobId: job.id,
+        projectId,
+        passId: result.passId,
+        items: items.length,
+        revision: applied.revision,
+      },
+      "sfx pass merged into the editing document",
     );
 
     return {

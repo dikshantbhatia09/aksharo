@@ -28,5 +28,35 @@
     "browserHash": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193",
     "cloudHash": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193",
     "byteLength": 4096
+  },
+  "sfx": {
+    "generatedAt": "2026-09-03T03:19:58.442Z",
+    "maxDiffLinearTolerance": 0.000001,
+    "fixtures": {
+      "default-duck": {
+        "fixtureId": "default-duck",
+        "label": "D04a's default duck (-12dB/150ms) over one speech range",
+        "samples": 361,
+        "maxDiffLinear": 0,
+        "pass": true,
+        "measuredAt": "2026-09-03T03:19:58.442Z"
+      },
+      "asymmetric-ramps": {
+        "fixtureId": "asymmetric-ramps",
+        "label": "a shallower, slower-release duck over two overlapping speech ranges",
+        "samples": 431,
+        "maxDiffLinear": 0,
+        "pass": true,
+        "measuredAt": "2026-09-03T03:19:58.442Z"
+      },
+      "deep-duck-short-ramp": {
+        "fixtureId": "deep-duck-short-ramp",
+        "label": "a near-silent duck with a fast 20ms ramp",
+        "samples": 159,
+        "maxDiffLinear": 0,
+        "pass": true,
+        "measuredAt": "2026-09-03T03:19:58.442Z"
+      }
+    }
   }
 }

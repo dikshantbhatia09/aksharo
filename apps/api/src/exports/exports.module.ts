@@ -10,6 +10,7 @@ import {
   RenderSubtitleCompletionHandler,
   RenderVideoCompletionHandler,
 } from "./render-completion.handler.js";
+import { AudioAssetsModule } from "../audio-assets/index.js";
 import { ManifestSignerService } from "../common/crypto/manifest-signer.js";
 import { EdgModule } from "../edg/index.js";
 import { JobsModule } from "../jobs/jobs.module.js";
@@ -35,7 +36,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
  * DI binding moved.
  */
 @Module({
-  imports: [JobsModule, EdgModule, WorkspacesModule, OffersModule],
+  imports: [JobsModule, EdgModule, WorkspacesModule, OffersModule, AudioAssetsModule],
   controllers: [ExportsController, BrandAssetsController],
   providers: [
     ExportsService,

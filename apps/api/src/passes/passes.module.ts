@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { PassCompletionHandler } from "./passes-completion.handler.js";
 import { PassesController } from "./passes.controller.js";
 import { PassesService } from "./passes.service.js";
+import { AudioAssetsModule } from "../audio-assets/index.js";
 import { EdgModule } from "../edg/index.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { TranscriptsModule } from "../transcripts/transcripts.module.js";
@@ -19,7 +20,7 @@ import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
  * for exactly this kind of cross-module read (`transcripts.module.ts`).
  */
 @Module({
-  imports: [JobsModule, EdgModule, TranscriptsModule],
+  imports: [JobsModule, EdgModule, TranscriptsModule, AudioAssetsModule],
   controllers: [PassesController],
   providers: [PassesService, PassCompletionHandler, WorkspaceMemberGuard],
   exports: [PassesService],

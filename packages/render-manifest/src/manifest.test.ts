@@ -75,6 +75,38 @@ describe("the schema", () => {
     expect(parsed.timemap.titles).toBeUndefined();
   });
 
+  it("parses accepted sfx cues on the timemap (D04c)", () => {
+    const manifest = signedFixtureManifest(SECRET, {
+      timemap: {
+        audio: {
+          sfx: [
+            {
+              itemId: "01JA20SFXEVENT000000000000",
+              startMs: 1_000,
+              endMs: 1_600,
+              assetId: "01JA20ASSET000000000000000",
+              packId: "fixture-pack-01",
+              storageKey: "packs/fixture-pack-01/01JA20ASSET000000000000000.wav",
+              gainDb: -6,
+              fadeInMs: 0,
+              fadeOutMs: 0,
+              duck: { depthDb: -12, attackMs: 150, releaseMs: 150 },
+            },
+          ],
+        },
+      },
+    });
+    const parsed = RenderManifestSchema.parse(manifest);
+    expect(parsed.timemap.audio?.sfx).toHaveLength(1);
+    expect(parsed.timemap.audio?.sfx?.[0]).toMatchObject({ packId: "fixture-pack-01", gainDb: -6 });
+  });
+
+  it("omits timemap.audio just fine — every manifest built before D04c stays valid", () => {
+    const manifest = signedFixtureManifest(SECRET);
+    const parsed = RenderManifestSchema.parse(manifest);
+    expect(parsed.timemap.audio).toBeUndefined();
+  });
+
   it("parses a subtitle request", () => {
     const manifest = signedFixtureManifest(SECRET, {
       subtitles: { formats: ["srt", "vtt"], scripts: ["roman"], dropFillers: true },

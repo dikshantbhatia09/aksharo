@@ -50,17 +50,19 @@ from worker_ai.processors.context import JobContext, JobFailureError, ProcessorO
 from worker_ai.processors.media import load_audio
 from worker_ai.processors.media import speech_regions as vad_speech_regions
 from worker_ai.processors.reframe_zoom_pass import process_reframe, process_zoom
+from worker_ai.processors.sfx_pass import process_sfx
 from worker_ai.processors.text_fx_pass import process_text_fx
 
 __all__ = ["process_pass"]
 
-_SUPPORTED_PASS_TYPES = frozenset({"autocut", "zoom", "reframe", "textfx"})
+_SUPPORTED_PASS_TYPES = frozenset({"autocut", "zoom", "reframe", "textfx", "sfx"})
 
 
 async def process_pass(context: JobContext) -> ProcessorOutcome:
     """Dispatch `ai.pass` on `payload.passType`: `"autocut"` (B18),
     `"zoom"`/`"reframe"` (B19, `worker_ai.processors.reframe_zoom_pass`),
-    `"textfx"` (D06, `worker_ai.processors.text_fx_pass`).
+    `"textfx"` (D06, `worker_ai.processors.text_fx_pass`), `"sfx"` (D04c,
+    `worker_ai.processors.sfx_pass`).
     """
     pass_type = context.payload_str("passType", default="autocut")
     if pass_type not in _SUPPORTED_PASS_TYPES:
@@ -75,6 +77,8 @@ async def process_pass(context: JobContext) -> ProcessorOutcome:
         return await process_reframe(context)
     if pass_type == "textfx":  # noqa: S105 - a pass kind, not a password
         return await process_text_fx(context)
+    if pass_type == "sfx":  # noqa: S105 - a pass kind, not a password
+        return await process_sfx(context)
     return await _process_autocut(context)
 
 

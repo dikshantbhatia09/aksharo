@@ -13257,6 +13257,55 @@
         ]
       }
     },
+    "/projects/{projectId}/passes/sfx": {
+      "post": {
+        "description": "Quotes the job from the finished (post-cut) timeline (`sfxMusicPass` burn rate, finished minutes, Studio+ library entitlement), holds the credits and enqueues `ai.pass`. Proposed sound-effect cues land as `edg_pass_items` (kind `sfx`, state `proposed`) once the worker's completion arrives and `MergePass` merges them; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`.",
+        "operationId": "startSfxPass",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          },
+          "409": {
+            "description": "`pass/media_not_ready` or `pass/transcript_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start an sfx pass",
+        "tags": [
+          "passes"
+        ]
+      }
+    },
     "/projects/{projectId}/passes": {
       "get": {
         "operationId": "listProjectPasses",

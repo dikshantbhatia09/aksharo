@@ -9,7 +9,7 @@ import {
   KeyframesInlineSchema,
   KeyframesRefSchema,
   MsSchema,
-  OffsetMsSchema,
+  PackIdSchema,
   PresetIdSchema,
   StyleRefSchema,
   UlidSchema,
@@ -101,24 +101,66 @@ export const ReframePayloadSchema = z
   })
   .meta({ id: "ReframePayload", title: "ReframePayload" });
 
+/**
+ * A ducking curve's shape: how far to pull the other track down, and how
+ * fast to ramp in and out of that depth. Shared by `SfxPayload.duck` (ducks
+ * *this* cue under speech, D04a's `−12 dB` default) and `MusicPayload.
+ * bedDuck` (ducks the music bed under speech) — CONTRACTS §2, amendment
+ * 2026-09-03.
+ */
+export const DuckSchema = z
+  .object({
+    depthDb: z.number().min(-60).max(0),
+    attackMs: MsSchema,
+    releaseMs: MsSchema,
+  })
+  .meta({ id: "Duck", title: "Duck" });
+
+/**
+ * D04a's SFX item payload (CONTRACTS §2, amended 2026-09-03 after D04a/D04c):
+ * `assetId`/`packId` name the library asset (`packs/{packId}/{assetId}.wav`,
+ * CONTRACTS §6) rather than carrying a provider id or URL — those never enter
+ * the EDG (07). `startMs`/`durationMs` are the cue's own placement and length
+ * on the finished timeline, kept in sync with the item's own `startMs`/
+ * `endMs` by `EditPassItem` (`packages/edg/src/ops/apply.ts`) so a consumer
+ * that reads only `payload` (the render manifest's flattened `SfxTrack`,
+ * `packages/render-manifest`) never has to look at the enclosing item.
+ * `duck` is `null` when the cue should never be ducked under speech (e.g. a
+ * transition whoosh placed in a silence gap, where there is no speech to
+ * duck against).
+ */
 export const SfxPayloadSchema = z
   .object({
-    /** Library asset ULID; provider ids and URLs never enter the EDG (07). */
     assetId: UlidSchema,
+    packId: PackIdSchema,
+    startMs: MsSchema,
+    durationMs: MsSchema,
     gainDb: GainDbSchema,
-    /** Signed offset from the item start. */
-    offsetMs: OffsetMsSchema,
+    fadeInMs: MsSchema,
+    fadeOutMs: MsSchema,
+    duck: DuckSchema.nullable(),
+    /** Licence terms captured at the moment this asset was chosen (D44). */
+    licenceSnapshot: JsonObjectSchema,
+    /** Why this cue fired (`sfx.py`'s cue reason, e.g. "energy-peak → impact"). */
+    cueReason: z.string().min(1).max(500),
   })
   .meta({ id: "SfxPayload", title: "SfxPayload" });
 
+/** D05's music-bed payload (CONTRACTS §2, amended 2026-09-03) — schema owned
+ * here so `ItemKind: "music"` is a valid discriminated-union member; D05
+ * fills in the producer/worker/render wiring. */
 export const MusicPayloadSchema = z
   .object({
     assetId: UlidSchema,
+    packId: PackIdSchema,
+    startMs: MsSchema,
+    durationMs: MsSchema,
     gainDb: GainDbSchema,
-    /** Gain applied while speech is present; negative ducks the bed. */
-    duckDb: z.number().min(-60).max(0),
-    fadeInMs: MsSchema,
-    fadeOutMs: MsSchema,
+    loopPolicy: z.enum(["none", "loop", "trim"]),
+    bedDuck: DuckSchema.nullable(),
+    licenceSnapshot: JsonObjectSchema,
+    mood: z.array(z.string().min(1)).default([]),
+    bpm: z.number().int().positive().optional(),
   })
   .meta({ id: "MusicPayload", title: "MusicPayload" });
 
@@ -244,6 +286,7 @@ export type ItemState = z.infer<typeof ItemStateSchema>;
 export type PassStatus = z.infer<typeof PassStatusSchema>;
 export type Easing = z.infer<typeof EasingSchema>;
 export type Rect = z.infer<typeof RectSchema>;
+export type Duck = z.infer<typeof DuckSchema>;
 export type CutPayload = z.infer<typeof CutPayloadSchema>;
 export type ZoomPayload = z.infer<typeof ZoomPayloadSchema>;
 export type ReframePayload = z.infer<typeof ReframePayloadSchema>;

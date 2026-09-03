@@ -66,7 +66,9 @@ def _words(count: int, *, gap_ms: int = 300) -> list[dict[str, Any]]:
 
 
 async def test_unsupported_pass_type_fails_non_retryable() -> None:
-    context = _context(passType="sfx", passId="01JPASS0000000000000000000")
+    # "sfx" is D04c's own pass type now (`processors/sfx_pass.py`); "music" is
+    # D05's, still unimplemented — a genuinely-unsupported type for this test.
+    context = _context(passType="music", passId="01JPASS0000000000000000000")
     with pytest.raises(JobFailureError) as raised:
         await process_pass(context)
     assert raised.value.code == "worker/not_implemented"

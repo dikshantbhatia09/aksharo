@@ -17,7 +17,8 @@
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "bench": "tsx scripts/benchmark.ts",
     "parity": "tsx parity/run.ts",
-    "parity:audio": "tsx parity/run-audio-parity.ts"
+    "parity:audio": "tsx parity/run-audio-parity.ts",
+    "parity:sfx": "tsx parity/run-sfx-parity.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1124.0",
