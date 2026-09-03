@@ -8,6 +8,24 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M12: one shared markdown block parser for docs + help content.**
+  - `apps/web/lib/markdown/blocks.ts`: new pure `parseBlocks()` (paragraphs,
+    headings h1-h3, ordered/unordered lists, fenced code, GFM pipe tables,
+    blockquotes) with a documented cursor-progress invariant and a
+    `fast-check` property test (`blocks.test.ts`) asserting termination and
+    exactly-once line consumption for arbitrary input. Replaces the two
+    hand-rolled, independently-duplicated block parsers previously in
+    `apps/web/lib/docs/markdown.tsx` (X03) and `apps/web/lib/content/
+markdown.tsx` (B12), which carried the identical M07 infinite-loop bug (a
+    paragraph-collection loop that could match its own stop condition on its
+    first line and never advance the cursor).
+  - `apps/web/lib/docs/markdown.tsx` and `apps/web/lib/content/markdown.tsx`
+    are now thin renderers over the shared `parseBlocks()`, keeping their
+    prior, divergent inline policies unchanged (docs: no single-`*` italic,
+    internal-vs-external link `target` policy for plugin-README links;
+    content: single-`*` italic, no link-target policy) and their existing
+    output snapshots/tests, including both files' M07 regression tests.
+
 - **D07: prompted edits — planner, Flash/Pro engines, plan preview, chained
   passes, credits held on source minutes and settled on finished minutes.**
   - `packages/prompts`: `edit-plan@1` template (`{passes[], style?, script?,
