@@ -6,6 +6,7 @@ import { PrismaService } from "../common/prisma/prisma.service.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 import { JobsService } from "../jobs/jobs.service.js";
 import { mediaLimitsFor } from "../projects/plan-limits.js";
+import { ReplaceMediaAlignTrigger } from "../replace-media/replace-media-align.trigger.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
 import type { ProbeResult, ProxyJobPayload } from "./probe-result.js";
@@ -52,6 +53,7 @@ export class MediaProbeCompletionHandler implements JobCompletionHandler, OnModu
     private readonly jobs: JobsService,
     private readonly entitlements: EntitlementService,
     private readonly registry: JobCompletionRegistry,
+    private readonly realign: ReplaceMediaAlignTrigger,
   ) {}
 
   onModuleInit(): void {
@@ -126,12 +128,19 @@ export class MediaProbeCompletionHandler implements JobCompletionHandler, OnModu
       skipAdmission: true,
     });
 
+    // B15 §5: a replaced media item's new bytes just probed. `needs_realign`
+    // (`MediaService.replace`) is what tells us to re-run `ai.align` against
+    // the project's existing transcript rather than treat this as a first
+    // transcription.
+    const realignJob = await this.realign.maybeEnqueue(context.job, media.id);
+
     return {
       data: {
         mediaId: media.id,
         durationMs: probe.durationMs,
         proxyJobId: child.job.id,
         proxyEnqueued: !child.deduplicated,
+        ...(realignJob === undefined ? {} : { realignJobId: realignJob.jobId }),
       },
     };
   }

@@ -139,6 +139,7 @@ export class BatchService {
     const settings = { ...(batch.settings as BatchSettings), ...override.settings };
     const projects = await this.prisma.project.findMany({
       where: { batchId, deletedAt: null },
+      orderBy: { id: "asc" },
       select: { id: true },
     });
 
@@ -177,6 +178,7 @@ export class BatchService {
     const batch = await this.prisma.batch.findFirstOrThrow({ where: { id: batchId, workspaceId } });
     const projects = await this.prisma.project.findMany({
       where: { batchId, deletedAt: null },
+      orderBy: { id: "asc" },
       include: { jobs: { orderBy: { queuedAt: "desc" }, take: 1 } },
     });
 
