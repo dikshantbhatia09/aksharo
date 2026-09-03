@@ -8,7 +8,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 import { createB08TestContext, b08SkipReason, type B08TestContext } from "./b08-harness.js";
 import { isDatabaseAvailable, skipReason } from "./db-harness.js";
-
 import { redisKeyPrefix } from "../src/common/redis/redis-keys.js";
 
 import type { INestApplication } from "@nestjs/common";
