@@ -87,7 +87,14 @@ describe("<PassesTab />", () => {
     const items = [cutItem("i1", 0, 1000, "proposed", 0.9)];
     const store = buildStore(items);
     const passes: Pass[] = [
-      { passId: "pass-1", type: "autocut", engine: "autocut@2", params: {}, status: "ready", items },
+      {
+        passId: "pass-1",
+        type: "autocut",
+        engine: "autocut@2",
+        params: {},
+        status: "ready",
+        items,
+      },
     ];
     const onUploadToCloud = vi.fn();
     renderWithProviders(

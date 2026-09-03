@@ -31,9 +31,7 @@ describe("ffprobePathFromFfmpegPath", () => {
   });
 
   it("resolves the sibling ffprobe binary on darwin/linux (no extension)", () => {
-    expect(ffprobePathFromFfmpegPath("/models/bin/ffmpeg", "darwin")).toBe(
-      "/models/bin/ffprobe",
-    );
+    expect(ffprobePathFromFfmpegPath("/models/bin/ffmpeg", "darwin")).toBe("/models/bin/ffprobe");
   });
 });
 

@@ -290,7 +290,12 @@ describe("LocalStore", () => {
     const { hot, segments } = sampleDoc(project.id);
     const chunk = sampleChunk();
 
-    const saved = await store.saveEdgSnapshot({ projectId: project.id, hot, segments, chunks: [chunk] });
+    const saved = await store.saveEdgSnapshot({
+      projectId: project.id,
+      hot,
+      segments,
+      chunks: [chunk],
+    });
     expect(saved.chunks).toEqual([chunk]);
     expect(store.latestSnapshot(project.id)?.chunks).toEqual([chunk]);
     expect(store.transcriptChunks(project.id)).toEqual([chunk]);

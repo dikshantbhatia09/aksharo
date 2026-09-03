@@ -22,12 +22,21 @@ function fixtureHot(): EdgHot {
 
 function fixtureSegments(): Segment[] {
   return [
-    { id: "s1", seq: "V", startWordId: "0:0" as never, endWordId: "0:0" as never, startMs: 0, endMs: 400 },
+    {
+      id: "s1",
+      seq: "V",
+      startWordId: "0:0" as never,
+      endWordId: "0:0" as never,
+      startMs: 0,
+      endMs: 400,
+    },
   ];
 }
 
 function fixtureChunks(): TranscriptChunk[] {
-  return [{ chunkIdx: 0, startMs: 0, endMs: 400, words: [{ wid: "0:0", s: 0, e: 400, t: "Bhai" }] }];
+  return [
+    { chunkIdx: 0, startMs: 0, endMs: 400, words: [{ wid: "0:0", s: 0, e: 400, t: "Bhai" }] },
+  ];
 }
 
 describe("LocalModeNotice", () => {
@@ -72,10 +81,10 @@ describe("uploadLocalProjectToCloud", () => {
     let capturedBody: unknown;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       capturedBody = init?.body === undefined ? undefined : JSON.parse(String(init.body));
-      return new Response(
-        JSON.stringify({ edgId: "e-cloud", revision: 1, segments: 1 }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ edgId: "e-cloud", revision: 1, segments: 1 }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
     });
     const client = createApiClient({
       baseUrl: "https://api.test",

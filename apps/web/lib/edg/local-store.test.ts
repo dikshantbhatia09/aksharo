@@ -42,7 +42,9 @@ function fixtureSegments(): Segment[] {
 
 /** One chunk carrying the single word `fixtureSegments()` addresses. */
 function fixtureChunks(): TranscriptChunk[] {
-  return [{ chunkIdx: 0, startMs: 0, endMs: 400, words: [{ wid: "0:0", s: 0, e: 400, t: "Bhai" }] }];
+  return [
+    { chunkIdx: 0, startMs: 0, endMs: 400, words: [{ wid: "0:0", s: 0, e: 400, t: "Bhai" }] },
+  ];
 }
 
 interface FakeSnapshot {
@@ -60,12 +62,7 @@ function fakeLocalApi(initial: {
 }) {
   let snapshot: FakeSnapshot | null = { ...initial, chunks: initial.chunks ?? [] };
   const saveEdgSnapshot = vi.fn(
-    async (input: {
-      projectId: string;
-      hot: unknown;
-      segments: unknown[];
-      chunks?: unknown[];
-    }) => {
+    async (input: { projectId: string; hot: unknown; segments: unknown[]; chunks?: unknown[] }) => {
       snapshot = {
         hot: input.hot as EdgHot,
         segments: input.segments as Segment[],

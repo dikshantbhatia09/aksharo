@@ -35,7 +35,6 @@ import { ToEditorTab } from "./ToEditorTab";
 import { useExportDialog } from "./use-export-dialog";
 import { VideoTab, type VideoTabValue } from "./VideoTab";
 import { WatermarkNotice } from "./WatermarkNotice";
-
 import { LocalModeNotice } from "../local-mode-gate";
 
 import { isBrowserExportEligible } from "@/lib/export";
@@ -214,7 +213,9 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
           <div className="mt-4" data-testid="export-cloud-offer-gated">
             <LocalModeNotice
               feature="cloud rendering"
-              {...(props.onUploadToCloud === undefined ? {} : { onUploadToCloud: props.onUploadToCloud })}
+              {...(props.onUploadToCloud === undefined
+                ? {}
+                : { onUploadToCloud: props.onUploadToCloud })}
               uploading={props.uploadingToCloud ?? false}
             />
           </div>

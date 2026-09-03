@@ -397,7 +397,16 @@ export class LocalStore {
           `INSERT INTO local_transcript_chunks
              (id, project_id, revision, chunk_idx, start_ms, end_ms, words, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [this.mintId(), projectId, revision, chunk.chunkIdx, chunk.startMs, chunk.endMs, words, now],
+          [
+            this.mintId(),
+            projectId,
+            revision,
+            chunk.chunkIdx,
+            chunk.startMs,
+            chunk.endMs,
+            words,
+            now,
+          ],
         );
       } else {
         this.db.raw.run(

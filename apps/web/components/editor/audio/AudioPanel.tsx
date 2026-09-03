@@ -151,12 +151,18 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
       {props.isLocalProject === true ? (
         <LocalModeNotice
           feature="audio clean"
-          {...(props.onUploadToCloud === undefined ? {} : { onUploadToCloud: props.onUploadToCloud })}
+          {...(props.onUploadToCloud === undefined
+            ? {}
+            : { onUploadToCloud: props.onUploadToCloud })}
           uploading={props.uploadingToCloud ?? false}
         />
       ) : null}
 
-      <Button type="button" onClick={handleRun} disabled={starting || props.isLocalProject === true}>
+      <Button
+        type="button"
+        onClick={handleRun}
+        disabled={starting || props.isLocalProject === true}
+      >
         {starting ? "Starting…" : "Clean audio"}
       </Button>
 

@@ -16,7 +16,6 @@ import {
 } from "@montaj/ui";
 
 import { ProposalCard } from "./ProposalCard";
-import { LocalModeNotice } from "../local-mode-gate";
 import { startAutocutPass, type AutocutPreset } from "../../../lib/passes/client";
 import {
   decideItems,
@@ -30,6 +29,7 @@ import {
 } from "../../../lib/passes/decisions";
 import { estimateAutocutQuote } from "../../../lib/passes/quote";
 import { usePassRunProgress } from "../../../lib/passes/realtime";
+import { LocalModeNotice } from "../local-mode-gate";
 
 import type { EditorStore } from "../../../lib/edg/store";
 

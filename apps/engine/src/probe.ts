@@ -53,20 +53,24 @@ const HDR_TRANSFERS = new Set(["smpte2084", "arib-std-b67"]);
 const HDR_PRIMARIES = new Set(["bt2020"]);
 
 /** Parses ffprobe's `-print_format json -show_format -show_streams` output into `ProbeResponse`'s fields. */
-export function parseFfprobeOutput(raw: string): Omit<ProbeResponse, "requestId" | "engineVersions" | "backend"> {
+export function parseFfprobeOutput(
+  raw: string,
+): Omit<ProbeResponse, "requestId" | "engineVersions" | "backend"> {
   const parsed = JSON.parse(raw) as FfprobeOutput;
   const streams = parsed.streams ?? [];
   const video = streams.find((stream) => stream.codec_type === "video");
   const audio = streams.find((stream) => stream.codec_type === "audio");
 
-  const durationS = parsed.format?.duration === undefined ? undefined : Number(parsed.format.duration);
+  const durationS =
+    parsed.format?.duration === undefined ? undefined : Number(parsed.format.duration);
   const fps = parseFrameRate(video?.avg_frame_rate ?? video?.r_frame_rate);
   const hdr =
     (video?.color_transfer !== undefined && HDR_TRANSFERS.has(video.color_transfer)) ||
     (video?.color_primaries !== undefined && HDR_PRIMARIES.has(video.color_primaries));
 
   return {
-    durationMs: durationS === undefined || Number.isNaN(durationS) ? null : Math.round(durationS * 1000),
+    durationMs:
+      durationS === undefined || Number.isNaN(durationS) ? null : Math.round(durationS * 1000),
     fps: fps ?? null,
     width: video?.width ?? null,
     height: video?.height ?? null,
