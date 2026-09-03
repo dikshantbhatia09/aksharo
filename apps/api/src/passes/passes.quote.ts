@@ -1,4 +1,10 @@
-import { BILLING_QUANTUM_MS, creditCostTenths, deciMinutes, formatCredits } from "@montaj/config";
+import {
+  BILLING_QUANTUM_MS,
+  creditCostTenths,
+  deciMinutes,
+  formatCredits,
+  worstCaseHoldTenths,
+} from "@montaj/config";
 
 /**
  * What an autocut pass costs, and what to hold before it is enqueued
@@ -159,5 +165,49 @@ export function quoteTextFx(durationMs: number): TextFxQuote {
     tenths,
     credits: formatCredits(tenths),
     reason: `ai.pass (textfx) · ${minutes.toFixed(1)} finished minutes`,
+  };
+}
+
+/**
+ * What a prompted edit costs (D07 §2): `BURN_RATES.promptedEdit` (basis
+ * `finishedMinute`, held on `sourceMinute` — CONTRACTS §4's `worstCaseHoldTenths`
+ * pattern, same as `translation`'s per-target-language hold) already lives in
+ * `@montaj/config`. `run()` holds `holdTenths` up front from the *source*
+ * media duration and the requested engine tier; once the whole pass chain has
+ * landed, the plan settles `costTenths` computed from the *finished*
+ * (post-cut) duration read off the project's `timemap` — never more than the
+ * hold, per `CreditsFacade.settle`'s own contract.
+ */
+export interface PromptedEditQuote {
+  readonly holdTenths: number;
+  readonly holdCredits: string;
+  readonly costTenths: number;
+  readonly costCredits: string;
+  readonly reason: string;
+}
+
+export function quotePromptedEdit(
+  sourceDurationMs: number,
+  finishedDurationMs: number,
+  tier: "flash" | "pro" = "flash",
+): PromptedEditQuote {
+  const holdTenths = worstCaseHoldTenths({
+    operation: "promptedEdit",
+    durationMs: finishedDurationMs,
+    sourceDurationMs,
+    tier,
+  });
+  const costTenths = creditCostTenths({
+    operation: "promptedEdit",
+    durationMs: finishedDurationMs,
+    tier,
+  });
+  const sourceMinutes = sourceDurationMs / 60_000;
+  return {
+    holdTenths,
+    holdCredits: formatCredits(holdTenths),
+    costTenths,
+    costCredits: formatCredits(costTenths),
+    reason: `ai.pass (prompted, ${tier}) · held on ${sourceMinutes.toFixed(1)} source minutes`,
   };
 }

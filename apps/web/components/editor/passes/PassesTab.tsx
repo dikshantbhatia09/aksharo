@@ -22,6 +22,7 @@ import {
 } from "@montaj/ui";
 
 import { PluginActivationCue } from "./PluginActivationCue";
+import { PromptedEditBox } from "./PromptedEditBox";
 import { ProposalCard } from "./ProposalCard";
 import { startAutocutPass, type AutocutPreset } from "../../../lib/passes/client";
 import {
@@ -346,6 +347,10 @@ export function PassesTab({
       </div>
 
       {isLocalProject ? null : <PluginActivationCues />}
+
+      {isLocalProject ? null : (
+        <PromptedEditBox projectId={projectId} sourceDurationMs={sourceDurationMs} />
+      )}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <select

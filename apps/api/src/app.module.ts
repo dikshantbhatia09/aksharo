@@ -38,6 +38,7 @@ import { OpsModule } from "./ops/ops.module.js";
 import { PassesModule } from "./passes/passes.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
+import { PromptedEditsModule } from "./prompted-edits/prompted-edits.module.js";
 import { PublicApiModule } from "./public-api/public-api.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { ReferralsModule } from "./referrals/referrals.module.js";
@@ -128,6 +129,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     AudioModule,
     AudioAssetsModule,
     PassesModule,
+    PromptedEditsModule,
     ScriptsModule,
     FontsModule,
     ExportsModule,

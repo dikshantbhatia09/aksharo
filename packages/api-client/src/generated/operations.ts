@@ -635,6 +635,13 @@ export const API_OPERATIONS = [
     summary: "Create a project",
   },
   {
+    operationId: "createPromptedEditPlan",
+    method: "POST",
+    path: "/projects/{projectId}/prompted-edits",
+    tags: ["prompted-edits"],
+    summary: "Generate a prompted-edit plan from a free-text instruction",
+  },
+  {
     operationId: "createSampleProject",
     method: "POST",
     path: "/projects/sample",
@@ -1032,6 +1039,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/transcript/scripts",
     tags: ["transcripts"],
     summary: "Which scripts this transcript has, and where they came from",
+  },
+  {
+    operationId: "getPromptedEditPlan",
+    method: "GET",
+    path: "/projects/{projectId}/prompted-edits/{planId}",
+    tags: ["prompted-edits"],
+    summary: "Read a prompted-edit plan back",
   },
   {
     operationId: "getReadiness",
@@ -1851,6 +1865,13 @@ export const API_OPERATIONS = [
     path: "/admin/privacy/erasure/{dsrRequestId}/run",
     tags: ["admin"],
     summary: "Run (or resume) the erasure cascade for one DSR request now",
+  },
+  {
+    operationId: "runPromptedEditPlan",
+    method: "POST",
+    path: "/projects/{projectId}/prompted-edits/{planId}/run",
+    tags: ["prompted-edits"],
+    summary: "Run an accepted prompted-edit plan",
   },
   {
     operationId: "runScheduledTaskNow",

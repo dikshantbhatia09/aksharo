@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { checkHallucination, checkLanguageConsistency, checkTimestamps } from "./checks.js";
+import { EDIT_PLAN_FIXTURES } from "./edit-plan-fixtures.js";
 import { FIXTURES } from "./fixtures.js";
 import { renderMarkdown, run } from "./runner.js";
 
@@ -20,12 +21,15 @@ describe("eval runner", () => {
       throw new Error(`eval failures:\n${failures.join("\n")}`);
     }
     expect(report.ok).toBe(true);
-    expect(report.totalCases).toBe(FIXTURES.length * 3); // chapters, summary, hooks
+    // chapters, summary, hooks per transcript fixture, plus one edit-plan case per prompt fixture (D07).
+    expect(report.totalCases).toBe(FIXTURES.length * 3 + EDIT_PLAN_FIXTURES.length);
   });
 
   it("covers all four fixture languages", () => {
     const report = run();
-    const fixtureIds = new Set(report.cases.map((c) => c.fixtureId));
+    const fixtureIds = new Set(
+      report.cases.filter((c) => c.kind !== "edit-plan").map((c) => c.fixtureId),
+    );
     expect(fixtureIds).toEqual(new Set(["english", "hindi", "hinglish", "tamil"]));
   });
 
