@@ -200,6 +200,7 @@ export class AlignCompletionHandler implements JobCompletionHandler, OnModuleIni
       const indices = [...segment.wordIds.keys()];
       const shifts = indices
         .map((index) => {
+          // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
           const word = aligned[index];
           return word === undefined ? undefined : word.s - existing.startMs;
         })
@@ -209,7 +210,9 @@ export class AlignCompletionHandler implements JobCompletionHandler, OnModuleIni
       const order = meanShift < 0 ? indices : [...indices].reverse();
 
       for (const index of order) {
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         const wordId = segment.wordIds[index];
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         const word = aligned[index];
         if (wordId === undefined || word === undefined) continue;
         ops.push({ opId: ulid(), type: "SetWordTiming", wordId, s: word.s, e: word.e });
@@ -281,6 +284,7 @@ export class AlignCompletionHandler implements JobCompletionHandler, OnModuleIni
     for (const [cueIndex, count] of params.cueWordCounts.entries()) {
       const cueWords = words.slice(cursor, cursor + count);
       cursor += count;
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const cue = params.segments[cueIndex];
       if (cue !== undefined) cueDurationsMs.push(cue.endMs - cue.startMs);
       for (const word of cueWords) {
@@ -379,10 +383,12 @@ function median(values: readonly number[]): number | undefined {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   const left = sorted[mid - 1];
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const right = sorted[mid];
   if (sorted.length % 2 === 0 && left !== undefined && right !== undefined) {
     return (left + right) / 2;
   }
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return sorted[mid];
 }
 

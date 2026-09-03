@@ -49,6 +49,7 @@ const SAMPLE_SECONDS = 90;
 const SAMPLE_SAMPLE_RATE = 8_000;
 
 function env(name: string, fallback?: string): string {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const value = process.env[name] ?? fallback;
   if (value === undefined) throw new Error(`${name} is not set — copy .env.example to .env first.`);
   return value;
@@ -128,6 +129,7 @@ interface FixtureWord {
 
 /** Explicit-throw indexed access — clearer at a seed-script call site than a bare `!`. */
 function wordAt(words: readonly FixtureWord[], index: number): FixtureWord {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const word = words[index];
   if (word === undefined) {
     throw new Error(`seed-sample: fixture word index ${String(index)} is out of range.`);

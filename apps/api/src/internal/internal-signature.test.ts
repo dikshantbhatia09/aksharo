@@ -75,8 +75,11 @@ describe("internalSignatureHeaders", () => {
       body: BODY,
       now: NOW,
     });
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     expect(headers[ATTEMPT_HEADER]).toHaveLength(26);
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     expect(headers[TIMESTAMP_HEADER]).toBe(String(TIMESTAMP));
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     expect(headers[SIGNATURE_HEADER]).toMatch(/^[0-9a-f]{64}$/);
     expect(headers["content-type"]).toBe("application/json");
   });
@@ -91,8 +94,11 @@ describe("internalSignatureHeaders", () => {
     expect(
       verifyInternalSignature({
         secret: SECRET,
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         attempt: headers[ATTEMPT_HEADER],
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         timestamp: headers[TIMESTAMP_HEADER],
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         signature: headers[SIGNATURE_HEADER],
         body: Buffer.from(BODY, "utf8"),
         now: NOW,

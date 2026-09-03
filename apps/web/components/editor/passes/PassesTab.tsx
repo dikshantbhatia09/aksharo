@@ -142,16 +142,19 @@ export function PassesTab({
           setFocusedIndex((i) => Math.max(i - 1, 0));
           break;
         case "a": {
+          // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
           const row = rows[focusedIndex];
           if (row !== undefined) decide([row.item.itemId], "accepted");
           break;
         }
         case "r": {
+          // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
           const row = rows[focusedIndex];
           if (row !== undefined) decide([row.item.itemId], "rejected");
           break;
         }
         case " ": {
+          // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
           const row = rows[focusedIndex];
           if (row !== undefined && onPreview !== undefined) {
             event.preventDefault();

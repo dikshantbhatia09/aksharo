@@ -49,6 +49,7 @@ export default function AdminSupportPage(): React.JSX.Element {
   }
 
   async function reply(id: string): Promise<void> {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const body = replies[id]?.trim() ?? "";
     if (body.length === 0) return;
     try {

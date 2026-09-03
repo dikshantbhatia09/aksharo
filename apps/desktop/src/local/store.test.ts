@@ -88,6 +88,7 @@ describe("LocalStore", () => {
     db = await openLocalDb(":memory:");
     mediaDir = path.join(tmp, "media");
     sourceFile = path.join(tmp, "clip.mp4");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     await writeFile(sourceFile, "fake video bytes");
   });
 

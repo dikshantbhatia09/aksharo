@@ -289,10 +289,12 @@ export function initialState(input: {
 
 /** `undefined` when the level carries no renewal discount (L1, L4, L5). */
 export function discountPercentForLevel(level: number): number | undefined {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return LEVEL_DISCOUNT_PERCENT[level];
 }
 
 /** `undefined` when the level carries no monthly credit grant (L1-L3). */
 export function creditGrantTenthsForLevel(level: number): number | undefined {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return LEVEL_CREDIT_GRANT_TENTHS[level];
 }

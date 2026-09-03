@@ -40,6 +40,7 @@ export const REDIS_KEY_PREFIX_ENV = "MONTAJ_REDIS_PREFIX";
  * variable and rebuilds its module graph sees the change.
  */
 export function redisKeyPrefix(source: NodeJS.ProcessEnv = process.env): string {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const raw = source[REDIS_KEY_PREFIX_ENV]?.trim();
   return raw === undefined || raw === "" ? DEFAULT_REDIS_KEY_PREFIX : raw;
 }

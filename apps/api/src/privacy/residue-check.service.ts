@@ -113,6 +113,7 @@ function delegateFor(
 ): { count: (args: { where: Record<string, string> }) => Promise<number> } | undefined {
   const key = modelName.charAt(0).toLowerCase() + modelName.slice(1);
   const client = prisma as unknown as Record<string, unknown>;
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const delegate = client[key];
   if (
     delegate !== null &&

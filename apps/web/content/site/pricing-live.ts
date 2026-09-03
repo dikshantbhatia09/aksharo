@@ -56,10 +56,12 @@ function toTypedPrices(
   const currencies: readonly Currency[] = ["INR", "USD"];
   const result = {} as Record<Currency, PlanCatalogueEntry["prices"]["INR"]>;
   for (const currency of currencies) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const entry = raw[currency];
     if (entry === undefined || typeof entry.month !== "number" || typeof entry.year !== "number") {
       throw new Error(`billing/plans: plan is missing a usable ${currency} price`);
     }
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     result[currency] =
       typeof entry.halfyear === "number"
         ? { month: entry.month, year: entry.year, halfyear: entry.halfyear }

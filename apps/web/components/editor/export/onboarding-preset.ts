@@ -94,6 +94,7 @@ export function resolveOnboardingExportPreset(
   if (defaultExportPreset === null || defaultExportPreset === undefined) {
     return namedPresetById(DEFAULT_NAMED_PRESET_ID);
   }
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const namedPresetId = ONBOARDING_LABEL_TO_NAMED_PRESET_ID[defaultExportPreset];
   if (namedPresetId === undefined) return namedPresetById(DEFAULT_NAMED_PRESET_ID);
   return namedPresetById(namedPresetId);

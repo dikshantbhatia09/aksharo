@@ -71,6 +71,7 @@ function currentTotpCode(secret: string, now: number = Date.now()): string {
   const hmac = createHmac("sha1", key).update(counterBuffer).digest();
   const offset = (hmac[hmac.length - 1] ?? 0) & 0x0f;
   const binary =
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     (((hmac[offset] ?? 0) & 0x7f) << 24) |
     (((hmac[offset + 1] ?? 0) & 0xff) << 16) |
     (((hmac[offset + 2] ?? 0) & 0xff) << 8) |

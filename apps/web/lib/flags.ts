@@ -11,6 +11,7 @@ export function parseFlags(raw: string | null): Record<string, boolean> {
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
     const flags: Record<string, boolean> = {};
     for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       if (typeof value === "boolean") flags[key] = value;
     }
     return flags;

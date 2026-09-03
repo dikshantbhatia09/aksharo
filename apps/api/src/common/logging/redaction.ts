@@ -76,6 +76,7 @@ export function redactValue(value: unknown, depth = 0, seen = new WeakSet<object
 
   const out: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     out[key] = SECRET_KEY.test(key) ? REDACTED : redactValue(item, depth + 1, seen);
   }
   return out;

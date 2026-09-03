@@ -106,6 +106,7 @@ export function editDistance(left: string, right: string, limit = Number.MAX_SAF
 
   const previous = new Array<number>(right.length + 1);
   const current = new Array<number>(right.length + 1);
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   for (let index = 0; index <= right.length; index += 1) previous[index] = index;
 
   for (let row = 1; row <= left.length; row += 1) {
@@ -115,13 +116,16 @@ export function editDistance(left: string, right: string, limit = Number.MAX_SAF
       const substitution = left[row - 1] === right[column - 1] ? 0 : 1;
       const value = Math.min(
         (current[column - 1] ?? 0) + 1,
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         (previous[column] ?? 0) + 1,
         (previous[column - 1] ?? 0) + substitution,
       );
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       current[column] = value;
       if (value < best) best = value;
     }
     if (best > limit) return limit + 1;
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     for (let index = 0; index <= right.length; index += 1) previous[index] = current[index] ?? 0;
   }
   return previous[right.length] ?? 0;

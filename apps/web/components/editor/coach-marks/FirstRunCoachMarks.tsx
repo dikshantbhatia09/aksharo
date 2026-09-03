@@ -45,6 +45,7 @@ export function FirstRunCoachMarks(): React.JSX.Element | null {
 
   const alreadyShown = me.data?.onboarding.coachMarksShownAt !== undefined;
   const active = !alreadyShown && !dismissed && me.data !== undefined;
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const step = STEPS[index];
 
   React.useEffect(() => {

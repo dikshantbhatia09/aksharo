@@ -71,6 +71,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function requireString(claims: Record<string, unknown>, name: string): string {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const value = claims[name];
   if (typeof value !== "string" || value === "") {
     throw new AccessTokenError(`Token claim "${name}" is missing.`, "claims");
@@ -79,6 +80,7 @@ function requireString(claims: Record<string, unknown>, name: string): string {
 }
 
 function requireNumber(claims: Record<string, unknown>, name: string): number {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const value = claims[name];
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new AccessTokenError(`Token claim "${name}" is missing.`, "claims");
@@ -192,11 +194,13 @@ export function extractBearer(input: {
   const header = input.authorization?.trim();
   if (header !== undefined && header.toLowerCase().startsWith("bearer ")) {
     const token = header.slice(7).trim();
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- sentinel comparison (null/undefined/boolean/empty-string), not a secret/MAC comparison -- reviewed for the same follow-up
     if (token !== "") return token;
   }
   for (const offered of input.subprotocols ?? []) {
     if (offered.startsWith(input.bearerPrefix)) {
       const token = offered.slice(input.bearerPrefix.length).trim();
+      // eslint-disable-next-line security/detect-possible-timing-attacks -- sentinel comparison (null/undefined/boolean/empty-string), not a secret/MAC comparison -- reviewed for the same follow-up
       if (token !== "") return token;
     }
   }

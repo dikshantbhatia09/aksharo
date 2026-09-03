@@ -336,6 +336,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       ctx.fillStyle = "rgba(124,143,240,0.25)";
       ctx.strokeStyle = "#7c8ff0";
       for (let px = 0; px < buckets.length; px++) {
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         const bucket = buckets[px];
         if (bucket === undefined) continue;
         const sourceMs = pxToMs(px, viewport);
@@ -433,6 +434,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     // (brief §4); a hovered item gets a highlight outline so a reviewer can
     // tell the lane is what their pointer is over before the tooltip lands.
     lanes.forEach((lane, laneIndex) => {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const top = laneTops.passTops[laneIndex];
       if (top === undefined) return;
       for (const item of lane.items) {
@@ -510,6 +512,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   const hitTestPassItem = useCallback(
     (px: number, py: number): LaneItem | undefined => {
       for (const [laneIndex, lane] of lanes.entries()) {
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         const top = laneTops.passTops[laneIndex];
         if (top === undefined || py < top || py > top + PASS_LANE_HEIGHT) continue;
         for (const item of lane.items) {

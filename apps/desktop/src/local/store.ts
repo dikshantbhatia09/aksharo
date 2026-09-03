@@ -251,6 +251,7 @@ export class LocalStore {
     this.openProject(input.projectId); // throws LocalProjectNotFoundError if missing
     const id = this.mintId();
     const destDir = path.join(this.mediaDir, input.projectId);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     await mkdir(destDir, { recursive: true });
     const destPath = path.join(destDir, `${id}${path.extname(input.sourcePath)}`);
     await this.copyFileFn(input.sourcePath, destPath);

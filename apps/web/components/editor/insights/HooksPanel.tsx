@@ -27,6 +27,7 @@ interface PlatformVariant {
 export function HooksPanel({ row }: HooksPanelProps): React.JSX.Element {
   const output = row.output as unknown as Record<string, PlatformVariant | undefined>;
   const [platform, setPlatform] = React.useState<(typeof PLATFORMS)[number]["id"]>("youtube");
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const variant = output[platform];
 
   if (variant === undefined) {

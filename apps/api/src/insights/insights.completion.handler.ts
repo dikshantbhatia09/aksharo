@@ -103,6 +103,7 @@ export class InsightsCompletionHandler implements JobCompletionHandler, OnModule
     // Flat per-kind price (`insights.quote.ts`); an `ai.llm` run has no partial
     // settlement the way transcription does, so the hold and the settlement are
     // always the same figure — never more than what was held.
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const actualTenths = Math.min(job.creditsChargedTenths, INSIGHT_KIND_TENTHS[kind]);
 
     this.logger.log(

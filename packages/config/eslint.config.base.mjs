@@ -9,6 +9,7 @@
 import js from "@eslint/js";
 import prettierConfig from "eslint-config-prettier";
 import importPlugin from "eslint-plugin-import";
+import securityPlugin from "eslint-plugin-security";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
@@ -49,6 +50,28 @@ const importOrder = {
   "import/no-named-as-default-member": "off",
 };
 
+// `eslint-plugin-security`'s own `recommended` flat config ships every rule at
+// "warn" (docs/security/threat-model-audit-2026-09-03.md follow-up: "add
+// eslint-plugin-security ... scoped to apps/api/src"; applied repo-wide here
+// instead so every workspace gets the same floor). Kept at "warn" repo-wide
+// deliberately: C02c (2026-09-03) fixed the one real finding (a ReDoS-shaped
+// voice-tag regex in apps/api/src/media/import/subtitle-parsers.ts, parsing
+// attacker-controlled subtitle uploads) and drove the count to zero, with
+// every remaining warning annotated as a reviewed false positive, across only
+// its four named packages (apps/api, apps/web, packages/bridge-core,
+// apps/desktop — see each package's eslint.config.mjs, which promotes this
+// ruleset to "error" for itself). Every other package still has real,
+// unreviewed findings (packages/edg, apps/render, apps/engine, etc.) that are
+// out of this WP's file boundary to fix — promoting the shared default to
+// "error" would fail their lint for work this WP never did.
+export const securityRules = { ...securityPlugin.configs.recommended.rules };
+
+/** `securityRules` promoted from "warn" to "error", for a package whose
+ * findings a WP has driven to zero and annotated (see the export above). */
+export const securityRulesStrict = Object.fromEntries(
+  Object.keys(securityRules).map((rule) => [rule, "error"]),
+);
+
 const unused = {
   "@typescript-eslint/no-unused-vars": [
     "error",
@@ -80,7 +103,7 @@ export function montajEslintConfig(options = {}) {
     ...tseslint.configs.recommended,
     {
       files: ["**/*.{ts,tsx,mts,cts,js,mjs,cjs,jsx}"],
-      plugins: { import: importPlugin },
+      plugins: { import: importPlugin, security: securityPlugin },
       linterOptions: { reportUnusedDisableDirectives: "error" },
       languageOptions: {
         ecmaVersion: "latest",
@@ -94,6 +117,7 @@ export function montajEslintConfig(options = {}) {
       rules: {
         ...importOrder,
         ...unused,
+        ...securityRules,
         "@typescript-eslint/consistent-type-imports": [
           "error",
           { prefer: "type-imports", fixStyle: "inline-type-imports" },

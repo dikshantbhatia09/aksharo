@@ -31,6 +31,7 @@ describe("discovery file", () => {
     expect(read).toEqual(file);
 
     if (process.platform !== "win32") {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
       const mode = statSync(path).mode & 0o777;
       expect(mode).toBe(0o600);
     }
@@ -43,6 +44,7 @@ describe("discovery file", () => {
   it("returns undefined for a malformed file", () => {
     dir = mkdtempSync(join(tmpdir(), "bridge-discovery-bad-"));
     const path = join(dir, "bridge.json");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(path, "not json");
     expect(readDiscoveryFile(path)).toBeUndefined();
   });

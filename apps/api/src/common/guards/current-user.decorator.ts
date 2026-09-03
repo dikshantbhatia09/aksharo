@@ -25,6 +25,7 @@ function principalOf(context: ExecutionContext): AuthPrincipal {
 export const CurrentUser = createParamDecorator(
   (field: keyof AuthPrincipal | undefined, context: ExecutionContext): unknown => {
     const principal = principalOf(context);
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     return field === undefined ? principal : principal[field];
   },
 );

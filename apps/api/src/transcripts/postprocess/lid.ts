@@ -130,6 +130,7 @@ export function scriptSlots(words: readonly Word[]): ("roman" | "native" | "en")
   const slots = new Set<"roman" | "native" | "en">();
   for (const word of words) {
     for (const key of ["roman", "native", "en"] as const) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       if (word.scripts?.[key] !== undefined) slots.add(key);
     }
   }

@@ -85,6 +85,7 @@ export class AdminBillingService {
     ip: string | undefined,
   ): Promise<AdminRefundOutcome> {
     const pass = await this.prisma.passPurchase.findUnique({ where: { id: passPurchaseId } });
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- sentinel comparison (null/undefined/boolean/empty-string), not a secret/MAC comparison -- reviewed for the same follow-up
     if (pass === null) {
       throw new AppException(ERROR_CODES.notFound, "No such pass purchase.", HttpStatus.NOT_FOUND);
     }

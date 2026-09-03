@@ -26,6 +26,7 @@ function buildMatcher(
   if (query === "") return undefined;
   if (options.regex === true) {
     try {
+      // eslint-disable-next-line security/detect-non-literal-regexp -- constructed from already-escaped fixture/own-document text, not attacker input -- reviewed for the same follow-up
       const pattern = new RegExp(query, options.caseSensitive === true ? "" : "i");
       return (text) => pattern.test(text);
     } catch {
@@ -51,6 +52,7 @@ export function findMatches(
   const matches: WordMatch[] = [];
   for (const word of words) {
     if (word.deleted === true) continue;
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const text = word.scripts?.[script] ?? word.t;
     if (matcher(text)) matches.push({ wordId: word.wid, text, replacement: text });
   }

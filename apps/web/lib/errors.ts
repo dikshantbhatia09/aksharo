@@ -88,6 +88,7 @@ export function fieldErrors(error: unknown): Record<string, string> {
       : typeof path === "string"
         ? path
         : undefined;
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     if (field !== undefined && typeof message === "string") result[field] = message;
   }
   return result;

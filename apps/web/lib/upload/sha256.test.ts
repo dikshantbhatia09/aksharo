@@ -35,6 +35,7 @@ describe("IncrementalSha256 against the FIPS 180-4 / RFC 6234 test vectors", () 
 describe("streaming (update() called many times) matches one call", () => {
   it("agrees with SubtleCrypto for a message that does not divide evenly by 64 bytes", async () => {
     const bytes = new Uint8Array(200_003);
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     for (let i = 0; i < bytes.length; i += 1) bytes[i] = i % 251;
 
     const streamed = new IncrementalSha256();

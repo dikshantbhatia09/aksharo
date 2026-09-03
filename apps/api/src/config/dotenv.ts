@@ -18,6 +18,7 @@ export function loadRepoDotenv(startDir: string = process.cwd()): string | undef
 
   for (;;) {
     const candidate = join(dir, ".env");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     if (existsSync(candidate)) {
       loadDotenvFile({ path: candidate, override: false, quiet: true });
       return candidate;

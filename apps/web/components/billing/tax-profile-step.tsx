@@ -134,7 +134,8 @@ export function TaxProfileStep({
             setFieldError(
               problem === undefined
                 ? messageForError(error)
-                : (TAX_PROBLEM_MESSAGE[problem] ?? messageForError(error)),
+                : // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
+                  (TAX_PROBLEM_MESSAGE[problem] ?? messageForError(error)),
             );
             return;
           }
@@ -208,7 +209,8 @@ export function TaxProfileStep({
             error={
               gstinFeedback === null
                 ? undefined
-                : (GSTIN_PROBLEM_TEXT[gstinFeedback] ?? "That GSTIN does not look right.")
+                : // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
+                  (GSTIN_PROBLEM_TEXT[gstinFeedback] ?? "That GSTIN does not look right.")
             }
           >
             <Input

@@ -54,6 +54,7 @@ export function classifyDecline(code: string | undefined | null, attemptNo: numb
       ? "generic"
       : (PATTERNS.find((pattern) => pattern.test.test(code))?.bucket ?? "generic");
 
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const rung = LADDER[bucket];
   // A bucket whose base action is already `offer_fallback` (mandate, card) has
   // no retry step at all — it is "exhausted" from the first decline, not only

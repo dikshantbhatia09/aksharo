@@ -52,7 +52,9 @@ export function withText(word: Word, text: string): Word {
   const updated = { ...scripts };
   let touched = false;
   for (const key of ["roman", "native", "en"] as const) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     if (updated[key] === word.t) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       updated[key] = text;
       touched = true;
     }

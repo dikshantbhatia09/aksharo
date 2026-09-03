@@ -54,6 +54,7 @@ export function PluginActivationCue({
   return (
     <div className="flex items-center gap-2 text-xs" data-testid={`passes-plugin-cue-${host}`}>
       <span className="text-fg-2">Apply in {host === "premiere" ? "Premiere" : "Resolve"}</span>
+      {/* eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up */}
       <Badge tone={STATE_TONE[state]}>{ACTIVATION_STATE_LABEL[state]}</Badge>
       {state === "signed_in" ? null : (
         <Link href="/plugins" className="text-lime-500 rounded-sm hover:underline">

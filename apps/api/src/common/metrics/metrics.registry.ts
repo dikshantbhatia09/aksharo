@@ -60,6 +60,7 @@ function renderLabels(labels: Labels, extra?: Labels): string {
   const merged: Record<string, string> = { ...labels, ...(extra ?? {}) };
   const keys = Object.keys(merged).sort();
   if (keys.length === 0) return "";
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const parts = keys.map((key) => `${key}="${escapeLabelValue(merged[key] ?? "")}"`);
   return `{${parts.join(",")}}`;
 }
@@ -106,6 +107,7 @@ class Metric {
     let index = buckets.findIndex((bound) => value <= bound);
     if (index < 0) index = buckets.length;
     for (let i = index; i < series.counts.length; i += 1) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       series.counts[i] = (series.counts[i] ?? 0) + 1;
     }
   }
@@ -136,6 +138,7 @@ class Metric {
         bounds.forEach((bound, index) => {
           lines.push(
             `${name}_bucket${renderLabels(series.labels, { le: formatNumber(bound) })} ` +
+              // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
               `${String(series.counts[index] ?? 0)}`,
           );
         });

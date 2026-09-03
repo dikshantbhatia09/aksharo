@@ -96,6 +96,7 @@ export function lexiconFor(language: string): FillerLexicon {
   const phrases: string[][] = [];
 
   for (const key of lexiconKeysFor(language)) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const entry = LEXICON.languages[key];
     if (entry === undefined) continue;
     for (const word of entry.single ?? []) single.add(normaliseToken(word));
@@ -171,6 +172,7 @@ export function tagFillers(words: readonly Word[], language: string): StepResult
 
 /** Is the word surrounded by enough silence to be a hesitation rather than a word? */
 function bracketedByPause(words: readonly Word[], index: number, pauseMs: number): boolean {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const word = words[index];
   if (word === undefined) return false;
   const previous = words[index - 1];

@@ -36,6 +36,7 @@ export function SummaryPanel({ row }: SummaryPanelProps): React.JSX.Element {
             </TabsTrigger>
           ))}
         </TabsList>
+        {/* eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up */}
         <CopyButton value={output[length] ?? ""} label={`${length} summary`} />
       </div>
       {LENGTHS.map((option) => (

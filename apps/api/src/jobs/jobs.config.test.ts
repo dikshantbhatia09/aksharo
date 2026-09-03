@@ -19,24 +19,34 @@ import {
 describe("plan tables", () => {
   it("cover every plan in the ladder", () => {
     for (const plan of PLAN_KEYS) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(PLAN_PRIORITY[plan]).toBeTypeOf("number");
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(PLAN_MAX_QUEUE_WAIT_MS[plan]).toBeTypeOf("number");
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(PLAN_ENQUEUED_CAP_TENTHS[plan]).toBeTypeOf("number");
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(PLAN_CONCURRENCY_LANE[plan]).toBeTypeOf("number");
     }
   });
 
   it("never uses BullMQ priority 0, which means 'last', not 'first'", () => {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     for (const plan of PLAN_KEYS) expect(PLAN_PRIORITY[plan]).toBeGreaterThan(0);
   });
 
   it("gets strictly better the further up the ladder", () => {
     for (let index = 1; index < PLAN_KEYS.length; index += 1) {
       const lower = PLAN_KEYS[index - 1] as (typeof PLAN_KEYS)[number];
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const higher = PLAN_KEYS[index] as (typeof PLAN_KEYS)[number];
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(PLAN_PRIORITY[higher]).toBeLessThan(PLAN_PRIORITY[lower]);
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(PLAN_MAX_QUEUE_WAIT_MS[higher]).toBeLessThan(PLAN_MAX_QUEUE_WAIT_MS[lower]);
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(PLAN_ENQUEUED_CAP_TENTHS[higher]).toBeGreaterThan(PLAN_ENQUEUED_CAP_TENTHS[lower]);
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(PLAN_CONCURRENCY_LANE[higher]).toBeGreaterThan(PLAN_CONCURRENCY_LANE[lower]);
     }
   });

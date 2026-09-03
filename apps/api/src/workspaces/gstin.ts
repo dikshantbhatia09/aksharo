@@ -67,6 +67,7 @@ export function gstinCheckDigit(first14: string): string | undefined {
 
   let sum = 0;
   for (let index = 0; index < first14.length; index += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const value = ALPHABET.indexOf(first14[index] ?? "");
     if (value < 0) return undefined;
     const factor = index % 2 === 0 ? 1 : 2;

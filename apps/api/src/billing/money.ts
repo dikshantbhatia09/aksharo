@@ -173,6 +173,7 @@ export function applyDiscountWithinCap(listPriceMinor: number, percentOff: numbe
 /** Does this plan/currency have a `halfyear` price at all (Studio/INR today)? */
 export function hasHalfyearPrice(plan: PlanForPricing, currency: $Enums.Currency): boolean {
   const prices = parsePlanPrices(plan.prices);
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return prices[currency].halfyear !== undefined;
 }
 

@@ -18,6 +18,7 @@ function scriptsBody(overrides: readonly Record<string, unknown>[] = []): unknow
   ];
   for (const override of overrides) {
     const index = base.findIndex((row) => row["script"] === override["script"]);
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     if (index >= 0) base[index] = override;
     else base.push(override);
   }

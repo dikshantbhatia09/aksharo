@@ -158,6 +158,7 @@ const CURRENCY_FORMAT: Record<Currency, { locale: string; symbol: string }> = {
 /** `formatPrice(69_900, "INR")` → "₹699"; whole rupees/dollars, no decimals shown when exact. */
 export function formatPrice(minorUnits: number, currency: Currency): string {
   const value = minorToUnit(minorUnits);
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const { locale, symbol } = CURRENCY_FORMAT[currency];
   const formatted = new Intl.NumberFormat(locale, {
     minimumFractionDigits: Number.isInteger(value) ? 0 : 2,

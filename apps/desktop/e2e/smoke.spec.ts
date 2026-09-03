@@ -48,6 +48,7 @@ test("launches, shows the offline page when unreachable, and exposes the preload
     "engine",
     "openMediaDialog",
     "platform",
+    "telemetry",
     "updates",
     "version",
   ]);

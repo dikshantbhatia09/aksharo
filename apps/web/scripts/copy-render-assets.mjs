@@ -55,7 +55,9 @@ const targets = [
   ].map((file) => ({ from: join(fontDir, file), to: join(root, "public", "fonts", file) })),
 ];
 
+// eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
 if (existsSync(previewsDir)) {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   for (const file of readdirSync(previewsDir).filter((name) => name.endsWith(".png"))) {
     targets.push({
       from: join(previewsDir, file),
@@ -65,6 +67,7 @@ if (existsSync(previewsDir)) {
 }
 
 for (const target of targets) {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   mkdirSync(dirname(target.to), { recursive: true });
   copyFileSync(target.from, target.to);
   console.log(`copied ${target.to.slice(root.length + 1)}`);

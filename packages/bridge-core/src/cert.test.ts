@@ -39,6 +39,7 @@ describe("loadOrCreateCertificate", () => {
     expect(first.certPem).toContain("BEGIN CERTIFICATE");
     expect(await keyStore.load("bridge-leaf-private-key")).toBe(first.privateKeyPem);
     // The private key never touches disk once a KeyStore is in play.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     expect(existsSync(join(dir, "leaf.key.pem"))).toBe(false);
 
     const second = await loadOrCreateCertificate(keyStore, dir);
@@ -48,7 +49,9 @@ describe("loadOrCreateCertificate", () => {
   it("migrates a legacy on-disk private key into the KeyStore on first run", async () => {
     dir = mkdtempSync(join(tmpdir(), "bridge-cert-migrate-"));
     const legacy = createTestCertificate();
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(join(dir, "leaf.pem"), legacy.certPem, { mode: 0o600 });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(join(dir, "leaf.key.pem"), legacy.privateKeyPem, { mode: 0o600 });
     const keyStore = new InMemoryKeyStore();
 
@@ -57,17 +60,20 @@ describe("loadOrCreateCertificate", () => {
     expect(loaded.privateKeyPem).toBe(legacy.privateKeyPem);
     expect(await keyStore.load("bridge-leaf-private-key")).toBe(legacy.privateKeyPem);
     // The legacy plaintext file is removed once migrated.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     expect(existsSync(join(dir, "leaf.key.pem"))).toBe(false);
   });
 
   it("regenerates the cert if it exists on disk but the key is reachable nowhere", async () => {
     dir = mkdtempSync(join(tmpdir(), "bridge-cert-orphan-"));
     const orphan = createTestCertificate();
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(join(dir, "leaf.pem"), orphan.certPem, { mode: 0o600 });
     const keyStore = new InMemoryKeyStore();
 
     const loaded = await loadOrCreateCertificate(keyStore, dir);
     expect(loaded.certPem).not.toBe(orphan.certPem);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     expect(readFileSync(join(dir, "leaf.pem"), "utf8")).toBe(loaded.certPem);
   });
 });

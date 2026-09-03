@@ -48,7 +48,8 @@ export function BillingUpgradeGate({
   const price =
     plan === undefined
       ? undefined
-      : `${formatMoney(plan.prices.INR[interval] ?? plan.prices.INR.month, "INR")}/${interval === "year" ? "yr" : "mo"}`;
+      : // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
+        `${formatMoney(plan.prices.INR[interval] ?? plan.prices.INR.month, "INR")}/${interval === "year" ? "yr" : "mo"}`;
 
   return (
     <UpgradeGate

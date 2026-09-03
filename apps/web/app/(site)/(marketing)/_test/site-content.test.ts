@@ -113,6 +113,7 @@ describe("pricing-live: mergeLivePlans", () => {
     const merged = mergeLivePlans(apiPlans);
     expect(merged.map((plan) => plan.key)).toEqual(FALLBACK_PLAN_CATALOGUE.map((plan) => plan.key));
     for (const [index, plan] of merged.entries()) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const fallback = FALLBACK_PLAN_CATALOGUE[index]!;
       // The name comes from the API (it could change independently of this
       // file); the marketing copy comes from the fallback, because the API
@@ -190,6 +191,7 @@ describe("demo-transcript", () => {
       expect(word.e).toBeGreaterThan(word.s);
     }
     for (let index = 1; index < DEMO_WORDS.length; index += 1) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(DEMO_WORDS[index]!.s).toBeGreaterThanOrEqual(DEMO_WORDS[index - 1]!.e);
     }
   });

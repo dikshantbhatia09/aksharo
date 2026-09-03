@@ -195,9 +195,12 @@ function rebuildTray(): void {
 // hosted web app (already holding the user's access token) is the one that
 // actually calls the API — see `preload/api-types.ts`'s `telemetry` doc comment.
 const fsIo: ConsentFileIO & QueueFileIO = {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   readText: (p) => (existsSync(p) ? readFileSync(p, "utf8") : undefined),
   writeText: (p, content) => {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     mkdirSync(path.dirname(p), { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(p, content, "utf8");
   },
 };
@@ -425,6 +428,7 @@ function registerIpcHandlers(): void {
 /** The bridge discovery file's contents (`@montaj/bridge-core`), if present. */
 function readBridgeDiscovery(): Record<string, unknown> | undefined {
   try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     const raw = readFileSync(discoveryFilePath(), "utf8");
     return JSON.parse(raw) as Record<string, unknown>;
   } catch {

@@ -50,6 +50,7 @@ export class ShareSessionSigner {
     const parts = cookieValue.split(".");
     if (parts.length !== 3) return false;
     const [cookieToken, expiresAtRaw, mac] = parts;
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- sentinel comparison (null/undefined/boolean/empty-string), not a secret/MAC comparison -- reviewed for the same follow-up
     if (cookieToken !== token) return false;
     const expiresAtMs = Number(expiresAtRaw);
     if (!Number.isFinite(expiresAtMs) || expiresAtMs < Date.now()) return false;

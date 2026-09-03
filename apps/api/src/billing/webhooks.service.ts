@@ -617,6 +617,7 @@ export class WebhooksService {
         : orderId !== undefined
           ? await this.prisma.passPurchase.findFirst({ where: { providerOrderId: orderId } })
           : null;
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- sentinel comparison (null/undefined/boolean/empty-string), not a secret/MAC comparison -- reviewed for the same follow-up
     if (pass === null) {
       this.logger.warn({ eventId: event.eventId }, "refund for an unknown payment, order or pass");
       return "ignored";

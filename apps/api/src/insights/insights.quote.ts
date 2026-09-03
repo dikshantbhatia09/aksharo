@@ -35,6 +35,7 @@ export interface InsightQuote {
 }
 
 function tenthsFor(kind: InsightKind): number {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return INSIGHT_KIND_TENTHS[kind];
 }
 
@@ -55,5 +56,6 @@ export function quoteInsightBatch(kinds: readonly InsightKind[]): number {
 
 /** The `@montaj/config` burn rate backing an insight kind, for diagnostics/tests. */
 export function burnRateFor(kind: InsightKind): BurnRate {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return BURN_RATES[INSIGHT_KIND_OPERATION[kind]];
 }

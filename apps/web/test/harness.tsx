@@ -79,6 +79,7 @@ export function renderWithProviders(
         ),
       );
     }
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const body = routes[key];
     if (body instanceof Response) return Promise.resolve(body);
     return Promise.resolve(
@@ -91,6 +92,7 @@ export function renderWithProviders(
 
   const session = new SessionStore();
   const token = options.accessToken === undefined ? testAccessToken() : options.accessToken;
+  // eslint-disable-next-line security/detect-possible-timing-attacks -- sentinel comparison (null/undefined/boolean/empty-string), not a secret/MAC comparison -- reviewed for the same follow-up
   if (token !== null) session.set(token);
 
   const client = createApiClient({

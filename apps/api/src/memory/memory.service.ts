@@ -483,7 +483,9 @@ export function medianOf(samples: readonly number[]): number {
   if (samples.length === 0) return 0;
   const sorted = [...samples].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const lower = sorted[mid - 1] ?? sorted[mid] ?? 0;
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const upper = sorted[mid] ?? lower;
   return sorted.length % 2 === 0 ? Math.round((lower + upper) / 2) : upper;
 }

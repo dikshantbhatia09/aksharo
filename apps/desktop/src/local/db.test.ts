@@ -54,6 +54,7 @@ describe("openLocalDb", () => {
     );
     await db.persist();
 
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     const written = await readFile(file);
     expect(written.byteLength).toBeGreaterThan(0);
   });

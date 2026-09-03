@@ -40,6 +40,7 @@ let sqlJsPromise: Promise<SqlJsStatic> | undefined;
  */
 function locateSqlWasm(file: string): string {
   const bundled = path.join(__dirname, file);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   if (existsSync(bundled)) return bundled;
   return require.resolve(`sql.js/dist/${file}`);
 }
@@ -65,6 +66,7 @@ export interface LocalDb {
 export async function openLocalDb(filePath: string): Promise<LocalDb> {
   const SQL = await loadSqlJs();
   const existing =
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     filePath === ":memory:" ? undefined : await readFile(filePath).catch(() => undefined);
   const raw = existing ? new SQL.Database(existing) : new SQL.Database();
   for (const statement of SCHEMA_STATEMENTS) raw.run(statement);
@@ -75,7 +77,9 @@ export async function openLocalDb(filePath: string): Promise<LocalDb> {
       if (filePath === ":memory:") return;
       const data = Buffer.from(raw.export());
       const tmp = `${filePath}.tmp-${String(process.pid)}`;
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
       await writeFile(tmp, data);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
       await rename(tmp, filePath);
     },
   };

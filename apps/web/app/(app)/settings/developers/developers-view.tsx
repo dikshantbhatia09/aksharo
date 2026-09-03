@@ -134,6 +134,7 @@ function ApiKeysCard(): React.JSX.Element {
                     {key.revokedAt !== null ? <Badge tone="rejected">Revoked</Badge> : null}
                   </p>
                   <p className="text-fg-2 truncate text-xs">
+                    {/* eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up */}
                     {key.prefix}.… · {key.scopes.map((s) => SCOPE_LABEL[s]).join(", ")}
                     {key.expiresAt !== null
                       ? ` · expires ${new Date(key.expiresAt).toLocaleDateString()}`
@@ -263,6 +264,7 @@ function CreateApiKeyDialog({
                   }
                   data-testid={`scope-${scope}`}
                 />
+                {/* eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up */}
                 <span className="text-fg-0">{SCOPE_LABEL[scope]}</span>
               </label>
             ))}
@@ -500,6 +502,7 @@ function CreateWebhookDialog({
                   }
                   data-testid={`event-${event}`}
                 />
+                {/* eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up */}
                 <span className="text-fg-0">{EVENT_LABEL[event]}</span>
               </label>
             ))}

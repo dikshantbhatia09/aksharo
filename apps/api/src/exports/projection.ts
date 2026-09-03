@@ -156,6 +156,7 @@ export async function resolveStyleSnapshot(
     // keeps the manifest well-formed rather than aborting the export over a
     // presentation detail.
     const doc = resolved?.doc ?? { styleRef: ref };
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     styles[ref] = doc;
     catalogueSnapshotIds.push(`${ref}@${contentHash(doc)}`);
   }

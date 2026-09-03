@@ -100,6 +100,33 @@ Owner: C09 or a small dedicated follow-up WP before the query-token fallback
 is relied upon in production, since it is currently the only place in the
 repo where a long-lived bearer can appear in a URL.
 
+**Update (C02c, 2026-09-03): fixed.** `plugins/resolve/aksharo_core_app/server.py`
+no longer accepts `?token=` at all. `_process_request` (the `websockets`
+library's opening-handshake hook) now intercepts a bodyless `GET
+/session/ws-ticket` carrying `Authorization: Bearer <bearer>` before it
+becomes a WebSocket handshake, and `_issue_ws_ticket` mints a 30-second,
+single-use ticket (`secrets.token_urlsafe(32)`, popped from an in-memory dict
+on first redemption or once expired) returned as JSON. The panel's `fetch()`
+(`plugins/resolve-panel/src/rpc/wsTransport.ts`'s `requestWsTicket`) calls
+that endpoint — unlike the `WebSocket` constructor, `fetch` _can_ set an
+`Authorization` header — then opens the WebSocket with `?ticket=` instead of
+the raw bearer; `_handle_connection`'s `_consume_ws_ticket` validates and
+pops it. A leaked ticket (browser history, devtools network log — the same
+exposure `?token=` had) is now worthless after one use or 30 seconds, where a
+leaked `?token=` was the long-lived discovery-file bearer itself.
+
+Deviation from this follow-up's own literal "`POST`": the `websockets`
+library's request parser (`websockets.http11.Request.parse`) hard-rejects any
+non-`GET` method or a request carrying a body before `process_request` ever
+runs — the same lower-level constraint that forced C09's `?token=` fallback
+in the first place. The ticket endpoint is therefore a bodyless `GET`, still
+gated on the `Authorization` header, still on the one existing loopback port
+(no second listener, no discovery-file schema change). Documented in
+`server.py`'s module docstring; tests: `plugins/resolve/tests/test_server.py`
+(bearer required, ticket issued/redeemed, single-use, TTL expiry, unknown
+ticket rejected) and `plugins/resolve-panel/src/rpc/wsTransport.test.ts`
+(`requestWsTicket`'s header, failure, and malformed-response paths).
+
 ## New gap found and fixed: T3 — device-code lookup had no rate limit
 
 `GET /auth/device/code/:userCode` requires an authenticated session (correct
@@ -148,6 +175,20 @@ cross-cutting version bump the brief's "minimal fixes" boundary does not
 cover. All are listed here with severity for the pentest hand-off and a
 follow-up ticket, per the brief's "larger items go into the audit doc".
 
+**Update (C02c, 2026-09-03): `electron` row fixed.** `apps/desktop`'s
+`electron` is bumped `^33.4.11` → `^44.1.1` (latest stable major at the time,
+past the recommended `>=39.8.10` floor), with `electron-updater` → `^6.8.9`,
+`electron-builder` → `^26.15.3` and `@electron/fuses` → `^2.1.3` for
+compatibility. Fuses re-verified (`scripts/after-pack.cjs` unchanged, `pnpm
+pack:dry` green — RunAsNode off, cookie encryption on, ASAR integrity on),
+`apps/desktop`'s full vitest suite green (83 tests, unchanged behaviour), and
+the Playwright-Electron smoke (`e2e/smoke.spec.ts`) run once locally: launch,
+offline-page render, and preload-API-surface assertions all pass. `pnpm
+audit --audit-level=high`'s `electron` finding is gone at this version as of
+2026-09-03; the other rows in this table (`tar`, `postcss`, `js-yaml`,
+`@cyclonedx/cyclonedx-npm`, `deepmerge-ts`) are unchanged and still open
+follow-ups, out of this WP's scope.
+
 ### `pip-audit`
 
 `apps/worker-ai/requirements.lock` and `apps/model-server/requirements.lock`:
@@ -171,6 +212,26 @@ is not in the WP's file boundaries either — only `.github/workflows/ci.yml`
 is). **Follow-up, Low/Medium severity**: add `eslint-plugin-security` (or the
 `@typescript-eslint` equivalents already partially covering `no-eval`
 etc.) scoped to `apps/api/src` in a dedicated WP.
+
+**Update (C02c, 2026-09-03): fixed, repo-wide.** `eslint-plugin-security`'s
+`recommended` ruleset is wired into `packages/config/eslint.config.base.mjs`
+(every workspace, at `warn`, since findings elsewhere haven't been reviewed
+by this WP). Every finding across `apps/api`, `apps/web`,
+`packages/bridge-core` and `apps/desktop` (the packages this WP could touch)
+was fixed or annotated: one real ReDoS-shaped regex fixed
+(`apps/api/src/media/import/subtitle-parsers.ts`'s WebVTT voice-tag pattern,
+parsing attacker-controlled subtitle uploads — timed before/after against a
+50k-character adversarial input); every other warning (401 total before this
+pass: 215 in `apps/api`, 132 in `apps/web`, 39 in `packages/bridge-core`, 15
+in `apps/desktop`) reviewed and annotated in place as a false positive
+(bracket access on a typed/enumerated key, a path built from internal
+non-attacker-controlled segments, a sentinel comparison rather than a secret,
+or a bounded/disjoint regex the plugin's static heuristic over-flags — each
+timed against adversarial input where the shape was plausible). With the
+count at zero, those four packages' own `eslint.config.mjs` promote the
+ruleset to `error` (`securityRulesStrict` export); every other package stays
+at the shared `warn` default until its own findings get the same review.
+`pnpm lint` is green repo-wide (`turbo run lint`, 43/43 tasks).
 
 ### CSP / security headers
 
