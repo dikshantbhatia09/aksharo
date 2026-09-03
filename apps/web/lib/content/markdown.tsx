@@ -97,8 +97,33 @@ function toBlocks(markdown: string): Block[] {
       blocks.push({ kind: "ol", lines: items });
       continue;
     }
+    // M07: root-cause fix for the same build-OOM bug fixed in the sibling
+    // `lib/docs/markdown.tsx` (that file's doc comment explains it in full).
+    // This loop must stop collecting paragraph lines only at a line one of
+    // the branches ABOVE would actually treat specially (heading, bullet,
+    // ordered list, code fence) — the same patterns those branches test, not
+    // merely "starts with `-`, `*` or `#`". A line starting with bold text
+    // (`**like this** ...`) starts with `*` but is not a bullet (no `\s+`
+    // after it), so it fails every earlier `if`, falls into this paragraph
+    // branch, and — with the old bare `^[-*#]` check — matched its own stop
+    // condition on its first line: the `while` body never ran, `i` never
+    // advanced, and the outer `while (i < lines.length)` loop spun forever
+    // pushing empty paragraph blocks. This file's own content never
+    // triggered it (no current academy/help/changelog body opens a
+    // paragraph with bold/italic text), but the bug was live here too.
     const para: string[] = [];
-    while (i < lines.length && at(i).trim() !== "" && !/^[-*#]|^\d+\.\s+|^```/.test(at(i))) {
+    while (
+      i < lines.length &&
+      at(i).trim() !== "" &&
+      !/^[-*]\s+|^\d+\.\s+|^#{2,3}\s|^```/.test(at(i))
+    ) {
+      para.push(at(i));
+      i++;
+    }
+    if (para.length === 0) {
+      // Defensive backstop: even if some future branch/pattern mismatch ever
+      // reintroduces a case where nothing above matches and this loop still
+      // collects zero lines, force progress rather than looping forever.
       para.push(at(i));
       i++;
     }

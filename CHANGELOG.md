@@ -52,6 +52,35 @@ test -- --maxWorkers=2` and `turbo run typecheck --filter=@montaj/web`
   `lib/docs/plugin-guides.ts`) were confirmed present on `main` before this
   work (via `git stash`) and left alone as out of this WP's boundary.
 
+- **M07 (scope extension) — fixed the identical infinite-loop bug in
+  `apps/web/lib/content/markdown.tsx` (B12's own copy of the same
+  block-parser structure).** Its `toBlocks()` had the same bare `^[-*#]`
+  paragraph stop-condition bug as `lib/docs/markdown.tsx` — a line starting
+  with bold or italic text (`**like this**`, `*like this*`) satisfies that
+  test without being a bullet, so the paragraph-collection loop ran zero
+  iterations, the cursor never advanced, and the outer loop pushed empty
+  paragraph blocks forever. No current academy/help/changelog body happens
+  to open a paragraph that way, so this copy never actually crashed a build,
+  but the bug was live and would have. Fixed with the same narrowed stop
+  condition (this file's own heading branches only match `##`/`###`, so the
+  regex here is `^[-*]\s+|^\d+\.\s+|^#{2,3}\s|^```` ) plus the same
+cursor-progress backstop. Compared the two files in full before choosing
+an approach: they diverge enough (docs' copy adds GFM pipe-table parsing,
+an `h1` block kind, and a different inline-link/target policy; content's
+copy adds single-`*`italic) that extracting one shared block parser
+would not have been a small change, so both copies were fixed
+independently rather than merged — the duplication between`lib/docs/markdown.tsx`and`lib/content/markdown.tsx` remains and is
+worth a dedicated follow-up to unify if a third caller ever needs this
+kind of renderer. Added a regression test to the neighbouring test file in
+each case (`lib/docs/markdown.test.tsx`, and a new
+`lib/content/markdown.test.tsx`— no test file existed for`MarkdownBody`before this) that renders a paragraph opening with`**bold**`and one
+opening with`_emphasis_`and asserts exactly one (non-empty) paragraph is
+produced.`pnpm --filter @montaj/web test -- --maxWorkers=2`, lint and
+typecheck green; `format:changed`/`format:changed:check`clean (this WP's
+convention is scoped formatting, not repo-wide`format:check`, per the
+  brief's formatting rule — ran that instead and it is equivalent for the
+  files this WP touched).
+
 - **M06: `eslint-plugin-security` promoted to `error` repo-wide.** C02c drove
   `apps/api`, `apps/web`, `packages/bridge-core` and `apps/desktop` to zero
   findings; this WP reviewed every remaining finding across the other 21
