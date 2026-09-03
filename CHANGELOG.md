@@ -40,7 +40,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     signup's journey (a split segment turns the reflow banner on, adding
     another ~56px of header) that left ~228px for the whole row on a
     1280x720 viewport, and `StylePicker.tsx`'s grid (`min-h-0 flex-1
-    overflow-y-auto`) collapsed to 0px: CSS Grid's automatic minimum size for
+overflow-y-auto`) collapsed to 0px: CSS Grid's automatic minimum size for
     a track is 0 (not its content size) once a grid item sets
     `overflow: hidden`, which every tile button does. Every tile rendered at
     ~2px, occupying whatever the collapsed grid track gave it, well outside
@@ -49,11 +49,11 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     own sequence) hit the identical collapse — this was a genuine
     responsiveness defect in the editor layout, not a test artefact.
   - **Fix:** `editor-timeline-row` gained `max-h-[38dvh] shrink-0
-    overflow-y-auto` (the row scrolls its own lanes past that budget instead
+overflow-y-auto` (the row scrolls its own lanes past that budget instead
     of shrinking its siblings to nothing), and the content row above it
     (`flex min-h-[220px] flex-1`) gained an explicit floor so it can never be
     squeezed to zero even on a shorter viewport. `apps/web/components/editor/
-    panels/StylePicker.tsx` and `RightPanel.tsx` were read end to end and are
+panels/StylePicker.tsx` and `RightPanel.tsx` were read end to end and are
     correct as written — the defect was purely in the layout budget one level
     up, in `editor-client.tsx`.
   - **Verification:** `gate-a.spec.ts` chromium, `export.spec.ts`,
