@@ -19319,6 +19319,21 @@
                             "downloadUrl": {
                               "nullable": true,
                               "type": "string"
+                            },
+                            "channel": {
+                              "default": null,
+                              "nullable": true,
+                              "type": "string",
+                              "enum": [
+                                "alpha",
+                                "beta",
+                                "stable"
+                              ]
+                            },
+                            "notes": {
+                              "default": null,
+                              "nullable": true,
+                              "type": "string"
                             }
                           },
                           "required": [
@@ -19348,6 +19363,21 @@
                               "type": "string"
                             },
                             "downloadUrl": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "channel": {
+                              "default": null,
+                              "nullable": true,
+                              "type": "string",
+                              "enum": [
+                                "alpha",
+                                "beta",
+                                "stable"
+                              ]
+                            },
+                            "notes": {
+                              "default": null,
                               "nullable": true,
                               "type": "string"
                             }
@@ -19381,6 +19411,21 @@
                             "downloadUrl": {
                               "nullable": true,
                               "type": "string"
+                            },
+                            "channel": {
+                              "default": null,
+                              "nullable": true,
+                              "type": "string",
+                              "enum": [
+                                "alpha",
+                                "beta",
+                                "stable"
+                              ]
+                            },
+                            "notes": {
+                              "default": null,
+                              "nullable": true,
+                              "type": "string"
                             }
                           },
                           "required": [
@@ -19397,10 +19442,65 @@
                         "ae-cep",
                         "resolve-script"
                       ]
+                    },
+                    "desktop": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "version": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "channel": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "alpha",
+                            "beta",
+                            "stable"
+                          ]
+                        },
+                        "notes": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "downloadUrl": {
+                          "type": "object",
+                          "properties": {
+                            "win": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "mac": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "linux": {
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "win",
+                            "mac",
+                            "linux"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "available",
+                        "version",
+                        "channel",
+                        "notes",
+                        "downloadUrl"
+                      ]
                     }
                   },
                   "required": [
-                    "channels"
+                    "channels",
+                    "desktop"
                   ]
                 }
               }

@@ -12,12 +12,37 @@ import type { ReleaseContext } from "../types.js";
 export interface PackageResolveResult {
   bundlePath: string;
   placeholderPlugin: boolean;
+  /** Macro ids staged from `plugins/resolve/installer/manifest.json` (empty until a macro
+   * file actually exists on disk — C08b generates it, never hand-edited). */
+  macrosStaged: string[];
+}
+
+/** `plugins/resolve/installer/manifest.json` (C08b + C10): Fusion macros the installer
+ * copies alongside the `Scripts/Utility` script tree, each with its own per-OS install path. */
+interface ResolveInstallerManifest {
+  version: number;
+  macros: {
+    id: string;
+    file: string;
+    installTo: { win: string; mac: string; linux: string };
+  }[];
+}
+
+async function readInstallerManifest(repoRoot: string): Promise<ResolveInstallerManifest> {
+  const manifestPath = path.join(repoRoot, "plugins", "resolve", "installer", "manifest.json");
+  if (!(await pathExists(manifestPath))) return { version: 1, macros: [] };
+  const raw = await fs.readFile(manifestPath, "utf8");
+  return JSON.parse(raw) as ResolveInstallerManifest;
 }
 
 /** `package-resolve`: zips `aksharo_core.py` + its `aksharo_core_app` library (C08;
  * a real Python package, no `.lua`) plus per-OS installer scripts that copy both into
- * the Fusion `Scripts/Utility` path (RR-03: no signing needed). Only the real script
- * tree is staged — not this workspace's `.venv`, `tests/`, or Python tooling config. */
+ * the Fusion `Scripts/Utility` path (works for both Resolve Free and Studio — they share
+ * the same per-user Fusion support directory, RR-03: no signing needed) and stage any
+ * generated macro (C08b's Text+ caption macro) into its own Fusion `Macros` path. Ships
+ * an uninstaller and a `VERSION` file next to the scripts so a re-run/uninstall can tell
+ * what is currently installed. Only the real script tree is staged — not this workspace's
+ * `.venv`, `tests/`, or Python tooling config. */
 export async function runPackageResolve(
   ctx: ReleaseContext,
   config: ReleaseConfig,
@@ -44,8 +69,40 @@ export async function runPackageResolve(
     );
   }
 
-  await writeInstaller(sourceDir, "install.sh", installerShell(config, entryFile, libDir));
-  await writeInstaller(sourceDir, "install.ps1", installerPowerShell(config, entryFile, libDir));
+  const installerManifest = await readInstallerManifest(ctx.repoRoot);
+  const macrosStaged: string[] = [];
+  const stagedMacroDir = path.join(sourceDir, "macros");
+  await ensureDir(stagedMacroDir);
+  for (const macro of installerManifest.macros) {
+    const macroSrc = path.join(absPluginDir, macro.file);
+    if (!(await pathExists(macroSrc))) continue; // C08b not landed yet -- skip, don't fake it
+    const macroFileName = path.basename(macro.file);
+    await fs.copyFile(macroSrc, path.join(stagedMacroDir, macroFileName));
+    macrosStaged.push(macro.id);
+  }
+
+  await fs.writeFile(path.join(sourceDir, "VERSION"), `${version}\n`, "utf8");
+
+  await writeInstaller(
+    sourceDir,
+    "install.sh",
+    installerShell(config, entryFile, libDir, installerManifest, version),
+  );
+  await writeInstaller(
+    sourceDir,
+    "install.ps1",
+    installerPowerShell(config, entryFile, libDir, installerManifest, version),
+  );
+  await writeInstaller(
+    sourceDir,
+    "uninstall.sh",
+    uninstallerShell(config, entryFile, libDir, installerManifest),
+  );
+  await writeInstaller(
+    sourceDir,
+    "uninstall.ps1",
+    uninstallerPowerShell(config, entryFile, libDir, installerManifest),
+  );
 
   const bundlePath = path.join(
     ctx.outDir,
@@ -55,7 +112,7 @@ export async function runPackageResolve(
   );
   await zipDirectory(sourceDir, bundlePath);
 
-  return { bundlePath, placeholderPlugin };
+  return { bundlePath, placeholderPlugin, macrosStaged };
 }
 
 async function copyDir(src: string, dest: string): Promise<void> {
@@ -79,27 +136,116 @@ async function writeInstaller(dir: string, name: string, content: string): Promi
   await fs.writeFile(path.join(dir, name), content, "utf8");
 }
 
-function installerShell(config: ReleaseConfig, entryFile: string, libDir: string): string {
+/** Both DaVinci Resolve Free and Studio read scripts/macros from the same per-user Fusion
+ * support directory on each OS -- there is no separate Free-vs-Studio install path -- so one
+ * script serves both editions. */
+function installerShell(
+  config: ReleaseConfig,
+  entryFile: string,
+  libDir: string,
+  manifest: ResolveInstallerManifest,
+  version: string,
+): string {
+  const macroLines = manifest.macros.flatMap((macro) => {
+    const macroFileName = path.basename(macro.file);
+    return [
+      `if [ -f "$(dirname "$0")/macros/${macroFileName}" ]; then`,
+      `  if [ "$OS" = "Darwin" ]; then MACRO_DEST="${macro.installTo.mac}"; else MACRO_DEST="${macro.installTo.linux}"; fi`,
+      '  mkdir -p "$MACRO_DEST"',
+      `  cp "$(dirname "$0")/macros/${macroFileName}" "$MACRO_DEST"/`,
+      "fi",
+    ];
+  });
   return [
     "#!/usr/bin/env bash",
     "set -euo pipefail",
+    "# Installs into DaVinci Resolve Free and Studio alike -- both editions read scripts and",
+    "# macros from the same per-user Fusion support directory.",
     'OS="$(uname)"',
     `if [ "$OS" = "Darwin" ]; then DEST="${config.resolveBundle.installPaths.mac}"; else DEST="${config.resolveBundle.installPaths.linux}"; fi`,
     'mkdir -p "$DEST"',
     `cp "$(dirname "$0")/${entryFile}" "$DEST"/`,
     `cp -R "$(dirname "$0")/${libDir}" "$DEST"/`,
-    'echo "Installed to $DEST"',
+    `cp "$(dirname "$0")/VERSION" "$DEST"/aksharo-resolve.VERSION`,
+    ...macroLines,
+    `echo "Installed Aksharo for DaVinci Resolve ${version} to $DEST"`,
     "",
   ].join("\n");
 }
 
-function installerPowerShell(config: ReleaseConfig, entryFile: string, libDir: string): string {
+function installerPowerShell(
+  config: ReleaseConfig,
+  entryFile: string,
+  libDir: string,
+  manifest: ResolveInstallerManifest,
+  version: string,
+): string {
+  const macroLines = manifest.macros.flatMap((macro) => {
+    const macroFileName = path.basename(macro.file);
+    return [
+      `if (Test-Path "$PSScriptRoot\\macros\\${macroFileName}") {`,
+      `  New-Item -ItemType Directory -Force -Path "${macro.installTo.win}" | Out-Null`,
+      `  Copy-Item -Path "$PSScriptRoot\\macros\\${macroFileName}" -Destination "${macro.installTo.win}" -Force`,
+      "}",
+    ];
+  });
   return [
+    "# Installs into DaVinci Resolve Free and Studio alike -- both editions read scripts and",
+    "# macros from the same per-user Fusion support directory.",
     `$Dest = "${config.resolveBundle.installPaths.win}"`,
     "New-Item -ItemType Directory -Force -Path $Dest | Out-Null",
     `Copy-Item -Path "$PSScriptRoot\\${entryFile}" -Destination $Dest -Force`,
     `Copy-Item -Path "$PSScriptRoot\\${libDir}" -Destination $Dest -Recurse -Force`,
-    'Write-Host "Installed to $Dest"',
+    `Copy-Item -Path "$PSScriptRoot\\VERSION" -Destination "$Dest\\aksharo-resolve.VERSION" -Force`,
+    ...macroLines,
+    `Write-Host "Installed Aksharo for DaVinci Resolve ${version} to $Dest"`,
+    "",
+  ].join("\n");
+}
+
+function uninstallerShell(
+  config: ReleaseConfig,
+  entryFile: string,
+  libDir: string,
+  manifest: ResolveInstallerManifest,
+): string {
+  const macroLines = manifest.macros.flatMap((macro) => {
+    const macroFileName = path.basename(macro.file);
+    return [
+      `if [ "$OS" = "Darwin" ]; then rm -f "${macro.installTo.mac}/${macroFileName}"; else rm -f "${macro.installTo.linux}/${macroFileName}"; fi`,
+    ];
+  });
+  return [
+    "#!/usr/bin/env bash",
+    "set -euo pipefail",
+    'OS="$(uname)"',
+    `if [ "$OS" = "Darwin" ]; then DEST="${config.resolveBundle.installPaths.mac}"; else DEST="${config.resolveBundle.installPaths.linux}"; fi`,
+    `rm -f "$DEST/${entryFile}"`,
+    `rm -rf "$DEST/${libDir}"`,
+    'rm -f "$DEST/aksharo-resolve.VERSION"',
+    ...macroLines,
+    'echo "Uninstalled Aksharo for DaVinci Resolve from $DEST"',
+    "",
+  ].join("\n");
+}
+
+function uninstallerPowerShell(
+  config: ReleaseConfig,
+  entryFile: string,
+  libDir: string,
+  manifest: ResolveInstallerManifest,
+): string {
+  const macroLines = manifest.macros.map((macro) => {
+    const macroFileName = path.basename(macro.file);
+    return `Remove-Item -Path "${macro.installTo.win}\\${macroFileName}" -Force -ErrorAction SilentlyContinue`;
+  });
+  return [
+    `$Dest = "${config.resolveBundle.installPaths.win}"`,
+    `Remove-Item -Path "$Dest\\${entryFile}" -Force -ErrorAction SilentlyContinue`,
+    `Remove-Item -Path "$Dest\\${libDir}" -Recurse -Force -ErrorAction SilentlyContinue`,
+    `Remove-Item -Path "$Dest\\aksharo-resolve.VERSION" -Force -ErrorAction SilentlyContinue`,
+    ...macroLines,
+    'Write-Host "Uninstalled Aksharo for DaVinci Resolve from $Dest"',
     "",
   ].join("\n");
 }

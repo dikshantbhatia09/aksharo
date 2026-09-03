@@ -7,6 +7,14 @@ import type { Metadata } from "next";
 
 import { AUTH_NAV } from "@/content/site/nav";
 import { ACTIVATION_STEPS, ATTRIBUTION_LINE, HOST_SURFACES } from "@/content/site/plugins-data";
+import { fetchPluginManifest, type PluginManifestChannelView } from "@/lib/plugin-manifest";
+
+/** `HOST_SURFACES`' ids -> the `/plugins/manifest` channel each surface's install button
+ * reads from. "premiere-ae" reads the Premiere UXP channel (the same `.ccx` this card's
+ * "Install" step already describes as the primary install path for that surface). */
+function manifestChannelFor(surfaceId: string): "premiere-uxp" | "ae-cep" | "resolve-script" {
+  return surfaceId === "resolve" ? "resolve-script" : "premiere-uxp";
+}
 
 export const metadata: Metadata = {
   title: "Plugins",
@@ -21,7 +29,9 @@ export const metadata: Metadata = {
   },
 };
 
-export default function PluginsPage(): React.JSX.Element {
+export default async function PluginsPage(): Promise<React.JSX.Element> {
+  const manifest = await fetchPluginManifest();
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
       <header className="mx-auto max-w-3xl text-center">
@@ -35,42 +45,64 @@ export default function PluginsPage(): React.JSX.Element {
       </header>
 
       <div className="mt-14 grid gap-6 lg:grid-cols-2">
-        {HOST_SURFACES.map((surface) => (
-          <Card
-            key={surface.id}
-            className="flex flex-col gap-4"
-            data-testid={`plugin-card-${surface.id}`}
-          >
-            <h2 className="text-fg-0 text-xl font-semibold">{surface.productName}</h2>
-            <p className="text-fg-1 text-sm leading-relaxed">{surface.summary}</p>
-            <dl className="text-fg-2 flex flex-col gap-1 text-xs">
-              <div>
-                <dt className="inline font-medium">Minimum host version: </dt>
-                <dd className="inline">{surface.minimumHostVersion}</dd>
-              </div>
-              <div>
-                <dt className="inline font-medium">Install: </dt>
-                <dd className="inline">{surface.installNote}</dd>
-              </div>
-            </dl>
-            <div>
-              <h3 className="text-fg-0 text-sm font-medium">Honest capability notes</h3>
-              <ul className="mt-2 flex flex-col gap-1.5">
-                {surface.capabilityNotes.map((note) => (
-                  <li key={note} className="text-fg-2 text-xs leading-relaxed">
-                    {note}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <p
-              className="text-fg-2 border-border rounded-md border px-3 py-2 text-xs"
-              data-testid={`plugin-download-placeholder-${surface.id}`}
+        {HOST_SURFACES.map((surface) => {
+          const channel: PluginManifestChannelView | undefined =
+            manifest?.channels[manifestChannelFor(surface.id)];
+          return (
+            <Card
+              key={surface.id}
+              className="flex flex-col gap-4"
+              data-testid={`plugin-card-${surface.id}`}
             >
-              Download link placeholder — the signed, distributable build ships with C10.
-            </p>
-          </Card>
-        ))}
+              <h2 className="text-fg-0 text-xl font-semibold">{surface.productName}</h2>
+              <p className="text-fg-1 text-sm leading-relaxed">{surface.summary}</p>
+              <dl className="text-fg-2 flex flex-col gap-1 text-xs">
+                <div>
+                  <dt className="inline font-medium">Minimum host version: </dt>
+                  <dd className="inline">{surface.minimumHostVersion}</dd>
+                </div>
+                <div>
+                  <dt className="inline font-medium">Install: </dt>
+                  <dd className="inline">{surface.installNote}</dd>
+                </div>
+              </dl>
+              <div>
+                <h3 className="text-fg-0 text-sm font-medium">Honest capability notes</h3>
+                <ul className="mt-2 flex flex-col gap-1.5">
+                  {surface.capabilityNotes.map((note) => (
+                    <li key={note} className="text-fg-2 text-xs leading-relaxed">
+                      {note}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {channel?.available && channel.downloadUrl !== null ? (
+                <div className="flex flex-col gap-1">
+                  <Button asChild variant="primary" data-testid={`plugin-download-${surface.id}`}>
+                    <a href={channel.downloadUrl}>Download v{channel.version}</a>
+                  </Button>
+                  <p
+                    className="text-fg-2 text-xs"
+                    data-testid={`plugin-checksum-note-${surface.id}`}
+                  >
+                    {channel.channel} channel. Verify against{" "}
+                    <a className="underline" href="/legal/checksums">
+                      CHECKSUMS.sha256
+                    </a>
+                    .
+                  </p>
+                </div>
+              ) : (
+                <p
+                  className="text-fg-2 border-border rounded-md border px-3 py-2 text-xs"
+                  data-testid={`plugin-download-placeholder-${surface.id}`}
+                >
+                  Download link placeholder — the signed, distributable build ships with C10.
+                </p>
+              )}
+            </Card>
+          );
+        })}
       </div>
 
       <section className="mt-20" aria-labelledby="activation-heading">

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -138,6 +138,45 @@ describe("dry-run pipeline (no real signing, no real network)", () => {
     });
     expect(forced.gate.allowed).toBe(true);
     expect(forced.gate.reason).toMatch(/forced: hotfix/);
+  });
+
+  it("C10: publish writes plugins-manifest.json when ccx/resolve artifacts are given", async () => {
+    const ccx = await runPackageCcx(ctx(), {
+      pluginDir: config.ccx.pluginDir,
+      minPremiereVersion: "25.6",
+      version: "1.0.0",
+    });
+    const resolve = await runPackageResolve(ctx(), config, "1.0.0");
+    const desktop = await runBuildDesktop(ctx(), config, {
+      platform: "win",
+      channel: "alpha",
+      dryRun: true,
+    });
+
+    const publish = await runPublish(ctx(), {
+      channel: "alpha",
+      version: "1.0.0",
+      winArtifact: desktop.artifactPath,
+      ccxArtifact: { path: ccx.ccxPath, version: "1.0.0", minHostVersion: "25.6" },
+      resolveArtifact: { path: resolve.bundlePath, version: "1.0.0" },
+      domain: "aksharo.ai",
+    });
+
+    expect(publish.pluginManifestPath).toBeDefined();
+    const raw = await readFile(publish.pluginManifestPath as string, "utf8");
+    const manifest = JSON.parse(raw) as {
+      channel: string;
+      channels: Record<string, { version: string; downloadUrl: string } | undefined>;
+      desktop?: { version: string; downloadUrl: { win: string | null } };
+    };
+    expect(manifest.channel).toBe("alpha");
+    expect(manifest.channels["premiere-uxp"]?.version).toBe("1.0.0");
+    expect(manifest.channels["premiere-uxp"]?.downloadUrl).toBe(
+      `https://releases.aksharo.ai/releases/alpha/${path.basename(ccx.ccxPath)}`,
+    );
+    expect(manifest.channels["resolve-script"]?.version).toBe("1.0.0");
+    expect(manifest.desktop?.version).toBe("1.0.0");
+    expect(manifest.desktop?.downloadUrl.win).toContain("releases/alpha/");
   });
 
   it("verify-release detects a tampered artifact after publish", async () => {

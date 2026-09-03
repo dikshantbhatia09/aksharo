@@ -15,7 +15,7 @@ const config: ReleaseConfig = {
   appId: "ai.aksharo.desktop",
   productName: BRAND.name,
   desktopAppDir: "apps/desktop",
-  mac: { target: ["dmg", "zip"], category: "public.app-category.video" },
+  mac: { target: ["dmg", "pkg", "zip"], category: "public.app-category.video" },
   win: { target: "nsis", arch: "x64" },
   ccx: { pluginDir: "plugins/premiere-uxp", minPremiereVersion: "25.6" },
   zxp: { pluginDir: "plugins/ae-cep" },

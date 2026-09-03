@@ -248,6 +248,15 @@ program
   .requiredOption("--version <version>")
   .option("--mac-artifact <path>")
   .option("--win-artifact <path>")
+  .option("--ccx-artifact <path>", "C10: package-ccx output, published under the channel manifest")
+  .option("--ccx-version <version>")
+  .option("--ccx-min-host-version <version>")
+  .option(
+    "--resolve-artifact <path>",
+    "C10: package-resolve output, published under the channel manifest",
+  )
+  .option("--resolve-version <version>")
+  .option("--domain <domain>", "release CDN domain for constructed download URLs")
   .option("--force", "override the 24h stable gate", false)
   .option("--reason <text>", "required with --force")
   .action(async (opts) => {
@@ -257,11 +266,23 @@ program
       version: opts.version,
       macArtifact: opts.macArtifact,
       winArtifact: opts.winArtifact,
+      ccxArtifact: opts.ccxArtifact
+        ? {
+            path: opts.ccxArtifact,
+            version: opts.ccxVersion ?? opts.version,
+            minHostVersion: opts.ccxMinHostVersion ?? null,
+          }
+        : undefined,
+      resolveArtifact: opts.resolveArtifact
+        ? { path: opts.resolveArtifact, version: opts.resolveVersion ?? opts.version }
+        : undefined,
+      domain: opts.domain,
       force: opts.force,
       reason: opts.reason,
     });
     console.log(`published to: ${result.destDir}`);
     console.log(`files: ${result.uploaded.length}, feeds: ${result.feeds.length}`);
+    if (result.pluginManifestPath) console.log(`plugin manifest: ${result.pluginManifestPath}`);
   });
 
 program

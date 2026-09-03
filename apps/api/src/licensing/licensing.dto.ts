@@ -47,15 +47,46 @@ export const heartbeatSchema = z.object({
 });
 export class HeartbeatDto extends zodDto(heartbeatSchema) {}
 
-/** `GET /plugins/manifest` (07 §Plugins, D65): per-host channel manifest. */
+/**
+ * `GET /plugins/manifest` (07 §Plugins, D65 "`/plugins/manifest` publishes min/max API per
+ * host"): per-host channel manifest. `minHostVersion`/`maxHostVersion` are this route's
+ * original field names (C11 stub, already consumed by C05a/C08's `manifestCheck.ts` shape
+ * and by `plugins-view.tsx`) — kept verbatim rather than renamed to the brief's "minApi/maxApi"
+ * wording, since both describe the same min/max host-version gate and a rename with no
+ * behaviour change would be a needless frozen-shape churn for two WPs that already coded
+ * against this one. `channel` and `notes` are additive (C10): which release channel
+ * (`alpha`/`beta`/`stable`) the reported version was published from, and a short human note
+ * (e.g. "unsigned dry-run build" until real code-signing lands, C00 §0/§7).
+ */
 export const pluginManifestChannelSchema = z.object({
   available: z.boolean(),
   version: z.string().nullable(),
   minHostVersion: z.string().nullable(),
   maxHostVersion: z.string().nullable(),
   downloadUrl: z.string().nullable(),
+  channel: z.enum(["alpha", "beta", "stable"]).nullable().default(null),
+  notes: z.string().nullable().default(null),
 });
 export type PluginManifestChannel = z.infer<typeof pluginManifestChannelSchema>;
+
+/**
+ * `desktop` (C10): the Aksharo Desktop app itself is not a plugin hosted inside another
+ * app, so it has no single `minHostVersion`/`maxHostVersion` gate and its download is
+ * per-OS rather than a single `downloadUrl` — kept as its own field next to `channels`
+ * instead of forcing it into the three-key `channels` shape C05a/C08 already consume.
+ */
+export const pluginManifestDesktopSchema = z.object({
+  available: z.boolean(),
+  version: z.string().nullable(),
+  channel: z.enum(["alpha", "beta", "stable"]).nullable(),
+  notes: z.string().nullable(),
+  downloadUrl: z.object({
+    win: z.string().nullable(),
+    mac: z.string().nullable(),
+    linux: z.string().nullable(),
+  }),
+});
+export type PluginManifestDesktop = z.infer<typeof pluginManifestDesktopSchema>;
 
 export const pluginManifestSchema = z.object({
   channels: z.object({
@@ -63,5 +94,6 @@ export const pluginManifestSchema = z.object({
     "ae-cep": pluginManifestChannelSchema,
     "resolve-script": pluginManifestChannelSchema,
   }),
+  desktop: pluginManifestDesktopSchema,
 });
 export type PluginManifestResponse = z.infer<typeof pluginManifestSchema>;
