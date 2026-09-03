@@ -13459,6 +13459,172 @@
         ]
       }
     },
+    "/projects/{projectId}/prompted-edits": {
+      "post": {
+        "description": "Calls the edit-plan@1 planner with the project's own facts (duration, language, existing styles, plan tier), re-checks the result's guardrails (known pass kinds/params, budget cap, engine-tier allowlist) and stores it as a plan for the preview sheet. Nothing runs until POST .../{planId}/run.",
+        "operationId": "createPromptedEditPlan",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlanRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptedEditPlanDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found` or `prompted_edit/plan_not_found`."
+          },
+          "409": {
+            "description": "`prompted_edit/media_not_ready`."
+          },
+          "422": {
+            "description": "`prompted_edit/guardrail_violation`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Generate a prompted-edit plan from a free-text instruction",
+        "tags": [
+          "prompted-edits"
+        ]
+      }
+    },
+    "/projects/{projectId}/prompted-edits/{planId}": {
+      "get": {
+        "operationId": "getPromptedEditPlan",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "planId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptedEditPlanDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found` or `prompted_edit/plan_not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Read a prompted-edit plan back",
+        "tags": [
+          "prompted-edits"
+        ]
+      }
+    },
+    "/projects/{projectId}/prompted-edits/{planId}/run": {
+      "post": {
+        "description": "Holds credits on the plan's source duration and enqueues the first pass of the plan's dependency-ordered chain (autocut -> zoom/reframe -> sfx/music -> textfx); watch `job.completed` on the project's realtime room as each pass lands, and poll GET .../{planId} for `status`.",
+        "operationId": "runPromptedEditPlan",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "planId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunPlanAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found` or `prompted_edit/plan_not_found`."
+          },
+          "409": {
+            "description": "`prompted_edit/invalid_status`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Run an accepted prompted-edit plan",
+        "tags": [
+          "prompted-edits"
+        ]
+      }
+    },
     "/projects/{projectId}/transcript/transliterate": {
       "post": {
         "description": "Free (`04 §Credits`). Enqueues `ai.transliterate`, which writes per-word `scripts` variants — Hinglish stays Roman-first, English words are preserved — and never touches `t`, timings or a script the user has already edited via `textOverrides`.",
@@ -25199,6 +25365,142 @@
         },
         "required": [
           "passes"
+        ]
+      },
+      "CreatePlanRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "EditPlanPassDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "autocut",
+              "zoom",
+              "reframe",
+              "sfx",
+              "music",
+              "textfx"
+            ]
+          },
+          "params": {
+            "type": "object",
+            "description": "Kind-specific params (preset, aspect, engine, ...)."
+          }
+        },
+        "required": [
+          "kind",
+          "params"
+        ]
+      },
+      "PromptedEditPlanDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "engine": {
+            "type": "string",
+            "enum": [
+              "flash",
+              "pro"
+            ]
+          },
+          "passes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EditPlanPassDto"
+            }
+          },
+          "style": {
+            "type": "string"
+          },
+          "script": {
+            "type": "string",
+            "enum": [
+              "roman",
+              "native",
+              "translated"
+            ]
+          },
+          "rationale": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "running",
+              "completed",
+              "failed"
+            ]
+          },
+          "holdTenths": {
+            "type": "number",
+            "description": "Tenths of a credit this plan would hold at `run()`."
+          },
+          "holdCredits": {
+            "type": "string",
+            "description": "Presentation string, e.g. \"3.0\"."
+          },
+          "settledTenths": {
+            "type": "number",
+            "description": "Tenths of a credit actually settled, once completed."
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "prompt",
+          "engine",
+          "passes",
+          "rationale",
+          "status",
+          "holdTenths",
+          "holdCredits",
+          "createdAt"
+        ]
+      },
+      "RunPlanAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "planId": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "firstPassKind": {
+            "type": "string",
+            "description": "The first pass kind enqueued; the rest chain from its completion."
+          },
+          "status": {
+            "type": "string"
+          },
+          "holdTenths": {
+            "type": "number"
+          },
+          "holdCredits": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "planId",
+          "jobId",
+          "firstPassKind",
+          "status",
+          "holdTenths",
+          "holdCredits"
         ]
       },
       "TransliterateRequestDto": {
