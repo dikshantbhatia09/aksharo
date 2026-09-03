@@ -61,6 +61,7 @@ import type {
   CurrentUser,
   DeviceApproveRequest,
   DeviceView,
+  PackAssetUrl,
   DismissReferralPromptResult,
   Entitlement,
   Folder,
@@ -346,6 +347,16 @@ export const registeredDeviceEndpoints = {
     path: "/devices/{deviceId}",
     auth: "bearer",
     operationId: "revokeDevice",
+  }),
+} as const;
+
+/** The pack-asset catalogue's HTTP surface (D04d) — one route: a signed URL. */
+export const audioAssetsEndpoints = {
+  getUrl: defineEndpoint<void, PackAssetUrl>({
+    method: "GET",
+    path: "/audio-assets/{assetId}/url",
+    auth: "bearer",
+    operationId: "getAudioAssetUrl",
   }),
 } as const;
 
@@ -1039,6 +1050,7 @@ export const endpoints = {
   streak: streakEndpoints,
   apiKeys: apiKeyEndpoints,
   webhooks: webhookEndpoints2,
+  audioAssets: audioAssetsEndpoints,
   pending: pendingEndpoints,
 } as const;
 
@@ -1071,5 +1083,6 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(streakEndpoints),
   ...Object.entries(apiKeyEndpoints),
   ...Object.entries(webhookEndpoints2),
+  ...Object.entries(audioAssetsEndpoints),
   ...Object.entries(pendingEndpoints),
 ] as const;

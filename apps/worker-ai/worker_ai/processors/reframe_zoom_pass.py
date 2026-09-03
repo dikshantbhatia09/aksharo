@@ -56,7 +56,8 @@ from worker_ai.passes.zoom import (
     detect_sentence_start_cues,
 )
 from worker_ai.processors.context import JobContext, JobFailureError, ProcessorOutcome
-from worker_ai.storage import StorageError, derived_key
+from worker_ai.processors.proxy_media import download_proxy
+from worker_ai.storage import StorageError
 from worker_ai.ulid import new_ulid
 
 __all__ = ["pack_keyframes", "process_reframe", "process_zoom"]
@@ -149,34 +150,11 @@ async def _sample_from_proxy(
     proxy (`passes/proxy_required`), so reaching this function without one
     means the media row changed underneath the job.
     """
-    project_id = context.payload_str("projectId") or (context.envelope.project_id or "")
-    media_id = context.payload_str("mediaId", required=True)
-    if not project_id:
-        raise JobFailureError(
-            "worker/invalid_payload",
-            "derived media keys need a projectId (CONTRACTS section 6)",
-            retryable=False,
-        )
-    store = context.services.derived_store
-    if store is None:
-        raise JobFailureError(
-            "worker/storage_unconfigured",
-            "R2_ENDPOINT, R2_BUCKET_DERIVED and the R2 credentials are required",
-            retryable=False,
-        )
-    try:
-        key = derived_key(context.envelope.workspace_id, project_id, media_id, "proxy540.mp4")
-        destination = context.workdir / "proxy540.mp4"
-        store.download(key, destination)
-    except StorageError as error:
-        raise JobFailureError(
-            "worker/storage_unavailable", str(error), retryable=True
-        ) from error
+    destination = await download_proxy(context)
 
     frames = sample_frames(destination, duration_ms)
     scene_frames = [
-        FrameStat(t_ms=frame.t_ms, hue=frame.hue, sat=frame.sat, val=frame.val)
-        for frame in frames
+        FrameStat(t_ms=frame.t_ms, hue=frame.hue, sat=frame.sat, val=frame.val) for frame in frames
     ]
     detector = _build_face_detector(frames)
     detections: list[dict[str, Any]] = []
@@ -356,16 +334,12 @@ def _keyframe_storage_fields(context: JobContext, pass_id: str, packed: bytes) -
     try:
         store.upload(local, key)
     except StorageError as error:
-        raise JobFailureError(
-            "worker/storage_unavailable", str(error), retryable=True
-        ) from error
+        raise JobFailureError("worker/storage_unavailable", str(error), retryable=True) from error
     return {"itemId": item_id, "keyframesRef": key}
 
 
 def _zoom_item_wire(context: JobContext, pass_id: str, event: ZoomEvent) -> dict[str, Any]:
-    packed = pack_keyframes(
-        [(float(k.t_ms), k.scale, k.cx, k.cy, k.ease) for k in event.keyframes]
-    )
+    packed = pack_keyframes([(float(k.t_ms), k.scale, k.cx, k.cy, k.ease) for k in event.keyframes])
     return {
         **_keyframe_storage_fields(context, pass_id, packed),
         "startMs": event.start_ms,
@@ -474,9 +448,7 @@ def _detect_cues(payload: dict[str, Any]) -> list[Cue]:
         words: list[tuple[int, int, str]] = []
         for item in words_raw:
             if isinstance(item, list) and len(item) == 3:
-                words.append(
-                    (_int(item[0], default=0), _int(item[1], default=0), str(item[2]))
-                )
+                words.append((_int(item[0], default=0), _int(item[1], default=0), str(item[2])))
         cues.extend(detect_sentence_start_cues(words))
 
     return cues

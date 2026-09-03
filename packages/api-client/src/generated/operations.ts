@@ -852,6 +852,13 @@ export const API_OPERATIONS = [
     summary: "Onboarding completions by source and code type",
   },
   {
+    operationId: "getAudioAssetUrl",
+    method: "GET",
+    path: "/audio-assets/{assetId}/url",
+    tags: ["audio-assets"],
+    summary: "A signed URL onto one pack asset's bytes",
+  },
+  {
     operationId: "getBatch",
     method: "GET",
     path: "/batch/{batchId}",

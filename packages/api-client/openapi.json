@@ -13031,6 +13031,68 @@
         ]
       }
     },
+    "/audio-assets/{assetId}/url": {
+      "get": {
+        "description": "Re-checks the licence predicate (surface/plan/territory/clearance/term) against the caller's own token before signing — a ten-minute GET, for the Passes-tab preview player and the browser export mixer's per-asset cache.",
+        "operationId": "getAudioAssetUrl",
+        "parameters": [
+          {
+            "name": "assetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A short-lived download URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "url",
+                    "expiresAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `audio-assets/not_allowed`."
+          },
+          "404": {
+            "description": "`audio-assets/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "A signed URL onto one pack asset's bytes",
+        "tags": [
+          "audio-assets"
+        ]
+      }
+    },
     "/projects/{projectId}/passes/autocut": {
       "post": {
         "description": "Quotes the job from the primary media's probed duration (`autocutPass` burn rate, source minutes), holds the credits and enqueues `ai.pass`. The proposed cuts land as `edg_pass_items` (state `proposed`) once the worker's completion arrives and `MergePass` merges them; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`.",

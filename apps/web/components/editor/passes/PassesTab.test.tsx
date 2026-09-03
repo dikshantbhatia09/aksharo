@@ -52,6 +52,30 @@ function cutItem(
   return { itemId, passId: "pass-1", kind: "cut", startMs, endMs, payload: {}, state, confidence };
 }
 
+function sfxItem(itemId: string, assetId: string): PassItem {
+  return {
+    itemId,
+    passId: "pass-1",
+    kind: "sfx",
+    startMs: 1000,
+    endMs: 1600,
+    state: "proposed",
+    confidence: 0.8,
+    payload: {
+      assetId,
+      packId: "fixture-pack",
+      startMs: 1000,
+      durationMs: 600,
+      gainDb: -6,
+      fadeInMs: 0,
+      fadeOutMs: 0,
+      duck: { depthDb: -12, attackMs: 150, releaseMs: 150 },
+      licenceSnapshot: { provider: "owned" },
+      cueReason: "energy-peak → impact",
+    },
+  } as PassItem;
+}
+
 function fixtureInit(items: PassItem[]): EditorStoreInit {
   const hot: EdgHot = {
     meta: { edgId: "e1", projectId: "p1", revision: 1, schemaVersion: 2 },
@@ -112,6 +136,37 @@ describe("<PassesTab />", () => {
     expect(screen.getByTestId("proposal-card-i1")).toBeInTheDocument();
     expect(screen.getByTestId("proposal-card-i2")).toBeInTheDocument();
     expect(screen.getByTestId("passes-summary-bar")).toHaveTextContent("Removed: 0.5s");
+  });
+
+  it("D04d: resolves an sfx item's preview URL itself via the api-client hook when no resolver is passed", async () => {
+    const items = [sfxItem("i1", "01JASSET0000000000000000A1")];
+    const store = buildStore(items);
+    const passes: Pass[] = [
+      { passId: "pass-1", type: "sfx", engine: "sfx@1", params: {}, status: "ready", items },
+    ];
+    const { fetchMock } = renderWithProviders(
+      <PassesTab projectId={PROJECT} store={store} passes={passes} sourceDurationMs={10_000} />,
+      {
+        routes: {
+          "/audio-assets/01JASSET0000000000000000A1/url": {
+            assetId: "01JASSET0000000000000000A1",
+            url: "https://minio.test/packs/fixture-pack/01JASSET0000000000000000A1.wav?sig=abc",
+            expiresAt: "2026-09-03T10:10:00.000Z",
+          },
+        },
+      },
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("proposal-card-sfx-preview")).toHaveAttribute(
+        "src",
+        "https://minio.test/packs/fixture-pack/01JASSET0000000000000000A1.wav?sig=abc",
+      );
+    });
+    const calledUrls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(
+      calledUrls.some((url) => url.includes("/audio-assets/01JASSET0000000000000000A1/url")),
+    ).toBe(true);
   });
 
   it("brief C04b §3: greys the run button and shows the upload-to-cloud notice for a local project", () => {

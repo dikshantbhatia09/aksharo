@@ -65,6 +65,11 @@ export const queryKeys = {
   webhooks: (workspaceId: string) => ["ws", workspaceId, "webhooks"] as const,
   webhookDeliveries: (workspaceId: string, endpointId: string) =>
     ["ws", workspaceId, "webhooks", endpointId, "deliveries"] as const,
+  /** D04d: a signed pack-asset URL, cached per asset (the ten-minute TTL
+   * `PACK_ASSET_URL_TTL_SECONDS` signs for) rather than per workspace — the
+   * bytes at `packs/{packId}/{assetId}.wav` do not change per workspace, so
+   * two projects previewing the same catalogue cue share the one fetch. */
+  audioAssetUrl: (assetId: string) => ["audioAssets", assetId, "url"] as const,
 } as const;
 
 export type QueryKeys = typeof queryKeys;

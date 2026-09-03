@@ -8,6 +8,65 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **D04d: audio mix pipeline — signed pack-asset URLs and real energy cues;
+  browser/cloud cue-audio mixing deferred (see Deviations).** Closes two of
+  D04c's three flagged deviations.
+  - `apps/api/src/audio-assets`: `GET /audio-assets/{assetId}/url` (new
+    `AudioAssetsController`/`AudioAssetsService`) — a workspace-member,
+    rate-limited (60/min), audit-free ten-minute signed GET onto one pack
+    asset's bytes. The licence predicate (`assetAllowed`) is **re-checked at
+    signing time**, not trusted from whatever produced the caller's
+    `assetId`: surface is read off the caller's own token `kind`
+    (`desktop`/`api`/`panel`), plan via `resolveWorkspacePlan`, territory
+    `"WORLD"` (the same flagged assumption `passes.service.ts`'s
+    `sfxCatalogueOf` already carries). New `AudioAssetsRepository.findById`.
+    E2e (`audio-assets.e2e-spec.ts`, new HTTP describe block): mints a real
+    token, fetches the signed URL over a real Postgres/Redis/MinIO stack, and
+    fetches the URL itself to prove the bytes that come back are the
+    fixture's own — plus 404 (unknown id), 403 (a partner asset with no
+    established clearance, re-checked regardless of what produced the id),
+    401 (no token).
+  - `packages/api-client`: client regenerated (`getAudioAssetUrl`);
+    `audioAssetsEndpoints.getUrl`, `useAudioAssetUrl`/`useAudioAssetUrls`
+    (`useQueries`-backed, ten-minute `staleTime`, keyed by asset id alone —
+    the bytes at `packs/{packId}/{assetId}.wav` do not vary by workspace).
+  - `apps/web/components/editor/passes/PassesTab.tsx`: closes D04c's
+    deviation (3) — when no `resolveSfxPreviewUrl` override is supplied,
+    `PassesTab` now resolves every visible `sfx` item's preview URL itself
+    via `useAudioAssetUrls`, so `ProposalCard`'s `<audio>` preview has a real
+    URL source in production; the prop stays as a test/storybook override.
+  - `apps/worker-ai`: closes D04c's deviation (1) — `sfx_pass.py` now
+    samples real RMS energy from the 540p proxy when the producer's payload
+    carries no `rmsSamples` (same 10 Hz windows B19b's `zoom`/`reframe`
+    passes already sample), instead of always feeding `detect_energy_cues`
+    an empty series. The proxy-download boilerplate B19b's
+    `reframe_zoom_pass._sample_from_proxy` inlined is factored into a shared
+    `processors/proxy_media.download_proxy`, used by both processors — `sfx`
+    samples audio only (no frame/scene decode; it has no use for it).
+    `passes.service.ts`'s `startSfx` docstring updated to match. New tests:
+    the storage-unconfigured path (mirroring B19b's own), and an energy
+    spike in supplied `rmsSamples` producing a ducked `sfx` item.
+  - **Deviations, and why**: the browser (`OfflineAudioContext`, scheduled
+    cue playback + `applySfxDucking`, output-clock remap) and cloud
+    (`apps/render` ffmpeg `adelay`/`volume`/`afade` graph over D04a's
+    closed-form duck) byte-mixing pipelines, and the loudness/envelope
+    parity fixture proving them equivalent, were **not implemented in this
+    pass** — the scope this WP's brief led with. `apps/web/lib/export/
+engine.ts` already carries the duck-curve math (`duckGainAt`,
+    `applySfxDucking`, D04a/D04c) and `apps/render/src/ffmpeg/
+sfx-duck-expr.ts` already carries the cloud-side closed form and its own
+    parity gate (`parity:sfx`, D04c) — neither export path calls into either
+    to actually decode, schedule and mix a cue's bytes onto the output audio
+    track yet. This is the same class of gap D06 left open for its own title
+    track (closed later by D06b) and D04c left open for `sfx` before it.
+    Flagged rather than rushed: mixing on the output clock (cue starts must
+    shift across accepted cuts/ripples, B20's own remap) is exactly the kind
+    of timing bug that reads fine in a unit test and is wrong on a real
+    multi-cut export, and neither export path nor the parity fixture proving
+    them equal should be the thing a coordinator finds out is faked. A
+    follow-up WP should pick this up starting from the two files named
+    above.
+
 - **D06b: text FX draw path — browser export engine, cloud render, parity
   fixture.** D06 shipped the presets, the layout solver and the worker
   pass, and `RenderManifest.timemap.titles` carried the data, but nothing
