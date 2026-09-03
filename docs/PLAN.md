@@ -146,13 +146,12 @@ C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machine
 | ID | Package | Deps | Status |
 |---|---|---|---|
 | D07 | Prompted edits: edit-plan@1 planner, Flash/Pro engines, plan preview, hold on source / settle on finished minutes | D05, D06 | briefed |
-| X03 | Docs site under /docs: guides, plugin guides, generated API reference, search | C10 | briefed |
-| X04 | Launch checklist: status page, backup/restore drill, on-call runbooks, legal pages (H-27), DPDP records generator, sub-processor list | B13, B16 | running |
+| X03 | Docs site under /docs: guides, plugin guides, generated API reference, search | C10 | merged (docs site; docs.spec -> Gate B) |
+| X04 | Launch checklist: status page, backup/restore drill, on-call runbooks, legal pages (H-27), DPDP records generator, sub-processor list | B13, B16 | merged (status page, incidents, runbooks, restore drill; marketing-smoke -> Gate B) |
 | X08 | Cilium FQDN egress policies + inventory check + runbook (charts only, nothing applied) | X05 | done (merged + verified: 17-host inventory with drift check, off/audit/enforce modes, runbook; 22 infra tests) |
 | D04b | Partner catalogue over a mock adapter behind PARTNER_CATALOGUE (contract gate A00-11 / H-28) | D05 | briefed |
-| C02c | Electron major bump + Playwright-Electron smoke, eslint-plugin-security, C09 WebSocket ticket exchange | X01, C09 | running |
-| C04b | Local mode follow-ups: transcript chunks in the local store (word ops + resegment), engine /probe, editor gating copy | C04 | briefed |
-
+| C02c | Electron major bump + Playwright-Electron smoke, eslint-plugin-security, C09 WebSocket ticket exchange | X01, C09 | merged 4816d0f + verified (Electron 44.1.1; security lint strict for 4 pkgs; WS ticket GET) |
+| C04b | Local mode follow-ups: transcript chunks in the local store (word ops + resegment), engine /probe, editor gating copy | C04 | merged 53ee864 + verified |
 D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for prod — chart variant exists from X05; prod-hardening item before Gate C), X07 hardening also includes: split `packages/api-client`'s hand-written `endpoints/hooks/index/query-keys/types` into per-module files with a generated barrel (three WPs in a row — A22, A14, B04 — conflicted on those five files; B07 found a second latent defect there: Nest controllers returning bare `null` send an empty body which `readJson` turns into `undefined` — `GET /billing/subscription` still does this; wrap nullable responses in an object), D81 schema migration (invoice/ledger/commission foreign keys to workspaces → Restrict; workspaces soft-delete only), the web e2e fixture's hard-coded `montaj:auth:dev-outbox` key (A23 addendum), a browser-safe subpath export for `packages/bridge-core` (C05a vendored the protocol schemas because the barrel pulls Node-only modules), and under D08: extend A22's rule-table transliteration (Hindi + Tamil today) to the remaining AI4Bharat languages as table data once A00-05 eval sets exist. **Gate D**.
 
 ## Gate log
@@ -168,4 +167,4 @@ D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for 
 
 ## Verification gate procedure (every wave)
 Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm db:seed` → `pnpm test` → Playwright smoke → parity gate → screenshot review → update this file.
-| M05 | Maintenance: hermetic free-tier daily-cap test state (cross-file Redis key interference) | Sonnet | running |
+| M05 | Maintenance: hermetic free-tier daily-cap test state (cross-file Redis key interference) | Sonnet | merged (test hardening; daily-cap failure unexplained, on flake watch) |
