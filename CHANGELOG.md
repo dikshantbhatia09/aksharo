@@ -8,6 +8,46 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M04 — main hygiene: consent-purpose drift, worker env-var contract drift, bridge consent sync, audit-scan gap.**
+  - Consent purposes: `apps/api/test/users-workspaces.e2e-spec.ts` and
+    `apps/api/src/consents/consents.service.test.ts` still encoded C12's old
+    5-purpose list. Derived the e2e assertions from `CONSENT_PURPOSES` (one
+    source) and swapped the "outside the enum" sample from `telemetry`
+    (now valid) to `profiling`. `PRIVACY_NOTICE` (`apps/api/src/privacy/privacy-notice.ts`)
+    was also missing the `telemetry` purpose entry; added it (its test
+    already derives from the enum, so no drift is possible going forward).
+    `docs/06-data-model.md`'s consent-purpose enum note still lists only 5
+    purposes — doc row needed, not edited here (out of file boundaries).
+  - Worker env-var contract: `packages/config/src/env.ts`'s `CONTRACT_ENV_VARS`
+    gained `LICENSE_SIGNING_KID` but `apps/worker-ai/worker_ai/settings.py`
+    kept its own hand-copied tuple, so `test_contract_list_matches_typescript`
+    failed. `packages/config`'s build now emits `contract-env-vars.json`
+    (`packages/config/src/emit-contract-env.mjs`, wired into `build`/new
+    `gen:contract-env` script) and `settings.py` reads that JSON at import
+    time, falling back to a last-known-good tuple only when the JSON hasn't
+    been generated yet — the parity test still fails loudly if the fallback
+    ever goes stale, so the two lists cannot silently drift again.
+  - Bridge consent sync: `apps/bridge` read `GET /consents` nowhere and
+    defaulted `telemetryConsent` to `false` forever. `ConsentsController.list`
+    (`GET /consents`) now opts into `@AllowBridgeToken()`; the bridge
+    (`apps/bridge/src/consent-sync.ts`, wired into `main.ts`) reads it on
+    startup and polls it every 5 minutes, starting/stopping the telemetry
+    client live on a change. No push channel exists from the API to an
+    unpaired bridge process (`/bridge/relay` only pairs one bridge with one
+    connected client), so this is a poll rather than the
+    `consent.withdrawn`/`granted` event push the brief first asked for —
+    flagged for the orchestrator as a deviation, same as `memory/consent-events.ts`'s.
+  - Audit-scan gap: `apps/api/src/audit/audit-completeness.test.ts` flagged
+    D08's `evals/internal-evals.controller.ts` (`POST /internal/evals/runs`).
+    It's an HMAC-signed worker-to-API callback exactly like
+    `internal-jobs.controller.ts`, not a user/admin action, and its durable
+    trail is `EvalRun`/`EvalResult`, not `audit_log` — added the same
+    documented exemption to `EXEMPT_FILES`
+    (`apps/api/src/audit/audited-routes.scan.ts`).
+  - Lint hygiene: `packages/fonts/e2e/server.mjs`'s long-standing no-console
+    warning fixed with the same `eslint-disable-next-line` style already used
+    elsewhere in the repo; `pnpm -w lint` is clean.
+
 - C09: DaVinci Resolve Studio Workflow Integration panel (`plugins/resolve-panel`) — docked React shell over `aksharo_core`'s loopback server (discover → bearer → JSON-RPC), `WorkflowIntegrationHost` adapter + mock, sign-in mirrored from the script, timeline picker, "Caption this timeline", passes review + "Apply in Resolve", version/update banner; C08 loopback server gains `session.status`, `transcribe.start`, `passes.list` (`plugins/resolve/aksharo_core_app/session.py|transcribe.py|passes.py`) plus a `?token=` query-param bearer path for browser `WebSocket` callers; `tools/release`'s `package-resolve` now also stages the panel bundle for Studio installs.
 
 ### Added
