@@ -38,6 +38,7 @@ describe("engine discovery file", () => {
     // guards the same assertion the same way); the write still succeeds there,
     // it just cannot be observed via `mode`.
     if (process.platform !== "win32") {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const mode = statSync(path).mode & 0o777;
       expect(mode).toBe(0o600);
     }
@@ -67,6 +68,7 @@ describe("engine discovery file", () => {
       path,
     );
     // Corrupt it directly.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     writeFileSync(path, "not json");
     expect(readEngineDiscoveryFile(path)).toBeUndefined();
   });
@@ -99,6 +101,7 @@ describe("engine discovery file", () => {
       { port: 1, bearer: generateBearerToken(), pid: 1, version: "x", startedAt: "x" },
       path,
     );
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const raw = readFileSync(path, "utf8");
     expect(raw.endsWith("\n")).toBe(true);
   });

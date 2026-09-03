@@ -146,6 +146,7 @@ export interface RenderAssFrameOptions {
 export async function renderAssFrameToRgba(options: RenderAssFrameOptions): Promise<Uint8Array> {
   const dir = await mkdtemp(join(tmpdir(), "montaj-ass-parity-"));
   const assPath = join(dir, "cue.ass");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   await writeFile(assPath, options.assContent, "utf8");
   try {
     const durationSec = Math.max(1, (options.durationMs ?? options.tMs + 500) / 1000);

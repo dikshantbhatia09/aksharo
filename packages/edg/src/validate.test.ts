@@ -40,6 +40,7 @@ function build(spec: Spec): { projection: EdgProjection; chunks: TranscriptChunk
     }
     segments.push({
       id: newId(),
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       seq: seqs[index] as string,
       startWordId: makeWordId(0, first),
       endWordId: makeWordId(0, n - 1),

@@ -120,6 +120,7 @@ async function main(): Promise<void> {
     // Insert or replace `scriptScale` inside `typography`, leaving every other
     // line — and every other field — byte-identical.
     const path = join(stylesDir, `${style.id}.json`);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const source = readFileSync(path, "utf8");
     const block = JSON.stringify(scales);
     const next = /"scriptScale":\s*\{[^}]*\}/.test(source)
@@ -129,6 +130,7 @@ async function main(): Promise<void> {
           (_match, line: string, indent: string) => `${line},\n${indent}"scriptScale": ${block}`,
         );
     if (next === source) throw new Error(`could not write scriptScale into ${style.id}.json`);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     writeFileSync(path, next, "utf8");
   }
 

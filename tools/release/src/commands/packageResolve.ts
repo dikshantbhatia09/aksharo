@@ -35,6 +35,7 @@ interface ResolveInstallerManifest {
 async function readInstallerManifest(repoRoot: string): Promise<ResolveInstallerManifest> {
   const manifestPath = path.join(repoRoot, "plugins", "resolve", "installer", "manifest.json");
   if (!(await pathExists(manifestPath))) return { version: 1, macros: [] };
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const raw = await fs.readFile(manifestPath, "utf8");
   return JSON.parse(raw) as ResolveInstallerManifest;
 }
@@ -66,6 +67,7 @@ export async function runPackageResolve(
     await copyDir(path.join(absPluginDir, libDir), path.join(sourceDir, libDir));
   } else {
     placeholderPlugin = true;
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(
       path.join(sourceDir, entryFile),
       "# placeholder Resolve script (C08 not landed yet)\n",
@@ -85,6 +87,7 @@ export async function runPackageResolve(
     macrosStaged.push(macro.id);
   }
 
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   await fs.writeFile(path.join(sourceDir, "VERSION"), `${version}\n`, "utf8");
 
   await writeInstaller(
@@ -147,6 +150,7 @@ async function stagePanel(ctx: ReleaseContext, panelDir: string): Promise<boolea
 
   if (!hasManifest || !hasBuiltDist) {
     await ensureDir(panelDir);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(
       path.join(panelDir, "README.txt"),
       hasManifest
@@ -192,6 +196,7 @@ function installerPanelPowerShell(
 async function copyDir(src: string, dest: string): Promise<void> {
   if (!(await pathExists(src))) return;
   await ensureDir(dest);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const entries = await fs.readdir(src, { withFileTypes: true });
   for (const entry of entries) {
     // Never ship bytecode caches or the (non-existent here) venv.
@@ -207,6 +212,7 @@ async function copyDir(src: string, dest: string): Promise<void> {
 }
 
 async function writeInstaller(dir: string, name: string, content: string): Promise<void> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   await fs.writeFile(path.join(dir, name), content, "utf8");
 }
 

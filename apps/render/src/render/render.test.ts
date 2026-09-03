@@ -223,7 +223,9 @@ describe("the font loader", () => {
     const face = fonts[0];
     expect(face).toBeDefined();
     if (face === undefined) return;
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(join(await ensureDir(dir), "face.ttf"), face.data);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(
       join(dir, "fonts.json"),
       JSON.stringify({
@@ -247,12 +249,14 @@ describe("the font loader", () => {
 
   it("refuses a manifest that is not a v1 pack", async () => {
     const dir = await ensureDir(join(scratch, "bad-pack"));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(join(dir, "fonts.json"), JSON.stringify({ v: 2, fonts: [] }));
     await expect(readFontPack(dir)).rejects.toThrow(/not a v1 font pack/);
   });
 
   it("refuses a file name that could escape the pack directory", async () => {
     const dir = await ensureDir(join(scratch, "escape-pack"));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(
       join(dir, "fonts.json"),
       JSON.stringify({
@@ -265,6 +269,7 @@ describe("the font loader", () => {
 
   it("refuses woff2, which HarfBuzz cannot read", async () => {
     const dir = await ensureDir(join(scratch, "woff-pack"));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(
       join(dir, "fonts.json"),
       JSON.stringify({
@@ -277,6 +282,7 @@ describe("the font loader", () => {
 
   it("refuses a manifest naming a file that is not there", async () => {
     const dir = await ensureDir(join(scratch, "missing-pack"));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(
       join(dir, "fonts.json"),
       JSON.stringify({

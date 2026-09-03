@@ -319,6 +319,7 @@ describe("normalisation invariants", () => {
       fc.property(fullMap, (map) => {
         for (let i = 1; i < map.cuts.length; i += 1) {
           const previous = map.cuts[i - 1] as CutEdit;
+          // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
           const current = map.cuts[i] as CutEdit;
           expect(current.startMs).toBeGreaterThan(previous.endMs);
         }

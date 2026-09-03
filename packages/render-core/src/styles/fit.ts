@@ -101,7 +101,9 @@ export function budgetFillingWords(
   // A word longer than the whole budget could never appear in a caption the
   // segmenter cut to it, so it must not appear in the probe either — otherwise
   // the probe measures a caption the product cannot produce.
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const fitting = WORD_POOL[script].filter((word) => charCount(word) <= budget);
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const pool = fitting.length > 0 ? fitting : WORD_POOL[script];
   const texts: string[] = [];
   let lines = 1;

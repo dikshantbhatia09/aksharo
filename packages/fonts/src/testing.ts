@@ -18,6 +18,7 @@ import type { FontManifest } from "./manifest.js";
 
 /** Bytes of one face in the bundled pack, by id (`noto-sans-devanagari-400`). */
 export function packFontBytes(id: string, extension: "ttf" | "woff2" = "ttf"): Uint8Array {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   return new Uint8Array(readFileSync(join(bundledPackDirectory(), `${id}.${extension}`)));
 }
 
@@ -54,6 +55,7 @@ export function fakeTtfBytes(sizeBytes = 4_096): Uint8Array {
   // past the end of the file.
   bytes[4] = 0x01;
   bytes[5] = 0x90;
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   for (let index = 12; index < sizeBytes; index += 1) bytes[index] = (index * 31) % 251;
   return bytes;
 }
@@ -72,6 +74,7 @@ export function collectionBytes(): Uint8Array {
 
 /** Read a big-endian 16-bit value. */
 function readU16(bytes: Uint8Array, offset: number): number {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return ((bytes[offset] ?? 0) << 8) | (bytes[offset + 1] ?? 0);
 }
 

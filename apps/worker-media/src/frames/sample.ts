@@ -88,6 +88,7 @@ export async function sampleFrames(
 ): Promise<SampledFrame[]> {
   const hz = input.hz ?? SAMPLE_HZ;
   const maxWidth = input.maxWidth ?? MAX_FRAME_WIDTH;
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   await mkdir(input.outDir, { recursive: true });
   const outPattern = join(input.outDir, "frame-%05d.jpg");
 
@@ -100,6 +101,7 @@ export async function sampleFrames(
     },
   );
 
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const written = (await readdir(input.outDir))
     .filter((name) => name.startsWith("frame-") && name.endsWith(".jpg"))
     .sort();

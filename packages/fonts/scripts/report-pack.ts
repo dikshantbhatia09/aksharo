@@ -67,6 +67,7 @@ async function main(): Promise<void> {
   const missing = REQUIRED_SCRIPTS.filter((tag) => !covered.has(tag));
   if (missing.length > 0) {
     process.stdout.write(
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       `\nMISSING required scripts: ${missing.map((tag) => `${tag} (${SCRIPT_NAMES[tag]})`).join(", ")}\n`,
     );
     process.exitCode = 1;

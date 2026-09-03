@@ -98,8 +98,10 @@ export function detectWordScript(text: string): WordScript | undefined {
   const counts: Record<WordScript, number> = { latin, devanagari, tamil, other };
   let best: WordScript | undefined;
   for (const script of SCRIPT_PRIORITY) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const count = counts[script];
     if (count === 0) continue;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     if (best === undefined || count > counts[best]) best = script;
   }
   return best;
@@ -114,13 +116,16 @@ export function dominantScript(texts: Iterable<string>): WordScript {
   const counts: Record<WordScript, number> = { latin: 0, devanagari: 0, tamil: 0, other: 0 };
   for (const text of texts) {
     const script = detectWordScript(text);
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     if (script !== undefined) counts[script] += 1;
   }
   let best: WordScript = "latin";
   let bestCount = 0;
   for (const script of SCRIPT_PRIORITY) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     if (counts[script] > bestCount) {
       best = script;
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       bestCount = counts[script];
     }
   }
@@ -145,5 +150,6 @@ export const SCRIPT_LIMITS: Readonly<Record<WordScript, ScriptLimits>> = {
 
 /** The limits for one script. */
 export function limitsFor(script: WordScript): ScriptLimits {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return SCRIPT_LIMITS[script];
 }

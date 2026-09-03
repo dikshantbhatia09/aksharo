@@ -58,11 +58,13 @@ const LANGUAGE_SCRIPT: Record<string, IndicScript> = {
 /** The script a language tag is written in, or `undefined` for Latin. */
 export function scriptForLanguage(language: string): IndicScript | undefined {
   const base = language.toLowerCase().split(/[-_]/)[0] ?? "";
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return LANGUAGE_SCRIPT[base];
 }
 
 /** The stylesheet URL for one family. Weights 400 and 600, `display=swap`. */
 export function indicFontHref(script: IndicScript): string {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const family = INDIC_FONT_FAMILIES[script].replace(/ /g, "+");
   return `https://fonts.googleapis.com/css2?family=${family}:wght@400;600&display=swap`;
 }
@@ -94,5 +96,6 @@ export function fontStackForLanguage(language: string): string {
   const script = scriptForLanguage(language);
   return script === undefined
     ? "var(--font-sans)"
-    : `"${INDIC_FONT_FAMILIES[script]}", var(--font-sans)`;
+    : // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
+      `"${INDIC_FONT_FAMILIES[script]}", var(--font-sans)`;
 }

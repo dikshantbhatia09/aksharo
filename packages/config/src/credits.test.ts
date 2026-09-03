@@ -104,6 +104,7 @@ describe("BURN_RATES", () => {
   it("covers every operation exactly once", () => {
     expect(CREDIT_OPERATIONS).toHaveLength(11);
     for (const operation of CREDIT_OPERATIONS) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(BURN_RATES[operation].operation).toBe(operation);
     }
   });

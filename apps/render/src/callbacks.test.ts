@@ -82,6 +82,7 @@ describe("the signature", () => {
       body: "{}",
       now: 1_700_000_000_123,
     });
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     expect(headers[TIMESTAMP_HEADER]).toBe("1700000000");
     expect(headers["content-type"]).toBe("application/json");
   });
@@ -137,7 +138,9 @@ describe("the client", () => {
     if (call === undefined) return;
     expect(call.url).toBe("http://api.test/internal/jobs/j/progress");
     expect(JSON.parse(call.body)).toEqual({ progress: 42.13, etaMs: 1_234, message: "half way" });
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const timestamp = call.headers[TIMESTAMP_HEADER];
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     expect(call.headers[SIGNATURE_HEADER]).toBe(signRequest(SECRET, timestamp ?? "", call.body));
   });
 
@@ -181,7 +184,9 @@ describe("the client", () => {
     await client(fetch).complete("j", "a", { status: "succeeded" });
     expect(calls).toHaveLength(3);
     for (const call of calls) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(call.headers[SIGNATURE_HEADER]).toBe(
+        // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
         signRequest(SECRET, call.headers[TIMESTAMP_HEADER] ?? "", call.body),
       );
     }

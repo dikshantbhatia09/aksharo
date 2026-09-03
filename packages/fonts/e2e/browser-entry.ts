@@ -105,6 +105,7 @@ async function boot(): Promise<Summary> {
     ready: Promise.resolve(summary),
     missing: () => [...backend.missingResources],
     renderFrame(name: string): string {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const commands = bundle.frames[name];
       if (commands === undefined) throw new Error(`no such frame: ${name}`);
       backend.drawFrame(surface.getCanvas(), commands, { background: bundle.background });
@@ -118,6 +119,7 @@ async function boot(): Promise<Summary> {
       );
     },
     inkRatio(name: string): number {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const commands = bundle.frames[name];
       if (commands === undefined) throw new Error(`no such frame: ${name}`);
       const png = backend.renderToPng(commands, {
@@ -138,6 +140,7 @@ async function boot(): Promise<Summary> {
         if (pixels === null) throw new Error("could not read the frame back");
         let inked = 0;
         for (let index = 3; index < pixels.length; index += 4) {
+          // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
           if ((pixels[index] ?? 0) > 8) inked += 1;
         }
         return inked / (pixels.length / 4);

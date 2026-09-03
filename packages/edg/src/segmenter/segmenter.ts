@@ -158,6 +158,7 @@ function resolveLimits(entries: readonly Prepared[], params: SegmenterParams): R
   const limits = limitsFor(script);
   return {
     script,
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     maxCharsPerLine: params.maxCharsByScript?.[script] ?? params.maxChars ?? limits.maxCharsPerLine,
     maxCps: params.maxCps ?? limits.maxCps,
   };
@@ -299,6 +300,7 @@ function build(
 function rebalanceOrphans(runs: Pending[], params: SegmenterParams, limits: Resolved): Pending[] {
   const balanced = [...runs];
   for (let index = 1; index < balanced.length; index += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const orphan = balanced[index];
     const previous = balanced[index - 1];
     if (orphan === undefined || previous === undefined) continue;
@@ -320,6 +322,7 @@ function rebalanceOrphans(runs: Pending[], params: SegmenterParams, limits: Reso
     if (shortened.endMs - shortened.startMs < params.minMs) continue;
 
     balanced[index - 1] = shortened;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     balanced[index] = widened;
   }
   return balanced;
@@ -381,6 +384,7 @@ export function segmentWords(
   const mint = opts.newId ?? defaultNewId;
   const keys = seqSequence(absorbed.length);
   return absorbed.map((run, index) => {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const seq = keys[index];
     if (seq === undefined) throw new Error("seqSequence returned too few keys");
     return toSegment(run, seq, mint(), opts.styleRef);

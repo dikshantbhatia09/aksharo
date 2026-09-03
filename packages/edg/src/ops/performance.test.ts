@@ -34,6 +34,7 @@ function buildWords(): Word[] {
   for (let index = 0; index < WORD_COUNT; index += 1) {
     const chunkIdx = Math.floor(index / WORDS_PER_CHUNK);
     const start = index * 400;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     words[index] = {
       wid: makeWordId(chunkIdx, index % WORDS_PER_CHUNK),
       s: start,
@@ -68,6 +69,7 @@ function buildProjection(words: readonly Word[], mint: () => string): EdgProject
   for (let index = 0; index < SEGMENT_COUNT; index += 1) {
     const first = words[index * WORDS_PER_SEGMENT];
     const last = words[index * WORDS_PER_SEGMENT + WORDS_PER_SEGMENT - 1];
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const seq = keys[index];
     if (first === undefined || last === undefined || seq === undefined) break;
     segments.push({

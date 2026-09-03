@@ -48,6 +48,7 @@ let file = "";
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), "montaj-storage-test-"));
   file = join(dir, "proxy540.mp4");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   await writeFile(file, Buffer.alloc(2_048, 7));
 });
 

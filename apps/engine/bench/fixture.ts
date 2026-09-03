@@ -40,6 +40,7 @@ const DEFAULT_FIXTURE_PATH = join(__dirname, "..", "fixtures", "hinglish-referen
 export function loadHinglishReference(
   path: string = DEFAULT_FIXTURE_PATH,
 ): readonly ReferenceItem[] {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const raw = readFileSync(path, "utf8");
   const parsed = JSON.parse(raw) as FixtureFile;
   if (parsed.v !== 1) {

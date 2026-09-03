@@ -100,7 +100,9 @@ export function createUlidFactory(options: UlidFactoryOptions = {}): () => strin
       // Same (or a backwards) millisecond: add one to the 80-bit random field.
       let carry = 1;
       for (let i = ULID_RANDOM_LENGTH - 1; i >= 0 && carry === 1; i -= 1) {
+        // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
         const next = (lastRandom[i] ?? 0) + carry;
+        // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
         lastRandom[i] = next % 32;
         carry = next >= 32 ? 1 : 0;
       }

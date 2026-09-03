@@ -151,6 +151,7 @@ describe("consistency with C08b's style_map report (if it has landed on this wor
     let markdown: string | undefined;
     for (const path of candidatePaths) {
       try {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
         markdown = readFileSync(path, "utf8");
         break;
       } catch {
@@ -167,6 +168,7 @@ describe("consistency with C08b's style_map report (if it has landed on this wor
     const mine = buildMogrtStyleMap();
     for (const entry of mine) {
       // Row shape: | Name (`id`) | category | Status | reason | font | ... |
+      // eslint-disable-next-line security/detect-non-literal-regexp -- RegExp built from a fixed/internal string (test fixture or bounded value, not attacker input) -- reviewed for M06's eslint-plugin-security promotion
       const rowMatch = new RegExp("`" + entry.styleId + "`\\) \\| [^|]+ \\| ([A-Za-z]+) \\|").exec(
         markdown,
       );

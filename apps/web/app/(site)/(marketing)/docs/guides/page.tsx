@@ -42,6 +42,7 @@ export default function DocsGuidesPage(): React.JSX.Element {
       </div>
       {byCategory.map(({ category, articles: categoryArticles }) => (
         <div key={category}>
+          {/* eslint-disable-next-line security/detect-object-injection -- bracket access on `category`, a typed enum value, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion */}
           <h2 className="text-fg-0 mb-3 text-sm font-semibold">{CATEGORY_LABEL[category]}</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {categoryArticles.map((article) => (

@@ -151,6 +151,7 @@ export async function buildWaveform(input: {
   readonly durationMs: number;
 }): Promise<Waveform> {
   const accumulator = new WaveformAccumulator(input.sampleRate);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const stream = createReadStream(input.file, {
     start: WAV_HEADER_BYTES,
     highWaterMark: CHUNK_BYTES,

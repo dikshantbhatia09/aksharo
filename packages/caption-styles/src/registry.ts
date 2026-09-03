@@ -46,6 +46,7 @@ export class StyleCatalogueError extends Error {
 
 function readJson(path: string): unknown {
   try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     return JSON.parse(readFileSync(path, "utf8")) as unknown;
   } catch (error) {
     throw new StyleCatalogueError(`cannot read ${path}: ${(error as Error).message}`);
@@ -68,6 +69,7 @@ export function loadStyleRegistry(dir: string = STYLES_DIR): StyleRegistry {
  * skipped: a broken style must never reach the catalogue.
  */
 export function loadSystemStyles(dir: string = STYLES_DIR): StyleDoc[] {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const files = readdirSync(dir)
     .filter((file) => file.endsWith(".json") && file !== REGISTRY_FILENAME)
     .sort();

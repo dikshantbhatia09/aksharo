@@ -25,6 +25,7 @@ export const INSIGHT_KINDS = ["chapters", "summary", "hooks"] as const;
 export type InsightKind = (typeof INSIGHT_KINDS)[number];
 
 export function templateFor(kind: TemplateRegistryKind): TemplateDefinition<unknown, unknown> {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return TEMPLATE_REGISTRY[kind] as TemplateDefinition<unknown, unknown>;
 }
 

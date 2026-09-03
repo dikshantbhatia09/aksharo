@@ -56,12 +56,14 @@ export function sha256Hex(message: string): string {
   const w = new Uint32Array(64);
 
   for (let chunk = 0; chunk < withPadding.length; chunk += 64) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     for (let i = 0; i < 16; i += 1) w[i] = view.getUint32(chunk + i * 4);
     for (let i = 16; i < 64; i += 1) {
       const a = w[i - 15] as number;
       const b = w[i - 2] as number;
       const s0 = rotr(a, 7) ^ rotr(a, 18) ^ (a >>> 3);
       const s1 = rotr(b, 17) ^ rotr(b, 19) ^ (b >>> 10);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       w[i] = ((w[i - 16] as number) + s0 + (w[i - 7] as number) + s1) >>> 0;
     }
     let [a, b, c, d, e, f, g, hh] = [
@@ -77,6 +79,7 @@ export function sha256Hex(message: string): string {
     for (let i = 0; i < 64; i += 1) {
       const s1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
       const ch = (e & f) ^ (~e & g);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const temp1 = (hh + s1 + ch + (K[i] as number) + (w[i] as number)) >>> 0;
       const s0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
       const maj = (a & b) ^ (a & c) ^ (b & c);

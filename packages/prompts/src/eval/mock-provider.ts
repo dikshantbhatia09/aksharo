@@ -70,6 +70,7 @@ export function mockHooks(input: HooksInput): HooksOutput {
       { length: 10 },
       (_, i) => `#${pick(i + 5).replace(/[^\p{L}\p{N}_]/gu, "")}`,
     ).map((tag, i) => (tag === "#" ? `#tag${String(i)}` : tag));
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     result[platform] = { hooks, titles, hashtags };
   }
   return result as HooksOutput;

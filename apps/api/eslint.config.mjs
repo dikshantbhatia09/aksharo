@@ -1,14 +1,10 @@
-import { montajEslintConfig, securityRulesStrict } from "@montaj/config/eslint";
+import { montajEslintConfig } from "@montaj/config/eslint";
 
 export default montajEslintConfig({
   // `pnpm gen:client` compiles the app here before running the generator; it is
   // build output, not source.
   ignores: [".openapi/**"],
   extra: [
-    // C02c (2026-09-03): every eslint-plugin-security finding here is fixed or
-    // annotated (docs/security/threat-model-audit-2026-09-03.md follow-up) —
-    // promoted to "error" so a new one fails lint instead of sitting at warn.
-    { rules: securityRulesStrict },
     {
       // NestJS DTO classes rely on definite-assignment declarations, and the
       // decorator metadata is what makes DI and OpenAPI work.

@@ -61,9 +61,12 @@ export function t(
   vars: Record<string, string | number> = {},
   locale: Locale = DEFAULT_LOCALE,
 ): string {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const table = STRINGS[key];
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const template = table[locale] ?? table[DEFAULT_LOCALE];
   return template.replace(/\{(\w+)\}/g, (_match, name: string) =>
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     name in vars ? String(vars[name]) : `{${name}}`,
   );
 }

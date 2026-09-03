@@ -44,7 +44,9 @@ interface ZipEntryRecord {
 
 async function writeStoreZip(sourceDir: string, destZip: string): Promise<void> {
   const files = await listFilesRelative(sourceDir);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   await fs.mkdir(path.dirname(destZip), { recursive: true });
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const out = createWriteStream(destZip);
   const records: ZipEntryRecord[] = [];
   let offset = 0;
@@ -56,6 +58,7 @@ async function writeStoreZip(sourceDir: string, destZip: string): Promise<void> 
 
   for (const rel of files) {
     const abs = path.join(sourceDir, rel);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const data = await fs.readFile(abs);
     const crc = crc32(data) >>> 0;
     const nameBuf = Buffer.from(rel.split(path.sep).join("/"), "utf8");
@@ -128,6 +131,7 @@ function sumCentralSize(records: ZipEntryRecord[]): number {
 }
 
 async function listFilesRelative(dir: string, base = dir): Promise<string[]> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const entries = await fs.readdir(dir, { withFileTypes: true });
   const out: string[] = [];
   for (const entry of entries) {

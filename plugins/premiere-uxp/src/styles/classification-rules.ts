@@ -133,6 +133,7 @@ export const SHARED_CLASSIFICATION_RULES: ClassificationRules = {
 function getField(value: unknown, path: string): unknown {
   return path.split(".").reduce<unknown>((acc, key) => {
     if (acc && typeof acc === "object" && key in acc) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       return (acc as Record<string, unknown>)[key];
     }
     return undefined;
@@ -172,6 +173,7 @@ export function applyClassificationRules(
   for (const rule of rules) {
     if (ruleFires(rule, style)) {
       reasons.push(rule.reason);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       if (STATUS_RANK[rule.status] > STATUS_RANK[status]) {
         status = rule.status;
       }
@@ -197,5 +199,6 @@ export function findCanonicalRulesPath(): string | undefined {
 }
 
 export function readCanonicalRules(path: string): ClassificationRules {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   return JSON.parse(readFileSync(path, "utf8")) as ClassificationRules;
 }

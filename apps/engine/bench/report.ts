@@ -41,8 +41,11 @@ export interface BenchReport {
 }
 
 export function writeReport(report: BenchReport, mdPath: string, jsonPath: string): void {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   mkdirSync(dirname(mdPath), { recursive: true });
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   writeFileSync(jsonPath, JSON.stringify(report, null, 2) + "\n", "utf8");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   writeFileSync(mdPath, renderMarkdown(report), "utf8");
 }
 

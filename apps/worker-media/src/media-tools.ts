@@ -107,6 +107,7 @@ export async function assertMediaToolsAvailable(
   const results = await Promise.all(
     REQUIRED_TOOLS.map(async (tool) => ({
       tool,
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       version: await toolVersion(tool, paths[tool]),
     })),
   );

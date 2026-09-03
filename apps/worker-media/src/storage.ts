@@ -103,11 +103,13 @@ export class S3Store implements ObjectStore {
     readonly contentType: string;
     readonly tags?: Readonly<Record<string, string>>;
   }): Promise<number> {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const { size } = await stat(input.file);
     await this.send(
       new PutObjectCommand({
         Bucket: this.bucket,
         Key: input.key,
+        // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
         Body: createReadStream(input.file),
         ContentLength: size,
         ContentType: input.contentType,

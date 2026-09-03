@@ -11,6 +11,7 @@ const SIGNED_URL = "https://storage.example.test/clean/01JA20SNDTRACK00000000000
 function store(objects: Record<string, Uint8Array>) {
   return {
     async resolveCloudSource(key: string): Promise<Uint8Array> {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const bytes = objects[key];
       if (bytes === undefined) throw new Error(`no object at ${key}`);
       return bytes;
@@ -20,6 +21,7 @@ function store(objects: Record<string, Uint8Array>) {
       // same key the signer started from (as a real signed-URL scheme would).
       const key = url === SIGNED_URL ? CLEAN_KEY : undefined;
       if (key === undefined) throw new Error(`no object signed for ${url}`);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const bytes = objects[key];
       if (bytes === undefined) throw new Error(`no object at ${key}`);
       return bytes;

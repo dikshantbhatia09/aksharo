@@ -88,6 +88,7 @@ export class ModelManager {
     const statuses: ModelStatus[] = [];
     for (const entry of this.manifest.entries) {
       const path = this.localPath(entry.id);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const stats = await stat(path).catch(() => undefined);
       const downloadState = this.downloadStates.get(entry.id);
       let state: ModelState;
@@ -114,6 +115,7 @@ export class ModelManager {
   async diskUsageBytes(): Promise<number> {
     let total = 0;
     for (const entry of this.manifest.entries) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const stats = await stat(this.localPath(entry.id)).catch(() => undefined);
       if (stats !== undefined) total += stats.size;
     }
@@ -123,6 +125,7 @@ export class ModelManager {
   /** True when nothing at all is installed — the engine's "models missing" state (brief "Reality"). */
   async modelsMissing(): Promise<boolean> {
     for (const entry of this.manifest.entries) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const stats = await stat(this.localPath(entry.id)).catch(() => undefined);
       if (stats !== undefined && stats.size === entry.sizeBytes) return false;
     }
@@ -139,10 +142,12 @@ export class ModelManager {
     const entry = this.entry(entryId);
     const finalPath = this.localPath(entryId);
     const partPath = `${finalPath}.part`;
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await mkdir(dirname(finalPath), { recursive: true });
 
     this.downloadStates.set(entryId, { state: "downloading", progress: 0 });
     try {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const existing = await stat(partPath).catch(() => undefined);
       const resumeFrom = existing?.size ?? 0;
 
@@ -165,6 +170,7 @@ export class ModelManager {
         );
       }
 
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const handle = await open(partPath, resumeFrom > 0 && response.status === 206 ? "r+" : "w");
       try {
         if (resumeFrom > 0 && response.status === 206) await handle.truncate(resumeFrom);
@@ -183,6 +189,7 @@ export class ModelManager {
 
       const digest = await sha256File(partPath);
       if (digest !== entry.sha256) {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
         await unlink(partPath).catch(() => undefined);
         this.downloadStates.set(entryId, { state: "failed" });
         throw new ModelManagerError(
@@ -191,6 +198,7 @@ export class ModelManager {
         );
       }
 
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       await rename(partPath, finalPath);
       this.downloadStates.delete(entryId);
     } catch (error) {
@@ -219,6 +227,7 @@ export class ModelManager {
     const failed: string[] = [];
     for (const entry of this.manifest.entries) {
       const path = this.localPath(entry.id);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const stats = await stat(path).catch(() => undefined);
       if (stats === undefined) continue;
       if (stats.size !== entry.sizeBytes) {
@@ -238,6 +247,7 @@ export class ModelManager {
 
 async function sha256File(path: string): Promise<string> {
   const hash = createHash("sha256");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const handle = await open(path, "r");
   try {
     const stream = handle.createReadStream();

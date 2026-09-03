@@ -177,6 +177,7 @@ describe("a whole cloud render", () => {
     // `+faststart` moves the moov atom in front of the media data, so a
     // download plays before it finishes. ffprobe does not report it, but the
     // byte order does: `moov` must appear before `mdat`.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const head = await readFile(derivedStore.pathFor(outcome.outputKey));
     const text = head.toString("latin1");
     expect(text.indexOf("moov")).toBeGreaterThan(-1);
@@ -250,6 +251,7 @@ describe("a whole cloud render", () => {
       ],
       { timeout: 120_000, windowsHide: true },
     );
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const pixel = await readFile(frame);
     expect(pixel).toHaveLength(3);
     expect(pixel[0]).toBeGreaterThan((pixel[1] ?? 0) + 30);
@@ -396,6 +398,7 @@ describe("the cloud-only output shapes", () => {
       ],
       { timeout: 120_000, windowsHide: true },
     );
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const pixel = await readFile(frame);
     expect(pixel[1]).toBeGreaterThan(120);
     expect(pixel[0]).toBeLessThan(80);

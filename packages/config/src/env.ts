@@ -103,6 +103,7 @@ const httpOrigin = (name: string) =>
  * two mistakes that actually happen: a bare domain, and a display name with no
  * angle brackets.
  */
+// eslint-disable-next-line security/detect-unsafe-regex -- reviewed and timed against adversarial input -- linear, no nested unbounded quantifiers -- not exponential (see M06 report)
 const MAIL_FROM_PATTERN = /^(?:[^<>]{1,64}\s)?<?[^\s@<>]+@[^\s@<>.]+\.[^\s@<>]+>?$/;
 
 const pemKey = (name: string) =>
@@ -302,6 +303,7 @@ export function loadEnv(options: LoadEnvOptions = {}): Env {
 
   const problems = result.error.issues.map((issue) => {
     const variable = issue.path.length > 0 ? String(issue.path[0]) : "(environment)";
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const raw = source[variable];
     if (raw === undefined) return `${variable} is missing`;
     if (raw.trim() === "") return `${variable} is empty`;

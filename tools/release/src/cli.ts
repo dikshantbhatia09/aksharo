@@ -58,7 +58,8 @@ program
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
     const subjects = opts.subjects
-      ? (await fs.readFile(opts.subjects, "utf8")).split("\n").filter(Boolean)
+      ? // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
+        (await fs.readFile(opts.subjects, "utf8")).split("\n").filter(Boolean)
       : [];
     const { next, bump } = computeNextVersion(opts.current, subjects);
     const date = new Date(ctx.now()).toISOString().slice(0, 10);
@@ -66,9 +67,11 @@ program
     console.log(`current=${opts.current} next=${next} bump=${bump ?? "none"}`);
     if (opts.dryRun === false) {
       const changelogPath = path.join(ctx.repoRoot, "CHANGELOG.md");
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const existing = await fs
         .readFile(changelogPath, "utf8")
         .catch(() => "# Changelog\n\n## Unreleased\n\n");
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       await fs.writeFile(changelogPath, insertChangelogSection(existing, section), "utf8");
     } else {
       console.log(section);

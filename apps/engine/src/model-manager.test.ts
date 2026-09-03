@@ -61,6 +61,7 @@ describe("ModelManager", () => {
     });
 
     await manager.download("a");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const onDisk = readFileSync(join(dir, "models/a.bin"));
     expect(onDisk.equals(payload)).toBe(true);
 
@@ -117,6 +118,7 @@ describe("ModelManager", () => {
     await fs.writeFile(join(dir, "models/a.bin.part"), payload.subarray(0, 10));
 
     await manager.download("a");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const onDisk = readFileSync(join(dir, "models/a.bin"));
     expect(onDisk.equals(payload)).toBe(true);
   });

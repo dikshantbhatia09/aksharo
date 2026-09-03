@@ -117,6 +117,7 @@ export interface LineBudget {
  */
 export function averageAdvanceEm(options: Omit<FitBudgetOptions, "canvas">): number {
   const { style, script, registry, shaper } = options;
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const sample = applyTextTransform(BUDGET_SAMPLES[script], style.typography.textTransform);
   const font = resolveFontOrThrow(
     registry,
@@ -206,6 +207,7 @@ export function fitBudgetsByScript(
   let maxLines = READABILITY_MAX_LINES;
   for (const script of scripts) {
     const budget = fitBudget({ ...options, script });
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     maxCharsByScript[script] = budget.maxChars;
     maxLines = Math.min(maxLines, budget.maxLines);
   }

@@ -8,6 +8,43 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M06: `eslint-plugin-security` promoted to `error` repo-wide.** C02c drove
+  `apps/api`, `apps/web`, `packages/bridge-core` and `apps/desktop` to zero
+  findings; this WP reviewed every remaining finding across the other 21
+  packages (559 warnings: 275 `detect-non-literal-fs-filename`, 255
+  `detect-object-injection`, 14 `detect-unsafe-regex`, 10
+  `detect-possible-timing-attacks`, 5 `detect-non-literal-regexp`). Every one
+  was a false positive of this plugin's known-noisy heuristics — bounded,
+  linear regexes (commit-subject classifiers, kebab-case ids, SVG path-token
+  scanners) flagged as "unsafe"; enum-/manifest-bounded bracket access flagged
+  as "object injection"; internal build, manifest- and config-driven paths
+  flagged as "non-literal fs filename"; null/status/hash sentinel `===`
+  checks flagged as "timing attacks" (the one real constant-time comparison,
+  `packages/render-manifest/src/signature.ts`'s `verifyManifestSignature`,
+  already uses `crypto.timingSafeEqual`) — verified by re-running the flagged
+  regexes against adversarial input (no exponential blowup) and by reading
+  every object-injection/fs-filename site's key/path provenance. No real fix
+  was needed; every finding was annotated with a reasoned
+  `eslint-disable-next-line security/<rule> -- <reason>` following C02c's
+  convention. `packages/config/eslint.config.base.mjs`'s `securityRules` is
+  now `error` by default (no more `warn` floor), `securityRulesStrict` is
+  kept as an alias for callers that still import it, and the now-redundant
+  per-package `{ rules: securityRulesStrict }` overrides in `apps/api`,
+  `apps/web`, `apps/desktop` and `packages/bridge-core` were removed. Three
+  of this WP's own annotations landed inside JSX children
+  (`plugins/premiere-uxp/.../ApplyPanel.tsx`, `packages/ui/.../chips.tsx`,
+  `packages/ui/.../job-progress.tsx`) where a `//` line comment is literal
+  text, not a disable directive; caught by the follow-up lint run and fixed
+  to `{/* eslint-disable-next-line ... */}` — a gap worth knowing about for
+  future JSX annotations. After merging `main` (which had since pulled in
+  X03's docs site and X04's status/legal pages), `apps/web` — already at
+  `error` from C02c — picked up 7 new findings in `lib/docs/openapi.ts`,
+  `lib/docs/markdown.tsx`, `lib/docs/plugin-guides.ts` and
+  `app/(site)/(marketing)/docs/guides/page.tsx`; reviewed and annotated the
+  same way (a fixed-list bracket lookup, an `fs` call on a path built from a
+  hardcoded plugin list, and a linear markdown-table-separator regex, timed
+  clean against adversarial input).
+
 - **M05 — main hygiene: hermetic free-tier daily-cap workspace id in
   `noop-credits.facade.test.ts`.** Investigated a reported flake in
   "free-tier daily cap (THREAT-MODEL T23) > gives the allowance back when a

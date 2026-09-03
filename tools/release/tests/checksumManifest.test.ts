@@ -15,8 +15,11 @@ describe("checksum manifest round-trip", () => {
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(tmpdir(), "release-checksums-"));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await mkdir(path.join(dir, "sub"), { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(dir, "a.zip"), "hello");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(dir, "sub", "b.zip"), "world");
   });
 
@@ -42,8 +45,10 @@ describe("checksum manifest round-trip", () => {
 
   it("writeSignedChecksums produces an UNSIGNED marker without a key, and no marker with one", async () => {
     const { manifestPath, signaturePath } = await writeSignedChecksums(dir, undefined);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const sig = await readFile(signaturePath, "utf8");
     expect(sig).toMatch(/^# UNSIGNED/);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const manifest = await readFile(manifestPath, "utf8");
     expect(manifest.split("\n").filter(Boolean)).toHaveLength(2);
 
@@ -51,6 +56,7 @@ describe("checksum manifest round-trip", () => {
       dir,
       Buffer.from("a-real-key").toString("base64"),
     );
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const signedSig = await readFile(signedResult.signaturePath, "utf8");
     expect(signedSig).not.toMatch(/UNSIGNED/);
     expect(signedSig).toMatch(/^hmac-sha256/);

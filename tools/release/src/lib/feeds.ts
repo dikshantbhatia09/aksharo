@@ -21,6 +21,7 @@ export async function buildUpdaterFeed(
   artifactPath: string,
   releaseDate: string,
 ): Promise<UpdaterFeed> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const stat = await fs.stat(artifactPath);
   const sha256 = await sha256File(artifactPath); // stand-in digest; real electron-builder uses sha512 base64
   const fileName = path.basename(artifactPath);
@@ -55,6 +56,7 @@ export async function writeUpdaterFeedFile(
 ): Promise<string> {
   await ensureDir(outDir);
   const file = path.join(outDir, fileName);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   await fs.writeFile(file, toYaml(feed), "utf8");
   return file;
 }

@@ -13,6 +13,7 @@ import {
  * commit fails CI.
  */
 async function main(): Promise<void> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   await mkdir(SCHEMAS_DIR, { recursive: true });
   const rendered = await renderSchemaFiles();
   for (const [fileName, content] of Object.entries(rendered)) {
@@ -22,6 +23,7 @@ async function main(): Promise<void> {
       console.log(`schemas: ${fileName} unchanged`);
       continue;
     }
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path, content, "utf8");
     console.log(`schemas: wrote ${fileName}`);
   }
