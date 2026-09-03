@@ -8,6 +8,65 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M16: first-run coach marks intercepted the editor's own click targets
+  (gate-a blocker after M14).** Root cause: `FirstRunCoachMarks`
+  (`apps/web/components/editor/coach-marks/FirstRunCoachMarks.tsx`) rendered
+  its floating callout as a plain positioned box with no `pointer-events`
+  handling. Each step is placed off the target's own `getBoundingClientRect()`
+  (`data-coach-mark="transcript|style|export"`, marked by
+  `editor-client.tsx`), and for a panel docked at the viewport edge — the
+  "style" step's right-hand panel has nowhere to put a 288px-wide box beside
+  it — the callout ends up sitting on top of the very panel it names, fully
+  clickable, so it swallows the click a real user (or `gate-a.spec.ts`) makes
+  on the panel underneath. M10's `installCoachMarkAutoDismiss` fixture
+  (`e2e/fixtures.ts`) papered over this for specs that reach the editor before
+  the mark renders, but M14 confirmed it still blocked the journey — the
+  fixture cannot out-race a mark whose wrapper stays fully interactive for as
+  long as it is mounted.
+  - **Fix:** the callout (`role="dialog"`, `data-testid="coach-mark"`) is now
+    `pointer-events: none` by default — a click anywhere on its body passes
+    through to whatever is really there — with `pointer-events: auto`
+    re-enabled only on the Skip/Next control row, so the mark's own buttons
+    stay clickable. Applied as both the `pointer-events-none`/
+    `pointer-events-auto` Tailwind utilities and matching inline styles (the
+    inline styles are what make the behavior testable and correct without
+    depending on the Tailwind build being present). The component already
+    unmounts entirely (`return null`) once dismissed or once every step is
+    shown, so there is no leftover overlay after dismissal — confirmed by a
+    new test that asserts no `.fixed` node remains in the DOM. No change to
+    when or how a mark is shown, its copy, or the dismiss/advance logic.
+  - **Tests:** `apps/web/components/editor/coach-marks/FirstRunCoachMarks.test.tsx`
+    (new) — a click on the target element the "style" step's callout overlaps
+    now reaches its `onClick` (regression: failed before the fix, the click
+    landed on the callout and never fired); the mark and its Skip control have
+    the right `pointerEvents`; Skip and the mark's own controls stay clickable;
+    the mark is absent once every step is already dismissed
+    (`onboarding.coachMarksShownAt` set) and unmounts with no stray fixed/
+    absolute node once dismissed interactively.
+  - **Fixture hardening:** `installCoachMarkAutoDismiss` now waits for the
+    mark's own Skip control to be visible before clicking it, rather than
+    clicking as soon as the wrapper (`data-testid="coach-mark"`) is detected —
+    the wrapper's own `role="dialog"` node can attach a render before the
+    `useEffect` that measures the target's rect has run, so the control inside
+    it was not always there yet. Kept, though with the pointer-events fix it
+    is no longer load-bearing for correctness — only a convenience so specs
+    that assert on hidden state don't have to skip the mark themselves.
+  - **`gate-a.spec.ts`:** the style-picker click this WP was opened to unblock
+    is fixed at the component level (see above); the fixture and mark's own
+    behavior are covered by the new component test. The spec's own end-to-end
+    run could not be completed on this host: `next build` for `apps/web`
+    fails deterministically (`Error: <Html> should not be imported outside of
+pages/_document`, prerendering the auto-generated `/404` page, tracing
+    through `StyleGallery.tsx` → `@montaj/render-core` → `harfbuzzjs`'s
+    top-level-await chunk) — reproduced identically from a from-scratch
+    `next build` on a pristine `main` checkout (`_worktrees/main`, HEAD
+    `92392d9`), so it is a pre-existing, host-level build defect unrelated to
+    this WP's diff (`apps/web/components/editor/coach-marks/**`,
+    `apps/web/e2e/fixtures.ts` only) and outside this WP's file boundaries to
+    fix. `pnpm typecheck`/`eslint` (which do not require a production build)
+    are clean on the changed files; the new component test is green. See the
+    final report for the full incident note on the `main`-worktree
+    reproduction attempt.
 - **M14: realtime op self-echo showed a bogus "someone else edited this
   word" conflict right after the editor's own edit.** Root cause:
   `EdgOpQueue.absorbRemoteOps` (`apps/web/lib/edg/queue.ts`) rebased every
