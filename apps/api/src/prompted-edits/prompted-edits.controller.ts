@@ -28,6 +28,7 @@ import {
   RunPlanAcceptedDto,
 } from "./prompted-edits.dto.js";
 import { PromptedEditsService } from "./prompted-edits.service.js";
+import { CommonAuditService } from "../common/audit/audit.service.js";
 import { CurrentUser, JwtAuthGuard, Roles, RolesGuard } from "../common/guards/index.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
@@ -49,7 +50,10 @@ import type { PromptedEditPlan } from "@prisma/client";
 @UseGuards(JwtAuthGuard, WorkspaceMemberGuard, RolesGuard)
 @Controller("projects/:projectId/prompted-edits")
 export class PromptedEditsController {
-  constructor(private readonly promptedEdits: PromptedEditsService) {}
+  constructor(
+    private readonly promptedEdits: PromptedEditsService,
+    private readonly audit: CommonAuditService,
+  ) {}
 
   @Post()
   @Roles("editor")
@@ -76,6 +80,15 @@ export class PromptedEditsController {
       workspaceId: principal.workspaceId,
       prompt: body.prompt,
       engine: body.engine,
+    });
+    await this.audit.record({
+      action: "prompted_edit.plan.created",
+      resource: "prompted_edit_plan",
+      resourceId: row.id,
+      workspaceId: principal.workspaceId,
+      actorId: principal.userId,
+      actorKind: principal.kind,
+      data: { projectId, engine: body.engine, prompt: body.prompt },
     });
     return toDto(row);
   }
@@ -113,7 +126,17 @@ export class PromptedEditsController {
     @Param("projectId") projectId: string,
     @Param("planId") planId: string,
   ): Promise<RunPlanAcceptedDto> {
-    return this.promptedEdits.run(projectId, principal.workspaceId, planId);
+    const result = await this.promptedEdits.run(projectId, principal.workspaceId, planId);
+    await this.audit.record({
+      action: "prompted_edit.plan.run",
+      resource: "prompted_edit_plan",
+      resourceId: planId,
+      workspaceId: principal.workspaceId,
+      actorId: principal.userId,
+      actorKind: principal.kind,
+      data: { projectId },
+    });
+    return result;
   }
 }
 

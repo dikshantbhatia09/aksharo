@@ -25,20 +25,39 @@ import type { NextConfig } from "next";
  * server start (same env var `lib/runtime-config.ts` hands the browser), so
  * production's `https://api...` origin is allowed alongside dev/e2e's `http`
  * one — no wildcard scheme needed for either case.
+ *
+ * `connect-src`'s `wss:` keyword has the same gap `https:` had for the API
+ * origin: it matches only a TLS websocket, and A15's realtime client dials a
+ * plain `ws://` in dev/e2e (Chrome does not treat an `http:`-scheme source as
+ * implicitly covering `ws:` here) — the API origin is added again with its
+ * scheme swapped to `ws:` so the same local/e2e `http://127.0.0.1:<port>` API
+ * also clears the realtime socket (`GET .../realtime`), not just plain fetch.
+ *
+ * `script-src`'s `'unsafe-inline'` alone blocks `WebAssembly.instantiate`
+ * (Chrome logs it as a `script-src` violation, since compiling wasm is
+ * gated the same way `eval` is): CanvasKit — the renderer every editor route
+ * loads, and what `/export-harness` (M10's `export.spec.ts`) waits on before
+ * it ever sets `window.__exportHarness.ready` — instantiates a 7 MB wasm
+ * module on first paint and never got past "Aborted(CompileError...)" here,
+ * so nothing downstream of the renderer could ever run: not a throughput
+ * problem, a CSP one. `'wasm-unsafe-eval'` (not the much broader
+ * `'unsafe-eval'`, which would also permit plain JS `eval`/`Function()`) is
+ * the CSP3 keyword scoped to exactly this.
  */
 const API_ORIGIN = process.env["API_ORIGIN"]?.trim() ?? "";
+const API_WS_ORIGIN = API_ORIGIN.replace(/^http/, "ws");
 
 const SECURITY_HEADERS = [
   {
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "media-src 'self' blob: https:",
       "font-src 'self' data:",
-      ["connect-src 'self' https: wss:", API_ORIGIN].filter(Boolean).join(" "),
+      ["connect-src 'self' https: wss:", API_ORIGIN, API_WS_ORIGIN].filter(Boolean).join(" "),
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "object-src 'none'",

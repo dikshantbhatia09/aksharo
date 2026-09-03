@@ -27,6 +27,7 @@ import {
   StartZoomRequestDto,
 } from "./passes.dto.js";
 import { PassesService } from "./passes.service.js";
+import { CommonAuditService } from "../common/audit/audit.service.js";
 import { CurrentUser, JwtAuthGuard, Roles, RolesGuard } from "../common/guards/index.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
@@ -52,7 +53,27 @@ import type { AuthPrincipal } from "../common/guards/index.js";
 @UseGuards(JwtAuthGuard, WorkspaceMemberGuard, RolesGuard)
 @Controller("projects/:projectId/passes")
 export class PassesController {
-  constructor(private readonly passes: PassesService) {}
+  constructor(
+    private readonly passes: PassesService,
+    private readonly audit: CommonAuditService,
+  ) {}
+
+  private async recordPassStarted(
+    kind: string,
+    principal: AuthPrincipal,
+    projectId: string,
+    result: PassAcceptedDto,
+  ): Promise<void> {
+    await this.audit.record({
+      action: `pass.${kind}.started`,
+      resource: "edg_pass",
+      resourceId: result.passId,
+      workspaceId: principal.workspaceId,
+      actorId: principal.userId,
+      actorKind: principal.kind,
+      data: { projectId, jobId: result.jobId },
+    });
+  }
 
   @Post("autocut")
   @Roles("editor")
@@ -75,12 +96,14 @@ export class PassesController {
     @Param("projectId") projectId: string,
     @Body() body: StartAutocutRequestDto,
   ): Promise<PassAcceptedDto> {
-    return this.passes.startAutocut({
+    const result = await this.passes.startAutocut({
       projectId,
       workspaceId: principal.workspaceId,
       preset: body.preset,
       ...(body.options === undefined ? {} : { options: body.options }),
     });
+    await this.recordPassStarted("autocut", principal, projectId, result);
+    return result;
   }
 
   @Post("zoom")
@@ -104,11 +127,13 @@ export class PassesController {
     @Param("projectId") projectId: string,
     @Body() body: StartZoomRequestDto,
   ): Promise<PassAcceptedDto> {
-    return this.passes.startZoom({
+    const result = await this.passes.startZoom({
       projectId,
       workspaceId: principal.workspaceId,
       preset: body.preset,
     });
+    await this.recordPassStarted("zoom", principal, projectId, result);
+    return result;
   }
 
   @Post("reframe")
@@ -132,12 +157,14 @@ export class PassesController {
     @Param("projectId") projectId: string,
     @Body() body: StartReframeRequestDto,
   ): Promise<PassAcceptedDto> {
-    return this.passes.startReframe({
+    const result = await this.passes.startReframe({
       projectId,
       workspaceId: principal.workspaceId,
       aspect: body.aspect,
       ...(body.options === undefined ? {} : { options: body.options }),
     });
+    await this.recordPassStarted("reframe", principal, projectId, result);
+    return result;
   }
 
   @Post("textfx")
@@ -160,7 +187,12 @@ export class PassesController {
     @CurrentUser() principal: AuthPrincipal,
     @Param("projectId") projectId: string,
   ): Promise<PassAcceptedDto> {
-    return this.passes.startTextFx({ projectId, workspaceId: principal.workspaceId });
+    const result = await this.passes.startTextFx({
+      projectId,
+      workspaceId: principal.workspaceId,
+    });
+    await this.recordPassStarted("textfx", principal, projectId, result);
+    return result;
   }
 
   @Post("sfx")
@@ -183,7 +215,9 @@ export class PassesController {
     @CurrentUser() principal: AuthPrincipal,
     @Param("projectId") projectId: string,
   ): Promise<PassAcceptedDto> {
-    return this.passes.startSfx({ projectId, workspaceId: principal.workspaceId });
+    const result = await this.passes.startSfx({ projectId, workspaceId: principal.workspaceId });
+    await this.recordPassStarted("sfx", principal, projectId, result);
+    return result;
   }
 
   @Post("music")
@@ -206,7 +240,9 @@ export class PassesController {
     @CurrentUser() principal: AuthPrincipal,
     @Param("projectId") projectId: string,
   ): Promise<PassAcceptedDto> {
-    return this.passes.startMusic({ projectId, workspaceId: principal.workspaceId });
+    const result = await this.passes.startMusic({ projectId, workspaceId: principal.workspaceId });
+    await this.recordPassStarted("music", principal, projectId, result);
+    return result;
   }
 
   @Get()

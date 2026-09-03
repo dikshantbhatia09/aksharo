@@ -8,6 +8,61 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M10: Gate B defects (Docker build, streak widget, timeline drag, audit
+  completeness).**
+  - Item 0 (blocking): `docker compose -f docker-compose.test.yml build render
+    worker-media worker-ai` failed building `render` — no `.dockerignore`/
+    `Dockerfile.dockerignore` for `apps/render` meant the build context
+    included the host's own `node_modules`, whose `pnpm`-created symlinks are
+    absolute host paths on Windows (e.g. `packages/config/node_modules/
+    typescript -> C:\...\node_modules\.pnpm\typescript@5.9.3\...`); `COPY
+    packages/config ./packages/config` (and the other package COPYs)
+    overwrote the image's own correctly-linked `node_modules` with those
+    broken absolute symlinks, so `tsc` (and anything else resolved through a
+    workspace package) failed `MODULE_NOT_FOUND` inside the container. Added
+    `apps/render/Dockerfile.dockerignore` (mirrors `apps/worker-media`'s).
+    Three further build breaks surfaced once that was fixed and are fixed in
+    the same Dockerfile: `pnpm deploy`'s `--legacy` flag does not exist in
+    pnpm 9.x (`Unknown option: 'legacy'`); `pnpm deploy` rejects a filter
+    matching more than one project (`@montaj/render...` for build, `@montaj/
+    render` alone for deploy); and `pnpm deploy`'s workspace validation
+    needs `@montaj/fonts`/`@montaj/render-canvaskit` (devDependencies-only,
+    tooling) present in the workspace manifest set, but building them (no
+    source was copied for either) then had to be excluded from the build
+    filter. Proven with a real `docker compose -p montaj-m10 -f
+    docker-compose.test.yml build render worker-media worker-ai` (all three
+    built), then removed with `--rmi local`.
+  - Item 1: the streak widget never mounted on `/billing` because
+    `apps/web/components/billing/overview-panel.tsx` read the flag under the
+    key `"streak.enabled"`, which nothing ever sets — every other reader
+    (`shell/sidebar.tsx`, `streak-chip.tsx`) reads `"growth.streakWidget"`.
+    Fixed to the correct key; added two `<OverviewPanel />` unit tests
+    (mounts with the flag on, never mounts with it off) and confirmed
+    `streak.spec.ts` 3/3 on chromium.
+  - Item 2: dragging a proposed cut item's edge on the timeline never landed
+    (`timeline.spec.ts` B20b case). Two real defects, both fixed:
+    (a) `apps/web/lib/timeline/pass-item-drag.ts`'s `clampPassItemEdge` never
+    rounded `pxToMs`'s fractional-millisecond output, so the API 400'd
+    (`common/validation_failed`, "endMs: expected int, received number");
+    now rounds to the nearest ms before clamping. (b)
+    `apps/api/src/edg/edg.working-set.ts`'s `analyseWorkingSet` had no case
+    for `EditPassItem`, so the target item's row was never loaded into the
+    op-apply working set and every `EditPassItem` op was rejected
+    `unknown-id` regardless of whether the item existed; added the missing
+    case. `timeline.spec.ts` 10/10 on chromium after both fixes (one run
+    flaked on the pre-existing axe-violations case's login timeout under
+    host load, passed on Playwright's own retry).
+  - Item 5 (added mid-package): `audit-completeness.test.ts` failed on `main`
+    after D07 merged — `apps/api/src/prompted-edits/prompted-edits.
+    controller.ts`'s `create`/`run` routes had no audit-writer reference, and
+    (a pre-existing, unrelated defect the same test already caught)
+    `apps/api/src/passes/passes.controller.ts`'s six `start*` routes had
+    none either. Both now write `CommonAuditService.record(...)` rows
+    (`prompted_edit.plan.created`/`prompted_edit.plan.run`;
+    `pass.<kind>.started`); new unit tests for both controllers assert the
+    audit call on every mutating route. Neither file was added to
+    `EXEMPT_FILES`.
+
 - **D07: prompted edits — planner, Flash/Pro engines, plan preview, chained
   passes, credits held on source minutes and settled on finished minutes.**
   - `packages/prompts`: `edit-plan@1` template (`{passes[], style?, script?,

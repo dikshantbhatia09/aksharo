@@ -45,6 +45,40 @@ describe("next.config security headers", () => {
     expect(byKey["Content-Security-Policy"]).toContain("connect-src 'self' https: wss:");
     expect(byKey["Content-Security-Policy"]).toContain("http://127.0.0.1:3950");
   });
+
+  /**
+   * M10: the same gap M09 fixed for plain `fetch()`, but for the realtime
+   * websocket — `wss:` in `connect-src` does not cover a plain `ws://` dial,
+   * which every local dev server and Playwright run uses (A15's realtime
+   * client). Chrome logged "Connecting to 'ws://...' violates ... connect-src"
+   * and blocked it outright.
+   */
+  it("allows a plain ws:// realtime socket to API_ORIGIN's host", async () => {
+    vi.resetModules();
+    vi.stubEnv("API_ORIGIN", "http://127.0.0.1:3950");
+    const { default: freshConfig } = await import("./next.config");
+    const headerRules = await freshConfig.headers!();
+    const byKey = Object.fromEntries(headerRules[0]!.headers.map((h) => [h.key, h.value]));
+    expect(byKey["Content-Security-Policy"]).toContain("ws://127.0.0.1:3950");
+  });
+
+  /**
+   * M10: `script-src 'self' 'unsafe-inline'` alone blocks
+   * `WebAssembly.instantiate` — Chrome reports it as a `script-src`
+   * violation and aborts the compile — which meant CanvasKit (every editor
+   * route's renderer, and what `/export-harness` waits on before it ever
+   * marks itself ready) never initialised under this CSP, silently hanging
+   * `export.spec.ts`'s `page.waitForFunction(... ready === true)` for its
+   * full 60s regardless of the host's throughput. `'wasm-unsafe-eval'` is
+   * the CSP3 keyword scoped to wasm compilation, not the broader
+   * `'unsafe-eval'` (which would also permit plain JS `eval`).
+   */
+  it("allows WebAssembly compilation via 'wasm-unsafe-eval' without the broader 'unsafe-eval'", async () => {
+    const headerRules = await nextConfig.headers!();
+    const byKey = Object.fromEntries(headerRules[0]!.headers.map((h) => [h.key, h.value]));
+    expect(byKey["Content-Security-Policy"]).toContain("'wasm-unsafe-eval'");
+    expect(byKey["Content-Security-Policy"]).not.toMatch(/(?<!wasm-)'unsafe-eval'/);
+  });
 });
 
 afterEach(() => {

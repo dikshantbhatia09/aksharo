@@ -40,18 +40,28 @@ export function clampPassItemEdge(
   } = {},
 ): number {
   const neighbours = options.neighbours ?? [];
+  // `pxToMs` (lib/timeline/coords.ts) is `scrollMs + px * msPerPx` — a plain
+  // float, unlike a word/segment edge drag, which lands on an integer either
+  // because it snaps to a word boundary (already an integer, `snapping.ts`)
+  // or because the fixture happens to clamp against one. A pass item has no
+  // such snap, so an unclamped drag reaches here as e.g. `22999.998779296875`.
+  // `EditPassItemOpSchema` (`packages/edg/src/schemas/ops.ts`, `MsSchema`)
+  // requires an integer millisecond like every other op, and the API 400s
+  // (`common/validation_failed`, "expected int, received number") on
+  // anything else — round to the nearest ms before any clamping.
+  const roundedCandidateMs = Math.round(candidateMs);
   if (edge === "start") {
     const priorNeighbourEnd = neighbours
       .filter((n) => n.endMs <= current.startMs)
       .reduce((max, n) => Math.max(max, n.endMs), 0);
     const upperBound = current.endMs - MIN_PASS_ITEM_MS;
-    return Math.min(upperBound, Math.max(priorNeighbourEnd, candidateMs));
+    return Math.min(upperBound, Math.max(priorNeighbourEnd, roundedCandidateMs));
   }
   const nextNeighbourStart = neighbours
     .filter((n) => n.startMs >= current.endMs)
     .reduce((min, n) => Math.min(min, n.startMs), options.durationMs ?? Number.POSITIVE_INFINITY);
   const lowerBound = current.startMs + MIN_PASS_ITEM_MS;
-  return Math.max(lowerBound, Math.min(nextNeighbourStart, candidateMs));
+  return Math.max(lowerBound, Math.min(nextNeighbourStart, roundedCandidateMs));
 }
 
 /** The full pipeline a pass-item edge drag runs through on pointer-up. */
