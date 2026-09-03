@@ -8,6 +8,35 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **D04e-3: audio-mix envelope parity gate (`apps/render/parity`).** New
+  `parity/audio-mix-fixtures.ts` (a 6-second, three-cue fixture: a "ding"
+  with a 50ms fade in/out, a "whoosh" ducked -12dB under a speech range, a
+  plain "pop" — the WP brief's own description), `parity/audio-mix-parity.ts`
+  (50ms-window RMS-in-dBFS comparison, `computeAudioMixParity`, plus
+  `cueWindowIsPresent`), and `parity/run-audio-mix-parity.ts` (renders the
+  fixture through the _real_ cloud ffmpeg graph and decodes it back to PCM;
+  computes a reference PCM signal from the same closed-form gain/fade/duck
+  arithmetic `apps/web/lib/export/audio-mix.ts`'s `mixSfxCueIntoChunk`
+  applies, ported rather than imported — apps do not import one another —
+  the same convention D04c's SFX-duck gate's `browserDuckGainAt` already
+  follows; the base clip and cloud output both use lossless PCM, not AAC, so
+  the comparison measures the mixing math, not codec noise). Writes
+  `results.json`'s `audioMix` key, merge-preserving next to `edits`/`audio`/
+  `titles`/`sfx`. Max deviation ≈0.05 dB over 120 windows against the
+  brief's 0.5 dB tolerance; every cue window present on both sides.
+  - **A real bug found and fixed, not worked around**: the gate's first run
+    measured a ~2.8 dB deviation concentrated entirely inside the "whoosh"
+    cue's duck ramp. Cause: ffmpeg's `volume=eval=frame` filter recomputes
+    its expression once per _frame_, not per sample — at whatever frame
+    size the graph otherwise settled on, the real ramp was a coarse
+    staircase rather than the smooth trapezoid the expression (and the
+    browser's per-sample mixer) describe. Fixed in `apps/render/src/ffmpeg/
+audio-mix.ts` by forcing a 64-sample (~1.3ms) frame with `asetnsamples`
+    immediately before every duck filter (`DUCK_FRAME_SAMPLES`) — a genuine
+    improvement to the cloud render's own duck-curve fidelity, not a gate-
+    specific hack, and something D04c's symbolic (never-rendered) SFX-duck
+    parity gate could not have caught.
+
 - **D04e-2: browser sfx cue mixing (`apps/web/lib/export`).** Closes D04d's
   first flagged deviation, browser half. `apps/web/lib/export/audio-mix.ts`
   (module written in an earlier pass of this WP) mixes a decoded cue's

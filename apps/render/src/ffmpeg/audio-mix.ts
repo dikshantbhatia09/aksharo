@@ -41,6 +41,20 @@ import { buildSfxDuckAudioFilter, dbToLinear, type SpeechRange } from "./sfx-duc
 
 export type { SpeechRange } from "./sfx-duck-expr.js";
 
+/**
+ * D04e-3: samples per frame forced right before a duck's `volume=eval=frame`
+ * filter. That filter recomputes its expression once per *frame*, not per
+ * sample — left at whatever frame size the graph otherwise settles on
+ * (often tens of milliseconds), the ramp ffmpeg actually produces is a
+ * coarse staircase rather than the smooth trapezoid the expression
+ * describes and the browser mixer computes per sample. 64 samples (~1.3ms
+ * at 48kHz) is well under the shortest ramp (`SFX_DUCK_RAMP_MS`, 150ms) and
+ * closed the multi-dB gap the envelope-parity gate
+ * (`parity/run-audio-mix-parity.ts`) found between real ffmpeg output and
+ * the closed form, right where the ramp is steepest.
+ */
+export const DUCK_FRAME_SAMPLES = 64;
+
 /** Consecutive words closer than this merge into one speech region — same
  * fallback shape `apps/api/src/passes/passes.service.ts#speechRangesFromWords`
  * uses; duplicated rather than imported (apps do not import one another). */
@@ -171,6 +185,7 @@ export function buildCueFilters(
     // before `adelay` would compare a 0-based asset clock against output-clock
     // speech ranges, which is wrong for every cue that isn't at t=0.
     if (cue.duck !== null && speechRanges.length > 0) {
+      steps.push(`asetnsamples=n=${String(DUCK_FRAME_SAMPLES)}:p=0`);
       steps.push(
         buildSfxDuckAudioFilter(speechRanges, {
           duckDb: cue.duck.depthDb,
@@ -237,6 +252,7 @@ export function buildMusicFilters(
     steps.push(`adelay=${String(delayMs)}|${String(delayMs)}`);
 
     if (music.bedDuck !== null && speechRanges.length > 0) {
+      steps.push(`asetnsamples=n=${String(DUCK_FRAME_SAMPLES)}:p=0`);
       steps.push(
         buildSfxDuckAudioFilter(speechRanges, {
           duckDb: music.bedDuck.depthDb,
