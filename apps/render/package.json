@@ -18,11 +18,8 @@
     "bench": "tsx scripts/benchmark.ts",
     "parity": "tsx parity/run.ts",
     "parity:audio": "tsx parity/run-audio-parity.ts",
-<<<<<<< HEAD
-    "parity:titles": "tsx parity/run-textfx-parity.ts"
-=======
+    "parity:titles": "tsx parity/run-textfx-parity.ts",
     "parity:sfx": "tsx parity/run-sfx-parity.ts"
->>>>>>> wp/D04c
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1124.0",

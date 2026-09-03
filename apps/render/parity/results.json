@@ -29,7 +29,6 @@
     "cloudHash": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193",
     "byteLength": 4096
   },
-<<<<<<< HEAD
   "titles": {
     "generatedAt": "2026-09-03T03:00:57.081Z",
     "maxDiffRatioTolerance": 0.02,
@@ -80,10 +79,12 @@
         "maxDiffRatio": 0.0031500771604938273,
         "pass": true,
         "measuredAt": "2026-09-03T03:00:57.081Z"
-=======
+      }
+    }
+  },
   "sfx": {
     "generatedAt": "2026-09-03T03:19:58.442Z",
-    "maxDiffLinearTolerance": 0.000001,
+    "maxDiffLinearTolerance": 1e-06,
     "fixtures": {
       "default-duck": {
         "fixtureId": "default-duck",
@@ -108,7 +109,6 @@
         "maxDiffLinear": 0,
         "pass": true,
         "measuredAt": "2026-09-03T03:19:58.442Z"
->>>>>>> wp/D04c
       }
     }
   }

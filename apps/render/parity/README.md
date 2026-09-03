@@ -57,7 +57,6 @@ Exits non-zero (and logs which fixture) if any exceeds `maxDiffPxTolerance`.
 `run.test.ts` asserts the same tolerance on every `pnpm test` run, so a
 regression fails CI before anyone has to read this file.
 
-<<<<<<< HEAD
 
 ## Text-fx parity gate (D06b)
 
@@ -96,7 +95,6 @@ documents for captions — glyph-edge anti-aliasing differs slightly between
 CanvasKit and Skia-node, and a title's larger, heavier type shows a touch
 more of that residual than a caption's own type does. `run-textfx-parity.test.ts`
 asserts the same tolerance on every `pnpm test` run.
-=======
 
 ## SFX-duck parity gate (D04c)
 
