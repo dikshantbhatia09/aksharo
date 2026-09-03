@@ -55,6 +55,18 @@ function makeService() {
       findUnique: vi.fn(async (): Promise<ShareLink | null> => linkRow()),
       update: vi.fn(async () => linkRow()),
     },
+    mediaAsset: {
+      findFirst: vi.fn(
+        async (): Promise<{ id: string; proxyKey: string; durationMs: number } | null> => ({
+          id: "MEDIA1",
+          proxyKey: "derived/proxy.mp4",
+          durationMs: 60000,
+        }),
+      ),
+    },
+    edgDocument: {
+      findUnique: vi.fn(async () => ({ id: "EDG1" })),
+    },
     shareReport: {
       create: vi.fn(async (args: { data: Record<string, unknown> }) => ({
         id: "01JBZ0Q4T7R8N4H1V0J9K2M3PC",
@@ -78,11 +90,25 @@ function makeService() {
 
   const audit = { record: vi.fn(async () => undefined) };
 
+  const edg = {
+    projectionOf: vi.fn(async () => ({
+      meta: { edgId: "EDG1", projectId: PROJECT, revision: 1, schemaVersion: 2 },
+      media: [],
+      transcript: { transcriptId: "TR1", revision: 1, language: "en", scripts: ["roman"] },
+      canvas: { width: 1080, height: 1920 },
+      styles: { defaultStyleId: "system:default" },
+      segments: [],
+    })),
+    loadChunks: vi.fn(async () => []),
+  };
+  const derivedStore = { presignGet: vi.fn(async () => "https://cdn.example.test/proxy.mp4") };
   const service = new ShareLinksService(
     prisma as never,
     passwords as never,
     sessions as never,
     audit as never,
+    edg as never,
+    derivedStore as never,
   );
 
   return { service, prisma, passwords, sessions, audit };
@@ -205,5 +231,45 @@ describe("ShareLinksService", () => {
     await service.revoke(WORKSPACE, USER, PROJECT, LINK_ID);
 
     expect(prisma.shareLink.update).not.toHaveBeenCalled();
+  });
+
+  it("preview() returns a signed proxy URL and a render-ready projection", async () => {
+    const { service, prisma } = makeService();
+
+    const result = await service.preview(TOKEN, undefined);
+
+    expect(result.proxyUrl).toBe("https://cdn.example.test/proxy.mp4");
+    expect(result.durationMs).toBe(60_000);
+    expect(prisma.mediaAsset.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { projectId: PROJECT, role: "primary", status: "ready" } }),
+    );
+    expect(result.projection).toEqual(
+      expect.objectContaining({
+        canvas: { width: 1080, height: 1920 },
+        styles: { defaultStyleId: "system:default" },
+        segments: [],
+        words: [],
+      }),
+    );
+  });
+
+  it("preview() 404s a project whose media has not probed a proxy yet", async () => {
+    const { service, prisma } = makeService();
+    prisma.mediaAsset.findFirst = vi.fn(async () => null);
+
+    await expect(service.preview(TOKEN, undefined)).rejects.toMatchObject({
+      code: SHARE_ERRORS.notFound,
+    });
+  });
+
+  it("preview() refuses an un-unlocked password-gated link", async () => {
+    const { service, prisma } = makeService();
+    prisma.shareLink.findUnique = vi.fn(async () =>
+      linkRow({ passwordHash: "hashed:correcthorsebattery" }),
+    );
+
+    await expect(service.preview(TOKEN, undefined)).rejects.toMatchObject({
+      code: SHARE_ERRORS.passwordRequired,
+    });
   });
 });

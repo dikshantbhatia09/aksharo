@@ -58,10 +58,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @montaj/release... build
       - run: pnpm --filter @montaj/release test -- --maxWorkers=2
-      - name: Build desktop artifact (dry-run, unsigned)
+      - name: Build desktop artifact (dry-run, unsigned) + installer size budget check
         # --placeholder: this job never installs Electron or builds apps/desktop (that's the
         # separate `e2e` job below), so it always exercises the synthesized nested-binary tree
-        # rather than depending on one existing already (C00b scope §3).
+        # rather than depending on one existing already (C00b scope §3). C10: `build-desktop`
+        # itself throws `InstallerBudgetExceededError` (non-zero exit, failing this step) when
+        # the produced artifact is over the win-NSIS 150 MB / mac-DMG 180 MB budget
+        # (03-architecture/05-system-architecture.md §6-7) -- no separate CI step needed.
         run: pnpm release build-desktop --platform ${{ matrix.platform }} --channel alpha --dry-run --placeholder
       - name: SBOM + checksums (dry-run)
         run: |

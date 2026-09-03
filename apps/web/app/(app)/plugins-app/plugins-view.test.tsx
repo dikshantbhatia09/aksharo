@@ -50,6 +50,8 @@ const UNAVAILABLE_MANIFEST: PluginManifestResponse = {
       minHostVersion: null,
       maxHostVersion: null,
       downloadUrl: null,
+      channel: null,
+      notes: null,
     },
     "ae-cep": {
       available: false,
@@ -57,6 +59,8 @@ const UNAVAILABLE_MANIFEST: PluginManifestResponse = {
       minHostVersion: null,
       maxHostVersion: null,
       downloadUrl: null,
+      channel: null,
+      notes: null,
     },
     "resolve-script": {
       available: false,
@@ -64,7 +68,16 @@ const UNAVAILABLE_MANIFEST: PluginManifestResponse = {
       minHostVersion: null,
       maxHostVersion: null,
       downloadUrl: null,
+      channel: null,
+      notes: null,
     },
+  },
+  desktop: {
+    available: false,
+    version: null,
+    channel: null,
+    notes: null,
+    downloadUrl: { win: null, mac: null, linux: null },
   },
 };
 

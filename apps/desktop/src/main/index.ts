@@ -22,6 +22,7 @@ import {
 import { autoUpdater } from "electron-updater";
 
 import { discoveryFilePath } from "@montaj/bridge-core";
+import type { PlanTier } from "@montaj/config";
 import { BRAND } from "@montaj/config/brand";
 
 import { buildAppMenu } from "./menu.js";
@@ -29,6 +30,16 @@ import { showPairingApprovalWindow, type PairingWindowController } from "./pairi
 import { createBridgeAdapter, createStubBridgeAdapter } from "../bridge/adapter.js";
 import { bootstrapDevice } from "../bridge/device-bootstrap.js";
 import { parseDeepLink } from "../deeplink/parse.js";
+import { openLocalDb } from "../local/db.js";
+import { connectToLocalEngine } from "../local/engine-connection.js";
+import { createLocalModeGate } from "../local/entitlement-gate.js";
+import {
+  ALT_API_ORIGIN,
+  API_ORIGIN,
+  isUploadBlocked,
+  createLocalModeState,
+} from "../local/network-guard.js";
+import { LocalStore } from "../local/store.js";
 import {
   APP_ORIGIN,
   decidePopup,
@@ -65,6 +76,19 @@ let pairingWindow: PairingWindowController | null = null;
 let pendingPairing: BridgePendingPairing | null = null;
 let accessToken: string | undefined;
 let bridge: BridgeAdapter = createStubBridgeAdapter();
+
+// --- C04: local mode --------------------------------------------------------
+let localStore: LocalStore | null = null;
+const localModeGate = createLocalModeGate();
+const localModeState = createLocalModeState();
+
+function requireLocalStore(): LocalStore {
+  if (!localModeGate.isEnabled()) {
+    throw new Error("local/disabled: this workspace's plan does not include local mode");
+  }
+  if (localStore === null) throw new Error("local/not_ready: the local store has not started yet");
+  return localStore;
+}
 
 /**
  * Wires the tray/approval-window/renderer surfaces to whichever `BridgeAdapter`
@@ -331,6 +355,62 @@ function registerIpcHandlers(): void {
   ipcMain.handle("desktop:telemetry-drain-queue", (_event, limit: number) =>
     telemetryQueue.drain(limit),
   );
+  // --- C04: local mode ----------------------------------------------------
+  ipcMain.handle("desktop:local-set-plan", (_event, plan: PlanTier) => {
+    localModeGate.setPlan(plan);
+    return { ok: true as const };
+  });
+  ipcMain.handle("desktop:local-is-enabled", () => localModeGate.isEnabled());
+  ipcMain.handle(
+    "desktop:local-create-project",
+    async (_event, input: { title: string; aspect: string }) => {
+      const project = await requireLocalStore().createProject(input);
+      localModeState.setActive(true);
+      return project;
+    },
+  );
+  ipcMain.handle("desktop:local-list-projects", () => requireLocalStore().listProjects());
+  ipcMain.handle("desktop:local-open-project", (_event, projectId: string) => {
+    const project = requireLocalStore().openProject(projectId);
+    localModeState.setActive(true);
+    return project;
+  });
+  ipcMain.handle("desktop:local-delete-project", async (_event, projectId: string) => {
+    await requireLocalStore().deleteProject(projectId);
+    return { ok: true as const };
+  });
+  ipcMain.handle(
+    "desktop:local-import-media",
+    (_event, input: Parameters<LocalStore["importMedia"]>[0]) =>
+      requireLocalStore().importMedia(input),
+  );
+  ipcMain.handle("desktop:local-list-media", (_event, projectId: string) =>
+    requireLocalStore().listMedia(projectId),
+  );
+  ipcMain.handle(
+    "desktop:local-transcribe",
+    (_event, input: Parameters<LocalStore["transcribe"]>[0]) =>
+      requireLocalStore().transcribe(input),
+  );
+  ipcMain.handle("desktop:local-align", (_event, input: Parameters<LocalStore["align"]>[0]) =>
+    requireLocalStore().align(input),
+  );
+  ipcMain.handle(
+    "desktop:local-save-edg-snapshot",
+    (_event, input: Parameters<LocalStore["saveEdgSnapshot"]>[0]) =>
+      requireLocalStore().saveEdgSnapshot(input),
+  );
+  ipcMain.handle("desktop:local-latest-snapshot", (_event, projectId: string) =>
+    requireLocalStore().latestSnapshot(projectId),
+  );
+  ipcMain.handle(
+    "desktop:local-run-export",
+    (_event, input: Parameters<LocalStore["runExport"]>[0]) => requireLocalStore().runExport(input),
+  );
+  ipcMain.handle("desktop:local-list-exports", (_event, projectId: string) =>
+    requireLocalStore().listExports(projectId),
+  );
+
   ipcMain.handle("desktop:telemetry-build-diagnostics-bundle", () => {
     const zip = buildDiagnosticsBundle({
       appVersion: app.getVersion(),
@@ -443,6 +523,31 @@ function configureSession(): void {
     }
     callback({ responseHeaders: details.responseHeaders });
   });
+
+  // C04 §2: no uploads of any kind while a local project is open. Runs in the
+  // main process against every request the renderer makes — see
+  // `local/network-guard.ts`'s doc comment for why this is not a preload
+  // `fetch` patch.
+  session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+    if (
+      isUploadBlocked(
+        { method: details.method, url: details.url },
+        { localModeActive: localModeState.isActive(), apiOrigins: [API_ORIGIN, ALT_API_ORIGIN] },
+      )
+    ) {
+      callback({ cancel: true });
+      return;
+    }
+    callback({ cancel: false });
+  });
+}
+
+/** Starts the local store (brief C04 §1): SQLite for metadata under `userData`, media files alongside it. */
+async function bootstrapLocalStore(): Promise<void> {
+  const db = await openLocalDb(path.join(app.getPath("userData"), "local.sqlite3"));
+  const mediaDir = path.join(app.getPath("userData"), "local-media");
+  const engine = connectToLocalEngine();
+  localStore = new LocalStore({ db, mediaDir, engine });
 }
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -470,6 +575,9 @@ if (!gotSingleInstanceLock) {
     app.setAsDefaultProtocolClient(BRAND.deepLinkScheme);
     configureSession();
     registerIpcHandlers();
+    void bootstrapLocalStore().catch((err) =>
+      console.error("local store bootstrap failed", err instanceof Error ? err.message : err),
+    );
     installTelemetryCrashHandler();
     Menu.setApplicationMenu(buildAppMenu(`https://${BRAND.domain}/support`));
     mainWindow = createMainWindow();

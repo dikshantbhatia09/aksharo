@@ -31,6 +31,12 @@ export const EDG_ERROR_CODES = {
   restoreInvalid: "edg/restore_invalid",
   /** No such pass on this document. */
   passNotFound: "edg/pass_not_found",
+  /**
+   * `POST /projects/{id}/edg/import` (brief C04 §3, "Upload to cloud") was
+   * called on a project that already has a document — import only ever
+   * creates the very first one, exactly like `initialise`.
+   */
+  alreadyImported: "edg/already_imported",
   /** The workspace's op-batch budget is spent (the `rate-limited` rejection reason). */
   rateLimited: ERROR_CODES.rateLimited,
 } as const;

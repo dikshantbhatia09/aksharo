@@ -8,8 +8,80 @@ native menus/tray and `aksharo://` deep links.
 
 **Status:** implemented by **C02**; bridge adapter wiring, pairing approval
 UX, device bootstrap, Electron e2e CI and packaging integration by **C02b**.
-Local engine (C03a/b), local mode (C04) and installers/marketplace (C10) are
-out of scope here.
+Local mode (`src/local/**`) by **C04**. Local engine real backends (C03b) and
+installers/marketplace (C10) are out of scope here.
+
+## Local mode (`src/local/**`, C04)
+
+SQLite + files, local export, no uploads (`03-architecture/05-system-
+architecture.md` §7). Starter and above (`packages/config`'s
+`hasLocalMode`/`LOCAL_MODE_MIN_PLAN`); the desktop fails closed until the
+hosted web app has reported a plan (`desktop:local-set-plan`).
+
+**Driver: `sql.js` (MIT), not `better-sqlite3`.** `better-sqlite3` is a
+native addon needing a prebuilt binary for Electron's exact Node ABI (or a
+full toolchain to compile one) and, per this WP's own brief, would have to
+be added to `scripts/bundle.mjs`'s esbuild `external` list with its
+compiled `.node` file copied into `dist/` by hand for every platform/arch
+electron-builder ships. In this sandbox `better-sqlite3@11` failed to
+install outright (`prebuild-install`: no prebuilt binary for this Node ABI;
+`node-gyp rebuild`: no Visual Studio toolchain) — a real symptom of the
+same brittleness, not just a local inconvenience. `sql.js` compiles SQLite
+to WebAssembly once, upstream, and ships the `.wasm` as a plain package
+asset with no native compilation on any platform: `scripts/copy-static.mjs`
+copies it from `node_modules/sql.js/dist/sql-wasm.wasm` to
+`dist/main/sql-wasm.wasm` at build time (never committed), and esbuild
+inlines the (pure-JS) loader like every other pure-JS dependency — no
+change to the `external` list. The tradeoff: `sql.js` has no built-in file
+journal, so `src/local/db.ts` serialises the whole database back to disk
+after every mutation (`persist()`); acceptable because this store's rows
+are metadata only — media stays on disk as files, never a BLOB, so the
+database itself stays kilobytes, not media-sized.
+
+**Schema** (`src/local/schema.ts`): `local_projects`, `local_media`,
+`local_edg_snapshots` (EDG v2 `{hot, segments}` JSON per revision),
+`local_exports`. Deletes cascade in `LocalStore#deleteProject` rather than
+via `ON DELETE`, so the media files on disk are removed in the same call
+that removes the rows.
+
+**IPC surface** (`window.aksharoDesktop.local`, `src/preload/api-types.ts`):
+`isEnabled`, `createProject`/`listProjects`/`openProject`/`deleteProject`,
+`importMedia`/`listMedia`, `transcribe`/`align` (delegate to the engine
+sidecar, C03a's `@montaj/engine-client`, found via its discovery file —
+`src/local/engine-connection.ts`, independent of `apps/engine/src/
+discovery.ts` since apps do not import each other's `src/`),
+`saveEdgSnapshot`/`latestSnapshot`, `runExport`/`listExports` (delegates to
+the engine's `/render`). Every handler throws `local/disabled` until
+`desktop:local-set-plan` has reported Starter+.
+
+**Network guard** (`src/local/network-guard.ts`, THREAT-MODEL T25): blocks
+`POST`/`PUT`/`PATCH` requests to the hosted API's origins while a local
+project is open, wired into `session.defaultSession.webRequest.
+onBeforeRequest` in the main process — not a preload `fetch` patch, since
+`contextIsolation` puts the preload's JS in a different world than the
+hosted page's and would never see the page's own network calls. GETs and
+requests to the local engine/OAuth/CDN are never blocked; only the upload
+path local mode promises not to take.
+
+**Media probe.** `apps/engine`'s contract (`README.md`) has no dedicated
+probe route yet — only `/transcribe`, `/align`, `/clean`, `/render`,
+`/models`, `/health` — so `importMedia`'s duration/fps/width/height are
+`null` until a caller supplies them. Open question for C03b (whose real
+ffmpeg backend is the natural place for a probe route).
+
+**Tests:** `src/local/*.test.ts` — schema/persistence (`db.test.ts`), the
+full round trip create → import → transcribe (mocked `EngineClient`) → save
+EDG → export (`store.test.ts`), the network guard and entitlement gate as
+pure predicates, and the engine discovery reader. All in-memory/injected —
+no Electron runtime, no real engine sidecar, no native module.
+
+**Electron smoke path for Gate C** (no Playwright budget for this WP, per
+the host guard): `pnpm build && pnpm pack:dry`, launch the unpacked build,
+and manually: create a local project, import a media file via the native
+picker, confirm "Local projects" lists it on Home, open DevTools' Network
+tab and confirm no request reaches `api.<domain>` while the project stays
+open, then delete the project and confirm its media directory is gone from
+`app.getPath("userData")/local-media`.
 
 ## Security configuration
 

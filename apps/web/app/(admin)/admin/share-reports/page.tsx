@@ -48,7 +48,8 @@ export default function AdminShareReportsPage(): React.JSX.Element {
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-semibold text-neutral-100">Share-link reports</h1>
       <p className="text-xs text-neutral-500">
-        Take-down is wired; notifying the reporter/workspace is not (no template yet).
+        Resolving a report also notifies the reporter (when they left contact details) and the
+        workspace owner (`share-report-resolved`, B13b).
       </p>
       {error !== null && <p className="text-sm text-red-400">{error}</p>}
       <ul className="flex flex-col gap-3 text-sm text-neutral-300">

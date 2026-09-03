@@ -897,14 +897,26 @@ export interface CreateLicenseKeyRequest {
   maxActivations?: number;
 }
 
-/** `GET /plugins/manifest` (07 §Plugins, D65). Every channel is `available:
- * false` until C10 (installer builds and hosting) lands. */
+/** `GET /plugins/manifest` (07 §Plugins, D65). C10: extends the C11 stub into the real
+ * channel manifest (`channel`/`notes` additive; `available: false` only until a channel
+ * manifest is actually published for that host/channel). */
 export interface PluginManifestChannel {
   available: boolean;
   version: string | null;
   minHostVersion: string | null;
   maxHostVersion: string | null;
   downloadUrl: string | null;
+  channel: "alpha" | "beta" | "stable" | null;
+  notes: string | null;
+}
+
+/** The Aksharo Desktop app itself (C10) -- per-OS download, not a single `downloadUrl`. */
+export interface PluginManifestDesktop {
+  available: boolean;
+  version: string | null;
+  channel: "alpha" | "beta" | "stable" | null;
+  notes: string | null;
+  downloadUrl: { win: string | null; mac: string | null; linux: string | null };
 }
 
 export interface PluginManifestResponse {
@@ -913,6 +925,7 @@ export interface PluginManifestResponse {
     "ae-cep": PluginManifestChannel;
     "resolve-script": PluginManifestChannel;
   };
+  desktop: PluginManifestDesktop;
 }
 
 export interface ClientTagView {

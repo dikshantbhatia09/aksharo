@@ -30,7 +30,7 @@ export interface ReleaseConfig {
   appId: string;
   productName: string;
   desktopAppDir: string;
-  mac: { target: ("dmg" | "zip")[]; category: string };
+  mac: { target: ("dmg" | "zip" | "pkg")[]; category: string };
   win: { target: "nsis"; arch: "x64" };
   ccx: { pluginDir: string; minPremiereVersion: string };
   zxp: { pluginDir: string };

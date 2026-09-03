@@ -28,6 +28,98 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `plugins/resolve-panel/src/rpc/wsTransport.ts` fetches one and connects with
   `?ticket=` instead of the raw bearer.
 
+- **M04 — main hygiene: consent-purpose drift, worker env-var contract drift, bridge consent sync, audit-scan gap.**
+  - Consent purposes: `apps/api/test/users-workspaces.e2e-spec.ts` and
+    `apps/api/src/consents/consents.service.test.ts` still encoded C12's old
+    5-purpose list. Derived the e2e assertions from `CONSENT_PURPOSES` (one
+    source) and swapped the "outside the enum" sample from `telemetry`
+    (now valid) to `profiling`. `PRIVACY_NOTICE` (`apps/api/src/privacy/privacy-notice.ts`)
+    was also missing the `telemetry` purpose entry; added it (its test
+    already derives from the enum, so no drift is possible going forward).
+    `docs/06-data-model.md`'s consent-purpose enum note still lists only 5
+    purposes — doc row needed, not edited here (out of file boundaries).
+  - Worker env-var contract: `packages/config/src/env.ts`'s `CONTRACT_ENV_VARS`
+    gained `LICENSE_SIGNING_KID` but `apps/worker-ai/worker_ai/settings.py`
+    kept its own hand-copied tuple, so `test_contract_list_matches_typescript`
+    failed. `packages/config`'s build now emits `contract-env-vars.json`
+    (`packages/config/src/emit-contract-env.mjs`, wired into `build`/new
+    `gen:contract-env` script) and `settings.py` reads that JSON at import
+    time, falling back to a last-known-good tuple only when the JSON hasn't
+    been generated yet — the parity test still fails loudly if the fallback
+    ever goes stale, so the two lists cannot silently drift again.
+  - Bridge consent sync: `apps/bridge` read `GET /consents` nowhere and
+    defaulted `telemetryConsent` to `false` forever. `ConsentsController.list`
+    (`GET /consents`) now opts into `@AllowBridgeToken()`; the bridge
+    (`apps/bridge/src/consent-sync.ts`, wired into `main.ts`) reads it on
+    startup and polls it every 5 minutes, starting/stopping the telemetry
+    client live on a change. No push channel exists from the API to an
+    unpaired bridge process (`/bridge/relay` only pairs one bridge with one
+    connected client), so this is a poll rather than the
+    `consent.withdrawn`/`granted` event push the brief first asked for —
+    flagged for the orchestrator as a deviation, same as `memory/consent-events.ts`'s.
+  - Audit-scan gap: `apps/api/src/audit/audit-completeness.test.ts` flagged
+    D08's `evals/internal-evals.controller.ts` (`POST /internal/evals/runs`).
+    It's an HMAC-signed worker-to-API callback exactly like
+    `internal-jobs.controller.ts`, not a user/admin action, and its durable
+    trail is `EvalRun`/`EvalResult`, not `audit_log` — added the same
+    documented exemption to `EXEMPT_FILES`
+    (`apps/api/src/audit/audited-routes.scan.ts`).
+  - Lint hygiene: `packages/fonts/e2e/server.mjs`'s long-standing no-console
+    warning fixed with the same `eslint-disable-next-line` style already used
+    elsewhere in the repo; `pnpm -w lint` is clean.
+
+- C10: installers, plugins page and the real `/plugins/manifest`.
+  - `GET /plugins/manifest` extends the C11 stub into a real channel manifest: fetches
+    `tools/release`'s published `plugins-manifest.json` (5-minute Redis cache), reporting
+    `available: false` per channel/host only until that channel is actually published.
+    Additive fields `channel`/`notes` plus a new `desktop` (per-OS download) entry;
+    `premiere-uxp`/`ae-cep`/`resolve-script`'s existing `available`/`version`/
+    `minHostVersion`/`maxHostVersion`/`downloadUrl` fields are unchanged.
+  - `tools/release`: `build-desktop` enforces the installer size budget
+    (Windows NSIS ≤ 150 MB, macOS DMG ≤ 180 MB, `03-architecture/05-system-architecture.md`
+    §6-7) and throws `InstallerBudgetExceededError` over budget; `publish` now accepts
+    `--ccx-artifact`/`--resolve-artifact` and writes `plugins-manifest.json` to the
+    published channel dir; `package-resolve` stages a `VERSION` file, an uninstaller
+    (`uninstall.sh`/`uninstall.ps1`) alongside the existing installers (works for both
+    Resolve Free and Studio — same per-user Fusion path), and copies any generated Fusion
+    macro (`plugins/resolve/installer/manifest.json`, C08b) into its own per-OS Macros path.
+  - `apps/desktop/electron-builder.yml`: real installer targets (Windows NSIS, macOS
+    dmg + pkg) with per-user install, a silent-install flag, a directory picker and
+    differential-update blockmaps; a custom NSIS uninstall hook
+    (`apps/desktop/build/installer.nsh`) removes the local bridge's discovery file
+    (`~/.aksharo/bridge.json`) on uninstall. `pnpm pack:dry`'s `--dir` output (C02b's
+    Playwright-Electron e2e) is unaffected — electron-builder's `--dir` CLI flag always
+    wins over the yml's declared targets.
+  - `marketplace/premiere-uxp/`: Adobe Exchange listing copy, a screenshot list (none
+    captured yet — no Premiere Pro on any build host), and an Adobe trademark-usage-form
+    checklist for the still-outstanding human action (H-24) — no submission made.
+  - Marketing `/plugins` and `/download` (`apps/web/app/(site)/(marketing)`) now read
+    `/plugins/manifest` live (server-side fetch with a static-copy fallback) for per-OS/
+    per-host download buttons and a checksum-verification note, alongside the existing
+    SmartScreen/Gatekeeper first-run copy and D65 non-affiliation line.
+- **C05b — After Effects CEP 12 panel (minimal).** New `plugins/ae-cep` (`@montaj/ae-cep`):
+  CEP 12 manifest (`CSXS/manifest.xml`, bundle id `ai.aksharo.ae` from `@montaj/config`,
+  `AEFT` host min version `24.0`), bridge sign-in (device-code, same pattern as C05a's
+  Premiere panel), WAV mixdown via Adobe Media Encoder, styled text layers per segment
+  (mapped through a hand-copied mirror of C08b/C06b's shared style classification table —
+  19 supported / 6 approximate / 5 unsupported of 30 system styles, `docs/AE-STYLE-COVERAGE.md`),
+  alpha overlay import for unsupported/approximate styles, one `app.beginUndoGroup`/
+  `endUndoGroup` per apply, host-id map via a layer marker comment, and re-sync (a re-apply for
+  the same project replaces only its own previously tagged layers). Every host call is isolated
+  behind `AeHost` (`src/host/ae.ts`) with `MockAeHost`; ExtendScript (`src/jsx/aksharo.jsx`) is
+  a small ES3-compatible subset enforced by a dedicated lint config
+  (`eslint.extendscript.mjs`) — no real After Effects exists on the build host, so
+  `createRealAeHost()` throws until a human runs the new `docs/GATE-C-CHECKLIST.md`.
+  `tools/release/src/commands/signZxp.ts` now stages only the shippable subset (`CSXS`,
+  `index.html`, `dist`, `src/jsx`) from a real plugin tree before zipping, the same way
+  `packageCcx.ts` already staged the UXP plugin — `pnpm release sign-zxp --dry-run` now
+  packages the real panel instead of a placeholder. Deviation from the brief: the package
+  lives at `plugins/ae-cep` (the directory `docs/CONTRACTS.md`, `release.config.ts` and the
+  licensing plugin-channel schema already use), not the brief's literal
+  `plugins/after-effects-cep`.
+
+- C04: local mode (v1 = local-only) — `apps/desktop/src/local/**`: a SQLite (`sql.js`, WASM, MIT) store (`local_projects`/`local_media`/`local_edg_snapshots`/`local_exports`), a typed IPC surface (`window.aksharoDesktop.local`) delegating transcription/alignment/render to the local engine sidecar (C03a's `@montaj/engine-client`), the main-process network guard that blocks any upload to the hosted API while a local project is open, and the Starter+ `localMode` entitlement gate (`packages/config`'s `hasLocalMode`). `apps/web/lib/edg/store.ts` gained a local branch (`createLocalEditorStoreDeps`) so the hosted editor runs against the same IPC with no API calls for a local project; Home shows a desktop-only "Local projects" section. `POST /projects/{id}/edg/import` (new route) is the API side of "Upload to cloud" — writes a whole EDG v2 document as revision 1 of a fresh cloud project, never a merge.
+- C03b: local engine quality-gate harness (`apps/engine/bench/**`) — for each model (`turbo-q5_0`, `small`), calls `/transcribe`+`/align` through `@montaj/engine-client` against a committed Hinglish reference set (`apps/engine/fixtures/hinglish-reference.json`: A23's 90s sample + D08's `hinglish-mini` references vs. a committed cloud-aligner snapshot), scores WER/CER/median word-boundary error via a thin Python metrics bridge (`apps/worker-ai/worker_ai/evals/local_engine.py`, reusing D08's `worker_ai.evals.metrics`), checks tiered latency (A<=60s/B<=90s/C<=120s) and a harness-vs-`/health` tier cross-check, and writes a dated `docs/verification/local-engine-<profile>-<date>.md`+`.json` report; thresholds (`apps/engine/bench/thresholds.ts`) are pure and unit-tested. Runs end to end against C03a's `FakeBackend` here (`gate: skipped-fake-backend` — plumbing only) and CI (`.github/workflows/local-engine-bench.yml`) keeps it green on every push/PR touching the engine; the gate itself only passes from a real-backend run on a Gate C machine (`docs/GATE-C-CHECKLIST.md`'s new "Local engine quality gate" section). Deleted the A01 scaffold `engine/montaj-engine/**` (superseded by `apps/engine`, C03a) and fixed the one stale reference to it (root `README.md`'s layout table).
 - C09: DaVinci Resolve Studio Workflow Integration panel (`plugins/resolve-panel`) — docked React shell over `aksharo_core`'s loopback server (discover → bearer → JSON-RPC), `WorkflowIntegrationHost` adapter + mock, sign-in mirrored from the script, timeline picker, "Caption this timeline", passes review + "Apply in Resolve", version/update banner; C08 loopback server gains `session.status`, `transcribe.start`, `passes.list` (`plugins/resolve/aksharo_core_app/session.py|transcribe.py|passes.py`) plus a `?token=` query-param bearer path for browser `WebSocket` callers; `tools/release`'s `package-resolve` now also stages the panel bundle for Studio installs.
 
 ### Added
@@ -167,6 +259,53 @@ worker_ai.evals nightly[--post]` and `pnpm --filter @montaj/worker-ai eval`.
   leaderboard trend, freeze role-gating and audit, unfreeze). Deviations and
   open questions for A00-05 are in the WP's final report.
 
+- **B13b — admin console follow-ups: routing overrides reach the worker,
+  share-report/support-reply notifications, a real support panel, a
+  server-side admin gate, admin Playwright, dashboard charts.**
+  `GET /internal/routing/overrides` (`apps/api/src/internal/routing-overrides.controller.ts`)
+  is a new, HMAC-signed (`InternalSignatureGuard`) internal endpoint serving
+  `RoutingWeightOverride` rows as the `{ lanes: { candidates: { weight } } }`
+  shape `worker_ai.routing.RoutingTable.apply_overrides` already expects,
+  with a weak-ETag `Cache-Control: private, max-age=60`. The worker's new
+  `worker_ai/routing_overrides.py` fetches it with a 60s in-process cache
+  revalidated by that ETag, falls back to the last-known-good body on any
+  network/5xx/404, and defers to D08's forthcoming routing-freeze flag via
+  `getattr(settings, "routing_freeze", False)` (skips the fetch entirely
+  when set, so freeze wins over an override with no code change needed on
+  either side once that flag lands) — `worker_ai/runtime.py`'s
+  `fetch_routing_overrides` now delegates to it, kept for import
+  compatibility with `tests/test_routing.py`. Two new `NOTIFY_KINDS`,
+  `share-report-resolved` and `support-ticket-reply` (kind + en/hi templates
+  only, per this WP's file boundary): `AdminShareController.resolve` now
+  emails the reporter (when they left contact details) and the workspace
+  owner once a report is resolved; the new `AdminSupportService`/
+  `AdminSupportController` (`admin/support/**`) replace B13's
+  `available: false` stub with a real queue over B12's `support_tickets` —
+  list/filter by status and category, a `support`/`superadmin`-gated status
+  transition (the schema's own comment names this "B13 (admin) transitions
+  it"), and a reply sent via the notify interface, both audited
+  (`admin.support.status_set`, `admin.support.replied`). `apps/web/middleware.ts`
+  gates the whole `(admin)` route group with a routing-only, httpOnly
+  `aksharo_admin_hint` cookie (`lib/admin/admin-hint-cookie.ts`,
+  `app/api/admin-hint/route.ts`, set by the step-up page and cleared by
+  "End admin session") — a visitor who has never stepped up gets a plain
+  404 rather than a redirect that would announce `/admin` exists;
+  `AdminGuard` on the API is unchanged and remains the real authorization.
+  A new dependency-free `BarChart` (`components/admin/bar-chart.tsx`, plain
+  SVG, no CDN) renders the acquisition/streak/offers panels on the admin
+  dashboard as bar breakdowns — an honest simplification, since none of the
+  three source endpoints bucket by day yet (see the component's own doc
+  comment and "open questions" below). New `apps/web/e2e/admin.spec.ts`
+  seeds `admin_roles`/`admin_totp` directly with `pg` (no self-service grant
+  route exists, the same gap `streak.spec.ts` documents for its own
+  fixtures) and proves the 404 gate, and that `support` is refused by
+  `AdminGuard`'s role check on a refund while `finance` clears it.
+  **Deliberately not built**: the chained-self-referral device/IP signal
+  (recorded here, per the orchestrator's ruling, as a clustering candidate
+  for a future anti-abuse pass, not code) — a workspace pair that shares a
+  device fingerprint or IP across `referral_rewards` rows is a signal this
+  WP was told to name, not implement; see the doc comment on
+  `AdminReferralsController` (`admin/referrals/admin-referrals.controller.ts`).
 - **X08 — Cilium FQDN egress adoption for production (D73's staged rollout,
   prod hardening before Gate C).** `infra/k8s/montaj/values.yaml`'s
   `networkPolicy.fqdn.enabled` boolean becomes `networkPolicy.fqdn.mode:

@@ -1,5 +1,7 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import { ulid } from "ulid";
+
+import type { EdgProjection } from "@montaj/render-core";
 
 import {
   SHARE_AUTO_DISABLE_REPORT_THRESHOLD,
@@ -11,8 +13,12 @@ import { generateShareToken, ShareSessionSigner } from "./token.js";
 import { PasswordService } from "../auth/password.service.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, PrismaService } from "../common/index.js";
+import { DERIVED_STORE, DOWNLOAD_URL_TTL_SECONDS } from "../common/storage/index.js";
+import { EdgRepository } from "../edg/index.js";
+import { buildRenderProjection } from "../exports/projection.js";
 
 import type { CreateShareLinkDto } from "./share.dto.js";
+import type { ObjectStore } from "../common/index.js";
 import type { $Enums, ShareLink } from "@prisma/client";
 
 export type ShareScope = "view" | "comment" | "approve";
@@ -83,6 +89,8 @@ export class ShareLinksService {
     private readonly passwords: PasswordService,
     private readonly sessions: ShareSessionSigner,
     private readonly audit: CommonAuditService,
+    private readonly edg: EdgRepository,
+    @Inject(DERIVED_STORE) private readonly derivedStore: ObjectStore,
   ) {}
 
   async create(
@@ -385,5 +393,70 @@ export class ShareLinksService {
     });
 
     return { id: report.id, dueAt: report.dueAt.toISOString() };
+  }
+
+  /**
+   * The proxy video URL and EDG projection a public viewer renders (brief §1:
+   * "renders the proxy video with live captions via the CanvasKit preview from
+   * A15/A17"). Any live scope may see it — even `view` — since watching the
+   * preview is the whole point of a share link; `assertScope` is for comment/
+   * approve actions, not for this read.
+   *
+   * Reuses `EdgRepository.projectionOf` unchanged (the same call
+   * `ExportsModule` makes to render) so the public viewer and the real
+   * exporter can never disagree about what a caption looks like.
+   */
+  async preview(
+    token: string,
+    sessionValue: string | undefined,
+  ): Promise<{
+    readonly proxyUrl: string;
+    readonly durationMs: number | null;
+    readonly aspect: string;
+    readonly projection: EdgProjection | null;
+  }> {
+    const { project, unlocked } = await this.resolve(token, sessionValue);
+    if (!unlocked) {
+      throw new AppException(
+        SHARE_ERRORS.passwordRequired,
+        "This link is password-protected.",
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    const media = await this.prisma.mediaAsset.findFirst({
+      where: { projectId: project.id, role: "primary", status: "ready" },
+      orderBy: { createdAt: "desc" },
+    });
+    if (media === null || media.proxyKey === null || media.proxyKey === "") {
+      throw new AppException(
+        SHARE_ERRORS.notFound,
+        "This project has no playable preview yet.",
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const edgDocument = await this.prisma.edgDocument.findUnique({
+      where: { projectId: project.id },
+      select: { id: true },
+    });
+
+    const proxyUrl = await this.derivedStore.presignGet(media.proxyKey, DOWNLOAD_URL_TTL_SECONDS);
+    let projection: EdgProjection | null = null;
+    if (edgDocument !== null) {
+      const edg = await this.edg.projectionOf(edgDocument.id);
+      const chunks = await this.edg.loadChunks(edg.transcript.transcriptId);
+      const built = buildRenderProjection(edg, chunks);
+      projection = {
+        canvas: built.canvas,
+        styles: edg.styles as EdgProjection["styles"],
+        ...(edg.render === undefined ? {} : { render: edg.render as EdgProjection["render"] }),
+        segments: built.segments,
+        words: built.words,
+        ...(built.speakerColours === undefined ? {} : { speakerColours: built.speakerColours }),
+      };
+    }
+
+    return { proxyUrl, durationMs: media.durationMs, aspect: project.aspect, projection };
   }
 }

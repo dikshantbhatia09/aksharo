@@ -216,6 +216,7 @@ export type {
   MemberView,
   MembershipStatus,
   PluginManifestChannel,
+  PluginManifestDesktop,
   PluginManifestResponse,
   RenameDeviceRequest,
   SetClientTagRequest,

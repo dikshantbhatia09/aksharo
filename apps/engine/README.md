@@ -8,11 +8,13 @@ a versioned, SHA-256-verified manifest fetched from `MODEL_WEIGHTS_BASE_URL`
 (the "H-22" pattern already used by `packages/fonts`).
 
 **Status:** the HTTP/WS contract, model manager, backend/tier detection and a
-deterministic `FakeBackend` are implemented and fully tested here. The real
+deterministic `FakeBackend` are implemented and fully tested here (C03a). The
+local quality-gate harness and tiered latency benchmarks (`bench/**`) are
+**C03b**'s, proven end to end against `FakeBackend` in this repo; the real
 whisper.cpp/Silero/deep-filter backends (spawning and talking to the native
-processes on real hardware) are **C03b**'s work, behind the same
-`EngineBackend` interface (`src/backends/types.ts`) — see "Open questions"
-below.
+processes on real hardware) are **A00-10**'s, behind the same `EngineBackend`
+interface (`src/backends/types.ts`) — see "Quality gate and latency
+benchmarks" and "Open questions" below.
 
 ## Contract
 
@@ -79,14 +81,42 @@ request's `audio` field (falling back to a default fixture). This is what
 every test in this WP runs against — no whisper.cpp/Silero/deep-filter
 binary is ever downloaded into this sandbox.
 
-## Open questions for A00-10 / C03b
+## Quality gate and latency benchmarks (C03b)
+
+`bench/**` (`pnpm --filter @montaj/engine bench`) is the local quality-gate
+harness: for each model (`turbo-q5_0`, `small`) it calls `/transcribe` +
+`/align` through `@montaj/engine-client` — exactly the path `apps/desktop`
+uses — against the committed Hinglish reference set
+(`fixtures/hinglish-reference.json`: A23's 90s sample plus D08's
+`hinglish-mini` eval-set references, scored against a committed cloud-aligner
+snapshot standing in for A10's CTC/xlsr aligner), computes WER/CER via a thin
+call into D08's own metrics (`apps/worker-ai/worker_ai/evals/local_engine.py`,
+reusing `worker_ai.evals.metrics` rather than a second implementation), checks
+the median word-boundary error against the 80ms bar
+(`03-architecture/05-system-architecture.md` §7), checks wall-clock latency
+against the per-tier bars (A/B/C; D is local-disabled), cross-checks the
+harness's own tier detection against the server's `/health` tier, and writes
+a dated report to `docs/verification/local-engine-<profile>-<date>.md`+`.json`.
+
+**Here, this always runs against `FakeBackend`** (this repo's "Reality":
+no real ASR/aligner binary exists in this sandbox), so the report's gate is
+`skipped-fake-backend` — plumbing, threshold math and report format proven,
+never a real pass/fail. The same command, unchanged, runs against a real
+`EngineBackend` on a Gate C machine once one exists behind `src/backends/
+types.ts`'s seam — see `docs/GATE-C-CHECKLIST.md`'s "Local engine quality
+gate" section for the exact procedure and where results get pasted.
+`.github/workflows/local-engine-bench.yml` runs the `FakeBackend` job on every
+push/PR that touches this package so the harness itself never rots; the real
+job is `workflow_dispatch`-only until a real-hardware runner exists.
+
+## Open questions for A00-10
 
 - Real backend wiring (spawning whisper.cpp/Silero/deep-filter/ffmpeg,
   talking to them over their own IPC, translating to this contract) is not
-  implemented — `EngineBackend` is the seam C03b implements against.
-- The quality gate (median word-boundary error ≤80ms vs. the cloud aligner on
-  a Hinglish fixture) and the faster-whisper Windows fallback are C03b's.
+  implemented — `EngineBackend` is the seam a real backend implements
+  against, exercised end to end by C03b's `bench/**` harness above once one
+  exists.
 - `detection.ts`'s CUDA/Vulkan probing (`nvidia-smi`, driver detection) is not
   implemented here — `SystemInfo` is an injected interface so `main.ts`'s real
-  probe is a small, separately testable addition C03b can make without
+  probe is a small, separately testable addition A00-10 can make without
   touching the tier logic.

@@ -26,8 +26,10 @@ describe("the kind list", () => {
       "renewal-notice",
       "retention-warning",
       "share-comment",
+      "share-report-resolved",
       "streak-nudge",
       "support-ticket-created",
+      "support-ticket-reply",
       "verify-email",
     ]);
   });

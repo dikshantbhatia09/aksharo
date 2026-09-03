@@ -23,6 +23,8 @@ import {
 
 import {
   EdgDocumentDto,
+  ImportRequestDto,
+  ImportResultDto,
   ItemsQueryDto,
   OpBatchRequestDto,
   OpBatchResponseDto,
@@ -240,6 +242,35 @@ export class EdgController {
       },
       ...(body.dropFillers === undefined ? {} : { dropFillers: body.dropFillers }),
       source: sourceOf(principal.kind),
+    });
+  }
+
+  @Post("import")
+  @Roles("editor")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Write a whole EDG document as revision 1 of a fresh project",
+    description:
+      "The desktop's 'Upload to cloud' (brief C04 §3): creates a new cloud project " +
+      "from a local one's already-edited document, handed over verbatim rather than " +
+      "replayed as ops. Never a merge — a project that already has a document " +
+      "refuses with `edg/already_imported`.",
+    operationId: "importEdgDocument",
+  })
+  @ApiOkResponse({ type: ImportResultDto })
+  @ApiConflictResponse({ description: "`edg/already_imported`." })
+  async import(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("projectId") projectId: string,
+    @Body() body: ImportRequestDto,
+  ): Promise<ImportResultDto> {
+    return this.edg.importSnapshot({
+      projectId,
+      workspaceId: principal.workspaceId,
+      hot: body.hot,
+      segments: body.segments,
+      author: body.author ?? principal.userId,
+      source: body.source ?? sourceOf(principal.kind),
     });
   }
 

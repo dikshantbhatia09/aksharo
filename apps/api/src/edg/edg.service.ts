@@ -486,6 +486,61 @@ export class EdgService {
     return { ...created, created: true };
   }
 
+  /**
+   * `POST /projects/{id}/edg/import` (brief C04 §3): writes a whole,
+   * already-edited EDG v2 document as revision 1 of a fresh project — the
+   * desktop's "Upload to cloud" creates a *new* cloud project from a local
+   * one and hands over its document verbatim, rather than replaying ops or
+   * re-running the segmenter (that is what `initialise` is for). A project
+   * that already has a document refuses with `edg/already_imported`: import
+   * only ever creates the first one, exactly like `initialise`, and this
+   * WP's scope explicitly excludes a local-to-cloud merge.
+   */
+  async importSnapshot(input: {
+    projectId: string;
+    workspaceId: string;
+    hot: EdgHot;
+    segments: readonly Segment[];
+    author?: string | null;
+    source?: EdgSource;
+  }): Promise<{ edgId: string; revision: number; segments: number }> {
+    const project = await this.prisma.project.findFirst({
+      where: { id: input.projectId, workspaceId: input.workspaceId, deletedAt: null },
+      select: { id: true, edgDocument: { select: { id: true } } },
+    });
+    if (project === null) {
+      throw new AppException(ERROR_CODES.notFound, "No such project.", HttpStatus.NOT_FOUND);
+    }
+    if (project.edgDocument !== null) {
+      throw new AppException(
+        EDG_ERROR_CODES.alreadyImported,
+        "This project already has a document.",
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const edgId = newId();
+    const hot: EdgHot = {
+      ...input.hot,
+      meta: { ...input.hot.meta, edgId, projectId: input.projectId },
+    };
+
+    const created = await this.repository.createDocument({
+      edgId,
+      projectId: input.projectId,
+      hot,
+      segments: input.segments,
+      author: input.author ?? null,
+      source: input.source ?? "desktop",
+    });
+
+    this.logger.log(
+      { projectId: input.projectId, edgId, segments: created.segments },
+      "edg document imported from a local project (upload to cloud)",
+    );
+    return created;
+  }
+
   // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------

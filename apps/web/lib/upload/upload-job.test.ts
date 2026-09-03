@@ -347,3 +347,123 @@ describe("UploadJob.resumeFromRecord", () => {
     expect(updates.at(-1)?.status).toBe("ready");
   });
 });
+
+describe("UploadJob.run — batch (existingProjectId)", () => {
+  it("skips POST /projects and uploads straight into the given project (B15)", async () => {
+    const calls: string[] = [];
+    const fetchMock = async (input: string | URL, init?: RequestInit): Promise<Response> => {
+      const url = new URL(String(input));
+      const method = init?.method ?? "GET";
+      calls.push(`${method} ${url.pathname}`);
+
+      if (method === "POST" && url.pathname === "/projects/01JBATCHPROJECT0000000AA/media/init") {
+        return jsonResponse(
+          {
+            mediaId: "01JMEDIA00000000000000000",
+            uploadId: "upload-1",
+            key: "ws/x/raw.mp4",
+            bucket: "s3",
+            partSizeBytes: 16 * 1024 * 1024,
+            parts: [{ partNumber: 1, url: "https://minio.test/part-1" }],
+            expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+            duplicate: false,
+            media: mediaJson({ projectId: "01JBATCHPROJECT0000000AA" }),
+          },
+          201,
+        );
+      }
+      if (
+        method === "POST" &&
+        url.pathname ===
+          "/projects/01JBATCHPROJECT0000000AA/media/01JMEDIA00000000000000000/complete"
+      ) {
+        return jsonResponse(
+          { media: mediaJson({ status: "uploaded" }), probeJobId: "job-1", proxyJobId: null },
+          201,
+        );
+      }
+      if (method === "POST" && url.pathname === "/projects/01JBATCHPROJECT0000000AA/transcribe") {
+        return jsonResponse(
+          { error: { code: "transcript/media_not_ready", message: "Media not probed yet." } },
+          409,
+        );
+      }
+      throw new Error(`unexpected fetch: ${method} ${url.pathname}`);
+    };
+
+    const client = createApiClient({ baseUrl: BASE, fetch: fetchMock as typeof fetch });
+    const updates: UploadItemState[] = [];
+
+    const job = new UploadJob({
+      client,
+      file: fakeFile(),
+      quickPick: { language: "hi-Latn", aspect: "9:16" },
+      localId: "local-batch",
+      existingProjectId: "01JBATCHPROJECT0000000AA",
+      onUpdate: (state) => {
+        updates.push(state);
+      },
+      hashFileFn: async () => "deadbeef",
+      xhrFactory: () => new FakeXhr(),
+      setTimeoutFn: (handler) => {
+        handler();
+        return 0;
+      },
+    });
+
+    await job.run();
+
+    expect(calls).toEqual([
+      "POST /projects/01JBATCHPROJECT0000000AA/media/init",
+      "POST /projects/01JBATCHPROJECT0000000AA/media/01JMEDIA00000000000000000/complete",
+      "POST /projects/01JBATCHPROJECT0000000AA/transcribe",
+    ]);
+    expect(updates.at(-1)?.projectId).toBe("01JBATCHPROJECT0000000AA");
+    expect(updates.at(-1)?.status).toBe("ready");
+  });
+
+  it("does not remove a batch project on a duplicate — only its own would be", async () => {
+    const removeCalls: string[] = [];
+    const fetchMock = async (input: string | URL, init?: RequestInit): Promise<Response> => {
+      const url = new URL(String(input));
+      const method = init?.method ?? "GET";
+      if (method === "DELETE") removeCalls.push(url.pathname);
+
+      if (method === "POST" && url.pathname === "/projects/01JBATCHPROJECT0000000AB/media/init") {
+        return jsonResponse({
+          mediaId: "01JEXISTINGMEDIA000000000",
+          uploadId: null,
+          key: "ws/x/raw.mp4",
+          bucket: "s3",
+          partSizeBytes: 0,
+          parts: [],
+          expiresAt: null,
+          duplicate: true,
+          media: mediaJson({ projectId: "01JOTHERPROJECT0000000000" }),
+        });
+      }
+      throw new Error(`unexpected fetch: ${method} ${url.pathname}`);
+    };
+
+    const client = createApiClient({ baseUrl: BASE, fetch: fetchMock as typeof fetch });
+    const updates: UploadItemState[] = [];
+
+    const job = new UploadJob({
+      client,
+      file: fakeFile(),
+      quickPick: { language: "hi-Latn", aspect: "9:16" },
+      localId: "local-batch-dup",
+      existingProjectId: "01JBATCHPROJECT0000000AB",
+      onUpdate: (state) => {
+        updates.push(state);
+      },
+      hashFileFn: async () => "deadbeef",
+    });
+
+    await job.run();
+
+    expect(removeCalls).toHaveLength(0);
+    expect(updates.at(-1)?.status).toBe("duplicate");
+    expect(updates.at(-1)?.duplicateOfProjectId).toBe("01JOTHERPROJECT0000000000");
+  });
+});

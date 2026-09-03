@@ -23,11 +23,46 @@ export interface BuildDesktopOptions {
 export interface BuildDesktopResult {
   appDir: string;
   artifactPath: string;
+  artifactSizeBytes: number;
   electronBuilderConfigPath: string;
   signed: { path: string; signed: boolean }[];
   placeholderApp: boolean;
   /** Whether a real `apps/engine` build (`dist/`) was found and copied in (C03a). */
   engineBundled: boolean;
+}
+
+/**
+ * Installer size budgets (`03-architecture/05-system-architecture.md` §6-7: "Windows NSIS
+ * ≤ 150 MB, macOS DMG ≤ 180 MB"). CI fails the build when a real installer exceeds this — a
+ * placeholder-app dry-run artifact (a few KB) never gets close, so this only bites once a real
+ * `electron-builder --dir` output (or eventually a real `.exe`/`.dmg`) is being packaged.
+ */
+export const INSTALLER_SIZE_BUDGET_BYTES: Record<Platform, number> = {
+  win: 150 * 1024 * 1024,
+  mac: 180 * 1024 * 1024,
+};
+
+export class InstallerBudgetExceededError extends Error {
+  constructor(
+    public readonly platform: Platform,
+    public readonly sizeBytes: number,
+    public readonly budgetBytes: number,
+  ) {
+    super(
+      `${platform} installer artifact is ${(sizeBytes / (1024 * 1024)).toFixed(1)} MB, ` +
+        `over the ${(budgetBytes / (1024 * 1024)).toFixed(0)} MB budget ` +
+        `(03-architecture/05-system-architecture.md §6-7).`,
+    );
+    this.name = "InstallerBudgetExceededError";
+  }
+}
+
+/** Throws {@link InstallerBudgetExceededError} when `sizeBytes` exceeds the platform's budget. */
+export function checkInstallerSizeBudget(platform: Platform, sizeBytes: number): void {
+  const budget = INSTALLER_SIZE_BUDGET_BYTES[platform];
+  if (sizeBytes > budget) {
+    throw new InstallerBudgetExceededError(platform, sizeBytes, budget);
+  }
 }
 
 /** Generates the electron-builder YAML-shaped config as JSON from `release.config.ts`. Kept
@@ -54,6 +89,20 @@ export function generateElectronBuilderConfig(
     win:
       platform === "win"
         ? { target: [{ target: config.win.target, arch: [config.win.arch] }] }
+        : undefined,
+    // Per-user install, silent-install flag, directory picker, differential blockmap
+    // updates and the bridge-discovery-file uninstall cleanup (`apps/desktop/build/
+    // installer.nsh`'s `customUnInstall`) -- mirrors `apps/desktop/electron-builder.yml`'s
+    // own `nsis:` block (C10) so both config generation paths agree.
+    nsis:
+      platform === "win"
+        ? {
+            oneClick: false,
+            perMachine: false,
+            allowToChangeInstallationDirectory: true,
+            deleteAppDataOnUninstall: false,
+            include: "apps/desktop/build/installer.nsh",
+          }
         : undefined,
   };
 }
@@ -241,9 +290,13 @@ export async function runBuildDesktop(
   const artifactPath = path.join(ctx.outDir, "artifacts", opts.channel, artifactName);
   await zipDirectory(bundleRoot, artifactPath);
 
+  const artifactSizeBytes = (await fs.stat(artifactPath)).size;
+  checkInstallerSizeBudget(opts.platform, artifactSizeBytes);
+
   return {
     appDir,
     artifactPath,
+    artifactSizeBytes,
     electronBuilderConfigPath,
     signed,
     placeholderApp: placeholder,
