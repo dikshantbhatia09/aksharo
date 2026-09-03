@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 import numpy as np
 import pytest
 
@@ -8,6 +10,8 @@ from worker_ai.passes.tracking import (
     Detection,
     IouTracker,
     OneEuroFilter,
+    YuNetDetector,
+    YuNetModelUnavailableError,
     iou,
     track_subject,
 )
@@ -139,3 +143,31 @@ def test_synthetic_moving_rectangle_tracking_error_under_3_percent_of_width() ->
     errors = [abs(p.cx - true_cx[i]) for i, p in enumerate(points)]
     max_error = max(errors)
     assert max_error < 0.03, f"tracking error {max_error:.4f} exceeds 3% of width"
+
+
+def test_yunet_detector_raises_without_model_path() -> None:
+    with pytest.raises(YuNetModelUnavailableError):
+        YuNetDetector("", frames=[])
+
+
+@pytest.mark.slow
+def test_yunet_detector_real_model() -> None:
+    """YuNet ONNX weights (M15, H-22): skips when not provisioned locally."""
+    model_path = os.environ.get("YUNET_MODEL_PATH", "")
+    if not model_path:
+        pytest.skip("YUNET_MODEL_PATH not set — no model weights on this machine (H-22)")
+
+    # A plain BGR uint8 frame with a bright rectangular blob is not a real
+    # face, so this only proves the session loads and runs end to end
+    # (`detect` returns cleanly, whatever it finds — zero faces is a legal
+    # answer for a frame with no face in it).
+    frame = np.zeros((240, 320, 3), dtype=np.uint8)
+    frame[80:160, 120:200] = 200
+    detector = YuNetDetector(model_path, frames=[frame])
+
+    detections = detector.detect(0, 0)
+    assert isinstance(detections, list)
+    for detection in detections:
+        assert 0.0 <= detection.x <= 1.0
+        assert 0.0 <= detection.y <= 1.0
+        assert detection.score >= 0.0

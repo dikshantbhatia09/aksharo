@@ -90,14 +90,36 @@ class ClapEmbedder:
         if not model_path:
             raise ClapModelUnavailableError("CLAP_MODEL_PATH is not set")
         try:
-            import laion_clap  # type: ignore[import-not-found]
+            # Codes differ by machine: import-not-found when the optional
+            # local-clap extra isn't installed, import-untyped when it is
+            # (laion_clap ships no py.typed marker) — a bare ignore covers
+            # both without going unused in either environment.
+            import laion_clap  # type: ignore
         except ImportError as error:
             raise ClapModelUnavailableError(
                 "laion_clap is not installed on this machine"
             ) from error
 
         self._model = laion_clap.CLAP_Module(enable_fusion=False)
-        self._model.load_ckpt(model_path)
+        # `laion_clap.load_ckpt` calls `torch.load` with its default
+        # `weights_only`. Torch >= 2.6 defaults that to True, which rejects the
+        # numpy scalar globals pickled into LAION's published checkpoints —
+        # not a laion_clap bug, a torch default that changed after those
+        # checkpoints were published. `model_path` is never attacker-supplied
+        # (it is `CLAP_MODEL_PATH`, an operator-provisioned local file whose
+        # SHA-256 is pinned in docs/models/LOCAL-MODELS.md — H-22), so
+        # trusting its pickle for the scope of this one load is the same
+        # trust decision `weights_only=False` documents, applied narrowly.
+        import torch
+
+        original_load = torch.load
+        torch.load = lambda *args, **kwargs: original_load(
+            *args, **{**kwargs, "weights_only": False}
+        )
+        try:
+            self._model.load_ckpt(model_path)
+        finally:
+            torch.load = original_load
 
     def embed_audio(self, file_path: str) -> list[float]:
         embedding = self._model.get_audio_embedding_from_filelist(

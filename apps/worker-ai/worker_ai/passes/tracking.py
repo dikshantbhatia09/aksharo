@@ -53,6 +53,8 @@ __all__ = [
     "IouTracker",
     "OneEuroFilter",
     "SubjectPoint",
+    "YuNetDetector",
+    "YuNetModelUnavailableError",
     "iou",
     "track_subject",
 ]
@@ -193,6 +195,77 @@ class BrightBlobDetector(FrameDetector):
                 score=1.0,
             )
         ]
+
+
+class YuNetModelUnavailableError(RuntimeError):
+    """Raised when `YuNetDetector` is used but `YUNET_MODEL_PATH` is unset or
+    `opencv-python-headless` (or the ONNX weights) cannot be loaded."""
+
+
+class YuNetDetector(FrameDetector):
+    """The real detector the module docstring names as the seam's filler:
+    OpenCV's ``FaceDetectorYN`` running the YuNet ONNX face model (M15,
+    H-22). Weights are never committed — ``model_path`` is an
+    operator-provisioned local file (``YUNET_MODEL_PATH``), loaded lazily so
+    importing this module, and constructing ``BrightBlobDetector``, never
+    touches ``cv2`` or the filesystem.
+
+    ``frames`` are numpy arrays, BGR ``uint8``, matching what
+    ``cv2.FaceDetectorYN`` expects (the synthetic tests' grayscale-float
+    frames go through ``BrightBlobDetector`` instead — this class is for a
+    real video decode's frames).
+    """
+
+    def __init__(
+        self,
+        model_path: str,
+        frames: list[Any],
+        *,
+        frame_interval_ms: int = 200,
+        score_threshold: float = 0.6,
+    ) -> None:
+        if not model_path:
+            raise YuNetModelUnavailableError("YUNET_MODEL_PATH is not set")
+        try:
+            import cv2
+        except ImportError as error:
+            raise YuNetModelUnavailableError(
+                "opencv-python-headless is not installed on this machine"
+            ) from error
+
+        self.frames = frames
+        self.frame_interval_ms = frame_interval_ms
+        self._cv2 = cv2
+        # input_size (0, 0): `setInputSize` is called per frame once the
+        # actual frame shape is known, since frames need not be uniform.
+        self._session = cv2.FaceDetectorYN.create(
+            model_path, "", (0, 0), score_threshold=score_threshold
+        )
+
+    def detect(self, frame_index: int, t_ms: int) -> list[Detection]:
+        if frame_index >= len(self.frames):
+            return []
+        frame = self.frames[frame_index]
+        height, width = frame.shape[:2]
+        self._session.setInputSize((width, height))
+        _, faces = self._session.detect(frame)
+        if faces is None:
+            return []
+        detections: list[Detection] = []
+        for face in faces:
+            x, y, w, h = float(face[0]), float(face[1]), float(face[2]), float(face[3])
+            score = float(face[14])
+            detections.append(
+                Detection(
+                    t_ms=t_ms,
+                    x=max(0.0, x) / width,
+                    y=max(0.0, y) / height,
+                    w=min(w, width - x) / width,
+                    h=min(h, height - y) / height,
+                    score=score,
+                )
+            )
+        return detections
 
 
 class IouTracker:
