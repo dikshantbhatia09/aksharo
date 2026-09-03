@@ -1,0 +1,23 @@
+name: tamil-synth
+kind: transcript
+language: ta
+script: Tamil
+licence: generated-internal
+codeMix: false
+description: >
+  Synthetic Tamil clips with known ground truth, generated for D08 because
+  A00-05's licensed set has not reported. No audio; runs against the mock
+  provider.
+items:
+  - id: ta-001
+    reference:
+      reference: "வணக்கம் நண்பர்களே இன்று ஒரு புதிய வீடியோ"
+      hints: []
+  - id: ta-002
+    reference:
+      reference: "இது மிகவும் நல்லா இருக்கு நண்பா"
+      hints: []
+  - id: ta-003
+    reference:
+      reference: "சேனலை சப்ஸ்கிரைப் செய்ய மறக்காதீங்க"
+      hints: []

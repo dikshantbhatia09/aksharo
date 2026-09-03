@@ -87,6 +87,7 @@ export function AdminShell({ children }: { children: React.ReactNode }): React.J
               type="button"
               onClick={() => {
                 clearAdminSession();
+                void fetch("/api/admin-hint", { method: "DELETE" }).catch(() => undefined);
                 router.push("/admin/step-up");
               }}
               className="mt-2 text-xs text-neutral-500 underline hover:text-neutral-300"

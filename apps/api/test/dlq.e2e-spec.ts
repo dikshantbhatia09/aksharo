@@ -122,16 +122,20 @@ function callback(path: string, body: unknown, attemptId: string) {
 
 let enqueued = 0;
 /**
- * The queue is `ai.clean`, not `ai.transcribe`: this suite is about the
- * dead-letter path and posts a generic completion, and since A11 `ai.transcribe`
- * has an owner that validates its payload into `transcript_chunks` and refuses
- * anything that is not a transcript. `ai.clean` is the same CONTRACTS §3 family
- * with no handler registered against it.
+ * The queue is `ai.vad`, not `ai.transcribe` or `ai.clean`: this suite is about
+ * the dead-letter path and posts a generic `{status:"succeeded"}` completion
+ * with no `result`, and both of those queues now have a real owner that
+ * requires one — A11's `ai.transcribe` validates its payload into
+ * `transcript_chunks`, and B10's `AudioCleanCompletionHandler` (M03: this
+ * suite used to use `ai.clean`, which 400'd once B10 registered a completion
+ * handler requiring `{cleanId, mediaId, strength, target}`) does the same for
+ * `audio_cleans`. `ai.vad` is still a real CONTRACTS §3 queue with no handler
+ * registered against it, so a bare completion is legal there.
  */
 async function enqueue(worstCaseTenths = 100) {
   enqueued += 1;
   return jobs.enqueue({
-    type: "ai.clean",
+    type: "ai.vad",
     workspaceId: WORKSPACE,
     projectId: PROJECT,
     params: { mediaId: id("MEDA") },
@@ -317,7 +321,7 @@ describe.skipIf(!CAN_RUN)("dead-letter queue, end to end", () => {
 
     const entry = await prisma.dlqEntry.findFirstOrThrow({ where: { jobId: job.id } });
     expect(entry.status).toBe("pending");
-    expect(entry.queue).toBe("ai.clean");
+    expect(entry.queue).toBe("ai.vad");
     expect(entry.attempts).toBe(3);
     expect(entry.worstCaseTenths).toBe(120);
     expect(entry.lastError).toMatchObject({
@@ -337,7 +341,7 @@ describe.skipIf(!CAN_RUN)("dead-letter queue, end to end", () => {
 
     const response = await request(app.getHttpServer())
       .get("/admin/dlq")
-      .query({ queue: "ai.clean" })
+      .query({ queue: "ai.vad" })
       .set("Authorization", asAdmin())
       .expect(200);
     const entryId = (response.body as { items: { id: string; jobId: string }[] }).items.find(
@@ -353,7 +357,7 @@ describe.skipIf(!CAN_RUN)("dead-letter queue, end to end", () => {
     expect(attemptNo).toBe(4);
 
     // A REAL BullMQ job exists under the new attempt's id.
-    const queue = new Queue("ai.clean", { connection: redis, prefix: PREFIX });
+    const queue = new Queue("ai.vad", { connection: redis, prefix: PREFIX });
     try {
       const bull = await queue.getJob(bullJobId(job.id, attemptId));
       expect(bull).not.toBeUndefined();
@@ -425,7 +429,7 @@ describe.skipIf(!CAN_RUN)("dead-letter queue, end to end", () => {
       pending: number;
       queues: { queue: string; pending: number; oldestFailedAt: string | null }[];
     };
-    const transcribe = body.queues.find((row) => row.queue === "ai.clean");
+    const transcribe = body.queues.find((row) => row.queue === "ai.vad");
     expect(transcribe?.pending).toBeGreaterThan(0);
     expect(transcribe?.oldestFailedAt).toBeTypeOf("string");
   });
@@ -468,13 +472,13 @@ describe.skipIf(!CAN_RUN)("the jobKey uniqueness index", () => {
     const jobKey = `a08b-race-${RUN}`;
     const results = await Promise.all([
       jobs.enqueue({
-        type: "ai.clean",
+        type: "ai.vad",
         workspaceId: WORKSPACE,
         jobKey,
         worstCaseTenths: 10,
       }),
       jobs.enqueue({
-        type: "ai.clean",
+        type: "ai.vad",
         workspaceId: WORKSPACE,
         jobKey,
         worstCaseTenths: 10,
@@ -596,7 +600,7 @@ describe.skipIf(!CAN_RUN)("GET /internal/metrics", () => {
     expect(text).toContain("# TYPE montaj_dlq_depth gauge");
     expect(text).toContain("# TYPE montaj_job_queue_wait_ms histogram");
     expect(text).toContain("# TYPE montaj_queue_wait_duration_seconds histogram");
-    expect(text).toContain('montaj_jobs_failed_total{queue="ai.clean"}');
+    expect(text).toContain('montaj_jobs_failed_total{queue="ai.vad"}');
   });
 
   it("is not in the OpenAPI document: it is plumbing, not product API", async () => {

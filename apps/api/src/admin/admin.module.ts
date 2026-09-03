@@ -7,6 +7,7 @@ import { AdminStepUpController } from "./auth/admin-step-up.controller.js";
 import { AdminStepUpService } from "./auth/admin-step-up.service.js";
 import { AdminCreditsController } from "./credits/admin-credits.controller.js";
 import { AdminDlqController } from "./dlq/dlq.controller.js";
+import { AdminEvalsController } from "./evals/admin-evals.controller.js";
 import { AdminFlagsController } from "./flags/admin-flags.controller.js";
 import { AdminJobsController } from "./jobs/admin-jobs.controller.js";
 import { AdminParentalWaitlistController } from "./parental-waitlist.controller.js";
@@ -17,6 +18,7 @@ import { AdminStreakController } from "./streak/admin-streak.controller.js";
 import { AdminStreakService } from "./streak/admin-streak.service.js";
 import { AdminStylesController } from "./styles/admin-styles.controller.js";
 import { AdminSupportController } from "./support/admin-support.controller.js";
+import { AdminSupportService } from "./support/admin-support.service.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { AdminOffersController } from "../offers/admin-offers.controller.js";
 import { OffersModule } from "../offers/offers.module.js";
@@ -60,8 +62,15 @@ import { PrivacyModule } from "../privacy/privacy.module.js";
     AdminRoutingController,
     AdminStylesController,
     AdminSupportController,
+    AdminEvalsController,
   ],
-  providers: [AdminGuard, AdminStepUpService, AdminStreakService, AdminAcquisitionService],
+  providers: [
+    AdminGuard,
+    AdminStepUpService,
+    AdminStreakService,
+    AdminAcquisitionService,
+    AdminSupportService,
+  ],
   exports: [AdminGuard],
 })
 export class AdminModule {}

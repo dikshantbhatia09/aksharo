@@ -1,6 +1,7 @@
 import "reflect-metadata";
 
 import { NestFactory } from "@nestjs/core";
+import helmet from "helmet";
 import { Logger as PinoLogger } from "nestjs-pino";
 
 import { BRAND } from "@montaj/config";
@@ -27,6 +28,22 @@ export async function bootstrap(): Promise<INestApplication> {
   // body would not reproduce the signature a Python worker computed.
   const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
   app.useLogger(app.get(PinoLogger));
+
+  // Security response headers (X01 threat-model audit gap). The Swagger UI at
+  // `/docs` is server-rendered HTML with inline scripts/styles, so a strict
+  // `Content-Security-Policy` here would break it; CSP for genuine HTML
+  // surfaces is the web app's job (`apps/web/next.config.ts`). Every other
+  // header still applies to the whole API: HSTS, no-sniff, deny framing,
+  // strict referrer policy, and no cross-domain policy files.
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+      hsts: { maxAge: 15552000, includeSubDomains: true },
+      referrerPolicy: { policy: "no-referrer" },
+      frameguard: { action: "deny" },
+    }),
+  );
 
   // Before the adapter registers its own 100 kB parser (`app.listen()` → `init()`):
   // an `ai.transcribe` completion carries a whole transcript. A11.

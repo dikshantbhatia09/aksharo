@@ -12072,9 +12072,9 @@
         ]
       }
     },
-    "/admin/support/status": {
+    "/admin/support/tickets": {
       "get": {
-        "operationId": "adminSupportStatus",
+        "operationId": "adminListSupportTickets",
         "parameters": [],
         "responses": {
           "200": {
@@ -12082,13 +12082,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "available": {
-                      "type": "boolean"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminSupportTicketDto"
                   }
                 }
               }
@@ -12106,7 +12102,152 @@
             "access-token": []
           }
         ],
-        "summary": "Whether the support-ticket panel has a real backend yet (B12)",
+        "summary": "Support tickets, newest first, optionally filtered by status/category",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/support/tickets/{id}": {
+      "get": {
+        "operationId": "adminGetSupportTicket",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSupportTicketDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One ticket",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/support/tickets/{id}/status": {
+      "post": {
+        "operationId": "adminSetSupportTicketStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetTicketStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSupportTicketDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Move a ticket to open/in_progress/resolved/closed",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/support/tickets/{id}/reply": {
+      "post": {
+        "operationId": "adminReplyToSupportTicket",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyToTicketDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reply to a ticket via the notify interface",
         "tags": [
           "admin"
         ]
@@ -22370,7 +22511,9 @@
               "share-comment",
               "streak-nudge",
               "retention-warning",
-              "support-ticket-created"
+              "support-ticket-created",
+              "share-report-resolved",
+              "support-ticket-reply"
             ],
             "description": "What happened. The client renders its own wording per locale, so the row carries no text of its own."
           },
@@ -23880,6 +24023,67 @@
         ]
       },
       "PublishStyleDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdminSupportTicketDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "hasDiagnostics": {
+            "type": "boolean"
+          },
+          "diagnostics": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "userId",
+          "subject",
+          "body",
+          "category",
+          "status",
+          "hasDiagnostics",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "SetTicketStatusDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReplyToTicketDto": {
         "type": "object",
         "properties": {}
       },

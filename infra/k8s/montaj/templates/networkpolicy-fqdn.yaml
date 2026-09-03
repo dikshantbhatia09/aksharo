@@ -1,14 +1,17 @@
 {{/*
 CiliumNetworkPolicy: the provider allow-list enforced by hostname.
 
-Only rendered when networkPolicy.fqdn.enabled is true, which requires Cilium as
-the CNI. On a stock EKS cluster running the AWS VPC CNI this file produces
-nothing and the coarser rule in networkpolicy.yaml applies instead.
+Only rendered when networkPolicy.fqdn.mode is "audit" or "enforce", which
+requires Cilium as the CNI. On a stock EKS cluster running the AWS VPC CNI (or
+with mode "off") this file produces nothing and the coarser rule in
+networkpolicy.yaml applies instead.
 
 This is where "workers egress-restricted except provider allow-lists" becomes
-literally true: a worker may open 443 to api.elevenlabs.io and nothing else.
+literally true: a worker may open 443 to api.elevenlabs.io and nothing else —
+except in "audit" mode, where a denial is logged (Hubble / `cilium monitor`)
+rather than dropped, for staged rollout (docs/runbooks/egress-policy.md).
 */}}
-{{- if and .Values.networkPolicy.enabled .Values.networkPolicy.fqdn.enabled }}
+{{- if and .Values.networkPolicy.enabled (ne .Values.networkPolicy.fqdn.mode "off") }}
 {{- range $name, $spec := .Values.components }}
 {{- if $spec.enabled }}
 {{- $net := $spec.network | default dict }}
@@ -24,7 +27,10 @@ metadata:
     montaj.ai/rationale: >-
       Hostname-scoped egress allow-list for {{ $name }}. Every entry is a
       provider named in CONTRACTS section 1 or in decision D15; anything else is
-      dropped, so a compromised worker cannot exfiltrate a transcript.
+      {{ if eq $.Values.networkPolicy.fqdn.mode "audit" }}logged, not yet dropped (audit mode; docs/runbooks/egress-policy.md){{ else }}dropped, so a compromised worker cannot exfiltrate a transcript{{ end }}.
+    {{- if eq $.Values.networkPolicy.fqdn.mode "audit" }}
+    policy.cilium.io/audit-mode: "true"
+    {{- end }}
 spec:
   endpointSelector:
     matchLabels:

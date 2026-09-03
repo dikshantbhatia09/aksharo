@@ -1,0 +1,23 @@
+name: hinglish-synth
+kind: transcript
+language: hi-en
+script: Latin+Devanagari
+licence: generated-internal
+codeMix: true
+description: >
+  Synthetic Hinglish clips with known ground truth (no audio; runs against the
+  mock provider), generated for D08 because A00-05's licensed set has not
+  reported. Text is hand-authored, not derived from any third-party corpus.
+items:
+  - id: hg-001
+    reference:
+      reference: "toh chaliye shuru karte hain aaj ke video mein"
+      hints: ["Aksharo"]
+  - id: hg-002
+    reference:
+      reference: "yeh feature bahut kaam ka hai dosto"
+      hints: []
+  - id: hg-003
+    reference:
+      reference: "channel ko subscribe karna mat bhoolna"
+      hints: ["Aksharo"]

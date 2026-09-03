@@ -22,6 +22,7 @@ import asyncio
 import json
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 from worker_ai.evals.manifest import EvalManifestError, available_sets, load_eval_set
 from worker_ai.evals.replay import build_replay_provider
@@ -113,6 +114,28 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     subcommands.add_parser("list", help="list the eval sets that ship with the worker")
+
+    nightly = subcommands.add_parser(
+        "nightly",
+        help="score every bundled dataset and write eval-results/<date>/report.{json,md} (D08)",
+    )
+    nightly.add_argument(
+        "--max-items",
+        type=int,
+        default=None,
+        help="override the per-dataset cost cap (default: nightly.DEFAULT_MAX_ITEMS_PER_DATASET)",
+    )
+    nightly.add_argument("--git-sha", default=None, help="recorded on the run for the leaderboard")
+    nightly.add_argument(
+        "--trigger", default="nightly", help="who asked for this run (nightly | manual | ci)"
+    )
+    nightly.add_argument(
+        "--post",
+        action="store_true",
+        help="also POST the report to {API_ORIGIN}/internal/evals/runs (needs API_ORIGIN + "
+        "INTERNAL_CALLBACK_SECRET; never set this in CI)",
+    )
+    nightly.add_argument("--results-dir", default=None, help="override eval-results/ location")
     return parser
 
 
@@ -153,6 +176,47 @@ def _replay_choice(arguments: argparse.Namespace) -> str | None:
     return None
 
 
+async def _run_nightly(arguments: argparse.Namespace) -> int:
+    from worker_ai.evals.nightly import (
+        DEFAULT_MAX_ITEMS_PER_DATASET,
+        post_nightly_report,
+        run_nightly,
+        write_report,
+    )
+
+    report = await run_nightly(
+        max_items_per_dataset=arguments.max_items or DEFAULT_MAX_ITEMS_PER_DATASET,
+        trigger=arguments.trigger,
+        git_sha=arguments.git_sha,
+    )
+    json_path, md_path = write_report(
+        report, root=Path(arguments.results_dir) if arguments.results_dir else None
+    )
+    print(f"wrote {json_path} and {md_path}")
+    for dataset in report.datasets:
+        metrics = ", ".join(f"{name}={value:.4f}" for name, value in dataset.metrics.items())
+        print(f"  {dataset.dataset_name} ({dataset.kind}, {dataset.language}): {metrics}")
+    for name, reason in report.skipped:
+        print(f"  skipped {name}: {reason}", file=sys.stderr)
+
+    if arguments.post:
+        load_repo_dotenv()
+        try:
+            settings = load_settings()
+        except EnvValidationError as error:
+            raise SystemExit(str(error)) from error
+        from worker_ai.ulid import new_ulid
+
+        ack = await post_nightly_report(
+            report,
+            api_origin=settings.api_origin,
+            secret=settings.internal_callback_secret,
+            attempt_id=new_ulid(),
+        )
+        print(f"posted to the API: {ack}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point; returns the process exit code."""
     configure_logging("worker-ai-evals")
@@ -162,6 +226,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         sets = available_sets()
         print("\n".join(sets) if sets else "no eval sets are installed")
         return 0
+
+    if arguments.command == "nightly":
+        return asyncio.run(_run_nightly(arguments))
 
     try:
         return asyncio.run(_run(arguments))
