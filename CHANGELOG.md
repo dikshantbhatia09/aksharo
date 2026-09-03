@@ -29,6 +29,42 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   licensing plugin-channel schema already use), not the brief's literal
   `plugins/after-effects-cep`.
 
+- C09: DaVinci Resolve Studio Workflow Integration panel (`plugins/resolve-panel`) — docked React shell over `aksharo_core`'s loopback server (discover → bearer → JSON-RPC), `WorkflowIntegrationHost` adapter + mock, sign-in mirrored from the script, timeline picker, "Caption this timeline", passes review + "Apply in Resolve", version/update banner; C08 loopback server gains `session.status`, `transcribe.start`, `passes.list` (`plugins/resolve/aksharo_core_app/session.py|transcribe.py|passes.py`) plus a `?token=` query-param bearer path for browser `WebSocket` callers; `tools/release`'s `package-resolve` now also stages the panel bundle for Studio installs.
+
+### Added
+
+- **X01 — security review before Gate C.** Threat-model audit re-verifying
+  every `docs/THREAT-MODEL.md` row (T1-T25) against implementing code and
+  tests: `docs/security/threat-model-audit-2026-09-03.md`. Local `pnpm audit`
+  and `pip-audit` triage (all findings are transitive build/desktop-packaging
+  deps, none reachable at runtime — Electron flagged High for a follow-up
+  version bump), a local secret-scan sweep (clean — 53 hits, all test
+  fixtures/local dev creds, no real secrets), and a pen-test hand-off doc with
+  in-scope surfaces, a seeded test-account procedure, and rules of engagement:
+  `docs/security/pentest-scope.md` (includes the H-26 human-action text to
+  engage an external tester before Gate C).
+
+### Fixed
+
+- **X01 — `GET /auth/device/code/:userCode` had no rate limit.** The
+  approval-screen lookup requires an authenticated session (correct per
+  THREAT-MODEL T3) but carried no `@RateLimit` decorator, unlike its sibling
+  device-code routes; `RateLimitGuard` is a no-op with no rule attached, so
+  any signed-in account could grind the 8-character user-code space to read
+  someone else's pending device grant (host app, OS, IP, coarse location).
+  Added a `deviceDescribeUser` bucket (`apps/api/src/auth/auth.constants.ts`)
+  and applied it to the route (`apps/api/src/auth/device.controller.ts`), with
+  a new negative test in `apps/api/test/auth.e2e-spec.ts`.
+- **X01 — no security response headers on the web app or the API.** Neither
+  `apps/web/next.config.ts` nor `apps/web/middleware.ts` set CSP, HSTS,
+  `X-Frame-Options`/`frame-ancestors`, or `Referrer-Policy`, and
+  `apps/api/src/main.ts` never installed `helmet`. Added a `headers()`
+  function to `next.config.ts` (CSP, HSTS, no-sniff, deny-framing,
+  strict-origin-when-cross-origin referrer policy, a conservative
+  Permissions-Policy) with a new test (`apps/web/next.config.test.ts`), and
+  `helmet()` to the API's bootstrap with CSP left off (Swagger UI at `/docs`
+  needs inline scripts) but HSTS/frameguard/referrer-policy applied.
+
 - C12: consent-gated desktop/bridge telemetry (`POST /telemetry/events|crash`), `crash_reports` with 30-day retention, shared redaction in `bridge-core`, diagnostics bundle attached to support tickets, server-side Sentry/PostHog forwarding behind env keys.
 
 - C06b (follow-up): `plugins/premiere-uxp/src/apply/types.ts`'s `MOGRT_PARAM_ORDER`/`MogrtParamName` now import from `mogrt/params.ts` (14 params, append-only) instead of re-declaring their own copy of the appendix table, so there is exactly one source of truth across C06 and C06b; `MogrtCaptionParams` gained the optional `BoxFill`/`BoxOpacity` fields to match. `mogrtCaptions.ts` and its tests needed no other changes.
@@ -78,6 +114,107 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **D08 — Eval harness & quality gates: datasets, nightly runs, shadow
+  routing, admin leaderboard, routing freeze.** Built on synthetic and fixture
+  datasets only (A00-05's licensed Indic sets have not reported).
+  `apps/worker-ai/worker_ai/evals/datasets/`: a `Dataset(name, kind, language,
+script, licence, items[])` loader — `licence` mandatory — searching bundled
+  `generated/` (six hand-authored synthetic sets: Hinglish/Hindi/Tamil
+  transcript, transliteration pairs drawn from A22's real dictionary tables,
+  autocut ground-truth cut lists, LLM check outcomes), `fixtures/` (an
+  adapter reusing A09's `hinglish-mini` set without duplicating its
+  audio/words files) and, if `EVAL_LICENSED_DATASETS_DIR` is set, an external
+  root for A00-05's real corpus with no code change. `checksums.py` writes/
+  verifies a SHA-256 `manifest.json` over every bundled file.
+  `evals/metrics.py`: Indic-aware `normalise()` now folds ZWJ/ZWNJ and all
+  nine nukta letters (four with no Unicode canonical decomposition, mapped by
+  hand) in addition to the existing case/punctuation/whitespace folding, so a
+  provider's spelling convention is never charged as a WER/CER error; new
+  `word_boundary_error`, `diarisation_der` (dependency-free, grid-based, no
+  `pyannote.metrics`), `transliteration_accuracy`, `autocut_precision_recall`
+  (tolerance-windowed greedy matching) and `llm_pass_rate`.
+  `evals/runner_datasets.py` dispatches `run_dataset` by kind (transcript
+  reuses A09's `EvalSet`/provider path; the rest score directly).
+  `evals/nightly.py`: `run_nightly` (cost-capped per D74:
+  `DEFAULT_MAX_ITEMS_PER_DATASET`), `write_report` (`eval-results/<date>/
+report.{json,md}`), `post_nightly_report` (signed like a job-completion
+  callback, `POST {API_ORIGIN}/internal/evals/runs`); `python -m
+worker_ai.evals nightly[--post]` and `pnpm --filter @montaj/worker-ai eval`.
+  `routing.py`: `RoutingCandidate.shadow` — a shadow candidate is excluded
+  from `resolve`/`resolve_chain` entirely (never a fallback, never returned)
+  while `shadow_candidates()` lists the ones this deployment could run in
+  parallel for a nightly comparison; `ROUTING_FROZEN=1` (or an upstream admin
+  toggle) makes `load_routing_table_guarded()` skip `routing.yaml` and serve
+  the last-approved snapshot (`write_routing_snapshot`/`load_routing_snapshot`)
+  instead — reloads are refused outright while frozen. `apps/api`: new Prisma
+  models `EvalRun`/`EvalResult`/`RoutingFreeze` (migration
+  `20260903130000_d08_evals`); `POST /internal/evals/runs`
+  (`src/evals/`, signed like other internal callbacks, idempotent on the
+  signed attempt id used as `EvalRun.id`); `GET /admin/evals/leaderboard`
+  (groups a recent window of results by dataset/language/provider/metric,
+  reporting each group's latest value and trend vs. the previous run),
+  `GET|POST /admin/evals/freeze`, `POST /admin/evals/unfreeze` (superadmin
+  only, mandatory reason, audited — `src/admin/evals/`); B16 scheduler task
+  `eval-nightly.task.ts` purges `eval_runs`/`eval_results` past 90 days and
+  shells out to `pnpm --filter @montaj/worker-ai eval -- --post` (a
+  documented pre-Gate-A simplification: the two apps share one monorepo
+  checkout today; see the WP's final report for the production-shape follow-
+  up). `apps/web`: `(admin)/admin/evals` panel (leaderboard table, freeze/
+  unfreeze form). `packages/api-client` regenerated. Tests: Python unit tests
+  for the Indic normalisation edge cases, dataset loader/manifest/licence
+  checks, per-kind runner dispatch, shadow-exclusion and freeze-precedence
+  routing tests; API unit tests (leaderboard grouping, freeze audit) and an
+  e2e spec against real Postgres/Redis (signed ingestion + idempotency,
+  leaderboard trend, freeze role-gating and audit, unfreeze). Deviations and
+  open questions for A00-05 are in the WP's final report.
+
+- **B13b — admin console follow-ups: routing overrides reach the worker,
+  share-report/support-reply notifications, a real support panel, a
+  server-side admin gate, admin Playwright, dashboard charts.**
+  `GET /internal/routing/overrides` (`apps/api/src/internal/routing-overrides.controller.ts`)
+  is a new, HMAC-signed (`InternalSignatureGuard`) internal endpoint serving
+  `RoutingWeightOverride` rows as the `{ lanes: { candidates: { weight } } }`
+  shape `worker_ai.routing.RoutingTable.apply_overrides` already expects,
+  with a weak-ETag `Cache-Control: private, max-age=60`. The worker's new
+  `worker_ai/routing_overrides.py` fetches it with a 60s in-process cache
+  revalidated by that ETag, falls back to the last-known-good body on any
+  network/5xx/404, and defers to D08's forthcoming routing-freeze flag via
+  `getattr(settings, "routing_freeze", False)` (skips the fetch entirely
+  when set, so freeze wins over an override with no code change needed on
+  either side once that flag lands) — `worker_ai/runtime.py`'s
+  `fetch_routing_overrides` now delegates to it, kept for import
+  compatibility with `tests/test_routing.py`. Two new `NOTIFY_KINDS`,
+  `share-report-resolved` and `support-ticket-reply` (kind + en/hi templates
+  only, per this WP's file boundary): `AdminShareController.resolve` now
+  emails the reporter (when they left contact details) and the workspace
+  owner once a report is resolved; the new `AdminSupportService`/
+  `AdminSupportController` (`admin/support/**`) replace B13's
+  `available: false` stub with a real queue over B12's `support_tickets` —
+  list/filter by status and category, a `support`/`superadmin`-gated status
+  transition (the schema's own comment names this "B13 (admin) transitions
+  it"), and a reply sent via the notify interface, both audited
+  (`admin.support.status_set`, `admin.support.replied`). `apps/web/middleware.ts`
+  gates the whole `(admin)` route group with a routing-only, httpOnly
+  `aksharo_admin_hint` cookie (`lib/admin/admin-hint-cookie.ts`,
+  `app/api/admin-hint/route.ts`, set by the step-up page and cleared by
+  "End admin session") — a visitor who has never stepped up gets a plain
+  404 rather than a redirect that would announce `/admin` exists;
+  `AdminGuard` on the API is unchanged and remains the real authorization.
+  A new dependency-free `BarChart` (`components/admin/bar-chart.tsx`, plain
+  SVG, no CDN) renders the acquisition/streak/offers panels on the admin
+  dashboard as bar breakdowns — an honest simplification, since none of the
+  three source endpoints bucket by day yet (see the component's own doc
+  comment and "open questions" below). New `apps/web/e2e/admin.spec.ts`
+  seeds `admin_roles`/`admin_totp` directly with `pg` (no self-service grant
+  route exists, the same gap `streak.spec.ts` documents for its own
+  fixtures) and proves the 404 gate, and that `support` is refused by
+  `AdminGuard`'s role check on a refund while `finance` clears it.
+  **Deliberately not built**: the chained-self-referral device/IP signal
+  (recorded here, per the orchestrator's ruling, as a clustering candidate
+  for a future anti-abuse pass, not code) — a workspace pair that shares a
+  device fingerprint or IP across `referral_rewards` rows is a signal this
+  WP was told to name, not implement; see the doc comment on
+  `AdminReferralsController` (`admin/referrals/admin-referrals.controller.ts`).
 - **X08 — Cilium FQDN egress adoption for production (D73's staged rollout,
   prod hardening before Gate C).** `infra/k8s/montaj/values.yaml`'s
   `networkPolicy.fqdn.enabled` boolean becomes `networkPolicy.fqdn.mode:
@@ -120,6 +257,30 @@ lint`/`helm template`/`kubeconform` pipeline still runs in
   `infra/scripts/generate-egress-inventory.test.mjs` (4, CLI-level) and
   `infra/scripts/validate-chart-local.test.mjs` (6).
 
+- **M03 — Main hygiene: academy lot source, load-sensitive assertions, DLQ/jobs/offers
+  e2e triage, help-slug wiring.** `apps/api/prisma`: migration
+  `20260902222436_m03_academy_lot_source` adds `academy` to the
+  `CreditLotSource` enum (CONTRACTS §4, 2026-09-03); `academy.service.ts`
+  grants with `source: "academy"` instead of B12's stopgap `"adjust"`, and
+  `ledger-credits.facade.ts`'s `ledgerKindForSource` ledgers it as a `grant`.
+  `apps/api/test`: `edg.e2e-spec.ts`'s "costs the same on a 9,000-segment
+  document" ratio budget widened from `3x`/30ms to `5x`/150ms (a real host
+  observation of ~3.5x under load was ordinary jitter, not an O(n)
+  regression); `dlq.e2e-spec.ts` and `jobs.e2e-spec.ts` switched their
+  generic-completion fixture queue from `ai.clean` to `ai.vad` after B10
+  registered a real `AudioCleanCompletionHandler` against `ai.clean` that
+  400s a bare `{status:"succeeded"}` completion; `offers.e2e-spec.ts`'s ₹9
+  pass suite now sends a real capability probe on its explicit
+  `mode:"browser"` export request, which A21b started requiring. `apps/web`:
+  the editor's right panel (`RightPanel.tsx`) gains a "?" affordance per tab
+  opening the matching help article via B12's `help-slug-map.ts`
+  (Style/Colors/Look → `caption-styles`, Anim → `emphasis-timing`, Audio →
+  `caption-styles`), unit-tested against the real slug catalogue
+  (`RightPanel.help.test.ts`). Verified: `dlq.e2e-spec.ts`, `jobs.e2e-spec.ts`
+  and `offers.e2e-spec.ts` green 3× on the compose stack after merging main
+  (which independently landed B13's `createAdminContext` fix for the same
+  admin-auth 403s these suites hit, and B13d's chained-self-referral hold,
+  which `referrals-http.e2e-spec.ts` already passes 3×).
 - **C03a — `apps/engine` local sidecar (whisper.cpp/Silero/deep-filter/ffmpeg
   supervisor), model manager, backend detection, `@montaj/engine-client`.**
   New app `apps/engine`: a Node supervisor (no native compilation in the

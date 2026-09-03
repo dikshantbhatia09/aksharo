@@ -1,0 +1,19 @@
+name: llm-synth
+kind: llm
+language: en
+script: Latin
+licence: generated-internal
+description: >
+  Recorded automatic-check outcomes (schema validity, timestamp validity,
+  hallucination guard, length limit, language consistency — B11's check names
+  in `packages/prompts/src/eval/checks.ts`) for a handful of representative
+  fixture runs, aggregated with `llm_pass_rate`. This harness does not re-run
+  the TypeScript checks itself (out of this WP's file boundaries); it reports
+  the pass rate for the leaderboard from each item's recorded outcomes.
+items:
+  - id: llm-chapters-001
+    reference: { checks: [true, true, true, true, true] }
+  - id: llm-hooks-001
+    reference: { checks: [true, true, false, true, true] }
+  - id: llm-summary-001
+    reference: { checks: [true, true, true, true, true] }

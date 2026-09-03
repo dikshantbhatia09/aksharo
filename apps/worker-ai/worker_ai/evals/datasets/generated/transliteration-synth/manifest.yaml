@@ -1,0 +1,31 @@
+name: transliteration-synth
+kind: transliteration
+language: hi
+script: Latin+Devanagari+Tamil
+licence: generated-internal
+codeMix: true
+description: >
+  Round-trip pairs drawn from A22's own dictionary tables
+  (`worker_ai/transliterate/tables.py`), so `transliteration_accuracy`
+  exercises the real `transliterate_word`/`romanise_word` functions rather than
+  a mock. A regression in A22's tables — a changed or removed dictionary entry
+  — shows up here as an accuracy drop.
+items:
+  - id: tl-hi-001
+    language: hi
+    reference: { token: "namaste", direction: to_native, expected: "नमस्ते" }
+  - id: tl-hi-002
+    language: hi
+    reference: { token: "dhanyavaad", direction: to_native, expected: "धन्यवाद" }
+  - id: tl-hi-003
+    language: hi
+    reference: { token: "नमस्ते", direction: to_roman, expected: "namaste" }
+  - id: tl-hi-004
+    language: hi
+    reference: { token: "धन्यवाद", direction: to_roman, expected: "dhanyavaad" }
+  - id: tl-ta-001
+    language: ta
+    reference: { token: "vanakkam", direction: to_native, expected: "வணக்கம்" }
+  - id: tl-ta-002
+    language: ta
+    reference: { token: "நன்றி", direction: to_roman, expected: "nandri" }

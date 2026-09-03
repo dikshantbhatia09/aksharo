@@ -49,7 +49,7 @@ export interface CreditsFacade {
   settle(input: { holdId: string; actualTenths: number }): Promise<{ settledTenths: number; deltaHoldId?: string }>;
   release(input: { holdId: string }): Promise<void>;
 }
-// Lot sources (added 2026-09-03 after B12): CreditLotSource = grant | topup | pass | adjust | referral | streak | academy — `academy` is the exactly-once track reward (B12 wrote it as `adjust`; M03 migrates the enum and switches the academy grant).
+// Lot sources (added 2026-09-03 after B12): CreditLotSource = grant | topup | pass | adjust | referral | academy — `academy` is the exactly-once track reward (M03 migrated the enum); streak rewards are `grant` lots tagged by the streak service, not a separate source (corrected 2026-09-03).
 ```
 Every job producer must call `reserve` before enqueue and `settle`/`release` from the completion path. Burn rates from `packages/config/src/credits.ts`.
 

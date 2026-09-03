@@ -12016,9 +12016,9 @@
         ]
       }
     },
-    "/admin/support/status": {
+    "/admin/support/tickets": {
       "get": {
-        "operationId": "adminSupportStatus",
+        "operationId": "adminListSupportTickets",
         "parameters": [],
         "responses": {
           "200": {
@@ -12026,13 +12026,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "available": {
-                      "type": "boolean"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminSupportTicketDto"
                   }
                 }
               }
@@ -12050,7 +12046,305 @@
             "access-token": []
           }
         ],
-        "summary": "Whether the support-ticket panel has a real backend yet (B12)",
+        "summary": "Support tickets, newest first, optionally filtered by status/category",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/support/tickets/{id}": {
+      "get": {
+        "operationId": "adminGetSupportTicket",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSupportTicketDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One ticket",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/support/tickets/{id}/status": {
+      "post": {
+        "operationId": "adminSetSupportTicketStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetTicketStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSupportTicketDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Move a ticket to open/in_progress/resolved/closed",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/support/tickets/{id}/reply": {
+      "post": {
+        "operationId": "adminReplyToSupportTicket",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyToTicketDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reply to a ticket via the notify interface",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/evals/leaderboard": {
+      "get": {
+        "operationId": "adminEvalsLeaderboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeaderboardRowDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Eval leaderboard: latest metric per (dataset, language, provider, metric), with trend",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/evals/freeze": {
+      "get": {
+        "operationId": "adminGetRoutingFreeze",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingFreezeStateDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Current routing-freeze state",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "adminFreezeRouting",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FreezeRoutingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingFreezeStateDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Freeze the routing chain to its last approved snapshot (reason mandatory, audited)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/evals/unfreeze": {
+      "post": {
+        "operationId": "adminUnfreezeRouting",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FreezeRoutingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingFreezeStateDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Unfreeze the routing chain (reason mandatory, audited)",
         "tags": [
           "admin"
         ]
@@ -22314,7 +22608,9 @@
               "share-comment",
               "streak-nudge",
               "retention-warning",
-              "support-ticket-created"
+              "support-ticket-created",
+              "share-report-resolved",
+              "support-ticket-reply"
             ],
             "description": "What happened. The client renders its own wording per locale, so the row carries no text of its own."
           },
@@ -23801,6 +24097,140 @@
         ]
       },
       "PublishStyleDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdminSupportTicketDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "hasDiagnostics": {
+            "type": "boolean"
+          },
+          "diagnostics": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "userId",
+          "subject",
+          "body",
+          "category",
+          "status",
+          "hasDiagnostics",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "SetTicketStatusDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReplyToTicketDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "LeaderboardRowDto": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "metricName": {
+            "type": "string"
+          },
+          "metricValue": {
+            "type": "number"
+          },
+          "previousMetricValue": {
+            "type": "number"
+          },
+          "trend": {
+            "type": "number"
+          },
+          "itemCount": {
+            "type": "number"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "measuredAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataset",
+          "kind",
+          "language",
+          "metricName",
+          "metricValue",
+          "itemCount",
+          "runId",
+          "measuredAt"
+        ]
+      },
+      "RoutingFreezeStateDto": {
+        "type": "object",
+        "properties": {
+          "frozen": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "frozen",
+          "updatedAt"
+        ]
+      },
+      "FreezeRoutingDto": {
         "type": "object",
         "properties": {}
       },

@@ -377,6 +377,12 @@ describe.skipIf(!available)("offers — ₹9 pass ledger and manifest re-issue (
       outputKind: "video",
       mode: "browser",
       script: "roman",
+      // A21b: an explicit `mode: "browser"` request is judged against the real
+      // capability probe (D34) and 409s as `export/unsupported_in_browser`
+      // without one — this suite predates A21b, and a real browser client
+      // always sends this alongside the request (see referrals-http.e2e-spec.ts,
+      // which needs the same fixture for the same reason).
+      capabilities: { codecs: ["avc1.42001f"], audioEncoder: true },
     };
 
     const watermarked = await call<DecisionBody>("POST", `/projects/${seeded.projectId}/exports`, {

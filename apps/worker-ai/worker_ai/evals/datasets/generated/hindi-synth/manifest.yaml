@@ -1,0 +1,25 @@
+name: hindi-synth
+kind: transcript
+language: hi
+script: Devanagari
+licence: generated-internal
+codeMix: false
+description: >
+  Synthetic Hindi (Devanagari) clips with known ground truth, generated for
+  D08's Indic-normalisation test cases (nukta letters, matras). No audio; runs
+  against the mock provider.
+items:
+  - id: hi-001
+    reference:
+      reference: "नमस्ते दोस्तों आज हम एक नया वीडियो लेकर आए हैं"
+      hints: []
+  - id: hi-002
+    reference:
+      # Deliberately includes nukta consonants (ज़, फ़) to exercise the
+      # Indic-aware normaliser's nukta folding.
+      reference: "फ़िल्म का ट्रेलर बहुत ज़बरदस्त है"
+      hints: []
+  - id: hi-003
+    reference:
+      reference: "अच्छा लगा तो चैनल को सब्सक्राइब करना ना भूलें"
+      hints: []
