@@ -1,12 +1,16 @@
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 
+import type { Env } from "@montaj/config";
+
 import { assetAllowed } from "./asset-allowed.js";
 import { AUDIO_ASSET_ERRORS, PACK_ASSET_URL_TTL_SECONDS } from "./audio-assets.constants.js";
 import { AudioAssetsRepository } from "./audio-assets.repository.js";
 import { AppException } from "../common/index.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { DERIVED_STORE } from "../common/storage/object-store.js";
+import { ENV } from "../config/config.module.js";
 import { resolveWorkspacePlan } from "../jobs/plan.js";
+import { PARTNER_CATALOGUE_FLAG } from "../partner-catalogue/partner-catalogue.constants.js";
 
 import type { PackAssetUrl } from "./audio-assets.dto.js";
 import type { ObjectStore } from "../common/storage/object-store.js";
@@ -37,6 +41,7 @@ export class AudioAssetsService {
     private readonly repository: AudioAssetsRepository,
     private readonly prisma: PrismaService,
     @Inject(DERIVED_STORE) private readonly store: ObjectStore,
+    @Inject(ENV) private readonly env: Env,
   ) {}
 
   async signedUrl(
@@ -55,7 +60,14 @@ export class AudioAssetsService {
 
     const plan = await resolveWorkspacePlan(this.prisma, workspaceId);
     const surface = surfaceFor(clientKind);
-    const decision = assetAllowed(asset, { surface, plan, territory: "WORLD" });
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled
+    const partnerCatalogueEnabled = this.env.FEATURE_FLAGS_JSON[PARTNER_CATALOGUE_FLAG] === true;
+    const decision = assetAllowed(asset, {
+      surface,
+      plan,
+      territory: "WORLD",
+      partnerCatalogueEnabled,
+    });
     if (!decision.allowed) {
       throw new AppException(
         AUDIO_ASSET_ERRORS.notAllowed,

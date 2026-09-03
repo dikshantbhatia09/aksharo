@@ -100,6 +100,17 @@ export interface ExportDecisionInput {
    * probe the source audio codec, so this is always unset today).
    */
   readonly audioCopyPossible?: boolean;
+  /**
+   * D04b / D43: true when the project's captions place at least one
+   * partner-catalogue audio asset (`AudioAsset.provider !== "owned"`) that
+   * `assetAllowed` let through — cloud-render-only, unconditionally,
+   * regardless of every other browser-eligibility gate below. The caller
+   * (`ExportsService`) resolves this the same way it resolves
+   * `assStylesRenderable`; undefined/false is the conservative default (no
+   * partner assets), matching every browser export today before this work
+   * package.
+   */
+  readonly hasPartnerCatalogueAssets?: boolean;
 }
 
 export type ExportPath = "browser" | "cloud";
@@ -225,6 +236,17 @@ function browserEligibility(
 ): { ok: true } | { ok: false; reason: string } {
   const capabilities = input.capabilities;
 
+  // D04b / D43: partner-catalogue audio is cloud-render-only — checked first,
+  // ahead of every technical capability gate, so an explicit `mode: "browser"`
+  // request still gets refused with this reason rather than a generic one.
+  if (input.hasPartnerCatalogueAssets === true) {
+    return {
+      ok: false,
+      reason:
+        "This project uses partner catalogue audio — cloud render only " +
+        "(partner assets are never delivered as raw files, D43).",
+    };
+  }
   if (input.outputKind === "alpha" || input.outputKind === "greenscreen") {
     return {
       ok: false,

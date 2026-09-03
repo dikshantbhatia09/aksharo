@@ -1,13 +1,21 @@
 import React from "react";
 
+import { parseBlocks, splitTableRow, type Block } from "@/lib/markdown/blocks";
+
 /**
- * `/docs`'s own small markdown-to-React renderer. `lib/content/markdown.tsx`
- * (B12) already does this for the academy/help/changelog bodies, but the
- * plugin READMEs this generator also renders (brief §2: "plugin READMEs ->
- * guide pages") use GitHub-flavoured pipe tables, which that renderer does
- * not parse — extending B12's copy in place would touch a file outside this
- * WP's boundary (`lib/content/**`), so this is a sibling copy with table
- * support added, kept in `lib/docs/**` instead.
+ * `/docs`'s own thin renderer over the shared block parser
+ * (`lib/markdown/blocks.ts`, M12). `lib/content/markdown.tsx` (B12) renders
+ * the academy/help/changelog bodies from the same shared blocks; this file
+ * differs only in inline policy: no single-`*` italic, and link targets are
+ * internal-vs-external aware (`target="_blank"` for external hrefs) — both
+ * needed because the plugin READMEs this generator renders (brief §2:
+ * "plugin READMEs -> guide pages") use GitHub-flavoured pipe tables and
+ * external links.
+ *
+ * M12 merged this file's previously-duplicated `toBlocks()` (and B12's
+ * identical copy, which carried the same M07 infinite-loop bug) into the
+ * shared `parseBlocks()`. See that module's doc comment for the bug and the
+ * cursor-progress invariant that now prevents it.
  */
 function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
@@ -45,131 +53,6 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
   return nodes;
 }
 
-interface Block {
-  readonly kind: "h1" | "h2" | "h3" | "p" | "ul" | "ol" | "code" | "table";
-  readonly lines: readonly string[];
-}
-
-function isTableRow(line: string): boolean {
-  return line.trim().startsWith("|") && line.trim().endsWith("|");
-}
-
-function isTableSeparator(line: string): boolean {
-  // eslint-disable-next-line security/detect-unsafe-regex -- reviewed and timed against adversarial input (long runs of "|" and "-") -- linear, no nested unbounded quantifiers -- not exponential (see M06 report). Also re-reviewed for this WP's own markdown-parser OOM: the actual bug was an infinite loop in toBlocks() below, unrelated to this regex.
-  return /^\|?(\s*:?-+:?\s*\|)+\s*:?-+:?\s*\|?$/.test(line.trim());
-}
-
-function toBlocks(markdown: string): Block[] {
-  const blocks: Block[] = [];
-  const lines = markdown.split("\n");
-  // eslint-disable-next-line security/detect-object-injection -- bracket access on a numeric index into this function's own array, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
-  const at = (index: number): string => lines[index] ?? "";
-  let i = 0;
-  while (i < lines.length) {
-    const line = at(i);
-    if (line.trim() === "") {
-      i++;
-      continue;
-    }
-    if (line.startsWith("```")) {
-      const code: string[] = [];
-      i++;
-      while (i < lines.length && !at(i).startsWith("```")) {
-        code.push(at(i));
-        i++;
-      }
-      i++; // closing fence
-      blocks.push({ kind: "code", lines: code });
-      continue;
-    }
-    if (isTableRow(line) && isTableSeparator(at(i + 1))) {
-      const rows: string[] = [line];
-      i += 2;
-      while (i < lines.length && isTableRow(at(i))) {
-        rows.push(at(i));
-        i++;
-      }
-      blocks.push({ kind: "table", lines: rows });
-      continue;
-    }
-    if (line.startsWith("### ")) {
-      blocks.push({ kind: "h3", lines: [line.slice(4)] });
-      i++;
-      continue;
-    }
-    if (line.startsWith("## ")) {
-      blocks.push({ kind: "h2", lines: [line.slice(3)] });
-      i++;
-      continue;
-    }
-    if (line.startsWith("# ")) {
-      blocks.push({ kind: "h1", lines: [line.slice(2)] });
-      i++;
-      continue;
-    }
-    if (/^[-*]\s+/.test(line)) {
-      const items: string[] = [];
-      while (i < lines.length && /^[-*]\s+/.test(at(i))) {
-        items.push(at(i).replace(/^[-*]\s+/, ""));
-        i++;
-      }
-      blocks.push({ kind: "ul", lines: items });
-      continue;
-    }
-    if (/^\d+\.\s+/.test(line)) {
-      const items: string[] = [];
-      while (i < lines.length && /^\d+\.\s+/.test(at(i))) {
-        items.push(at(i).replace(/^\d+\.\s+/, ""));
-        i++;
-      }
-      blocks.push({ kind: "ol", lines: items });
-      continue;
-    }
-    // M07: root-cause fix for the build OOM. This loop must stop collecting
-    // paragraph lines only at a line that one of the branches ABOVE would
-    // actually treat specially (heading, bullet, ordered list, code fence,
-    // table row) — the same patterns those branches test, not merely
-    // "starts with `-`, `*` or `#`". A markdown line starting with bold text
-    // (`**Status:** ...`) starts with `*` but is not a bullet (no `\s+`
-    // after it), so it fails every earlier `if`, falls into this paragraph
-    // branch, and — with the old bare `^[-*#]` check — matched its OWN stop
-    // condition on its first line: the `while` body never ran, `i` never
-    // advanced, and the outer `while (i < lines.length)` loop above spun
-    // forever pushing empty paragraph blocks (`plugins/premiere-uxp/README.md`
-    // hit this on its very first paragraph and alone was enough to run any
-    // static-generation worker that rendered `/docs/plugins/premiere` out of
-    // memory — this, not the size of the OpenAPI document or the search
-    // index, was the actual crash this WP was asked to fix).
-    const para: string[] = [];
-    while (
-      i < lines.length &&
-      at(i).trim() !== "" &&
-      !/^[-*]\s+|^\d+\.\s+|^#{1,3}\s|^```|^\|/.test(at(i))
-    ) {
-      para.push(at(i));
-      i++;
-    }
-    if (para.length === 0) {
-      // Defensive backstop: even if some future branch/pattern mismatch ever
-      // reintroduces a case where nothing above matches and this loop still
-      // collects zero lines, force progress rather than looping forever.
-      para.push(at(i));
-      i++;
-    }
-    blocks.push({ kind: "p", lines: [para.join(" ")] });
-  }
-  return blocks;
-}
-
-function splitRow(row: string): string[] {
-  return row
-    .trim()
-    .replace(/^\|/, "")
-    .replace(/\|$/, "")
-    .split("|")
-    .map((cell) => cell.trim());
-}
-
 function DocsTable({
   rows,
   keyPrefix,
@@ -178,7 +61,7 @@ function DocsTable({
   keyPrefix: string;
 }): React.JSX.Element {
   const [header, ...body] = rows;
-  const headerCells = splitRow(header ?? "");
+  const headerCells = splitTableRow(header ?? "");
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-sm">
@@ -194,7 +77,7 @@ function DocsTable({
         <tbody>
           {body.map((row, rowIndex) => (
             <tr key={`${keyPrefix}-r-${rowIndex}`} className="border-border/50 border-b">
-              {splitRow(row).map((cell, cellIndex) => (
+              {splitTableRow(row).map((cell, cellIndex) => (
                 <td key={`${keyPrefix}-r-${rowIndex}-${cellIndex}`} className="text-fg-1 py-2 pr-4">
                   {renderInline(cell, `${keyPrefix}-r-${rowIndex}-${cellIndex}`)}
                 </td>
@@ -207,64 +90,73 @@ function DocsTable({
   );
 }
 
+function renderBlock(block: Block, key: string): React.ReactNode {
+  switch (block.kind) {
+    case "h1":
+      return (
+        <h1 key={key} className="text-fg-0 text-2xl font-semibold">
+          {renderInline(block.lines[0] ?? "", key)}
+        </h1>
+      );
+    case "h2":
+      return (
+        <h2 key={key} className="text-fg-0 text-xl font-semibold">
+          {renderInline(block.lines[0] ?? "", key)}
+        </h2>
+      );
+    case "h3":
+      return (
+        <h3 key={key} className="text-fg-0 text-lg font-semibold">
+          {renderInline(block.lines[0] ?? "", key)}
+        </h3>
+      );
+    case "code":
+      return (
+        <pre key={key} className="bg-bg-2 overflow-x-auto rounded-md p-3 text-xs">
+          <code>{block.lines.join("\n")}</code>
+        </pre>
+      );
+    case "table":
+      return <DocsTable key={key} rows={block.lines} keyPrefix={key} />;
+    case "blockquote":
+      return (
+        <blockquote key={key} className="border-border text-fg-1 border-l-2 pl-3 text-sm italic">
+          {block.lines.map((line, lineIndex) => (
+            <p key={`${key}-${lineIndex}`}>{renderInline(line, `${key}-${lineIndex}`)}</p>
+          ))}
+        </blockquote>
+      );
+    case "ul":
+      return (
+        <ul key={key} className="text-fg-1 list-disc pl-5 text-sm leading-relaxed">
+          {block.lines.map((item, itemIndex) => (
+            <li key={`${key}-${itemIndex}`}>{renderInline(item, `${key}-${itemIndex}`)}</li>
+          ))}
+        </ul>
+      );
+    case "ol":
+      return (
+        <ol key={key} className="text-fg-1 list-decimal pl-5 text-sm leading-relaxed">
+          {block.lines.map((item, itemIndex) => (
+            <li key={`${key}-${itemIndex}`}>{renderInline(item, `${key}-${itemIndex}`)}</li>
+          ))}
+        </ol>
+      );
+    case "p":
+    default:
+      return (
+        <p key={key} className="text-fg-1 text-sm leading-relaxed">
+          {renderInline(block.lines[0] ?? "", key)}
+        </p>
+      );
+  }
+}
+
 export function DocsMarkdownBody({ markdown }: { readonly markdown: string }): React.JSX.Element {
-  const blocks = toBlocks(markdown);
+  const blocks = parseBlocks(markdown);
   return (
     <div className="prose-content flex flex-col gap-4">
-      {blocks.map((block, index) => {
-        const key = `block-${index}`;
-        switch (block.kind) {
-          case "h1":
-            return (
-              <h1 key={key} className="text-fg-0 text-2xl font-semibold">
-                {renderInline(block.lines[0] ?? "", key)}
-              </h1>
-            );
-          case "h2":
-            return (
-              <h2 key={key} className="text-fg-0 text-xl font-semibold">
-                {renderInline(block.lines[0] ?? "", key)}
-              </h2>
-            );
-          case "h3":
-            return (
-              <h3 key={key} className="text-fg-0 text-lg font-semibold">
-                {renderInline(block.lines[0] ?? "", key)}
-              </h3>
-            );
-          case "code":
-            return (
-              <pre key={key} className="bg-bg-2 overflow-x-auto rounded-md p-3 text-xs">
-                <code>{block.lines.join("\n")}</code>
-              </pre>
-            );
-          case "table":
-            return <DocsTable key={key} rows={block.lines} keyPrefix={key} />;
-          case "ul":
-            return (
-              <ul key={key} className="text-fg-1 list-disc pl-5 text-sm leading-relaxed">
-                {block.lines.map((item, itemIndex) => (
-                  <li key={`${key}-${itemIndex}`}>{renderInline(item, `${key}-${itemIndex}`)}</li>
-                ))}
-              </ul>
-            );
-          case "ol":
-            return (
-              <ol key={key} className="text-fg-1 list-decimal pl-5 text-sm leading-relaxed">
-                {block.lines.map((item, itemIndex) => (
-                  <li key={`${key}-${itemIndex}`}>{renderInline(item, `${key}-${itemIndex}`)}</li>
-                ))}
-              </ol>
-            );
-          case "p":
-          default:
-            return (
-              <p key={key} className="text-fg-1 text-sm leading-relaxed">
-                {renderInline(block.lines[0] ?? "", key)}
-              </p>
-            );
-        }
-      })}
+      {blocks.map((block, index) => renderBlock(block, `block-${index}`))}
     </div>
   );
 }
