@@ -14,7 +14,7 @@
  * Prerequisites (all foreground, all documented in
  * docs/models/LOCAL-MODELS.md): postgres/redis/minio running, the API,
  * worker-media, render and worker-ai processes running against this
- * worktree's `.env`, and `montaj_m15` migrated.
+ * worktree's `.env`, and the database named in `DATABASE_URL` migrated.
  *
  * Usage: node scripts/local-ai-smoke.mjs
  */
@@ -23,6 +23,8 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { parseDatabaseName } from "./lib/db-url.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
@@ -43,7 +45,7 @@ function psql(sql, params = []) {
     "-U",
     "montaj",
     "-d",
-    "montaj_m15",
+    DB_NAME,
     "-t",
     "-A",
     "-F",
@@ -98,6 +100,12 @@ const env = { ...parseEnv(readFileSync(join(REPO_ROOT, ".env"), "utf8")), ...pro
 
 const API_ORIGIN = env.API_ORIGIN ?? "http://127.0.0.1:3980";
 const REDIS_KEY_PREFIX = env.MONTAJ_REDIS_PREFIX ?? "montaj";
+// M19: the database this script's `docker exec psql` calls target is derived
+// from this worktree's own DATABASE_URL rather than a hardcoded name — a run
+// from a different worktree previously seeded credits into whichever
+// database happened to be hardcoded (`montaj_m15`), causing an FK violation
+// on `credit_accounts.workspace_id`.
+const DB_NAME = parseDatabaseName(env.DATABASE_URL);
 
 const t0 = Date.now();
 const timings = {};
