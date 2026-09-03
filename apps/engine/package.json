@@ -11,8 +11,10 @@
     "start": "node dist/main.js",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:bench": "tsc -p bench/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "bench": "tsx bench/run.ts",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {

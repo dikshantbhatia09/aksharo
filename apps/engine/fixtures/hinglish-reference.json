@@ -1,0 +1,466 @@
+{
+  "v": 1,
+  "description": "C03b's Hinglish reference set: A23's 90s sample (full timings) plus D08's hinglish-mini eval-set references (text only), against a committed cloud-aligner snapshot standing in for A10's CTC/xlsr aligner until a real aligner pass is run on real hardware.",
+  "items": [
+    {
+      "id": "hinglish-sample",
+      "audioMatch": "hinglish-sample",
+      "language": "hi",
+      "source": "apps/engine/src/fixtures/sample-transcripts.json (C03a FakeBackend fixture)",
+      "cloudAligner": "A10 CTC/xlsr aligner (committed snapshot, not a live call)",
+      "referenceText": "toh aaj hum shuru karte hain",
+      "words": [
+        {
+          "word": "toh",
+          "startMs": 12,
+          "endMs": 328
+        },
+        {
+          "word": "aaj",
+          "startMs": 336,
+          "endMs": 618
+        },
+        {
+          "word": "hum",
+          "startMs": 628,
+          "endMs": 894
+        },
+        {
+          "word": "shuru",
+          "startMs": 912,
+          "endMs": 1392
+        },
+        {
+          "word": "karte",
+          "startMs": 1416,
+          "endMs": 1788
+        },
+        {
+          "word": "hain",
+          "startMs": 1804,
+          "endMs": 2108
+        }
+      ]
+    },
+    {
+      "id": "a23-90s",
+      "audioMatch": "a23-90s-hinglish",
+      "language": "hi-Latn",
+      "source": "apps/api/prisma/seed-sample.ts (A23 90s Hinglish sample, buildFixtureWords())",
+      "cloudAligner": "A10 CTC/xlsr aligner (committed snapshot, not a live call)",
+      "referenceText": "namaste dosto aaj hum baat karenge bilkul sahi topic matlab editor kaise kaam karta hai dekho sabse pehle upload karo phir transcript ban jaata hai wow yeh toh bahut fast hai haan aur styles bhi bahut saare hain punch pop style mujhe pasand hai chaliye wahi try karte hain matlab ek click mein reflow ho gaya ab export karte hain srt aur mp4 dono cloud render bhi kaam karta hai shukriya dosto milte hain agli video mein",
+      "note": "Not wired into FakeBackend's own fixture keys (apps/engine/src/fixtures/** is C03a-owned, read-only here): a FakeBackend run falls back to its `default` fixture for this item, which the harness reports as a 'no matching engine fixture' case rather than a false threshold pass/fail. A real-backend run (once the real 90s WAV exists) transcribes/aligns the actual clip and scores against these timings for real.",
+      "words": [
+        {
+          "word": "namaste",
+          "startMs": 0,
+          "endMs": 400
+        },
+        {
+          "word": "dosto",
+          "startMs": 400,
+          "endMs": 800
+        },
+        {
+          "word": "aaj",
+          "startMs": 1600,
+          "endMs": 2000
+        },
+        {
+          "word": "hum",
+          "startMs": 2000,
+          "endMs": 2400
+        },
+        {
+          "word": "baat",
+          "startMs": 2400,
+          "endMs": 2800
+        },
+        {
+          "word": "karenge",
+          "startMs": 2800,
+          "endMs": 3200
+        },
+        {
+          "word": "bilkul",
+          "startMs": 4000,
+          "endMs": 4400
+        },
+        {
+          "word": "sahi",
+          "startMs": 4400,
+          "endMs": 4800
+        },
+        {
+          "word": "topic",
+          "startMs": 4800,
+          "endMs": 5200
+        },
+        {
+          "word": "matlab",
+          "startMs": 6000,
+          "endMs": 6400
+        },
+        {
+          "word": "editor",
+          "startMs": 6400,
+          "endMs": 6800
+        },
+        {
+          "word": "kaise",
+          "startMs": 6800,
+          "endMs": 7200
+        },
+        {
+          "word": "kaam",
+          "startMs": 7200,
+          "endMs": 7600
+        },
+        {
+          "word": "karta",
+          "startMs": 7600,
+          "endMs": 8000
+        },
+        {
+          "word": "hai",
+          "startMs": 8000,
+          "endMs": 8400
+        },
+        {
+          "word": "dekho",
+          "startMs": 9200,
+          "endMs": 9600
+        },
+        {
+          "word": "sabse",
+          "startMs": 9600,
+          "endMs": 10000
+        },
+        {
+          "word": "pehle",
+          "startMs": 10000,
+          "endMs": 10400
+        },
+        {
+          "word": "upload",
+          "startMs": 10400,
+          "endMs": 10800
+        },
+        {
+          "word": "karo",
+          "startMs": 10800,
+          "endMs": 11200
+        },
+        {
+          "word": "phir",
+          "startMs": 12000,
+          "endMs": 12400
+        },
+        {
+          "word": "transcript",
+          "startMs": 12400,
+          "endMs": 12800
+        },
+        {
+          "word": "ban",
+          "startMs": 12800,
+          "endMs": 13200
+        },
+        {
+          "word": "jaata",
+          "startMs": 13200,
+          "endMs": 13600
+        },
+        {
+          "word": "hai",
+          "startMs": 13600,
+          "endMs": 14000
+        },
+        {
+          "word": "wow",
+          "startMs": 14800,
+          "endMs": 15200
+        },
+        {
+          "word": "yeh",
+          "startMs": 15200,
+          "endMs": 15600
+        },
+        {
+          "word": "toh",
+          "startMs": 15600,
+          "endMs": 16000
+        },
+        {
+          "word": "bahut",
+          "startMs": 16000,
+          "endMs": 16400
+        },
+        {
+          "word": "fast",
+          "startMs": 16400,
+          "endMs": 16800
+        },
+        {
+          "word": "hai",
+          "startMs": 16800,
+          "endMs": 17200
+        },
+        {
+          "word": "haan",
+          "startMs": 18000,
+          "endMs": 18400
+        },
+        {
+          "word": "aur",
+          "startMs": 18400,
+          "endMs": 18800
+        },
+        {
+          "word": "styles",
+          "startMs": 18800,
+          "endMs": 19200
+        },
+        {
+          "word": "bhi",
+          "startMs": 19200,
+          "endMs": 19600
+        },
+        {
+          "word": "bahut",
+          "startMs": 19600,
+          "endMs": 20000
+        },
+        {
+          "word": "saare",
+          "startMs": 20000,
+          "endMs": 20400
+        },
+        {
+          "word": "hain",
+          "startMs": 20400,
+          "endMs": 20800
+        },
+        {
+          "word": "punch",
+          "startMs": 21600,
+          "endMs": 22000
+        },
+        {
+          "word": "pop",
+          "startMs": 22000,
+          "endMs": 22400
+        },
+        {
+          "word": "style",
+          "startMs": 22400,
+          "endMs": 22800
+        },
+        {
+          "word": "mujhe",
+          "startMs": 22800,
+          "endMs": 23200
+        },
+        {
+          "word": "pasand",
+          "startMs": 23200,
+          "endMs": 23600
+        },
+        {
+          "word": "hai",
+          "startMs": 23600,
+          "endMs": 24000
+        },
+        {
+          "word": "chaliye",
+          "startMs": 24800,
+          "endMs": 25200
+        },
+        {
+          "word": "wahi",
+          "startMs": 25200,
+          "endMs": 25600
+        },
+        {
+          "word": "try",
+          "startMs": 25600,
+          "endMs": 26000
+        },
+        {
+          "word": "karte",
+          "startMs": 26000,
+          "endMs": 26400
+        },
+        {
+          "word": "hain",
+          "startMs": 26400,
+          "endMs": 26800
+        },
+        {
+          "word": "matlab",
+          "startMs": 27600,
+          "endMs": 28000
+        },
+        {
+          "word": "ek",
+          "startMs": 28000,
+          "endMs": 28400
+        },
+        {
+          "word": "click",
+          "startMs": 28400,
+          "endMs": 28800
+        },
+        {
+          "word": "mein",
+          "startMs": 28800,
+          "endMs": 29200
+        },
+        {
+          "word": "reflow",
+          "startMs": 29200,
+          "endMs": 29600
+        },
+        {
+          "word": "ho",
+          "startMs": 29600,
+          "endMs": 30000
+        },
+        {
+          "word": "gaya",
+          "startMs": 30000,
+          "endMs": 30400
+        },
+        {
+          "word": "ab",
+          "startMs": 31200,
+          "endMs": 31600
+        },
+        {
+          "word": "export",
+          "startMs": 31600,
+          "endMs": 32000
+        },
+        {
+          "word": "karte",
+          "startMs": 32000,
+          "endMs": 32400
+        },
+        {
+          "word": "hain",
+          "startMs": 32400,
+          "endMs": 32800
+        },
+        {
+          "word": "srt",
+          "startMs": 33600,
+          "endMs": 34000
+        },
+        {
+          "word": "aur",
+          "startMs": 34000,
+          "endMs": 34400
+        },
+        {
+          "word": "mp4",
+          "startMs": 34400,
+          "endMs": 34800
+        },
+        {
+          "word": "dono",
+          "startMs": 34800,
+          "endMs": 35200
+        },
+        {
+          "word": "cloud",
+          "startMs": 36000,
+          "endMs": 36400
+        },
+        {
+          "word": "render",
+          "startMs": 36400,
+          "endMs": 36800
+        },
+        {
+          "word": "bhi",
+          "startMs": 36800,
+          "endMs": 37200
+        },
+        {
+          "word": "kaam",
+          "startMs": 37200,
+          "endMs": 37600
+        },
+        {
+          "word": "karta",
+          "startMs": 37600,
+          "endMs": 38000
+        },
+        {
+          "word": "hai",
+          "startMs": 38000,
+          "endMs": 38400
+        },
+        {
+          "word": "shukriya",
+          "startMs": 39200,
+          "endMs": 39600
+        },
+        {
+          "word": "dosto",
+          "startMs": 39600,
+          "endMs": 40000
+        },
+        {
+          "word": "milte",
+          "startMs": 40000,
+          "endMs": 40400
+        },
+        {
+          "word": "hain",
+          "startMs": 40400,
+          "endMs": 40800
+        },
+        {
+          "word": "agli",
+          "startMs": 40800,
+          "endMs": 41200
+        },
+        {
+          "word": "video",
+          "startMs": 41200,
+          "endMs": 41600
+        },
+        {
+          "word": "mein",
+          "startMs": 41600,
+          "endMs": 89800
+        }
+      ]
+    },
+    {
+      "id": "hinglish-mini-hm-001",
+      "audioMatch": "hm-001",
+      "language": "hi-en",
+      "source": "apps/worker-ai/worker_ai/fixtures/hinglish-mini/manifest.yaml",
+      "referenceText": "toh aaj hum baat karenge video editing ke baare mein",
+      "words": null
+    },
+    {
+      "id": "hinglish-mini-hm-002",
+      "audioMatch": "hm-002",
+      "language": "hi-en",
+      "source": "apps/worker-ai/worker_ai/fixtures/hinglish-mini/manifest.yaml",
+      "referenceText": "matlab captions kaise banate hain automatically",
+      "words": null
+    },
+    {
+      "id": "hinglish-mini-hm-003",
+      "audioMatch": "hm-003",
+      "language": "hi-en",
+      "source": "apps/worker-ai/worker_ai/fixtures/hinglish-mini/manifest.yaml",
+      "referenceText": "yaani ek hi click mein poora transcript ready",
+      "words": null
+    }
+  ]
+}

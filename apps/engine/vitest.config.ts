@@ -13,7 +13,15 @@ export default mergeConfig(
     test: {
       name: "@montaj/engine",
       maxWorkers: 2,
-      coverage: { exclude: ["**/.tmp/**", "src/main.ts"] },
+      // C03b's bench harness lives outside src/ (a Node CLI, not app code under
+      // the 75/70 coverage gate below) — included for its own unit tests
+      // (`bench/thresholds.test.ts`) but excluded from the coverage count.
+      include: [
+        "src/**/*.{test,spec}.{ts,tsx}",
+        "tests/**/*.{test,spec}.{ts,tsx}",
+        "bench/**/*.{test,spec}.{ts,tsx}",
+      ],
+      coverage: { exclude: ["**/.tmp/**", "src/main.ts", "bench/**"] },
     },
   }),
 );

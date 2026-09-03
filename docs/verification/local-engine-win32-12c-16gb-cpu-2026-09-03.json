@@ -1,0 +1,240 @@
+{
+  "generatedAt": "2026-09-03",
+  "profileSlug": "win32-12c-16gb-cpu",
+  "platform": "win32",
+  "cores": 12,
+  "ramGb": 15.817794799804688,
+  "backend": "fake",
+  "harnessTier": "C",
+  "reportedTier": "C",
+  "tierMatch": {
+    "verdict": "pass",
+    "detail": "tier C matches the harness's own detection"
+  },
+  "gate": "skipped-fake-backend",
+  "overall": "not-applicable",
+  "items": [
+    {
+      "itemId": "hinglish-sample",
+      "model": "turbo-q5_0",
+      "language": "hi",
+      "wer": 0,
+      "cer": 0,
+      "onsetErrorMedianMs": 980,
+      "wallClockS": 0.0182553,
+      "peakRssMb": 116.4453125,
+      "boundaryError": {
+        "verdict": "fail",
+        "detail": "median boundary error 980.0ms (bar: <=80ms)"
+      },
+      "werResult": {
+        "verdict": "pass",
+        "detail": "WER 0.0000 (band: [0.00, 0.25])"
+      },
+      "latencyResult": {
+        "verdict": "pass",
+        "detail": "tier A: 0.0s (bar: <=60s)"
+      }
+    },
+    {
+      "itemId": "a23-90s",
+      "model": "turbo-q5_0",
+      "language": "hi-Latn",
+      "wer": 1,
+      "cer": 0.9738,
+      "onsetErrorMedianMs": 20119,
+      "wallClockS": 0.008943,
+      "peakRssMb": 105.44921875,
+      "boundaryError": {
+        "verdict": "fail",
+        "detail": "median boundary error 20119.0ms (bar: <=80ms)"
+      },
+      "werResult": {
+        "verdict": "fail",
+        "detail": "WER 1.0000 (band: [0.00, 0.25])"
+      },
+      "latencyResult": {
+        "verdict": "pass",
+        "detail": "tier A: 0.0s (bar: <=60s)"
+      },
+      "note": "Not wired into FakeBackend's own fixture keys (apps/engine/src/fixtures/** is C03a-owned, read-only here): a FakeBackend run falls back to its `default` fixture for this item, which the harness reports as a 'no matching engine fixture' case rather than a false threshold pass/fail. A real-backend run (once the real 90s WAV exists) transcribes/aligns the actual clip and scores against these timings for real."
+    },
+    {
+      "itemId": "hinglish-mini-hm-001",
+      "model": "turbo-q5_0",
+      "language": "hi-en",
+      "wer": 1,
+      "cer": 0.9038,
+      "onsetErrorMedianMs": null,
+      "wallClockS": 0.006621,
+      "peakRssMb": 106.015625,
+      "boundaryError": {
+        "verdict": "not-applicable",
+        "detail": "no median boundary error (reference/hypothesis word counts differ)"
+      },
+      "werResult": {
+        "verdict": "fail",
+        "detail": "WER 1.0000 (band: [0.00, 0.25])"
+      },
+      "latencyResult": {
+        "verdict": "pass",
+        "detail": "tier A: 0.0s (bar: <=60s)"
+      }
+    },
+    {
+      "itemId": "hinglish-mini-hm-002",
+      "model": "turbo-q5_0",
+      "language": "hi-en",
+      "wer": 1,
+      "cer": 0.8936,
+      "onsetErrorMedianMs": null,
+      "wallClockS": 0.006524,
+      "peakRssMb": 106.34375,
+      "boundaryError": {
+        "verdict": "not-applicable",
+        "detail": "no median boundary error (reference/hypothesis word counts differ)"
+      },
+      "werResult": {
+        "verdict": "fail",
+        "detail": "WER 1.0000 (band: [0.00, 0.25])"
+      },
+      "latencyResult": {
+        "verdict": "pass",
+        "detail": "tier A: 0.0s (bar: <=60s)"
+      }
+    },
+    {
+      "itemId": "hinglish-mini-hm-003",
+      "model": "turbo-q5_0",
+      "language": "hi-en",
+      "wer": 1,
+      "cer": 0.8667,
+      "onsetErrorMedianMs": null,
+      "wallClockS": 0.0063178,
+      "peakRssMb": 106.54296875,
+      "boundaryError": {
+        "verdict": "not-applicable",
+        "detail": "no median boundary error (reference/hypothesis word counts differ)"
+      },
+      "werResult": {
+        "verdict": "fail",
+        "detail": "WER 1.0000 (band: [0.00, 0.25])"
+      },
+      "latencyResult": {
+        "verdict": "pass",
+        "detail": "tier A: 0.0s (bar: <=60s)"
+      }
+    },
+    {
+      "itemId": "hinglish-sample",
+      "model": "small",
+      "language": "hi",
+      "wer": 0,
+      "cer": 0,
+      "onsetErrorMedianMs": 980,
+      "wallClockS": 0.006122,
+      "peakRssMb": 107.66015625,
+      "boundaryError": {
+        "verdict": "fail",
+        "detail": "median boundary error 980.0ms (bar: <=80ms)"
+      },
+      "werResult": {
+        "verdict": "pass",
+        "detail": "WER 0.0000 (band: [0.00, 0.25])"
+      },
+      "latencyResult": {
+        "verdict": "pass",
+        "detail": "tier A: 0.0s (bar: <=60s)"
+      }
+    },
+    {
+      "itemId": "a23-90s",
+      "model": "small",
+      "language": "hi-Latn",
+      "wer": 1,
+      "cer": 0.9738,
+      "onsetErrorMedianMs": 20119,
+      "wallClockS": 0.0058816,
+      "peakRssMb": 108.7890625,
+      "boundaryError": {
+        "verdict": "fail",
+        "detail": "median boundary error 20119.0ms (bar: <=80ms)"
+      },
+      "werResult": {
+        "verdict": "fail",
+        "detail": "WER 1.0000 (band: [0.00, 0.25])"
+      },
+      "latencyResult": {
+        "verdict": "pass",
+        "detail": "tier A: 0.0s (bar: <=60s)"
+      },
+      "note": "Not wired into FakeBackend's own fixture keys (apps/engine/src/fixtures/** is C03a-owned, read-only here): a FakeBackend run falls back to its `default` fixture for this item, which the harness reports as a 'no matching engine fixture' case rather than a false threshold pass/fail. A real-backend run (once the real 90s WAV exists) transcribes/aligns the actual clip and scores against these timings for real."
+    },
+    {
+      "itemId": "hinglish-mini-hm-001",
+      "model": "small",
+      "language": "hi-en",
+      "wer": 1,
+      "cer": 0.9038,
+      "onsetErrorMedianMs": null,
+      "wallClockS": 0.0058259,
+      "peakRssMb": 109.33203125,
+      "boundaryError": {
+        "verdict": "not-applicable",
+        "detail": "no median boundary error (reference/hypothesis word counts differ)"
+      },
+      "werResult": {
+        "verdict": "fail",
+        "detail": "WER 1.0000 (band: [0.00, 0.25])"
+      },
+      "latencyResult": {
+        "verdict": "pass",
+        "detail": "tier A: 0.0s (bar: <=60s)"
+      }
+    },
+    {
+      "itemId": "hinglish-mini-hm-002",
+      "model": "small",
+      "language": "hi-en",
+      "wer": 1,
+      "cer": 0.8936,
+      "onsetErrorMedianMs": null,
+      "wallClockS": 0.0076863,
+      "peakRssMb": 111.58984375,
+      "boundaryError": {
+        "verdict": "not-applicable",
+        "detail": "no median boundary error (reference/hypothesis word counts differ)"
+      },
+      "werResult": {
+        "verdict": "fail",
+        "detail": "WER 1.0000 (band: [0.00, 0.25])"
+      },
+      "latencyResult": {
+        "verdict": "pass",
+        "detail": "tier A: 0.0s (bar: <=60s)"
+      }
+    },
+    {
+      "itemId": "hinglish-mini-hm-003",
+      "model": "small",
+      "language": "hi-en",
+      "wer": 1,
+      "cer": 0.8667,
+      "onsetErrorMedianMs": null,
+      "wallClockS": 0.0050125,
+      "peakRssMb": 111.87109375,
+      "boundaryError": {
+        "verdict": "not-applicable",
+        "detail": "no median boundary error (reference/hypothesis word counts differ)"
+      },
+      "werResult": {
+        "verdict": "fail",
+        "detail": "WER 1.0000 (band: [0.00, 0.25])"
+      },
+      "latencyResult": {
+        "verdict": "pass",
+        "detail": "tier A: 0.0s (bar: <=60s)"
+      }
+    }
+  ]
+}
