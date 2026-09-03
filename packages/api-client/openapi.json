@@ -12197,6 +12197,159 @@
         ]
       }
     },
+    "/admin/evals/leaderboard": {
+      "get": {
+        "operationId": "adminEvalsLeaderboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeaderboardRowDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Eval leaderboard: latest metric per (dataset, language, provider, metric), with trend",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/evals/freeze": {
+      "get": {
+        "operationId": "adminGetRoutingFreeze",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingFreezeStateDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Current routing-freeze state",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "adminFreezeRouting",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FreezeRoutingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingFreezeStateDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Freeze the routing chain to its last approved snapshot (reason mandatory, audited)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/evals/unfreeze": {
+      "post": {
+        "operationId": "adminUnfreezeRouting",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FreezeRoutingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingFreezeStateDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Unfreeze the routing chain (reason mandatory, audited)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/offers/eligibility": {
       "get": {
         "description": "Every amount is read from the same catalogue `/billing/passes/checkout` quotes from — the export dialog never hardcodes a price.",
@@ -24005,6 +24158,79 @@
         "properties": {}
       },
       "ReplyToTicketDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "LeaderboardRowDto": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "metricName": {
+            "type": "string"
+          },
+          "metricValue": {
+            "type": "number"
+          },
+          "previousMetricValue": {
+            "type": "number"
+          },
+          "trend": {
+            "type": "number"
+          },
+          "itemCount": {
+            "type": "number"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "measuredAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataset",
+          "kind",
+          "language",
+          "metricName",
+          "metricValue",
+          "itemCount",
+          "runId",
+          "measuredAt"
+        ]
+      },
+      "RoutingFreezeStateDto": {
+        "type": "object",
+        "properties": {
+          "frozen": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "frozen",
+          "updatedAt"
+        ]
+      },
+      "FreezeRoutingDto": {
         "type": "object",
         "properties": {}
       },
