@@ -648,7 +648,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-[220px] flex-1">
         <div
           className="flex w-[420px] shrink-0 flex-col gap-2 border-r border-white/10 p-3"
           data-coach-mark="transcript"
@@ -732,7 +732,29 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         </div>
       </div>
 
-      <div className="border-t border-white/10 bg-black/30 p-2" data-testid="editor-timeline-row">
+      {/*
+       * `max-h` + its own scroll (M18): the timeline's canvas height is data-
+       * driven (`laneTops.totalHeight` — more lanes with more pass types or
+       * protected ranges make it taller) and this row previously had no cap
+       * at all, so on an ordinary laptop viewport a lane-heavy timeline (or
+       * one showing alongside the reflow banner, B19b/B20b territory) could
+       * eat most of `editor-root`'s fixed `100dvh-3.5rem` height, squeezing
+       * the flex-1 row above — transcript, canvas preview and the style
+       * picker — down to a few px. Below its own content's minimum, the
+       * style grid's tiles (each with `overflow-hidden`, whose CSS Grid
+       * automatic minimum size is then 0, not their content size) collapsed
+       * to ~2px: still "visible, enabled and stable" by Playwright's own
+       * actionability checks, but with nothing rendered and their real
+       * screen position off in the timeline row, so a click on them hit
+       * whatever now occupied that point instead (`gate-a.spec.ts`'s
+       * `style-picker-tile-*` journey step — M18). Capping this row and
+       * letting its own content scroll keeps that budget for the panels
+       * that need it, for every viewport, not only test ones.
+       */}
+      <div
+        className="max-h-[38dvh] shrink-0 overflow-y-auto border-t border-white/10 bg-black/30 p-2"
+        data-testid="editor-timeline-row"
+      >
         <Timeline
           words={allLiveWords}
           segments={segments}

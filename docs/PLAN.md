@@ -176,7 +176,7 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | D04d | Audio mix pipeline (browser+cloud), signed pack URLs, energy cues | Sonnet | merged a0198ca + verified (signed URLs, preview, energy cues); mixer -> D04e |
 | M09 | Maintenance: signup-sent Playwright regression (Gate B blocker) | Sonnet | merged + verified (CSP connect-src blocked http API in e2e; WhatsNewModal auto-dismiss). Open: streak widget not on /billing; export/gate-a need media+render workers in the Gate B harness |
 | D04e | Cue audio mixing into exports, browser + cloud, envelope parity (mix only) | Sonnet | merged + verified (4 increments; parity 0.05 dB; asetnsamples duck fix) |
-| GATE-B | Gate B verification runs (see _orchestration/GATE-B-CHECKLIST.md) | Fable | run 5: 11/11 specs green (gate-a pending M16); fresh-clone verify-wave next |
+| GATE-B | Gate B verification runs (see _orchestration/GATE-B-CHECKLIST.md) | Fable | run 5: 11/11 + gate-a 3/3 (M18) = all 12 specs green; verify-wave pending M17 |
 | M10 | Maintenance: Docker image build (packages/config tsc), Gate B run-4 defects (timeline drag, streak /billing, export, gate-a) | Sonnet | merged (Docker build fixed; streak/timeline/export green; gate-a reaches editor, realtime self-echo -> M14; audit writers on passes + prompted-edits) |
 | M11 | Maintenance: auto beat-alignment, LLM sentiment via B11 seam, prompted-edit chain retry | Sonnet | merged (beat-align, LLM mood via B11 seam, chain retry e2e) |
 | M12 | Maintenance: one markdown block parser for docs + help content | Sonnet | merged + verified (web 964; shared parser + property tests) || D04b2 | Partner catalogue wiring behind flag: HTTP, pass wiring, usage emission, render grant check, admin table, badge | Sonnet | running |
@@ -184,5 +184,6 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | M14 | Maintenance: realtime op self-echo raises bogus conflict dialog (gate-a) | Sonnet | merged + verified (web lib/edg green); gate-a coach-mark blocker -> M16 |
 | M16 | Maintenance: first-run coach marks intercept editor clicks (gate-a) | Sonnet | merged (callout pointer-events pass-through; fixture waits for Skip); gate-a e2e rerun pending on main |
 | M17 | Maintenance: e2e stack API image (no install at boot) + verify-wave --wave 7 green | Sonnet | running |
-| M18 | Maintenance: gate-a harness mode ruling + style-picker tile blocker; 3/3 green | Sonnet | running |
+| M18 | Maintenance: gate-a harness mode ruling + style-picker tile blocker; 3/3 green | Sonnet | merged (gate-a 3/3; timeline row max-height + content-row floor fixed a real layout defect; export 2/2, timeline 10/10) |
 | M19 | Maintenance: local-ai-smoke derives DB from DATABASE_URL | Sonnet | merged |
+| M20 | Free-stack MVP mode: Ollama local LLM, dev auto-verify, no-key UI, docs/FREE-STACK.md | Sonnet | running: inc1 73f7092, inc2 7fe864c (qwen2.5:3b real runs; eval:local 7/24 -> normaliser requested); inc3-5 next |
