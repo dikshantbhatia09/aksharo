@@ -1069,6 +1069,13 @@ export const API_OPERATIONS = [
     summary: "Razorpay webhook (THREAT-MODEL T16)",
   },
   {
+    operationId: "importEdgDocument",
+    method: "POST",
+    path: "/projects/{projectId}/edg/import",
+    tags: ["edg"],
+    summary: "Write a whole EDG document as revision 1 of a fresh project",
+  },
+  {
     operationId: "importMemoryGlossary",
     method: "POST",
     path: "/memory/import",

@@ -59,6 +59,24 @@ const api: AksharoDesktopApi = {
       ipcRenderer.invoke("desktop:telemetry-drain-queue", limit),
     buildDiagnosticsBundle: () => ipcRenderer.invoke("desktop:telemetry-build-diagnostics-bundle"),
   },
+
+  local: {
+    isEnabled: () => ipcRenderer.invoke("desktop:local-is-enabled"),
+    createProject: (input) => ipcRenderer.invoke("desktop:local-create-project", input),
+    listProjects: () => ipcRenderer.invoke("desktop:local-list-projects"),
+    openProject: (projectId: string) => ipcRenderer.invoke("desktop:local-open-project", projectId),
+    deleteProject: (projectId: string) =>
+      ipcRenderer.invoke("desktop:local-delete-project", projectId),
+    importMedia: (input) => ipcRenderer.invoke("desktop:local-import-media", input),
+    listMedia: (projectId: string) => ipcRenderer.invoke("desktop:local-list-media", projectId),
+    transcribe: (input) => ipcRenderer.invoke("desktop:local-transcribe", input),
+    align: (input) => ipcRenderer.invoke("desktop:local-align", input),
+    saveEdgSnapshot: (input) => ipcRenderer.invoke("desktop:local-save-edg-snapshot", input),
+    latestSnapshot: (projectId: string) =>
+      ipcRenderer.invoke("desktop:local-latest-snapshot", projectId),
+    runExport: (input) => ipcRenderer.invoke("desktop:local-run-export", input),
+    listExports: (projectId: string) => ipcRenderer.invoke("desktop:local-list-exports", projectId),
+  },
 };
 
 contextBridge.exposeInMainWorld("aksharoDesktop", api);

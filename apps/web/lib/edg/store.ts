@@ -18,6 +18,7 @@ import { computeInverseOps, editWord, setSegmentText, type InverseState } from "
 import { EdgOpQueue } from "./queue";
 
 import type { OpBatchResponse, TextConflict } from "./client";
+import type { AksharoDesktopWindowApi } from "../desktop";
 
 export interface EditorStoreDeps {
   /** `POST /projects/{id}/edg/ops`. Throws `EdgConflictError` / `EdgTooStaleError` / `EdgTransientError`. */
@@ -351,3 +352,124 @@ export class EditorStore {
 }
 
 export type { HistoryEntry };
+
+// -----------------------------------------------------------------------------
+// Local mode (brief C04 §2): "the hosted editor detects window.aksharoDesktop.
+// local and runs EditorStore in local mode against the IPC (no API calls for
+// local projects)".
+//
+// `EditorStore` never talks to a transport directly — every write goes through
+// the three functions on `EditorStoreDeps`. For a cloud project those are
+// `@montaj/api-client` HTTP calls (`apps/web/lib/edg/client.ts`); for a local
+// project they are IPC calls to `apps/desktop`'s `LocalStore`
+// (`window.aksharoDesktop.local`) instead — the editor's own code (undo/redo,
+// optimistic apply, conflict UI) is exactly the same either way, which is the
+// point of the seam.
+//
+// A local project has exactly one writer, so there is no rebase and no
+// conflict to raise: `applyBatch` always applies against this module's own
+// authoritative `EdgState` (there being no separate server to disagree with)
+// and persists the result via `local.saveEdgSnapshot` — a whole-document
+// write, not an appended op log (`local_edg_snapshots` stores one full
+// revision each; see `apps/desktop/README.md`'s "Local mode" section).
+//
+// **Known limitation**, reported rather than silently accepted: a local
+// snapshot stores `{hot, segments}` only, not transcript chunks (brief scope
+// did not extend the local schema to a fifth table for those). Word-addressed
+// ops (`EditWord`, `DeleteWord`, `SetWordTiming`) therefore resolve against an
+// empty word index and come back rejected `unknown-id`, same as the server
+// rejects an op naming a word it does not have; segment-level ops (text,
+// hide, position, style, emphasis, merge/split by segment id) round-trip
+// correctly. `resegment` needs the transcript for the same reason and is not
+// implemented in local mode yet — it rejects with a clear error rather than
+// silently no-op-ing.
+type LocalDesktopApi = NonNullable<AksharoDesktopWindowApi["local"]>;
+
+export class LocalResegmentUnsupportedError extends Error {
+  constructor() {
+    super(
+      "Resegmenting a local project needs the transcript, which local mode does not " +
+        "store yet (brief C04 known limitation) — edit segments directly instead.",
+    );
+    this.name = "LocalResegmentUnsupportedError";
+  }
+}
+
+/** Builds `EditorStoreInit` for a local project from its latest saved snapshot, or a blank one for a new project. */
+export async function loadLocalEditorInit(
+  local: LocalDesktopApi,
+  projectId: string,
+): Promise<EditorStoreInit> {
+  const snapshot = await local.latestSnapshot(projectId);
+  if (snapshot === null) {
+    throw new Error(
+      `local project ${projectId} has no saved EDG snapshot yet — save one before opening the editor`,
+    );
+  }
+  const hot = snapshot.hot as EdgHot;
+  const segments = snapshot.segments as Segment[];
+  return { hot, segments, passes: [], chunks: [], revision: snapshot.revision };
+}
+
+/**
+ * `EditorStoreDeps` backed by the desktop's local IPC instead of the API
+ * (brief C04 §2). Seed `EditorStore`'s own `init` from
+ * {@link loadLocalEditorInit} first, then build these deps from the exact
+ * same `hot`/`segments` so both start from one document.
+ */
+export function createLocalEditorStoreDeps(input: {
+  local: LocalDesktopApi;
+  projectId: string;
+  init: EditorStoreInit;
+}): EditorStoreDeps {
+  let state = fromProjection(
+    { ...input.init.hot, segments: input.init.segments, passes: input.init.passes },
+    { chunks: input.init.chunks },
+  );
+  let revision = input.init.revision;
+
+  async function persist(): Promise<void> {
+    const segments = state.segmentOrder
+      .map((id) => state.segments.get(id))
+      .filter((segment): segment is Segment => segment !== undefined);
+    await input.local.saveEdgSnapshot({
+      projectId: input.projectId,
+      hot: state.hot,
+      segments,
+    });
+  }
+
+  return {
+    async applyBatch(body) {
+      const result = applyOps(state, body.ops, { source: "desktop" });
+      const changed = result.applied.length > result.skipped.length;
+      if (changed) {
+        state = result.state;
+        revision += 1;
+        await persist();
+      }
+      return {
+        revision,
+        applied: result.applied,
+        rebased: [],
+        rejected: result.rejected,
+      };
+    },
+
+    resegment() {
+      return Promise.reject(new LocalResegmentUnsupportedError());
+    },
+
+    async reloadDocument() {
+      const snapshot = await input.local.latestSnapshot(input.projectId);
+      if (snapshot === null) {
+        return { hot: state.hot, segments: [], passes: [], revision };
+      }
+      const hot = snapshot.hot as EdgHot;
+      const segments = snapshot.segments as Segment[];
+      state = fromProjection({ ...hot, segments, passes: [] }, {});
+      revision = snapshot.revision;
+      return { hot, segments, passes: [], revision };
+    },
+  };
+}
