@@ -5,6 +5,7 @@ import { BURN_RATES } from "@montaj/config";
 import {
   quoteAutocut,
   quoteMusic,
+  quotePromptedEdit,
   quoteReframeZoom,
   quoteSfx,
   quoteTextFx,
@@ -124,5 +125,62 @@ describe("the text-fx pass quote", () => {
 
   it("never quotes zero for a finished timeline that exists", () => {
     expect(quoteTextFx(1).tenths).toBeGreaterThan(0);
+  });
+});
+
+describe("the prompted-edit quote (D07 §2: held on source minutes, settled on finished minutes)", () => {
+  it("carries the CONTRACTS §4 promptedEdit rate from packages/config", () => {
+    expect(BURN_RATES.promptedEdit.basis).toBe("finishedMinute");
+    expect(BURN_RATES.promptedEdit.holdBasis).toBe("sourceMinute");
+    expect(BURN_RATES.promptedEdit.ratePerUnitTenths).toBe(30);
+    expect(BURN_RATES.promptedEdit.proRatePerUnitTenths).toBe(80);
+  });
+
+  it("holds on the SOURCE duration, flash tier — 90 s source, 60 s finished after cuts", () => {
+    const quote = quotePromptedEdit(90_000, 60_000, "flash");
+    // hold: 1.5 source minutes * 3 credits/min (30 tenths) = 4.5 credits = 45 tenths
+    expect(quote.holdTenths).toBe(45);
+    expect(quote.holdCredits).toBe("4.5");
+  });
+
+  it("settles on the FINISHED duration, flash tier — same 90 s / 60 s example", () => {
+    const quote = quotePromptedEdit(90_000, 60_000, "flash");
+    // settle: 1.0 finished minute * 3 credits/min (30 tenths) = 3.0 credits = 30 tenths
+    expect(quote.costTenths).toBe(30);
+    // formatCredits strips a bare ".0" (packages/config/src/credits.ts).
+    expect(quote.costCredits).toBe("3");
+  });
+
+  it("the settle side is never more than the hold side for a plan that only ever shortens the timeline", () => {
+    // Cutting can only shrink the timeline, so finished <= source always here,
+    // and at the same per-minute rate the settle amount can never exceed the hold.
+    for (const sourceMs of [1, 6_000, 90_000, 600_000]) {
+      for (const finishedMs of [0, sourceMs / 2, sourceMs]) {
+        const quote = quotePromptedEdit(sourceMs, finishedMs, "flash");
+        expect(quote.costTenths).toBeLessThanOrEqual(quote.holdTenths);
+      }
+    }
+  });
+
+  it("the pro tier holds and settles at the higher rate than flash for the same durations", () => {
+    const flash = quotePromptedEdit(90_000, 60_000, "flash");
+    const pro = quotePromptedEdit(90_000, 60_000, "pro");
+    expect(pro.holdTenths).toBeGreaterThan(flash.holdTenths);
+    expect(pro.costTenths).toBeGreaterThan(flash.costTenths);
+  });
+
+  it("defaults to the flash tier when none is given", () => {
+    expect(quotePromptedEdit(90_000, 60_000)).toEqual(quotePromptedEdit(90_000, 60_000, "flash"));
+  });
+
+  it("never quotes a zero hold for media that exists, even fully cut away", () => {
+    const quote = quotePromptedEdit(6_000, 0, "flash");
+    expect(quote.holdTenths).toBeGreaterThan(0);
+  });
+
+  it("explains itself in the hold's audit trail", () => {
+    expect(quotePromptedEdit(90_000, 60_000, "flash").reason).toBe(
+      "ai.pass (prompted, flash) · held on 1.5 source minutes",
+    );
   });
 });
