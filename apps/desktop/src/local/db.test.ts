@@ -25,7 +25,13 @@ describe("openLocalDb", () => {
     stmt.free();
 
     expect(names.sort()).toEqual(
-      ["local_edg_snapshots", "local_exports", "local_media", "local_projects"].sort(),
+      [
+        "local_edg_snapshots",
+        "local_exports",
+        "local_media",
+        "local_projects",
+        "local_transcript_chunks",
+      ].sort(),
     );
   });
 

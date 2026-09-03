@@ -269,6 +269,7 @@ export class EdgController {
       workspaceId: principal.workspaceId,
       hot: body.hot,
       segments: body.segments,
+      ...(body.chunks === undefined ? {} : { chunks: body.chunks }),
       author: body.author ?? principal.userId,
       source: body.source ?? sourceOf(principal.kind),
     });

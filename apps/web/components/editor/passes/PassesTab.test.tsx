@@ -1,6 +1,6 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { EdgHot, Pass, PassItem, Segment, TranscriptChunk } from "@montaj/edg";
 
@@ -81,6 +81,38 @@ describe("<PassesTab />", () => {
     expect(screen.getByTestId("proposal-card-i1")).toBeInTheDocument();
     expect(screen.getByTestId("proposal-card-i2")).toBeInTheDocument();
     expect(screen.getByTestId("passes-summary-bar")).toHaveTextContent("Removed: 0.5s");
+  });
+
+  it("brief C04b §3: greys the run button and shows the upload-to-cloud notice for a local project", () => {
+    const items = [cutItem("i1", 0, 1000, "proposed", 0.9)];
+    const store = buildStore(items);
+    const passes: Pass[] = [
+      {
+        passId: "pass-1",
+        type: "autocut",
+        engine: "autocut@2",
+        params: {},
+        status: "ready",
+        items,
+      },
+    ];
+    const onUploadToCloud = vi.fn();
+    renderWithProviders(
+      <PassesTab
+        projectId={PROJECT}
+        store={store}
+        passes={passes}
+        sourceDurationMs={10_000}
+        isLocalProject
+        onUploadToCloud={onUploadToCloud}
+      />,
+    );
+    expect(screen.getByTestId("local-mode-notice")).toHaveTextContent(
+      "upload to cloud to use passes",
+    );
+    expect(screen.getByTestId("run-autocut-button")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("local-mode-upload"));
+    expect(onUploadToCloud).toHaveBeenCalledTimes(1);
   });
 
   it("accepting a card sends a DecideItems op and updates its state optimistically", async () => {

@@ -71,15 +71,29 @@ All four scripts run Prettier through `node --max-old-space-size=6144 …` (A18a
 
 ## Scripts
 
-| Command                                      | Does                                                 |
-| -------------------------------------------- | ---------------------------------------------------- |
-| `pnpm dev`                                   | every app in watch mode                              |
-| `pnpm build` / `lint` / `typecheck` / `test` | across the workspace (Python included)               |
-| `pnpm test:e2e`                              | Playwright (chromium + webkit) and the API e2e suite |
-| `pnpm format:changed`                        | Prettier over this branch's files (use this one)     |
-| `pnpm format:changed:check`                  | the same set, checked rather than rewritten          |
-| `pnpm format`                                | Prettier over the **whole repo** — see Formatting    |
-| `pnpm db:migrate` / `db:seed`                | Prisma migrations and seed                           |
+| Command                                                | Does                                                                               |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `pnpm dev`                                             | every app in watch mode                                                            |
+| `pnpm build` / `lint` / `typecheck` / `test`           | across the workspace (Python included)                                             |
+| `pnpm test:e2e`                                        | Playwright (chromium + webkit) and the API e2e suite                               |
+| `pnpm format:changed`                                  | Prettier over this branch's files (use this one)                                   |
+| `pnpm format:changed:check`                            | the same set, checked rather than rewritten                                        |
+| `pnpm format`                                          | Prettier over the **whole repo** — see Formatting                                  |
+| `pnpm db:migrate` / `db:seed`                          | Prisma migrations and seed                                                         |
+| `node scripts/ops/restore-drill.mjs`                   | Backup restore drill against the compose stack (`docs/runbooks/backup-restore.md`) |
+| `node scripts/ops/dpdp-records-generate.mjs [--check]` | Regenerate/verify `docs/compliance/dpdp-records.md`                                |
+
+## Operations
+
+- **Status page:** `/status` (public), fed by `apps/api/src/ops/status.controller.ts`'s
+  `GET /ops/status.json`, published every 5 minutes by the `status-publish`
+  scheduler task. Incidents are managed at `POST/PATCH /admin/ops/incidents`.
+- **Runbooks:** `docs/runbooks/` — see `on-call.md` for the alert-to-runbook
+  index, `backup-restore.md` for backups and the restore drill, and
+  `breach-pipeline.md` for the two regulatory notification clocks (DPDP 72 h,
+  CERT-In 6 h).
+- **Compliance:** `docs/compliance/dpdp-records.md` (generated — see the
+  script table above) is the DPDP record of processing activities.
 
 ## Licence
 

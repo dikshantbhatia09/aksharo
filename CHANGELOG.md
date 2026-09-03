@@ -38,6 +38,32 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   to `{/* eslint-disable-next-line ... */}` — a gap worth knowing about for
   future JSX annotations.
 
+- **M05 — main hygiene: hermetic free-tier daily-cap workspace id in
+  `noop-credits.facade.test.ts`.** Investigated a reported flake in
+  "free-tier daily cap (THREAT-MODEL T23) > gives the allowance back when a
+  hold is released" under `pnpm --filter @montaj/api test -- --maxWorkers=2
+src`, described as cross-file interference on a shared Redis daily-cap key
+  (same workspace id + UTC date). That premise does not hold for the current
+  code: `NoopCreditsFacade`'s free-tier allowance
+  (`apps/api/src/credits/noop-credits.facade.ts`) is tracked entirely
+  in-memory (a `Map` keyed only by `workspaceId`, on the instance) — there is
+  no Redis key, no date component, and no `MONTAJ_REDIS_PREFIX` involvement
+  at all (confirmed against `apps/api/src/common/redis/redis-keys.ts`, which
+  has no daily-cap builder). Each test constructs a fresh
+  `NoopCreditsFacade` in `beforeEach`, and Vitest's default per-file module
+  isolation (never overridden in this repo's Vitest configs) means that even
+  a module-level singleton — which doesn't exist here — could not leak
+  across test files. The full `src` unit suite ran green with
+  `--maxWorkers=2` three times after merging `main` (166/166 files, 1784/1784
+  tests each run) and the file alone twice (18/18), so the failure did not
+  reproduce. Applied the requested hardening anyway as defence-in-depth:
+  `noop-credits.facade.test.ts`'s fixed `WORKSPACE` literal
+  (`01JCWS0000000000000000000A`, a literal also reused verbatim by ~17
+  unrelated test files for unrelated fixtures) is now generated per test run
+  from `Date.now()` and `Math.random()` rather than hard-coded, so a future
+  change to isolation settings or to the facade's storage key would need one
+  fewer coincidence to collide. No product behaviour changed.
+
 - **C02c: Electron major bump, `eslint-plugin-security`, WS ticket exchange
   (X01 follow-ups).** `apps/desktop`'s `electron` `^33.4.11` → `^44.1.1`
   (past X01's `>=39.8.10` floor, fixing the named use-after-free/context-
@@ -57,6 +83,31 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   single-use ticket before the WebSocket handshake begins, and
   `plugins/resolve-panel/src/rpc/wsTransport.ts` fetches one and connects with
   `?ticket=` instead of the raw bearer.
+- C04b: local mode follow-ups — transcript chunks in the local store, engine `/probe`,
+  editor gating copy, local resegment.
+  - `apps/desktop/src/local`: a fifth SQLite table, `local_transcript_chunks` (one row per
+    `chunkIdx`, kept current), so `LocalStore.saveEdgSnapshot`/`latestSnapshot` carry
+    transcript chunks; `apps/web/lib/edg/store.ts`'s local `EditorStore` branch now runs
+    the full EDG op set — `EditWord`/`DeleteWord`/`SetWordTiming`/`InsertWordAfter` resolve
+    against a real word index instead of rejecting `unknown-id`, and `Resegment` runs
+    locally (mints its own op, applies through the same `packages/edg` engine the cloud
+    path uses) instead of throwing `LocalResegmentUnsupportedError` unconditionally.
+  - `apps/engine`: `POST /probe` (duration, fps, width, height, audio channels/sample rate,
+    an HDR flag) — `FakeBackend.probe` returns deterministic fixture values;
+    `packages/engine-client` gained the typed `probe()` method and schemas; a standalone
+    `apps/engine/src/probe.ts` shells the manifest's ffprobe (sibling of `bin/ffmpeg`) for a
+    future real backend to call unchanged. `LocalStore.importMedia` now probes an imported
+    file via the engine when the caller does not already supply duration/fps/width/height.
+  - `POST /projects/{id}/edg/import` accepts an optional `chunks` array; when given,
+    `EdgRepository.createDocument` writes a fresh `Transcript` + `TranscriptChunk`
+    generation alongside the document, so "Upload to cloud" keeps every word-addressed
+    edit intact.
+  - `apps/web/components/editor/local-mode-gate.tsx`: the shared "cloud project — upload
+    to use" affordance (`LocalModeNotice`) and `uploadLocalProjectToCloud`; wired into
+    `PassesTab` (autocut), `AudioPanel` (audio clean) and `ExportDialog`'s cloud-render
+    fallback via an optional `isLocalProject` prop — a cloud project caller sees no change.
+  - `apps/desktop/README.md`: manual Electron smoke steps updated for word edits, resegment
+    and upload-to-cloud (Electron cannot launch in this sandbox).
 
 - **M04 — main hygiene: consent-purpose drift, worker env-var contract drift, bridge consent sync, audit-scan gap.**
   - Consent purposes: `apps/api/test/users-workspaces.e2e-spec.ts` and
@@ -98,6 +149,32 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     warning fixed with the same `eslint-disable-next-line` style already used
     elsewhere in the repo; `pnpm -w lint` is clean.
 
+- **X03 — Docs site & API docs.** One docs surface at `apps/web/app/(site)/(marketing)/docs`
+  (`/docs`): Guides (B12 help articles reused via the same `lib/content/loader.ts`), Plugins
+  (guide pages generated from each `plugins/*/README.md`), Developers (the public API expanded
+  into per-resource pages generated at build time from `packages/api-client/openapi.json`,
+  covering parameters/responses/curl-Node-Python examples, webhooks, rate limits, SSRF rules
+  and the product changelog), and Legal (links to the existing `/legal` scaffolds). Shared
+  chrome (`docs-shell.tsx`) provides a sidebar nav, breadcrumb and a client-side MiniSearch
+  index built at build time (no external service), plus a version switcher for the API
+  reference (only `v1` published so far).
+  - New generators under `apps/web/lib/docs/**`: `openapi.ts` (groups `/v1/*` endpoints by
+    resource — the OpenAPI document's own `tags` are uniformly `public` and would collapse
+    every endpoint into one group — and templates curl/Node/Python snippets), `plugin-guides.ts`
+    (reads the four plugin READMEs from the repo root), `markdown.tsx` (a sibling of
+    `lib/content/markdown.tsx` with GitHub-style pipe-table support, since the READMEs use
+    tables that renderer doesn't parse), `nav.ts`, `search.ts` and `link-check.ts` (a
+    deterministic, synchronous broken-internal-link check used by the generator unit tests).
+  - `next.config.ts`: `/developers` (B14) now redirects (308) to `/docs/developers` — every
+    inbound link keeps working, and the expanded reference lives at the new address.
+    `(app)/help` (B12's authenticated in-product help) is untouched; `/docs/guides` is a
+    second, public entry point onto the same MDX.
+  - `apps/web/app/(site)/sitemap.ts` gained every `/docs/**` route (guides, plugin guides,
+    developer API groups).
+  - **Deviation from the brief**: the per-endpoint pages are grouped by the resource segment
+    of the path (`projects`, `exports`, `jobs`) rather than by the OpenAPI `tag` literally,
+    for the reason above — flagged rather than shipping a nav with one meaningless "Public"
+    group.
 - C10: installers, plugins page and the real `/plugins/manifest`.
   - `GET /plugins/manifest` extends the C11 stub into a real channel manifest: fetches
     `tools/release`'s published `plugins-manifest.json` (5-minute Redis cache), reporting
@@ -234,6 +311,47 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   run end to end once on this host; see `docs/verification/verify-wave-2026-09-03.md`.
 
 ### Added
+
+- **X04 — Launch checklist: status page, backups + restore drill, on-call
+  runbooks, legal pages, DPDP records, sub-processor list.** Public status
+  surface: `ops_incidents`/`ops_status_snapshots` (Prisma), a 5-minute
+  `StatusPublishTask` (`apps/api/src/scheduler/tasks/status-publish.task.ts`)
+  publishing `GET /ops/status.json` and `GET /ops/status/rss.xml`
+  (`apps/api/src/ops/status.controller.ts`), an admin CRUD for incidents
+  (`AdminOpsController`, added alongside B13b's controllers, none refactored),
+  and `apps/web/app/(site)/(marketing)/status/page.tsx` reading it (a proxy
+  RSS route, and an honest "degraded" fallback if the API is unreachable —
+  a status page must never itself be the outage). Backups: `docs/runbooks/backup-restore.md`
+  ties together the existing PITR/S3-versioning runbook and the EDG snapshot
+  tables (ordinary Postgres rows, restored with the rest of PITR — no separate
+  procedure), plus a new scripted local drill, `scripts/ops/restore-drill.mjs`
+  (dump → scratch database → `prisma migrate deploy` → seed smoke → drop),
+  run for real against the compose stack during this WP, and
+  `.github/workflows/ops-restore-drill.yml` running it weekly against a CI
+  Postgres service. On-call: `docs/runbooks/on-call.md` (rotation template,
+  per-alert escalation table keyed to `infra/observability/alerts/montaj-alerts.yaml`,
+  queue-drain, DLQ replay, A10 provider-outage failover, GPU lane fallback),
+  `docs/runbooks/incident-template.md`, and `docs/runbooks/breach-pipeline.md`
+  (the DPDP 72-hour Board clock alongside the separate, shorter CERT-In
+  6-hour clock — both starting from the same `detectedAt`). Legal: a cookie
+  notice (`content/site/legal.ts`) and a sub-processors page
+  (`apps/web/app/(site)/(marketing)/legal/sub-processors/page.tsx`,
+  mirroring `apps/api/content/sub-processors.json` byte-for-byte, same
+  pattern as the existing privacy-notice mirror), both linked from the legal
+  index and the footer nav. DPDP records: `docs/compliance/dpdp-records.md`,
+  generated by `scripts/ops/dpdp-records-generate.mjs` from
+  `apps/api/prisma/schema.prisma` (any model with a direct relation to `User`
+  or `Workspace`) and `docs/compliance/dpdp-records.manifest.json` (the
+  hand-maintained purpose/retention decisions); `--check` fails CI
+  (`.github/workflows/ops-dpdp-records.yml`) when a new personal-data table
+  has no manifest entry or the doc is stale. HI translation of the legal
+  pages was not attempted — no site-wide i18n exists yet (A24 confirmed no
+  `next-intl`/ICU setup beyond the home page's bespoke `formatIcuLite`),
+  and building one is out of this WP's scope; reported as an open item.
+  H-27 (grievance officer / legal review) does not exist in `HUMAN-ACTIONS.md`
+  as of this WP — the closest existing item is #11 ("Legal documents,
+  A00-13"), which already covers a grievance officer appointment; reported
+  as a brief/reality mismatch rather than invented.
 
 - **D08 — Eval harness & quality gates: datasets, nightly runs, shadow
   routing, admin leaderboard, routing freeze.** Built on synthetic and fixture

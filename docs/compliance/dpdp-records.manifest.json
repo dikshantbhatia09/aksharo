@@ -1,0 +1,112 @@
+{
+  "version": "2026-09-03",
+  "note": "The hand-maintained registry `scripts/ops/dpdp-records-generate.mjs` checks against the schema. Every table the script detects as personal-data-bearing (a direct Prisma relation to User or Workspace) must have an entry here with a non-empty purpose and retention, or the generator fails. Add an entry here in the same commit that adds such a table. `purpose` is a ConsentPurpose value (`schema.prisma`) where the data collection is optional per D61 (analytics | memory | marketing | share_upload | affiliate); tables that back the product itself regardless of any granted consent are `service` (essential, D61 — never gated behind a consent toggle).",
+  "tables": {
+    "users": {
+      "purpose": "service",
+      "retention": "Life of the account; erased on account deletion via the erasure cascade (05 §9)."
+    },
+    "admin_roles": { "purpose": "service", "retention": "Life of the admin's account/role assignment." },
+    "admin_totp": { "purpose": "service", "retention": "Life of the admin's account; rotated on TOTP reset." },
+    "consent_records": {
+      "purpose": "service",
+      "retention": "Retained for the life of the account as evidence of what was granted/withdrawn and when (D61 Rule 3)."
+    },
+    "dsr_requests": {
+      "purpose": "service",
+      "retention": "Retained indefinitely as the compliance record of rights requests and their resolution (Rule 14, 30-day response target)."
+    },
+    "identities": { "purpose": "service", "retention": "Life of the account (OAuth/email identity linkage)." },
+    "sessions": {
+      "purpose": "service",
+      "retention": "Until logout or expiry; refresh-token family revoked on reuse detection (05 §8)."
+    },
+    "workspaces": { "purpose": "service", "retention": "Life of the workspace." },
+    "memberships": { "purpose": "service", "retention": "Life of the membership; removed on workspace departure." },
+    "devices": { "purpose": "service", "retention": "Life of the device registration (B08); revoked on deactivation." },
+    "license_keys": {
+      "purpose": "service",
+      "retention": "Life of the licence; offline window 7 days, revocation list applied on next contact (05 §8)."
+    },
+    "api_keys": { "purpose": "service", "retention": "Life of the key, until revoked." },
+    "bridge_pairings": { "purpose": "service", "retention": "12h scoped pair tokens (05 §8); expire automatically." },
+    "bridge_sessions": { "purpose": "service", "retention": "Life of the local-bridge session." },
+    "folders": { "purpose": "service", "retention": "Life of the workspace; cascades with project retention." },
+    "projects": {
+      "purpose": "service",
+      "retention": "Plan's project retention window (05 §9): Free 7d, Starter 30d, Creator 90d, Studio/Agency 365d; purged after a 14-day warning (ProjectRetentionTask)."
+    },
+    "batches": { "purpose": "service", "retention": "Same as its child projects." },
+    "style_presets": {
+      "purpose": "service",
+      "retention": "Life of the workspace (user-created style templates; system styles are not personal data)."
+    },
+    "brand_kits": { "purpose": "service", "retention": "Life of the workspace." },
+    "fonts": { "purpose": "service", "retention": "Life of the workspace; licence attestation kept alongside (D67)." },
+    "memory_entries": {
+      "purpose": "memory",
+      "retention": "12-month rolling TTL, refreshed on use, opt-in (D62); MemoryEntryExpiryTask purges expired rows."
+    },
+    "comments": { "purpose": "service", "retention": "Life of the share link/review thread (B15)." },
+    "jobs": {
+      "purpose": "service",
+      "retention": "Job row retained as the billing/usage record; `job_events.data` has its own 30-day retention (05 §9)."
+    },
+    "dlq": {
+      "purpose": "service",
+      "retention": "Until replayed or discarded by an admin (A08b) — operational, not long-lived."
+    },
+    "provider_submissions": {
+      "purpose": "service",
+      "retention": "Same as the project's retention period; included in the erasure cascade (05 §9)."
+    },
+    "llm_outputs": { "purpose": "service", "retention": "Same as the project's retention period." },
+    "export_manifests": { "purpose": "service", "retention": "Same as its export (7 days, 05 §9)." },
+    "exports": { "purpose": "service", "retention": "7 days (05 §9), then purged by ExportRetentionTask." },
+    "brand_assets": { "purpose": "service", "retention": "Life of the workspace." },
+    "subscriptions": {
+      "purpose": "service",
+      "retention": "Life of the account plus applicable statutory billing-record retention (confirmed with the CA per H-18)."
+    },
+    "mandates": {
+      "purpose": "service",
+      "retention": "Life of the mandate; retained after cancellation for dispute evidence per Razorpay's own retention."
+    },
+    "passes_purchased": { "purpose": "service", "retention": "Life of the account." },
+    "invoices": {
+      "purpose": "service",
+      "retention": "Life of the account plus applicable statutory financial-record retention (confirmed with the CA per H-18)."
+    },
+    "credit_accounts": { "purpose": "service", "retention": "Life of the account." },
+    "streak_experiments": {
+      "purpose": "service",
+      "retention": "Life of the account; excluded for declared minors (D60)."
+    },
+    "publish_events": { "purpose": "service", "retention": "Life of the account (B17 product-events/attribution)." },
+    "affiliates": {
+      "purpose": "affiliate",
+      "retention": "Life of the affiliate relationship; off for declared minors."
+    },
+    "referrals": { "purpose": "affiliate", "retention": "Life of the account." },
+    "referral_rewards": { "purpose": "affiliate", "retention": "Life of the account." },
+    "audit_log": {
+      "purpose": "service",
+      "retention": "Retained indefinitely as the security/administrative audit trail (THREAT-MODEL)."
+    },
+    "lesson_progress": { "purpose": "service", "retention": "Life of the account (Academy, B12)." },
+    "academy_progress": { "purpose": "service", "retention": "Life of the workspace/account." },
+    "academy_rewards": { "purpose": "service", "retention": "Life of the workspace." },
+    "notifications": {
+      "purpose": "service",
+      "retention": "Life of the account, or the in-app notification list's own retention policy."
+    },
+    "webhook_endpoints": { "purpose": "service", "retention": "Life of the workspace's integration configuration." },
+    "asset_usages": { "purpose": "service", "retention": "Life of the account (licence-exposure tracking)." },
+    "asset_clearance_grants": { "purpose": "service", "retention": "Life of the grant." },
+    "changelog_dismissals": { "purpose": "service", "retention": "Life of the account." },
+    "support_tickets": {
+      "purpose": "service",
+      "retention": "Life of the account; diagnostics bundle is consent-gated per ticket (B12)."
+    }
+  }
+}

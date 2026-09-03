@@ -7,6 +7,8 @@ import type {
   AlignResponse,
   CleanRequest,
   CleanResponse,
+  ProbeRequest,
+  ProbeResponse,
   RenderRequest,
   RenderResponse,
   Segment,
@@ -111,6 +113,29 @@ export class FakeBackend implements EngineBackend {
       engineVersions: this.engineVersions(),
       backend: this.kind,
     };
+  }
+
+  /**
+   * `/probe` (brief C04b §2): deterministic fixture values keyed off the
+   * matched transcript fixture's `durationS`, same "substring match, default
+   * fallback" lookup `transcribe`/`align` already use — a 9:16 30fps clip,
+   * stereo 48kHz, never HDR, so tests get non-null numbers without a real
+   * ffprobe binary.
+   */
+  probe(request: ProbeRequest): Promise<ProbeResponse> {
+    const fixture = pickFixture(request.path);
+    return Promise.resolve({
+      durationMs: Math.round(fixture.durationS * 1000),
+      fps: 30,
+      width: 1080,
+      height: 1920,
+      audioChannels: 2,
+      audioSampleRateHz: 48_000,
+      hdr: false,
+      requestId: ulid(),
+      engineVersions: this.engineVersions(),
+      backend: this.kind,
+    });
   }
 
   async render(request: RenderRequest): Promise<RenderResponse> {

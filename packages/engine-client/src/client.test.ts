@@ -209,6 +209,28 @@ describe("EngineClient", () => {
     ).toEqual(renderResponse);
   });
 
+  it("probe() parses its response", async () => {
+    const probeResponse = {
+      durationMs: 12_000,
+      fps: 30,
+      width: 1080,
+      height: 1920,
+      audioChannels: 2,
+      audioSampleRateHz: 48_000,
+      hdr: false,
+      requestId: "r4",
+      engineVersions: {},
+      backend: "fake",
+    };
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, probeResponse));
+    const client = new EngineClient({
+      baseUrl: "http://127.0.0.1:47901",
+      bearer: "x".repeat(32),
+      fetchImpl,
+    });
+    expect(await client.probe({ path: "/tmp/clip.mp4" })).toEqual(probeResponse);
+  });
+
   it("transcribeStream authenticates over the WS query param and yields partial/done frames", async () => {
     const wss = new WebSocketServer({ port: 0, host: "127.0.0.1" });
     await new Promise<void>((resolve) => wss.once("listening", resolve));

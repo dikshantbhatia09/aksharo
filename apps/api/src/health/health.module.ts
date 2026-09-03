@@ -10,5 +10,8 @@ import { HealthService } from "./health.service.js";
 @Module({
   controllers: [HealthController],
   providers: [HealthService],
+  // X04's `OpsModule` reuses the same db/redis/storage probes for the public
+  // status snapshot rather than re-implementing them.
+  exports: [HealthService],
 })
 export class HealthModule {}

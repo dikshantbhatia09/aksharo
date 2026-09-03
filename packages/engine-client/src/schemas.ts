@@ -148,6 +148,33 @@ export const RenderResponseSchema = z.object({
 });
 export type RenderResponse = z.infer<typeof RenderResponseSchema>;
 
+/**
+ * `POST /probe` (brief C04b §2): duration/fps/dimensions/audio layout/HDR of
+ * a media file already on disk, via the manifest's ffprobe. `importMedia`
+ * (`apps/desktop/src/local/store.ts`) is the caller; every numeric field is
+ * nullable because a corrupt or unreadable file still imports, only with
+ * less metadata, never a hard failure.
+ */
+export const ProbeRequestSchema = z.object({
+  path: z.string().min(1),
+});
+export type ProbeRequest = z.infer<typeof ProbeRequestSchema>;
+
+export const ProbeResponseSchema = z.object({
+  durationMs: z.number().nonnegative().nullable(),
+  fps: z.number().positive().nullable(),
+  width: z.number().int().positive().nullable(),
+  height: z.number().int().positive().nullable(),
+  audioChannels: z.number().int().positive().nullable(),
+  audioSampleRateHz: z.number().int().positive().nullable(),
+  /** True when the video stream's colour metadata names an HDR transfer (PQ/HLG) or BT.2020 primaries. */
+  hdr: z.boolean(),
+  requestId: z.string(),
+  engineVersions: EngineVersionsSchema,
+  backend: EngineBackendKindSchema,
+});
+export type ProbeResponse = z.infer<typeof ProbeResponseSchema>;
+
 /** `GET /models` — installed/available/downloading, disk usage (brief §1/§3). */
 export const ModelStateSchema = z.enum(["available", "installed", "downloading", "failed"]);
 export type ModelState = z.infer<typeof ModelStateSchema>;

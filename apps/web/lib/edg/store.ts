@@ -10,7 +10,7 @@
  * `@montaj/api-client`'s `SessionStore`/`useSession` uses for state written
  * from outside React (a queue retry, a realtime event).
  */
-import { applyOps, fromProjection, newId } from "@montaj/edg";
+import { applyOps, fromProjection, newId, toTranscriptChunks } from "@montaj/edg";
 import type { EdgHot, EdgOp, EdgState, Pass, Segment, TranscriptChunk } from "@montaj/edg";
 
 import { EditHistory, type HistoryEntry } from "./history";
@@ -373,23 +373,22 @@ export type { HistoryEntry };
 // write, not an appended op log (`local_edg_snapshots` stores one full
 // revision each; see `apps/desktop/README.md`'s "Local mode" section).
 //
-// **Known limitation**, reported rather than silently accepted: a local
-// snapshot stores `{hot, segments}` only, not transcript chunks (brief scope
-// did not extend the local schema to a fifth table for those). Word-addressed
-// ops (`EditWord`, `DeleteWord`, `SetWordTiming`) therefore resolve against an
-// empty word index and come back rejected `unknown-id`, same as the server
-// rejects an op naming a word it does not have; segment-level ops (text,
-// hide, position, style, emphasis, merge/split by segment id) round-trip
-// correctly. `resegment` needs the transcript for the same reason and is not
-// implemented in local mode yet — it rejects with a clear error rather than
-// silently no-op-ing.
+// Local store gains `local_transcript_chunks` (brief C04b §1), one row per
+// `chunkIdx`, kept current — so a local project's `EditorStore` now runs the
+// full op set through `packages/edg`, chunks included: `EditWord`,
+// `DeleteWord`, `SetWordTiming` and `InsertWordAfter` resolve against a real
+// word index, and `Resegment` (below) works exactly like the cloud path,
+// because `applyResegment` (`packages/edg/src/ops/apply.ts`) only ever reads
+// `state.words` — it does not care whether that index was built from a
+// database round trip or, as here, from `local_transcript_chunks`.
 type LocalDesktopApi = NonNullable<AksharoDesktopWindowApi["local"]>;
 
+/** Thrown by a local `resegment()` when the project has no transcript chunks saved yet. */
 export class LocalResegmentUnsupportedError extends Error {
   constructor() {
     super(
-      "Resegmenting a local project needs the transcript, which local mode does not " +
-        "store yet (brief C04 known limitation) — edit segments directly instead.",
+      "Resegmenting a local project needs the transcript — import media and transcribe " +
+        "before resegmenting, or edit segments directly instead.",
     );
     this.name = "LocalResegmentUnsupportedError";
   }
@@ -408,7 +407,8 @@ export async function loadLocalEditorInit(
   }
   const hot = snapshot.hot as EdgHot;
   const segments = snapshot.segments as Segment[];
-  return { hot, segments, passes: [], chunks: [], revision: snapshot.revision };
+  const chunks = snapshot.chunks as TranscriptChunk[];
+  return { hot, segments, passes: [], chunks, revision: snapshot.revision };
 }
 
 /**
@@ -428,7 +428,15 @@ export function createLocalEditorStoreDeps(input: {
   );
   let revision = input.init.revision;
 
-  async function persist(): Promise<void> {
+  /**
+   * Touches a word (any op besides a pure segment-level one) since the last
+   * save: `persist` sends chunks only when something changed, matching
+   * `EdgRepository.persistWords`'s "only touched chunks move" — a save that
+   * never resolved a word id writes `hot`/`segments` alone, exactly as
+   * before this WP, so an all-segment-level history never gains a
+   * `local_transcript_chunks` write it did not need.
+   */
+  async function persist(wordsTouched: boolean): Promise<void> {
     const segments = state.segmentOrder
       .map((id) => state.segments.get(id))
       .filter((segment): segment is Segment => segment !== undefined);
@@ -436,8 +444,18 @@ export function createLocalEditorStoreDeps(input: {
       projectId: input.projectId,
       hot: state.hot,
       segments,
+      ...(wordsTouched ? { chunks: toTranscriptChunks(state) } : {}),
     });
   }
+
+  /** Every op kind that can only have changed via the transcript, not just the segment list. */
+  const WORD_OP_TYPES = new Set([
+    "EditWord",
+    "DeleteWord",
+    "SetWordTiming",
+    "InsertWordAfter",
+    "Resegment",
+  ]);
 
   return {
     async applyBatch(body) {
@@ -446,7 +464,8 @@ export function createLocalEditorStoreDeps(input: {
       if (changed) {
         state = result.state;
         revision += 1;
-        await persist();
+        const wordsTouched = body.ops.some((op) => WORD_OP_TYPES.has(op.type));
+        await persist(wordsTouched);
       }
       return {
         revision,
@@ -456,8 +475,29 @@ export function createLocalEditorStoreDeps(input: {
       };
     },
 
-    resegment() {
-      return Promise.reject(new LocalResegmentUnsupportedError());
+    /**
+     * A local project has exactly one writer, so this mints the `Resegment`
+     * op itself (the cloud path's `EdgService.resegment` does the same,
+     * "the server mints the op so the audited record carries an id this API
+     * can vouch for" — here, the local store is that authority) and applies
+     * it against this module's own state, same as `applyBatch`.
+     */
+    async resegment(params) {
+      if (state.words.size === 0) throw new LocalResegmentUnsupportedError();
+      const op: EdgOp = { opId: newId(), type: "Resegment", ...params } as EdgOp;
+      const result = applyOps(state, [op], {
+        source: "desktop",
+        ...(params.dropFillers === undefined ? {} : { dropFillers: params.dropFillers }),
+      });
+      state = result.state;
+      revision += 1;
+      await persist(true);
+      return {
+        revision,
+        applied: result.applied,
+        rebased: [],
+        rejected: result.rejected,
+      };
     },
 
     async reloadDocument() {
@@ -467,7 +507,8 @@ export function createLocalEditorStoreDeps(input: {
       }
       const hot = snapshot.hot as EdgHot;
       const segments = snapshot.segments as Segment[];
-      state = fromProjection({ ...hot, segments, passes: [] }, {});
+      const chunks = snapshot.chunks as TranscriptChunk[];
+      state = fromProjection({ ...hot, segments, passes: [] }, { chunks });
       revision = snapshot.revision;
       return { hot, segments, passes: [], revision };
     },

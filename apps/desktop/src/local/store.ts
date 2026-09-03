@@ -14,12 +14,13 @@ import { copyFile, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { newId } from "@montaj/edg";
-import type { EdgHot, Segment } from "@montaj/edg/schemas";
+import type { EdgHot, Segment, TranscriptChunk } from "@montaj/edg/schemas";
 import type {
   EngineClient,
   RenderRequest,
   TranscribeRequest,
   AlignRequest,
+  ProbeResponse,
 } from "@montaj/engine-client";
 
 import type { LocalDb } from "./db.js";
@@ -52,6 +53,14 @@ export interface LocalEdgSnapshot {
   readonly revision: number;
   readonly hot: EdgHot;
   readonly segments: Segment[];
+  /**
+   * Transcript chunks as of this snapshot (brief C04b §1): loaded from
+   * `local_transcript_chunks`, not embedded in `local_edg_snapshots.doc` —
+   * chunks are kept current (one row per `chunkIdx`), not versioned per
+   * revision, so this is always "the chunks as they stand now", same as the
+   * cloud path's `newestChunkRows` reads for the live document.
+   */
+  readonly chunks: TranscriptChunk[];
   readonly createdAt: string;
 }
 
@@ -134,15 +143,16 @@ function toMedia(row: Record<string, unknown>): LocalMedia {
   };
 }
 
-function toSnapshot(row: Record<string, unknown>): LocalEdgSnapshot {
-  const doc = JSON.parse(String(row["doc"])) as { hot: EdgHot; segments: Segment[] };
+function toSnapshotDoc(row: Record<string, unknown>): { hot: EdgHot; segments: Segment[] } {
+  return JSON.parse(String(row["doc"])) as { hot: EdgHot; segments: Segment[] };
+}
+
+function toChunkRow(row: Record<string, unknown>): TranscriptChunk {
   return {
-    id: String(row["id"]),
-    projectId: String(row["project_id"]),
-    revision: Number(row["revision"]),
-    hot: doc.hot,
-    segments: doc.segments,
-    createdAt: String(row["created_at"]),
+    chunkIdx: Number(row["chunk_idx"]),
+    startMs: Number(row["start_ms"]),
+    endMs: Number(row["end_ms"]),
+    words: JSON.parse(String(row["words"])) as TranscriptChunk["words"],
   };
 }
 
@@ -213,6 +223,7 @@ export class LocalStore {
     }
     this.db.raw.run("DELETE FROM local_media WHERE project_id = ?", [projectId]);
     this.db.raw.run("DELETE FROM local_edg_snapshots WHERE project_id = ?", [projectId]);
+    this.db.raw.run("DELETE FROM local_transcript_chunks WHERE project_id = ?", [projectId]);
     this.db.raw.run("DELETE FROM local_exports WHERE project_id = ?", [projectId]);
     this.db.raw.run("DELETE FROM local_projects WHERE id = ?", [projectId]);
     await this.db.persist();
@@ -234,13 +245,12 @@ export class LocalStore {
    * Imports a media file the user picked (`openMediaDialog`, C02) into the
    * project's media directory and records it.
    *
-   * Duration/fps/width/height come from probing the file. The engine's
-   * contract (`apps/engine/README.md`) has no dedicated probe route today —
-   * only `/transcribe`, `/align`, `/clean`, `/render`, `/models`, `/health`
-   * — so those fields are left `null` until the caller supplies them (a
-   * subsequent `updateMediaProbe` call once C03b's real ffmpeg backend adds
-   * one; reported as an open question below rather than routed through a
-   * route that does not exist).
+   * Duration/fps/width/height come from probing the file: the engine's
+   * `/probe` (brief C04b §2, `EngineClient.probe`) when the caller does not
+   * already supply the fields itself (a caller that already probed — or a
+   * test — is not made to re-probe). Left `null` only when the engine is
+   * unavailable (tier D) or the probe itself fails — a media import must
+   * never fail just because probing did.
    */
   async importMedia(input: {
     projectId: string;
@@ -255,6 +265,9 @@ export class LocalStore {
     await mkdir(destDir, { recursive: true });
     const destPath = path.join(destDir, `${id}${path.extname(input.sourcePath)}`);
     await this.copyFileFn(input.sourcePath, destPath);
+
+    const probed = input.probe ?? (await this.probeMedia(destPath));
+    input = { ...input, probe: probed };
 
     const importedAt = this.now().toISOString();
     this.db.raw.run(
@@ -303,8 +316,34 @@ export class LocalStore {
     return this.engine.align(input);
   }
 
+  /**
+   * Probes a media file via the engine's `/probe` (brief C04b §2). Returns
+   * all-`null` fields rather than throwing when the engine is unavailable or
+   * the probe call itself fails — a media import must succeed either way,
+   * only with less metadata.
+   */
+  private async probeMedia(filePath: string): Promise<{
+    durationMs?: number;
+    fps?: number;
+    width?: number;
+    height?: number;
+  }> {
+    if (this.engine === null) return {};
+    try {
+      const result: ProbeResponse = await this.engine.probe({ path: filePath });
+      return {
+        ...(result.durationMs === null ? {} : { durationMs: result.durationMs }),
+        ...(result.fps === null ? {} : { fps: result.fps }),
+        ...(result.width === null ? {} : { width: result.width }),
+        ...(result.height === null ? {} : { height: result.height }),
+      };
+    } catch {
+      return {};
+    }
+  }
+
   // -------------------------------------------------------------------------
-  // EDG snapshots
+  // EDG snapshots + transcript chunks
   // -------------------------------------------------------------------------
 
   latestSnapshot(projectId: string): LocalEdgSnapshot | null {
@@ -313,14 +352,86 @@ export class LocalStore {
       "SELECT * FROM local_edg_snapshots WHERE project_id = $id ORDER BY revision DESC LIMIT 1",
       { $id: projectId },
     )[0];
-    return row === undefined ? null : toSnapshot(row);
+    if (row === undefined) return null;
+    const doc = toSnapshotDoc(row);
+    return {
+      id: String(row["id"]),
+      projectId: String(row["project_id"]),
+      revision: Number(row["revision"]),
+      hot: doc.hot,
+      segments: doc.segments,
+      chunks: this.transcriptChunks(projectId),
+      createdAt: String(row["created_at"]),
+    };
   }
 
-  /** Saves the editor's current EDG v2 document as the next revision (brief §1: "save EDG"). */
+  /** The project's transcript chunks, newest state per `chunkIdx` (brief C04b §1). */
+  transcriptChunks(projectId: string): TranscriptChunk[] {
+    return rows(
+      this.db,
+      "SELECT * FROM local_transcript_chunks WHERE project_id = $id ORDER BY chunk_idx ASC",
+      { $id: projectId },
+    ).map(toChunkRow);
+  }
+
+  /**
+   * Upserts every chunk's current state (brief C04b §1): one row per
+   * `chunkIdx`, kept current rather than versioned per revision — a local
+   * project has exactly one writer, so there is nothing to rebase against a
+   * prior chunk generation the way `EdgRepository.persistWords` guards for.
+   */
+  private saveTranscriptChunks(
+    projectId: string,
+    revision: number,
+    chunks: readonly TranscriptChunk[],
+  ): void {
+    const now = this.now().toISOString();
+    for (const chunk of chunks) {
+      const existing = rows(
+        this.db,
+        "SELECT id FROM local_transcript_chunks WHERE project_id = $pid AND chunk_idx = $idx",
+        { $pid: projectId, $idx: chunk.chunkIdx },
+      )[0];
+      const words = JSON.stringify(chunk.words);
+      if (existing === undefined) {
+        this.db.raw.run(
+          `INSERT INTO local_transcript_chunks
+             (id, project_id, revision, chunk_idx, start_ms, end_ms, words, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            this.mintId(),
+            projectId,
+            revision,
+            chunk.chunkIdx,
+            chunk.startMs,
+            chunk.endMs,
+            words,
+            now,
+          ],
+        );
+      } else {
+        this.db.raw.run(
+          `UPDATE local_transcript_chunks
+             SET revision = ?, start_ms = ?, end_ms = ?, words = ?, updated_at = ?
+           WHERE id = ?`,
+          [revision, chunk.startMs, chunk.endMs, words, now, String(existing["id"])],
+        );
+      }
+    }
+  }
+
+  /**
+   * Saves the editor's current EDG v2 document as the next revision (brief
+   * §1: "save EDG"). `chunks`, when given, replace the project's transcript
+   * chunk rows with their current state (brief C04b §1) — omitted by a
+   * caller that has not touched any word (a pure segment-level edit), which
+   * leaves the existing chunks untouched rather than wiping them.
+   */
   async saveEdgSnapshot(input: {
     projectId: string;
     hot: EdgHot;
     segments: Segment[];
+    chunks?: readonly TranscriptChunk[];
   }): Promise<LocalEdgSnapshot> {
     this.openProject(input.projectId);
     const previous = this.latestSnapshot(input.projectId);
@@ -333,6 +444,9 @@ export class LocalStore {
       "INSERT INTO local_edg_snapshots (id, project_id, revision, doc, created_at) VALUES (?, ?, ?, ?, ?)",
       [id, input.projectId, revision, doc, createdAt],
     );
+    if (input.chunks !== undefined) {
+      this.saveTranscriptChunks(input.projectId, revision, input.chunks);
+    }
     this.touchProject(input.projectId);
     await this.db.persist();
 
@@ -342,6 +456,7 @@ export class LocalStore {
       revision,
       hot: input.hot,
       segments: input.segments,
+      chunks: this.transcriptChunks(input.projectId),
       createdAt,
     };
   }

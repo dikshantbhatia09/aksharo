@@ -4,6 +4,8 @@ import type {
   CleanRequest,
   CleanResponse,
   EngineBackendKind,
+  ProbeRequest,
+  ProbeResponse,
   RenderRequest,
   RenderResponse,
   TranscribeRequest,
@@ -27,6 +29,8 @@ export interface EngineBackend {
   transcribeStream(request: TranscribeRequest): AsyncGenerator<TranscribeStreamMessage>;
   align(request: AlignRequest): Promise<AlignResponse>;
   clean(request: CleanRequest): Promise<CleanResponse>;
+  /** `POST /probe` (brief C04b §2): duration/fps/dimensions/audio layout/HDR via ffprobe. */
+  probe(request: ProbeRequest): Promise<ProbeResponse>;
   render(request: RenderRequest): Promise<RenderResponse>;
   engineVersions(): Record<string, string>;
 }
