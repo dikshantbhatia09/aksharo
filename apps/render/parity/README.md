@@ -58,6 +58,7 @@ Exits non-zero (and logs which fixture) if any exceeds `maxDiffPxTolerance`.
 regression fails CI before anyone has to read this file.
 
 <<<<<<< HEAD
+
 ## Text-fx parity gate (D06b)
 
 A different kind of gate from the one above: not two independently-computed
@@ -96,6 +97,7 @@ CanvasKit and Skia-node, and a title's larger, heavier type shows a touch
 more of that residual than a caption's own type does. `run-textfx-parity.test.ts`
 asserts the same tolerance on every `pnpm test` run.
 =======
+
 ## SFX-duck parity gate (D04c)
 
 A second, independent gate lives in `results.json`'s own `sfx` key (never
@@ -114,4 +116,5 @@ already proven generically by `sfx-parity.test.ts`).
 
 Regenerate with `pnpm --filter @montaj/render parity:sfx`; `run-sfx-
 parity.test.ts` asserts the same tolerance on every `pnpm test` run.
->>>>>>> wp/D04c
+
+> > > > > > > wp/D04c
