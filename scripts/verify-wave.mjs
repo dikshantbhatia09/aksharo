@@ -3,7 +3,7 @@
  * Wave verification script (A23 brief item 5; `docs/PLAN.md`'s "Verification
  * gate procedure"): fresh clone -> install -> compose up -> migrate/seed ->
  * unit tests -> e2e -> parity gate -> collect screenshots -> write
- * `docs/verification/<date>-<wave>.md`.
+ * `docs/verification/verify-wave-<date>.md`.
  *
  * Cross-platform (Node, not bash — `05-build`'s Windows-host rule). Every
  * step runs from the temp clone except the two whose whole point is to
@@ -99,7 +99,16 @@ function writeCloneEnv(cloneDir) {
 
   const replacements = {
     DATABASE_URL: "postgresql://montaj:montaj@127.0.0.1:59432/montaj_e2e?schema=public",
+    // The API test harness deliberately keys off TEST_* rather than the app's
+    // runtime URLs. Without these two values it starts another pgvector + Redis
+    // Testcontainers pair alongside the already-running compose stack. On this
+    // 16 GB host that redundant pair was killed mid-suite during the first full
+    // Wave 7 run (ECONNRESET / "Can't reach database server"), cascading into
+    // dozens of unrelated 500/404/timeouts. The harness still creates one
+    // isolated database and queue/key prefix per suite on these shared servers.
+    TEST_DATABASE_URL: "postgresql://montaj:montaj@127.0.0.1:59432/montaj_e2e?schema=public",
     REDIS_URL: "redis://127.0.0.1:59379",
+    TEST_REDIS_URL: "redis://127.0.0.1:59379",
     S3_ENDPOINT: "http://127.0.0.1:59000",
     R2_ENDPOINT: "http://127.0.0.1:59000",
     S3_ACCESS_KEY: "montaj-e2e",
@@ -223,6 +232,13 @@ async function main() {
   // --- 7. Parity gate --------------------------------------------------------
   runInClone("parity gate", "pnpm", ["parity"]);
 
+  // --- 7.5. Compose down -----------------------------------------------------
+  // The stack is shared Docker state, unlike the disposable clone. Tear it down
+  // (including volumes) after every complete gate, whether an earlier step
+  // passed or failed, so a verification run does not leak services or gigabytes
+  // of database/object-store data into the next run.
+  runInClone("docker compose down", "node", [join(cloneDir, "scripts", "e2e-stack.mjs"), "down"]);
+
   // --- 8. Collect screenshots -----------------------------------------------
   const date = new Date().toISOString().slice(0, 10);
   const reportDir = join(REPO_ROOT, "docs", "verification");
@@ -275,7 +291,7 @@ async function writeSummary(overallStart, cloneDir, screenshotDir) {
   const date = new Date().toISOString().slice(0, 10);
   const reportDir = join(REPO_ROOT, "docs", "verification");
   mkdirSync(reportDir, { recursive: true });
-  const reportPath = join(reportDir, `${date}-wave${args.wave}.md`);
+  const reportPath = join(reportDir, `verify-wave-${date}.md`);
 
   const rows = results
     .map(
