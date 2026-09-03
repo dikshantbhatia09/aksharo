@@ -2,6 +2,7 @@ import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 
 import { MEDIA_FAILURE_REASONS } from "./media.constants.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
+import { AutoTranscribeTrigger } from "../transcripts/auto-transcribe.trigger.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 
 import type { MediaFailureReason } from "./media.constants.js";
@@ -51,6 +52,7 @@ export class MediaProxyCompletionHandler implements JobCompletionHandler, OnModu
   constructor(
     private readonly prisma: PrismaService,
     private readonly registry: JobCompletionRegistry,
+    private readonly autoTranscribe: AutoTranscribeTrigger,
   ) {}
 
   onModuleInit(): void {
@@ -61,7 +63,19 @@ export class MediaProxyCompletionHandler implements JobCompletionHandler, OnModu
     const mediaId = mediaIdOf(context);
     if (mediaId === undefined) return undefined;
     const applied = await this.resolve(context.job.id, mediaId, "ready", null);
-    return { data: { mediaId, applied } };
+    // The media is only now genuinely usable, which is the first moment
+    // `POST /projects/{id}/transcribe` can succeed. Starting it here rather than
+    // in the browser is what stops an upload from stalling forever with no
+    // transcript and no editing document (see `AutoTranscribeTrigger`). Only on
+    // the transition, so an at-least-once replay does not re-enqueue.
+    const transcribe = applied ? await this.autoTranscribe.maybeEnqueue(mediaId) : undefined;
+    return {
+      data: {
+        mediaId,
+        applied,
+        ...(transcribe === undefined ? {} : { transcribeJobId: transcribe.jobId }),
+      },
+    };
   }
 
   async handleFailure(context: JobCompletionContext): Promise<void> {

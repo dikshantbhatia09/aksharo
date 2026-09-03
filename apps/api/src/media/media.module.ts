@@ -12,6 +12,7 @@ import { JobsModule } from "../jobs/jobs.module.js";
 import { ProjectsModule } from "../projects/projects.module.js";
 import { AlignCompletionHandler } from "../replace-media/align-completion.handler.js";
 import { ReplaceMediaAlignTrigger } from "../replace-media/replace-media-align.trigger.js";
+import { AutoTranscribeTrigger } from "../transcripts/auto-transcribe.trigger.js";
 import { TranscriptsModule } from "../transcripts/transcripts.module.js";
 import { WorkspacesModule } from "../workspaces/workspaces.module.js";
 
@@ -52,6 +53,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     MediaProbeCompletionHandler,
     MediaProxyCompletionHandler,
     ReplaceMediaAlignTrigger,
+    AutoTranscribeTrigger,
     AlignCompletionHandler,
   ],
   exports: [MediaService, SubtitleImportService, RetentionService],

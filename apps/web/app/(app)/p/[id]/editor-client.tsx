@@ -12,13 +12,15 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
-import { useRecordSpellingFixMemory } from "@montaj/api-client";
+import { ApiError, useRecordSpellingFixMemory } from "@montaj/api-client";
 import { newId, orderedSegments, wordsBetween } from "@montaj/edg";
 import type { Segment } from "@montaj/edg";
 import { resolveStyle } from "@montaj/render-core";
 import type { FontRegistry, Shaper } from "@montaj/render-core";
 import { fromAcceptedItems } from "@montaj/timemap";
 import type { TimeMap } from "@montaj/timemap";
+
+import { NeedsTranscription } from "./needs-transcription";
 
 import type { SetAudioCleanOp } from "@/components/editor/audio/use-audio-clean";
 import type { EditorSnapshot, EditorStore } from "@/lib/edg/store";
@@ -137,6 +139,11 @@ export function EditorClient({
     );
   }
   if (load.status === "error" || load.store === undefined) {
+    // "No editing document" is not a broken project, it is one whose first
+    // transcription never ran — offer the work instead of a red dead end.
+    if (load.error instanceof ApiError && load.error.code === "edg/not_initialised") {
+      return <NeedsTranscription projectId={projectId} />;
+    }
     return (
       <div className="flex h-full items-center justify-center" data-testid="editor-error">
         <p className="text-sm text-red-400">

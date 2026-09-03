@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MediaProxyCompletionHandler } from "./proxy.handler.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
+import { AutoTranscribeTrigger } from "../transcripts/auto-transcribe.trigger.js";
 
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { JobCompletionContext } from "../jobs/completion-handlers.js";
@@ -57,6 +58,7 @@ interface Harness {
   findUnique: ReturnType<typeof vi.fn>;
   updateMany: ReturnType<typeof vi.fn>;
   registry: JobCompletionRegistry;
+  autoTranscribe: ReturnType<typeof vi.fn>;
 }
 
 function harness(status: MediaAsset["status"] | null = "probing"): Harness {
@@ -68,8 +70,11 @@ function harness(status: MediaAsset["status"] | null = "probing"): Harness {
   } as unknown as PrismaService;
 
   const registry = new JobCompletionRegistry();
-  const handler = new MediaProxyCompletionHandler(prisma, registry);
-  return { handler, findUnique, updateMany, registry };
+  const autoTranscribe = vi.fn(async () => undefined);
+  const handler = new MediaProxyCompletionHandler(prisma, registry, {
+    maybeEnqueue: autoTranscribe,
+  } as unknown as AutoTranscribeTrigger);
+  return { handler, findUnique, updateMany, registry, autoTranscribe };
 }
 
 let h: Harness;
