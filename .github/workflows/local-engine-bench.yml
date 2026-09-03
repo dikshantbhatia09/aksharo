@@ -1,0 +1,119 @@
+name: Local engine bench
+
+# C03b: keeps `apps/engine/bench/**` from rotting. The `fakebackend` job runs
+# on every push/PR against `@montaj/engine`'s own `FakeBackend` — proving the
+# harness's plumbing, the threshold math and the report format, never a real
+# quality-gate result (see the job's own comment and `docs/GATE-C-CHECKLIST.md`).
+# The gate only actually passes from a real-backend run on real hardware
+# (A00-10, Gate C machines), which is `workflow_dispatch`-only below: there is
+# no whisper.cpp/Metal/Vulkan-capable runner in this repo's CI fleet yet.
+
+on:
+  push:
+    branches: ["main", "wave/**", "wp/**"]
+    paths:
+      - "apps/engine/**"
+      - "packages/engine-client/**"
+      - "apps/worker-ai/worker_ai/evals/**"
+      - ".github/workflows/local-engine-bench.yml"
+  pull_request:
+    branches: ["main", "wave/**"]
+    paths:
+      - "apps/engine/**"
+      - "packages/engine-client/**"
+      - "apps/worker-ai/worker_ai/evals/**"
+      - ".github/workflows/local-engine-bench.yml"
+  workflow_dispatch:
+    inputs:
+      real_backend:
+        description: "Run against a real backend (Gate C machine only; a no-op placeholder until one exists)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: local-engine-bench-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  PYTHON_VERSION: "3.12"
+  TURBO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  fakebackend:
+    name: Harness plumbing (FakeBackend)
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.real_backend != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @montaj/config, bridge-core and engine-client
+        run: |
+          pnpm --filter @montaj/config build
+          pnpm --filter @montaj/bridge-core build
+          pnpm --filter @montaj/engine-client build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: apps/worker-ai/requirements-dev.lock
+
+      - name: Install worker-ai's venv (metrics bridge)
+        working-directory: apps/worker-ai
+        run: pnpm run setup
+
+      - name: Engine lint + typecheck (src and bench)
+        working-directory: apps/engine
+        run: |
+          pnpm run lint
+          pnpm run typecheck
+          pnpm run typecheck:bench
+
+      - name: Engine unit tests (includes bench/thresholds.test.ts)
+        working-directory: apps/engine
+        run: pnpm exec vitest run --maxWorkers=2
+
+      - name: worker-ai metrics-bridge tests
+        working-directory: apps/worker-ai
+        run: pnpm run test -- tests/test_local_engine.py tests/test_evals.py
+
+      - name: Run the harness end to end against FakeBackend
+        working-directory: apps/engine
+        env:
+          LOCAL_ENGINE_BENCH_OUT_DIR: ${{ runner.temp }}/local-engine-bench-report
+        run: pnpm run bench
+
+      - name: Upload the plumbing report (never committed — see the job's own comment)
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-engine-bench-fakebackend-report
+          path: ${{ runner.temp }}/local-engine-bench-report/
+          retention-days: 14
+
+  real-backend-placeholder:
+    name: Real backend (Gate C machine — manual only)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.real_backend == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: No real-hardware runner registered yet
+        run: |
+          echo "::notice::No whisper.cpp/Metal/Vulkan-capable self-hosted runner is registered for this repo yet (A00-10)."
+          echo "::notice::Run the harness by hand on a Gate C machine instead: see docs/GATE-C-CHECKLIST.md's 'Local engine quality gate' section for the exact command per machine profile."
+          exit 0
