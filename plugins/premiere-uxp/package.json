@@ -19,6 +19,7 @@
   "dependencies": {
     "@montaj/caption-styles": "workspace:*",
     "@montaj/config": "workspace:*",
+    "@montaj/shared-apply": "workspace:*",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "ulid": "^2.3.0",

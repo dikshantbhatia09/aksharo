@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { BURN_RATES } from "@montaj/config";
 
-import { quoteAutocut, quoteReframeZoom, quoteSfx, quoteTextFx } from "./passes.quote.js";
+import {
+  quoteAutocut,
+  quoteMusic,
+  quoteReframeZoom,
+  quoteSfx,
+  quoteTextFx,
+} from "./passes.quote.js";
 
 describe("the autocut pass quote", () => {
   it("charges the CONTRACTS §4 rate from packages/config, not a number of its own", () => {
@@ -78,6 +84,27 @@ describe("the sfx pass quote (D04a)", () => {
 
   it("never quotes zero for a finished timeline that exists", () => {
     expect(quoteSfx(1).tenths).toBeGreaterThan(0);
+  });
+});
+
+describe("the music pass quote (D05)", () => {
+  it("shares sfxMusicPass with the sfx quote (finished minutes, Studio+)", () => {
+    expect(BURN_RATES.sfxMusicPass.ratePerUnitTenths).toBe(10);
+    expect(BURN_RATES.sfxMusicPass.basis).toBe("finishedMinute");
+    expect(quoteMusic(60_000).tenths).toBe(10);
+  });
+
+  it("quotes against the finished (post-cut) timeline, not the source", () => {
+    expect(quoteMusic(90_000).reason).toBe("ai.pass (music) · 1.5 finished minutes");
+  });
+
+  it("rounds finished time up to the 0.1-minute billing quantum", () => {
+    expect(quoteMusic(6_100).deciMinutes).toBe(2);
+    expect(quoteMusic(1).deciMinutes).toBe(1);
+  });
+
+  it("never quotes zero for a finished timeline that exists", () => {
+    expect(quoteMusic(1).tenths).toBeGreaterThan(0);
   });
 });
 

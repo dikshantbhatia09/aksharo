@@ -71,6 +71,7 @@ export class AudioAssetsRepository {
         requires_attribution, attribution_text, clearance_method, content_id_registered,
         requires_usage_report, report_endpoint,
         title, tags, mood, cue_type, bpm, musical_key,
+        intro_ms, outro_ms,
         integrated_lufs, true_peak_db, duration_ms, storage_key, embedding,
         created_at, updated_at
       ) VALUES (
@@ -88,6 +89,7 @@ export class AudioAssetsRepository {
         ${row.asset.requiresUsageReport}, ${row.asset.reportEndpoint ?? null},
         ${row.asset.title}, ${row.asset.tags}, ${row.asset.mood}, ${row.asset.cueType ?? null},
         ${row.asset.bpm ?? null}, ${row.asset.musicalKey ?? null},
+        ${row.asset.introMs ?? null}, ${row.asset.outroMs ?? null},
         ${row.integratedLufs}, ${row.truePeakDb}, ${row.durationMs}, ${row.storageKey},
         ${vector}::vector(512), now(), now()
       )
@@ -120,6 +122,8 @@ export class AudioAssetsRepository {
         cue_type = EXCLUDED.cue_type,
         bpm = EXCLUDED.bpm,
         musical_key = EXCLUDED.musical_key,
+        intro_ms = EXCLUDED.intro_ms,
+        outro_ms = EXCLUDED.outro_ms,
         integrated_lufs = EXCLUDED.integrated_lufs,
         true_peak_db = EXCLUDED.true_peak_db,
         duration_ms = EXCLUDED.duration_ms,
@@ -307,6 +311,14 @@ export class AudioAssetsRepository {
       readonly packId: string | null;
       readonly licenceSnapshot: Record<string, unknown>;
       readonly embedding: readonly number[];
+      /** D05: a `music` catalogue asset's own mood tags/BPM/loop-point offsets
+       * (`AudioAsset.mood`/`bpm`/`introMs`/`outroMs`/`durationMs`) — `null`/
+       * empty for an `sfx` row that never populated them. */
+      readonly mood: string[];
+      readonly bpm: number | null;
+      readonly introMs: number | null;
+      readonly outroMs: number | null;
+      readonly durationMs: number | null;
     }>
   > {
     const rows = await this.prisma.$queryRaw<
@@ -320,6 +332,11 @@ export class AudioAssetsRepository {
         clearance_method: ClearanceMethod;
         cue_type: string | null;
         tags: string[];
+        mood: string[];
+        bpm: number | null;
+        intro_ms: number | null;
+        outro_ms: number | null;
+        duration_ms: number | null;
         licence_type: string | null;
         licensor: string | null;
         licence_ref: string | null;
@@ -332,7 +349,8 @@ export class AudioAssetsRepository {
       }>
     >(Prisma.sql`
       SELECT id, provider, territory, term_start, term_end, allows_raw_file_delivery,
-             clearance_method, cue_type, tags, licence_type, licensor, licence_ref,
+             clearance_method, cue_type, tags, mood, bpm, intro_ms, outro_ms, duration_ms,
+             licence_type, licensor, licence_ref,
              licence_version, requires_attribution, attribution_text, storage_key,
              provider_asset_id, embedding::text AS embedding_text
       FROM audio_assets
@@ -350,6 +368,11 @@ export class AudioAssetsRepository {
       clearanceMethod: row.clearance_method,
       cueType: row.cue_type,
       tags: row.tags,
+      mood: row.mood,
+      bpm: row.bpm,
+      introMs: row.intro_ms,
+      outroMs: row.outro_ms,
+      durationMs: row.duration_ms,
       storageKey: row.storage_key,
       packId: row.provider_asset_id?.split(":")[0] ?? null,
       licenceSnapshot: {

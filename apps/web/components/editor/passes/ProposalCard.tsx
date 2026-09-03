@@ -53,6 +53,19 @@ export interface ProposalCardProps {
    * cue before deciding, not a durable edit.
    */
   readonly onGainDbPreview?: (gainDb: number) => void;
+  /**
+   * D05: a signed URL for this `music` item's own pack asset, resolved by the
+   * caller — same seam as `sfxPreviewUrl`, one kind lower.
+   */
+  readonly musicPreviewUrl?: string;
+  /**
+   * D05: "swap bed" (brief §5) — re-rank within the allowed catalogue and
+   * offer a different asset for this section, without leaving the review
+   * surface. A callback seam: this card has no catalogue of its own to rank
+   * against, so the caller (which does) supplies the swap.
+   */
+  readonly onSwapMusicBed?: () => void;
+  readonly swappingMusicBed?: boolean;
   readonly className?: string;
 }
 
@@ -72,6 +85,9 @@ export function ProposalCard({
   onPreview,
   sfxPreviewUrl,
   onGainDbPreview,
+  musicPreviewUrl,
+  onSwapMusicBed,
+  swappingMusicBed = false,
   className,
 }: ProposalCardProps): React.JSX.Element {
   const decided = item.state !== "proposed";
@@ -153,6 +169,37 @@ export function ProposalCard({
             />
             <span data-testid="proposal-card-sfx-gain-value">{gainDb.toFixed(1)} dB</span>
           </label>
+        </div>
+      ) : null}
+
+      {item.kind === "music" ? (
+        <div
+          data-testid="proposal-card-music"
+          style={{ display: "flex", flexDirection: "column", gap: 6 }}
+        >
+          {musicPreviewUrl !== undefined ? (
+            <audio data-testid="proposal-card-music-preview" controls src={musicPreviewUrl} />
+          ) : null}
+          <div style={{ display: "flex", gap: 8, fontSize: 12, opacity: 0.85 }}>
+            {item.payload.mood.length > 0 ? (
+              <span data-testid="proposal-card-music-mood">{item.payload.mood.join(", ")}</span>
+            ) : null}
+            {item.payload.bpm !== undefined ? (
+              <span data-testid="proposal-card-music-bpm">{item.payload.bpm} BPM</span>
+            ) : null}
+            <span data-testid="proposal-card-music-loop">{item.payload.loopPolicy}</span>
+          </div>
+          {onSwapMusicBed !== undefined ? (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onSwapMusicBed}
+              disabled={swappingMusicBed}
+              data-testid="proposal-card-music-swap"
+            >
+              {swappingMusicBed ? "Swapping…" : "Swap bed"}
+            </Button>
+          ) : null}
         </div>
       ) : null}
 

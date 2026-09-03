@@ -107,6 +107,34 @@ export function quoteSfx(finishedDurationMs: number): SfxQuote {
 }
 
 /**
+ * What a music pass costs (D05): the same `BURN_RATES.sfxMusicPass` basis
+ * `quoteSfx` already quotes against (finished minutes) — `sfxMusicPass`
+ * covers "sfx (or music)" by name (`quoteSfx`'s own docstring), so this is a
+ * thin sibling with its own `reason` text rather than a second burn rate.
+ */
+export interface MusicQuote {
+  readonly durationMs: number;
+  readonly deciMinutes: number;
+  readonly tenths: number;
+  readonly credits: string;
+  readonly reason: string;
+}
+
+export function quoteMusic(finishedDurationMs: number): MusicQuote {
+  const units = deciMinutes(finishedDurationMs);
+  const tenths = creditCostTenths({ operation: "sfxMusicPass", durationMs: finishedDurationMs });
+  const minutes = (units * BILLING_QUANTUM_MS) / 60_000;
+
+  return {
+    durationMs: finishedDurationMs,
+    deciMinutes: units,
+    tenths,
+    credits: formatCredits(tenths),
+    reason: `ai.pass (music) · ${minutes.toFixed(1)} finished minutes`,
+  };
+}
+
+/**
  * What a text-fx pass costs (D06, brief §4): `BURN_RATES.textFxPass` (basis
  * `finishedMinute`, 1 credit/min, D07 principle — a pass that reads the
  * post-cut timeline settles on it rather than the source) already lives in

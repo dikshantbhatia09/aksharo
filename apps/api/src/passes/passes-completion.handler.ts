@@ -4,6 +4,7 @@ import { z } from "zod";
 import { newId } from "@montaj/edg";
 import type {
   CutPassItem,
+  MusicPassItem,
   Pass,
   ReframePassItem,
   SfxPassItem,
@@ -206,6 +207,29 @@ const SfxResultSchema = z.object({
   items: z.array(SfxItemResultSchema).default([]),
 });
 
+/** One music bed from `worker_ai.processors.music_pass.process_music` (D05). */
+const MusicItemResultSchema = z.object({
+  startMs: z.number().int().min(0),
+  endMs: z.number().int().min(0),
+  assetId: z.string().min(1),
+  packId: z.string().min(1),
+  gainDb: z.number(),
+  loopPolicy: z.enum(["none", "loop", "trim"]),
+  bedDuck: DuckResultSchema,
+  licenceSnapshot: z.record(z.string(), z.unknown()).default({}),
+  mood: z.array(z.string()).default([]),
+  bpm: z.number().int().positive().optional(),
+  confidence: z.number().min(0).max(1),
+  reason: z.string().min(1),
+});
+
+const MusicResultSchema = z.object({
+  passId: z.string().min(1),
+  passType: z.literal("music"),
+  bpmTarget: z.number().int().positive().optional(),
+  items: z.array(MusicItemResultSchema).default([]),
+});
+
 /**
  * Advisory default placement per intent (`render-core`'s
  * `DEFAULT_PRESET_BY_INTENT`/slot order mirrored, not imported — this handler
@@ -246,6 +270,7 @@ export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit
     if (passType === "reframe") return this.handleReframe(context, projectId);
     if (passType === "textfx") return this.handleTextFx(context, projectId);
     if (passType === "sfx") return this.handleSfx(context, projectId);
+    if (passType === "music") return this.handleMusic(context, projectId);
     return this.handleAutocut(context, projectId);
   }
 
@@ -541,6 +566,75 @@ export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit
         revision: applied.revision,
       },
       "sfx pass merged into the editing document",
+    );
+
+    return {
+      data: {
+        passId: result.passId,
+        itemCount: items.length,
+        edgRevision: applied.revision,
+      },
+    };
+  }
+
+  /**
+   * D05: `worker_ai.processors.music_pass.process_music`'s music beds, one
+   * `PassItem{kind:"music"}` each. `itemId` is minted here, same as
+   * `handleSfx` — no keyframe curve involved, so no id is needed before
+   * upload the way `zoom`/`reframe` need one.
+   */
+  private async handleMusic(
+    context: JobCompletionContext,
+    projectId: string,
+  ): Promise<JobCompletionOutcome> {
+    const { job } = context;
+    const result = MusicResultSchema.parse(context.result);
+
+    const items: MusicPassItem[] = result.items.map((item) => ({
+      itemId: newId(),
+      passId: result.passId,
+      kind: "music",
+      startMs: item.startMs,
+      endMs: item.endMs,
+      payload: {
+        assetId: item.assetId,
+        packId: item.packId,
+        startMs: item.startMs,
+        durationMs: item.endMs - item.startMs,
+        gainDb: item.gainDb,
+        loopPolicy: item.loopPolicy,
+        bedDuck: item.bedDuck,
+        licenceSnapshot: item.licenceSnapshot,
+        mood: item.mood,
+        ...(item.bpm === undefined ? {} : { bpm: item.bpm }),
+      },
+      confidence: item.confidence,
+      reason: item.reason,
+      state: "proposed",
+      licenceSnapshot: item.licenceSnapshot,
+    }));
+
+    const pass: Pass = {
+      passId: result.passId,
+      type: "music",
+      engine: "music@1",
+      params: result.bpmTarget === undefined ? {} : { bpmTarget: result.bpmTarget },
+      status: "ready",
+      jobId: job.id,
+      items,
+    };
+
+    const applied = await this.mergePass(projectId, job.workspaceId, pass);
+
+    this.logger.log(
+      {
+        jobId: job.id,
+        projectId,
+        passId: result.passId,
+        items: items.length,
+        revision: applied.revision,
+      },
+      "music pass merged into the editing document",
     );
 
     return {

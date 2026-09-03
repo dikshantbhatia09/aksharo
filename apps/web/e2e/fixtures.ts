@@ -115,6 +115,9 @@ export const test = base.extend<{ context: BrowserContext }, { sharedAccount: Ac
     const context = await browser.newContext({
       extraHTTPHeaders: { "X-Forwarded-For": nextTestAddress(testInfo.workerIndex) },
     });
+    context.on("page", (page) => {
+      void installWhatsNewAutoDismiss(page);
+    });
     await use(context);
     await context.close();
   },
@@ -123,6 +126,9 @@ export const test = base.extend<{ context: BrowserContext }, { sharedAccount: Ac
     async ({ browser }, use, workerInfo) => {
       const context = await browser.newContext({
         extraHTTPHeaders: { "X-Forwarded-For": nextTestAddress(workerInfo.workerIndex) },
+      });
+      context.on("page", (page) => {
+        void installWhatsNewAutoDismiss(page);
       });
       const page = await context.newPage();
       const account = await signUpAndVerify(page, `shared${String(workerInfo.workerIndex)}`);
@@ -134,6 +140,34 @@ export const test = base.extend<{ context: BrowserContext }, { sharedAccount: Ac
 });
 
 export { expect };
+
+/**
+ * `WhatsNewModal` (academy/help work) opens the first time any signed-in
+ * account with an undismissed changelog version reaches the shell — every
+ * fresh sign-up this suite creates, at a moment no spec controls (it depends
+ * on two network round trips racing the test's own next click). Its overlay
+ * (`<div data-state="open" aria-hidden="true">`) intercepts pointer events on
+ * the rest of the page, so a spec that does not know to expect it fails at
+ * whatever click comes next — not a defect in the modal, just a shared
+ * fixture that predates it.
+ *
+ * `Page#addLocatorHandler` is built for exactly this: an overlay that can
+ * appear before any action, anywhere, which every action should route around
+ * automatically rather than every spec learning to check for it. Installed
+ * once per page (via the `context`'s `"page"` event, so it covers both the
+ * built-in `page` fixture and `sharedAccount`'s own `context.newPage()`) it
+ * costs nothing until the modal actually opens.
+ */
+async function installWhatsNewAutoDismiss(page: Page): Promise<void> {
+  try {
+    await page.addLocatorHandler(page.getByTestId("whats-new-modal"), async (modal) => {
+      await modal.getByRole("button", { name: "Got it" }).click();
+    });
+  } catch {
+    // The page can close before the handler is installed (e.g. a fixture's
+    // scratch context); nothing to dismiss on a page nobody uses.
+  }
+}
 
 /** Sign an existing account in and land wherever `next` says. */
 export async function signIn(page: Page, account: Account, next = "/studio"): Promise<void> {

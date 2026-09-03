@@ -73,6 +73,8 @@ export {
   DuckTrackSchema,
   type SfxTrack,
   SfxTrackSchema,
+  type MusicTrack,
+  MusicTrackSchema,
   type TimemapEdit,
   TimemapEditSchema,
   type UnsignedRenderManifest,

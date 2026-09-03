@@ -133,19 +133,19 @@ C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machine
 | D06 | Text FX pass: key phrases → titles, layout solver never overlapping captions, 6 motion presets, exports + parity | B11, B20b | merged ef2a137 + verified (render-core 510, web 904, api 52, worker 784); draw path -> D06b |
 | D04a | Owned audio pack ingestion (licence columns, CLAP, loudness) + SFX pass + ducking, on a fixture pack until A00-07 | B19b, B20b, A00-07 | merged 91dcb80 + verified; wiring -> D04c |
 | C09 | Resolve Studio Workflow Integration panel over aksharo_core's loopback server | C08, C08b | done (merged + verified: panel 44 tests + resolve 94; ?token= WS bearer → C02c ticket exchange; manifest schema + install paths pending A00-04) |
-| D05 | Music pass: sections/mood/BPM, beat-aligned cuts, loops/fades, ducking; owned pack only | D04a | briefed |
+| D05 | Music pass: sections/mood/BPM, beat-aligned cuts, loops/fades, ducking; owned pack only | D04a | merged 3ba17ab + verified (worker 824, timemap 163, api 92); beat-align utility off by default; sentiment lexicon stub until B11 seam; export mixing -> D04e |
 | C05b | After Effects CEP panel over a mocked AeHost; ZXP dry run | C05a, C06b, C00 | merged fc694e2 |
 | C03a | `apps/engine` local sidecar supervisor: whisper.cpp/Silero/deep-filter/ffmpeg via a signed manifest, model manager, backend detection, FakeBackend | C02, A00-10 | done (merged + verified — engine 51, engine-client 15, release 53; c12df56: /health /models /transcribe(+WS) /align /clean /render, manifest + resumable SHA-256 model manager, tier table, FakeBackend; the A01 scaffold engine/montaj-engine is deleted by C03b) |
 | C03b | Local quality gate + tiered latency harness (real-hardware run at Gate C) | C03a, D08 | merged 2afc827 + verified (engine 68/68, worker-ai 740 passed; real-backend wiring stays A00-10) |
 | C04 | Local mode: SQLite + files, local export, upload-to-cloud as a new project, Starter+ gate | C03a | merged 24d2589 (local mode; C04b follows) |
-| D09 | Apply passes inside Premiere/Resolve: audio tracks from owned assets, titles, ripple/keyframes via a shared apply-plan | C06, C08b, D04a, D06 | briefed |
+| D09 | Apply passes inside Premiere/Resolve: audio tracks from owned assets, titles, ripple/keyframes via a shared apply-plan | C06, C08b, D04a, D06 | merged 08ec77f + verified (shared-apply 18, premiere-uxp 156, resolve py 123, release 61); Gate C open Qs: Resolve SetProperty keyframes, find-track-by-name |
 | X01 | Security review: threat-model audit with evidence, dependency/secret/header checks, negative tests, pen-test scope (H-26) | — | done (merged + verified — api 137, web 790: audit doc T1–T25, device-code rate limit + helmet + Next headers fixed, CI security-audit job; Electron bump → C02c) |
 
 ## Wave 7 — Remaining
 
 | ID | Package | Deps | Status |
 |---|---|---|---|
-| D07 | Prompted edits: edit-plan@1 planner, Flash/Pro engines, plan preview, hold on source / settle on finished minutes | D05, D06 | briefed |
+| D07 | Prompted edits: edit-plan@1 planner, Flash/Pro engines, plan preview, hold on source / settle on finished minutes | D05, D06 | paused at wip 5360b73 (one-agent rule); resumes after D04e |
 | X03 | Docs site under /docs: guides, plugin guides, generated API reference, search | C10 | merged (docs site; docs.spec -> Gate B) |
 | X04 | Launch checklist: status page, backup/restore drill, on-call runbooks, legal pages (H-27), DPDP records generator, sub-processor list | B13, B16 | merged (status page, incidents, runbooks, restore drill; marketing-smoke -> Gate B) |
 | X08 | Cilium FQDN egress policies + inventory check + runbook (charts only, nothing applied) | X05 | done (merged + verified: 17-host inventory with drift check, off/audit/enforce modes, runbook; 22 infra tests) |
@@ -173,5 +173,6 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | M07 | see brief | Sonnet | merged 91dcb80- + verified (full build incl. web green; web 917, render 238, api 2405/2406 with referrals-http load flake, worker 803) |
 | D06b | Text FX draw path + parity | Sonnet | merged + verified (a3933fc; render-core 526, render 245, web 921) |
 | D04c | SFX pass wiring (edg kinds, route, worker, card, lane, manifest) | Sonnet | merged + verified (edg 306, api 161); mix pipeline -> D04d |
-| D04d | Audio mix pipeline (browser+cloud), signed pack URLs, energy cues | Sonnet | running |
+| D04d | Audio mix pipeline (browser+cloud), signed pack URLs, energy cues | Sonnet | merged a0198ca + verified (signed URLs, preview, energy cues); mixer -> D04e |
 | M09 | Maintenance: signup-sent Playwright regression (Gate B blocker) | Sonnet | running |
+| D04e | Cue audio mixing into exports, browser + cloud, envelope parity (mix only) | Sonnet | running |

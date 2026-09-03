@@ -29,6 +29,10 @@ describe("planApply", () => {
       { itemId: "c1", kind: "cut", startFrames: 0, endFrames: 5, state: "accepted" },
       { itemId: "c2", kind: "cut", startFrames: 5, endFrames: 8, state: "proposed" },
       { itemId: "z1", kind: "zoom", startFrames: 0, endFrames: 10, state: "accepted" },
+      { itemId: "s1", kind: "sfx", startFrames: 0, endFrames: 4, state: "accepted" },
+      { itemId: "m1", kind: "music", startFrames: 0, endFrames: 40, state: "accepted" },
+      { itemId: "m2", kind: "music", startFrames: 0, endFrames: 40, state: "proposed" },
+      { itemId: "t1", kind: "title", startFrames: 0, endFrames: 10, state: "accepted" },
     ];
     const counts = planApply({
       segments,
@@ -44,6 +48,8 @@ describe("planApply", () => {
       cuts: 1,
       zooms: 1,
       audio: 1,
+      sfxMusic: 2,
+      titles: 1,
     });
   });
 });

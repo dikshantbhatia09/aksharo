@@ -13,6 +13,8 @@ const MODE_LABELS: Readonly<Record<ApplyMode, string>> = {
   cuts: "Accepted cuts",
   zooms: "Accepted zooms",
   audio: "Cleaned audio",
+  sfxMusic: "Sound effects & music",
+  titles: "Titles",
 };
 
 export interface ApplyPanelProps {
