@@ -20,6 +20,7 @@ import { EXPORT_ERROR_CODES } from "./exports.errors.js";
 import { buildRenderManifest, RENDER_CORE_VERSION } from "./manifest-builder.js";
 import { NINE_PASS_LEDGER, type NinePassLedger } from "./nine-pass-ledger.js";
 import { buildRenderProjection, resolveStyleSnapshot } from "./projection.js";
+import { AudioAssetsRepository } from "../audio-assets/index.js";
 import { ManifestSignerService } from "../common/crypto/manifest-signer.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
@@ -33,6 +34,7 @@ import {
 import { EdgRepository } from "../edg/index.js";
 import { JobsService } from "../jobs/jobs.service.js";
 import { resolveKeyframeTracks } from "../passes/keyframe-tracks.js";
+import { acceptedSfxAssetIds, resolveSfxTracks } from "../passes/sfx-tracks.js";
 import { EXPORT_COMPLETED_EVENT } from "../referrals/export-completed.event.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
@@ -149,6 +151,7 @@ export class ExportsService {
     @Inject(RAW_STORE) private readonly rawStore: ObjectStore,
     @Inject(NINE_PASS_LEDGER) private readonly ninePass: NinePassLedger,
     private readonly events: EventEmitter2,
+    private readonly audioAssets: AudioAssetsRepository,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -232,6 +235,14 @@ export class ExportsService {
     // `timemap.keyframes` tracks (CONTRACTS §2's keyframe payload rule).
     const keyframeTracks = await resolveKeyframeTracks(allItems, this.store);
 
+    // D04c: accepted sfx items — a storage-key lookup (assets are catalogue
+    // rows, not derived-storage refs) then a pure projection into the
+    // manifest's `timemap.audio.sfx` tracks.
+    const sfxStorageKeys = await this.audioAssets.findStorageKeysByIds(
+      acceptedSfxAssetIds(allItems),
+    );
+    const sfxTracks = resolveSfxTracks(allItems, sfxStorageKeys);
+
     const { manifest: unsigned } = buildRenderManifest({
       workspaceId: input.workspaceId,
       projectId: input.projectId,
@@ -256,6 +267,7 @@ export class ExportsService {
       },
       timemapEdits: [...timeMap.edits],
       ...(keyframeTracks.length === 0 ? {} : { keyframeTracks }),
+      ...(sfxTracks.length === 0 ? {} : { sfxTracks }),
       outputDurationMs,
       decision,
       kind: input.kind,

@@ -55,7 +55,7 @@ AI_QUEUES: Final[tuple[str, ...]] = tuple(name for name in QUEUE_NAMES if name.s
 #: so a producer gets a clear failure instead of a job that sits in Redis
 #: forever. `ai.pass` itself still answers `worker/not_implemented` for any
 #: `passType` other than `"autocut"` (`processors/autocut_pass.py`) — B19
-#: adds `"reframe"`/`"zoom"` there.
+#: adds `"reframe"`/`"zoom"`, D06 adds `"textfx"`, D04c adds `"sfx"`.
 IMPLEMENTED_AI_QUEUES: Final[tuple[str, ...]] = (
     "ai.vad",
     "ai.transcribe",

@@ -154,6 +154,38 @@ export const TitleTrackSchema = z.object({
 });
 export type TitleTrack = z.infer<typeof TitleTrackSchema>;
 
+/** A ducking curve's shape — CONTRACTS §2 `Duck`/`SfxPayload.duck` (D04c). */
+export const DuckTrackSchema = z.object({
+  depthDb: z.number().max(0),
+  attackMs: WholeMs,
+  releaseMs: WholeMs,
+});
+export type DuckTrack = z.infer<typeof DuckTrackSchema>;
+
+/**
+ * One accepted `sfx` pass item (D04c, CONTRACTS §2 amendment `SfxPayload`),
+ * on the **source** clock — same convention as `KeyframeTrackSchema`/
+ * `TitleTrackSchema`: `startMs`/`endMs` are the item's own source-timeline
+ * range, and a consumer remaps them onto the output clock with `@montaj/
+ * timemap`'s `mapRange`, using the same `TimeMap` `manifest.timemap.edits`
+ * builds. `storageKey` is the pack object's derived key (`packs/{packId}/
+ * {assetId}.wav`, CONTRACTS §6) so a consumer never has to reconstruct it
+ * from `assetId`/`packId` itself.
+ */
+export const SfxTrackSchema = z.object({
+  itemId: Ulid,
+  startMs: WholeMs,
+  endMs: WholeMs,
+  assetId: z.string().min(1).max(128),
+  packId: z.string().min(1).max(128),
+  storageKey: z.string().min(1).max(1024),
+  gainDb: z.number().min(-60).max(24),
+  fadeInMs: WholeMs,
+  fadeOutMs: WholeMs,
+  duck: DuckTrackSchema.nullable(),
+});
+export type SfxTrack = z.infer<typeof SfxTrackSchema>;
+
 /**
  * The style documents this render is pinned to.
  *
@@ -289,6 +321,19 @@ export const RenderManifestSchema = z.object({
      * `manifest.timemap.titles ?? []`.
      */
     titles: z.array(TitleTrackSchema).max(2_000).optional(),
+    /**
+     * Accepted sfx (and, once D05 lands, music) items, per the CONTRACTS §2
+     * amendment 2026-09-03: `RenderManifest.timemap.audio.sfx[]` / `.music[]`
+     * are additive optional arrays; renderers ignore unknown arrays. Optional,
+     * not defaulted, same backward-compatibility rule as `keyframes`/`titles`
+     * above — every manifest and fixture built before this field existed
+     * stays valid; a consumer reads `manifest.timemap.audio?.sfx ?? []`.
+     */
+    audio: z
+      .object({
+        sfx: z.array(SfxTrackSchema).max(2_000).optional(),
+      })
+      .optional(),
   }),
   output: OutputSpecSchema,
   audio: AudioSpecSchema,

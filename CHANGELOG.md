@@ -43,6 +43,82 @@ frame.ts`: `renderTitleFrame`, the one shared step that turns a manifest's
   (`packages/render-core/src/textfx/**`, not `frame/render-frame.ts`); a
   follow-up could return the active caption box from `renderFrame` directly
   to remove the duplicate layout pass.
+- **D04c: SFX pass wiring — `edg` schemas, the `ai.pass` producer/completion, the
+  Passes-tab SFX card, and the timeline lane.** Closes the gap D04a's final
+  report flagged ("the `ai.pass` producer→worker→`MergePass` completion wiring
+  for `passType: "sfx"` needs `packages/edg`'s schemas extended"), now that
+  CONTRACTS' 2026-09-03 amendment defines the shape.
+  - `packages/edg`: `SfxPayloadSchema`/`MusicPayloadSchema` rewritten to the
+    amendment's shape (`assetId, packId, startMs, durationMs, gainDb, fadeInMs,
+fadeOutMs, duck: {depthDb, attackMs, releaseMs} | null, licenceSnapshot,
+cueReason`, plus `MusicPayload`'s `loopPolicy`/`bedDuck`/`mood`/`bpm`) —
+    `PassTypeSchema`/`ItemKindSchema` already carried `sfx`/`music` from the
+    amendment landing on `main` ahead of this WP. New `PackIdSchema` primitive
+    (mirrors `audio-assets/pack-keys.ts`'s slug pattern — CONTRACTS §6's
+    `packs/{packId}/{assetId}.wav`, no longer an open question). `EditPassItem`
+    (`ops/apply.ts`) now accepts `sfx` alongside `cut`/`zoom`/`reframe`,
+    keeping `payload.startMs`/`durationMs` in lockstep with the item's own
+    `startMs`/`endMs` on every drag — a render-manifest consumer reads only
+    `payload` for placement. Tests: round-trip parse for both payloads, move +
+    lockstep, stale-after-reject.
+  - `apps/api`: `AudioAssetsRepository.findCatalogueWithEmbeddings`/
+    `findStorageKeysByIds` (new reads over `audio_assets`, one for the
+    producer's stateless-worker catalogue, one for the exporter's manifest
+    build). `PassesService.startSfx` (`POST /projects/{id}/passes/sfx`):
+    quotes `quoteSfx` on the finished timeline (D04a's own quote fn, unused
+    until now), holds credits, enqueues `ai.pass` with the whole
+    `assetAllowed`-filtered `sfx` catalogue, emphasis/question/silence-gap cue
+    inputs (derived from the live transcript and segments — energy cues are
+    out of scope this pass, no proxy-sampling wired for `sfx`, flagged below),
+    and the accepted-cut/protected ranges every other pass already sends.
+    `PassCompletionHandler.handleSfx` turns the worker's cues into
+    `PassItem{kind:"sfx"}` and merges them via `MergePass`. `../passes/
+sfx-tracks.ts`: resolves accepted `sfx` items into the render manifest's
+    `timemap.audio.sfx[]` (wired into `manifest-builder.ts`/`exports.service.ts`
+    alongside B20b's `keyframeTracks`). E2e (`passes.e2e-spec.ts`,
+    `audio-assets.e2e-spec.ts`) prove route → fake worker completion →
+    `MergePass` → `GET /passes` against real Postgres/Redis.
+  - `apps/worker-ai`: `processors/sfx_pass.py` — the `ai.pass` consumer for
+    `passType: "sfx"`, calling D04a's `worker_ai.passes.sfx.build_sfx_items`
+    over the producer's cues/catalogue and shaping the result for the
+    completion callback; every cue but a `silence_gap` transition beat gets
+    D04a's default `-12dB/150ms` duck. Wired into `processors/autocut_pass.py`'s
+    `process_pass` dispatcher. Unit tests over the queue adapter (emphasis/
+    question cues, protected-range guard, catalogue-required, silence-gap
+    cues never duck).
+  - `apps/web`: `ProposalCard` gained an `sfx` block — an `<audio>` preview
+    from a caller-supplied signed URL (`sfxPreviewUrl`, a callback seam like
+    `onPreview`, not an embedded fetch — no signed-URL-issuing endpoint exists
+    yet for pack assets, flagged below) and a gain slider (`onGainDbPreview`;
+    UI-only preview, since CONTRACTS has no `EdgOp` to persist `payload.gainDb`
+    — only `EditPassItem`'s `startMs`/`endMs` are writable). The timeline's
+    `sfx` lane needed **no new code**: `lib/timeline/lanes.ts`'s `audio` lane
+    (B20) already groups `sfx`/`music` kinds generically.
+  - `packages/render-manifest`: `SfxTrackSchema`/`DuckTrackSchema` and
+    `timemap.audio.sfx[]` (additive optional, same backward-compatible
+    convention as `keyframes`/`titles` — a manifest built before this field
+    existed stays valid).
+  - `apps/render`: a second, independent parity gate — `parity/run-sfx-
+parity.ts` writes `results.json`'s own `sfx` key (never touching `run.ts`'s
+    `edits` or `run-audio-parity.ts`'s `audio`), measuring the browser
+    `duckGainAt` vs. the cloud `buildSfxDuckVolumeExpr` over three
+    representative `SfxPayload.duck` curves; all three agree to
+    floating-point noise against a `1e-6` tolerance (`run-sfx-parity.test.ts`
+    asserts the same on every `pnpm test`).
+  - **Deviations, and why**: (1) real audio-energy cues (`detect_energy_cues`)
+    are not wired for `sfx` — B19b's proxy-frame/RMS sampling is `zoom`/
+    `reframe`-specific; only the word/text-derived cue kinds fire. (2) the
+    manifest carries `timemap.audio.sfx[]`, but neither `apps/web/lib/export/
+engine.ts` nor `apps/render`'s ffmpeg graph actually mixes the cue's audio
+    into an export yet — the same class of gap D06 left for its own harder
+    consumption side (`RenderManifest.timemap.titles`, still uncomposited);
+    the duck _curve_'s parity is proven (above), but the real byte-mixing
+    pipeline (downloading each pack asset, an `amix`/`adelay` filter chain
+    remapped onto the output clock) was out of reach in this pass. (3) no
+    HTTP route issues a signed URL for a pack asset yet, so `ProposalCard`'s
+    `<audio>` preview needs a caller-supplied URL and renders nothing without
+    one.
+
 - **D04a: Tier 0 owned audio-pack ingestion, licence predicate, SFX cue-detection/
   retrieval, and export/render ducking — against a synthetic fixture pack.**
   The commissioned Tier 0 pack (A00-07) does not exist yet, so this WP builds and

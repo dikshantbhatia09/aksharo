@@ -866,39 +866,26 @@
         "assetId": {
           "$ref": "#/$defs/Ulid"
         },
-        "gainDb": {
-          "type": "number",
-          "minimum": -60,
-          "maximum": 24,
-          "title": "GainDb"
+        "packId": {
+          "$ref": "#/$defs/PackId"
         },
-        "offsetMs": {
+        "startMs": {
           "type": "integer",
-          "minimum": -9007199254740991,
+          "minimum": 0,
           "maximum": 9007199254740991,
-          "title": "OffsetMilliseconds"
-        }
-      },
-      "required": ["assetId", "gainDb", "offsetMs"],
-      "additionalProperties": false,
-      "title": "SfxPayload"
-    },
-    "MusicPayload": {
-      "type": "object",
-      "properties": {
-        "assetId": {
-          "$ref": "#/$defs/Ulid"
+          "title": "Milliseconds"
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
         },
         "gainDb": {
           "type": "number",
           "minimum": -60,
           "maximum": 24,
           "title": "GainDb"
-        },
-        "duckDb": {
-          "type": "number",
-          "minimum": -60,
-          "maximum": 0
         },
         "fadeInMs": {
           "type": "integer",
@@ -911,9 +898,140 @@
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Milliseconds"
+        },
+        "duck": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Duck"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "licenceSnapshot": {
+          "$ref": "#/$defs/JsonObject"
+        },
+        "cueReason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
         }
       },
-      "required": ["assetId", "gainDb", "duckDb", "fadeInMs", "fadeOutMs"],
+      "required": [
+        "assetId",
+        "packId",
+        "startMs",
+        "durationMs",
+        "gainDb",
+        "fadeInMs",
+        "fadeOutMs",
+        "duck",
+        "licenceSnapshot",
+        "cueReason"
+      ],
+      "additionalProperties": false,
+      "title": "SfxPayload"
+    },
+    "PackId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,127}$",
+      "title": "PackId"
+    },
+    "Duck": {
+      "type": "object",
+      "properties": {
+        "depthDb": {
+          "type": "number",
+          "minimum": -60,
+          "maximum": 0
+        },
+        "attackMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "releaseMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        }
+      },
+      "required": ["depthDb", "attackMs", "releaseMs"],
+      "additionalProperties": false,
+      "title": "Duck"
+    },
+    "MusicPayload": {
+      "type": "object",
+      "properties": {
+        "assetId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "packId": {
+          "$ref": "#/$defs/PackId"
+        },
+        "startMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "gainDb": {
+          "type": "number",
+          "minimum": -60,
+          "maximum": 24,
+          "title": "GainDb"
+        },
+        "loopPolicy": {
+          "type": "string",
+          "enum": ["none", "loop", "trim"]
+        },
+        "bedDuck": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Duck"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "licenceSnapshot": {
+          "$ref": "#/$defs/JsonObject"
+        },
+        "mood": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "bpm": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "assetId",
+        "packId",
+        "startMs",
+        "durationMs",
+        "gainDb",
+        "loopPolicy",
+        "bedDuck",
+        "licenceSnapshot",
+        "mood"
+      ],
       "additionalProperties": false,
       "title": "MusicPayload"
     },

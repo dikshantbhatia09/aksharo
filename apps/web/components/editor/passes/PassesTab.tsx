@@ -112,6 +112,13 @@ export interface PassesTabProps {
   readonly isLocalProject?: boolean;
   readonly onUploadToCloud?: () => void;
   readonly uploadingToCloud?: boolean;
+  /**
+   * D04c: resolves a signed pack-asset URL for an `sfx` item's `<audio>`
+   * preview (`ProposalCard`'s own `sfxPreviewUrl`) — a callback seam, not an
+   * embedded fetch, matching `onPreview`'s existing split; `undefined`
+   * (no resolver, or one returning `undefined`) simply omits the player.
+   */
+  readonly resolveSfxPreviewUrl?: (item: PassItem) => string | undefined;
 }
 
 const KIND_OPTIONS: readonly { readonly id: PassItem["kind"] | "all"; readonly label: string }[] = [
@@ -151,6 +158,7 @@ export function PassesTab({
   isLocalProject = false,
   onUploadToCloud,
   uploadingToCloud = false,
+  resolveSfxPreviewUrl,
 }: PassesTabProps): React.JSX.Element {
   const { client } = useApiContext();
 
@@ -398,6 +406,9 @@ export function PassesTab({
               {...(onPreview === undefined
                 ? {}
                 : { onPreview: (mode: "before" | "after") => onPreview(row.item, mode) })}
+              {...(resolveSfxPreviewUrl === undefined
+                ? {}
+                : { sfxPreviewUrl: resolveSfxPreviewUrl(row.item) })}
             />
           ))
         )}

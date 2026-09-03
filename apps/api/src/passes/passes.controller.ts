@@ -163,6 +163,29 @@ export class PassesController {
     return this.passes.startTextFx({ projectId, workspaceId: principal.workspaceId });
   }
 
+  @Post("sfx")
+  @Roles("editor")
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: "Start an sfx pass",
+    description:
+      "Quotes the job from the finished (post-cut) timeline (`sfxMusicPass` burn rate, " +
+      "finished minutes, Studio+ library entitlement), holds the credits and enqueues " +
+      "`ai.pass`. Proposed sound-effect cues land as `edg_pass_items` (kind `sfx`, state " +
+      "`proposed`) once the worker's completion arrives and `MergePass` merges them; watch " +
+      "`job.completed` on the project's realtime room, or poll `GET /jobs/{id}`.",
+    operationId: "startSfxPass",
+  })
+  @ApiOkResponse({ type: PassAcceptedDto, description: "Accepted and queued." })
+  @ApiConflictResponse({ description: "`pass/media_not_ready` or `pass/transcript_not_ready`." })
+  @ApiPaymentRequiredResponse({ description: "`credits/insufficient`." })
+  async startSfx(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("projectId") projectId: string,
+  ): Promise<PassAcceptedDto> {
+    return this.passes.startSfx({ projectId, workspaceId: principal.workspaceId });
+  }
+
   @Get()
   @Roles("viewer")
   @ApiOperation({

@@ -57,6 +57,7 @@ Exits non-zero (and logs which fixture) if any exceeds `maxDiffPxTolerance`.
 `run.test.ts` asserts the same tolerance on every `pnpm test` run, so a
 regression fails CI before anyone has to read this file.
 
+<<<<<<< HEAD
 ## Text-fx parity gate (D06b)
 
 A different kind of gate from the one above: not two independently-computed
@@ -94,3 +95,23 @@ documents for captions — glyph-edge anti-aliasing differs slightly between
 CanvasKit and Skia-node, and a title's larger, heavier type shows a touch
 more of that residual than a caption's own type does. `run-textfx-parity.test.ts`
 asserts the same tolerance on every `pnpm test` run.
+=======
+## SFX-duck parity gate (D04c)
+
+A second, independent gate lives in `results.json`'s own `sfx` key (never
+overwriting `edits`/`audio` above — `run-sfx-parity.ts` reads the file first
+and only replaces its key): the browser exporter's `duckGainAt`
+(`apps/web/lib/export/engine.ts`) against the cloud renderer's
+`buildSfxDuckVolumeExpr` (`../src/ffmpeg/sfx-duck-expr.ts`), evaluated over
+three representative `SfxPayload.duck` curves (CONTRACTS §2) — D04a's own
+default (`-12dB`/150 ms), an asymmetric shallow/slow duck over two
+overlapping speech ranges, and a near-silent duck with a 20 ms ramp. All
+three currently agree to floating-point noise (0.0 linear-gain diff against
+a `1e-6` tolerance) at every sampled instant — the two implementations run
+the same closed-form trapezoid, just in TypeScript and in ffmpeg's
+expression language respectively (`sfx-parity.ts`'s `computeSfxParity`,
+already proven generically by `sfx-parity.test.ts`).
+
+Regenerate with `pnpm --filter @montaj/render parity:sfx`; `run-sfx-
+parity.test.ts` asserts the same tolerance on every `pnpm test` run.
+>>>>>>> wp/D04c

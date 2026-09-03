@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -81,5 +81,70 @@ describe("<ProposalCard />", () => {
   it("renders no title-text block for a non-title item", () => {
     render(<ProposalCard item={item()} onDecide={vi.fn()} onUndo={vi.fn()} />);
     expect(screen.queryByTestId("proposal-card-title-text")).not.toBeInTheDocument();
+  });
+
+  function sfxItem(overrides: { readonly gainDb?: number } = {}): PassItem {
+    return item({
+      kind: "sfx",
+      payload: {
+        assetId: "01JASSET0000000000000000A1",
+        packId: "fixture-pack",
+        startMs: 1000,
+        durationMs: 600,
+        gainDb: overrides.gainDb ?? -6,
+        fadeInMs: 0,
+        fadeOutMs: 0,
+        duck: { depthDb: -12, attackMs: 150, releaseMs: 150 },
+        licenceSnapshot: { provider: "owned" },
+        cueReason: "energy-peak → impact",
+      },
+    } as Partial<PassItem>);
+  }
+
+  it("shows a gain slider for an sfx item, seeded from payload.gainDb (D04c)", () => {
+    render(<ProposalCard item={sfxItem()} onDecide={vi.fn()} onUndo={vi.fn()} />);
+    expect(screen.getByTestId("proposal-card-sfx")).toBeInTheDocument();
+    expect(screen.getByTestId("proposal-card-sfx-gain-value")).toHaveTextContent("-6.0 dB");
+  });
+
+  it("calls onGainDbPreview as the sfx gain slider moves, without waiting for a durable op", async () => {
+    const onGainDbPreview = vi.fn();
+    render(
+      <ProposalCard
+        item={sfxItem()}
+        onDecide={vi.fn()}
+        onUndo={vi.fn()}
+        onGainDbPreview={onGainDbPreview}
+      />,
+    );
+    const slider = screen.getByTestId("proposal-card-sfx-gain");
+    fireEvent.change(slider, { target: { value: "-3" } });
+    expect(onGainDbPreview).toHaveBeenCalledWith(-3);
+    expect(screen.getByTestId("proposal-card-sfx-gain-value")).toHaveTextContent("-3.0 dB");
+  });
+
+  it("renders an <audio> preview only when sfxPreviewUrl is supplied", () => {
+    const { rerender } = render(
+      <ProposalCard item={sfxItem()} onDecide={vi.fn()} onUndo={vi.fn()} />,
+    );
+    expect(screen.queryByTestId("proposal-card-sfx-preview")).not.toBeInTheDocument();
+
+    rerender(
+      <ProposalCard
+        item={sfxItem()}
+        onDecide={vi.fn()}
+        onUndo={vi.fn()}
+        sfxPreviewUrl="https://cdn.example/packs/fixture-pack/asset.wav?sig=abc"
+      />,
+    );
+    expect(screen.getByTestId("proposal-card-sfx-preview")).toHaveAttribute(
+      "src",
+      "https://cdn.example/packs/fixture-pack/asset.wav?sig=abc",
+    );
+  });
+
+  it("renders no sfx block for a non-sfx item", () => {
+    render(<ProposalCard item={item()} onDecide={vi.fn()} onUndo={vi.fn()} />);
+    expect(screen.queryByTestId("proposal-card-sfx")).not.toBeInTheDocument();
   });
 });

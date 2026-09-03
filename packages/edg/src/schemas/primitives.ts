@@ -105,6 +105,16 @@ export const KeyframesInlineSchema = z
   .min(1)
   .meta({ id: "KeyframesInline", title: "KeyframesInline" });
 
+/**
+ * Audio-pack id (CONTRACTS §6, amended 2026-09-03: `packs/{packId}/{assetId}.wav`
+ * — a shared, workspace-independent library object, not a ULID). Mirrors
+ * `apps/api/src/audio-assets/pack-keys.ts`'s `PACK_ID_PATTERN`.
+ */
+export const PackIdSchema = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9-]{0,127}$/, "expected a pack id slug")
+  .meta({ id: "PackId", title: "PackId" });
+
 export type Ulid = z.infer<typeof UlidSchema>;
 export type SeqKey = z.infer<typeof SeqKeySchema>;
 export type ScriptId = z.infer<typeof ScriptIdSchema>;
@@ -112,4 +122,5 @@ export type Aspect = z.infer<typeof AspectSchema>;
 export type StyleRef = z.infer<typeof StyleRefSchema>;
 export type PresetId = z.infer<typeof PresetIdSchema>;
 export type JsonObject = z.infer<typeof JsonObjectSchema>;
+export type PackId = z.infer<typeof PackIdSchema>;
 export type { WordId };

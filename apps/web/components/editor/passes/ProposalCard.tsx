@@ -36,8 +36,28 @@ export interface ProposalCardProps {
    * this card. `mode` distinguishes the two snippets the brief asks for.
    */
   readonly onPreview?: (mode: "before" | "after") => void;
+  /**
+   * D04c: a signed URL for this `sfx` item's own pack asset
+   * (`packs/{packId}/{assetId}.wav`, CONTRACTS §6), resolved by the caller —
+   * this card never fetches or signs a URL itself, the same seam `onPreview`
+   * already uses for the CanvasKit preview. `undefined` (no resolver, or the
+   * resolver returning `undefined`) simply omits the `<audio>` element rather
+   * than rendering a broken player.
+   */
+  readonly sfxPreviewUrl?: string;
+  /**
+   * D04c: the gain slider's live value, in dB — a UI-only control today
+   * (there is no `EdgOp` to persist an `sfx` item's `payload.gainDb`; only
+   * `EditPassItem`'s `startMs`/`endMs` are writable, CONTRACTS §2), so this
+   * callback is offered for a caller that wants to preview a louder/quieter
+   * cue before deciding, not a durable edit.
+   */
+  readonly onGainDbPreview?: (gainDb: number) => void;
   readonly className?: string;
 }
+
+const SFX_GAIN_MIN = -24;
+const SFX_GAIN_MAX = 12;
 
 /**
  * One AI proposal: reason, confidence, accept/reject/undo (brief §2). Renders
@@ -50,9 +70,15 @@ export function ProposalCard({
   onDecide,
   onUndo,
   onPreview,
+  sfxPreviewUrl,
+  onGainDbPreview,
   className,
 }: ProposalCardProps): React.JSX.Element {
   const decided = item.state !== "proposed";
+  const sfxGainDb =
+    item.kind === "sfx" && typeof item.payload.gainDb === "number" ? item.payload.gainDb : 0;
+  const [gainDb, setGainDb] = React.useState(sfxGainDb);
+  React.useEffect(() => setGainDb(sfxGainDb), [sfxGainDb]);
 
   return (
     <div
@@ -99,6 +125,35 @@ export function ProposalCard({
             </span>
           ) : null}
         </p>
+      ) : null}
+
+      {item.kind === "sfx" ? (
+        <div
+          data-testid="proposal-card-sfx"
+          style={{ display: "flex", flexDirection: "column", gap: 6 }}
+        >
+          {sfxPreviewUrl !== undefined ? (
+            <audio data-testid="proposal-card-sfx-preview" controls src={sfxPreviewUrl} />
+          ) : null}
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+            Gain
+            <input
+              type="range"
+              min={SFX_GAIN_MIN}
+              max={SFX_GAIN_MAX}
+              step={0.5}
+              value={gainDb}
+              aria-label="SFX gain (dB)"
+              data-testid="proposal-card-sfx-gain"
+              onChange={(e) => {
+                const next = Number(e.target.value);
+                setGainDb(next);
+                onGainDbPreview?.(next);
+              }}
+            />
+            <span data-testid="proposal-card-sfx-gain-value">{gainDb.toFixed(1)} dB</span>
+          </label>
+        </div>
       ) : null}
 
       {item.reason !== undefined ? (

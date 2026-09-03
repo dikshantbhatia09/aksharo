@@ -19,6 +19,7 @@ import type {
   KeyframeTrack,
   OutputKind,
   RenderPreset,
+  SfxTrack,
   SubtitleFormat,
   SubtitleScript,
   TimemapEdit,
@@ -84,6 +85,12 @@ export interface BuildManifestInput {
    * `timemapEdits: [...timeMap.edits]` line).
    */
   readonly keyframeTracks?: readonly KeyframeTrack[];
+  /**
+   * Accepted `sfx` items (D04c's field; wired by `../passes/sfx-tracks.ts`'s
+   * `resolveSfxTracks`, called from `exports.service.ts`'s `requestExport`
+   * alongside its `keyframeTracks` line).
+   */
+  readonly sfxTracks?: readonly SfxTrack[];
   readonly outputDurationMs: number;
   readonly decision: ExportDecision;
   readonly kind: "video" | "subtitle";
@@ -199,6 +206,11 @@ export function buildRenderManifest(input: BuildManifestInput): BuiltManifest {
       // Accepted zoom/reframe curves, resolved by the caller (B20b) from
       // `edg.passes` items via `../passes/keyframe-tracks.ts`.
       keyframes: input.keyframeTracks ? [...input.keyframeTracks] : [],
+      // Accepted sfx cues, resolved by the caller (D04c) from `edg.passes`
+      // items via `../passes/sfx-tracks.ts`. Always an object (never omitted)
+      // so a render consumer can read `manifest.timemap.audio?.sfx ?? []`
+      // without an extra optional-chain hop for the wrapper itself.
+      audio: { sfx: input.sfxTracks ? [...input.sfxTracks] : [] },
     },
     output: {
       kind: input.outputKind,
