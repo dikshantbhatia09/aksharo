@@ -1240,6 +1240,21 @@ describe("SetProtectedRanges", () => {
     expect(reasons(result)).toEqual(["invalid-range"]);
     expect(result.state.hot.protected ?? []).toEqual([]);
   });
+
+  it("accepts the smallest legal range: half-open [s, e) with e = s + 1", () => {
+    // Ranges are half-open [s, e) with e > s (rejected above at s === e); the
+    // narrowest legal width is 1ms. worker-ai's autocut property tests rely
+    // on this same rule to keep a zero-width range from ever reaching the
+    // pass (apps/worker-ai/tests/test_autocut.py's `_random_transcript`).
+    const { state } = setup();
+    const result = apply(state, [
+      op("SetProtectedRanges", { ranges: [{ id: RANGE_A, s: 2_000, e: 2_001 }] }),
+    ]);
+    expect(result.rejected).toEqual([]);
+    expect(result.state.hot.protected).toEqual([
+      { id: RANGE_A, s: 2_000, e: 2_001, reason: "user" },
+    ]);
+  });
 });
 
 describe("normaliseProtectedRanges", () => {

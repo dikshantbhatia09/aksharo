@@ -1839,6 +1839,13 @@ export const API_OPERATIONS = [
     summary: "Transcribe the media again",
   },
   {
+    operationId: "retryPromptedEditPlan",
+    method: "POST",
+    path: "/projects/{projectId}/prompted-edits/{planId}/retry",
+    tags: ["prompted-edits"],
+    summary: "Retry a failed prompted-edit plan's current chain step",
+  },
+  {
     operationId: "revokeApiKey",
     method: "DELETE",
     path: "/workspaces/{id}/api-keys/{keyId}",

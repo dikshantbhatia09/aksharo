@@ -16,9 +16,11 @@ from dataclasses import dataclass
 from typing import Literal
 
 from worker_ai.passes.music.analysis import Section
+from worker_ai.passes.music.beats import DEFAULT_BEAT_SNAP_TOLERANCE_MS, snap_start_to_beat
 from worker_ai.passes.music.retrieval import MusicCatalogueAsset, TextEmbedder, rank_music_assets
 
 __all__ = [
+    "DEFAULT_BEAT_SNAP_TOLERANCE_MS",
     "DEFAULT_FADE_IN_MS",
     "DEFAULT_FADE_OUT_MS",
     "DEFAULT_GAIN_DB",
@@ -80,10 +82,22 @@ def build_music_items(
     bpm_target: int,
     protected_ranges: list[tuple[int, int]] | None = None,
     gain_db: float = DEFAULT_GAIN_DB,
+    align_to_beat: bool = True,
+    beat_snap_tolerance_ms: int = DEFAULT_BEAT_SNAP_TOLERANCE_MS,
 ) -> list[MusicItem]:
     """One `MusicItem` per section that does not overlap a protected range —
     a section is dropped outright (never clamped), the same "dropped, not
-    shortened" stance `sfx.py`'s `build_sfx_items` takes."""
+    shortened" stance `sfx.py`'s `build_sfx_items` takes.
+
+    Auto beat-alignment (D05 follow-up, brief §1): when `align_to_beat` (on
+    by default) and the resolved `loop_policy != "none"`, the bed's
+    `start_ms` snaps to the nearest beat of `bpm_target` within
+    `beat_snap_tolerance_ms`, and never into a protected range — see
+    `worker_ai.passes.music.beats.snap_start_to_beat`, which this delegates
+    to and which silently no-ops (returns the original `start_ms`) whenever
+    any of those guards would be violated, so a `loopPolicy == "none"` bed
+    (nothing to loop or trim, so nothing gains from being on-beat) is left at
+    its raw section boundary."""
     protected_ranges = protected_ranges or []
     if not catalogue:
         return []
@@ -103,9 +117,18 @@ def build_music_items(
         section_len_ms = section.e - section.s
         loop_policy = _loop_policy_for(section_len_ms, best_asset.duration_ms)
 
+        start_ms = section.s
+        if align_to_beat and loop_policy != "none":
+            start_ms = snap_start_to_beat(
+                start_ms,
+                bpm=bpm_target,
+                protected_ranges=protected_ranges,
+                tolerance_ms=beat_snap_tolerance_ms,
+            )
+
         items.append(
             MusicItem(
-                start_ms=section.s,
+                start_ms=start_ms,
                 end_ms=section.e,
                 asset_id=best_asset.id,
                 gain_db=gain_db,

@@ -81,7 +81,7 @@ export class PromptedChainAdvancer {
       );
     } catch (error) {
       this.logger.error({ planId: plan.id, kind: next, error }, "prompted-edit chain step failed");
-      await this.fail(plan.id, plan.holdId);
+      await this.fail(plan.id);
     }
   }
 
@@ -91,7 +91,7 @@ export class PromptedChainAdvancer {
       where: { currentJobId: job.id, status: "running" },
     });
     if (plan === null) return;
-    await this.fail(plan.id, plan.holdId);
+    await this.fail(plan.id);
   }
 
   private async settle(
@@ -117,13 +117,22 @@ export class PromptedChainAdvancer {
     this.logger.log({ planId, settledTenths }, "prompted-edit plan completed");
   }
 
-  private async fail(planId: string, holdId: string | null): Promise<void> {
-    if (holdId !== null) {
-      await this.credits.release({ holdId }).catch(() => undefined);
-    }
+  /**
+   * `currentJobId` is deliberately left pointing at the job that just failed
+   * (D07 follow-up, brief item 3) rather than nulled: `PromptedEditsService
+   * .retry` reads it back to know which kind to re-enqueue and needs it to
+   * survive the failure. The credit hold is likewise kept, not released —
+   * "no new hold" on retry means there must still be an old one to reuse;
+   * `retry` releases it itself if the plan is abandoned rather than retried
+   * (there is no such path today, so the hold simply waits). Both lookups
+   * that used to rely on this column being null (`onPassCompleted`/
+   * `onPassFailed` above) already gate on `status: "running"`, which a
+   * `"failed"` plan no longer matches, so nothing else depends on the null.
+   */
+  private async fail(planId: string): Promise<void> {
     await this.prisma.promptedEditPlan.update({
       where: { id: planId },
-      data: { status: "failed", currentJobId: null },
+      data: { status: "failed" },
     });
   }
 

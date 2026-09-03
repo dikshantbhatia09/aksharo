@@ -945,7 +945,8 @@ describe.skipIf(!CAN_RUN)("music pass: producer → worker completion → MergeP
     expect(params["passType"]).toBe("music");
     expect(Array.isArray(params["catalogue"])).toBe(true);
     expect(Array.isArray(params["speechRanges"])).toBe(true);
-    expect(Array.isArray(params["sentiment"])).toBe(true);
+    expect(Array.isArray(params["sentences"])).toBe(true);
+    expect(typeof params["region"]).toBe("string");
     musicAttemptId = job.attemptId ?? "";
   });
 

@@ -6,7 +6,7 @@ import time
 from itertools import pairwise
 
 import pytest
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 from worker_ai.passes.autocut import (
@@ -125,11 +125,25 @@ def test_silence_detection_precision_and_recall() -> None:
 
 
 def _continuous_speech_words() -> list[Word]:
-    """"like" and "toh"/"so" used mid-sentence, tightly packed (no isolation)."""
+    """ "like" and "toh"/"so" used mid-sentence, tightly packed (no isolation)."""
     script = [
-        "I", "would", "like", "to", "go", "there",
-        "so", "we", "went", "to", "the", "market",
-        "toh", "the", "price", "was", "high",
+        "I",
+        "would",
+        "like",
+        "to",
+        "go",
+        "there",
+        "so",
+        "we",
+        "went",
+        "to",
+        "the",
+        "market",
+        "toh",
+        "the",
+        "price",
+        "was",
+        "high",
     ]
     words = []
     t = 0
@@ -253,7 +267,7 @@ def test_filler_precision_at_least_0_85() -> None:
 
 def test_retake_detection_keeps_the_last_take() -> None:
     take_one = ["so", "today", "we", "are", "going", "to", "talk", "about", "the", "new", "feature"]
-    take_two = f"{" ".join(take_one)} launch".split()
+    take_two = f"{' '.join(take_one)} launch".split()
 
     words: list[Word] = []
     t = 0
@@ -331,10 +345,14 @@ def _random_transcript(draw: st.DrawFn) -> AutocutInput:
     regions = [SpeechRegion(start_ms=0, end_ms=t)]
     preset = draw(st.sampled_from(list(PRESETS.keys())))
 
+    # Protected ranges are half-open [s, e) with e > s (CONTRACTS §2's
+    # `SetProtectedRanges`; `packages/edg/src/ops/apply.ts` rejects s >= e as
+    # `invalid-range`, so a zero-width range can never reach the worker). The
+    # strategy must not generate one either, or `t` must allow at least 1ms.
     protected: tuple[tuple[int, int], ...] = ()
     if draw(st.booleans()) and t > 0:
-        p_start = draw(st.integers(min_value=0, max_value=t))
-        p_end = draw(st.integers(min_value=p_start, max_value=t))
+        p_start = draw(st.integers(min_value=0, max_value=t - 1))
+        p_end = draw(st.integers(min_value=p_start + 1, max_value=t))
         protected = ((p_start, p_end),)
 
     return AutocutInput(
@@ -367,8 +385,58 @@ def test_items_never_cut_inside_a_word(autocut_input: AutocutInput) -> None:
             assert not (w.s < item.end_ms < w.e), f"{item} cuts into {w}"
 
 
+def _regression_words() -> tuple[Word, ...]:
+    # The exact transcript hypothesis (`--hypothesis-seed=5`) found under the
+    # old strategy, which drew a zero-width protected range (11501, 11501)
+    # landing exactly on word "0:26"'s start — an illegal, degenerate range
+    # per CONTRACTS §2 (see the strategy fix above). Reused here with the
+    # smallest *legal* 1ms range at the same offset as a regression: the pass
+    # must still carve the filler run's cut candidate around it.
+    raw = [
+        (0, 718, 798, "um"),
+        (1, 886, 1024, "um"),
+        (2, 1186, 1369, "uh"),
+        (3, 1681, 2004, "um"),
+        (4, 2384, 2784, "um"),
+        (5, 3346, 3530, "um"),
+        (6, 3609, 4009, "um"),
+        (7, 4009, 4409, "uh"),
+        (8, 5128, 5528, "uh"),
+        (9, 6263, 6390, "um"),
+        (10, 6390, 6520, "um"),
+        (11, 6520, 6728, "um"),
+        (12, 6728, 7084, "um"),
+        (13, 7581, 7981, "um"),
+        (14, 8367, 8560, "um"),
+        (15, 9221, 9621, "um"),
+        (16, 9621, 9720, "um"),
+        (17, 9720, 9800, "um"),
+        (18, 9870, 10270, "um"),
+        (19, 10270, 10350, "um"),
+        (20, 10350, 10430, "um"),
+        (21, 10430, 10510, "um"),
+        (22, 10510, 10590, "um"),
+        (23, 11009, 11150, "um"),
+        (24, 11213, 11368, "um"),
+        (25, 11368, 11448, "um"),
+        (26, 11501, 11581, "um"),
+        (27, 11931, 12018, "um"),
+    ]
+    return tuple(word(f"0:{i}", s, e, t) for i, s, e, t in raw)
+
+
 @given(st.composite(_random_transcript)())
 @settings(max_examples=60, suppress_health_check=[HealthCheck.too_slow], deadline=None)
+@example(
+    autocut_input=AutocutInput(
+        words=_regression_words(),
+        speech_regions=(SpeechRegion(start_ms=0, end_ms=12018),),
+        duration_ms=12018,
+        preset="tight",
+        lexicon=EN_LEXICON,
+        protected_ranges=((11501, 11502),),
+    )
+)
 def test_items_respect_protected_ranges(autocut_input: AutocutInput) -> None:
     result = run_autocut(autocut_input)
     for item in result.items:
@@ -376,6 +444,26 @@ def test_items_respect_protected_ranges(autocut_input: AutocutInput) -> None:
             assert not (item.start_ms < p_end and p_start < item.end_ms), (
                 f"{item} overlaps protected range ({p_start}, {p_end})"
             )
+
+
+def test_smallest_legal_protected_range_is_respected() -> None:
+    # The smallest legal (half-open, e > s) protected range is 1ms wide.
+    # Anchored on the exact word boundary from the regression above: a
+    # 1ms protected range starting where a filler word starts must still
+    # carve the filler cut so it never overlaps it.
+    autocut_input = AutocutInput(
+        words=_regression_words(),
+        speech_regions=(SpeechRegion(start_ms=0, end_ms=12018),),
+        duration_ms=12018,
+        preset="tight",
+        lexicon=EN_LEXICON,
+        protected_ranges=((11501, 11502),),
+    )
+    result = run_autocut(autocut_input)
+    for item in result.items:
+        assert not (item.start_ms < 11502 and item.end_ms > 11501), (
+            f"{item} overlaps protected range (11501, 11502)"
+        )
 
 
 @given(st.composite(_random_transcript)())
