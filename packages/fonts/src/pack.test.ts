@@ -81,6 +81,7 @@ describe("the bundled pack", () => {
   });
 
   it("ships a WOFF2 twin of every face, meaningfully smaller", async () => {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const files = new Set(await readdir(bundledPackDirectory()));
     for (const face of manifest.fonts) {
       expect(face.woff2, `${face.id} has no woff2`).toBeDefined();
@@ -97,6 +98,7 @@ describe("the bundled pack", () => {
       expect(["OFL-1.1", "Apache-2.0"]).toContain(family.licence);
       const face = family.faces[0];
       expect(face?.licenceFile).toBeDefined();
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const text = await readFile(packLicencePath(face?.licenceFile ?? ""), "utf8");
       expect(text.length).toBeGreaterThan(500);
       expect(text).toMatch(/SIL OPEN FONT LICENSE|Apache License/i);
@@ -271,6 +273,7 @@ describe("the catalogue and the pack agree", () => {
   });
 
   it("names files that exist and nothing outside the pack directory", async () => {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const files = new Set(await readdir(bundledPackDirectory()));
     for (const face of manifest.fonts) {
       expect(files.has(face.file), `${face.file}`).toBe(true);
@@ -289,6 +292,7 @@ describe("the catalogue and the pack agree", () => {
   });
 
   it("keeps its licences directory beside the fonts", async () => {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const licences = await readdir(join(bundledPackDirectory(), "licences"));
     expect(licences.length).toBe(CATALOGUE.length);
   });
@@ -300,6 +304,7 @@ describe("registerManifestFonts", () => {
     const small = { ...manifest, fonts: manifest.fonts.slice(0, 3) };
     const registered = await registerManifestFonts(registry, small, {
       fetchBytes: async (face) =>
+        // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
         new Uint8Array(await readFile(join(bundledPackDirectory(), face.file))),
     });
     expect(registered).toHaveLength(3);
@@ -313,6 +318,7 @@ describe("registerManifestFonts", () => {
     const registered = await registerManifestFonts(registry, small, {
       fetchBytes: async (face) => {
         if (face.id === small.fonts[0]?.id) throw new Error("403 from R2");
+        // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
         return new Uint8Array(await readFile(join(bundledPackDirectory(), face.file)));
       },
       onWarning: (message) => warnings.push(message),
@@ -340,7 +346,9 @@ describe("pack integrity", () => {
     const directory = await mkdtemp(join(tmpdir(), "montaj-fonts-"));
     const face = manifest.fonts[0];
     if (face === undefined) throw new Error("empty manifest");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(join(directory, face.file), new Uint8Array([0, 1, 0, 0]));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(
       join(directory, "fonts.json"),
       JSON.stringify({ v: 1, fonts: [{ ...face, woff2: undefined }] }),

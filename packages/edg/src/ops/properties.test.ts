@@ -207,12 +207,14 @@ function validOp({ segmentIds, wordIds, itemIds }: World): fc.Arbitrary<OpSpec> 
   const segmentIndex = fc.integer({ min: 0, max: segmentIds.length - 1 });
   const inSegment = segmentIndex.chain((index) =>
     fc.record({
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       segmentId: fc.constant(segmentIds[index] ?? ""),
       wordId: fc.constantFrom(
         ...wordIds.slice(index * WORDS_PER_SEGMENT, (index + 1) * WORDS_PER_SEGMENT),
       ),
     }),
   );
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const segmentId = segmentIndex.map((index) => segmentIds[index] ?? "");
   return fc
     .oneof(
@@ -420,6 +422,7 @@ describe("the document stays valid", () => {
           }
           for (let i = 1; i < protectedRanges.length; i += 1) {
             const previous = protectedRanges[i - 1];
+            // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
             const current = protectedRanges[i];
             if (previous === undefined || current === undefined) continue;
             expect(previous.s).toBeLessThanOrEqual(current.s);

@@ -110,8 +110,11 @@ export function buildTimeMap(options: TimeMapOptions): TimeMap {
   const sourceEnds: number[] = new Array<number>(spans.length);
   const outputStarts: number[] = new Array<number>(spans.length);
   for (let i = 0; i < spans.length; i += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const span = spans[i] as TimeSpan;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     sourceEnds[i] = span.sourceEnd;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     outputStarts[i] = span.outputStart;
   }
 
@@ -210,6 +213,7 @@ export function buildTimeMap(options: TimeMapOptions): TimeMap {
     };
 
     for (let i = lowerBound(sourceEnds, low); i < spans.length; i += 1) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const span = spans[i] as TimeSpan;
       if (span.sourceStart >= high) break;
       if (span.kind !== "retained") continue;

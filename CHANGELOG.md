@@ -8,6 +8,36 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M06: `eslint-plugin-security` promoted to `error` repo-wide.** C02c drove
+  `apps/api`, `apps/web`, `packages/bridge-core` and `apps/desktop` to zero
+  findings; this WP reviewed every remaining finding across the other 21
+  packages (559 warnings: 275 `detect-non-literal-fs-filename`, 255
+  `detect-object-injection`, 14 `detect-unsafe-regex`, 10
+  `detect-possible-timing-attacks`, 5 `detect-non-literal-regexp`). Every one
+  was a false positive of this plugin's known-noisy heuristics — bounded,
+  linear regexes (commit-subject classifiers, kebab-case ids, SVG path-token
+  scanners) flagged as "unsafe"; enum-/manifest-bounded bracket access flagged
+  as "object injection"; internal build, manifest- and config-driven paths
+  flagged as "non-literal fs filename"; null/status/hash sentinel `===`
+  checks flagged as "timing attacks" (the one real constant-time comparison,
+  `packages/render-manifest/src/signature.ts`'s `verifyManifestSignature`,
+  already uses `crypto.timingSafeEqual`) — verified by re-running the flagged
+  regexes against adversarial input (no exponential blowup) and by reading
+  every object-injection/fs-filename site's key/path provenance. No real fix
+  was needed; every finding was annotated with a reasoned
+  `eslint-disable-next-line security/<rule> -- <reason>` following C02c's
+  convention. `packages/config/eslint.config.base.mjs`'s `securityRules` is
+  now `error` by default (no more `warn` floor), `securityRulesStrict` is
+  kept as an alias for callers that still import it, and the now-redundant
+  per-package `{ rules: securityRulesStrict }` overrides in `apps/api`,
+  `apps/web`, `apps/desktop` and `packages/bridge-core` were removed. Three
+  of this WP's own annotations landed inside JSX children
+  (`plugins/premiere-uxp/.../ApplyPanel.tsx`, `packages/ui/.../chips.tsx`,
+  `packages/ui/.../job-progress.tsx`) where a `//` line comment is literal
+  text, not a disable directive; caught by the follow-up lint run and fixed
+  to `{/* eslint-disable-next-line ... */}` — a gap worth knowing about for
+  future JSX annotations.
+
 - **C02c: Electron major bump, `eslint-plugin-security`, WS ticket exchange
   (X01 follow-ups).** `apps/desktop`'s `electron` `^33.4.11` → `^44.1.1`
   (past X01's `>=39.8.10` floor, fixing the named use-after-free/context-

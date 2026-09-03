@@ -78,8 +78,10 @@ export function segmentText(
   script: SubtitleScript,
   dropFillers: boolean,
 ): { text: string; speaker: string | undefined } {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const segment = projection.segments[segmentIndex];
   if (segment === undefined) return { text: "", speaker: undefined };
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const override = segment.textOverrides?.[script];
   const words = wordsOf(projection, segment.startWordId, segment.endWordId).filter(
     (word) => word.deleted !== true && (!dropFillers || word.filler !== true),
@@ -87,6 +89,7 @@ export function segmentText(
   const speaker = words[0]?.sp;
   if (override !== undefined && override !== "") return { text: override, speaker };
   const text = words
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     .map((word) => word.scripts?.[script] ?? word.t)
     .join(" ")
     .replace(/\s+/g, " ")

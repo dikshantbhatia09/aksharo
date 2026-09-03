@@ -107,6 +107,7 @@ function mergeOneLevel(
   const merged: Record<string, unknown> = { ...base };
   for (const [key, value] of Object.entries(overrides)) {
     if (value === undefined) continue;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const current = merged[key];
     if (
       value !== null &&
@@ -116,8 +117,10 @@ function mergeOneLevel(
       typeof current === "object" &&
       !Array.isArray(current)
     ) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       merged[key] = { ...(current as Record<string, unknown>), ...value };
     } else {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       merged[key] = value;
     }
   }

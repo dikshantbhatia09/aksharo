@@ -119,6 +119,7 @@ function copyTraybin() {
     console.warn("systray2 not installed; packaged binary will fall back to the console tray");
     return;
   }
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   if (!existsSync(traybinSrc)) {
     console.warn(`systray2 traybin not found at ${traybinSrc}; skipping`);
     return;

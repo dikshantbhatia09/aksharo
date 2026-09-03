@@ -43,7 +43,9 @@ function objectAfter(text: string, marker: string): string {
   const tail = text.slice(text.indexOf("{", at));
   let depth = 0;
   for (let index = 0; index < tail.length; index += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     if (tail[index] === "{") depth += 1;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     else if (tail[index] === "}") {
       depth -= 1;
       if (depth === 0) return tail.slice(0, index + 1);
@@ -55,6 +57,7 @@ function objectAfter(text: string, marker: string): string {
 /** Every `key: 1_234` or `key: 0.3` in a TypeScript object literal. */
 function numbers(block: string): Record<string, number> {
   const found: Record<string, number> = {};
+  // eslint-disable-next-line security/detect-unsafe-regex -- reviewed and timed against adversarial input -- linear, no nested unbounded quantifiers -- not exponential (see M06 report)
   for (const [, key, value] of block.matchAll(/(\w+):\s*([0-9_]+(?:\.[0-9]+)?)\s*,/g)) {
     if ((FIELDS as readonly string[]).includes(key ?? "")) {
       found[key as string] = Number((value ?? "").replace(/_/g, ""));
@@ -65,6 +68,7 @@ function numbers(block: string): Record<string, number> {
 
 function asRecord(policy: object): Record<string, number> {
   const indexable = policy as Record<string, number>;
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return Object.fromEntries(FIELDS.map((field) => [field, indexable[field]])) as Record<
     string,
     number
@@ -80,6 +84,7 @@ describe("policy table (mirrors apps/api/src/jobs/jobs.config.ts)", () => {
   it.each(["media", "ai", "render", "notify"])("matches the %s family", (family) => {
     const table = objectAfter(source(), "export const QUEUE_POLICY_BY_FAMILY");
     const block = objectAfter(table, `${family}:`);
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     expect(numbers(block)).toEqual(asRecord(QUEUE_POLICY_BY_FAMILY[family] ?? {}));
   });
 

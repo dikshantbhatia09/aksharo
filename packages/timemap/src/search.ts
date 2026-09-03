@@ -12,6 +12,7 @@ export function lowerBound(keys: readonly number[], value: number): number {
   let high = keys.length;
   while (low < high) {
     const mid = (low + high) >>> 1;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     if ((keys[mid] as number) < value) low = mid + 1;
     else high = mid;
   }
@@ -24,6 +25,7 @@ export function upperBound(keys: readonly number[], value: number): number {
   let high = keys.length;
   while (low < high) {
     const mid = (low + high) >>> 1;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     if ((keys[mid] as number) <= value) low = mid + 1;
     else high = mid;
   }

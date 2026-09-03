@@ -27,6 +27,7 @@ export interface SbomResult {
 export async function runSbom(ctx: ReleaseContext, opts: SbomOptions): Promise<SbomResult> {
   const components: CycloneDxComponent[] = [];
   for (const pkgPath of opts.packageJsonPaths) {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const raw = await fs.readFile(pkgPath, "utf8").catch(() => undefined);
     if (!raw) continue;
     const pkg = JSON.parse(raw) as { dependencies?: Record<string, string> };

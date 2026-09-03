@@ -79,6 +79,7 @@ export const ALIASED_FAMILIES: readonly string[] = [
 export function loadFixtureFonts(weights: readonly number[] = [400, 700, 900]): FontResource[] {
   const fonts: FontResource[] = [];
   for (const fixture of FIXTURE_FONTS) {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const data = new Uint8Array(readFileSync(join(FIXTURE_FONT_DIR, fixture.file)));
     for (const weight of weights) {
       fonts.push({

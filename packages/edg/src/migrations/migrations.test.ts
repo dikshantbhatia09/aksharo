@@ -58,14 +58,19 @@ describe("the v1 fixture", () => {
     const snapshot = migrate(v1());
     const words = (snapshot.chunks ?? []).flatMap((chunk) => chunk.words);
     for (const [index, before] of parsed.segments.entries()) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const after = snapshot.projection.segments[index];
       expect(after, `segment ${index}`).toBeDefined();
       if (after === undefined) continue;
 
       const [from, to] = before.wordRange;
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(after.startMs).toBe(before.startMs ?? parsed.words[from]?.s);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(after.endMs).toBe(before.endMs ?? parsed.words[to]?.e);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(after.startWordId).toBe(words[from]?.wid);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(after.endWordId).toBe(words[to]?.wid);
 
       // The words a caption renders, before and after.

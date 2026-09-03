@@ -27,6 +27,7 @@ export function schemaFilePath(fileName: JsonSchemaFileName): string {
 export async function renderSchemaFile(fileName: JsonSchemaFileName): Promise<string> {
   const filePath = schemaFilePath(fileName);
   const documents = buildJsonSchemaDocuments();
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const json = JSON.stringify(documents[fileName], null, 2);
   const options = await prettier.resolveConfig(filePath, { editorconfig: false });
   return prettier.format(json, { ...options, filepath: filePath, parser: "json" });
@@ -47,6 +48,7 @@ export async function readCommittedSchemaFile(
   fileName: JsonSchemaFileName,
 ): Promise<string | undefined> {
   try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     return await readFile(schemaFilePath(fileName), "utf8");
   } catch {
     return undefined;

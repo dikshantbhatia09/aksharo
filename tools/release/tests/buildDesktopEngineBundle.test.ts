@@ -58,7 +58,9 @@ describe("build-desktop bundles the engine supervisor (C03a)", () => {
 
   it("copies apps/engine/dist into win-unpacked/resources/engine when it exists", async () => {
     const engineDist = path.join(repoRoot, "apps", "engine", "dist");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await mkdir(engineDist, { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(engineDist, "main.js"), "// built engine supervisor\n");
 
     const result = await runBuildDesktop(ctx(), config, {
@@ -68,6 +70,7 @@ describe("build-desktop bundles the engine supervisor (C03a)", () => {
     });
     expect(result.engineBundled).toBe(true);
 
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const copied = await readFile(
       path.join(result.appDir, "win-unpacked", "resources", "engine", "main.js"),
       "utf8",
@@ -77,7 +80,9 @@ describe("build-desktop bundles the engine supervisor (C03a)", () => {
 
   it("copies into Contents/Resources/engine on mac", async () => {
     const engineDist = path.join(repoRoot, "apps", "engine", "dist");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await mkdir(engineDist, { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(engineDist, "main.js"), "// built engine supervisor\n");
 
     const result = await runBuildDesktop(ctx(), config, {
@@ -87,6 +92,7 @@ describe("build-desktop bundles the engine supervisor (C03a)", () => {
     });
     expect(result.engineBundled).toBe(true);
 
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const copied = await readFile(
       path.join(result.appDir, "Aksharo.app", "Contents", "Resources", "engine", "main.js"),
       "utf8",
@@ -96,7 +102,9 @@ describe("build-desktop bundles the engine supervisor (C03a)", () => {
 
   it("does not add the bundled engine's .js files to the nested-binary sign list", async () => {
     const engineDist = path.join(repoRoot, "apps", "engine", "dist");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await mkdir(engineDist, { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(engineDist, "main.js"), "// built engine supervisor\n");
 
     const result = await runBuildDesktop(ctx(), config, {

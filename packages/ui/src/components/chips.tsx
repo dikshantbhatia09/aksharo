@@ -83,7 +83,9 @@ export function StatusChip({
   className?: string;
 }): React.JSX.Element {
   return (
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     <Badge tone={STATUS_TONE[status]} className={className} data-testid="status-chip">
+      {/* eslint-disable-next-line security/detect-object-injection -- bracket access on `status`, a typed enum value, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion */}
       {STATUS_LABEL[status]}
     </Badge>
   );
@@ -120,6 +122,7 @@ export function LangChip({
   language: string;
   className?: string;
 }): React.JSX.Element {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const label = LANGUAGE_LABEL[language] ?? language;
   const script = scriptForLanguage(language);
   return (

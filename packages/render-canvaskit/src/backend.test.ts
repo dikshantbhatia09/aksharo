@@ -58,6 +58,7 @@ function decode(bytes: Uint8Array): Uint8Array {
 }
 
 function render(name: string): Uint8Array {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const list = commands[name];
   if (list === undefined) throw new Error(`no commands for ${name}`);
   return backend.renderToPng(list, {
@@ -219,6 +220,7 @@ describe("drawing", () => {
   it("reproduces every committed PNG baseline", () => {
     for (const frame of BASELINE_FRAMES) {
       const drawn = decode(render(frame.name));
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const baseline = decode(readFileSync(join(BASELINE_DIR, `${frame.name}.png`)));
       const diff = comparePixels(drawn, baseline);
       expect(

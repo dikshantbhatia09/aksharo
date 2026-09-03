@@ -49,6 +49,7 @@ const port = Number(process.env.FONTS_E2E_PORT ?? 4321);
 
 const server = createServer((request, response) => {
   const file = resolvePath(request.url ?? "/");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   if (file === undefined || !existsSync(file) || !statSync(file).isFile()) {
     response.writeHead(404, { "content-type": "text/plain" });
     response.end("not found");
@@ -58,6 +59,7 @@ const server = createServer((request, response) => {
     "content-type": TYPES[extname(file)] ?? "application/octet-stream",
     "cache-control": "no-store",
   });
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   createReadStream(file).pipe(response);
 });
 

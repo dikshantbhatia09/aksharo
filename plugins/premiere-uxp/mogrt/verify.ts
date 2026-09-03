@@ -94,7 +94,9 @@ export function verifyMogrtBuffer(buffer: Buffer, options: VerifyOptions = {}): 
   }
   const max = Math.max(definition.params.length, canonical.length);
   for (let i = 0; i < max; i++) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const actual = definition.params[i];
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const expected = canonical[i];
     if (!expected) {
       issues.push({

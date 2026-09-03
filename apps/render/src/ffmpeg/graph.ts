@@ -210,6 +210,7 @@ function buildCutList(input: GraphInput, withAudio: boolean): CutList {
 
 /** `concat` wants `[v0][a0][v1][a1]…`, not all the video then all the audio. */
 function interleave(video: readonly string[], audio: readonly string[]): string {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return video.map((label, index) => `${label}${audio[index] ?? ""}`).join("");
 }
 

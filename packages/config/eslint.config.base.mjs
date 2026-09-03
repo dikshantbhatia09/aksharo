@@ -53,24 +53,28 @@ const importOrder = {
 // `eslint-plugin-security`'s own `recommended` flat config ships every rule at
 // "warn" (docs/security/threat-model-audit-2026-09-03.md follow-up: "add
 // eslint-plugin-security ... scoped to apps/api/src"; applied repo-wide here
-// instead so every workspace gets the same floor). Kept at "warn" repo-wide
-// deliberately: C02c (2026-09-03) fixed the one real finding (a ReDoS-shaped
-// voice-tag regex in apps/api/src/media/import/subtitle-parsers.ts, parsing
-// attacker-controlled subtitle uploads) and drove the count to zero, with
-// every remaining warning annotated as a reviewed false positive, across only
-// its four named packages (apps/api, apps/web, packages/bridge-core,
-// apps/desktop — see each package's eslint.config.mjs, which promotes this
-// ruleset to "error" for itself). Every other package still has real,
-// unreviewed findings (packages/edg, apps/render, apps/engine, etc.) that are
-// out of this WP's file boundary to fix — promoting the shared default to
-// "error" would fail their lint for work this WP never did.
-export const securityRules = { ...securityPlugin.configs.recommended.rules };
-
-/** `securityRules` promoted from "warn" to "error", for a package whose
- * findings a WP has driven to zero and annotated (see the export above). */
-export const securityRulesStrict = Object.fromEntries(
-  Object.keys(securityRules).map((rule) => [rule, "error"]),
+// instead so every workspace gets the same floor). C02c (2026-09-03) drove
+// apps/api, apps/web, packages/bridge-core and apps/desktop to zero findings
+// (one real ReDoS-shaped regex fixed, the rest reviewed and annotated) and
+// promoted those four to "error" via a per-package `securityRulesStrict`
+// override. M06 (2026-09-03) repeated that review for every remaining
+// package — every finding across the rest of the monorepo was reviewed and
+// confirmed a false positive of this plugin's known-noisy heuristics (bounded
+// regexes flagged as "unsafe", enum-bounded bracket access flagged as
+// "object injection", internal/manifest-driven paths flagged as "non-literal
+// fs filename"; see the WP report for the rule-by-rule breakdown) and
+// annotated with a reasoned `eslint-disable-next-line`. With the whole repo
+// now at zero unreviewed findings, `securityRules` (still exported below for
+// anything that references it) is promoted to "error" as the shared default
+// instead of "warn" — no package needs the split any more.
+export const securityRules = Object.fromEntries(
+  Object.keys(securityPlugin.configs.recommended.rules).map((rule) => [rule, "error"]),
 );
+
+/** Kept as an alias of `securityRules` (now already "error" repo-wide) so a
+ * package that still imports `securityRulesStrict` from before M06 does not
+ * need an edit. Prefer `securityRules` in new code. */
+export const securityRulesStrict = securityRules;
 
 const unused = {
   "@typescript-eslint/no-unused-vars": [

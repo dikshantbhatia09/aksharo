@@ -20,6 +20,7 @@ import {
 const FIXTURES = join(__dirname, "..", "..", "fixtures");
 
 function fixture(name: string): unknown {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   return JSON.parse(readFileSync(join(FIXTURES, name), "utf8")) as unknown;
 }
 
@@ -40,6 +41,7 @@ describe("committed JSON Schemas", () => {
       expect(
         committed,
         `schemas/${fileName} is stale — run "pnpm --filter @montaj/edg schemas:build"`,
+        // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       ).toBe(rendered[fileName]);
     }
   });
@@ -48,6 +50,7 @@ describe("committed JSON Schemas", () => {
     expect(buildEdgJsonSchema()["$id"]).toBe(EDG_SCHEMA_ID);
     expect(buildEdgOpsJsonSchema()["$id"]).toBe(EDG_OPS_SCHEMA_ID);
     for (const fileName of JSON_SCHEMA_FILENAMES) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const raw = readFileSync(join(__dirname, "..", "..", "schemas", fileName), "utf8");
       expect(raw).not.toMatch(/aksharo|montaj\.ai/i);
     }

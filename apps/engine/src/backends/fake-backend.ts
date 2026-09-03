@@ -100,6 +100,7 @@ export class FakeBackend implements EngineBackend {
   async clean(request: CleanRequest): Promise<CleanResponse> {
     // No real denoise: the fake path returns the same file untouched but
     // through the same contract shape a real deep-filter call would answer.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const stats = await readFile(request.audio).catch(() => undefined);
     return {
       audio: request.audio,
@@ -113,6 +114,7 @@ export class FakeBackend implements EngineBackend {
   }
 
   async render(request: RenderRequest): Promise<RenderResponse> {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const raw = await readFile(request.drawCommandsPath, "utf8").catch(() => "[]");
     const frames = JSON.parse(raw) as unknown[];
     return {

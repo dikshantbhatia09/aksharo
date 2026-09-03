@@ -74,6 +74,7 @@ describe("the bundled pack as a v1 font pack", () => {
     // only place the two file lists can be compared.
     const sfnt = await fontFilesIn(PACK);
     const manifest = FontPackSchema.parse(
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       JSON.parse(readFileSync(join(PACK, FONT_PACK_MANIFEST), "utf8")),
     );
     expect(new Set(sfnt)).toEqual(new Set(manifest.fonts.map((font) => font.file)));

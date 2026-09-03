@@ -21,6 +21,7 @@ function scratch(files: Record<string, unknown>): string {
   const dir = mkdtempSync(join(tmpdir(), "montaj-styles-"));
   scratchDirs.push(dir);
   for (const [name, content] of Object.entries(files)) {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     writeFileSync(
       join(dir, name),
       typeof content === "string" ? content : JSON.stringify(content),
@@ -93,6 +94,7 @@ describe("loadSystemStyles", () => {
 
   it("rejects a style whose file name does not match its id", () => {
     const dir = scratch({
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       "wrong-name.json": readFileSync(join(STYLES_DIR, "punch-pop.json"), "utf8"),
     });
     expect(() => loadSystemStyles(dir)).toThrow(/file must be <id>\.json/);

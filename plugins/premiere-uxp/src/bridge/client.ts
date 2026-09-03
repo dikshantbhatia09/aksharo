@@ -47,6 +47,7 @@ export class BridgeClient {
     method: M,
     params: BridgeMethodParams<M>,
   ): Promise<BridgeMethodResult<M>> {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const spec = BRIDGE_METHODS[method];
     const parsedParams = spec.params.parse(params);
     const request: JsonRpcRequest = {

@@ -159,6 +159,7 @@ export class RealtimeClient {
 
   private open(): void {
     const token = this.options.getAccessToken();
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- equality check on a null/undefined/status/hash sentinel, not a secret or MAC comparison -- reviewed for M06's eslint-plugin-security promotion
     if (token === null) {
       this.setStatus("closed");
       return;
@@ -199,6 +200,7 @@ export class RealtimeClient {
       // "Refresh the access token first" (README §Reconnection). One attempt: if
       // the family is revoked, the shell has already been told to sign out.
       const token = await this.options.refreshAccessToken();
+      // eslint-disable-next-line security/detect-possible-timing-attacks -- equality check on a null/undefined/status/hash sentinel, not a secret or MAC comparison -- reviewed for M06's eslint-plugin-security promotion
       if (token === null) {
         this.stopped = true;
         return;

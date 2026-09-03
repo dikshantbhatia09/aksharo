@@ -74,11 +74,14 @@ export function buildSpans(edits: NormalisedEdits, sourceDurationMs: number): Ti
   };
 
   for (let i = 0; i < points.length; i += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const start = points[i] as number;
 
     // Freeze frames land before the span that starts here, so the frame at `start`
     // is shown from the hold's output start onwards.
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     while (holdIndex < holds.length && (holds[holdIndex] as HoldEdit).atMs === start) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       push("hold", start, start, (holds[holdIndex] as HoldEdit).durationMs, 1);
       holdIndex += 1;
     }
@@ -86,16 +89,20 @@ export function buildSpans(edits: NormalisedEdits, sourceDurationMs: number): Ti
     const end = points[i + 1];
     if (end === undefined) break;
 
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     while (cutIndex < cuts.length && (cuts[cutIndex] as CutEdit).endMs <= start) cutIndex += 1;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const cut = cuts[cutIndex];
     if (cut && cut.startMs <= start && end <= cut.endMs) {
       push("cut", start, end, 0, 1);
       continue;
     }
 
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     while (speedIndex < speeds.length && (speeds[speedIndex] as SpeedEdit).endMs <= start) {
       speedIndex += 1;
     }
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const speed = speeds[speedIndex];
     const factor = speed && speed.startMs <= start && end <= speed.endMs ? speed.factor : 1;
     push("retained", start, end, (end - start) / factor, factor);

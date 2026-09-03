@@ -32,7 +32,9 @@ export interface MogrtCaptionPlacement {
 export function resolveMogrtParams(params: MogrtCaptionParams): MogrtParams {
   const resolved: Record<string, string | number> = {};
   for (const name of MOGRT_PARAM_ORDER) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const value = params[name];
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     if (value !== undefined) resolved[name] = value;
   }
   return resolved;
@@ -41,6 +43,7 @@ export function resolveMogrtParams(params: MogrtCaptionParams): MogrtParams {
 /** `MOGRT_PARAM_ORDER`, 0-based — the index fallback for a host adapter that must address a
  * MOGRT's component params positionally rather than by `displayName`. */
 export function paramsByIndex(params: MogrtCaptionParams): (string | number | undefined)[] {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return MOGRT_PARAM_ORDER.map((name) => params[name]);
 }
 

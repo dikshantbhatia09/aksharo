@@ -42,6 +42,7 @@ export function UpgradeGate({
   children,
   className,
 }: UpgradeGateProps): React.JSX.Element {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const planName = PLAN_LABEL[requiredPlan] ?? requiredPlan;
   return (
     <div

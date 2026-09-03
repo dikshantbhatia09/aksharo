@@ -94,6 +94,7 @@ export async function runPublish(
 
   if (ctx.mode !== "signed") {
     const marker = path.join(destDir, "UNSIGNED_PUBLISH");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(
       marker,
       "dry-run publish — copied locally, R2 was never contacted\n",

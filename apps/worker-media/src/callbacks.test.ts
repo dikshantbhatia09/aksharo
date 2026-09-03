@@ -47,9 +47,12 @@ describe("internalSignatureHeaders", () => {
       body: "{}",
       now: 1_767_225_600_500,
     });
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     expect(headers[ATTEMPT_HEADER]).toBe(ATTEMPT);
     // The guard refuses anything ≥ 1e11 as "that looks like milliseconds".
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     expect(headers[TIMESTAMP_HEADER]).toBe("1767225600");
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     expect(headers[SIGNATURE_HEADER]).toHaveLength(64);
     expect(headers["content-type"]).toBe("application/json");
   });
@@ -74,9 +77,11 @@ describe("CallbackClient", () => {
     const headers = init.headers as Record<string, string>;
     const expected = signInternalRequest({
       secret: SECRET,
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       timestamp: headers[TIMESTAMP_HEADER] ?? "",
       body: init.body as string,
     });
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     expect(headers[SIGNATURE_HEADER]).toBe(expected);
     // Rounded to two places, and clamped into 0–100 by the schema's bounds.
     expect(JSON.parse(init.body as string)).toEqual({ progress: 42.13, message: "half way" });
@@ -153,6 +158,7 @@ describe("CallbackClient", () => {
     });
     await client.complete(JOB, ATTEMPT, { status: "succeeded" });
     const signatures = fetchImpl.mock.calls.map(
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       ([, init]) => ((init as RequestInit).headers as Record<string, string>)[SIGNATURE_HEADER],
     );
     expect(signatures).toHaveLength(2);

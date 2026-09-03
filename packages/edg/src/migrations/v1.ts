@@ -127,6 +127,7 @@ function chunkIndexesFromSizes(wordCount: number, chunkSizes: readonly number[])
   for (let index = 0; index < wordCount; index += 1) {
     while (remaining <= 0 && chunkIdx < chunkSizes.length - 1) {
       chunkIdx += 1;
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       remaining = chunkSizes[chunkIdx] ?? 0;
     }
     if (remaining <= 0) {
@@ -152,6 +153,7 @@ function allocateWordIds(document: EdgV1Document): Allocated {
   const counters = new Map<number, number>();
 
   for (const [index, word] of document.words.entries()) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const chunkIdx = chunkIndexes[index] ?? 0;
     const n = counters.get(chunkIdx) ?? 0;
     counters.set(chunkIdx, n + 1);
@@ -186,6 +188,7 @@ function allocateWordIds(document: EdgV1Document): Allocated {
 }
 
 function wordIdAt(ids: readonly WordId[], index: number, label: string): WordId {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const wordId = ids[index];
   if (wordId === undefined) {
     throw new MigrationError(`${label} points at word ${index}, past the end of the transcript`);
@@ -218,13 +221,18 @@ export function migrateV1ToV2(input: unknown): EdgSnapshot {
     }
     const startWordId = wordIdAt(ids, from, `segment ${legacy.id}`);
     const endWordId = wordIdAt(ids, to, `segment ${legacy.id}`);
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const firstWord = document.words[from];
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const lastWord = document.words[to];
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const seq = keys[index];
     if (seq === undefined) throw new MigrationError("seqSequence returned too few keys");
 
     const textOverrides: Record<string, string> = { ...legacy.textOverrides };
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     if (legacy.text !== undefined && textOverrides[primaryScript] === undefined) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       textOverrides[primaryScript] = legacy.text;
     }
 

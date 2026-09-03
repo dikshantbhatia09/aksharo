@@ -123,6 +123,7 @@ describe("EdgOp union", () => {
     expect(EDG_OP_TYPES).toHaveLength(18);
   });
 
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   it.each(EDG_OP_TYPES.map((type) => [type, samples[type]] as const))(
     "round-trips %s through Zod and JSON",
     (type, sample) => {

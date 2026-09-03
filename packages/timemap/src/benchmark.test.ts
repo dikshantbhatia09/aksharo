@@ -39,6 +39,7 @@ function probes(count: number, max: number): number[] {
   let state = 0x9e3779b9;
   for (let i = 0; i < count; i += 1) {
     state = (state * 1_664_525 + 1_013_904_223) >>> 0;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     out[i] = state % max;
   }
   return out;
@@ -47,8 +48,10 @@ function probes(count: number, max: number): number[] {
 /** Runs `lookup` over every point, after a warm-up, and returns the milliseconds taken. */
 function time(points: readonly number[], lookup: (ms: number) => number): number {
   let sink = 0;
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   for (let i = 0; i < 10_000; i += 1) sink += lookup(points[i] as number);
   const started = performance.now();
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   for (let i = 0; i < points.length; i += 1) sink += lookup(points[i] as number);
   const elapsed = performance.now() - started;
   if (sink < 0) throw new Error("unreachable; keeps the loop from being optimised away");

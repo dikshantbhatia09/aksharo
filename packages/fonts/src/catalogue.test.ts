@@ -69,6 +69,7 @@ describe("the catalogue", () => {
         if (face.file !== undefined) continue;
         for (const axis of axes) {
           expect(
+            // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
             face.axes?.[axis],
             `${family.family} ${String(face.weight)} leaves ${axis} unpinned`,
           ).toBeDefined();

@@ -46,6 +46,7 @@ describe("FakeBackend", () => {
     });
     expect(result.words).toHaveLength(3);
     for (let i = 1; i < result.words.length; i++) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(result.words[i]!.start).toBeGreaterThanOrEqual(result.words[i - 1]!.end);
     }
   });

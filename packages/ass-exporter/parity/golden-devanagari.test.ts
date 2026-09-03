@@ -119,6 +119,7 @@ describe("Devanagari shaping=complex golden", () => {
       // also wrong).
       let differing = 0;
       for (let i = 0; i < pixels.length; i += 4) {
+        // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
         const r = pixels[i] ?? 0;
         const g = pixels[i + 1] ?? 0;
         const b = pixels[i + 2] ?? 0;

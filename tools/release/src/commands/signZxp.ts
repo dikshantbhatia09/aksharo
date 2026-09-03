@@ -43,6 +43,7 @@ export async function runSignZxp(
     placeholderPlugin = true;
     sourceDir = path.join(ctx.outDir, "build-zxp", "placeholder-plugin");
     await ensureDir(path.join(sourceDir, "CSXS"));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(
       path.join(sourceDir, "CSXS", "manifest.xml"),
       `<?xml version="1.0" encoding="UTF-8"?>\n<ExtensionManifest ExtensionBundleId="${PLUGIN_IDS.afterEffectsCep}" ExtensionBundleVersion="${opts.version}" Version="10.0" />\n`,
@@ -80,6 +81,7 @@ export async function runSignZxp(
   }
 
   await fs.copyFile(unsignedZxp, zxpPath);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   await fs.writeFile(
     `${zxpPath}.UNSIGNED`,
     "UNSIGNED (dry-run) — self-signed dev cert would be used in a real run\n",

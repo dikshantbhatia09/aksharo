@@ -69,6 +69,7 @@ export async function runApply(
   try {
     await host.transaction(`apply:${transactionId}`, async () => {
       for (let i = 0; i < input.modes.length; i += 1) {
+        // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
         const mode = input.modes[i];
         if (mode === undefined) continue;
         await input.step(mode, i);

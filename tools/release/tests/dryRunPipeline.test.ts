@@ -166,6 +166,7 @@ describe("dry-run pipeline (no real signing, no real network)", () => {
     });
 
     expect(publish.pluginManifestPath).toBeDefined();
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const raw = await readFile(publish.pluginManifestPath as string, "utf8");
     const manifest = JSON.parse(raw) as {
       channel: string;

@@ -42,7 +42,9 @@ describe("the scheduled languages", () => {
 
   it("has a sample and a name for every tag", () => {
     for (const tag of SCRIPT_TAGS) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(SCRIPT_NAMES[tag]).toBeTruthy();
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(SCRIPT_SAMPLES[tag].length).toBeGreaterThan(2);
     }
   });
@@ -50,6 +52,7 @@ describe("the scheduled languages", () => {
   it("writes each sample in the script it names", () => {
     for (const tag of SCRIPT_TAGS) {
       if (tag === "Latn") continue;
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const inScript = [...SCRIPT_SAMPLES[tag]].filter((character) => {
         const code = character.codePointAt(0) ?? 0;
         return scriptsOfCodePoint(code).includes(tag);
@@ -62,6 +65,7 @@ describe("the scheduled languages", () => {
 describe("script ranges", () => {
   it("gives every tag at least one range and one required set", () => {
     for (const tag of SCRIPT_TAGS) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(SCRIPT_RANGES[tag].length).toBeGreaterThan(0);
       expect(requiredCodePoints(tag).length).toBeGreaterThan(0);
     }

@@ -77,6 +77,7 @@ export function JobProgress({
                 {done ? <Check className="size-3" aria-hidden="true" /> : null}
                 {active ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : null}
                 {failed && current ? <AlertTriangle className="size-3" aria-hidden="true" /> : null}
+                {/* eslint-disable-next-line security/detect-object-injection -- bracket access on `item`, a typed enum value, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion */}
                 {STAGE_LABEL[item]}
               </span>
             </li>
@@ -85,6 +86,7 @@ export function JobProgress({
       </ol>
 
       {progress !== undefined && !failed && stage !== "ready" ? (
+        // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
         <ProgressBar value={progress} label={`${STAGE_LABEL[stage]} progress`} />
       ) : null}
 

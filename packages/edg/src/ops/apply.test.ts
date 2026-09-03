@@ -935,6 +935,7 @@ describe("normaliseProtectedRanges", () => {
       }
       for (let i = 1; i < ranges.length; i += 1) {
         const previous = ranges[i - 1];
+        // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
         const current = ranges[i];
         if (previous === undefined || current === undefined) continue;
         expect(previous.e).toBeLessThan(current.s);

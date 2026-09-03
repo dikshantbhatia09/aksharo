@@ -287,6 +287,7 @@ export function expandRanges(ranges: readonly CodePointRange[]): number[] {
 /** The code points to keep when subsetting for `tags` (always plus the common set). */
 export function subsetCodePoints(tags: readonly ScriptTag[]): number[] {
   const ranges: CodePointRange[] = [...COMMON_RANGES];
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   for (const tag of tags) ranges.push(...SCRIPT_RANGES[tag]);
   return expandRanges(ranges);
 }
@@ -308,12 +309,14 @@ export function subsetText(tags: readonly ScriptTag[]): string {
 
 /** The code points a face must cover to be allowed to claim `tag`. */
 export function requiredCodePoints(tag: ScriptTag): number[] {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return expandRanges(REQUIRED_CODE_POINTS[tag]);
 }
 
 /** The tags whose blocks contain `code`, for "what is this font actually for". */
 export function scriptsOfCodePoint(code: number): ScriptTag[] {
   return SCRIPT_TAGS.filter((tag) =>
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     SCRIPT_RANGES[tag].some(([first, last]) => code >= first && code <= last),
   );
 }

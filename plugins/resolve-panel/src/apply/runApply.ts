@@ -30,6 +30,7 @@ export async function runApply(
 
   try {
     for (let i = 0; i < input.itemIds.length; i += 1) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const itemId = input.itemIds[i];
       const { accepted } = await client.call<{ accepted: boolean }>("apply.step", {
         transactionId,

@@ -67,6 +67,7 @@ async function main(): Promise<void> {
   const cpuCount = Number(flag("cpus", String(cpus().length)));
   const encoder = flag("encoder", "libx264") as VideoEncoder;
   const workersFlag = flag("workers", "");
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const preset = PRESETS[presetName];
   if (preset === undefined) {
     throw new Error(`unknown preset ${presetName}; try ${Object.keys(PRESETS).join(", ")}`);

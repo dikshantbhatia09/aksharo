@@ -123,6 +123,7 @@ function ratioFor(
 }
 
 function budgetFor(name: string): number {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return KNOWN_TEXT_RESIDUALS[name] ?? PARITY_MAX_DIFF_RATIO;
 }
 
@@ -131,6 +132,7 @@ describe("A16's baseline frames", () => {
     "%s draws the same picture in both backends (%s)",
     (name) => {
       const ratio = ratioFor(
+        // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
         baselines[name] ?? [],
         BASELINE_CANVAS.width,
         BASELINE_CANVAS.height,
@@ -154,6 +156,7 @@ describe("the four caption fixtures at three instants", () => {
   it.each([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])(
     "fixture frame %i matches the browser",
     (index) => {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const frame = sweep[index];
       expect(frame).toBeDefined();
       if (frame === undefined) return;
@@ -464,6 +467,7 @@ describe("the backdrop blur, clipped to its bounds in both backends", () => {
     );
     for (let index = 0; index < plain.length; index += 4) {
       if (inside(index)) continue;
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(withPanel[index]).toBe(plain[index]);
       expect(withPanel[index + 3]).toBe(plain[index + 3]);
     }
