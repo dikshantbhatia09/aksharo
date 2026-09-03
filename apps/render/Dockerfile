@@ -14,7 +14,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1 — install and build the workspace
 # ---------------------------------------------------------------------------
-FROM node:22-bookworm-slim AS build
+FROM node:22-trixie-slim AS build
 
 ENV PNPM_HOME=/usr/local/bin
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
@@ -75,18 +75,21 @@ RUN pnpm --filter @montaj/render... --filter '!@montaj/fonts' --filter '!@montaj
 # ---------------------------------------------------------------------------
 # Stage 2 — runtime
 # ---------------------------------------------------------------------------
-FROM node:22-bookworm-slim AS runtime
+FROM node:22-trixie-slim AS runtime
 
 # ffmpeg does everything except the captions: decode, cut, scale, crop,
 # composite, encode, mux. There is no pure-JS fallback, so a missing binary is a
 # boot failure (`assertMediaToolsAvailable`).
 #
-# **Version.** Bookworm ships ffmpeg 7.x; the service is developed against 9.x
-# and refuses anything below major 6 (`src/ffmpeg/tools.ts`). Both are ABI-fine
-# for this filter graph, and the pin that actually matters for output stability
-# is the base image tag. When the image moves to a build with a different libass
-# configuration, re-run D35's `shaping=complex` check against the Devanagari and
-# Tamil fixtures before shipping.
+# **Version.** Bookworm's apt archive actually ships ffmpeg 5.1.x (below this
+# service's own major-6 floor in `src/ffmpeg/tools.ts` — `assertMediaToolsAvailable`
+# refused to start on it, caught by M17 bringing up the full e2e stack for the
+# first time); trixie ships 7.x, same as `apps/worker-media/Dockerfile` already
+# uses for the same reason. Both 7.x and the 9.x this service is developed
+# against are ABI-fine for this filter graph, and the pin that actually matters
+# for output stability is the base image tag. When the image moves to a build
+# with a different libass configuration, re-run D35's `shaping=complex` check
+# against the Devanagari and Tamil fixtures before shipping.
 #
 # The apt versions are deliberately NOT pinned: Debian's security archive drops
 # the superseded build the moment it publishes a fix, so a pinned line turns
@@ -100,10 +103,15 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY --from=build /app ./
-# `workers/raster-worker.mjs` is loaded by `worker_threads` at runtime and is not
-# part of the `tsc` output, so it is copied explicitly rather than trusted to
-# whatever `pnpm deploy` decided about a package with no `files` field.
-COPY --from=build /repo/apps/render/workers ./apps/render/workers
+# `pnpm deploy` flattens the deployed package to the target directory root —
+# `/app/dist/index.js`, not `/app/apps/render/dist/index.js` (this Dockerfile's
+# `CMD` used to reference the latter, a stale path that made the container
+# crash-loop on every boot with `MODULE_NOT_FOUND`; the `HEALTHCHECK` below
+# only ever probed `ffmpeg -version`, so compose reported the service healthy
+# regardless — caught by M17 while bringing up the full e2e stack). Fixed
+# below; `workers/raster-worker.mjs` (loaded by `worker_threads` at runtime,
+# not part of `tsc` output) is copied to the matching flattened location.
+COPY --from=build /repo/apps/render/workers ./workers
 
 # Scratch space for the downloaded source and the encoder's output. It is a
 # volume in the chart: a render writes gigabytes and the image stays read-only.
@@ -123,4 +131,4 @@ USER render
 HEALTHCHECK --interval=60s --timeout=10s --start-period=20s --retries=3 \
     CMD ffmpeg -version > /dev/null 2>&1 || exit 1
 
-CMD ["node", "apps/render/dist/index.js"]
+CMD ["node", "dist/index.js"]

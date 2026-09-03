@@ -6,19 +6,19 @@
 #   pnpm e2e:stack up      # docker compose -p montaj-e2e -f docker-compose.test.yml up -d --build
 #   pnpm e2e:stack down    # ... down -v
 #
-# ## Known gap (reported, not fixed here — outside this work package's file
-# ## boundary, which lists only `apps/api/prisma/seed-sample.ts` and
-# ## `apps/web/e2e/**`, not the rest of either app)
+# ## M17 (2026-09-03): api/web now have real Dockerfiles
 #
-# `apps/worker-media`, `apps/worker-ai` and `apps/render` already have a
-# `Dockerfile` (built by A07/A10/A20); `apps/api` and `apps/web` do not. Rather
-# than add production Dockerfiles for those two apps from inside an e2e work
-# package, `api` and `web` below run from the shared `node:22-bookworm-slim`
-# image against the mounted repo (`pnpm install --frozen-lockfile`, `nest
-# build`/`next build`, then start) — slower to boot than a prebuilt image, but
-# it does not require a decision (multi-stage layout, base image, non-root
-# user) that belongs to whoever eventually owns `apps/api/Dockerfile` /
-# `apps/web/Dockerfile`. Flagged in the final report as an open item.
+# `apps/worker-media`, `apps/worker-ai` and `apps/render` already had a
+# `Dockerfile` (built by A07/A10/A20); `apps/api` and `apps/web` previously did
+# not — those two services ran from the shared `node:22-bookworm-slim` image
+# against the mounted repo (`pnpm install --frozen-lockfile`, `nest
+# build`/`next build`, then start) on every container start, which ran a full
+# monorepo install inside the compose `--wait` health window and reliably blew
+# it. `apps/api/Dockerfile` and `apps/web/Dockerfile` (turbo-prune multi-stage,
+# same shape as `apps/worker-media/Dockerfile`) fix that: install and build
+# happen once at image build time, migrations run in a one-shot `api-migrate`
+# service before `api` is even created, and both containers now boot with
+# nothing left to do but start the already-built process.
 #
 # The brief names `AI_PROVIDER=mock` for worker-ai's mock mode; the setting
 # that actually exists (`apps/worker-ai/worker_ai/settings.py`) is
@@ -106,9 +106,11 @@ services:
     restart: "no"
 
   api:
-    image: node:22-bookworm-slim
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runtime
     container_name: montaj-e2e-api
-    working_dir: /repo
     depends_on:
       postgres:
         condition: service_healthy
@@ -116,9 +118,8 @@ services:
         condition: service_healthy
       minio-bootstrap:
         condition: service_completed_successfully
-    volumes:
-      - .:/repo
-      - e2e-node-modules:/repo/node_modules
+      api-migrate:
+        condition: service_completed_successfully
     environment: &api-env
       NODE_ENV: development
       DATABASE_URL: postgresql://montaj:montaj@postgres:5432/montaj_e2e?schema=public
@@ -134,7 +135,7 @@ services:
       R2_SECRET_KEY: montaj-e2e-secret
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
-      INTERNAL_CALLBACK_SECRET: ${INTERNAL_CALLBACK_SECRET:-e2e-internal-callback-secret}
+      INTERNAL_CALLBACK_SECRET: ${INTERNAL_CALLBACK_SECRET:-e2e-internal-callback-secret-0123456789}
       LLM_PROVIDER: mock
       GPU_PROVIDER: none
       API_PORT: "3001"
@@ -150,14 +151,11 @@ services:
     # a single container command cannot both start that server and be a step
     # that runs before it. `pnpm e2e:stack up` (`scripts/e2e-stack.mjs`) runs
     # it as a follow-up `docker compose exec` once the healthcheck below
-    # passes.
-    command: >
-      sh -c "corepack enable && corepack prepare pnpm@9.15.9 --activate &&
-             pnpm install --frozen-lockfile &&
-             pnpm --filter @montaj/api exec prisma migrate deploy &&
-             pnpm --filter @montaj/api exec tsx prisma/seed.ts &&
-             pnpm --filter @montaj/api exec nest build &&
-             pnpm --filter @montaj/api start"
+    # passes. Migrations + the base seed now run in `api-migrate` (below),
+    # a one-shot service that must complete before this one is even created
+    # (`depends_on: service_completed_successfully`) — the image built from
+    # `apps/api/Dockerfile`'s `runtime` target has nothing left to do at boot
+    # but `node dist/main.js`.
     ports:
       - "${E2E_API_PORT:-59923}:3001"
     healthcheck:
@@ -170,29 +168,42 @@ services:
         ]
       interval: 5s
       timeout: 5s
-      retries: 60
-      start_period: 30s
+      retries: 20
+      start_period: 15s
+
+  # One-shot: `prisma migrate deploy` then the base seed, run from the same
+  # pruned/built workspace as `api`'s `runtime` target (the `migrate` target
+  # keeps devDependencies, so the `prisma` CLI and `tsx` are on PATH) but
+  # against a full `/repo` checkout rather than the deployed `/app` tree,
+  # since the seed script and Prisma CLI need the source layout. Runs once
+  # and exits; `api` will not even be created until this reports
+  # `service_completed_successfully`.
+  api-migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrate
+    container_name: montaj-e2e-api-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: *api-env
+    restart: "no"
 
   web:
-    image: node:22-bookworm-slim
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runtime
     container_name: montaj-e2e-web
-    working_dir: /repo
     depends_on:
       api:
         condition: service_healthy
-    volumes:
-      - .:/repo
-      - e2e-node-modules:/repo/node_modules
     environment:
       NODE_ENV: production
       API_ORIGIN: http://api:3001
       WEB_ORIGIN: http://web:3000
       FEATURE_FLAGS_JSON: "{}"
-    command: >
-      sh -c "corepack enable && corepack prepare pnpm@9.15.9 --activate &&
-             pnpm install --frozen-lockfile &&
-             pnpm --filter @montaj/web exec next build &&
-             pnpm --filter @montaj/web exec next start --port 3000"
     ports:
       - "${E2E_WEB_PORT:-59924}:3000"
     healthcheck:
@@ -231,7 +242,7 @@ services:
     environment:
       DATABASE_URL: postgresql://montaj:montaj@postgres:5432/montaj_e2e?schema=public
       REDIS_URL: redis://redis:6379
-      INTERNAL_CALLBACK_SECRET: ${INTERNAL_CALLBACK_SECRET:-e2e-internal-callback-secret}
+      INTERNAL_CALLBACK_SECRET: ${INTERNAL_CALLBACK_SECRET:-e2e-internal-callback-secret-0123456789}
       API_ORIGIN: http://api:3001
       LLM_PROVIDER: mock
       GPU_PROVIDER: none
@@ -257,4 +268,3 @@ volumes:
   e2e-postgres-data:
   e2e-redis-data:
   e2e-minio-data:
-  e2e-node-modules:

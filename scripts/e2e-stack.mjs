@@ -28,8 +28,22 @@ switch (action) {
     run(["up", "-d", "--build", "--wait"]);
     // `db:seed:sample` needs the API already listening (it drives the real
     // `POST /transcribe` path) — see docker-compose.test.yml's `api` service
-    // comment. Run it now, inside the container, against `localhost` there.
-    run(["exec", "api", "pnpm", "--filter", "@montaj/api", "db:seed:sample"]);
+    // comment. It used to run inside the container via `docker compose
+    // exec`, but `api`'s image (M17) is now a `pnpm deploy --prod` runtime
+    // with no devDependencies — `tsx` (which `db:seed:sample` needs) is not
+    // on PATH there. Run it on the HOST instead, against the stack's exposed
+    // port: `seed-sample.ts` only ever talks to `API_ORIGIN` over HTTP plus
+    // Prisma directly, both of which work the same from outside the compose
+    // network as long as `.env` points at the exposed ports.
+    {
+      const seedResult = spawnSync("pnpm", ["--filter", "@montaj/api", "db:seed:sample"], {
+        stdio: "inherit",
+        shell: process.platform === "win32",
+      });
+      if (seedResult.status !== 0) {
+        process.exit(seedResult.status ?? 1);
+      }
+    }
     break;
   case "down":
     run(["down", "-v"]);

@@ -173,6 +173,21 @@ async function main() {
   // the JWT keypair and callback secret every step downstream reads.
   writeCloneEnv(cloneDir);
 
+  // --- 2.6. Build workspace packages -----------------------------------------
+  // `db:seed`/`db:seed:sample` (step 4, run on the HOST against the clone's
+  // own source via `tsx`) import compiled workspace packages such as
+  // `@montaj/config` (`apps/api/prisma/seed.ts` imports `BRAND` from it) —
+  // `pnpm install` alone does not build them, only `postinstall`'s
+  // `prisma generate`. Without this, `db:seed` fails to resolve those
+  // packages' `dist/` on a fresh clone (2026-09-03 attempt, see
+  // `GATE-B-CHECKLIST.md`).
+  const build = runInClone("pnpm build", "pnpm", ["-w", "build"]);
+  if (build.status !== 0) {
+    await writeSummary(overallStart, cloneDir);
+    if (!args.keepClone) rmSync(cloneDir, { recursive: true, force: true });
+    process.exit(1);
+  }
+
   // --- 3. Compose up ---------------------------------------------------------
   // Uses the clone's own copy of the compose file (the fresh clone is what
   // is being verified) against the shared Docker daemon.
