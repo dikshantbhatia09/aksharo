@@ -22,6 +22,12 @@ export interface RuntimeConfig {
   /** `FEATURE_FLAGS_JSON` (CONTRACTS §1), parsed. */
   flags: Record<string, boolean>;
   environment: string;
+  /** Whether both halves of the Google OAuth client are configured. */
+  googleOAuthEnabled: boolean;
+  /** Whether the complete Razorpay checkout credential set is configured. */
+  razorpayEnabled: boolean;
+  /** Development-only sign-up shortcut, effective only with the dev mail outbox. */
+  authDevAutoVerify: boolean;
 }
 
 import { parseFlags } from "./flags";
@@ -35,6 +41,7 @@ function optional(name: string): string | null {
 }
 
 export function readRuntimeConfig(): RuntimeConfig {
+  const mailProvider = optional("MAIL_PROVIDER") ?? "dev";
   return {
     apiOrigin: optional("API_ORIGIN") ?? "http://localhost:3001",
     posthogKey: optional("POSTHOG_KEY"),
@@ -42,5 +49,13 @@ export function readRuntimeConfig(): RuntimeConfig {
     sentryDsn: optional("SENTRY_DSN"),
     flags: parseFlags(optional("FEATURE_FLAGS_JSON")),
     environment: optional("NODE_ENV") ?? "development",
+    googleOAuthEnabled:
+      optional("GOOGLE_OAUTH_CLIENT_ID") !== null &&
+      optional("GOOGLE_OAUTH_CLIENT_SECRET") !== null,
+    razorpayEnabled:
+      optional("RAZORPAY_KEY_ID") !== null &&
+      optional("RAZORPAY_KEY_SECRET") !== null &&
+      optional("RAZORPAY_WEBHOOK_SECRET") !== null,
+    authDevAutoVerify: mailProvider === "dev" && optional("AUTH_DEV_AUTO_VERIFY") === "1",
   };
 }

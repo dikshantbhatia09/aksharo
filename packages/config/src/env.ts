@@ -30,6 +30,7 @@ export const CONTRACT_ENV_VARS = [
   "INTERNAL_CALLBACK_SECRET_NEXT",
   "GOOGLE_OAUTH_CLIENT_ID",
   "GOOGLE_OAUTH_CLIENT_SECRET",
+  "AUTH_DEV_AUTO_VERIFY",
   "LICENSE_SIGNING_KID",
   "WEB_ORIGIN",
   "API_ORIGIN",
@@ -163,6 +164,10 @@ export const envSchema = z.object({
   ),
   GOOGLE_OAUTH_CLIENT_ID: optionalSecret(),
   GOOGLE_OAUTH_CLIENT_SECRET: optionalSecret(),
+  AUTH_DEV_AUTO_VERIFY: z
+    .enum(["0", "1"])
+    .default("0")
+    .transform((value) => value === "1"),
   // Identifies which key pair signed a licence-key offline payload (B08). Reuses
   // JWT_PRIVATE_KEY/JWT_PUBLIC_KEY rather than a third secret; bump this when the
   // key pair rotates so a cached offline snapshot can be told apart from a fresh one.

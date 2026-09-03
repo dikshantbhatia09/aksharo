@@ -144,6 +144,16 @@ describe("loadEnv", () => {
     expect(env.RAZORPAY_KEY_ID).toBeUndefined();
   });
 
+  it("parses AUTH_DEV_AUTO_VERIFY as an opt-in 0/1 switch", () => {
+    expect(loadEnv({ source: validEnv() }).AUTH_DEV_AUTO_VERIFY).toBe(false);
+    expect(loadEnv({ source: validEnv({ AUTH_DEV_AUTO_VERIFY: "1" }) }).AUTH_DEV_AUTO_VERIFY).toBe(
+      true,
+    );
+    expect(() => loadEnv({ source: validEnv({ AUTH_DEV_AUTO_VERIFY: "true" }) })).toThrow(
+      EnvValidationError,
+    );
+  });
+
   it("parses FEATURE_FLAGS_JSON and rejects non-objects", () => {
     const env = loadEnv({ source: validEnv({ FEATURE_FLAGS_JSON: '{"newEditor":true}' }) });
     expect(env.FEATURE_FLAGS_JSON).toEqual({ newEditor: true });

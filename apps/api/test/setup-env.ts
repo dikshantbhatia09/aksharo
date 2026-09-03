@@ -31,6 +31,7 @@ const TEST_ENV: Record<string, string> = {
   // actually delivered — turns it back on for itself.
   NOTIFY_WORKER_ENABLED: "0",
   MAIL_PROVIDER: "dev",
+  AUTH_DEV_AUTO_VERIFY: "0",
   MAIL_FROM: "",
   SMTP_URL: "",
   DATABASE_URL: "postgresql://montaj:montaj@localhost:5432/montaj_test?schema=public",

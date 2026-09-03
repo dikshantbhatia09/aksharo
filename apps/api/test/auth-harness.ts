@@ -316,6 +316,7 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
   // wrote. `setup-env.ts` turns the consumer off for every other suite.
   process.env["NOTIFY_WORKER_ENABLED"] = "1";
   process.env["MAIL_PROVIDER"] = "dev";
+  process.env["AUTH_DEV_AUTO_VERIFY"] = "0";
   resetEnvCache();
 
   // Must run before `AppModule`'s providers register their `@OnEvent`

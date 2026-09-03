@@ -56,6 +56,7 @@ const PLACEHOLDER_ENV: Record<string, string> = {
   // A25: same reason — the notify consumer's `Worker` would block on Redis.
   NOTIFY_WORKER_ENABLED: "0",
   MAIL_PROVIDER: "dev",
+  AUTH_DEV_AUTO_VERIFY: "0",
   DATABASE_URL: "postgresql://localhost:5432/unused?schema=public",
   REDIS_URL: "redis://localhost:6379",
   S3_ENDPOINT: "http://localhost:9000",

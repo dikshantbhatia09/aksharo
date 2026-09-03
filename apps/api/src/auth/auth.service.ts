@@ -1,4 +1,6 @@
-import { HttpStatus, Injectable, Logger } from "@nestjs/common";
+import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
+
+import type { Env } from "@montaj/config";
 
 import { evaluateAgeGate, isPlausibleDateOfBirth } from "./age-gate.js";
 import { AUTH_AUDIT_ACTIONS, AuthAuditService } from "./auth-audit.service.js";
@@ -11,10 +13,12 @@ import {
   URL_TOKEN_BYTES,
 } from "./auth.constants.js";
 import { BreachedPasswordService } from "./breached-password.service.js";
+import { devAutoVerifyEnabled } from "./dev-auto-verify.js";
 import { PasswordService } from "./password.service.js";
 import { SessionService } from "./session.service.js";
 import { randomToken, sha256Hex } from "./tokens.js";
 import { AppException, ERROR_CODES, PrismaService, RedisService } from "../common/index.js";
+import { ENV } from "../config/config.module.js";
 import { parentalWaitlistRow } from "../privacy/parental-waitlist.js";
 import { normaliseEmail, UsersService } from "../users/users.service.js";
 
@@ -77,6 +81,7 @@ export class AuthService {
     private readonly breaches: BreachedPasswordService,
     private readonly mailer: AuthMailerService,
     private readonly audit: AuthAuditService,
+    @Inject(ENV) private readonly env: Env,
   ) {}
 
   async signUp(input: SignUpInput): Promise<SignUpResult> {
@@ -143,10 +148,21 @@ export class AuthService {
 
     // The row was written a line ago, so its locale and name are the input's —
     // reading them back would be a query for values already in hand.
-    await this.sendVerificationEmail(created.userId, email, {
+    const verificationLink = await this.sendVerificationEmail(created.userId, email, {
       locale: input.locale ?? null,
       name: input.name ?? null,
     });
+    const autoVerified = devAutoVerifyEnabled(this.env);
+    if (autoVerified) {
+      await this.users.markEmailVerified(created.userId);
+      // Deliberately includes the single-use URL: this branch is reachable only
+      // with MAIL_PROVIDER=dev, where surfacing would-be mail is the purpose of
+      // the local outbox. The policy helper makes it impossible on SMTP/SES.
+      this.logger.log(
+        { userId: created.userId, verificationLink },
+        "development sign-up auto-verified; would-be verification link",
+      );
+    }
     await this.audit.record({
       action: AUTH_AUDIT_ACTIONS.signupStarted,
       resource: "user",
@@ -154,7 +170,7 @@ export class AuthService {
       actorId: created.userId,
       workspaceId: created.workspaceId,
       ...(input.ip === undefined ? {} : { ip: input.ip }),
-      data: { jurisdiction: input.jurisdiction, ageBracket: verdict.ageBracket },
+      data: { jurisdiction: input.jurisdiction, ageBracket: verdict.ageBracket, autoVerified },
     });
 
     return { status: "verification_sent", email };
@@ -453,8 +469,9 @@ export class AuthService {
     userId: string,
     email: string,
     recipient: MailRecipient = {},
-  ): Promise<void> {
+  ): Promise<string> {
     const token = randomToken(URL_TOKEN_BYTES);
+    const link = this.mailer.webLink("/auth/verify-email", { token });
     await this.redis.client.set(
       redisKeys.emailVerification(sha256Hex(token)),
       userId,
@@ -465,9 +482,10 @@ export class AuthService {
       to: email,
       template: "email_verification",
       token,
-      link: this.mailer.webLink("/auth/verify-email", { token }),
+      link,
       ...mailRecipient(recipient),
     });
+    return link;
   }
 
   /**
