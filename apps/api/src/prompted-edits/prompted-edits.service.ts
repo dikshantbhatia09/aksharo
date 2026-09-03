@@ -8,7 +8,6 @@ import { PLANNER_CLIENT } from "./planner-client.js";
 import { PROMPTED_EDIT_CHAIN_ORDER, PROMPTED_EDIT_ERROR_CODES } from "./prompted-edits.errors.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
-import { CREDITS_FACADE } from "../credits/credits.facade.js";
 import { EdgService } from "../edg/index.js";
 import { resolveWorkspacePlan } from "../jobs/plan.js";
 import { quotePromptedEdit } from "../passes/passes.quote.js";
@@ -17,7 +16,6 @@ import { paramsFor, startChainKind } from "../passes/prompted-chain.js";
 import { TranscriptsRepository } from "../transcripts/transcripts.repository.js";
 
 import type { PlannerClient } from "./planner-client.js";
-import type { CreditsFacade } from "../credits/credits.facade.js";
 import type { MediaAsset, PromptedEditPlan, Project, Transcript } from "@prisma/client";
 
 /**
@@ -62,7 +60,6 @@ export class PromptedEditsService {
     private readonly transcripts: TranscriptsRepository,
     private readonly edg: EdgService,
     private readonly passes: PassesService,
-    @Inject(CREDITS_FACADE) private readonly credits: CreditsFacade,
     @Inject(PLANNER_CLIENT) private readonly planner: PlannerClient,
   ) {}
 
@@ -153,21 +150,29 @@ export class PromptedEditsService {
     const finishedDurationMs = await this.passes.finishedDurationMs(projectId, workspaceId);
     const tier = row.engine === "pro" ? "pro" : "flash";
     const quote = quotePromptedEdit(row.sourceDurationMs, finishedDurationMs, tier);
-    const hold = await this.credits.reserve({
-      workspaceId,
-      jobId: row.id,
-      worstCaseTenths: quote.holdTenths,
-      reason: quote.reason,
-    });
 
+    // `CreditHold.jobId` is a real, unique foreign key into `jobs` (schema.prisma)
+    // -- `CreditsFacade.reserve` cannot hold against a synthetic id, and cannot
+    // be called twice for the same job. So the macro hold is minted by
+    // `JobsService.enqueue`'s own `reserve()` call for the chain's first job,
+    // via `costOverrideTenths` (`startChainKind`'s doc comment), rather than a
+    // second explicit `reserve()` here.
     const params = paramsFor(row.plan, first);
-    const started = await startChainKind(this.passes, first, projectId, workspaceId, params);
+    const started = await startChainKind(
+      this.passes,
+      first,
+      projectId,
+      workspaceId,
+      params,
+      quote.holdTenths,
+    );
+    const startedJob = await this.prisma.job.findUniqueOrThrow({ where: { id: started.jobId } });
 
     await this.prisma.promptedEditPlan.update({
       where: { id: row.id },
       data: {
         status: "running",
-        holdId: hold.holdId,
+        holdId: startedJob.creditHoldId,
         holdTenths: quote.holdTenths,
         currentJobId: started.jobId,
         remainingKinds: rest,

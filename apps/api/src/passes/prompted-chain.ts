@@ -138,41 +138,53 @@ export class PromptedChainAdvancer {
  * `PromptedEditsService.run` (kicking off the first step) share exactly one
  * mapping from a plan's per-kind params to a `PassesService.start*` call.
  */
+/**
+ * @param costOverrideTenths Only set for the *first* step of a `run()` (the
+ *   only chain step that ever mints a real `CreditHold` row): `reserve()`
+ *   cannot be called twice for the same job (`CreditHold.jobId` is unique),
+ *   so `PromptedEditsService.run` folds the plan's whole macro hold into that
+ *   one job's own `worstCaseTenths` instead of reserving separately. Every
+ *   later step (called from `PromptedChainAdvancer`) omits it and costs 0 —
+ *   already covered by that first hold.
+ */
 export async function startChainKind(
   passes: PassesService,
   kind: ChainPassKind,
   projectId: string,
   workspaceId: string,
   params: Record<string, unknown>,
+  costOverrideTenths?: number,
 ): Promise<StartedPass> {
+  const credit =
+    costOverrideTenths === undefined ? { skipCredits: true as const } : { costOverrideTenths };
   switch (kind) {
     case "autocut":
       return passes.startAutocut({
         projectId,
         workspaceId,
         preset: (params["preset"] as "gentle" | "standard" | "tight" | undefined) ?? "standard",
-        skipCredits: true,
+        ...credit,
       });
     case "zoom":
       return passes.startZoom({
         projectId,
         workspaceId,
         preset: (params["preset"] as "subtle" | "standard" | "punchy" | undefined) ?? "standard",
-        skipCredits: true,
+        ...credit,
       });
     case "reframe":
       return passes.startReframe({
         projectId,
         workspaceId,
         aspect: (params["aspect"] as "9:16" | "1:1" | undefined) ?? "9:16",
-        skipCredits: true,
+        ...credit,
       });
     case "sfx":
-      return passes.startSfx({ projectId, workspaceId, skipCredits: true });
+      return passes.startSfx({ projectId, workspaceId, ...credit });
     case "music":
-      return passes.startMusic({ projectId, workspaceId, skipCredits: true });
+      return passes.startMusic({ projectId, workspaceId, ...credit });
     case "textfx":
-      return passes.startTextFx({ projectId, workspaceId, skipCredits: true });
+      return passes.startTextFx({ projectId, workspaceId, ...credit });
     default: {
       const exhaustive: never = kind;
       throw new Error(`no chain starter for pass kind ${String(exhaustive)}`);

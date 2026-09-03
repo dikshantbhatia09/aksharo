@@ -67,6 +67,8 @@ export interface StartAutocutRequest {
   };
   /** Set by a prompted-edit plan's chain (D07); see `worstCaseTenths` below. */
   readonly skipCredits?: boolean;
+  /** Override the worst-case hold (D07 run() first-step: macro plan hold). */
+  readonly costOverrideTenths?: number;
 }
 
 export interface StartAutocutAccepted {
@@ -86,6 +88,8 @@ export interface StartZoomRequest {
   readonly workspaceId: string;
   readonly preset: ZoomPreset;
   readonly skipCredits?: boolean;
+  /** Override the worst-case hold (D07 run() first-step: macro plan hold). */
+  readonly costOverrideTenths?: number;
 }
 
 export interface StartReframeRequest {
@@ -97,6 +101,8 @@ export interface StartReframeRequest {
     readonly maxVelocityPerS?: number;
   };
   readonly skipCredits?: boolean;
+  /** Override the worst-case hold (D07 run() first-step: macro plan hold). */
+  readonly costOverrideTenths?: number;
 }
 
 export interface StartReframeZoomAccepted {
@@ -115,6 +121,8 @@ export interface StartTextFxRequest {
   readonly projectId: string;
   readonly workspaceId: string;
   readonly skipCredits?: boolean;
+  /** Override the worst-case hold (D07 run() first-step: macro plan hold). */
+  readonly costOverrideTenths?: number;
 }
 
 export interface StartTextFxAccepted {
@@ -133,6 +141,8 @@ export interface StartSfxRequest {
   readonly projectId: string;
   readonly workspaceId: string;
   readonly skipCredits?: boolean;
+  /** Override the worst-case hold (D07 run() first-step: macro plan hold). */
+  readonly costOverrideTenths?: number;
 }
 
 export interface StartSfxAccepted {
@@ -151,6 +161,8 @@ export interface StartMusicRequest {
   readonly projectId: string;
   readonly workspaceId: string;
   readonly skipCredits?: boolean;
+  /** Override the worst-case hold (D07 run() first-step: macro plan hold). */
+  readonly costOverrideTenths?: number;
 }
 
 export interface StartMusicAccepted {
@@ -200,7 +212,8 @@ export class PassesService {
       // minutes and settled on finished minutes) — charging this individual
       // pass on top would double-bill the workspace, so `skipCredits` zeroes
       // the per-pass hold while every other producing path is unaffected.
-      worstCaseTenths: request.skipCredits === true ? 0 : quote.tenths,
+      worstCaseTenths:
+        request.costOverrideTenths ?? (request.skipCredits === true ? 0 : quote.tenths),
       reason: quote.reason,
       params: {
         passId,
@@ -274,7 +287,8 @@ export class PassesService {
       // minutes and settled on finished minutes) — charging this individual
       // pass on top would double-bill the workspace, so `skipCredits` zeroes
       // the per-pass hold while every other producing path is unaffected.
-      worstCaseTenths: request.skipCredits === true ? 0 : quote.tenths,
+      worstCaseTenths:
+        request.costOverrideTenths ?? (request.skipCredits === true ? 0 : quote.tenths),
       reason: quote.reason,
       params: {
         passId,
@@ -333,7 +347,8 @@ export class PassesService {
       // minutes and settled on finished minutes) — charging this individual
       // pass on top would double-bill the workspace, so `skipCredits` zeroes
       // the per-pass hold while every other producing path is unaffected.
-      worstCaseTenths: request.skipCredits === true ? 0 : quote.tenths,
+      worstCaseTenths:
+        request.costOverrideTenths ?? (request.skipCredits === true ? 0 : quote.tenths),
       reason: quote.reason,
       params: {
         passId,
@@ -402,7 +417,8 @@ export class PassesService {
       // minutes and settled on finished minutes) — charging this individual
       // pass on top would double-bill the workspace, so `skipCredits` zeroes
       // the per-pass hold while every other producing path is unaffected.
-      worstCaseTenths: request.skipCredits === true ? 0 : quote.tenths,
+      worstCaseTenths:
+        request.costOverrideTenths ?? (request.skipCredits === true ? 0 : quote.tenths),
       reason: quote.reason,
       params: {
         passId,
@@ -479,7 +495,8 @@ export class PassesService {
       // minutes and settled on finished minutes) — charging this individual
       // pass on top would double-bill the workspace, so `skipCredits` zeroes
       // the per-pass hold while every other producing path is unaffected.
-      worstCaseTenths: request.skipCredits === true ? 0 : quote.tenths,
+      worstCaseTenths:
+        request.costOverrideTenths ?? (request.skipCredits === true ? 0 : quote.tenths),
       reason: quote.reason,
       params: {
         passId,
@@ -560,7 +577,8 @@ export class PassesService {
       // minutes and settled on finished minutes) — charging this individual
       // pass on top would double-bill the workspace, so `skipCredits` zeroes
       // the per-pass hold while every other producing path is unaffected.
-      worstCaseTenths: request.skipCredits === true ? 0 : quote.tenths,
+      worstCaseTenths:
+        request.costOverrideTenths ?? (request.skipCredits === true ? 0 : quote.tenths),
       reason: quote.reason,
       params: {
         passId,
