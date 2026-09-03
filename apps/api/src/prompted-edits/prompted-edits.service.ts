@@ -6,13 +6,14 @@ import type { EditPlanInput, EditPlanOutput, EditPlanPlanTier } from "@montaj/pr
 
 import { PLANNER_CLIENT } from "./planner-client.js";
 import { PROMPTED_EDIT_CHAIN_ORDER, PROMPTED_EDIT_ERROR_CODES } from "./prompted-edits.errors.js";
+import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { EdgService } from "../edg/index.js";
 import { resolveWorkspacePlan } from "../jobs/plan.js";
 import { quotePromptedEdit } from "../passes/passes.quote.js";
 import { PassesService } from "../passes/passes.service.js";
-import { paramsFor, startChainKind } from "../passes/prompted-chain.js";
+import { type ChainPassKind, paramsFor, startChainKind } from "../passes/prompted-chain.js";
 import { TranscriptsRepository } from "../transcripts/transcripts.repository.js";
 
 import type { PlannerClient } from "./planner-client.js";
@@ -60,6 +61,7 @@ export class PromptedEditsService {
     private readonly transcripts: TranscriptsRepository,
     private readonly edg: EdgService,
     private readonly passes: PassesService,
+    private readonly audit: CommonAuditService,
     @Inject(PLANNER_CLIENT) private readonly planner: PlannerClient,
   ) {}
 
@@ -197,7 +199,92 @@ export class PromptedEditsService {
     };
   }
 
+  /**
+   * `POST /projects/{id}/prompted-edits/{planId}/retry` (D07 follow-up, brief
+   * item 3): resumes a `"failed"` plan by re-enqueuing the same kind its
+   * `currentJobId` job failed at, keeping every already-completed kind done
+   * (never re-run) and every kind still in `remainingKinds` still ahead of
+   * it. No new `CreditHold` is minted: `prompted-chain.ts`'s `fail()` keeps
+   * the original hold open rather than releasing it (its own doc comment),
+   * so this reuses it exactly the way a normal chain step already does —
+   * `startChainKind` with no `costOverrideTenths`, `skipCredits: true`.
+   * Settling still only ever happens in `PromptedChainAdvancer.settle`, once
+   * the (possibly retried) chain runs out of `remainingKinds` — "settle
+   * rules unchanged".
+   *
+   * Dedup collision: `startChainKind` enqueues through the same
+   * `PassesService.start*` -> `JobsService.enqueue` path a manual pass from
+   * the Passes tab uses, with the same `ai.pass:<kind>:<projectId>` job key
+   * (`passes.service.ts`). If a manual pass of the retried kind is already
+   * queued or running for this project, `JobsService.enqueue`'s own
+   * `jobs_live_workspace_job_key_key` dedup attaches this retry to that
+   * live job (`deduplicated: true`) instead of starting a second one —
+   * documented behaviour, not special-cased here: retry always waits on or
+   * attaches to whatever is already in flight for that kind, never runs it
+   * twice.
+   */
+  async retry(projectId: string, workspaceId: string, planId: string): Promise<RunPlanResult> {
+    await this.project(projectId, workspaceId);
+    const row = await this.findPlan(projectId, workspaceId, planId);
+    if (row.status !== "failed" || row.currentJobId === null) {
+      throw new AppException(
+        PROMPTED_EDIT_ERROR_CODES.invalidStatus,
+        `This plan is "${row.status}", not a retryable "failed" plan with a failed job to retry.`,
+        HttpStatus.CONFLICT,
+        { planId, status: row.status },
+      );
+    }
+
+    const failedJob = await this.prisma.job.findUnique({ where: { id: row.currentJobId } });
+    const kind = this.chainKindOf(failedJob?.params);
+    if (kind === undefined) {
+      throw new AppException(
+        PROMPTED_EDIT_ERROR_CODES.guardrailViolation,
+        "The failed job's pass kind could not be determined; nothing to retry.",
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        { planId },
+      );
+    }
+
+    const params = paramsFor(row.plan, kind);
+    const started = await startChainKind(this.passes, kind, projectId, workspaceId, params);
+
+    await this.prisma.promptedEditPlan.update({
+      where: { id: row.id },
+      data: { status: "running", currentJobId: started.jobId },
+    });
+
+    await this.audit.record({
+      action: "prompted_edit.plan.retried",
+      resource: "prompted_edit_plan",
+      resourceId: row.id,
+      workspaceId,
+      data: { planId: row.id, kind, failedJobId: row.currentJobId, retryJobId: started.jobId },
+    });
+
+    this.logger.log(
+      { planId: row.id, kind, failedJobId: row.currentJobId, retryJobId: started.jobId },
+      "prompted-edit plan retried",
+    );
+
+    return {
+      planId: row.id,
+      jobId: started.jobId,
+      firstPassKind: kind,
+      status: "running",
+      holdTenths: row.holdTenths ?? 0,
+      holdCredits: ((row.holdTenths ?? 0) / 10).toFixed(1),
+    };
+  }
+
   // -------------------------------------------------------------------------
+
+  /** The chain kind a job's own `params.passType` names, if it's one of `PROMPTED_EDIT_CHAIN_ORDER`. */
+  private chainKindOf(params: unknown): ChainPassKind | undefined {
+    if (typeof params !== "object" || params === null) return undefined;
+    const passType = (params as { passType?: unknown }).passType;
+    return PROMPTED_EDIT_CHAIN_ORDER.find((kind) => kind === passType);
+  }
 
   private async project(projectId: string, workspaceId: string): Promise<Project> {
     const project = await this.prisma.project.findFirst({

@@ -21,9 +21,10 @@ uses.
     {
       "passId": "...", "passType": "music",
       "durationMs": 120000,
+      "language": "en", "region": "in",
       "speechRanges": [[0, 4000], [4600, 9000]],
       "cutTimesMs": [1000, 15000, 15400],
-      "sentiment": [[2000, 0.4], [9000, -0.3]],
+      "sentences": [{"startMs": 1800, "endMs": 2200, "text": "..."}],
       "protectedRanges": [[5000, 6000]],
       "catalogue": [
         {"id": "...", "packId": "fixture-pack", "mood": ["upbeat"], "bpm": 128,
@@ -32,10 +33,14 @@ uses.
       ]
     }
 
-`sentiment` is a stand-in for B11's LLM client (mocked in every test —
-`worker_ai.passes.music.analysis`'s own docstring), sent by the producer as
-sparse `(tMs, score)` samples; `detect_sections` looks up the nearest sample
-per window rather than requiring one per millisecond.
+`sentences` (D05 follow-up, brief §2) is scored in-process by
+`worker_ai.passes.music.sentiment.score_sentiment`, through B11's LLM client
+seam (`music-mood@1`) with the deterministic lexicon scorer as its offline
+fallback — CONTRACTS' "all AI runs in apps/worker-ai" is why that scoring
+happens here rather than in `apps/api`, unlike the old lexicon-only stand-in
+this replaces. `detect_sections` still only ever reads a plain `(tMs, score)`
+list regardless of where it came from, plus the `source` this module stamps
+onto the run's `Section`s.
 
 ### Bed duck
 
@@ -54,9 +59,11 @@ from worker_ai.callbacks import JobUsage
 from worker_ai.passes.music import (
     MusicCatalogueAsset,
     MusicItem,
+    SentenceInput,
     bpm_target_from_cut_cadence,
     build_music_items,
     detect_sections,
+    score_sentiment,
 )
 from worker_ai.processors.context import JobContext, JobFailureError, ProcessorOutcome
 
@@ -90,18 +97,25 @@ def _read_cut_times(payload: dict[str, Any]) -> list[int]:
     return [_int(value, default=0) for value in raw if isinstance(value, (int, float))]
 
 
-def _read_sentiment(payload: dict[str, Any]) -> list[tuple[int, float]]:
-    raw = payload.get("sentiment")
+def _read_sentences(payload: dict[str, Any]) -> list[SentenceInput]:
+    raw = payload.get("sentences")
     if not isinstance(raw, list):
         return []
-    samples: list[tuple[int, float]] = []
+    sentences: list[SentenceInput] = []
     for item in raw:
-        if isinstance(item, list) and len(item) == 2:
-            t_ms = _int(item[0], default=0)
-            score = item[1]
-            if isinstance(score, (int, float)) and not isinstance(score, bool):
-                samples.append((t_ms, float(score)))
-    return samples
+        if not isinstance(item, dict):
+            continue
+        text = item.get("text")
+        if not isinstance(text, str):
+            continue
+        sentences.append(
+            SentenceInput(
+                start_ms=_int(item.get("startMs"), default=0),
+                end_ms=_int(item.get("endMs"), default=0),
+                text=text,
+            )
+        )
+    return sentences
 
 
 def _read_catalogue(payload: dict[str, Any]) -> tuple[list[MusicCatalogueAsset], dict[str, str]]:
@@ -182,15 +196,27 @@ async def process_music(context: JobContext) -> ProcessorOutcome:
     cut_ranges = _read_ranges(payload.get("cutRanges"))
     protected_ranges = _read_ranges(payload.get("protectedRanges"))
     cut_times_ms = _read_cut_times(payload) or [start for start, _ in cut_ranges]
-    sentiment = _read_sentiment(payload)
+    sentences = _read_sentences(payload)
+    language = context.payload_str("language", default="en") or "en"
+    region = context.payload_str("region", default="in") or "in"
     catalogue, pack_by_asset = _read_catalogue(payload)
 
-    await context.progress(10, message="detecting music sections")
+    await context.progress(10, message="scoring sentiment")
+    sentiment, sentiment_source = await score_sentiment(
+        sentences,
+        llm_providers=context.services.llm_providers,
+        region=region,
+        language=language,
+        duration_ms=duration_ms,
+    )
+
+    await context.progress(30, message="detecting music sections")
     sections = detect_sections(
         duration_ms=duration_ms,
         speech_ranges=speech_ranges,
         cut_times_ms=cut_times_ms,
         sentiment_by_ms=sentiment,
+        sentiment_source=sentiment_source,
     )
     bpm_target = bpm_target_from_cut_cadence(cut_times_ms)
 
@@ -219,6 +245,9 @@ async def process_music(context: JobContext) -> ProcessorOutcome:
             "passId": pass_id,
             "passType": "music",
             "bpmTarget": bpm_target,
+            # Additive, not part of `MusicPayload` (CONTRACTS §2): worker-side
+            # observability for which sentiment source this run actually used.
+            "sentimentSource": sentiment_source,
             "items": [
                 _item_wire(item, pack_by_asset.get(item.asset_id, "unknown")) for item in items
             ],

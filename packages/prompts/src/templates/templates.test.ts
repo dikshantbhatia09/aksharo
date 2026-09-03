@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { chaptersTemplate, maxChaptersFor } from "./chapters.js";
 import { hooksTemplate } from "./hooks.js";
 import { keyphrasesTemplate } from "./keyphrases.js";
+import { musicMoodTemplate } from "./music-mood.js";
 import { allTemplates, templateFor, TEMPLATE_REGISTRY } from "./registry.js";
 import { summaryTemplate } from "./summary.js";
 
@@ -22,17 +23,19 @@ describe("template registry", () => {
       "chapters",
       "hooks",
       "keyphrases",
+      "musicMood",
       "summary",
     ]);
     expect(chaptersTemplate.version).toBe("chapters@1");
     expect(summaryTemplate.version).toBe("summary@1");
     expect(hooksTemplate.version).toBe("hooks@1");
     expect(keyphrasesTemplate.version).toBe("keyphrases@1");
+    expect(musicMoodTemplate.version).toBe("music-mood@1");
   });
 
   it("resolves by kind", () => {
     expect(templateFor("chapters")).toBe(chaptersTemplate);
-    expect(allTemplates()).toHaveLength(4);
+    expect(allTemplates()).toHaveLength(5);
   });
 
   it("every template builds non-empty system/user messages that fence the transcript as data", () => {
@@ -109,6 +112,35 @@ describe("hooks output schema", () => {
       youtube: bad,
       instagram: validVariant,
       tiktok: validVariant,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("music-mood output schema", () => {
+  it("accepts a valid score list", () => {
+    const result = musicMoodTemplate.outputSchema.safeParse({
+      scores: [
+        { index: 0, sentiment: 0.5 },
+        { index: 1, sentiment: -0.2 },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a sentiment outside [-1, 1]", () => {
+    const result = musicMoodTemplate.outputSchema.safeParse({
+      scores: [{ index: 0, sentiment: 2 }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a duplicate segment index", () => {
+    const result = musicMoodTemplate.outputSchema.safeParse({
+      scores: [
+        { index: 0, sentiment: 0.1 },
+        { index: 0, sentiment: -0.1 },
+      ],
     });
     expect(result.success).toBe(false);
   });

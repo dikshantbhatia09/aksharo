@@ -7,6 +7,7 @@ import { PromptedEditsService } from "./prompted-edits.service.js";
 import { AppException } from "../common/errors/error-codes.js";
 
 import type { PlannerClient } from "./planner-client.js";
+import type { CommonAuditService } from "../common/audit/audit.service.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { EdgService } from "../edg/index.js";
 import type { PassesService } from "../passes/passes.service.js";
@@ -43,9 +44,10 @@ interface Deps {
       findFirst: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
     };
-    job: { findUniqueOrThrow: ReturnType<typeof vi.fn> };
+    job: { findUniqueOrThrow: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
     subscription: { findFirst: ReturnType<typeof vi.fn> };
   };
+  audit: { record: ReturnType<typeof vi.fn> };
   passes: {
     finishedDurationMs: ReturnType<typeof vi.fn>;
     startAutocut: ReturnType<typeof vi.fn>;
@@ -89,6 +91,9 @@ function buildService(overrides?: { plannerOutput?: EditPlanOutput; planTier?: s
     },
     job: {
       findUniqueOrThrow: vi.fn().mockResolvedValue({ id: "job1", creditHoldId: "hold1" }),
+      findUnique: vi
+        .fn()
+        .mockResolvedValue({ id: "job1", params: { passType: "autocut" }, creditHoldId: "hold1" }),
     },
     subscription: {
       findFirst: vi.fn().mockResolvedValue({ plan: { key: overrides?.planTier ?? "creator" } }),
@@ -118,15 +123,18 @@ function buildService(overrides?: { plannerOutput?: EditPlanOutput; planTier?: s
     segments: vi.fn().mockRejectedValue(new Error("edg/not_initialised")),
   };
 
+  const audit = { record: vi.fn().mockResolvedValue(undefined) };
+
   const service = new PromptedEditsService(
     prisma as unknown as PrismaService,
     {} as unknown as TranscriptsRepository,
     edg as unknown as EdgService,
     passes as unknown as PassesService,
+    audit as unknown as CommonAuditService,
     planner as unknown as PlannerClient,
   );
 
-  return { service, prisma, passes, planner, edg };
+  return { service, prisma, passes, planner, edg, audit };
 }
 
 describe("PromptedEditsService.plan", () => {
@@ -316,6 +324,109 @@ describe("PromptedEditsService.run", () => {
     expect(result.firstPassKind).toBe("autocut");
     expect(deps.passes.startAutocut).toHaveBeenCalled();
     expect(deps.passes.startMusic).not.toHaveBeenCalled();
+  });
+});
+
+describe("PromptedEditsService.retry", () => {
+  let deps: Deps;
+  beforeEach(() => {
+    deps = buildService();
+    deps.prisma.promptedEditPlan.findFirst.mockResolvedValue({
+      id: PLAN_ID,
+      projectId: PROJECT_ID,
+      workspaceId: WORKSPACE_ID,
+      status: "failed",
+      engine: "flash",
+      sourceDurationMs: MEDIA_DURATION_MS,
+      holdTenths: 15,
+      currentJobId: "failed-job-1",
+      remainingKinds: ["music"],
+      plan: twoPassOutput(),
+    });
+    deps.prisma.job.findUnique.mockResolvedValue({
+      id: "failed-job-1",
+      params: { passType: "autocut" },
+    });
+  });
+
+  it("re-enqueues the failed kind, no new hold, keeps remainingKinds and status back to running", async () => {
+    const result = await deps.service.retry(PROJECT_ID, WORKSPACE_ID, PLAN_ID);
+
+    expect(result.firstPassKind).toBe("autocut");
+    expect(result.status).toBe("running");
+    // No costOverrideTenths -- the original hold is reused, never a new reserve().
+    expect(deps.passes.startAutocut).toHaveBeenCalledWith(
+      expect.objectContaining({ skipCredits: true }),
+    );
+    expect(deps.passes.startAutocut.mock.calls[0]?.[0]).not.toHaveProperty("costOverrideTenths");
+
+    expect(deps.prisma.promptedEditPlan.update).toHaveBeenCalledWith({
+      where: { id: PLAN_ID },
+      data: { status: "running", currentJobId: "job1" },
+    });
+  });
+
+  it("writes an audit record for the retry", async () => {
+    await deps.service.retry(PROJECT_ID, WORKSPACE_ID, PLAN_ID);
+    expect(deps.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "prompted_edit.plan.retried",
+        resource: "prompted_edit_plan",
+        resourceId: PLAN_ID,
+        workspaceId: WORKSPACE_ID,
+      }),
+    );
+  });
+
+  it("dedup collision: an in-flight manual pass job of the same kind is attached to, never double-run", async () => {
+    // JobsService.enqueue's own jobKey dedup is what PassesService.startAutocut
+    // wraps -- simulate its "attached to the live job" outcome directly: the
+    // manual job's id comes back instead of a freshly minted one, and retry
+    // must record exactly that id as the plan's new currentJobId rather than
+    // starting a second autocut job.
+    deps.passes.startAutocut.mockResolvedValue({ jobId: "manual-inflight-job", passId: "passX" });
+
+    const result = await deps.service.retry(PROJECT_ID, WORKSPACE_ID, PLAN_ID);
+
+    expect(deps.passes.startAutocut).toHaveBeenCalledTimes(1);
+    expect(result.jobId).toBe("manual-inflight-job");
+    expect(deps.prisma.promptedEditPlan.update).toHaveBeenCalledWith({
+      where: { id: PLAN_ID },
+      data: { status: "running", currentJobId: "manual-inflight-job" },
+    });
+  });
+
+  it('refuses to retry a plan that is not "failed"', async () => {
+    deps.prisma.promptedEditPlan.findFirst.mockResolvedValue({
+      id: PLAN_ID,
+      projectId: PROJECT_ID,
+      workspaceId: WORKSPACE_ID,
+      status: "running",
+      currentJobId: "failed-job-1",
+      remainingKinds: ["music"],
+      plan: twoPassOutput(),
+    });
+
+    await expect(deps.service.retry(PROJECT_ID, WORKSPACE_ID, PLAN_ID)).rejects.toMatchObject({
+      code: "prompted_edit/invalid_status",
+    });
+    expect(deps.passes.startAutocut).not.toHaveBeenCalled();
+  });
+
+  it("refuses to retry a failed plan with no currentJobId to identify the failed kind", async () => {
+    deps.prisma.promptedEditPlan.findFirst.mockResolvedValue({
+      id: PLAN_ID,
+      projectId: PROJECT_ID,
+      workspaceId: WORKSPACE_ID,
+      status: "failed",
+      currentJobId: null,
+      remainingKinds: [],
+      plan: twoPassOutput(),
+    });
+
+    await expect(deps.service.retry(PROJECT_ID, WORKSPACE_ID, PLAN_ID)).rejects.toMatchObject({
+      code: "prompted_edit/invalid_status",
+    });
   });
 });
 

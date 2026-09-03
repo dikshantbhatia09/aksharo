@@ -29,6 +29,7 @@ from __future__ import annotations
 import itertools
 import statistics
 from dataclasses import dataclass
+from typing import Literal
 
 __all__ = [
     "MOOD_TAXONOMY",
@@ -64,6 +65,13 @@ class Section:
     e: int
     mood: str
     energy: float
+    #: Where this section's mood came from (D05 follow-up, brief §2): the
+    #: prompted `music-mood@1` call through B11's LLM seam, or the
+    #: deterministic lexicon fallback when that seam fails or is unavailable
+    #: — see `worker_ai.passes.music.sentiment.score_sentiment`. Defaults to
+    #: `"lexicon"` for direct `detect_sections` callers (tests, mainly) that
+    #: never ran sentiment scoring through that module at all.
+    sentiment_source: Literal["lexicon", "llm"] = "lexicon"
 
 
 def _speech_ratio(
@@ -121,6 +129,7 @@ def detect_sections(
     cut_times_ms: list[int] | None = None,
     sentiment_by_ms: list[tuple[int, float]] | None = None,
     window_ms: int = DEFAULT_WINDOW_MS,
+    sentiment_source: Literal["lexicon", "llm"] = "lexicon",
 ) -> list[Section]:
     """Slides a `window_ms` window across `[0, duration_ms)`, classifies each
     window's mood and energy, then merges adjacent same-mood windows into
@@ -159,14 +168,22 @@ def detect_sections(
             continue
         sections.append(
             Section(
-                s=group_start, e=group_end, mood=group_mood, energy=statistics.fmean(group_energies)
+                s=group_start,
+                e=group_end,
+                mood=group_mood,
+                energy=statistics.fmean(group_energies),
+                sentiment_source=sentiment_source,
             )
         )
         group_start, group_end, group_mood = start, end, mood
         group_energies = [energy]
     sections.append(
         Section(
-            s=group_start, e=group_end, mood=group_mood, energy=statistics.fmean(group_energies)
+            s=group_start,
+            e=group_end,
+            mood=group_mood,
+            energy=statistics.fmean(group_energies),
+            sentiment_source=sentiment_source,
         )
     )
     return sections

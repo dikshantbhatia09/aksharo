@@ -19,6 +19,8 @@ __all__ = [
     "HooksOutput",
     "Keyphrase",
     "KeyphrasesOutput",
+    "MusicMoodOutput",
+    "MusicMoodScore",
     "PlatformVariant",
     "SummaryOutput",
     "ValidationOutcome",
@@ -114,13 +116,31 @@ class KeyphrasesOutput(BaseModel):
     keyphrases: tuple[Keyphrase, ...] = Field(default=())
 
 
-InsightKind = Literal["chapters", "summary", "hooks", "keyphrases"]
+class MusicMoodScore(BaseModel):
+    index: int = Field(ge=0)
+    sentiment: float = Field(ge=-1, le=1)
+
+
+class MusicMoodOutput(BaseModel):
+    scores: tuple[MusicMoodScore, ...] = Field(default=())
+
+    @field_validator("scores")
+    @classmethod
+    def _unique_indices(cls, value: tuple[MusicMoodScore, ...]) -> tuple[MusicMoodScore, ...]:
+        indices = [score.index for score in value]
+        if len(indices) != len(set(indices)):
+            raise ValueError("each segment index must appear at most once in scores")
+        return value
+
+
+InsightKind = Literal["chapters", "summary", "hooks", "keyphrases", "music-mood"]
 
 _SCHEMAS: dict[str, type[BaseModel]] = {
     "chapters": ChaptersOutput,
     "summary": SummaryOutput,
     "hooks": HooksOutput,
     "keyphrases": KeyphrasesOutput,
+    "music-mood": MusicMoodOutput,
 }
 
 
