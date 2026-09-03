@@ -28,5 +28,58 @@
     "browserHash": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193",
     "cloudHash": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193",
     "byteLength": 4096
+  },
+  "titles": {
+    "generatedAt": "2026-09-03T03:00:57.081Z",
+    "maxDiffRatioTolerance": 0.02,
+    "channelTolerance": 2,
+    "canvas": {
+      "width": 1080,
+      "height": 1920
+    },
+    "presets": {
+      "pop": {
+        "preset": "pop",
+        "samples": 3,
+        "maxDiffRatio": 0.003274980709876543,
+        "pass": true,
+        "measuredAt": "2026-09-03T03:00:57.081Z"
+      },
+      "slide-up": {
+        "preset": "slide-up",
+        "samples": 3,
+        "maxDiffRatio": 0.0032417052469135804,
+        "pass": true,
+        "measuredAt": "2026-09-03T03:00:57.081Z"
+      },
+      "typewriter": {
+        "preset": "typewriter",
+        "samples": 3,
+        "maxDiffRatio": 0.0021532600308641976,
+        "pass": true,
+        "measuredAt": "2026-09-03T03:00:57.081Z"
+      },
+      "underline": {
+        "preset": "underline",
+        "samples": 3,
+        "maxDiffRatio": 0.004366801697530864,
+        "pass": true,
+        "measuredAt": "2026-09-03T03:00:57.081Z"
+      },
+      "count-up": {
+        "preset": "count-up",
+        "samples": 3,
+        "maxDiffRatio": 0.0026123649691358023,
+        "pass": true,
+        "measuredAt": "2026-09-03T03:00:57.081Z"
+      },
+      "fade": {
+        "preset": "fade",
+        "samples": 3,
+        "maxDiffRatio": 0.0031500771604938273,
+        "pass": true,
+        "measuredAt": "2026-09-03T03:00:57.081Z"
+      }
+    }
   }
 }

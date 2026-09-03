@@ -71,10 +71,13 @@ import {
 import type { StyleDoc } from "@montaj/caption-styles";
 import { CanvasKitBackend, createExportSurface } from "@montaj/render-canvaskit";
 import {
+  captionBoxFromLayouts,
   computeTrackShrink,
   createFontRegistry,
   createHarfBuzzShaper,
+  layoutFrame,
   renderFrame,
+  renderTitleFrame,
   sampleCropWindow,
   type CropKeyframe,
   type EdgProjection,
@@ -243,6 +246,14 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
     registry: options.registry,
     shaper: options.shaper,
   });
+
+  // D06b: accepted text-fx title items (`manifest.timemap.titles`), drawn
+  // after every caption so a title always sits on top. Empty when no such
+  // item is accepted, which keeps every export before D06b (and every export
+  // whose manifest predates the field) exactly as it drew before.
+  const titles = manifest.timemap.titles ?? [];
+  const titleStyle =
+    titles.length === 0 ? undefined : options.catalogue.get(projection.styles.defaultStyleId);
 
   const input = new Input({ source: sourceOf(options.source), formats: ALL_FORMATS });
   const videoTrack = await input.getPrimaryVideoTrack();
@@ -506,6 +517,36 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
       outputMs,
       trackShrink,
     });
+
+    if (titles.length > 0 && titleStyle !== undefined) {
+      // The caption's own live safe area (D06 rule 2): `placeTitleBox` needs
+      // it to keep a title clear of whatever caption is on screen this
+      // frame, so `layoutFrame` (the same call `renderFrame` makes
+      // internally) is re-run here for its geometry alone.
+      const captionBox = captionBoxFromLayouts(
+        layoutFrame({
+          projection,
+          timemap,
+          catalogue: options.catalogue,
+          registry: options.registry,
+          shaper: options.shaper,
+          outputMs,
+          trackShrink,
+        }),
+      );
+      commands.push(
+        ...renderTitleFrame({
+          titles,
+          timemap,
+          outputMs,
+          canvas: projection.canvas,
+          registry: options.registry,
+          shaper: options.shaper,
+          style: titleStyle,
+          ...(captionBox === undefined ? {} : { captionBox }),
+        }),
+      );
+    }
 
     if (commands.length > 0) {
       // A19b: raw pixel readback, not `renderToPng`'s PNG encode +

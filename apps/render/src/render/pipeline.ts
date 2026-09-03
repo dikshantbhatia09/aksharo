@@ -188,10 +188,21 @@ export async function renderVideo(
     // The pool is tried first and the inline path is the fallback, not the
     // other way round: a machine without worker threads, or an image missing
     // the worker entry, must still render — just at A20's speed.
+    const styleCatalogue = parseStyleCatalogue(payload.styles);
+    const projectionForFrames = toEdgProjection(payload.projection, manifest);
+    // D06b: accepted text-fx title items, drawn after every caption. Empty
+    // when the manifest carries none, which keeps every render from before
+    // D06b (and every manifest that predates the field) unchanged.
+    const titles = manifest.timemap.titles ?? [];
+    const titleStyle =
+      titles.length === 0
+        ? undefined
+        : styleCatalogue.get(projectionForFrames.styles.defaultStyleId);
+
     const commandOptions = {
-      projection: toEdgProjection(payload.projection, manifest),
+      projection: projectionForFrames,
       timemap,
-      catalogue: parseStyleCatalogue(payload.styles),
+      catalogue: styleCatalogue,
       registry: fonts.registry,
       shaper,
       fps: manifest.output.fps,
@@ -201,6 +212,8 @@ export async function renderVideo(
       }),
       script: payload.script,
       dropFillers: payload.dropFillers,
+      titles,
+      ...(titleStyle === undefined ? {} : { titleStyle }),
     };
 
     const wantedWorkers = dependencies.rasterWorkers ?? defaultPoolSize();
