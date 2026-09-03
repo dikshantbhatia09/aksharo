@@ -181,8 +181,8 @@ def test_a_bare_deployment_falls_through_the_lane_to_the_mock() -> None:
         "sarvam",
         "elevenlabs",
         "serverless-whisper",
-        "assemblyai",
         "local-whisper",
+        "assemblyai",
     ]
     assert decision.needs_alignment is False
 

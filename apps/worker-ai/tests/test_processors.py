@@ -349,7 +349,16 @@ async def test_transcribe_refuses_a_chunk_plan_of_non_objects(wav_file: Path) ->
 async def test_transcribe_fails_when_no_provider_can_serve_the_lane(
     wav_file: Path,
 ) -> None:
-    settings = load_settings({**VALID_ENV, "WORKER_AI_ALLOW_MOCK": "0"})
+    # ``local-whisper`` is flagged off so this "nothing can serve the lane" case
+    # does not depend on whether the optional ``local-asr`` extra happens to be
+    # installed on the machine running the suite (see tests/test_routing.py).
+    settings = load_settings(
+        {
+            **VALID_ENV,
+            "WORKER_AI_ALLOW_MOCK": "0",
+            "FEATURE_FLAGS_JSON": '{"asr.local-whisper": false}',
+        }
+    )
     services = build_services(settings)
     context = context_for("ai.transcribe", services, mediaId=MEDIA_ID, audioUri=str(wav_file))
 

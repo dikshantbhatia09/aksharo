@@ -44,6 +44,11 @@ lanes:
         alignment: optional
         weight: 0
         costPerMinuteInr: 0.11
+      - provider: local-whisper
+        model: small
+        alignment: optional
+        weight: 0
+        costPerMinuteInr: 0.0
 
   - id: hindi
     label: Hindi (pure)
@@ -65,6 +70,11 @@ lanes:
         alignment: optional
         weight: 0
         costPerMinuteInr: 0.11
+      - provider: local-whisper
+        model: small
+        alignment: optional
+        weight: 0
+        costPerMinuteInr: 0.0
 
   - id: indian-english
     label: Indian English
@@ -85,6 +95,11 @@ lanes:
         alignment: optional
         weight: 0
         costPerMinuteInr: 0.11
+      - provider: local-whisper
+        model: small
+        alignment: optional
+        weight: 0
+        costPerMinuteInr: 0.0
 
   - id: indic-scribe
     label: Indic languages Scribe covers
