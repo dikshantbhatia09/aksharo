@@ -65,6 +65,8 @@ export interface StartAutocutRequest {
     readonly paddingMs?: number;
     readonly maxRemovalRatio?: number;
   };
+  /** Set by a prompted-edit plan's chain (D07); see `worstCaseTenths` below. */
+  readonly skipCredits?: boolean;
 }
 
 export interface StartAutocutAccepted {
@@ -83,6 +85,7 @@ export interface StartZoomRequest {
   readonly projectId: string;
   readonly workspaceId: string;
   readonly preset: ZoomPreset;
+  readonly skipCredits?: boolean;
 }
 
 export interface StartReframeRequest {
@@ -93,6 +96,7 @@ export interface StartReframeRequest {
     readonly deadzoneFraction?: number;
     readonly maxVelocityPerS?: number;
   };
+  readonly skipCredits?: boolean;
 }
 
 export interface StartReframeZoomAccepted {
@@ -110,6 +114,7 @@ export interface StartReframeZoomAccepted {
 export interface StartTextFxRequest {
   readonly projectId: string;
   readonly workspaceId: string;
+  readonly skipCredits?: boolean;
 }
 
 export interface StartTextFxAccepted {
@@ -127,6 +132,7 @@ export interface StartTextFxAccepted {
 export interface StartSfxRequest {
   readonly projectId: string;
   readonly workspaceId: string;
+  readonly skipCredits?: boolean;
 }
 
 export interface StartSfxAccepted {
@@ -144,6 +150,7 @@ export interface StartSfxAccepted {
 export interface StartMusicRequest {
   readonly projectId: string;
   readonly workspaceId: string;
+  readonly skipCredits?: boolean;
 }
 
 export interface StartMusicAccepted {
@@ -188,7 +195,12 @@ export class PassesService {
       workspaceId: request.workspaceId,
       projectId: project.id,
       jobKey,
-      worstCaseTenths: quote.tenths,
+      // A pass chained by a prompted-edit plan (D07) is already covered by that
+      // plan's own macro credit hold (`PromptedEditsService.run`, held on source
+      // minutes and settled on finished minutes) — charging this individual
+      // pass on top would double-bill the workspace, so `skipCredits` zeroes
+      // the per-pass hold while every other producing path is unaffected.
+      worstCaseTenths: request.skipCredits === true ? 0 : quote.tenths,
       reason: quote.reason,
       params: {
         passId,
@@ -257,7 +269,12 @@ export class PassesService {
       workspaceId: request.workspaceId,
       projectId: project.id,
       jobKey,
-      worstCaseTenths: quote.tenths,
+      // A pass chained by a prompted-edit plan (D07) is already covered by that
+      // plan's own macro credit hold (`PromptedEditsService.run`, held on source
+      // minutes and settled on finished minutes) — charging this individual
+      // pass on top would double-bill the workspace, so `skipCredits` zeroes
+      // the per-pass hold while every other producing path is unaffected.
+      worstCaseTenths: request.skipCredits === true ? 0 : quote.tenths,
       reason: quote.reason,
       params: {
         passId,
@@ -311,7 +328,12 @@ export class PassesService {
       workspaceId: request.workspaceId,
       projectId: project.id,
       jobKey,
-      worstCaseTenths: quote.tenths,
+      // A pass chained by a prompted-edit plan (D07) is already covered by that
+      // plan's own macro credit hold (`PromptedEditsService.run`, held on source
+      // minutes and settled on finished minutes) — charging this individual
+      // pass on top would double-bill the workspace, so `skipCredits` zeroes
+      // the per-pass hold while every other producing path is unaffected.
+      worstCaseTenths: request.skipCredits === true ? 0 : quote.tenths,
       reason: quote.reason,
       params: {
         passId,
@@ -375,7 +397,12 @@ export class PassesService {
       workspaceId: request.workspaceId,
       projectId: project.id,
       jobKey,
-      worstCaseTenths: quote.tenths,
+      // A pass chained by a prompted-edit plan (D07) is already covered by that
+      // plan's own macro credit hold (`PromptedEditsService.run`, held on source
+      // minutes and settled on finished minutes) — charging this individual
+      // pass on top would double-bill the workspace, so `skipCredits` zeroes
+      // the per-pass hold while every other producing path is unaffected.
+      worstCaseTenths: request.skipCredits === true ? 0 : quote.tenths,
       reason: quote.reason,
       params: {
         passId,
@@ -447,7 +474,12 @@ export class PassesService {
       workspaceId: request.workspaceId,
       projectId: project.id,
       jobKey,
-      worstCaseTenths: quote.tenths,
+      // A pass chained by a prompted-edit plan (D07) is already covered by that
+      // plan's own macro credit hold (`PromptedEditsService.run`, held on source
+      // minutes and settled on finished minutes) — charging this individual
+      // pass on top would double-bill the workspace, so `skipCredits` zeroes
+      // the per-pass hold while every other producing path is unaffected.
+      worstCaseTenths: request.skipCredits === true ? 0 : quote.tenths,
       reason: quote.reason,
       params: {
         passId,
@@ -523,7 +555,12 @@ export class PassesService {
       workspaceId: request.workspaceId,
       projectId: project.id,
       jobKey,
-      worstCaseTenths: quote.tenths,
+      // A pass chained by a prompted-edit plan (D07) is already covered by that
+      // plan's own macro credit hold (`PromptedEditsService.run`, held on source
+      // minutes and settled on finished minutes) — charging this individual
+      // pass on top would double-bill the workspace, so `skipCredits` zeroes
+      // the per-pass hold while every other producing path is unaffected.
+      worstCaseTenths: request.skipCredits === true ? 0 : quote.tenths,
       reason: quote.reason,
       params: {
         passId,
@@ -900,6 +937,21 @@ export class PassesService {
       }
     }
     return ranges;
+  }
+
+  /**
+   * The project's finished (post-cut) duration: primary media duration minus
+   * every accepted `cut` item's own range, floored at 0 — the same
+   * computation `startTextFx`/`startSfx` each inline for their own
+   * `finishedMinute`-basis quote (D07 principle). Public so
+   * `PromptedChainAdvancer` (`prompted-chain.ts`) can quote the settle side of
+   * a prompted-edit plan once its pass chain lands.
+   */
+  async finishedDurationMs(projectId: string, workspaceId: string): Promise<number> {
+    const media = await this.primaryMedia(projectId);
+    const cutRanges = await this.acceptedCutRangesOf(projectId, workspaceId);
+    const removedMs = cutRanges.reduce((total, [s, e]) => total + Math.max(0, e - s), 0);
+    return Math.max(0, (media.durationMs ?? 0) - removedMs);
   }
 }
 

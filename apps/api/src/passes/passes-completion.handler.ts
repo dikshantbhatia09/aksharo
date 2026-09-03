@@ -15,6 +15,7 @@ import type {
   ZoomPassItem,
 } from "@montaj/edg/schemas";
 
+import { PromptedChainAdvancer } from "./prompted-chain.js";
 import { EdgService } from "../edg/index.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 
@@ -252,6 +253,7 @@ export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit
   constructor(
     private readonly edg: EdgService,
     private readonly registry: JobCompletionRegistry,
+    private readonly promptedChain: PromptedChainAdvancer,
   ) {}
 
   onModuleInit(): void {
@@ -266,12 +268,37 @@ export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit
     }
 
     const passType = passTypeOf(context.result);
-    if (passType === "zoom") return this.handleZoom(context, projectId);
-    if (passType === "reframe") return this.handleReframe(context, projectId);
-    if (passType === "textfx") return this.handleTextFx(context, projectId);
-    if (passType === "sfx") return this.handleSfx(context, projectId);
-    if (passType === "music") return this.handleMusic(context, projectId);
-    return this.handleAutocut(context, projectId);
+    const outcome =
+      passType === "zoom"
+        ? await this.handleZoom(context, projectId)
+        : passType === "reframe"
+          ? await this.handleReframe(context, projectId)
+          : passType === "textfx"
+            ? await this.handleTextFx(context, projectId)
+            : passType === "sfx"
+              ? await this.handleSfx(context, projectId)
+              : passType === "music"
+                ? await this.handleMusic(context, projectId)
+                : await this.handleAutocut(context, projectId);
+
+    // D07 chain hook: a no-op for the overwhelming majority of `ai.pass`
+    // completions (anything not the live step of a `running` prompted-edit
+    // plan); failures here must never turn a landed `MergePass` into a
+    // retried job, so they are logged rather than thrown.
+    await this.promptedChain
+      .onPassCompleted(job)
+      .catch((error: unknown) => this.logger.error({ jobId: job.id, error }, "chain advance failed"));
+
+    return outcome;
+  }
+
+  /** D07: release a chained plan's hold and mark it failed when its live step fails terminally. */
+  async handleFailure(context: JobCompletionContext): Promise<void> {
+    await this.promptedChain
+      .onPassFailed(context.job)
+      .catch((error: unknown) =>
+        this.logger.error({ jobId: context.job.id, error }, "chain failure handling failed"),
+      );
   }
 
   private async handleAutocut(

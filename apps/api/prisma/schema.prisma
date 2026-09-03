@@ -882,6 +882,7 @@ model Workspace {
   jobs                Job[]
   providerSubmissions ProviderSubmission[]
   llmOutputs          LlmOutput[]
+  promptedEditPlans   PromptedEditPlan[]
   exportManifests     ExportManifest[]
   exports             Export[]
   brandAssets         BrandAsset[]
@@ -1161,6 +1162,7 @@ model Project {
   assetUsages         AssetUsage[]
   publishEvents       PublishEvent[]
   llmOutputs          LlmOutput[]
+  promptedEditPlans   PromptedEditPlan[]
 
   @@index([workspaceId])
   @@index([lastActivityAt])
@@ -1833,6 +1835,46 @@ model LlmOutput {
   @@index([projectId, kind, createdAt])
   @@index([workspaceId])
   @@map("llm_outputs")
+}
+
+/// A prompted-edit plan (D07, 09-ai-pipeline §6): the JSON-schema-constrained
+/// `edit-plan@1` output the creator reviews in the plan preview sheet before
+/// anything runs, plus the credits/chain bookkeeping for the pass chain the
+/// plan drives once accepted. `status` moves `planned` -> `running` ->
+/// `completed`|`failed`; `holdTenths`/`holdId` are set at `run()` (hold on
+/// source minutes) and `settledTenths` at chain completion (settle on
+/// finished minutes, CONTRACTS §4 `CreditsFacade`).
+model PromptedEditPlan {
+  id               String   @id @db.Char(26)
+  projectId        String   @map("project_id") @db.Char(26)
+  workspaceId      String   @map("workspace_id") @db.Char(26)
+  prompt           String
+  engine           String   @default("flash")
+  planTier         String   @map("plan_tier")
+  /// Zod: `EditPlanOutputSchema` (`@montaj/prompts`).
+  plan             Json     @db.JsonB
+  provider         String   @default("mock")
+  templateVersion  String   @map("template_version")
+  status           String   @default("planned")
+  sourceDurationMs Int      @map("source_duration_ms")
+  holdId           String?  @map("hold_id") @db.Char(26)
+  holdTenths       Int?     @map("hold_tenths")
+  settledTenths    Int?     @map("settled_tenths")
+  /// The `ai.pass` job currently in flight for this plan's chain (D07 §3); `null`
+  /// once the chain is `completed`/`failed`. `PromptedChainAdvancer` looks a
+  /// completed job up by this column to know which plan (if any) to advance.
+  currentJobId     String?  @map("current_job_id") @db.Char(26)
+  /// Pass kinds still to run after `currentJobId`, in chain order.
+  remainingKinds   String[] @map("remaining_kinds") @default([])
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([workspaceId])
+  @@map("prompted_edit_plans")
 }
 
 /// Server-signed render manifest (THREAT-MODEL T10, A21). Single use: the nonce
