@@ -3,6 +3,7 @@ import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { newId } from "@montaj/edg";
 import type { Pass } from "@montaj/edg/schemas";
 
+import { partnerHitsToMusicRows, partnerHitsToSfxRows } from "./partner-catalogue-items.js";
 import {
   PASS_ERROR_CODES,
   type AutocutPreset,
@@ -22,6 +23,7 @@ import { PrismaService } from "../common/prisma/prisma.service.js";
 import { EdgService } from "../edg/index.js";
 import { JobsService } from "../jobs/jobs.service.js";
 import { resolveWorkspacePlan } from "../jobs/plan.js";
+import { PartnerCatalogueService } from "../partner-catalogue/partner-catalogue.service.js";
 import { TranscriptsRepository } from "../transcripts/transcripts.repository.js";
 
 import type { MediaAsset, Project, Transcript } from "@prisma/client";
@@ -187,6 +189,7 @@ export class PassesService {
     private readonly edg: EdgService,
     private readonly transcripts: TranscriptsRepository,
     private readonly audioAssets: AudioAssetsRepository,
+    private readonly partnerCatalogue: PartnerCatalogueService,
   ) {}
 
   /** `POST /projects/{id}/passes/autocut`. */
@@ -857,7 +860,7 @@ export class PassesService {
   > {
     const plan = await resolveWorkspacePlan(this.prisma, workspaceId);
     const rows = await this.audioAssets.findCatalogueWithEmbeddings("sfx");
-    return rows
+    const owned = rows
       .filter(
         (row) =>
           assetAllowed(row, { surface: "cloud_render", plan, territory: "WORLD" }).allowed &&
@@ -872,6 +875,33 @@ export class PassesService {
         embedding: row.embedding,
         licenceSnapshot: row.licenceSnapshot,
       }));
+    return [...owned, ...(await this.partnerSfxRows())];
+  }
+
+  /**
+   * D04b2 scope §2: partner-catalogue `sfx` hits, merged into the local
+   * catalogue only while `assets.partnerCatalogue` is on — `enabled` is
+   * checked before the adapter call so the mock/epidemic adapter is never
+   * even constructed while the flag is off. A partner catalogue is a
+   * preview-stream-only surface (D43: `allowsRawFileDelivery: false` on
+   * every hit) and this pass proposes `cloud_render`-surface cues only, so no
+   * further `assetAllowed` re-check applies here — a real per-item accept
+   * still goes through the D04b2 grant flow before a partner asset is ever
+   * rendered. A failed partner search never fails the whole pass: worst case
+   * the catalogue is short one provider's worth of cues.
+   */
+  private async partnerSfxRows(): Promise<ReturnType<typeof partnerHitsToSfxRows>> {
+    if (!this.partnerCatalogue.enabled) return [];
+    try {
+      const result = await this.partnerCatalogue.search("", { kind: "sfx" });
+      return partnerHitsToSfxRows(result.hits);
+    } catch (error) {
+      this.logger.warn(
+        { err: error },
+        "partner catalogue sfx search failed; continuing without it",
+      );
+      return [];
+    }
   }
 
   /**
@@ -896,7 +926,7 @@ export class PassesService {
   > {
     const plan = await resolveWorkspacePlan(this.prisma, workspaceId);
     const rows = await this.audioAssets.findCatalogueWithEmbeddings("music");
-    return rows
+    const owned = rows
       .filter(
         (row) =>
           assetAllowed(row, { surface: "cloud_render", plan, territory: "WORLD" }).allowed &&
@@ -914,6 +944,22 @@ export class PassesService {
         embedding: row.embedding,
         licenceSnapshot: row.licenceSnapshot,
       }));
+    return [...owned, ...(await this.partnerMusicRows())];
+  }
+
+  /** D04b2 scope §2 — the `music` counterpart of {@link partnerSfxRows}. */
+  private async partnerMusicRows(): Promise<ReturnType<typeof partnerHitsToMusicRows>> {
+    if (!this.partnerCatalogue.enabled) return [];
+    try {
+      const result = await this.partnerCatalogue.search("", { kind: "music" });
+      return partnerHitsToMusicRows(result.hits);
+    } catch (error) {
+      this.logger.warn(
+        { err: error },
+        "partner catalogue music search failed; continuing without it",
+      );
+      return [];
+    }
   }
 
   /**

@@ -12494,6 +12494,67 @@
         ]
       }
     },
+    "/admin/partner-catalogue/grants": {
+      "get": {
+        "operationId": "adminListPartnerCatalogueGrants",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Up to 500 grants, newest first."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every partner-catalogue grant, newest first (asset, workspace, use context, expiry, usage-report status)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/partner-catalogue/grants/{id}/revoke": {
+      "post": {
+        "operationId": "adminRevokePartnerCatalogueGrant",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke a partner-catalogue grant (works even while the flag is off for that workspace)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/offers/eligibility": {
       "get": {
         "description": "Every amount is read from the same catalogue `/billing/passes/checkout` quotes from — the export dialog never hardcodes a price.",
@@ -12926,6 +12987,266 @@
         "summary": "Readiness probe (db, redis, storage)",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/partner-catalogue/search": {
+      "get": {
+        "operationId": "searchPartnerCatalogue",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Partner catalogue search hits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "hits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "providerAssetId": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "mood": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "bpm": {
+                            "nullable": true,
+                            "type": "number"
+                          },
+                          "durationMs": {
+                            "nullable": true,
+                            "type": "number"
+                          },
+                          "licence": {
+                            "type": "object",
+                            "properties": {
+                              "licenceType": {
+                                "type": "string"
+                              },
+                              "territory": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "termStart": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "termEnd": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "allowsCommercialUse": {
+                                "type": "boolean"
+                              },
+                              "allowsMonetisation": {
+                                "type": "boolean"
+                              },
+                              "allowsPaidAds": {
+                                "type": "boolean"
+                              },
+                              "allowsBroadcast": {
+                                "type": "boolean"
+                              },
+                              "requiresAttribution": {
+                                "type": "boolean"
+                              },
+                              "attributionText": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "clearanceMethod": {
+                                "type": "string",
+                                "enum": [
+                                  "channel_safelist",
+                                  "per_video_code",
+                                  "platform_covered"
+                                ]
+                              },
+                              "requiresUsageReport": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "licenceType",
+                              "territory",
+                              "termStart",
+                              "termEnd",
+                              "allowsCommercialUse",
+                              "allowsMonetisation",
+                              "allowsPaidAds",
+                              "allowsBroadcast",
+                              "requiresAttribution",
+                              "attributionText",
+                              "clearanceMethod",
+                              "requiresUsageReport"
+                            ]
+                          },
+                          "allowsRawFileDelivery": {
+                            "type": "boolean",
+                            "enum": [
+                              false
+                            ]
+                          }
+                        },
+                        "required": [
+                          "providerAssetId",
+                          "provider",
+                          "title",
+                          "tags",
+                          "mood",
+                          "bpm",
+                          "durationMs",
+                          "licence",
+                          "allowsRawFileDelivery"
+                        ]
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "hits",
+                    "total"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member`."
+          },
+          "404": {
+            "description": "The flag is off, or disabled for this workspace."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Search the partner catalogue (SFX/music), 404 while assets.partnerCatalogue is off",
+        "tags": [
+          "partner-catalogue"
+        ]
+      }
+    },
+    "/partner-catalogue/grants": {
+      "post": {
+        "description": "Refuses (404) while the flag is off, and refuses (per the adapter/D43 predicate) when the asset cannot be cleared for the given use context. Every grant is audit-logged.",
+        "operationId": "createPartnerCatalogueGrant",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePartnerGrantBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created grant and its licence snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "grantId": {
+                      "type": "string"
+                    },
+                    "licenceSnapshot": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "grantId",
+                    "licenceSnapshot"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member`."
+          },
+          "404": {
+            "description": "The flag is off, or disabled for this workspace."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a safelisting grant for a partner asset in a use context",
+        "tags": [
+          "partner-catalogue"
+        ]
+      }
+    },
+    "/partner-catalogue/grants/{grantId}": {
+      "delete": {
+        "operationId": "revokePartnerCatalogueGrant",
+        "parameters": [
+          {
+            "name": "grantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member`."
+          },
+          "404": {
+            "description": "The flag is off, or the grant does not exist."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke a partner catalogue grant",
+        "tags": [
+          "partner-catalogue"
         ]
       }
     },
@@ -25129,6 +25450,10 @@
           "version",
           "checks"
         ]
+      },
+      "CreatePartnerGrantBodyDto": {
+        "type": "object",
+        "properties": {}
       },
       "CleanRequestDto": {
         "type": "object",

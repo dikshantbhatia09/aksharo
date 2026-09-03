@@ -7,6 +7,7 @@ import { PromptedChainAdvancer } from "./prompted-chain.js";
 import { AudioAssetsModule } from "../audio-assets/index.js";
 import { EdgModule } from "../edg/index.js";
 import { JobsModule } from "../jobs/jobs.module.js";
+import { PartnerCatalogueModule } from "../partner-catalogue/partner-catalogue.module.js";
 import { TranscriptsModule } from "../transcripts/transcripts.module.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
@@ -27,7 +28,7 @@ import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
  * `PassesService.start*` for its own chain kickoff.
  */
 @Module({
-  imports: [JobsModule, EdgModule, TranscriptsModule, AudioAssetsModule],
+  imports: [JobsModule, EdgModule, TranscriptsModule, AudioAssetsModule, PartnerCatalogueModule],
   controllers: [PassesController],
   providers: [PassesService, PassCompletionHandler, PromptedChainAdvancer, WorkspaceMemberGuard],
   exports: [PassesService],

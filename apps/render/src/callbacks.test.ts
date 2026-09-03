@@ -237,3 +237,63 @@ describe("the client", () => {
     expect(calls[0]?.url).toBe("http://api.test/internal/jobs/j/progress");
   });
 });
+
+// ---------------------------------------------------------------------------
+// verifyPartnerGrant (D04b2 scope §4) — fail-closed on anything but an
+// explicit `{ allowed: true }` reply.
+// ---------------------------------------------------------------------------
+describe("CallbackClient.verifyPartnerGrant", () => {
+  it("signs POST /internal/partner-catalogue/verify-grant with the workspace/asset body", async () => {
+    const { calls, fetch } = recorder([{ status: 200, body: '{"allowed":true}' }]);
+    const allowed = await client(fetch).verifyPartnerGrant("attempt-1", {
+      workspaceId: "ws1",
+      providerAssetId: "mock-sfx-0001",
+    });
+    expect(allowed).toBe(true);
+    expect(calls[0]?.url).toBe("http://api.test/internal/partner-catalogue/verify-grant");
+    expect(JSON.parse(calls[0]?.body ?? "{}")).toEqual({
+      workspaceId: "ws1",
+      providerAssetId: "mock-sfx-0001",
+    });
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
+    expect(calls[0]?.headers[ATTEMPT_HEADER]).toBe("attempt-1");
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
+    expect(calls[0]?.headers[SIGNATURE_HEADER]).toEqual(expect.any(String));
+  });
+
+  it("refuses (false) on an explicit allowed: false reply", async () => {
+    const { fetch } = recorder([{ status: 200, body: '{"allowed":false}' }]);
+    const allowed = await client(fetch).verifyPartnerGrant("a", {
+      workspaceId: "ws1",
+      providerAssetId: "mock-sfx-0001",
+    });
+    expect(allowed).toBe(false);
+  });
+
+  it("fails closed on a non-2xx status", async () => {
+    const { fetch } = recorder([{ status: 500 }]);
+    const allowed = await client(fetch).verifyPartnerGrant("a", {
+      workspaceId: "ws1",
+      providerAssetId: "mock-sfx-0001",
+    });
+    expect(allowed).toBe(false);
+  });
+
+  it("fails closed on a transport error", async () => {
+    const fetch: FetchLike = () => Promise.reject(new Error("ECONNRESET"));
+    const allowed = await client(fetch).verifyPartnerGrant("a", {
+      workspaceId: "ws1",
+      providerAssetId: "mock-sfx-0001",
+    });
+    expect(allowed).toBe(false);
+  });
+
+  it("fails closed on an unparseable body", async () => {
+    const { fetch } = recorder([{ status: 200, body: "not json" }]);
+    const allowed = await client(fetch).verifyPartnerGrant("a", {
+      workspaceId: "ws1",
+      providerAssetId: "mock-sfx-0001",
+    });
+    expect(allowed).toBe(false);
+  });
+});

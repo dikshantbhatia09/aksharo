@@ -49,6 +49,73 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     badge, and render-time grant fetch — see the work package's final report
     for the full list and reasoning.
 
+- **D04b2: partner catalogue wiring — HTTP surface, pass wiring, usage
+  emission, render grant check, admin table, web badge (still behind
+  `assets.partnerCatalogue`, H-28 still open).**
+  - `apps/api/src/partner-catalogue/partner-catalogue.controller.ts` (new):
+    `GET /partner-catalogue/search`, `POST /partner-catalogue/grants`,
+    `DELETE /partner-catalogue/grants/{grantId}` — workspace-member-gated,
+    rate-limited, and every route 404s (not 403) while the flag is off, so
+    the feature stays invisible rather than merely refusing. Grant
+    create/revoke are audit-logged (`partner_catalogue.grant.created` /
+    `.revoked`). `apps/api/src/partner-catalogue/partner-catalogue.dto.ts`
+    (new) carries the zod request/response schemas.
+  - `apps/api/src/partner-catalogue/internal-partner-grant.controller.ts`
+    (new): `POST /internal/partner-catalogue/verify-grant`, signed like
+    every other worker → API callback (`InternalSignatureGuard`) —
+    `apps/render`'s pre-download check. `PartnerCatalogueService.
+verifyActiveGrant` looks the grant up by `partnerUserId` (a partner grant
+    carries no local `AudioAsset` row) and is `false` while the flag is off.
+  - `apps/api/src/passes/partner-catalogue-items.ts` (new) +
+    `passes.service.ts`: `sfxCatalogueOf`/`musicCatalogueOf` now append
+    mock/partner catalogue hits (via `PartnerCatalogueService.search`) only
+    while the flag is on, mapped through a pure, unit-tested bridge
+    (`partnerHitsToSfxRows`/`partnerHitsToMusicRows`) — a partner row is
+    tagged `id: "partner:<providerAssetId>"`, `packId: "partner-catalogue"`,
+    and `licenceSnapshot.partner: true`. A partner-search failure never
+    fails the whole pass; the local catalogue is unaffected either way.
+  - `apps/api/src/partner-catalogue/usage-emission.ts` (new) +
+    `apps/api/src/exports/render-completion.handler.ts`: on
+    `render.video` completion, `reportPartnerUsageForExport` stamps every
+    not-yet-exported `AssetUsage` row carrying a `clearanceGrantId` onto
+    this export (`exportId`/`exportedAt`) and reports it through
+    `PartnerCatalogueService.reportUsage`, before the report call so a
+    crash mid-report leaves exactly the row shape
+    `PartnerUsageReportRetryTask.sweep()` already picks up — no change to
+    that task was needed.
+  - `apps/render/src/render/partner-grant.ts` (new) + `pipeline.ts` +
+    `callbacks.ts` + `processors/render-video.ts`: before downloading any
+    `sfx`/`music` track whose `packId` is the `"partner-catalogue"`
+    sentinel, `renderVideo` calls `CallbackClient.verifyPartnerGrant`
+    (signed, no retry) and throws rather than downloading when it does not
+    resolve to an explicit `{ allowed: true }` — fails closed on a
+    transport error, a non-2xx status, an unparseable body, or no verifier
+    configured at all.
+  - `apps/api/src/admin/partner-catalogue/admin-partner-catalogue.
+controller.ts` (new) + `PartnerCatalogueService.listGrants`/`adminRevoke`:
+    `GET /admin/partner-catalogue/grants` and
+    `POST /admin/partner-catalogue/grants/{id}/revoke`, gated by
+    `AdminGuard` alone (no named owning role yet) and working even while
+    the flag is off for that workspace, so staff can always see and revoke
+    what a workspace holds. `apps/web/app/(admin)/admin/partner-catalogue/
+page.tsx` (new): the grants table (asset, workspace, use context, expiry,
+    usage-report status, revoke), added to the admin nav.
+  - `apps/web/components/editor/passes/ProposalCard.tsx`: a
+    "Partner — cloud render only" badge for any `sfx`/`music` item whose
+    `payload.licenceSnapshot.partner === true`.
+  - `packages/api-client` regenerated (`pnpm gen:client`) for the three new
+    public routes.
+  - Tests: pass-wiring bridge unit tests (4), usage-emission unit tests
+    (3), `PartnerCatalogueService.verifyActiveGrant`/`listGrants`/
+    `adminRevoke` unit tests, admin controller unit tests (2),
+    `CallbackClient.verifyPartnerGrant` + `assertPartnerGrantForTrack` unit
+    tests (11), `ProposalCard` badge tests (4), the admin grants page
+    component test (4), and a new HTTP e2e section in
+    `apps/api/test/partner-catalogue.e2e-spec.ts` against a real Postgres +
+    Redis: flag-off 404s on all three routes plus a 401 with no token (5),
+    flag-on search/grant/revoke round-trip including audit-row assertions
+    and 404s for an unknown asset/grant (7).
+
 - **M12: one shared markdown block parser for docs + help content.**
   - `apps/web/lib/markdown/blocks.ts`: new pure `parseBlocks()` (paragraphs,
     headings h1-h3, ordered/unordered lists, fenced code, GFM pipe tables,

@@ -14,6 +14,23 @@ const KIND_LABEL: Record<PassItem["kind"], string> = {
   title: "Title",
 };
 
+/**
+ * D04b2 scope §6: `true` when this `sfx`/`music` item's licence snapshot
+ * marks it as sourced from the partner catalogue (D43: partner assets are
+ * cloud-render-only, never a browser/raw-file delivery). The snapshot is
+ * `Record<string, unknown>` (CONTRACTS §2's `JsonObjectSchema`) — a plain
+ * object shape written by `apps/api/src/passes/partner-catalogue-items.ts`
+ * (`partner: true`) or, once a real accept flow stamps one,
+ * `partner-catalogue/licence-snapshot.ts` — so this reads it defensively
+ * rather than trusting a typed field that does not exist on the wire.
+ */
+function isPartnerAsset(item: PassItem): boolean {
+  if (item.kind !== "sfx" && item.kind !== "music") return false;
+  const snapshot: unknown = item.payload.licenceSnapshot;
+  if (typeof snapshot !== "object" || snapshot === null) return false;
+  return (snapshot as Record<string, unknown>)["partner"] === true;
+}
+
 function formatMs(ms: number): string {
   const totalSeconds = ms / 1000;
   const minutes = Math.floor(totalSeconds / 60);
@@ -115,6 +132,11 @@ export function ProposalCard({
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Badge>{KIND_LABEL[item.kind]}</Badge>
+        {isPartnerAsset(item) ? (
+          <Badge tone="info" data-testid="proposal-card-partner-badge">
+            Partner — cloud render only
+          </Badge>
+        ) : null}
         <span data-testid="proposal-card-range">
           {formatMs(item.startMs)} – {formatMs(item.endMs)}
         </span>

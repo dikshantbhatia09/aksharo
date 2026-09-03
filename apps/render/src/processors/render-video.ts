@@ -148,6 +148,11 @@ export async function processRenderVideo(
     const outcome = await renderVideo(payload, envelope.workspaceId, {
       ...context.dependencies,
       progressIntervalMs: context.progressIntervalMs,
+      // D04b2 scope §4: verify every partner-catalogue asset's grant over
+      // the same signed internal channel progress/completion already use,
+      // before `pipeline.ts` downloads a single partner pack object.
+      verifyPartnerGrant: (input) =>
+        context.callbacks.verifyPartnerGrant(envelope.attemptId, input),
       onProgress: (fraction, message) => {
         void job.updateProgress(Math.round(fraction * 100));
         void context.callbacks

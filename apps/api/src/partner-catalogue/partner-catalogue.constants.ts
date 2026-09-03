@@ -1,3 +1,5 @@
+import type { RateLimitRule } from "../common/guards/index.js";
+
 /**
  * D04b — partner catalogue integration (contract-gated).
  *
@@ -46,3 +48,32 @@ export const H28_CONTRACT_GATE_TEXT =
 
 /** Default grant term when the partner contract names none yet (TODO(H-28)). */
 export const DEFAULT_GRANT_TERM_DAYS = 365;
+
+/**
+ * `GET/POST/DELETE /partner-catalogue/*` rate limits (D04b2). Search is a
+ * read that can be scripted into a scraping loop against the partner's own
+ * catalogue, so it gets the same budget `audio-assets:url:user` uses.
+ * Grant creation and revocation are state-changing and audited, so a
+ * tighter budget is enough — a real editing session never needs more than a
+ * few dozen grants a minute.
+ */
+export const PARTNER_CATALOGUE_RATE_LIMITS = {
+  search: {
+    name: "partner-catalogue:search:user",
+    by: "user",
+    capacity: 60,
+    refillPerSec: 60 / 60,
+  },
+  grant: {
+    name: "partner-catalogue:grant:user",
+    by: "user",
+    capacity: 30,
+    refillPerSec: 30 / 60,
+  },
+  revoke: {
+    name: "partner-catalogue:revoke:user",
+    by: "user",
+    capacity: 30,
+    refillPerSec: 30 / 60,
+  },
+} as const satisfies Record<string, RateLimitRule>;
