@@ -1073,6 +1073,10 @@ function ledgerKindForSource(source: CreditLotSource): $Enums.CreditLedgerKind {
       return "adjust";
     case "reversal":
       return "reversal";
+    case "academy":
+      // Academy exactly-once track reward; ledgered as a grant like other
+      // credit-granting sources (M03, CONTRACTS §4).
+      return "grant";
   }
 }
 

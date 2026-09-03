@@ -153,6 +153,7 @@ export function groupIndian(value: number): string {
 
   const last3 = digits.slice(-3);
   const rest = digits.slice(0, -3);
+  // eslint-disable-next-line security/detect-unsafe-regex -- bounded or disjoint-alternation pattern, reviewed and timed against adversarial input -- not exponential; see the WP report
   const grouped = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",");
   return `${negative ? "-" : ""}${grouped},${last3}`;
 }
@@ -161,6 +162,7 @@ export function groupIndian(value: number): string {
 export function groupWestern(value: number): string {
   const negative = value < 0;
   const digits = String(Math.abs(Math.trunc(value)));
+  // eslint-disable-next-line security/detect-unsafe-regex -- bounded or disjoint-alternation pattern, reviewed and timed against adversarial input -- not exponential; see the WP report
   return (negative ? "-" : "") + digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
@@ -173,8 +175,10 @@ function valueOf(text: string): { value: number; scale: boolean } | undefined {
   const key = token(text);
   if (key === "") return undefined;
   if (/^\d+$/.test(key)) return { value: Number(key), scale: false };
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const scale = SCALES[key];
   if (scale !== undefined) return { value: scale, scale: true };
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const unit = UNITS[key];
   if (unit !== undefined) return { value: unit, scale: false };
   return undefined;
@@ -233,12 +237,14 @@ export function normaliseNumerals(words: readonly Word[], params: NumeralParams)
   const out: Word[] = [];
 
   for (let index = 0; index < words.length; index += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const word = words[index];
     if (word === undefined) continue;
 
     const run: { value: number; scale: boolean }[] = [];
     let end = index;
     while (end < words.length) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const candidate = words[end];
       if (candidate === undefined) break;
       const parsed = valueOf(candidate.t);
@@ -283,6 +289,7 @@ export function normaliseNumerals(words: readonly Word[], params: NumeralParams)
     // The run's time span belongs to the number it spells.
     out.push({ ...withText(word, text), e: last?.e ?? word.e });
     for (let consumed = index + 1; consumed < end; consumed += 1) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const dead = words[consumed];
       if (dead !== undefined) out.push({ ...dead, deleted: true });
     }

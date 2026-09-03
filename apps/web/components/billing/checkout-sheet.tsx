@@ -95,6 +95,7 @@ export function CheckoutSheet({
 
   const plan = plans.data?.find((candidate) => candidate.key === selection.planKey);
   const currency = billing.data?.currency ?? "INR";
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const prices = plan?.prices[currency];
   const amountForInterval =
     prices === undefined || selection.interval === "once"

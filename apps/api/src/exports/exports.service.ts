@@ -20,7 +20,6 @@ import { EXPORT_ERROR_CODES } from "./exports.errors.js";
 import { buildRenderManifest, RENDER_CORE_VERSION } from "./manifest-builder.js";
 import { NINE_PASS_LEDGER, type NinePassLedger } from "./nine-pass-ledger.js";
 import { buildRenderProjection, resolveStyleSnapshot } from "./projection.js";
-import { resolveKeyframeTracks } from "../passes/keyframe-tracks.js";
 import { ManifestSignerService } from "../common/crypto/manifest-signer.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
@@ -33,6 +32,7 @@ import {
 } from "../common/storage/index.js";
 import { EdgRepository } from "../edg/index.js";
 import { JobsService } from "../jobs/jobs.service.js";
+import { resolveKeyframeTracks } from "../passes/keyframe-tracks.js";
 import { EXPORT_COMPLETED_EVENT } from "../referrals/export-completed.event.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
@@ -667,14 +667,14 @@ export class ExportsService {
   }
 
   /**
-   * B10: `EdgHot.audio.clean` (`SetAudio`'s frozen shape,
-   * `packages/edg/src/schemas/document.ts`'s `AudioCleanSchema` —
-   * `{enabled, preset?, targetLufs?}`) carries no `cleanId` field (CONTRACTS
-   * §2 froze it before this work package existed), so the id travels inside
-   * `preset` by convention: `"b10:<cleanId>"`. Anything else in `preset` is
-   * not this work package's and is left alone (`strategy` stays
-   * `"passthrough"`). Only a **succeeded** run is ever muxed — an export must
-   * never wait on, or silently skip, a clean that is still processing.
+   * `EdgHot.audio.clean` (`SetAudio`'s frozen shape,
+   * `packages/edg/src/schemas/document.ts`'s `AudioCleanSchema`) carries a
+   * first-class `cleanId` field as of B10b (CONTRACTS §2, amended
+   * 2026-09-03). Only a **succeeded** run is ever muxed — an export must
+   * never wait on, or silently skip, a clean that is still processing. Falls
+   * back to B10's interim `preset: "b10:<cleanId>"` encoding for any document
+   * not yet migrated by the EDG v2 loader (belt-and-braces; the loader should
+   * already have rewritten it).
    */
   private async resolveAudioClean(
     audio: unknown,
@@ -683,12 +683,24 @@ export class ExportsService {
     if (audio === null || typeof audio !== "object") return undefined;
     const clean = (audio as { clean?: unknown }).clean;
     if (clean === null || typeof clean !== "object") return undefined;
-    const { enabled, preset } = clean as { enabled?: unknown; preset?: unknown };
-    if (enabled !== true || typeof preset !== "string" || !preset.startsWith("b10:")) {
-      return undefined;
+    const {
+      enabled,
+      cleanId: rawCleanId,
+      preset,
+    } = clean as {
+      enabled?: unknown;
+      cleanId?: unknown;
+      preset?: unknown;
+    };
+    if (enabled !== true) return undefined;
+
+    let cleanId: string | undefined;
+    if (typeof rawCleanId === "string" && rawCleanId !== "") {
+      cleanId = rawCleanId;
+    } else if (typeof preset === "string" && preset.startsWith("b10:")) {
+      cleanId = preset.slice("b10:".length);
     }
-    const cleanId = preset.slice("b10:".length);
-    if (cleanId === "") return undefined;
+    if (cleanId === undefined || cleanId === "") return undefined;
 
     const row = await this.prisma.audioClean.findFirst({
       where: { id: cleanId, projectId, status: "succeeded" },

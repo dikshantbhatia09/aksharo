@@ -23,6 +23,7 @@ const CURRENCY_LOCALE: Record<Currency, string> = { INR: "en-IN", USD: "en-US" }
 /** `amountMinor` (paise/cents) → a locale-formatted string, e.g. "₹699" or "$19". */
 export function formatMoney(amountMinor: number, currency: Currency): string {
   const major = amountMinor / 100;
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return new Intl.NumberFormat(CURRENCY_LOCALE[currency], {
     style: "currency",
     currency,
@@ -45,6 +46,7 @@ export function priceForInterval(
   prices: IntervalPrices,
   interval: Exclude<BillingInterval, "once">,
 ): number | undefined {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return prices[interval];
 }
 
@@ -130,6 +132,7 @@ export function estimateSeatedTotalMinor(
   includedSeats = 1,
 ): number {
   const extraSeats = Math.max(0, seats - includedSeats);
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return basePriceMinor + extraSeats * seatPriceMinor * SEAT_INTERVAL_FACTOR[interval];
 }
 

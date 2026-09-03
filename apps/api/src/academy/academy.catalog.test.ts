@@ -27,6 +27,7 @@ function loadContentTracks(): ContentTrack[] {
   return readdirSync(WEB_CONTENT_DIR)
     .filter((file) => file.endsWith(".mdx"))
     .map((file) => {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
       const raw = readFileSync(path.join(WEB_CONTENT_DIR, file), "utf8");
       const { data } = matter(raw);
       return data as ContentTrack;

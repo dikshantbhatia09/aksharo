@@ -58,14 +58,19 @@ describe("the v1 fixture", () => {
     const snapshot = migrate(v1());
     const words = (snapshot.chunks ?? []).flatMap((chunk) => chunk.words);
     for (const [index, before] of parsed.segments.entries()) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const after = snapshot.projection.segments[index];
       expect(after, `segment ${index}`).toBeDefined();
       if (after === undefined) continue;
 
       const [from, to] = before.wordRange;
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(after.startMs).toBe(before.startMs ?? parsed.words[from]?.s);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(after.endMs).toBe(before.endMs ?? parsed.words[to]?.e);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(after.startWordId).toBe(words[from]?.wid);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(after.endWordId).toBe(words[to]?.wid);
 
       // The words a caption renders, before and after.
@@ -151,6 +156,46 @@ describe("migrate", () => {
         { from: 1, to: 2, description: "deliberately broken", migrate: () => ({}) },
       ]),
     ).toThrow(/produced an invalid v2 snapshot/);
+  });
+
+  it("rewrites B10's b10:<cleanId> preset encoding to SetAudio.clean.cleanId (B10b)", () => {
+    const snapshot = migrate(v1());
+    const withLegacyPreset = {
+      ...snapshot,
+      projection: {
+        ...snapshot.projection,
+        audio: { clean: { enabled: true, preset: "b10:01HXYZYYYYYYYYYYYYYYYYYYYY" } },
+      },
+    };
+    const migrated = migrate(withLegacyPreset);
+    expect(migrated.projection.audio).toEqual({
+      clean: { enabled: true, cleanId: "01HXYZYYYYYYYYYYYYYYYYYYYY" },
+    });
+  });
+
+  it("leaves a non-B10 preset and an already-first-class cleanId alone", () => {
+    const snapshot = migrate(v1());
+    const withOtherPreset = {
+      ...snapshot,
+      projection: {
+        ...snapshot.projection,
+        audio: { clean: { enabled: true, preset: "podcast", targetLufs: -14 } },
+      },
+    };
+    expect(migrate(withOtherPreset).projection.audio).toEqual({
+      clean: { enabled: true, preset: "podcast", targetLufs: -14 },
+    });
+
+    const withCleanId = {
+      ...snapshot,
+      projection: {
+        ...snapshot.projection,
+        audio: { clean: { enabled: true, cleanId: "01HXYZYYYYYYYYYYYYYYYYYYYY" } },
+      },
+    };
+    expect(migrate(withCleanId).projection.audio).toEqual({
+      clean: { enabled: true, cleanId: "01HXYZYYYYYYYYYYYYYYYYYYYY" },
+    });
   });
 });
 

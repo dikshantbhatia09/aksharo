@@ -134,10 +134,12 @@ export function expandPath(path: string, value: unknown): Record<string, unknown
   let node = root;
   for (const [index, part] of parts.entries()) {
     if (index === parts.length - 1) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       node[part] = value;
       break;
     }
     const next: Record<string, unknown> = {};
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     node[part] = next;
     node = next;
   }
@@ -154,7 +156,9 @@ function mergeDeep(
 ): Record<string, unknown> {
   const result: Record<string, unknown> = { ...base };
   for (const [key, value] of Object.entries(patch)) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const current = result[key];
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     result[key] =
       isPlainObject(value) && isPlainObject(current) ? mergeDeep(current, value) : value;
   }

@@ -147,6 +147,7 @@ export class CallbackClient {
   private readonly fetchImpl: typeof globalThis.fetch;
 
   constructor(apiOrigin: string, secret: string, options: CallbackClientOptions = {}) {
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- equality check on a null/undefined/status/hash sentinel, not a secret or MAC comparison -- reviewed for M06's eslint-plugin-security promotion
     if (secret === "") {
       throw new Error("INTERNAL_CALLBACK_SECRET is required to sign callbacks");
     }

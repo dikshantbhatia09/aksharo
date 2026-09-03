@@ -14,10 +14,14 @@
  * one, exactly as its own README explains.
  *
  * Run: `pnpm --filter @montaj/render parity`.
+ *
+ * `results.json` is shared with B10b's own `parity:audio` gate
+ * (`run-audio-parity.ts`, its `audio` top-level key) — this script reads
+ * the file first and only replaces its own `edits` key, so running one
+ * gate never erases the other's last-recorded numbers.
  */
-import { writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
 import { sampleCropWindow, type CropKeyframe } from "@montaj/render-core";
 
@@ -30,7 +34,6 @@ import {
 import { evalCropExpr, extractCropField } from "./expr-eval.js";
 import { buildDynamicCropFilter } from "../src/ffmpeg/crop-expr.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const RESULTS_PATH = join(__dirname, "results.json");
 
 interface RectPx {
@@ -128,9 +131,19 @@ export function measureAll(now: string = new Date().toISOString()): {
   };
 }
 
+/** The other keys `results.json` may already carry (B10b's `audio`, say) — preserved verbatim. */
+async function existingResults(): Promise<Record<string, unknown>> {
+  try {
+    return JSON.parse(await readFile(RESULTS_PATH, "utf8")) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
 async function main(): Promise<void> {
   const output = measureAll();
-  await writeFile(RESULTS_PATH, `${JSON.stringify(output, null, 2)}\n`, "utf8");
+  const merged = { ...(await existingResults()), ...output };
+  await writeFile(RESULTS_PATH, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
   const failed = Object.values(output.edits).filter((result) => !result.pass);
   for (const result of Object.values(output.edits)) {
     console.error(

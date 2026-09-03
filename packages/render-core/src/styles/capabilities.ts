@@ -95,11 +95,13 @@ const GRADIENTS: Readonly<Record<string, GradientLook>> = {
 
 /** Capabilities of one style; a style with no entry needs nothing extra. */
 export function capabilitiesOf(styleId: string): StyleCapabilities {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return CAPABILITIES[styleId] ?? NONE;
 }
 
 /** The gradient a style paints with, when it has one. */
 export function gradientOf(styleId: string): GradientLook | undefined {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return GRADIENTS[styleId];
 }
 

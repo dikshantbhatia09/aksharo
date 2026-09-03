@@ -15,6 +15,7 @@ export interface PlanCardProps {
 }
 
 export function PlanCard({ plan, currency, interval }: PlanCardProps): React.JSX.Element {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const price = plan.prices[currency];
   const amount = interval === "year" ? Math.round(price.year / 12) : price.month;
   const isFree = price.month === 0;

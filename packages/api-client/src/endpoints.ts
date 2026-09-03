@@ -15,11 +15,22 @@ import { defineEndpoint } from "./http.js";
 
 import type {
   AcademyProgressResponse,
+  AdminStepUpResponse,
+  AdminTotpCodeRequest,
+  AdminTotpEnrollResponse,
   ChangelogDismissedResponse,
   CreateSupportTicketRequest,
   ListSupportTicketsResponse,
   MarkStepDoneResult,
   SupportTicketView,
+  ConfirmDiagnosticsBundleRequest,
+  ConfirmDiagnosticsBundleResponse,
+  PresignDiagnosticsBundleRequest,
+  PresignDiagnosticsBundleResponse,
+  SubmitCrashReportRequest,
+  SubmitCrashReportResponse,
+  SubmitTelemetryEventsRequest,
+  SubmitTelemetryEventsResponse,
   AffiliateProfile,
   AffiliateStats,
   ApiKeyView,
@@ -63,6 +74,7 @@ import type {
   JobPage,
   JobSummary,
   LicenseKeyView,
+  PluginManifestResponse,
   LoginRequest,
   MagicLinkResponse,
   Media,
@@ -186,6 +198,32 @@ export const authEndpoints = {
     path: "/auth/oauth/complete",
     auth: "public",
     operationId: "OAuthController_complete",
+  }),
+} as const;
+
+/**
+ * B13: admin step-up only. Called with the REGULAR session's bearer token
+ * (`auth: "bearer"`) — everything past step-up uses the admin session's own
+ * token via `apps/web/lib/admin/admin-fetch.ts`, not this client.
+ */
+export const adminAuthEndpoints = {
+  totpEnroll: defineEndpoint<void, AdminTotpEnrollResponse>({
+    method: "POST",
+    path: "/admin/auth/totp/enroll",
+    auth: "bearer",
+    operationId: "adminTotpEnroll",
+  }),
+  totpVerify: defineEndpoint<AdminTotpCodeRequest, void>({
+    method: "POST",
+    path: "/admin/auth/totp/verify",
+    auth: "bearer",
+    operationId: "adminTotpVerify",
+  }),
+  stepUp: defineEndpoint<AdminTotpCodeRequest, AdminStepUpResponse>({
+    method: "POST",
+    path: "/admin/auth/step-up",
+    auth: "bearer",
+    operationId: "adminStepUp",
   }),
 } as const;
 
@@ -330,6 +368,17 @@ export const licensingEndpoints = {
     path: "/workspaces/{id}/license-keys/{keyId}",
     auth: "bearer",
     operationId: "revokeLicenseKey",
+  }),
+} as const;
+
+/** Plugins channel manifest (C11, D65). Public: the download links on the
+ * marketing plugins page and the panel's own update check need no session. */
+export const pluginEndpoints = {
+  manifest: defineEndpoint<void, PluginManifestResponse>({
+    method: "GET",
+    path: "/plugins/manifest",
+    auth: "public",
+    operationId: "pluginManifest",
   }),
 } as const;
 
@@ -699,6 +748,46 @@ export const supportEndpoints = {
   }),
 } as const;
 
+/**
+ * Telemetry (C12): consent-gated events/crash reports, and the diagnostics
+ * bundle presign/confirm attached to a support ticket. The desktop shell and
+ * the local bridge are the primary callers; the web shell uses the
+ * diagnostics-bundle pair when the support form lets a user attach a bundle
+ * built elsewhere (the desktop app).
+ */
+export const telemetryEndpoints = {
+  submitEvents: defineEndpoint<SubmitTelemetryEventsRequest, SubmitTelemetryEventsResponse>({
+    method: "POST",
+    path: "/telemetry/events",
+    auth: "bearer",
+    operationId: "submitTelemetryEvents",
+  }),
+  submitCrash: defineEndpoint<SubmitCrashReportRequest, SubmitCrashReportResponse>({
+    method: "POST",
+    path: "/telemetry/crash",
+    auth: "bearer",
+    operationId: "submitCrashReport",
+  }),
+  presignDiagnosticsBundle: defineEndpoint<
+    PresignDiagnosticsBundleRequest,
+    PresignDiagnosticsBundleResponse
+  >({
+    method: "POST",
+    path: "/telemetry/diagnostics-bundle/presign",
+    auth: "bearer",
+    operationId: "presignDiagnosticsBundle",
+  }),
+  confirmDiagnosticsBundle: defineEndpoint<
+    ConfirmDiagnosticsBundleRequest,
+    ConfirmDiagnosticsBundleResponse
+  >({
+    method: "POST",
+    path: "/telemetry/diagnostics-bundle/confirm",
+    auth: "bearer",
+    operationId: "confirmDiagnosticsBundle",
+  }),
+} as const;
+
 /** Scripts and translation (A22): `apps/api/src/transcripts/scripts`. */
 export const transcriptScriptsEndpoints = {
   transliterate: defineEndpoint<TransliterateRequest, TransliterateAccepted>({
@@ -923,6 +1012,7 @@ const webhookEndpoints2 = {
 
 export const endpoints = {
   auth: authEndpoints,
+  adminAuth: adminAuthEndpoints,
   device: deviceEndpoints,
   account: accountEndpoints,
   jobs: jobEndpoints,
@@ -939,10 +1029,12 @@ export const endpoints = {
   offers: offersEndpoints,
   registeredDevices: registeredDeviceEndpoints,
   licensing: licensingEndpoints,
+  plugins: pluginEndpoints,
   clientTags: clientTagEndpoints,
   referrals: referralsEndpoints,
   academy: academyEndpoints,
   support: supportEndpoints,
+  telemetry: telemetryEndpoints,
   memory: memoryEndpoints,
   streak: streakEndpoints,
   apiKeys: apiKeyEndpoints,
@@ -953,6 +1045,7 @@ export const endpoints = {
 /** Flat list, for the contract test. */
 export const ALL_ENDPOINTS = [
   ...Object.entries(authEndpoints),
+  ...Object.entries(adminAuthEndpoints),
   ...Object.entries(deviceEndpoints),
   ...Object.entries(registeredDeviceEndpoints),
   ...Object.entries(licensingEndpoints),
@@ -973,6 +1066,7 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(referralsEndpoints),
   ...Object.entries(academyEndpoints),
   ...Object.entries(supportEndpoints),
+  ...Object.entries(telemetryEndpoints),
   ...Object.entries(memoryEndpoints),
   ...Object.entries(streakEndpoints),
   ...Object.entries(apiKeyEndpoints),

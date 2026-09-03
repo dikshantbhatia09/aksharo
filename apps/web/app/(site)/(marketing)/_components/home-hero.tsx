@@ -40,6 +40,7 @@ export function HomeHero(): React.JSX.Element {
                   : "text-fg-1 rounded-full px-2.5 py-0.5 text-xs font-semibold"
               }
             >
+              {/* eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up */}
               {HERO_LOCALE_LABEL[option]}
             </button>
           ))}

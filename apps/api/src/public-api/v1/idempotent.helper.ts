@@ -16,6 +16,7 @@ export async function withIdempotency<T>(
   body: unknown,
   produce: () => Promise<T>,
 ): Promise<T> {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const header = request.headers[IDEMPOTENCY_HEADER];
   const key = Array.isArray(header) ? header[0] : header;
   if (key === undefined || key === "") return produce();

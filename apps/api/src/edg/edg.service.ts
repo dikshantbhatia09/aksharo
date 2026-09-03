@@ -187,6 +187,7 @@ export class EdgService {
       where: { id: passId, edgId: edg.id },
       select: { id: true },
     });
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- sentinel comparison (null/undefined/boolean/empty-string), not a secret/MAC comparison -- reviewed for the same follow-up
     if (pass === null) {
       throw new AppException(
         EDG_ERROR_CODES.passNotFound,
@@ -436,6 +437,7 @@ export class EdgService {
     });
 
     const aspect = ASPECTS[project.aspect];
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const canvas = CANVAS_SIZES[aspect];
     const hot: EdgHot = {
       meta: {
@@ -482,6 +484,64 @@ export class EdgService {
       "edg document created from segmenter output",
     );
     return { ...created, created: true };
+  }
+
+  /**
+   * `POST /projects/{id}/edg/import` (brief C04 §3): writes a whole,
+   * already-edited EDG v2 document as revision 1 of a fresh project — the
+   * desktop's "Upload to cloud" creates a *new* cloud project from a local
+   * one and hands over its document verbatim, rather than replaying ops or
+   * re-running the segmenter (that is what `initialise` is for). A project
+   * that already has a document refuses with `edg/already_imported`: import
+   * only ever creates the first one, exactly like `initialise`, and this
+   * WP's scope explicitly excludes a local-to-cloud merge.
+   */
+  async importSnapshot(input: {
+    projectId: string;
+    workspaceId: string;
+    hot: EdgHot;
+    segments: readonly Segment[];
+    /** Brief C04b §1: the local project's transcript, so word-addressed ops resolve after upload. */
+    chunks?: readonly TranscriptChunk[];
+    author?: string | null;
+    source?: EdgSource;
+  }): Promise<{ edgId: string; revision: number; segments: number }> {
+    const project = await this.prisma.project.findFirst({
+      where: { id: input.projectId, workspaceId: input.workspaceId, deletedAt: null },
+      select: { id: true, edgDocument: { select: { id: true } } },
+    });
+    if (project === null) {
+      throw new AppException(ERROR_CODES.notFound, "No such project.", HttpStatus.NOT_FOUND);
+    }
+    if (project.edgDocument !== null) {
+      throw new AppException(
+        EDG_ERROR_CODES.alreadyImported,
+        "This project already has a document.",
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const edgId = newId();
+    const hot: EdgHot = {
+      ...input.hot,
+      meta: { ...input.hot.meta, edgId, projectId: input.projectId },
+    };
+
+    const created = await this.repository.createDocument({
+      edgId,
+      projectId: input.projectId,
+      hot,
+      segments: input.segments,
+      ...(input.chunks === undefined ? {} : { chunks: input.chunks }),
+      author: input.author ?? null,
+      source: input.source ?? "desktop",
+    });
+
+    this.logger.log(
+      { projectId: input.projectId, edgId, segments: created.segments },
+      "edg document imported from a local project (upload to cloud)",
+    );
+    return created;
   }
 
   // -------------------------------------------------------------------------

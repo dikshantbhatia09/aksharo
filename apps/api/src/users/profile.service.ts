@@ -61,6 +61,7 @@ export interface ErasureResult {
 /** Reads a string key out of a JSONB column value that is not guaranteed to be an object. */
 function stringField(value: unknown, key: string): string | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const field = (value as Record<string, unknown>)[key];
   return typeof field === "string" ? field : undefined;
 }

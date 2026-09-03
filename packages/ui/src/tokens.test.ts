@@ -13,6 +13,7 @@ const css = readFileSync(
 
 /** `--color-bg-1: #131318;` → `#131318`. */
 function cssVar(name: string): string | undefined {
+  // eslint-disable-next-line security/detect-non-literal-regexp -- RegExp built from a fixed/internal string (test fixture or bounded value, not attacker input) -- reviewed for M06's eslint-plugin-security promotion
   const match = new RegExp(`--${name}:\\s*([^;]+);`).exec(css);
   return match?.[1]?.trim();
 }

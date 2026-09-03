@@ -5,14 +5,35 @@ import { PUBLISH_SECRETS, requireSecretsIfSigned } from "../env.js";
 import { buildUpdaterFeed, writeUpdaterFeedFile, writeUpdaterFeedJson } from "../lib/feeds.js";
 import { ensureDir, walkFiles } from "../lib/fsUtil.js";
 import { evaluateStableGate, readLedger } from "../lib/notarizeBuffer.js";
+import {
+  publishedArtifactUrl,
+  writePluginManifest,
+  type PluginManifestInput,
+} from "../lib/pluginManifest.js";
 
 import type { Channel, ReleaseContext } from "../types.js";
+
+export interface PublishPluginArtifact {
+  /** Absolute path to the artifact (ccx / resolve zip) to copy alongside the desktop artifacts. */
+  path: string;
+  version: string;
+  minHostVersion?: string | null;
+  maxHostVersion?: string | null;
+  notes?: string | null;
+}
 
 export interface PublishOptions {
   channel: Channel;
   version: string;
   macArtifact?: string;
   winArtifact?: string;
+  /** C10: the `.ccx` from `package-ccx`, published under the channel manifest (brief §3). */
+  ccxArtifact?: PublishPluginArtifact;
+  /** C10: the Resolve bundle from `package-resolve`. */
+  resolveArtifact?: PublishPluginArtifact;
+  /** C10: publish-time domain for constructed download URLs (`@montaj/config`'s `BRAND.domain`
+   * in production; injectable so tests never need to import the app config package). */
+  domain?: string;
   force?: boolean;
   reason?: string;
 }
@@ -21,6 +42,7 @@ export interface PublishResult {
   destDir: string;
   uploaded: string[];
   feeds: string[];
+  pluginManifestPath?: string;
 }
 
 /**
@@ -72,6 +94,7 @@ export async function runPublish(
 
   if (ctx.mode !== "signed") {
     const marker = path.join(destDir, "UNSIGNED_PUBLISH");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(
       marker,
       "dry-run publish — copied locally, R2 was never contacted\n",
@@ -79,7 +102,59 @@ export async function runPublish(
     );
   }
 
+  let pluginManifestPath: string | undefined;
+  if (opts.ccxArtifact || opts.resolveArtifact || opts.macArtifact || opts.winArtifact) {
+    const domain = opts.domain ?? "aksharo.ai";
+    const manifest: PluginManifestInput = { channel: opts.channel, channels: {} };
+
+    if (opts.ccxArtifact) {
+      const fileName = path.basename(opts.ccxArtifact.path);
+      const dest = path.join(destDir, fileName);
+      await fs.copyFile(opts.ccxArtifact.path, dest);
+      uploaded.push(dest);
+      manifest.channels["premiere-uxp"] = {
+        version: opts.ccxArtifact.version,
+        minHostVersion: opts.ccxArtifact.minHostVersion ?? null,
+        maxHostVersion: opts.ccxArtifact.maxHostVersion ?? null,
+        downloadUrl: publishedArtifactUrl(domain, opts.channel, fileName),
+        notes: opts.ccxArtifact.notes ?? null,
+      };
+    }
+
+    if (opts.resolveArtifact) {
+      const fileName = path.basename(opts.resolveArtifact.path);
+      const dest = path.join(destDir, fileName);
+      await fs.copyFile(opts.resolveArtifact.path, dest);
+      uploaded.push(dest);
+      manifest.channels["resolve-script"] = {
+        version: opts.resolveArtifact.version,
+        minHostVersion: opts.resolveArtifact.minHostVersion ?? null,
+        maxHostVersion: opts.resolveArtifact.maxHostVersion ?? null,
+        downloadUrl: publishedArtifactUrl(domain, opts.channel, fileName),
+        notes: opts.resolveArtifact.notes ?? null,
+      };
+    }
+
+    if (opts.macArtifact || opts.winArtifact) {
+      manifest.desktop = {
+        version: opts.version,
+        notes: ctx.mode === "signed" ? null : "unsigned dry-run build",
+        downloadUrl: {
+          win: opts.winArtifact
+            ? publishedArtifactUrl(domain, opts.channel, path.basename(opts.winArtifact))
+            : null,
+          mac: opts.macArtifact
+            ? publishedArtifactUrl(domain, opts.channel, path.basename(opts.macArtifact))
+            : null,
+          linux: null,
+        },
+      };
+    }
+
+    pluginManifestPath = await writePluginManifest(destDir, manifest);
+  }
+
   const allFiles = await walkFiles(destDir);
   void allFiles;
-  return { destDir, uploaded, feeds };
+  return { destDir, uploaded, feeds, pluginManifestPath };
 }

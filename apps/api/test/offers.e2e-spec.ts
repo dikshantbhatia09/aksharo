@@ -243,8 +243,6 @@ describe.skipIf(!available)("offers — eligibility, week pass, top-up, metrics 
       .set("Authorization", auth(token));
     expect(forbidden.status).toBe(403);
 
-    await ctx.prisma.user.update({ where: { id: ctx.userId }, data: { isAdmin: true } });
-
     const checkout = await request(server)
       .post("/billing/passes/checkout")
       .set("Authorization", auth(token))
@@ -274,9 +272,10 @@ describe.skipIf(!available)("offers — eligibility, week pass, top-up, metrics 
       },
     });
 
+    const adminToken = await ctx.adminToken();
     const metrics = await request(server)
       .get("/admin/metrics/offers")
-      .set("Authorization", auth(token));
+      .set("Authorization", auth(adminToken));
     expect(metrics.status).toBe(200);
     const body = metrics.body as {
       ninePass: { totalPurchases: number; upgradedWithinWindow: number; recommendation: string };
@@ -378,6 +377,12 @@ describe.skipIf(!available)("offers — ₹9 pass ledger and manifest re-issue (
       outputKind: "video",
       mode: "browser",
       script: "roman",
+      // A21b: an explicit `mode: "browser"` request is judged against the real
+      // capability probe (D34) and 409s as `export/unsupported_in_browser`
+      // without one — this suite predates A21b, and a real browser client
+      // always sends this alongside the request (see referrals-http.e2e-spec.ts,
+      // which needs the same fixture for the same reason).
+      capabilities: { codecs: ["avc1.42001f"], audioEncoder: true },
     };
 
     const watermarked = await call<DecisionBody>("POST", `/projects/${seeded.projectId}/exports`, {

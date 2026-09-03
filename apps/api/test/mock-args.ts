@@ -12,6 +12,7 @@ import type { Mock } from "vitest";
  */
 export function callArg<T = Record<string, unknown>>(mock: unknown, call = 0, index = 0): T {
   const calls = (mock as { mock: { calls: unknown[][] } }).mock.calls;
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return calls[call]?.[index] as T;
 }
 

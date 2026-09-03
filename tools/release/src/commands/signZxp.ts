@@ -43,11 +43,22 @@ export async function runSignZxp(
     placeholderPlugin = true;
     sourceDir = path.join(ctx.outDir, "build-zxp", "placeholder-plugin");
     await ensureDir(path.join(sourceDir, "CSXS"));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(
       path.join(sourceDir, "CSXS", "manifest.xml"),
       `<?xml version="1.0" encoding="UTF-8"?>\n<ExtensionManifest ExtensionBundleId="${PLUGIN_IDS.afterEffectsCep}" ExtensionBundleVersion="${opts.version}" Version="10.0" />\n`,
       "utf8",
     );
+  } else {
+    // A real plugin source tree (C05b+) has its `package.json`/`src/**/*.ts`/tests/
+    // `node_modules` alongside the shippable files — zipping `absPluginDir` as-is would ship
+    // the whole dev tree (brief: "the .zxp contains manifest + bundle + jsx only"), and pnpm's
+    // symlinked `node_modules` breaks the dependency-free ZIP fallback in `zip.ts` (same reason
+    // `packageCcx.ts` stages the UXP plugin instead of zipping its source dir directly). Stage
+    // only the shippable subset instead.
+    sourceDir = path.join(ctx.outDir, "build-zxp", "staged-plugin");
+    await ensureDir(sourceDir);
+    await stageShippableFiles(absPluginDir, sourceDir);
   }
 
   const unsignedZxp = path.join(ctx.outDir, "build-zxp", `aksharo-ae-${opts.version}.unsigned.zxp`);
@@ -70,10 +81,24 @@ export async function runSignZxp(
   }
 
   await fs.copyFile(unsignedZxp, zxpPath);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   await fs.writeFile(
     `${zxpPath}.UNSIGNED`,
     "UNSIGNED (dry-run) — self-signed dev cert would be used in a real run\n",
     "utf8",
   );
   return { zxpPath, signed: false, placeholderPlugin };
+}
+
+/** Files/directories the AE CEP panel ships; everything else in the source tree (package.json,
+ * src/**\/*.ts, tests, node_modules, docs) is dev-only. `src/jsx` ships as source (ExtendScript
+ * is never bundled/minified — CEP loads it directly via `CSXS/manifest.xml`'s `ScriptPath`). */
+const SHIPPABLE_ENTRIES = ["CSXS", "index.html", "dist", "src/jsx", "icons"];
+
+async function stageShippableFiles(fromDir: string, toDir: string): Promise<void> {
+  for (const entry of SHIPPABLE_ENTRIES) {
+    const src = path.join(fromDir, entry);
+    if (!(await pathExists(src))) continue;
+    await fs.cp(src, path.join(toDir, entry), { recursive: true, dereference: true });
+  }
 }

@@ -345,6 +345,7 @@ export interface InverseState {
 
 /** Text a script displays for a word when nothing overrides it. */
 function wordDisplayText(word: Word, script: "roman" | "native" | "en"): string {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return word.scripts?.[script] ?? word.t;
 }
 
@@ -356,6 +357,7 @@ function wordDisplayText(word: Word, script: "roman" | "native" | "en"): string 
  * and reads as each word's base text.
  */
 function segmentDisplayText(state: InverseState, segment: Segment, script: ScriptId): string {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const override = segment.textOverrides?.[script];
   if (override !== undefined) return override;
   const parts: string[] = [];
@@ -398,7 +400,8 @@ export function computeInverseOps(
         script === undefined
           ? word.t
           : isWordScript(script)
-            ? (word.scripts?.[script] ?? word.t)
+            ? // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
+              (word.scripts?.[script] ?? word.t)
             : word.t;
       return [editWord(op.wordId, priorText, script, newOpId)];
     }

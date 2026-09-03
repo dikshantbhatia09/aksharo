@@ -17,6 +17,7 @@ import { advanceOfClusterRange, clusterBoundaries, codePointsOf, type Shaper } f
 import { type FontResource } from "./types.js";
 
 function fixture(file: string): Uint8Array {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   return new Uint8Array(readFileSync(join(FIXTURE_FONT_DIR, file)));
 }
 

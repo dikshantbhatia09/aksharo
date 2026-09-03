@@ -111,5 +111,6 @@ export class BrandAssetsService {
 /** True when `bytes` opens with the PNG magic number. Callers with real bytes only (tests). */
 export function looksLikePng(bytes: Uint8Array): boolean {
   if (bytes.length < PNG_MAGIC_BYTES.length) return false;
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return PNG_MAGIC_BYTES.every((byte, index) => bytes[index] === byte);
 }

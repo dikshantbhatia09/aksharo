@@ -49,6 +49,7 @@ interface Block {
 function toBlocks(markdown: string): Block[] {
   const blocks: Block[] = [];
   const lines = markdown.split("\n");
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const at = (index: number): string => lines[index] ?? "";
   let i = 0;
   while (i < lines.length) {

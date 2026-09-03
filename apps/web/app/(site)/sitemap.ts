@@ -4,6 +4,10 @@ import type { MetadataRoute } from "next";
 
 import { COMPARISON_PAGES } from "@/content/site/comparisons";
 import { LEGAL_DOCS } from "@/content/site/legal";
+import { loadHelpArticles } from "@/lib/content/loader";
+import { loadApiGroups } from "@/lib/docs/openapi";
+import { loadPluginGuides } from "@/lib/docs/plugin-guides";
+import { API_VERSIONS } from "@/lib/docs/schema";
 
 /**
  * `/sitemap.xml`. Lives under `(site)` — a route group is stripped from the
@@ -25,7 +29,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/plugins",
     "/download",
     "/changelog",
+    "/docs",
+    "/docs/guides",
+    "/docs/plugins",
+    "/docs/developers",
   ];
+
+  const docsGuideRoutes = loadHelpArticles().map((article) => `/docs/guides/${article.slug}`);
+  const docsPluginRoutes = loadPluginGuides().map((guide) => `/docs/plugins/${guide.slug}`);
+  const docsApiRoutes = API_VERSIONS.flatMap((version) => [
+    `/docs/developers/${version}`,
+    ...loadApiGroups().map((group) => `/docs/developers/${version}/${group.tag}`),
+  ]);
 
   return [
     ...staticRoutes.map((path) => ({
@@ -33,6 +48,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: now,
       changeFrequency: "weekly" as const,
       priority: path === "/" ? 1 : 0.7,
+    })),
+    ...[...docsGuideRoutes, ...docsPluginRoutes, ...docsApiRoutes].map((path) => ({
+      url: `${base}${path}`,
+      lastModified: now,
+      changeFrequency: "monthly" as const,
+      priority: 0.6,
     })),
     ...COMPARISON_PAGES.map((entry) => ({
       url: `${base}/vs/${entry.slug}`,

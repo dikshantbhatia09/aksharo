@@ -5,18 +5,32 @@ import * as React from "react";
 import { Button, ProgressBar, Switch } from "@montaj/ui";
 
 import { applyCleanOp, clearCleanOp, useAudioClean, type SetAudioCleanOp } from "./use-audio-clean";
+import { LocalModeNotice } from "../local-mode-gate";
 
 import type { AudioClean, AudioCleanStrength, AudioCleanTarget } from "./audio-endpoints";
 
 export interface AudioPanelProps {
   readonly projectId: string;
   readonly mediaId?: string;
-  /** The already-applied clean, from `EdgHot.audio.clean` (`""` when none). */
-  readonly appliedPreset: string;
+  /** The clean id already applied, from `EdgHot.audio.clean.cleanId` (`undefined` when none). */
+  readonly appliedCleanId?: string;
   /** Enqueues a `SetAudio` op through the editor's own `EdgOpQueue` — this
    * panel does not talk to the queue directly (see the final report). */
   readonly onSetAudio: (op: SetAudioCleanOp) => void;
+  /**
+   * D82: Deep clean (DeepFilterNet, cloud) stays greyed out with "coming to
+   * cloud renders" copy until the worker-ai image build provisions the model
+   * weights; `AUDIO_DEEP_CLEAN_ENABLED=1` is this panel's read of that flag.
+   * Quick clean (spectral gate) is free and available on every lane either way.
+   */
+  readonly deepCleanEnabled?: boolean;
+  /** Brief C04b §3: audio clean runs on the worker/cloud — greyed for a local project. */
+  readonly isLocalProject?: boolean;
+  readonly onUploadToCloud?: () => void;
+  readonly uploadingToCloud?: boolean;
 }
+
+export type AudioCleanTier = "quick" | "deep";
 
 const STRENGTHS: readonly AudioCleanStrength[] = ["light", "medium", "strong"];
 const TARGETS: readonly AudioCleanTarget[] = ["social", "youtube", "podcast"];
@@ -47,12 +61,18 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
   const { cleans, loading, error, starting, start } = useAudioClean(props.projectId);
   const [strength, setStrength] = React.useState<AudioCleanStrength>("medium");
   const [target, setTarget] = React.useState<AudioCleanTarget>("social");
+  const [tier, setTier] = React.useState<AudioCleanTier>("quick");
   const [abCleaned, setAbCleaned] = React.useState(true);
+  const deepCleanEnabled = props.deepCleanEnabled === true;
 
   const latest = latestOf(cleans);
-  const applied = latest !== undefined && props.appliedPreset === `b10:${latest.id}`;
+  const applied = latest !== undefined && props.appliedCleanId === latest.id;
 
   const handleRun = (): void => {
+    // D82: Deep clean has no request field yet — the worker only runs the
+    // Quick clean (spectral gate) chain until X07 provisions DeepFilterNet's
+    // weights, so `tier` only gates this panel's own UI for now (the button
+    // stays disabled unless `deepCleanEnabled`, so this never fires for "deep").
     void start({
       strength,
       target,
@@ -69,6 +89,36 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
 
   return (
     <section aria-label="Audio clean" className="flex flex-col gap-3 p-3">
+      <div className="flex gap-2" role="radiogroup" aria-label="Clean tier">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={tier === "quick"}
+          onClick={() => setTier("quick")}
+          data-testid="audio-tier-quick"
+          className="flex-1 rounded-md px-2 py-1 text-xs"
+        >
+          Quick clean
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={tier === "deep"}
+          disabled={!deepCleanEnabled}
+          onClick={() => deepCleanEnabled && setTier("deep")}
+          data-testid="audio-tier-deep"
+          title={deepCleanEnabled ? undefined : "coming to cloud renders"}
+          className="flex-1 rounded-md px-2 py-1 text-xs disabled:opacity-50"
+        >
+          Deep clean
+        </button>
+      </div>
+      {!deepCleanEnabled && (
+        <p className="text-xs text-muted-foreground" data-testid="audio-tier-deep-copy">
+          Deep clean (DeepFilterNet) is coming to cloud renders.
+        </p>
+      )}
+
       <div className="flex gap-2">
         <label className="flex flex-col gap-1 text-xs">
           Strength
@@ -98,7 +148,21 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
         </label>
       </div>
 
-      <Button type="button" onClick={handleRun} disabled={starting}>
+      {props.isLocalProject === true ? (
+        <LocalModeNotice
+          feature="audio clean"
+          {...(props.onUploadToCloud === undefined
+            ? {}
+            : { onUploadToCloud: props.onUploadToCloud })}
+          uploading={props.uploadingToCloud ?? false}
+        />
+      ) : null}
+
+      <Button
+        type="button"
+        onClick={handleRun}
+        disabled={starting || props.isLocalProject === true}
+      >
         {starting ? "Starting…" : "Clean audio"}
       </Button>
 

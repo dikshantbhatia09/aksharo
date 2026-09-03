@@ -42,8 +42,10 @@ describe("FileKeyStore", () => {
     expect(await store.load("k")).toBe("top-secret");
 
     const path = join(dir, "k.key");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     expect(existsSync(path)).toBe(true);
     if (process.platform !== "win32") {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
       expect(statSync(path).mode & 0o777).toBe(0o600);
     }
 
@@ -55,6 +57,7 @@ describe("FileKeyStore", () => {
     dir = join(mkdtempSync(join(tmpdir(), "bridge-filekeystore-parent-")), "keys");
     const store = new FileKeyStore(dir);
     await store.save("k", "v");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     expect(existsSync(dir)).toBe(true);
   });
 });

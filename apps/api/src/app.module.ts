@@ -3,6 +3,11 @@ import { EventEmitterModule } from "@nestjs/event-emitter";
 
 import { AcademyModule } from "./academy/academy.module.js";
 import { AdminModule } from "./admin/admin.module.js";
+import { AdminAffiliatesModule } from "./admin/affiliates/admin-affiliates.module.js";
+import { AdminBillingModule } from "./admin/billing/admin-billing.module.js";
+import { AdminReferralsModule } from "./admin/referrals/admin-referrals.module.js";
+import { AdminShareModule } from "./admin/share/admin-share.module.js";
+import { AdminUsersModule } from "./admin/users/admin-users.module.js";
 import { AffiliatesModule } from "./affiliates/affiliates.module.js";
 import { AudioModule } from "./audio/audio.module.js";
 import { AuthModule } from "./auth/auth.module.js";
@@ -15,6 +20,7 @@ import { ConsentsModule } from "./consents/consents.module.js";
 import { CreditsModule } from "./credits/credits.module.js";
 import { DevicesModule } from "./devices/devices.module.js";
 import { EdgModule } from "./edg/edg.module.js";
+import { EvalsModule } from "./evals/evals.module.js";
 import { ExportsModule } from "./exports/exports.module.js";
 import { FontsModule } from "./fonts/fonts.module.js";
 import { HealthModule } from "./health/health.module.js";
@@ -27,6 +33,7 @@ import { MediaModule } from "./media/media.module.js";
 import { MemoryModule } from "./memory/memory.module.js";
 import { NotifyModule } from "./notify/notify.module.js";
 import { OffersModule } from "./offers/offers.module.js";
+import { OpsModule } from "./ops/ops.module.js";
 import { PassesModule } from "./passes/passes.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
@@ -39,6 +46,7 @@ import { StreakModule } from "./streak/streak.module.js";
 import { StylesModule } from "./styles/styles.module.js";
 import { SupportModule } from "./support/support.module.js";
 import { TaxModule } from "./tax/tax.module.js";
+import { TelemetryModule } from "./telemetry/telemetry.module.js";
 import { ScriptsModule } from "./transcripts/scripts/scripts.module.js";
 import { TranscriptsModule } from "./transcripts/transcripts.module.js";
 import { UsersModule } from "./users/users.module.js";
@@ -129,12 +137,21 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // event without touching it.
     AcademyModule,
     SupportModule,
+    // C12: consent-gated desktop/bridge telemetry events and crash reports.
+    TelemetryModule,
     HealthModule,
+    // X04: `ops_incidents` + the public `status.json`/RSS surface.
+    OpsModule,
     BillingModule,
     OffersModule,
     StreakModule,
     TaxModule,
     InvoicesModule,
+    AdminBillingModule,
+    AdminUsersModule,
+    AdminReferralsModule,
+    AdminAffiliatesModule,
+    AdminShareModule,
     // B08: team/agency seat + pooled-credit sync, ownership transfer, client
     // tags (`TeamsModule`), device registration/management (`DevicesModule`),
     // licence keys and the plugin activate/heartbeat surface
@@ -164,6 +181,10 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // plugin clients ride when loopback is unreachable (brief §3). Last, like
     // `PublicApiModule`/`WebhooksModule`: nothing above depends on it.
     BridgeRelayModule,
+    // D08: the eval harness's signed worker -> API ingestion surface
+    // (`POST /internal/evals/runs`). Last for the same reason as the other
+    // internal/last-mile modules above: nothing else depends on it.
+    EvalsModule,
   ],
 })
 export class AppModule {}

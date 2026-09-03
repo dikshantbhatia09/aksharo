@@ -8,7 +8,18 @@ import { FREE_TIER_DAILY_MINUTES } from "../jobs/jobs.config.js";
 
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 
-const WORKSPACE = "01JCWS0000000000000000000A";
+/**
+ * `NoopCreditsFacade`'s free-tier allowance is keyed only by `workspaceId` (see
+ * `noop-credits.facade.ts`), held in a `Map` on the instance this file constructs
+ * fresh in every `beforeEach`. That already makes the allowance hermetic per test
+ * and per file under Vitest's default per-file module isolation. This id is still
+ * randomised per test run — rather than a fixed literal — as a defence-in-depth
+ * measure: a fixed workspace id shared textually with other suites (several
+ * unrelated `*.test.ts` files reuse the same literal for unrelated fixtures) is
+ * one property removed from ever colliding, even though the current in-memory,
+ * per-instance design has no code path that could make it happen.
+ */
+const WORKSPACE = `01JCWS${Date.now().toString(36).toUpperCase().padStart(10, "0")}${Math.random().toString(36).slice(2, 10).toUpperCase().padStart(10, "0")}`;
 
 let db: FakeDb;
 let credits: NoopCreditsFacade;

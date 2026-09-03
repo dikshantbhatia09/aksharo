@@ -42,6 +42,7 @@ interface HashEntry {
 }
 
 function readJson<T>(name: string): T {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   return JSON.parse(readFileSync(join(GOLDEN_DIR, name), "utf8")) as T;
 }
 
@@ -86,6 +87,7 @@ describe("golden hashes", () => {
     for (const entry of golden.entries) {
       const commands = render(entry.style, entry.fixture, entry.tMs);
       const hash = hashCommands(commands);
+      // eslint-disable-next-line security/detect-possible-timing-attacks -- equality check on a null/undefined/status/hash sentinel, not a secret or MAC comparison -- reviewed for M06's eslint-plugin-security promotion
       if (hash !== entry.hash) {
         mismatches.push(
           `${entry.style}/${entry.fixture}@${String(entry.tMs)}: ${hash} ≠ ${entry.hash}`,

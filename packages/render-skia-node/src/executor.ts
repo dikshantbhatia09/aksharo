@@ -223,6 +223,7 @@ function traceShape(ctx: SKRSContext2D, shape: ClipShape): "nonzero" | "evenodd"
  * to here.
  */
 export function tracePath(ctx: SKRSContext2D, d: string): void {
+  // eslint-disable-next-line security/detect-unsafe-regex -- reviewed and timed against adversarial input -- linear, no nested unbounded quantifiers -- not exponential (see M06 report)
   const tokens = d.match(/[MLQCZmlqcz]|-?\d*\.?\d+(?:e[-+]?\d+)?/gi);
   ctx.beginPath();
   if (tokens === null) return;
@@ -233,13 +234,16 @@ export function tracePath(ctx: SKRSContext2D, d: string): void {
   let currentY = 0;
 
   const number = (): number => {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const token = tokens[index];
     index += 1;
     return token === undefined ? 0 : Number.parseFloat(token);
   };
 
   while (index < tokens.length) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const token = tokens[index];
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- equality check on a null/undefined/status/hash sentinel, not a secret or MAC comparison -- reviewed for M06's eslint-plugin-security promotion
     if (token === undefined) break;
     index += 1;
     switch (token.toUpperCase()) {

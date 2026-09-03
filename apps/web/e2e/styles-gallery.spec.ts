@@ -60,6 +60,7 @@ test.describe("real renderer output", () => {
       const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
       const seen = new Set<string>();
       for (let index = 0; index < data.length; index += 4) {
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         seen.add(`${String(data[index])},${String(data[index + 1])},${String(data[index + 2])}`);
       }
       return seen.size;

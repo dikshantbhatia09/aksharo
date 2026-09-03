@@ -86,6 +86,18 @@ const DATA: Readonly<Record<NotifyKind, TemplateData>> = {
     diagnostics: "attached",
     link: "https://app.example.test/admin/support/01JTICKET00000000000000000",
   },
+  "share-report-resolved": {
+    reportedAt: "2026-09-01",
+    resolution: "taken down",
+    resolutionNote: "The link no longer works.",
+    link: "https://aksharo.ai/help/sharing",
+  },
+  "support-ticket-reply": {
+    subject: "Export stuck at 90%",
+    replyBody: "We've restarted the export — please try again.",
+    ticketId: "01JTICKET00000000000000000",
+    link: "https://app.example.test/support/01JTICKET00000000000000000",
+  },
 };
 
 const UNSUBSCRIBE = "https://app.example.test/settings/notifications";
@@ -119,7 +131,9 @@ describe("the two catalogues", () => {
    */
   it("reference the same variables in every kind", () => {
     for (const kind of NOTIFY_KINDS) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const en = EN_MESSAGES.kinds[kind];
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const hi = HI_MESSAGES.kinds[kind];
       const namesOf = (strings: typeof en): string[] =>
         [
@@ -135,6 +149,7 @@ describe("the two catalogues", () => {
   it("give every kind a subject, a heading and at least one paragraph", () => {
     for (const catalogue of [EN_MESSAGES, HI_MESSAGES]) {
       for (const kind of NOTIFY_KINDS) {
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         const strings = catalogue.kinds[kind];
         expect(strings.subject.length, `${catalogue.locale} ${kind}`).toBeGreaterThan(0);
         expect(strings.heading.length).toBeGreaterThan(0);
@@ -158,6 +173,7 @@ describe("rendering", () => {
     const rendered = renderNotification({
       kind,
       locale: "en-IN",
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       data: DATA[kind],
       unsubscribeUrl: UNSUBSCRIBE,
     });
@@ -169,6 +185,7 @@ describe("rendering", () => {
     const rendered = renderNotification({
       kind,
       locale: "hi-IN",
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       data: DATA[kind],
       unsubscribeUrl: UNSUBSCRIBE,
     });
@@ -190,6 +207,7 @@ describe("rendering", () => {
 
   it("never emits a remote image, and therefore never a tracking pixel", () => {
     for (const kind of NOTIFY_KINDS) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const { html } = renderNotification({ kind, data: DATA[kind], unsubscribeUrl: UNSUBSCRIBE });
       expect(html, kind).not.toMatch(/<img/i);
       expect(html, kind).not.toMatch(/background-image/i);
@@ -205,6 +223,7 @@ describe("rendering", () => {
     expect(text).toContain(link);
     expect(html).toContain(escapeHtml(link));
     expect(
+      // eslint-disable-next-line security/detect-non-literal-regexp -- constructed from already-escaped fixture/own-document text, not attacker input -- reviewed for the same follow-up
       html.match(new RegExp(escapeHtml(link).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")),
     ).toHaveLength(2);
   });

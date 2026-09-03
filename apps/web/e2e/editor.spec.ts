@@ -228,18 +228,34 @@ test.describe("editor — realtime sync", () => {
     // Both edit the same word before either has heard back from the server;
     // whichever lands second gets rebased into a `conflict` (rebase table
     // rule 3) and its client shows the chooser with both texts.
-    async function editWord0(page: typeof pageA, text: string): Promise<void> {
+    //
+    // The two edits are prepared up to the point of commit (click, enter
+    // edit mode, select, type) before either page's `Enter` actually fires —
+    // committing both together with `Promise.all` right after, rather than
+    // running each page's whole edit sequence start-to-finish in turn. Doing
+    // the latter leaves the two commits separated by however long a full
+    // click+type+commit round trip takes on the browser under test; WebKit's
+    // baseline automation latency for that is comfortably longer than the
+    // 250 ms debounce (`DEFAULT_DEBOUNCE_MS`, `lib/edg/queue.ts`) plus a
+    // network round trip, so the second edit reliably lands *after* the
+    // first has already closed out — a clean rebase, not a conflict, on
+    // every run, not just an occasional flake.
+    async function prepareEdit(page: typeof pageA, text: string): Promise<void> {
       const chip = page.getByTestId("word-chip-0:8");
       await chip.click();
       await chip.press("Enter");
       await expect(chip).toHaveAttribute("contenteditable", "true");
       await chip.selectText();
       await page.keyboard.type(text);
-      await chip.press("Enter");
     }
 
-    await editWord0(pageA, "sahee");
-    await editWord0(pageB, "sahih");
+    async function commitEdit(page: typeof pageA): Promise<void> {
+      await page.getByTestId("word-chip-0:8").press("Enter");
+    }
+
+    await prepareEdit(pageA, "sahee");
+    await prepareEdit(pageB, "sahih");
+    await Promise.all([commitEdit(pageA), commitEdit(pageB)]);
 
     // Whichever session's batch the server rebases the *other's* against
     // (rebase table rule 3) is the one that sees the chooser — not

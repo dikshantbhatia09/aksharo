@@ -7,14 +7,23 @@ import { AdminStepUpController } from "./auth/admin-step-up.controller.js";
 import { AdminStepUpService } from "./auth/admin-step-up.service.js";
 import { AdminCreditsController } from "./credits/admin-credits.controller.js";
 import { AdminDlqController } from "./dlq/dlq.controller.js";
+import { AdminEvalsController } from "./evals/admin-evals.controller.js";
+import { AdminFlagsController } from "./flags/admin-flags.controller.js";
+import { AdminJobsController } from "./jobs/admin-jobs.controller.js";
+import { AdminOpsController } from "./ops/admin-ops.controller.js";
 import { AdminParentalWaitlistController } from "./parental-waitlist.controller.js";
 import { AdminPrivacyController } from "./privacy/admin-privacy.controller.js";
+import { AdminRoutingController } from "./routing/admin-routing.controller.js";
 import { AdminSchedulerController } from "./scheduler/admin-scheduler.controller.js";
 import { AdminStreakController } from "./streak/admin-streak.controller.js";
 import { AdminStreakService } from "./streak/admin-streak.service.js";
+import { AdminStylesController } from "./styles/admin-styles.controller.js";
+import { AdminSupportController } from "./support/admin-support.controller.js";
+import { AdminSupportService } from "./support/admin-support.service.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { AdminOffersController } from "../offers/admin-offers.controller.js";
 import { OffersModule } from "../offers/offers.module.js";
+import { OpsModule } from "../ops/ops.module.js";
 import { PrivacyModule } from "../privacy/privacy.module.js";
 
 /**
@@ -39,10 +48,12 @@ import { PrivacyModule } from "../privacy/privacy.module.js";
  * ₹9-hypothesis instrumentation), which is not `@Global()`.
  */
 @Module({
-  imports: [JobsModule, PrivacyModule, OffersModule],
+  imports: [JobsModule, PrivacyModule, OffersModule, OpsModule],
   controllers: [
     AdminStepUpController,
     AdminDlqController,
+    AdminFlagsController,
+    AdminJobsController,
     AdminParentalWaitlistController,
     AdminCreditsController,
     AdminOffersController,
@@ -50,8 +61,21 @@ import { PrivacyModule } from "../privacy/privacy.module.js";
     AdminAcquisitionController,
     AdminPrivacyController,
     AdminSchedulerController,
+    AdminRoutingController,
+    AdminStylesController,
+    AdminSupportController,
+    AdminEvalsController,
+    // X04: the status-page incident list (`ops_incidents`) — added alongside
+    // B13b's controllers above, none of which were touched.
+    AdminOpsController,
   ],
-  providers: [AdminGuard, AdminStepUpService, AdminStreakService, AdminAcquisitionService],
+  providers: [
+    AdminGuard,
+    AdminStepUpService,
+    AdminStreakService,
+    AdminAcquisitionService,
+    AdminSupportService,
+  ],
   exports: [AdminGuard],
 })
 export class AdminModule {}

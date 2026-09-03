@@ -55,12 +55,14 @@ function base64ToBytes(b64: string): Uint8Array {
   let bitCount = 0;
   let byteIndex = 0;
   for (const ch of clean) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const value = BASE64_INDEX[ch];
     if (value === undefined) continue;
     bitBuffer = (bitBuffer << 6) | value;
     bitCount += 6;
     if (bitCount >= 8) {
       bitCount -= 8;
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       bytes[byteIndex] = (bitBuffer >> bitCount) & 0xff;
       byteIndex += 1;
     }

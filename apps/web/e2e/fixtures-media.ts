@@ -50,6 +50,7 @@ export function generateWavFile(options: {
 
   const dir = mkdtempSync(join(tmpdir(), "aksharo-e2e-"));
   const path = join(dir, options.filename ?? "clip.wav");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   writeFileSync(path, buffer);
   return path;
 }

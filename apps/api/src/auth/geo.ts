@@ -27,6 +27,7 @@ const CITY_HEADERS = ["cf-ipcity", "x-vercel-ip-city", "x-geo-city"] as const;
 
 function firstHeader(headers: IncomingHttpHeaders, names: readonly string[]): string | undefined {
   for (const name of names) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const raw = headers[name];
     const value = Array.isArray(raw) ? raw[0] : raw;
     if (typeof value === "string" && value.trim() !== "") return value.trim();

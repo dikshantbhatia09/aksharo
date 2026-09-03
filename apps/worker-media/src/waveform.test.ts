@@ -96,6 +96,7 @@ describe("buildWaveform", () => {
     const samples = Array.from({ length: SAMPLE_RATE }, (_unused, index) =>
       index < SAMPLE_RATE / 2 ? 32_767 : 0,
     );
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(file, wav(samples));
 
     const waveform = await buildWaveform({
@@ -125,6 +126,7 @@ describe("buildWaveform", () => {
     const samples = Array.from({ length: total }, (_unused, index) =>
       index % 2 === 0 ? 32_767 : -32_768,
     );
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(file, wav(samples));
 
     const waveform = await buildWaveform({
@@ -142,6 +144,7 @@ describe("buildWaveform", () => {
     // The audio can be a few milliseconds shorter than the video; the timeline is
     // drawn against the container.
     const file = join(dir, "short-audio.wav");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(file, wav(Array.from({ length: SAMPLE_RATE }, () => 1_000)));
     const waveform = await buildWaveform({
       file,
@@ -154,6 +157,7 @@ describe("buildWaveform", () => {
 
   it("falls back to the measured duration when the container declares none", async () => {
     const file = join(dir, "no-duration.wav");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(file, wav(Array.from({ length: SAMPLE_RATE * 2 }, () => 500)));
     const waveform = await buildWaveform({
       file,

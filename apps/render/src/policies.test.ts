@@ -52,6 +52,7 @@ function renderFamilyBlock(text: string): string {
 }
 
 function numberField(block: string, field: string): number {
+  // eslint-disable-next-line security/detect-non-literal-regexp -- RegExp built from a fixed/internal string (test fixture or bounded value, not attacker input) -- reviewed for M06's eslint-plugin-security promotion
   const match = new RegExp(`${field}:\\s*([0-9_.]+)`).exec(block);
   expect(match?.[1], `${field} is missing from the API's table`).toBeDefined();
   return Number((match?.[1] ?? "").replace(/_/g, ""));

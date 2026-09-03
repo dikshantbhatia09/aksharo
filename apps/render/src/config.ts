@@ -56,6 +56,7 @@ function intFrom(
   minimum: number,
   maximum: number,
 ): number {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const raw = source[name]?.trim();
   if (raw === undefined || raw === "") return fallback;
   const value = Number.parseInt(raw, 10);

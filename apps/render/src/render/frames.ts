@@ -154,6 +154,7 @@ export function createFrameSource(options: FrameSourceOptions): FrameSource {
       requested += 1;
       const commands = commandsAt(frameTimeMs(index, options.fps));
       const hash = hashCommands(commands);
+      // eslint-disable-next-line security/detect-possible-timing-attacks -- equality check on a null/undefined/status/hash sentinel, not a secret or MAC comparison -- reviewed for M06's eslint-plugin-security promotion
       if (hash === previousHash) {
         reused += 1;
         return batch.buffer;

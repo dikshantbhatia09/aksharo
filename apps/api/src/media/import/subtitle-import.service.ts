@@ -223,11 +223,17 @@ export class SubtitleImportService {
     await this.projects.touch(project.id, now);
 
     const alignTarget = input.mediaId ?? (await this.primaryMediaId(project.id));
+    const transcriptId = ulid();
     const job = await this.jobs.enqueue({
       type: "ai.align",
       workspaceId,
       projectId: project.id,
       params: {
+        // B15 §6: the worker's own contract (`ai.align`) needs
+        // `segments: [{startMs, endMs, text}]` built from the cues, not a
+        // reference to the sidecar it cannot read on its own.
+        mode: "import",
+        transcriptId,
         subtitleMediaId: asset.id,
         subtitleKey: key,
         subtitleBucket: this.derived.kind,
@@ -236,12 +242,19 @@ export class SubtitleImportService {
         timed: parsed.timed,
         cueCount: parsed.cues.length,
         language: document.language,
+        segments: parsed.cues.map((cue) => ({
+          startMs: cue.startMs,
+          endMs: cue.endMs,
+          text: cue.text.replace(/\s+/g, " ").trim(),
+        })),
+        cueWordCounts: parsed.cues.map(
+          (cue) => cue.text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean).length,
+        ),
       },
       jobKey: MEDIA_JOB_KEYS.align(asset.id),
       worstCaseTenths: MEDIA_JOB_QUOTES.alignTenths,
       reason: `ai.align · imported ${parsed.kind} · ${String(parsed.cues.length)} cues`,
     });
-
     if (parsed.warnings.length > 0) {
       this.logger.debug(
         { projectId: project.id, mediaId: asset.id, warnings: parsed.warnings.length },

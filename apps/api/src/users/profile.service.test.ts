@@ -164,6 +164,7 @@ describe("toProfileView", () => {
 describe("A05_AUDIT_ACTIONS", () => {
   it("names every action `<domain>.<noun>.<verb>` and never repeats one", () => {
     const actions = Object.values(A05_AUDIT_ACTIONS);
+    // eslint-disable-next-line security/detect-unsafe-regex -- bounded or disjoint-alternation pattern, reviewed and timed against adversarial input -- not exponential; see the WP report
     for (const action of actions) expect(action).toMatch(/^[a-z_]+(\.[a-z_]+){1,2}$/);
     expect(new Set(actions).size).toBe(actions.length);
   });

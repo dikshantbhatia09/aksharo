@@ -8,6 +8,7 @@
     "setup": "node scripts/py.mjs --setup-only",
     "dev": "node scripts/py.mjs -m worker_ai",
     "start": "node scripts/py.mjs -m worker_ai",
+    "eval": "node scripts/py.mjs -m worker_ai.evals nightly",
     "lint": "node scripts/py.mjs -m ruff check .",
     "format": "node scripts/py.mjs -m ruff format .",
     "typecheck": "node scripts/py.mjs -m mypy --strict .",

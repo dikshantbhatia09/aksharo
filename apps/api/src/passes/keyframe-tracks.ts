@@ -12,9 +12,9 @@
  * keeping with this file's place in the "read helpers only" boundary of
  * `apps/api/src/passes/**`.
  */
-import type { ObjectStore } from "../common/storage/index.js";
-
 import type { KeyframeTrack } from "@montaj/render-manifest";
+
+import type { ObjectStore } from "../common/storage/index.js";
 
 /** The subset of `PassItem` this resolver needs (structural, to avoid an import cycle). */
 export interface KeyframeCarryingItem {

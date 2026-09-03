@@ -17,16 +17,22 @@
  */
 import { generateKeyPairSync } from "node:crypto";
 
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { Test } from "@nestjs/testing";
-import { type PrismaClient } from "@prisma/client";
+import { type PrismaClient, type $Enums } from "@prisma/client";
 import Redis from "ioredis";
+import { ulid } from "ulid";
 
 import { createTestDatabase } from "./db-harness.js";
 import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness.js";
+import { AdminStepUpService } from "../src/admin/auth/admin-step-up.service.js";
+import { currentTotpCode } from "../src/admin/auth/totp.js";
 import { AppModule } from "../src/app.module.js";
 import { redisKeys } from "../src/auth/auth.constants.js";
 import { GOOGLE_OAUTH_PROVIDER } from "../src/auth/google-oauth.provider.js";
+import { CommonAuditService } from "../src/common/audit/audit.service.js";
 import { HttpExceptionFilter } from "../src/common/errors/http-exception.filter.js";
+import { PrismaService } from "../src/common/prisma/prisma.service.js";
 import { redisKeyPrefix } from "../src/common/redis/redis-keys.js";
 import { resetEnvCache } from "../src/config/config.module.js";
 import { NotifyConsumer } from "../src/notify/notify.consumer.js";
@@ -119,6 +125,140 @@ function generateJwtKeys(): { privateKey: string; publicKey: string } {
   return { privateKey, publicKey };
 }
 
+/**
+ * Track every promise a registered `EventEmitter2` listener returns (A23b).
+ *
+ * `members.service.ts` (and a dozen other modules — `referrals`, `invoices`,
+ * `webhooks`, `credits`, `exports`, ...) call `this.events.emit(...)` — the
+ * synchronous form, which starts each listener and discards whatever it
+ * returns. `SeatBillingListener.onSeatsChanged` is one such listener: it is
+ * still writing `subscriptions`/`credit_accounts`/`audit_log` well after the
+ * HTTP response the test awaited has gone out, which is exactly the shape of
+ * race `reset()`'s `TRUNCATE` needs draining before it runs (this suite's own
+ * "members > refuses to remove the owner" hit Postgres 40P01 against it).
+ *
+ * `eventemitter2`'s `emit()` calls each registered listener function directly
+ * (`lib/eventemitter2.js`'s `handler[i].call(this, ...)`) and never looks at
+ * what it returns, so there is nothing to hook at the `emit()` call site
+ * itself. Every registration path (`on`, `prependListener`, `once`,
+ * `prependOnceListener`, `many`) funnels through the one private `_on`,
+ * though, so patching it once — before any suite's `AppModule` registers its
+ * `@OnEvent` handlers — lets this harness wrap every listener as it is added:
+ * the wrapper still returns exactly what the real listener returned (`emit()`
+ * behaves exactly as shipped), but it also remembers the promise, if there was
+ * one, until it settles.
+ *
+ * A prototype patch, not a per-instance one: `EventEmitterModule.forRoot()`
+ * makes one `EventEmitter2` per Nest application, and test-only code patching
+ * a test-only import is the harness's to do — nothing under `src/` changes.
+ *
+ * The same set also catches `AccessLogInterceptor`'s `void
+ * this.audit.recordAccess(...)` (`privacy/access-log.interceptor.ts`) — a
+ * second fire-and-forget write that is not an `EventEmitter2` listener at
+ * all, just an RxJS `tap()` that runs after the response, so it needs its own
+ * hook: wrapping `CommonAuditService.prototype.record`/`recordAccess`
+ * (`AuditService` and `AuthAuditService` both call `super.record`, so this one
+ * patch covers every caller) the same way — track the promise, return it
+ * unchanged.
+ */
+const pendingBackgroundWrites = new Set<Promise<unknown>>();
+let backgroundWritersPatched = false;
+
+function track<T>(promise: Promise<T>): Promise<T> {
+  pendingBackgroundWrites.add(promise);
+  void promise
+    .catch(() => {
+      // A caller's own error handling is its business; this tracker only cares
+      // when the write is no longer in flight.
+    })
+    .finally(() => pendingBackgroundWrites.delete(promise));
+  return promise;
+}
+
+function patchBackgroundWritersOnce(): void {
+  if (backgroundWritersPatched) return;
+  backgroundWritersPatched = true;
+
+  const emitterProto = EventEmitter2.prototype as unknown as {
+    _on: (
+      type: string,
+      listener: (...args: unknown[]) => unknown,
+      prepend: boolean,
+      options?: unknown,
+    ) => unknown;
+  };
+  const originalOn = emitterProto._on;
+  emitterProto._on = function patchedOn(type, listener, prepend, options) {
+    const wrapped = (...args: unknown[]): unknown => {
+      const result = listener(...args);
+      if (
+        result !== null &&
+        typeof result === "object" &&
+        "then" in result &&
+        typeof (result as Promise<unknown>).then === "function"
+      ) {
+        track(result as Promise<unknown>);
+      }
+      return result;
+    };
+    return originalOn.call(this, type, wrapped, prepend, options);
+  };
+
+  const auditProto = CommonAuditService.prototype as unknown as {
+    record: (...args: unknown[]) => Promise<unknown>;
+    recordAccess: (...args: unknown[]) => Promise<unknown>;
+  };
+  const originalRecord = auditProto.record;
+  const originalRecordAccess = auditProto.recordAccess;
+  auditProto.record = function patchedRecord(...args: unknown[]) {
+    return track(originalRecord.apply(this, args));
+  };
+  auditProto.recordAccess = function patchedRecordAccess(...args: unknown[]) {
+    return track(originalRecordAccess.apply(this, args));
+  };
+}
+
+/** Await every tracked background write until none is left in flight. */
+async function drainBackgroundWrites(): Promise<void> {
+  while (pendingBackgroundWrites.size > 0) {
+    await Promise.allSettled([...pendingBackgroundWrites]);
+  }
+}
+
+/**
+ * Retry a `TRUNCATE` against Postgres 40P01 ("deadlock detected").
+ *
+ * A23b: draining every known background writer before the TRUNCATE (see
+ * `reset()` below) removes the writers this harness knows about, but it is not
+ * a proof there are none left — a future module could add one and reintroduce
+ * the race. This retry is the last line of defence: 40P01 is Postgres's own
+ * signal that it broke a cycle by aborting one of the two transactions, so the
+ * TRUNCATE side simply tries again on a short backoff, exactly as it would if a
+ * human re-ran the failed statement. Five attempts, 150ms-doubling: the first
+ * draft (3 attempts, flat 100ms) still lost to a genuinely slow writer under
+ * host load — a longer, backed-off run gives that writer more room to finish
+ * without changing what happens on an idle host (the loop returns the moment
+ * a `TRUNCATE` succeeds).
+ */
+async function truncateWithDeadlockRetry(
+  prisma: PrismaClient,
+  sql: string,
+  attempts = 5,
+  backoffMs = 150,
+): Promise<void> {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await prisma.$executeRawUnsafe(sql);
+      return;
+    } catch (error) {
+      const code = (error as { code?: string } | null)?.code;
+      if (code !== "40P01" || attempt === attempts) throw error;
+      await drainBackgroundWrites();
+      await new Promise((resolve) => setTimeout(resolve, backoffMs * attempt));
+    }
+  }
+}
+
 /** Tables the suite empties between cases, children first. */
 const TABLES = [
   "notifications",
@@ -178,6 +318,10 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
   process.env["MAIL_PROVIDER"] = "dev";
   resetEnvCache();
 
+  // Must run before `AppModule`'s providers register their `@OnEvent`
+  // listeners (during `app.init()` below) so every one of them is wrapped.
+  patchBackgroundWritersOnce();
+
   const google = new FakeGoogleProvider();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(GOOGLE_OAUTH_PROVIDER)
@@ -204,10 +348,23 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
     redis,
     google,
     async reset() {
-      // Drain before truncating: a notification still in flight would otherwise
-      // write its outbox entry into the next test.
+      // Drain every background writer the app started before truncating:
+      // a notification still in flight would otherwise write its outbox entry
+      // into the next test; `AccessLogInterceptor` fires `recordAccess` from a
+      // `tap()` that runs after the HTTP response this suite awaits has
+      // already gone out; and a plain `this.events.emit(...)` (`members`,
+      // `referrals`, `invoices`, `webhooks`, ...) starts an `@OnEvent` listener
+      // — `SeatBillingListener`, for one — that keeps writing well after that
+      // same response. All three are still in flight, potentially, when a
+      // test's `beforeEach` calls this. The scheduler needs no drain call:
+      // `MONTAJ_SCHEDULER_DISABLED=1` (`test/setup-env.ts`) keeps its BullMQ
+      // worker from ever starting.
       await app.get(NotifyConsumer).drain();
-      await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${TABLES.join(", ")} CASCADE`);
+      await drainBackgroundWrites();
+      // A23b: 40P01 ("deadlock detected") as a last line of defence — the
+      // drains above remove every writer this harness knows about, not a proof
+      // there are none left.
+      await truncateWithDeadlockRetry(prisma, `TRUNCATE TABLE ${TABLES.join(", ")} CASCADE`);
       // This suite's namespace, not the whole `montaj:` one. A23a gave each suite
       // a logical Redis database, which held until the package passed sixteen
       // suites and two of them started sharing — at which point this sweep took
@@ -231,4 +388,110 @@ export async function createAuthTestContext(): Promise<AuthTestContext | null> {
       await db.stop();
     },
   };
+}
+
+// ===========================================================================
+// B13 — shared admin-session helper for any e2e suite that hits /admin/**
+// ===========================================================================
+
+/**
+ * A fixed base32 secret, deliberately not random: every suite that calls
+ * {@link createAdminContext} enrols the SAME TOTP secret, so the code to
+ * verify with is always `currentTotpCode(ADMIN_CONTEXT_TOTP_SECRET)` — one
+ * less thing for a suite to thread through its own harness.
+ */
+const ADMIN_CONTEXT_TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
+
+export interface AdminContext {
+  readonly userId: string;
+  readonly workspaceId: string;
+  /** A `kind: "admin"` access token (CONTRACTS §5), minted by a real step-up. */
+  readonly accessToken: string;
+}
+
+export interface CreateAdminContextOptions {
+  readonly app: INestApplication;
+  readonly roles: readonly $Enums.AdminRoleName[];
+  /** Reuse an existing user/workspace (already seeded by the calling suite) instead of creating new ones. */
+  readonly userId?: string;
+  readonly workspaceId?: string;
+  readonly email?: string;
+}
+
+/**
+ * Grants `admin_roles`, enrols TOTP with a deterministic secret and performs
+ * a real step-up (`AdminStepUpService.verifyEnrollment` then `.stepUp`, the
+ * same two calls `POST /admin/auth/totp/verify` and `POST
+ * /admin/auth/step-up` make) to hand back a genuine `kind: "admin"` access
+ * token — B13's answer to every pre-B13 admin e2e fixture that used to mint
+ * a plain `kind: "web"` token for an `is_admin` user, which `AdminGuard` no
+ * longer accepts (CONTRACTS §5, amended 2026-09-03).
+ *
+ * Takes `app: INestApplication` rather than a harness of its own: every e2e
+ * suite in this package boots its own Nest application (`auth-harness.ts`,
+ * `billing-harness.ts`, or an inline `Test.createTestingModule` as
+ * `dlq.e2e-spec.ts` does), so this reaches into whichever one the calling
+ * suite already has via `app.get(...)` instead of assuming a particular
+ * harness shape.
+ */
+export async function createAdminContext(
+  options: CreateAdminContextOptions,
+): Promise<AdminContext> {
+  const prisma = options.app.get(PrismaService);
+  const stepUp = options.app.get(AdminStepUpService);
+
+  const userId = options.userId ?? ulid();
+  const workspaceId = options.workspaceId ?? ulid();
+
+  if (options.userId === undefined) {
+    await prisma.user.create({
+      data: {
+        id: userId,
+        email: options.email ?? `admin-ctx-${userId.toLowerCase()}@example.test`,
+        isAdmin: true,
+      },
+    });
+  }
+  if (options.workspaceId === undefined) {
+    await prisma.workspace.create({
+      data: {
+        id: workspaceId,
+        slug: `admin-ctx-${workspaceId.toLowerCase()}`,
+        name: "Admin context",
+        ownerId: userId,
+        billingCountry: "IN",
+      },
+    });
+    await prisma.membership.create({
+      data: { id: ulid(), workspaceId, userId, role: "owner", status: "active" },
+    });
+  }
+
+  for (const role of options.roles) {
+    await prisma.adminRole.upsert({
+      where: { userId_role: { userId, role } },
+      create: { id: ulid(), userId, role },
+      update: { revokedAt: null },
+    });
+  }
+
+  // "Enrol" — the deterministic secret, unverified — then verify through the
+  // real service, exactly as POST /admin/auth/totp/enroll + /verify would.
+  await prisma.adminTotp.upsert({
+    where: { userId },
+    create: { userId, secret: ADMIN_CONTEXT_TOTP_SECRET },
+    update: { secret: ADMIN_CONTEXT_TOTP_SECRET, verifiedAt: null },
+  });
+  await stepUp.verifyEnrollment(userId, currentTotpCode(ADMIN_CONTEXT_TOTP_SECRET));
+
+  const membership = await prisma.membership.findFirst({ where: { userId, workspaceId } });
+  const result = await stepUp.stepUp(
+    userId,
+    workspaceId,
+    membership?.role ?? "owner",
+    currentTotpCode(ADMIN_CONTEXT_TOTP_SECRET),
+    undefined,
+  );
+
+  return { userId, workspaceId, accessToken: result.accessToken };
 }

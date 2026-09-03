@@ -3467,7 +3467,7 @@
     },
     "/consents": {
       "get": {
-        "description": "`reconsentRequired` is true when a purpose was last answered against an older privacy notice — the choice has to be asked again (D61, Rule 3).",
+        "description": "`reconsentRequired` is true when a purpose was last answered against an older privacy notice — the choice has to be asked again (D61, Rule 3). `@AllowBridgeToken()` (M04): the local bridge process reads this on startup and on its periodic refresh to know whether the `telemetry` purpose is granted, the same read a browser session makes — it is a read of the caller's own consent state, not an action on anyone else's.",
         "operationId": "getConsents",
         "parameters": [],
         "responses": {
@@ -3496,7 +3496,8 @@
                               "memory",
                               "marketing",
                               "share_upload",
-                              "affiliate"
+                              "affiliate",
+                              "telemetry"
                             ]
                           },
                           "granted": {
@@ -3570,7 +3571,8 @@
                       "memory",
                       "marketing",
                       "share_upload",
-                      "affiliate"
+                      "affiliate",
+                      "telemetry"
                     ]
                   },
                   "granted": {
@@ -3611,7 +3613,8 @@
                               "memory",
                               "marketing",
                               "share_upload",
-                              "affiliate"
+                              "affiliate",
+                              "telemetry"
                             ]
                           },
                           "granted": {
@@ -7451,318 +7454,6 @@
         ]
       }
     },
-    "/projects/{projectId}/insights": {
-      "post": {
-        "description": "Quotes and holds credits per kind (chapters 2, summary 1, hooks 2), enqueues one `ai.llm` job per kind. Pass `regenerate: true` to force a fresh run (e.g. a different `tone`) instead of deduplicating against an in-flight one.",
-        "operationId": "requestProjectInsights",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InsightsRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Accepted and queued.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InsightsAcceptedDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "402": {
-            "description": "`credits/insufficient`."
-          },
-          "404": {
-            "description": "`common/not_found`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Generate chapters, summary and/or hooks from the project's transcript",
-        "tags": [
-          "insights"
-        ]
-      },
-      "get": {
-        "operationId": "getProjectInsights",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InsightsResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "The most recent chapters/summary/hooks result per kind",
-        "tags": [
-          "insights"
-        ]
-      }
-    },
-    "/projects/{projectId}/transcribe": {
-      "post": {
-        "description": "Quotes the job from the probed media duration (1 credit a minute, rounded up to 0.1 of a minute), holds the credits and enqueues `ai.transcribe`. The transcript and the editing document are written when the worker's completion arrives; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`. Diarisation is free — the transcription rate includes it.",
-        "operationId": "transcribeProject",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TranscribeRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Accepted and queued.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TranscribeAcceptedDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "402": {
-            "description": "`credits/insufficient`."
-          },
-          "404": {
-            "description": "`common/not_found`, or `transcript/not_found`."
-          },
-          "409": {
-            "description": "`transcript/media_not_ready`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Transcribe the project's primary media",
-        "tags": [
-          "transcripts"
-        ]
-      }
-    },
-    "/projects/{projectId}/transcript/retranscribe": {
-      "post": {
-        "description": "Refused with `transcript/has_edits` when the editing document has moved past the revision the first transcription created: a new transcription mints new word ids, and edited captions are addressed by the old ones. Send `force: true` to proceed.",
-        "operationId": "retranscribeProject",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RetranscribeRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TranscribeAcceptedDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `transcript/not_found`."
-          },
-          "409": {
-            "description": "`transcript/has_edits` or `transcript/media_not_ready`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Transcribe the media again",
-        "tags": [
-          "transcripts"
-        ]
-      }
-    },
-    "/projects/{projectId}/transcript": {
-      "get": {
-        "description": "Chunks are paged because one 10-minute chunk is roughly 1 500 words: a long recording is megabytes and an editor opens on the first screenful. The cursor is the previous page's last `chunkIdx`.",
-        "operationId": "getProjectTranscript",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TranscriptChunkPageDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `transcript/not_found`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "The transcript manifest and one page of chunks",
-        "tags": [
-          "transcripts"
-        ]
-      }
-    },
-    "/projects/{projectId}/transcript/export": {
-      "get": {
-        "description": "**Source time**: cues are where the words were spoken in the uploaded media. Once a project has cuts that is no longer the finished video's clock — output-time exports are A21's. Cues come from the editing document's captions when it has them, so an export reflects what the user edited.",
-        "operationId": "exportProjectTranscript",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The transcript file.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "application/x-subrip": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "text/vtt": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `transcript/not_found`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Download the transcript",
-        "tags": [
-          "transcripts"
-        ]
-      }
-    },
     "/projects/{projectId}/edg": {
       "get": {
         "description": "The hot state is under 64 KB. Segments are paged — `nextCursor` continues at `/edg/segments` — because a long-form project has thousands and an editor opens on the first screenful.",
@@ -8144,6 +7835,62 @@
         ]
       }
     },
+    "/projects/{projectId}/edg/import": {
+      "post": {
+        "description": "The desktop's 'Upload to cloud' (brief C04 §3): creates a new cloud project from a local one's already-edited document, handed over verbatim rather than replayed as ops. Never a merge — a project that already has a document refuses with `edg/already_imported`.",
+        "operationId": "importEdgDocument",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          },
+          "409": {
+            "description": "`edg/already_imported`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Write a whole EDG document as revision 1 of a fresh project",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
     "/projects/{projectId}/edg/snapshots/{revision}/restore": {
       "post": {
         "description": "History is never rewritten: the restore is appended, so restoring a later snapshot undoes it. The transcript is not rolled back — words live in their own table and a spelling fixed after the snapshot stays fixed. A snapshot that names a word the transcript no longer has live is refused with `edg/restore_invalid` and the dangling ids, rather than written as a caption nothing can render.",
@@ -8195,6 +7942,222 @@
         "summary": "Restore a snapshot as a new revision",
         "tags": [
           "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcribe": {
+      "post": {
+        "description": "Quotes the job from the probed media duration (1 credit a minute, rounded up to 0.1 of a minute), holds the credits and enqueues `ai.transcribe`. The transcript and the editing document are written when the worker's completion arrives; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`. Diarisation is free — the transcription rate includes it.",
+        "operationId": "transcribeProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscribeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscribeAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          },
+          "409": {
+            "description": "`transcript/media_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Transcribe the project's primary media",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript/retranscribe": {
+      "post": {
+        "description": "Refused with `transcript/has_edits` when the editing document has moved past the revision the first transcription created: a new transcription mints new word ids, and edited captions are addressed by the old ones. Send `force: true` to proceed.",
+        "operationId": "retranscribeProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetranscribeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscribeAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          },
+          "409": {
+            "description": "`transcript/has_edits` or `transcript/media_not_ready`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Transcribe the media again",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript": {
+      "get": {
+        "description": "Chunks are paged because one 10-minute chunk is roughly 1 500 words: a long recording is megabytes and an editor opens on the first screenful. The cursor is the previous page's last `chunkIdx`.",
+        "operationId": "getProjectTranscript",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptChunkPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The transcript manifest and one page of chunks",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/projects/{projectId}/transcript/export": {
+      "get": {
+        "description": "**Source time**: cues are where the words were spoken in the uploaded media. Once a project has cuts that is no longer the finished video's clock — output-time exports are A21's. Cues come from the editing document's captions when it has them, so an export reflects what the user edited.",
+        "operationId": "exportProjectTranscript",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The transcript file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/x-subrip": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/vtt": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Download the transcript",
+        "tags": [
+          "transcripts"
         ]
       }
     },
@@ -8821,6 +8784,102 @@
         "summary": "Last style/template used per aspect",
         "tags": [
           "memory"
+        ]
+      }
+    },
+    "/projects/{projectId}/insights": {
+      "post": {
+        "description": "Quotes and holds credits per kind (chapters 2, summary 1, hooks 2), enqueues one `ai.llm` job per kind. Pass `regenerate: true` to force a fresh run (e.g. a different `tone`) instead of deduplicating against an in-flight one.",
+        "operationId": "requestProjectInsights",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsightsRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightsAcceptedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "402": {
+            "description": "`credits/insufficient`."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Generate chapters, summary and/or hooks from the project's transcript",
+        "tags": [
+          "insights"
+        ]
+      },
+      "get": {
+        "operationId": "getProjectInsights",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightsResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The most recent chapters/summary/hooks result per kind",
+        "tags": [
+          "insights"
         ]
       }
     },
@@ -10620,6 +10679,335 @@
         ]
       }
     },
+    "/admin/flags": {
+      "get": {
+        "operationId": "adminListFlags",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FeatureFlagDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List every feature flag",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "adminCreateFlag",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFlagDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureFlagDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "409": {
+            "description": "A flag with this key already exists."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a flag (superadmin only)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/flags/{key}": {
+      "get": {
+        "operationId": "adminGetFlag",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureFlagDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One flag's current state",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Reason is mandatory — a global flag change is a B13 §1 money/credit-grade action.",
+        "operationId": "adminUpdateFlag",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFlagDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureFlagDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Update a flag's rollout, targets or enabled state (superadmin only)",
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "operationId": "adminDeleteFlag",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete a flag (superadmin only)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/jobs": {
+      "get": {
+        "operationId": "adminListJobs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminJobSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List jobs across every workspace",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/jobs/stats": {
+      "get": {
+        "operationId": "adminJobQueueStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminQueueStatsDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Per-queue counts by status",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/jobs/{id}/cancel": {
+      "post": {
+        "operationId": "adminCancelJob",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminJobSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Cancel a queued/running job in any workspace",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/parental-waitlist": {
       "get": {
         "description": "Addresses are stored only as a SHA-256 digest, so this reports how many people are waiting and since when, never who they are. Cursor pagination: pass the previous page's `nextCursor`.",
@@ -10709,6 +11097,94 @@
           }
         ],
         "summary": "The parental-consent waiting list, oldest first",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/credits/adjust": {
+      "post": {
+        "description": "Wraps CreditsFacade.grantLot(source: \"adjust\") — the same primitive B01 top-ups and B04 passes use, so the adjustment lot behaves identically in expiry and reconciliation. Positive only: this grants, it does not debit (B02 has no cross-lot admin debit primitive — see admin.guard.test.ts / this WP's final report for why that is out of scope here). Reason is mandatory (min 10 chars) — every money/credit admin action is (B13 scope §1).",
+        "operationId": "adminAdjustCredits",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustCreditsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdjustCreditsResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires the finance or superadmin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Grant a manual credit adjustment to a workspace (finance/superadmin only)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/credits/reverse": {
+      "post": {
+        "description": "Wraps CreditsFacade.reverse() (the concrete LedgerCreditsFacade — 'beyond the frozen interface' per that file's own doc comment, which names this WP as one of its two intended callers alongside B01 payment refunds). Requires a prior credit_holds row for the job. Reason is mandatory.",
+        "operationId": "adminReverseCredits",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReverseCreditsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReverseCreditsResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires the finance or superadmin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reverse a settled job's credit charge back onto the workspace (finance/superadmin only)",
         "tags": [
           "admin"
         ]
@@ -11383,6 +11859,641 @@
         ]
       }
     },
+    "/admin/routing/weights": {
+      "get": {
+        "operationId": "adminListRoutingWeights",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoutingWeightOverrideDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the superadmin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every routing weight override on file",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Reason is mandatory.",
+        "operationId": "adminSetRoutingWeight",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetRoutingWeightDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingWeightOverrideDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the superadmin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Set (create or replace) one lane/provider's weight override",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/routing/weights/{laneId}/{provider}": {
+      "delete": {
+        "operationId": "adminClearRoutingWeight",
+        "parameters": [
+          {
+            "name": "laneId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "provider",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the superadmin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove an override, reverting that lane/provider to routing.yaml's base weight",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/styles": {
+      "get": {
+        "operationId": "adminListStyles",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminStylePresetDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The system style catalogue, with parity results",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/styles/{id}/publish": {
+      "post": {
+        "description": "Unpublishing hides it from StylesService.list() without deleting it — parity data and any workspace already using it are preserved. Reason is mandatory.",
+        "operationId": "adminPublishStyle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishStyleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStylePresetDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Publish or unpublish a system style (content/superadmin only)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/support/tickets": {
+      "get": {
+        "operationId": "adminListSupportTickets",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminSupportTicketDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Support tickets, newest first, optionally filtered by status/category",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/support/tickets/{id}": {
+      "get": {
+        "operationId": "adminGetSupportTicket",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSupportTicketDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One ticket",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/support/tickets/{id}/status": {
+      "post": {
+        "operationId": "adminSetSupportTicketStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetTicketStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSupportTicketDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Move a ticket to open/in_progress/resolved/closed",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/support/tickets/{id}/reply": {
+      "post": {
+        "operationId": "adminReplyToSupportTicket",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyToTicketDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reply to a ticket via the notify interface",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/evals/leaderboard": {
+      "get": {
+        "operationId": "adminEvalsLeaderboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeaderboardRowDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Eval leaderboard: latest metric per (dataset, language, provider, metric), with trend",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/evals/freeze": {
+      "get": {
+        "operationId": "adminGetRoutingFreeze",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingFreezeStateDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Current routing-freeze state",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "adminFreezeRouting",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FreezeRoutingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingFreezeStateDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Freeze the routing chain to its last approved snapshot (reason mandatory, audited)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/evals/unfreeze": {
+      "post": {
+        "operationId": "adminUnfreezeRouting",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FreezeRoutingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingFreezeStateDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Unfreeze the routing chain (reason mandatory, audited)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/ops/incidents": {
+      "get": {
+        "operationId": "listOpsIncidents",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Array of ops incidents."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List ops incidents, newest first",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "createOpsIncident",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The created incident."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Open a status-page incident",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/ops/incidents/{id}": {
+      "patch": {
+        "operationId": "updateOpsIncident",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The updated incident."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          },
+          "404": {
+            "description": "No such incident."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Update, escalate or resolve a status-page incident",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/offers/eligibility": {
       "get": {
         "description": "Every amount is read from the same catalogue `/billing/passes/checkout` quotes from — the export dialog never hardcodes a price.",
@@ -11620,6 +12731,201 @@
         "summary": "Every pass this workspace has bought, newest first",
         "tags": [
           "offers"
+        ]
+      }
+    },
+    "/ops/status.json": {
+      "get": {
+        "description": "Written every 5 minutes by the `status-publish` scheduler task. Before the first tick (a brand-new environment) this returns an empty, all-operational snapshot dated the Unix epoch, never a 404 — a status page must never itself be the outage.",
+        "operationId": "getStatusSnapshot",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The current status snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "generatedAt": {
+                      "type": "string"
+                    },
+                    "overall": {
+                      "type": "string",
+                      "enum": [
+                        "operational",
+                        "degraded",
+                        "down"
+                      ]
+                    },
+                    "components": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "operational",
+                              "degraded",
+                              "down"
+                            ]
+                          },
+                          "detail": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "status"
+                        ]
+                      }
+                    },
+                    "incidents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "component": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "minor",
+                              "major",
+                              "critical"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "investigating",
+                              "monitoring",
+                              "resolved"
+                            ]
+                          },
+                          "startedAt": {
+                            "type": "string"
+                          },
+                          "resolvedAt": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "body",
+                          "component",
+                          "severity",
+                          "status",
+                          "startedAt",
+                          "resolvedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "generatedAt",
+                    "overall",
+                    "components",
+                    "incidents"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "The latest published status snapshot",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/ops/status/rss.xml": {
+      "get": {
+        "description": "The same incidents `status.json` embeds, as an RSS 2.0 feed.",
+        "operationId": "getStatusRss",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Incident history as RSS",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Liveness probe",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "getReadiness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Readiness probe (db, redis, storage)",
+        "tags": [
+          "health"
         ]
       }
     },
@@ -14388,57 +15694,354 @@
         ]
       }
     },
-    "/health": {
-      "get": {
-        "operationId": "getHealth",
+    "/telemetry/events": {
+      "post": {
+        "description": "Batched so the offline queue can flush several at once; rejected with `telemetry/consent_required` unless the caller has granted the `telemetry` consent.",
+        "operationId": "submitTelemetryEvents",
         "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthResponseDto"
-                }
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "events": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "eventId": {
+                          "type": "string",
+                          "minLength": 26,
+                          "maxLength": 26
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "app_launched",
+                            "app_quit",
+                            "app_crashed",
+                            "consent_granted",
+                            "consent_withdrawn",
+                            "project_opened",
+                            "export_started",
+                            "export_completed",
+                            "bridge_paired",
+                            "bridge_connected",
+                            "bridge_disconnected",
+                            "diagnostics_bundle_created",
+                            "diagnostics_bundle_attached",
+                            "update_check",
+                            "update_installed"
+                          ]
+                        },
+                        "at": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "appVersion": {
+                          "type": "string",
+                          "maxLength": 32
+                        },
+                        "props": {
+                          "default": {},
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "eventId",
+                        "kind",
+                        "at",
+                        "appVersion"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "events"
+                ]
               }
             }
           }
         },
-        "summary": "Liveness probe",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/ready": {
-      "get": {
-        "operationId": "getReadiness",
-        "parameters": [],
         "responses": {
           "200": {
-            "description": "",
+            "description": "Count accepted.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReadinessResponseDto"
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "accepted"
+                  ]
                 }
               }
             }
           },
-          "503": {
-            "description": "A dependency is down.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadinessResponseDto"
-                }
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`telemetry/consent_required`."
+          },
+          "429": {
+            "description": "`common/rate_limited`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Submit a batch of consent-gated telemetry events",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/telemetry/crash": {
+      "post": {
+        "description": "Minidump-free by default: a redacted stack trace, app/OS version and the last 50 (already redacted) log lines. Forwarded to Sentry server-side only when `SENTRY_DSN` is configured.",
+        "operationId": "submitCrashReport",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clientKind": {
+                    "type": "string",
+                    "enum": [
+                      "desktop",
+                      "bridge",
+                      "premiere",
+                      "ae",
+                      "resolve"
+                    ]
+                  },
+                  "appVersion": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "osVersion": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "stack": {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  "logTail": {
+                    "default": [],
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  }
+                },
+                "required": [
+                  "clientKind",
+                  "appVersion",
+                  "osVersion",
+                  "stack"
+                ]
               }
             }
           }
         },
-        "summary": "Readiness probe (db, redis, storage)",
+        "responses": {
+          "200": {
+            "description": "The stored crash report's id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "crashReportId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "crashReportId"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`telemetry/consent_required`."
+          },
+          "429": {
+            "description": "`common/rate_limited`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Submit a redacted crash report",
         "tags": [
-          "health"
+          "telemetry"
+        ]
+      }
+    },
+    "/telemetry/diagnostics-bundle/presign": {
+      "post": {
+        "description": "Stored at `ws/{workspaceId}/support/{ticketId}/diagnostics.zip` (R2) once uploaded and confirmed via `POST /telemetry/diagnostics-bundle/confirm`; capped at 10 MB.",
+        "operationId": "presignDiagnosticsBundle",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ticketId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  }
+                },
+                "required": [
+                  "ticketId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The presigned PUT URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "bundleKey": {
+                      "type": "string"
+                    },
+                    "maxBytes": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "uploadUrl",
+                    "bundleKey",
+                    "maxBytes"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`telemetry/consent_required`."
+          },
+          "429": {
+            "description": "`common/rate_limited`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Presign an upload for a diagnostics bundle on the caller's own support ticket",
+        "tags": [
+          "telemetry"
+        ]
+      }
+    },
+    "/telemetry/diagnostics-bundle/confirm": {
+      "post": {
+        "operationId": "confirmDiagnosticsBundle",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ticketId": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26
+                  }
+                },
+                "required": [
+                  "ticketId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The attached bundle's key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bundleKey": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "bundleKey"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`telemetry/consent_required`."
+          },
+          "429": {
+            "description": "`common/rate_limited`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Confirm an uploaded diagnostics bundle and attach it to the ticket",
+        "tags": [
+          "telemetry"
         ]
       }
     },
@@ -15956,6 +17559,1114 @@
         ]
       }
     },
+    "/admin/billing/dunning": {
+      "get": {
+        "description": "Read-only monitor: `graceUntil` (D40's 3-day entitlement grace) and `renewalInitiateAt` (the 48h-ahead retry) are the two 'what happens next, when' fields; the mandate ladder itself is billing/dunning.ts, unchanged by this WP.",
+        "operationId": "adminDunningMonitor",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminDunningEntryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the finance or superadmin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Subscriptions past due, with mandate status and next actions",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/billing/passes/{passPurchaseId}/refund": {
+      "post": {
+        "description": "Within 7 days of purchase: full refund of the amount on file. After 7 days: pro-rated by the fraction of the purchase's credits still unspent. Claws back the credits via B01's RefundsService and, when the purchase has an original tax invoice, issues a B05 credit note for the refunded amount. `reason` is mandatory.",
+        "operationId": "adminRefundPassPurchase",
+        "parameters": [
+          {
+            "name": "passPurchaseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRefundDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRefundResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the finance or superadmin role."
+          },
+          "404": {
+            "description": "`common/not_found` — no such purchase, or no lot on file."
+          },
+          "409": {
+            "description": "Already refunded, or the policy-computed amount is zero."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Refund a pass/top-up purchase under the 7-day-full / pro-rata policy, and issue a credit note",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "operationId": "adminSearchUsers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminUserSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session (POST /admin/auth/step-up)."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Search users by email/name",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/users/{id}": {
+      "get": {
+        "operationId": "adminUserDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDetailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session (POST /admin/auth/step-up)."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "User detail: memberships, devices, admin roles",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/workspaces": {
+      "get": {
+        "operationId": "adminSearchWorkspaces",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminWorkspaceSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session (POST /admin/auth/step-up)."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Search workspaces by name/slug",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/workspaces/{id}": {
+      "get": {
+        "operationId": "adminWorkspaceDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminWorkspaceDetailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session (POST /admin/auth/step-up)."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Workspace detail: owner, plan/subscription, credit account",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/referrals/review-queue": {
+      "get": {
+        "operationId": "adminReferralReviewQueue",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HeldReferralDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the ops, finance or superadmin role."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Referral rewards held for review (chained self-referral)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/referrals/{id}/approve": {
+      "post": {
+        "operationId": "adminApproveReferralHold",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the ops, finance or superadmin role."
+          },
+          "404": {
+            "description": "`common/not_found` — no pending held reward with that id."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Clear a hold and settle the reward through the normal grant/cap path",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/referrals/{id}/reject": {
+      "post": {
+        "operationId": "adminRejectReferralHold",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectHoldDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session with the ops, finance or superadmin role."
+          },
+          "404": {
+            "description": "`common/not_found` — no pending held reward with that id."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reject a held reward",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/affiliates/pending": {
+      "get": {
+        "operationId": "adminPendingAffiliates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminPendingAffiliateDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Affiliate applications awaiting review",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/affiliates/tds/{fyLabel}/export.csv": {
+      "get": {
+        "operationId": "adminAffiliateTdsCsv",
+        "parameters": [
+          {
+            "name": "fyLabel",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every affiliate's FY gross/TDS/net totals, as CSV (finance/superadmin only)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/affiliates/{affiliateId}/form16a": {
+      "get": {
+        "description": "Watermarked \"DRAFT\" unless `draft=false` — 194H vs 194-O needs a CA's confirmation.",
+        "operationId": "adminAffiliateForm16a",
+        "parameters": [
+          {
+            "name": "affiliateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "No FY total on file for this affiliate/year."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Form 16A stub for one affiliate's FY totals (finance/superadmin only)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/share-reports": {
+      "get": {
+        "operationId": "adminListShareReports",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ShareReportSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Unresolved share-link abuse reports, oldest first",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/share-reports/{id}/resolve": {
+      "post": {
+        "operationId": "adminResolveShareReport",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Requires an admin session."
+          },
+          "404": {
+            "description": "`common/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Resolve a report: take the link down, dismiss, or record a warning",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/projects/{projectId}/share-links": {
+      "post": {
+        "operationId": "createShareLink",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "default": "view",
+                    "type": "string",
+                    "enum": [
+                      "view",
+                      "comment",
+                      "approve"
+                    ]
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 6,
+                    "maxLength": 200
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "maxViews": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000
+                  },
+                  "clientTag": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new share link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "projectId": {
+                      "type": "string"
+                    },
+                    "token": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "view",
+                        "comment",
+                        "approve"
+                      ]
+                    },
+                    "hasPassword": {
+                      "type": "boolean"
+                    },
+                    "expiresAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "maxViews": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "viewCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "clientTag": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "reportCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "revokedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "autoDisabled": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "token",
+                    "scope",
+                    "hasPassword",
+                    "expiresAt",
+                    "maxViews",
+                    "viewCount",
+                    "clientTag",
+                    "reportCount",
+                    "revokedAt",
+                    "autoDisabled",
+                    "createdAt",
+                    "url"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Create a share link for review",
+        "tags": [
+          "share-links"
+        ]
+      },
+      "get": {
+        "operationId": "listShareLinks",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Share links for the project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "projectId": {
+                        "type": "string"
+                      },
+                      "token": {
+                        "type": "string"
+                      },
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "view",
+                          "comment",
+                          "approve"
+                        ]
+                      },
+                      "hasPassword": {
+                        "type": "boolean"
+                      },
+                      "expiresAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "maxViews": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "viewCount": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "clientTag": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "reportCount": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "revokedAt": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "autoDisabled": {
+                        "type": "boolean"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "projectId",
+                      "token",
+                      "scope",
+                      "hasPassword",
+                      "expiresAt",
+                      "maxViews",
+                      "viewCount",
+                      "clientTag",
+                      "reportCount",
+                      "revokedAt",
+                      "autoDisabled",
+                      "createdAt",
+                      "url"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List a project's share links",
+        "tags": [
+          "share-links"
+        ]
+      }
+    },
+    "/projects/{projectId}/share-links/{shareLinkId}": {
+      "delete": {
+        "operationId": "revokeShareLink",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shareLinkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke a share link",
+        "tags": [
+          "share-links"
+        ]
+      }
+    },
+    "/s/{token}": {
+      "get": {
+        "operationId": "resolveShareLink",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Share-link state for the viewer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projectId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "view",
+                        "comment",
+                        "approve"
+                      ]
+                    },
+                    "requiresPassword": {
+                      "type": "boolean"
+                    },
+                    "unlocked": {
+                      "type": "boolean"
+                    },
+                    "expired": {
+                      "type": "boolean"
+                    },
+                    "revoked": {
+                      "type": "boolean"
+                    },
+                    "reviewStatus": {
+                      "type": "string"
+                    },
+                    "aspect": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "projectId",
+                    "title",
+                    "scope",
+                    "requiresPassword",
+                    "unlocked",
+                    "expired",
+                    "revoked",
+                    "reviewStatus",
+                    "aspect"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "Resolve a share link",
+        "tags": [
+          "share-public"
+        ]
+      }
+    },
+    "/s/{token}/unlock": {
+      "post": {
+        "operationId": "unlockShareLink",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unlock a password-gated share link",
+        "tags": [
+          "share-public"
+        ]
+      }
+    },
+    "/s/{token}/report": {
+      "post": {
+        "operationId": "reportShareLink",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "category": {
+                    "default": "other",
+                    "type": "string",
+                    "enum": [
+                      "ncii",
+                      "impersonation",
+                      "copyright",
+                      "other"
+                    ]
+                  },
+                  "reporterContact": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 320
+                  },
+                  "details": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Report abuse on a shared preview (F-504)",
+        "tags": [
+          "share-public"
+        ]
+      }
+    },
+    "/s/{token}/decision": {
+      "post": {
+        "operationId": "decideShareLink",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approved",
+                      "changes_requested"
+                    ]
+                  }
+                },
+                "required": [
+                  "decision"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Approve or request changes (scope `approve` only)",
+        "tags": [
+          "share-public"
+        ]
+      }
+    },
+    "/s/{token}/preview": {
+      "get": {
+        "operationId": "previewShareLink",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Proxy URL + EDG projection for the CanvasKit preview",
+        "tags": [
+          "share-public"
+        ]
+      }
+    },
     "/devices": {
       "get": {
         "operationId": "listDevices",
@@ -17169,6 +19880,237 @@
           }
         },
         "summary": "Signed daily revocation snapshot for fully offline clients",
+        "tags": [
+          "plugins"
+        ]
+      }
+    },
+    "/plugins/manifest": {
+      "get": {
+        "description": "Per host (premiere-uxp, ae-cep, resolve-script): version, min/max host version, download URL (D65). Every channel reports `available: false` until C10 (installer builds and hosting) lands.",
+        "operationId": "pluginManifest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The current channel manifest.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "channels": {
+                      "type": "object",
+                      "properties": {
+                        "premiere-uxp": {
+                          "type": "object",
+                          "properties": {
+                            "available": {
+                              "type": "boolean"
+                            },
+                            "version": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "minHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "maxHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "downloadUrl": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "channel": {
+                              "default": null,
+                              "nullable": true,
+                              "type": "string",
+                              "enum": [
+                                "alpha",
+                                "beta",
+                                "stable"
+                              ]
+                            },
+                            "notes": {
+                              "default": null,
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "available",
+                            "version",
+                            "minHostVersion",
+                            "maxHostVersion",
+                            "downloadUrl"
+                          ]
+                        },
+                        "ae-cep": {
+                          "type": "object",
+                          "properties": {
+                            "available": {
+                              "type": "boolean"
+                            },
+                            "version": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "minHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "maxHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "downloadUrl": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "channel": {
+                              "default": null,
+                              "nullable": true,
+                              "type": "string",
+                              "enum": [
+                                "alpha",
+                                "beta",
+                                "stable"
+                              ]
+                            },
+                            "notes": {
+                              "default": null,
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "available",
+                            "version",
+                            "minHostVersion",
+                            "maxHostVersion",
+                            "downloadUrl"
+                          ]
+                        },
+                        "resolve-script": {
+                          "type": "object",
+                          "properties": {
+                            "available": {
+                              "type": "boolean"
+                            },
+                            "version": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "minHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "maxHostVersion": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "downloadUrl": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "channel": {
+                              "default": null,
+                              "nullable": true,
+                              "type": "string",
+                              "enum": [
+                                "alpha",
+                                "beta",
+                                "stable"
+                              ]
+                            },
+                            "notes": {
+                              "default": null,
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "available",
+                            "version",
+                            "minHostVersion",
+                            "maxHostVersion",
+                            "downloadUrl"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "premiere-uxp",
+                        "ae-cep",
+                        "resolve-script"
+                      ]
+                    },
+                    "desktop": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "version": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "channel": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "alpha",
+                            "beta",
+                            "stable"
+                          ]
+                        },
+                        "notes": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "downloadUrl": {
+                          "type": "object",
+                          "properties": {
+                            "win": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "mac": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "linux": {
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "win",
+                            "mac",
+                            "linux"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "available",
+                        "version",
+                        "channel",
+                        "notes",
+                        "downloadUrl"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "channels",
+                    "desktop"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "Channel manifest for the plugins page and installer download links",
         "tags": [
           "plugins"
         ]
@@ -18890,528 +21832,6 @@
         ]
       }
     },
-    "/projects/{projectId}/share-links": {
-      "post": {
-        "operationId": "createShareLink",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "scope": {
-                    "default": "view",
-                    "type": "string",
-                    "enum": [
-                      "view",
-                      "comment",
-                      "approve"
-                    ]
-                  },
-                  "password": {
-                    "type": "string",
-                    "minLength": 6,
-                    "maxLength": 200
-                  },
-                  "expiresAt": {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                  },
-                  "maxViews": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 1000000
-                  },
-                  "clientTag": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "The new share link.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "projectId": {
-                      "type": "string"
-                    },
-                    "token": {
-                      "type": "string"
-                    },
-                    "scope": {
-                      "type": "string",
-                      "enum": [
-                        "view",
-                        "comment",
-                        "approve"
-                      ]
-                    },
-                    "hasPassword": {
-                      "type": "boolean"
-                    },
-                    "expiresAt": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "maxViews": {
-                      "nullable": true,
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "viewCount": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "clientTag": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "reportCount": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "revokedAt": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "autoDisabled": {
-                      "type": "boolean"
-                    },
-                    "createdAt": {
-                      "type": "string"
-                    },
-                    "url": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "projectId",
-                    "token",
-                    "scope",
-                    "hasPassword",
-                    "expiresAt",
-                    "maxViews",
-                    "viewCount",
-                    "clientTag",
-                    "reportCount",
-                    "revokedAt",
-                    "autoDisabled",
-                    "createdAt",
-                    "url"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Create a share link for review",
-        "tags": [
-          "share-links"
-        ]
-      },
-      "get": {
-        "operationId": "listShareLinks",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Share links for the project.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "projectId": {
-                        "type": "string"
-                      },
-                      "token": {
-                        "type": "string"
-                      },
-                      "scope": {
-                        "type": "string",
-                        "enum": [
-                          "view",
-                          "comment",
-                          "approve"
-                        ]
-                      },
-                      "hasPassword": {
-                        "type": "boolean"
-                      },
-                      "expiresAt": {
-                        "nullable": true,
-                        "type": "string"
-                      },
-                      "maxViews": {
-                        "nullable": true,
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "viewCount": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "clientTag": {
-                        "nullable": true,
-                        "type": "string"
-                      },
-                      "reportCount": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "revokedAt": {
-                        "nullable": true,
-                        "type": "string"
-                      },
-                      "autoDisabled": {
-                        "type": "boolean"
-                      },
-                      "createdAt": {
-                        "type": "string"
-                      },
-                      "url": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "projectId",
-                      "token",
-                      "scope",
-                      "hasPassword",
-                      "expiresAt",
-                      "maxViews",
-                      "viewCount",
-                      "clientTag",
-                      "reportCount",
-                      "revokedAt",
-                      "autoDisabled",
-                      "createdAt",
-                      "url"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "List a project's share links",
-        "tags": [
-          "share-links"
-        ]
-      }
-    },
-    "/projects/{projectId}/share-links/{shareLinkId}": {
-      "delete": {
-        "operationId": "revokeShareLink",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "shareLinkId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Revoke a share link",
-        "tags": [
-          "share-links"
-        ]
-      }
-    },
-    "/s/{token}": {
-      "get": {
-        "operationId": "resolveShareLink",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Share-link state for the viewer.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "projectId": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "scope": {
-                      "type": "string",
-                      "enum": [
-                        "view",
-                        "comment",
-                        "approve"
-                      ]
-                    },
-                    "requiresPassword": {
-                      "type": "boolean"
-                    },
-                    "unlocked": {
-                      "type": "boolean"
-                    },
-                    "expired": {
-                      "type": "boolean"
-                    },
-                    "revoked": {
-                      "type": "boolean"
-                    },
-                    "reviewStatus": {
-                      "type": "string"
-                    },
-                    "aspect": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "projectId",
-                    "title",
-                    "scope",
-                    "requiresPassword",
-                    "unlocked",
-                    "expired",
-                    "revoked",
-                    "reviewStatus",
-                    "aspect"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "summary": "Resolve a share link",
-        "tags": [
-          "share-public"
-        ]
-      }
-    },
-    "/s/{token}/unlock": {
-      "post": {
-        "operationId": "unlockShareLink",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "password": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  }
-                },
-                "required": [
-                  "password"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Unlock a password-gated share link",
-        "tags": [
-          "share-public"
-        ]
-      }
-    },
-    "/s/{token}/report": {
-      "post": {
-        "operationId": "reportShareLink",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "category": {
-                    "default": "other",
-                    "type": "string",
-                    "enum": [
-                      "ncii",
-                      "impersonation",
-                      "copyright",
-                      "other"
-                    ]
-                  },
-                  "reporterContact": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 320
-                  },
-                  "details": {
-                    "type": "string",
-                    "maxLength": 2000
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "summary": "Report abuse on a shared preview (F-504)",
-        "tags": [
-          "share-public"
-        ]
-      }
-    },
-    "/s/{token}/decision": {
-      "post": {
-        "operationId": "decideShareLink",
-        "parameters": [
-          {
-            "name": "token",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "decision": {
-                    "type": "string",
-                    "enum": [
-                      "approved",
-                      "changes_requested"
-                    ]
-                  }
-                },
-                "required": [
-                  "decision"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "summary": "Approve or request changes (scope `approve` only)",
-        "tags": [
-          "share-public"
-        ]
-      }
-    },
     "/projects/{projectId}/comments": {
       "get": {
         "operationId": "listComments",
@@ -20597,7 +23017,9 @@
               "share-comment",
               "streak-nudge",
               "retention-warning",
-              "support-ticket-created"
+              "support-ticket-created",
+              "share-report-resolved",
+              "support-ticket-reply"
             ],
             "description": "What happened. The client renders its own wording per locale, so the row carries no text of its own."
           },
@@ -20649,383 +23071,6 @@
         "required": [
           "items",
           "unread"
-        ]
-      },
-      "InsightsRequestDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "InsightJobDto": {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "enum": [
-              "chapters",
-              "summary",
-              "hooks"
-            ]
-          },
-          "jobId": {
-            "type": "string",
-            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
-          },
-          "deduplicated": {
-            "type": "boolean",
-            "description": "True when an identical run was already queued."
-          },
-          "tenths": {
-            "type": "number",
-            "description": "Tenths of a credit held for this kind."
-          }
-        },
-        "required": [
-          "kind",
-          "jobId",
-          "deduplicated",
-          "tenths"
-        ]
-      },
-      "InsightsAcceptedDto": {
-        "type": "object",
-        "properties": {
-          "jobs": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/InsightJobDto"
-            }
-          },
-          "totalTenths": {
-            "type": "number",
-            "description": "Sum of `tenths` across every kind in this request."
-          }
-        },
-        "required": [
-          "jobs",
-          "totalTenths"
-        ]
-      },
-      "InsightRowDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "chapters",
-              "summary",
-              "hooks"
-            ]
-          },
-          "templateVersion": {
-            "type": "string",
-            "description": "`\"<id>@<n>\"`, e.g. `\"chapters@1\"`."
-          },
-          "provider": {
-            "type": "string",
-            "description": "`\"anthropic\"`, `\"openai\"` or `\"mock\"`."
-          },
-          "region": {
-            "type": "string",
-            "description": "The workspace jurisdiction this call was pinned to."
-          },
-          "output": {
-            "type": "object",
-            "description": "Schema-validated per `kind`: ChaptersOutput | SummaryOutput | HooksOutput (@montaj/prompts)."
-          },
-          "usage": {
-            "type": "object",
-            "description": "`{inputTokens, outputTokens, costMinor, currency}`."
-          },
-          "createdAt": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "kind",
-          "templateVersion",
-          "provider",
-          "region",
-          "output",
-          "usage",
-          "createdAt"
-        ]
-      },
-      "InsightsResponseDto": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "description": "Most recent row per kind.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/InsightRowDto"
-            }
-          },
-          "disclosure": {
-            "type": "string",
-            "description": "Consent notice, ASCI-friendly labelling (brief §5): show verbatim next to generated content."
-          }
-        },
-        "required": [
-          "items",
-          "disclosure"
-        ]
-      },
-      "TranscribeRequestDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "TranscriptionQuoteDto": {
-        "type": "object",
-        "properties": {
-          "tenths": {
-            "type": "number",
-            "description": "Credits held before the job was enqueued, in tenths."
-          },
-          "credits": {
-            "type": "string",
-            "description": "\"1.2\" — for display only, never for arithmetic."
-          },
-          "durationMs": {
-            "type": "number",
-            "description": "Media duration the quote was computed from."
-          }
-        },
-        "required": [
-          "tenths",
-          "credits",
-          "durationMs"
-        ]
-      },
-      "TranscribeAcceptedDto": {
-        "type": "object",
-        "properties": {
-          "jobId": {
-            "type": "string",
-            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
-          },
-          "transcriptId": {
-            "type": "string",
-            "description": "The transcript the completion will write."
-          },
-          "status": {
-            "type": "string",
-            "description": "`queued`, or the live job's status when deduplicated."
-          },
-          "deduplicated": {
-            "type": "boolean",
-            "description": "True when a transcription was already running and none was enqueued."
-          },
-          "quote": {
-            "$ref": "#/components/schemas/TranscriptionQuoteDto"
-          }
-        },
-        "required": [
-          "jobId",
-          "transcriptId",
-          "status",
-          "deduplicated",
-          "quote"
-        ]
-      },
-      "RetranscribeRequestDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "DetectedLanguageDto": {
-        "type": "object",
-        "properties": {
-          "language": {
-            "type": "string",
-            "description": "BCP-47 tag."
-          },
-          "confidence": {
-            "type": "number",
-            "description": "0–1."
-          },
-          "source": {
-            "type": "string",
-            "enum": [
-              "provider",
-              "script"
-            ],
-            "description": "Which of the two LID signals (D14)."
-          }
-        },
-        "required": [
-          "language",
-          "confidence",
-          "source"
-        ]
-      },
-      "CorrectionDto": {
-        "type": "object",
-        "properties": {
-          "step": {
-            "type": "string",
-            "enum": [
-              "punctuation",
-              "numerals",
-              "glossary",
-              "spelling",
-              "fillers",
-              "speakers"
-            ]
-          },
-          "wordId": {
-            "type": "string",
-            "description": "Word id, `\"<chunkIdx>:<n>\"`."
-          },
-          "before": {
-            "type": "string",
-            "description": "The text as the provider sent it."
-          },
-          "after": {
-            "type": "string",
-            "description": "The text as it was stored."
-          },
-          "reason": {
-            "type": "string",
-            "description": "Why, in a form a human can review."
-          }
-        },
-        "required": [
-          "step",
-          "wordId",
-          "before",
-          "after"
-        ]
-      },
-      "PostProcessingDto": {
-        "type": "object",
-        "properties": {
-          "steps": {
-            "description": "Steps that actually changed something.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "correctionCount": {
-            "type": "number",
-            "description": "Total corrections, including any not listed."
-          },
-          "corrections": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CorrectionDto"
-            }
-          },
-          "truncated": {
-            "type": "boolean",
-            "description": "True when `corrections` is a prefix of the full log."
-          },
-          "languageDisagreement": {
-            "type": "boolean",
-            "description": "True when the acoustic and orthographic LID signals disagreed."
-          }
-        },
-        "required": [
-          "steps",
-          "correctionCount",
-          "corrections",
-          "truncated",
-          "languageDisagreement"
-        ]
-      },
-      "TranscriptDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "projectId": {
-            "type": "string"
-          },
-          "revision": {
-            "type": "number",
-            "description": "Transcript revision these chunks belong to."
-          },
-          "language": {
-            "type": "string",
-            "description": "Resolved BCP-47 tag; Hinglish is `hi-Latn`."
-          },
-          "detectedLanguages": {
-            "description": "Both LID signals (D14).",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DetectedLanguageDto"
-            }
-          },
-          "provider": {
-            "type": "object",
-            "nullable": true
-          },
-          "model": {
-            "type": "object",
-            "nullable": true
-          },
-          "alignerModel": {
-            "type": "object",
-            "nullable": true
-          },
-          "diariser": {
-            "type": "object",
-            "nullable": true
-          },
-          "chunkCount": {
-            "type": "number",
-            "description": "Chunks in this revision."
-          },
-          "durationMs": {
-            "type": "number",
-            "description": "End of the last chunk, in media ms."
-          },
-          "createdAt": {
-            "type": "string"
-          },
-          "postProcessing": {
-            "$ref": "#/components/schemas/PostProcessingDto"
-          }
-        },
-        "required": [
-          "id",
-          "projectId",
-          "revision",
-          "language",
-          "detectedLanguages",
-          "chunkCount",
-          "durationMs",
-          "createdAt"
-        ]
-      },
-      "TranscriptChunkPageDto": {
-        "type": "object",
-        "properties": {
-          "transcript": {
-            "$ref": "#/components/schemas/TranscriptDto"
-          },
-          "chunks": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "additionalProperties": true
-            },
-            "description": "`TranscriptChunk` from `@montaj/edg` (CONTRACTS §2): `{chunkIdx, startMs, endMs, words[]}`."
-          },
-          "nextCursor": {
-            "type": "number",
-            "nullable": true,
-            "description": "Last `chunkIdx` returned; pass as `cursor`. `null` at the end."
-          }
-        },
-        "required": [
-          "transcript",
-          "chunks",
-          "nextCursor"
         ]
       },
       "EdgDocumentDto": {
@@ -21307,6 +23352,29 @@
         "type": "object",
         "properties": {}
       },
+      "ImportRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ImportResultDto": {
+        "type": "object",
+        "properties": {
+          "edgId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "number"
+          },
+          "segments": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "edgId",
+          "revision",
+          "segments"
+        ]
+      },
       "RestoreResultDto": {
         "type": "object",
         "properties": {
@@ -21322,6 +23390,383 @@
         "required": [
           "revision",
           "segments"
+        ]
+      },
+      "TranscribeRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "TranscriptionQuoteDto": {
+        "type": "object",
+        "properties": {
+          "tenths": {
+            "type": "number",
+            "description": "Credits held before the job was enqueued, in tenths."
+          },
+          "credits": {
+            "type": "string",
+            "description": "\"1.2\" — for display only, never for arithmetic."
+          },
+          "durationMs": {
+            "type": "number",
+            "description": "Media duration the quote was computed from."
+          }
+        },
+        "required": [
+          "tenths",
+          "credits",
+          "durationMs"
+        ]
+      },
+      "TranscribeAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
+          },
+          "transcriptId": {
+            "type": "string",
+            "description": "The transcript the completion will write."
+          },
+          "status": {
+            "type": "string",
+            "description": "`queued`, or the live job's status when deduplicated."
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when a transcription was already running and none was enqueued."
+          },
+          "quote": {
+            "$ref": "#/components/schemas/TranscriptionQuoteDto"
+          }
+        },
+        "required": [
+          "jobId",
+          "transcriptId",
+          "status",
+          "deduplicated",
+          "quote"
+        ]
+      },
+      "RetranscribeRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "DetectedLanguageDto": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "description": "BCP-47 tag."
+          },
+          "confidence": {
+            "type": "number",
+            "description": "0–1."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "script"
+            ],
+            "description": "Which of the two LID signals (D14)."
+          }
+        },
+        "required": [
+          "language",
+          "confidence",
+          "source"
+        ]
+      },
+      "CorrectionDto": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "string",
+            "enum": [
+              "punctuation",
+              "numerals",
+              "glossary",
+              "spelling",
+              "fillers",
+              "speakers"
+            ]
+          },
+          "wordId": {
+            "type": "string",
+            "description": "Word id, `\"<chunkIdx>:<n>\"`."
+          },
+          "before": {
+            "type": "string",
+            "description": "The text as the provider sent it."
+          },
+          "after": {
+            "type": "string",
+            "description": "The text as it was stored."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why, in a form a human can review."
+          }
+        },
+        "required": [
+          "step",
+          "wordId",
+          "before",
+          "after"
+        ]
+      },
+      "PostProcessingDto": {
+        "type": "object",
+        "properties": {
+          "steps": {
+            "description": "Steps that actually changed something.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "correctionCount": {
+            "type": "number",
+            "description": "Total corrections, including any not listed."
+          },
+          "corrections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CorrectionDto"
+            }
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when `corrections` is a prefix of the full log."
+          },
+          "languageDisagreement": {
+            "type": "boolean",
+            "description": "True when the acoustic and orthographic LID signals disagreed."
+          }
+        },
+        "required": [
+          "steps",
+          "correctionCount",
+          "corrections",
+          "truncated",
+          "languageDisagreement"
+        ]
+      },
+      "TranscriptDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "number",
+            "description": "Transcript revision these chunks belong to."
+          },
+          "language": {
+            "type": "string",
+            "description": "Resolved BCP-47 tag; Hinglish is `hi-Latn`."
+          },
+          "detectedLanguages": {
+            "description": "Both LID signals (D14).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DetectedLanguageDto"
+            }
+          },
+          "provider": {
+            "type": "object",
+            "nullable": true
+          },
+          "model": {
+            "type": "object",
+            "nullable": true
+          },
+          "alignerModel": {
+            "type": "object",
+            "nullable": true
+          },
+          "diariser": {
+            "type": "object",
+            "nullable": true
+          },
+          "chunkCount": {
+            "type": "number",
+            "description": "Chunks in this revision."
+          },
+          "durationMs": {
+            "type": "number",
+            "description": "End of the last chunk, in media ms."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "postProcessing": {
+            "$ref": "#/components/schemas/PostProcessingDto"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "revision",
+          "language",
+          "detectedLanguages",
+          "chunkCount",
+          "durationMs",
+          "createdAt"
+        ]
+      },
+      "TranscriptChunkPageDto": {
+        "type": "object",
+        "properties": {
+          "transcript": {
+            "$ref": "#/components/schemas/TranscriptDto"
+          },
+          "chunks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "description": "`TranscriptChunk` from `@montaj/edg` (CONTRACTS §2): `{chunkIdx, startMs, endMs, words[]}`."
+          },
+          "nextCursor": {
+            "type": "number",
+            "nullable": true,
+            "description": "Last `chunkIdx` returned; pass as `cursor`. `null` at the end."
+          }
+        },
+        "required": [
+          "transcript",
+          "chunks",
+          "nextCursor"
+        ]
+      },
+      "InsightsRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "InsightJobDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "chapters",
+              "summary",
+              "hooks"
+            ]
+          },
+          "jobId": {
+            "type": "string",
+            "description": "Poll `GET /jobs/{id}` or listen for `job.completed`."
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "True when an identical run was already queued."
+          },
+          "tenths": {
+            "type": "number",
+            "description": "Tenths of a credit held for this kind."
+          }
+        },
+        "required": [
+          "kind",
+          "jobId",
+          "deduplicated",
+          "tenths"
+        ]
+      },
+      "InsightsAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InsightJobDto"
+            }
+          },
+          "totalTenths": {
+            "type": "number",
+            "description": "Sum of `tenths` across every kind in this request."
+          }
+        },
+        "required": [
+          "jobs",
+          "totalTenths"
+        ]
+      },
+      "InsightRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "chapters",
+              "summary",
+              "hooks"
+            ]
+          },
+          "templateVersion": {
+            "type": "string",
+            "description": "`\"<id>@<n>\"`, e.g. `\"chapters@1\"`."
+          },
+          "provider": {
+            "type": "string",
+            "description": "`\"anthropic\"`, `\"openai\"` or `\"mock\"`."
+          },
+          "region": {
+            "type": "string",
+            "description": "The workspace jurisdiction this call was pinned to."
+          },
+          "output": {
+            "type": "object",
+            "description": "Schema-validated per `kind`: ChaptersOutput | SummaryOutput | HooksOutput (@montaj/prompts)."
+          },
+          "usage": {
+            "type": "object",
+            "description": "`{inputTokens, outputTokens, costMinor, currency}`."
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "templateVersion",
+          "provider",
+          "region",
+          "output",
+          "usage",
+          "createdAt"
+        ]
+      },
+      "InsightsResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Most recent row per kind.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InsightRowDto"
+            }
+          },
+          "disclosure": {
+            "type": "string",
+            "description": "Consent notice, ASCI-friendly labelling (brief §5): show verbatim next to generated content."
+          }
+        },
+        "required": [
+          "items",
+          "disclosure"
         ]
       },
       "TotpEnrollResponseDto": {
@@ -21737,6 +24182,156 @@
           "holdReleased"
         ]
       },
+      "FeatureFlagDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "description": {
+            "type": "object"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "rolloutPct": {
+            "type": "number"
+          },
+          "targets": {
+            "type": "object"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "enabled",
+          "rolloutPct",
+          "targets",
+          "updatedAt"
+        ]
+      },
+      "CreateFlagDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateFlagDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdminJobSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "attemptNo": {
+            "type": "number"
+          },
+          "error": {
+            "type": "object"
+          },
+          "queuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "object",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "type",
+          "status",
+          "attemptNo",
+          "queuedAt"
+        ]
+      },
+      "AdminQueueStatsDto": {
+        "type": "object",
+        "properties": {
+          "queue": {
+            "type": "string"
+          },
+          "queued": {
+            "type": "number"
+          },
+          "running": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "number"
+          },
+          "succeeded": {
+            "type": "number"
+          },
+          "cancelled": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "queue",
+          "queued",
+          "running",
+          "failed",
+          "succeeded",
+          "cancelled"
+        ]
+      },
+      "AdjustCreditsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdjustCreditsResultDto": {
+        "type": "object",
+        "properties": {
+          "lotId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "lotId"
+        ]
+      },
+      "ReverseCreditsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReverseCreditsResultDto": {
+        "type": "object",
+        "properties": {
+          "lotIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "lotIds"
+        ]
+      },
       "OrphanedHoldDto": {
         "type": "object",
         "properties": {
@@ -21847,6 +24442,317 @@
           "ok",
           "lotsDriftTenths",
           "ledgerDriftTenths"
+        ]
+      },
+      "RoutingWeightOverrideDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "laneId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "laneId",
+          "provider",
+          "weight",
+          "updatedBy",
+          "updatedAt"
+        ]
+      },
+      "SetRoutingWeightDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdminStylePresetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "object"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "minPlan": {
+            "type": "string"
+          },
+          "version": {
+            "type": "number"
+          },
+          "parity": {
+            "type": "object",
+            "description": "A18a parity gate result (D33)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "category",
+          "published",
+          "minPlan",
+          "version",
+          "parity",
+          "updatedAt"
+        ]
+      },
+      "PublishStyleDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdminSupportTicketDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "hasDiagnostics": {
+            "type": "boolean"
+          },
+          "diagnostics": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "userId",
+          "subject",
+          "body",
+          "category",
+          "status",
+          "hasDiagnostics",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "SetTicketStatusDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReplyToTicketDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "LeaderboardRowDto": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "metricName": {
+            "type": "string"
+          },
+          "metricValue": {
+            "type": "number"
+          },
+          "previousMetricValue": {
+            "type": "number"
+          },
+          "trend": {
+            "type": "number"
+          },
+          "itemCount": {
+            "type": "number"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "measuredAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataset",
+          "kind",
+          "language",
+          "metricName",
+          "metricValue",
+          "itemCount",
+          "runId",
+          "measuredAt"
+        ]
+      },
+      "RoutingFreezeStateDto": {
+        "type": "object",
+        "properties": {
+          "frozen": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "frozen",
+          "updatedAt"
+        ]
+      },
+      "FreezeRoutingDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "HealthResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok",
+            "enum": [
+              "ok"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "example": "0.1.0",
+            "description": "Deployed API version."
+          }
+        },
+        "required": [
+          "status",
+          "version"
+        ]
+      },
+      "DependencyCheckDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ]
+          },
+          "latencyMs": {
+            "type": "number",
+            "example": 3,
+            "description": "Round-trip time for the check."
+          },
+          "error": {
+            "type": "string",
+            "description": "Present only when the check failed."
+          }
+        },
+        "required": [
+          "status",
+          "latencyMs"
+        ]
+      },
+      "ReadinessChecksDto": {
+        "type": "object",
+        "properties": {
+          "db": {
+            "$ref": "#/components/schemas/DependencyCheckDto"
+          },
+          "redis": {
+            "$ref": "#/components/schemas/DependencyCheckDto"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/DependencyCheckDto"
+          }
+        },
+        "required": [
+          "db",
+          "redis",
+          "storage"
+        ]
+      },
+      "ReadinessResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "example": "0.1.0"
+          },
+          "checks": {
+            "$ref": "#/components/schemas/ReadinessChecksDto"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "checks"
         ]
       },
       "CleanRequestDto": {
@@ -22549,94 +25455,439 @@
         "type": "object",
         "properties": {}
       },
-      "HealthResponseDto": {
+      "AdminDunningEntryDto": {
         "type": "object",
         "properties": {
-          "status": {
-            "type": "string",
-            "example": "ok",
-            "enum": [
-              "ok"
-            ]
+          "subscriptionId": {
+            "type": "string"
           },
-          "version": {
-            "type": "string",
-            "example": "0.1.0",
-            "description": "Deployed API version."
+          "workspaceId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "graceUntil": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "renewalInitiateAt": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "mandateStatus": {
+            "type": "object"
+          },
+          "mandateMethod": {
+            "type": "object"
           }
         },
         "required": [
-          "status",
-          "version"
+          "subscriptionId",
+          "workspaceId",
+          "status"
         ]
       },
-      "DependencyCheckDto": {
+      "AdminRefundDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdminRefundResultDto": {
         "type": "object",
         "properties": {
-          "status": {
+          "outcome": {
+            "type": "string"
+          },
+          "providerRefundId": {
+            "type": "string"
+          },
+          "policy": {
             "type": "string",
             "enum": [
-              "up",
-              "down"
+              "full",
+              "pro_rata"
             ]
           },
-          "latencyMs": {
-            "type": "number",
-            "example": 3,
-            "description": "Round-trip time for the check."
+          "requestedAmountMinor": {
+            "type": "number"
           },
-          "error": {
+          "refundAmountMinor": {
+            "type": "number"
+          },
+          "creditNoteId": {
+            "type": "string"
+          },
+          "creditNoteNumber": {
+            "type": "string"
+          },
+          "creditNoteSkippedReason": {
             "type": "string",
-            "description": "Present only when the check failed."
+            "description": "Set when no original tax invoice was found for this purchase — no credit note was issued."
           }
         },
         "required": [
-          "status",
-          "latencyMs"
+          "outcome",
+          "providerRefundId",
+          "policy",
+          "requestedAmountMinor",
+          "refundAmountMinor"
         ]
       },
-      "ReadinessChecksDto": {
+      "AdminUserSummaryDto": {
         "type": "object",
         "properties": {
-          "db": {
-            "$ref": "#/components/schemas/DependencyCheckDto"
+          "id": {
+            "type": "string"
           },
-          "redis": {
-            "$ref": "#/components/schemas/DependencyCheckDto"
+          "email": {
+            "type": "string"
           },
-          "storage": {
-            "$ref": "#/components/schemas/DependencyCheckDto"
+          "name": {
+            "type": "object"
+          },
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "deletedAt": {
+            "type": "object",
+            "format": "date-time"
           }
         },
         "required": [
-          "db",
-          "redis",
-          "storage"
+          "id",
+          "email",
+          "isAdmin",
+          "createdAt"
         ]
       },
-      "ReadinessResponseDto": {
+      "AdminMembershipDto": {
         "type": "object",
         "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "workspaceName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
           "status": {
-            "type": "string",
-            "enum": [
-              "ok",
-              "degraded"
-            ]
-          },
-          "version": {
-            "type": "string",
-            "example": "0.1.0"
-          },
-          "checks": {
-            "$ref": "#/components/schemas/ReadinessChecksDto"
+            "type": "string"
           }
         },
         "required": [
-          "status",
-          "version",
-          "checks"
+          "workspaceId",
+          "workspaceName",
+          "role",
+          "status"
         ]
+      },
+      "AdminUserDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "object"
+          },
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "deletedAt": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "memberships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminMembershipDto"
+            }
+          },
+          "deviceCount": {
+            "type": "number"
+          },
+          "adminRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "isAdmin",
+          "createdAt",
+          "memberships",
+          "deviceCount",
+          "adminRoles"
+        ]
+      },
+      "AdminWorkspaceSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "ownerId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deletedAt": {
+            "type": "object",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "type",
+          "ownerId",
+          "currency",
+          "createdAt"
+        ]
+      },
+      "AdminCreditAccountDto": {
+        "type": "object",
+        "properties": {
+          "balanceTenths": {
+            "type": "number"
+          },
+          "monthlyGrantTenths": {
+            "type": "number"
+          },
+          "grantResetAt": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "negativeAllowed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "balanceTenths",
+          "monthlyGrantTenths",
+          "negativeAllowed"
+        ]
+      },
+      "AdminSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "planId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "currentPeriodEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cancelAtPeriodEnd": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "planId",
+          "status",
+          "currency",
+          "currentPeriodEnd",
+          "cancelAtPeriodEnd"
+        ]
+      },
+      "AdminWorkspaceDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "ownerId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deletedAt": {
+            "type": "object",
+            "format": "date-time"
+          },
+          "ownerEmail": {
+            "type": "string"
+          },
+          "memberCount": {
+            "type": "number"
+          },
+          "creditAccount": {
+            "$ref": "#/components/schemas/AdminCreditAccountDto"
+          },
+          "subscription": {
+            "$ref": "#/components/schemas/AdminSubscriptionDto"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "type",
+          "ownerId",
+          "currency",
+          "createdAt",
+          "memberCount"
+        ]
+      },
+      "HeldReferralDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "referrerWorkspaceId": {
+            "type": "string"
+          },
+          "referredWorkspaceId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "holdReason": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "referrerWorkspaceId",
+          "referredWorkspaceId",
+          "code",
+          "holdReason",
+          "createdAt"
+        ]
+      },
+      "RejectHoldDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdminPendingAffiliateDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "code",
+          "status",
+          "country",
+          "createdAt"
+        ]
+      },
+      "ShareReportSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "shareLinkId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "shareLinkId",
+          "category",
+          "receivedAt",
+          "dueAt"
+        ]
+      },
+      "ResolveReportDto": {
+        "type": "object",
+        "properties": {}
       },
       "Function": {
         "type": "object",

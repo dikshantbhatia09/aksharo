@@ -41,6 +41,7 @@ describe("buildJobEnvelope (CONTRACTS §3)", () => {
   it("keeps every id a string, which is what the Python worker requires", () => {
     const wire = JSON.parse(JSON.stringify(buildJobEnvelope(BASE))) as Record<string, unknown>;
     for (const field of ["jobId", "attemptId", "workspaceId", "jobKey", "createdAt"]) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(typeof wire[field]).toBe("string");
     }
     expect(typeof wire["payload"]).toBe("object");

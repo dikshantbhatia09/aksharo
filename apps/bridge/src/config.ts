@@ -27,6 +27,14 @@ export interface BridgeAppConfig {
   sessionRefreshToken?: string;
   /** Epoch ms `deviceToken` expires at (CONTRACTS §5: 15 minutes from mint). */
   deviceTokenExpiresAt?: number;
+  /**
+   * C12: local mirror of the `telemetry` consent, same reasoning as the
+   * desktop shell's `telemetry/consent-store.ts` — off until the server row
+   * says otherwise. Synced from `GET /consents` on startup and refreshed on
+   * a poll (M04, `consent-sync.ts`; `main.ts` persists whatever the server
+   * last answered here).
+   */
+  telemetryConsent?: boolean;
 }
 
 function configPath(): string {
@@ -35,8 +43,10 @@ function configPath(): string {
 
 export function loadConfig(): BridgeAppConfig {
   const path = configPath();
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   if (!existsSync(path)) return {};
   try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     return JSON.parse(readFileSync(path, "utf8")) as BridgeAppConfig;
   } catch {
     return {};
@@ -45,6 +55,8 @@ export function loadConfig(): BridgeAppConfig {
 
 export function saveConfig(config: BridgeAppConfig): void {
   const dir = aksharoDir();
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   writeFileSync(configPath(), `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
 }

@@ -198,6 +198,7 @@ export function PricingContent({ plans, source }: PricingContentProps): React.JS
             </thead>
             <tbody>
               {CREDIT_OPERATIONS.map((operation) => {
+                // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
                 const rate: BurnRate = BURN_RATES[operation];
                 const credits = rate.ratePerUnitTenths / TENTHS_PER_CREDIT;
                 const pro =

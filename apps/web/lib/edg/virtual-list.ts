@@ -92,13 +92,16 @@ export class VirtualList {
   /** A row reported its real rendered height. */
   setHeight(index: number, height: number): void {
     if (index < 0 || index >= this.heights.length) return;
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const previous = this.heights[index] ?? this.defaultHeight;
     if (previous === height) return;
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     this.heights[index] = height;
     treeAdd(this.tree, index, height - previous);
   }
 
   heightOf(index: number): number {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     return this.heights[index] ?? this.defaultHeight;
   }
 
@@ -145,6 +148,7 @@ export class VirtualList {
 function buildTree(heights: readonly number[]): number[] {
   const tree = new Array<number>(heights.length + 1).fill(0);
   for (let i = 0; i < heights.length; i += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     treeAdd(tree, i, heights[i] ?? 0);
   }
   return tree;
@@ -155,7 +159,7 @@ function treeAdd(tree: number[], index: number, delta: number): void {
   if (delta === 0) return;
   let i = index + 1;
   while (i < tree.length) {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- i is in [1, tree.length)
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, security/detect-object-injection -- i is in [1, tree.length); bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     tree[i] = tree[i]! + delta;
     i += i & -i;
   }
@@ -167,7 +171,7 @@ function treePrefixSum(tree: readonly number[], index: number): number {
   let i = Math.min(index + 1, tree.length - 1);
   let sum = 0;
   while (i > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- i is in [1, tree.length)
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion, security/detect-object-injection -- i is in [1, tree.length); bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     sum += tree[i]!;
     i -= i & -i;
   }
@@ -186,8 +190,10 @@ function treeFindByPrefixSum(tree: readonly number[], target: number): number {
   let step = highestPowerOfTwo(n);
   while (step > 0) {
     const next = pos + step;
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     if (next <= n && (tree[next] ?? 0) <= remaining) {
       pos = next;
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       remaining -= tree[next] ?? 0;
     }
     step >>>= 1;

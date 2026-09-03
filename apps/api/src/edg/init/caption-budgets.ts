@@ -88,6 +88,7 @@ const ASPECTS: Readonly<Record<string, Aspect>> = {
 
 /** The aspect a project row names, defaulting to the vertical creator format. */
 export function aspectOf(stored: string | null | undefined): Aspect {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return (stored === null || stored === undefined ? undefined : ASPECTS[stored]) ?? "9:16";
 }
 
@@ -199,6 +200,7 @@ export interface ResolveBudgetsInput {
 /** `min(readability cap, fit cap, the workspace's own preference)`. */
 export function resolveBudgets(input: ResolveBudgetsInput): CaptionBudgets {
   const aspect = canvasAspectFor(input.aspect, input.media);
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const canvas = CANVAS_SIZES[aspect];
   const styleRef = input.styleRef ?? DEFAULT_STYLE_REF;
 

@@ -84,6 +84,7 @@ export function planMeets(plan: PlanKeyName, minimum: PlanTier | null): boolean 
 export function operationsFor(plan: PlanKeyName): Record<CreditOperation, boolean> {
   const entries = CREDIT_OPERATIONS.map((operation) => [
     operation,
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     planMeets(plan, BURN_RATES[operation].minimumPlan),
   ]);
   return Object.fromEntries(entries) as Record<CreditOperation, boolean>;
@@ -611,13 +612,16 @@ export function loadSystemStyles(
   }
 
   const fixtureDir = join(repoRoot, "packages", "caption-styles", "styles");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   if (existsSync(fixtureDir)) {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     const styles = readdirSync(fixtureDir)
       .filter((file) => file.endsWith(".json"))
       .sort((a, b) => a.localeCompare(b, "en"))
       .map((file) => {
         let raw: unknown;
         try {
+          // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
           raw = JSON.parse(readFileSync(join(fixtureDir, file), "utf8"));
         } catch {
           return undefined;

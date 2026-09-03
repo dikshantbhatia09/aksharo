@@ -66,6 +66,7 @@ describe("isJobEnvelope", () => {
   it("rejects anything missing a contract field", () => {
     for (const field of ["jobId", "attemptId", "workspaceId", "jobKey", "createdAt", "payload"]) {
       const broken: Record<string, unknown> = { ...validEnvelope };
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       delete broken[field];
       expect(isJobEnvelope(broken), `should reject a job missing ${field}`).toBe(false);
     }

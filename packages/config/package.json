@@ -10,7 +10,8 @@
   "files": [
     "dist",
     "*.mjs",
-    "tsconfig*.json"
+    "tsconfig*.json",
+    "contract-env-vars.json"
   ],
   "exports": {
     ".": {
@@ -38,7 +39,8 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node src/emit-contract-env.mjs",
+    "gen:contract-env": "node src/emit-contract-env.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
@@ -54,6 +56,7 @@
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-security": "^4.0.1",
     "globals": "^17.12.0",
     "prettier": "^3.9.6",
     "typescript": "^5.9.3",

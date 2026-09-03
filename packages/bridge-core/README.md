@@ -19,6 +19,13 @@ bridge.on("status", (event) => console.log(event.status, event.port));
 bridge.on("pairingRequested", (pairingId, clientName) => {
   /* show a tray notification, or log the 8-character code for the fallback */
 });
+bridge.on("clientConnected", ({ pairingId, clientId, clientKind }) => {
+  // C02b: fires once `pair.confirm` mints the real wire `clientId` — a local/tray
+  // approval only flips the pairing to "approved"; the pairing *client* itself
+  // mints and owns `clientId`, so this is the only way an in-process consumer
+  // (the desktop shell) learns it. No wire `events.subscribe` broadcast exists
+  // yet for a remote subscriber; see `BridgeEventKind` in `protocol.ts`.
+});
 
 await bridge.start(); // binds loopback (47831-47833), writes the discovery
 // file, opens the relay tunnel if configured

@@ -38,6 +38,7 @@ const RED_PNG = Buffer.from(
 
 function pixel(rgba: Uint8Array, x: number, y: number, width = SIZE.width): number[] {
   const index = (y * width + x) * 4;
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return [rgba[index] ?? 0, rgba[index + 1] ?? 0, rgba[index + 2] ?? 0, rgba[index + 3] ?? 0];
 }
 

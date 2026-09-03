@@ -7,6 +7,7 @@ import type { AddressResolver, SafeTransport, SafeTransportResponse } from "./sa
 /** A resolver that answers with whatever the test says the name resolves to. */
 function resolverFor(map: Record<string, readonly string[]>): AddressResolver {
   return async (hostname) => {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const addresses = map[hostname];
     if (addresses === undefined) throw new Error(`ENOTFOUND ${hostname}`);
     return addresses.map((address) => ({

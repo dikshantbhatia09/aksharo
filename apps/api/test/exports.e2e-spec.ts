@@ -24,8 +24,8 @@ import { verifyRenderManifest } from "@montaj/render-manifest";
 
 import { isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { createEdgTestContext, edgSkipReason, type EdgTestContext } from "./edg-harness.js";
-import { EdgService } from "../src/edg/index.js";
 import { PLAN_SEEDS } from "../prisma/seed-data.js";
+import { EdgService } from "../src/edg/index.js";
 
 const available = isDatabaseAvailable();
 if (!available) console.warn(`[exports.e2e] skipped: ${skipReason}`);

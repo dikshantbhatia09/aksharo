@@ -27,7 +27,9 @@ function databaseUrlFromDotenv(startDir) {
   const { root } = parse(dir);
   for (;;) {
     const candidate = join(dir, ".env");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     if (existsSync(candidate)) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
       const match = /^\s*DATABASE_URL\s*=\s*(.*)$/m.exec(readFileSync(candidate, "utf8"));
       if (match?.[1]) return match[1].trim().replace(/^["']|["']$/g, "");
       return undefined;

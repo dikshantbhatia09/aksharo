@@ -191,10 +191,33 @@ networkPolicy:
   # Namespace the metrics/telemetry collector runs in.
   observabilityNamespace: observability
 
-  # FQDN egress enforcement. Requires Cilium as the CNI; the AWS VPC CNI cannot
-  # express this. Off by default so the chart installs on a stock EKS cluster.
+  # FQDN egress enforcement lifecycle (X08, decision D73). Requires Cilium as
+  # the CNI; the AWS VPC CNI cannot express this, so anything but "off" is
+  # inert on a stock EKS cluster (the CiliumNetworkPolicy CRD is simply absent,
+  # and `helm template` renders nothing for it — see templates/networkpolicy-
+  # fqdn.yaml). Three values, meant to be moved through in order on a staged
+  # rollout (docs/runbooks/egress-policy.md):
+  #
+  #   off      No CiliumNetworkPolicy is rendered. The coarse rule in
+  #            templates/networkpolicy.yaml is the only egress control a
+  #            provider-egress component gets: 443 to anywhere off the private
+  #            ranges. Safe on any CNI; the chart's default.
+  #   audit    The CiliumNetworkPolicy is rendered and applied with Cilium's
+  #            per-policy audit annotation (`policy.cilium.io/audit-mode:
+  #            "true"`): denials are logged (`cilium monitor`, Hubble), never
+  #            dropped. The coarse rule stays in force underneath it, so
+  #            traffic is not interrupted while the allow-list is verified
+  #            against real traffic.
+  #   enforce  The CiliumNetworkPolicy drops anything outside
+  #            providerAllowlist / providerAllowlistSuffixes. The coarse rule
+  #            is no longer rendered for a provider-egress component: Cilium is
+  #            the sole enforcement point, exactly as narrow as the allow-list.
+  #
+  # `off` and `enforce` are D73's two named states (chart ships the enforce
+  # variant validated, off by default); `audit` is the staged-rollout step X08
+  # adds between them.
   fqdn:
-    enabled: false
+    mode: off # off | audit | enforce
 
   # The provider allow-list. Every hostname a worker is permitted to reach, with
   # the reason, so a reviewer can tell an ASR vendor from an exfiltration path.

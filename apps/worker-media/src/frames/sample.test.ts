@@ -83,6 +83,7 @@ describe.runIf(ffmpegAvailable())("sampleFrames (real ffmpeg)", () => {
     expect(frames.length).toBeGreaterThanOrEqual(18);
     expect(frames[0]?.tMs).toBe(0);
     expect(frames[1]?.tMs).toBe(100);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const files = await readdir(outDir);
     expect(files.length).toBe(frames.length);
   }, 30_000);

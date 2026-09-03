@@ -116,6 +116,7 @@ export class BundledFontsService {
       );
     }
     return {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
       bytes: await readFile(path),
       contentType: name.endsWith(".woff2")
         ? "font/woff2"

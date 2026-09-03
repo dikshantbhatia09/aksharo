@@ -133,6 +133,7 @@ export class InvoicesService {
 
     const docType: $Enums.InvoiceDocType =
       tax.supplyType === "export" || tax.supplyType === "sez" ? "export_invoice" : "tax_invoice";
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const series = INVOICE_SERIES[docType];
     const fiscalYear = fiscalYearFor(issuedAt);
     const sequenceNo = await this.numbering.nextNumber(series, fiscalYear);
@@ -321,6 +322,7 @@ export class InvoicesService {
       input.refundAmountMinor - (taxableValueMinor + cgstMinor + sgstMinor + igstMinor);
 
     const docType: $Enums.InvoiceDocType = "credit_note";
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const series = INVOICE_SERIES[docType];
     const fiscalYear = fiscalYearFor(issuedAt);
     const sequenceNo = await this.numbering.nextNumber(series, fiscalYear);
@@ -585,6 +587,7 @@ function parsePostalAddress(value: Prisma.JsonValue | null | undefined): PostalA
   }
   const record = value as Record<string, unknown>;
   const str = (key: string): string | undefined =>
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     typeof record[key] === "string" ? (record[key] as string) : undefined;
   return {
     line1: str("line1") ?? "Address not on file",

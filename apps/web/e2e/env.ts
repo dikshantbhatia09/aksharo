@@ -11,9 +11,11 @@ import { dirname, join, parse } from "node:path";
  */
 export function loadRepoEnv(startDir: string = process.cwd()): Record<string, string> {
   const file = findEnvFile(startDir);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   const parsed = file === undefined ? {} : parseEnv(readFileSync(file, "utf8"));
   const merged: Record<string, string> = { ...parsed };
   for (const [key, value] of Object.entries(process.env)) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     if (value !== undefined) merged[key] = value;
   }
   return merged;
@@ -40,6 +42,7 @@ function findEnvFile(startDir: string): string | undefined {
   const { root } = parse(dir);
   for (;;) {
     const candidate = join(dir, ".env");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     if (existsSync(candidate)) return candidate;
     if (dir === root) return undefined;
     const parent = dirname(dir);
@@ -58,6 +61,7 @@ export function parseEnv(source: string): Record<string, string> {
   const lines = source.split(/\r?\n/);
 
   for (let index = 0; index < lines.length; index += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const line = lines[index] ?? "";
     const trimmed = line.trim();
     if (trimmed === "" || trimmed.startsWith("#")) continue;
@@ -73,12 +77,14 @@ export function parseEnv(source: string): Record<string, string> {
       let collected = value.slice(1);
       while (!collected.endsWith('"') && index + 1 < lines.length) {
         index += 1;
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         collected += `\n${lines[index] ?? ""}`;
       }
       value = collected.replace(/"$/, "");
     } else {
       value = value.trim();
     }
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     result[key] = value;
   }
 

@@ -135,6 +135,7 @@ describe("the directory-backed store used by the tests", () => {
   it("round-trips bytes and files, and records what it wrote", async () => {
     const store = createDirectoryStore(join(scratch, "store"));
     const source = join(scratch, "input.txt");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(source, "hello");
 
     await store.seedBytes("a/b.txt", new Uint8Array([1, 2, 3]));
@@ -146,6 +147,7 @@ describe("the directory-backed store used by the tests", () => {
 
     const destination = join(scratch, "out.txt");
     await store.download("a/c.txt", destination);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     expect(await readFile(destination, "utf8")).toBe("hello");
 
     await store.putBytes("a/d.bin", new Uint8Array([9]));

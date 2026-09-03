@@ -68,6 +68,7 @@ describe("PLAN_SEEDS", () => {
 
   it("prices the ladder as printed, in minor units inclusive of GST", () => {
     const price = (key: string, currency: "INR" | "USD", term: "month" | "year") =>
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       (
         PLAN_SEEDS.find((plan) => plan.key === key)?.prices as Record<
           string,
@@ -225,12 +226,15 @@ describe("loadSystemStyles", () => {
   it("reads packages/caption-styles/styles/*.json when the package is unavailable", () => {
     const root = mkdtempSync(join(tmpdir(), "montaj-repo-"));
     const dir = join(root, "packages", "caption-styles", "styles");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     mkdirSync(dir, { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(
       join(dir, "bubble.json"),
       JSON.stringify({ id: "bubble", version: 2, name: "Bubble", category: "playful" }),
     );
     // No `name`: the key falls back to the filename.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(join(dir, "glow.json"), JSON.stringify({ id: "glow", version: 2 }));
 
     const { source, styles } = loadSystemStyles(root, noPackage);
@@ -245,20 +249,26 @@ describe("loadSystemStyles", () => {
   it("skips registry.json and anything else that is not a StyleDoc v2", () => {
     const root = mkdtempSync(join(tmpdir(), "montaj-repo-"));
     const dir = join(root, "packages", "caption-styles", "styles");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     mkdirSync(dir, { recursive: true });
 
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(
       join(dir, "bubble.json"),
       JSON.stringify({ id: "bubble", version: 2, name: "Bubble", category: "playful" }),
     );
     // The catalogue index that A02 ships alongside the styles.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(
       join(dir, "registry.json"),
       JSON.stringify({ version: 1, styles: [{ id: "bubble", status: "shipped" }] }),
     );
     // A v1 document, an id-less one, and a file that is not JSON at all.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(join(dir, "legacy.json"), JSON.stringify({ id: "legacy", version: 1 }));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(join(dir, "anonymous.json"), JSON.stringify({ version: 2 }));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(join(dir, "broken.json"), "{ not json");
 
     const { source, styles } = loadSystemStyles(root, noPackage);
@@ -270,7 +280,9 @@ describe("loadSystemStyles", () => {
   it("falls back when the directory holds nothing but a registry", () => {
     const root = mkdtempSync(join(tmpdir(), "montaj-repo-"));
     const dir = join(root, "packages", "caption-styles", "styles");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     mkdirSync(dir, { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(join(dir, "registry.json"), JSON.stringify({ version: 1, styles: [] }));
 
     // Nothing usable is not the same as "a catalogue of one registry".

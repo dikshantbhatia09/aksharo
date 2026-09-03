@@ -31,6 +31,95 @@ export function detectDesktopEnvironment(input: {
   };
 }
 
+export type DesktopLocalMediaRole = "primary" | "broll" | "audio";
+export type DesktopLocalExportStatus = "pending" | "done" | "failed";
+
+export interface DesktopLocalProject {
+  readonly id: string;
+  readonly title: string;
+  readonly aspect: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface DesktopLocalMedia {
+  readonly id: string;
+  readonly projectId: string;
+  readonly role: DesktopLocalMediaRole;
+  readonly filePath: string;
+  readonly durationMs: number | null;
+  readonly fps: number | null;
+  readonly width: number | null;
+  readonly height: number | null;
+  readonly importedAt: string;
+}
+
+/**
+ * `hot`/`segments` are `EdgHot`/`Segment[]` from `@montaj/edg/schemas`
+ * (already a dependency of this app); left as `unknown` here rather than
+ * imported, matching `apps/desktop/src/preload/api-types.ts`'s own choice
+ * to keep this boundary's surface free of a second copy of the EDG types —
+ * `apps/web/lib/edg/store.ts`'s local branch is the one place that casts
+ * them back to their real shape.
+ */
+export interface DesktopLocalEdgSnapshot {
+  readonly id: string;
+  readonly projectId: string;
+  readonly revision: number;
+  readonly hot: unknown;
+  readonly segments: unknown[];
+  /**
+   * Transcript chunks as of now (brief C04b §1), left `unknown[]` for the
+   * same reason `hot`/`segments` are — `apps/web/lib/edg/store.ts`'s local
+   * branch is the one place that casts them back to `TranscriptChunk[]`.
+   */
+  readonly chunks: unknown[];
+  readonly createdAt: string;
+}
+
+export interface DesktopLocalExport {
+  readonly id: string;
+  readonly projectId: string;
+  readonly outputPath: string;
+  readonly status: DesktopLocalExportStatus;
+  readonly createdAt: string;
+  readonly completedAt: string | null;
+}
+
+/** Local mode (brief C04): the desktop's `window.aksharoDesktop.local` surface. */
+export interface AksharoDesktopLocalApi {
+  isEnabled(): Promise<boolean>;
+  createProject(input: { title: string; aspect: string }): Promise<DesktopLocalProject>;
+  listProjects(): Promise<DesktopLocalProject[]>;
+  openProject(projectId: string): Promise<DesktopLocalProject>;
+  deleteProject(projectId: string): Promise<{ ok: true }>;
+  importMedia(input: {
+    projectId: string;
+    sourcePath: string;
+    role: DesktopLocalMediaRole;
+  }): Promise<DesktopLocalMedia>;
+  listMedia(projectId: string): Promise<DesktopLocalMedia[]>;
+  transcribe(input: { audio: string; language?: string }): Promise<unknown>;
+  align(input: { audio: string; words: string[]; language: string }): Promise<unknown>;
+  saveEdgSnapshot(input: {
+    projectId: string;
+    hot: unknown;
+    segments: unknown[];
+    /** Word-addressed ops changed the transcript; omitted for a pure segment-level edit. */
+    chunks?: unknown[];
+  }): Promise<DesktopLocalEdgSnapshot>;
+  latestSnapshot(projectId: string): Promise<DesktopLocalEdgSnapshot | null>;
+  runExport(input: {
+    projectId: string;
+    drawCommandsPath: string;
+    width: number;
+    height: number;
+    fps: number;
+    outputPath: string;
+  }): Promise<DesktopLocalExport>;
+  listExports(projectId: string): Promise<DesktopLocalExport[]>;
+}
+
 /** Type of the API the desktop preload exposes (subset the web app is allowed to rely on). */
 export interface AksharoDesktopWindowApi {
   version: string;
@@ -40,6 +129,8 @@ export interface AksharoDesktopWindowApi {
   bridge: { pair(pairCode: string): Promise<{ ok: boolean; error?: string }> };
   updates: { check(): Promise<{ channel: string; available: boolean; version?: string }> };
   deepLink: { onOpen(listener: (url: string) => void): () => void };
+  /** Local mode (brief C04). Undefined on a desktop build older than this WP. */
+  local?: AksharoDesktopLocalApi;
 }
 
 /** Returns the desktop preload API when running inside the desktop shell, else `null`. */

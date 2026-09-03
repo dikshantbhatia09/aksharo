@@ -18,7 +18,6 @@ import { useApiClient } from "@montaj/api-client";
 
 import {
   audioEndpoints,
-  presetFor,
   type AudioClean,
   type AudioCleanStrength,
   type AudioCleanTarget,
@@ -29,7 +28,8 @@ const POLL_MS = 3_000;
 export interface SetAudioCleanOp {
   readonly clean: {
     readonly enabled: boolean;
-    readonly preset: string;
+    /** First-class as of B10b (CONTRACTS §2); `null` clears a previously applied clean. */
+    readonly cleanId: string | null;
     readonly targetLufs: number;
   };
 }
@@ -61,7 +61,7 @@ export function applyCleanOp(clean: AudioClean): SetAudioCleanOp {
   return {
     clean: {
       enabled: true,
-      preset: presetFor(clean.id),
+      cleanId: clean.id,
       targetLufs: AUDIO_TARGET_LUFS[clean.target],
     },
   };
@@ -69,7 +69,7 @@ export function applyCleanOp(clean: AudioClean): SetAudioCleanOp {
 
 /** The op that turns "apply to export" back off. */
 export function clearCleanOp(): SetAudioCleanOp {
-  return { clean: { enabled: false, preset: "", targetLufs: 0 } };
+  return { clean: { enabled: false, cleanId: null, targetLufs: 0 } };
 }
 
 export function useAudioClean(projectId: string): UseAudioCleanResult {

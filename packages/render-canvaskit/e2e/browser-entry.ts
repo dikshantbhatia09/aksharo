@@ -82,6 +82,7 @@ async function boot(): Promise<{ backend: "webgl" | "cpu"; fonts: number; frames
 
   const backend = await CanvasKitBackend.create({ canvasKit: ck });
   for (const [index, font] of FONT_FILES.entries()) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const data = fontBuffers[index];
     if (data === undefined) continue;
     for (const weight of WEIGHTS) {
@@ -124,6 +125,7 @@ async function boot(): Promise<{ backend: "webgl" | "cpu"; fonts: number; frames
     frameNames: () => Object.keys(bundle.frames),
     missing: () => [...backend.missingResources],
     renderFrame(name: string): string {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const commands = bundle.frames[name];
       if (commands === undefined) throw new Error(`no such frame: ${name}`);
       // Draw onto the on-screen surface first — that is the path the editor

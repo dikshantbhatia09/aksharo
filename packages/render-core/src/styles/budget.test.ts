@@ -214,7 +214,9 @@ describe("fitBudget", () => {
 describe("the committed samples", () => {
   it("are in the script they claim and long enough to average over", () => {
     for (const script of ["latin", "devanagari", "tamil"] as const) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(charCount(BUDGET_SAMPLES[script]), script).toBeGreaterThan(30);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(BUDGET_SAMPLES[script], script).toContain(" ");
     }
     expect(BUDGET_SAMPLES.devanagari).toMatch(/\p{Script=Devanagari}/u);

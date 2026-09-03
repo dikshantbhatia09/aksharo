@@ -85,8 +85,37 @@ WORKER_ENV_VARS: tuple[str, ...] = (
     "PASS_FACE_DETECTOR_WEIGHTS",
 )
 
-#: Every variable in CONTRACTS section 1, in contract order.
-CONTRACT_ENV_VARS: tuple[str, ...] = (
+
+def _load_contract_env_vars() -> tuple[str, ...]:
+    """Read the frozen list from `packages/config`'s generated JSON.
+
+    `packages/config/src/env.ts` is the one source of truth for CONTRACTS
+    section 1. `packages/config`'s build emits `contract-env-vars.json`
+    (`src/emit-contract-env.mjs`) from that file so this worker cannot keep its
+    own hand-copied tuple that silently drifts (M04: `LICENSE_SIGNING_KID` was
+    added to `env.ts` but never mirrored here). If the JSON has not been
+    generated yet (a fresh checkout before `pnpm --filter @montaj/config
+    build`), fall back to the last-known list so the worker still starts;
+    `test_contract_list_matches_typescript` fails loudly if that fallback ever
+    goes stale, which forces a regeneration rather than a silent drift.
+    """
+    json_path = (
+        Path(__file__).resolve().parents[3] / "packages" / "config" / "contract-env-vars.json"
+    )
+    try:
+        data = json.loads(json_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return _FALLBACK_CONTRACT_ENV_VARS
+    if not isinstance(data, list) or not all(isinstance(item, str) for item in data):
+        raise EnvValidationError([f"{json_path} did not contain a JSON array of strings"])
+    return tuple(data)
+
+
+#: Last-known-good fallback for `_load_contract_env_vars`, used only when
+#: `contract-env-vars.json` has not been generated yet. Keep it in sync via
+#: `pnpm --filter @montaj/config gen:contract-env`; the parity test is the
+#: safety net, not this constant.
+_FALLBACK_CONTRACT_ENV_VARS: tuple[str, ...] = (
     "DATABASE_URL",
     "REDIS_URL",
     "S3_ENDPOINT",
@@ -104,6 +133,7 @@ CONTRACT_ENV_VARS: tuple[str, ...] = (
     "INTERNAL_CALLBACK_SECRET_NEXT",
     "GOOGLE_OAUTH_CLIENT_ID",
     "GOOGLE_OAUTH_CLIENT_SECRET",
+    "LICENSE_SIGNING_KID",
     "WEB_ORIGIN",
     "API_ORIGIN",
     "RAZORPAY_KEY_ID",
@@ -148,6 +178,11 @@ class EnvValidationError(RuntimeError):
             "Copy .env.example to .env and fill in the missing values.\n"
             "See docs/CONTRACTS.md section 1 for the full list."
         )
+
+
+#: Every variable in CONTRACTS section 1, in contract order. See
+#: `_load_contract_env_vars` above.
+CONTRACT_ENV_VARS: tuple[str, ...] = _load_contract_env_vars()
 
 
 @dataclass(frozen=True, slots=True)

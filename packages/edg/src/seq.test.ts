@@ -89,6 +89,7 @@ describe("seqBetween properties", () => {
         const keys: string[] = [];
         for (const raw of positions) {
           const at = raw % (keys.length + 1);
+          // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
           const key = seqBetween(keys[at - 1], keys[at]);
           keys.splice(at, 0, key);
         }

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-03T01:11:04.159Z",
+  "generatedAt": "2026-09-03T01:53:44.834Z",
   "maxDiffPxTolerance": 1.05,
   "sourceWidth": 1080,
   "sourceHeight": 1920,
@@ -10,7 +10,7 @@
       "samples": 6,
       "maxDiffPx": 1.1368683772161603e-13,
       "pass": true,
-      "measuredAt": "2026-09-03T01:11:04.159Z"
+      "measuredAt": "2026-09-03T01:53:44.834Z"
     },
     "cut-plus-reframe": {
       "fixtureId": "cut-plus-reframe",
@@ -18,7 +18,15 @@
       "samples": 8,
       "maxDiffPx": 5.684341886080802e-14,
       "pass": true,
-      "measuredAt": "2026-09-03T01:11:04.159Z"
+      "measuredAt": "2026-09-03T01:53:44.834Z"
     }
+  },
+  "audio": {
+    "description": "Browser-export vs cloud-render audio-track hash comparison for audio.strategy: \"replace\" (B10b).",
+    "strategy": "replace",
+    "match": true,
+    "browserHash": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193",
+    "cloudHash": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193",
+    "byteLength": 4096
   }
 }

@@ -37,6 +37,7 @@ export function reduceWaveform(
   for (let px = 0; px < widthPx; px++) {
     const bucketStartMs = startMs + px * msPerPx;
     const bucketEndMs = bucketStartMs + msPerPx;
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     buckets[px] = {
       peak: reduceMax(waveform.peaks, waveform.peakRate, bucketStartMs, bucketEndMs),
       energy: reduceMean(waveform.rms.values, waveform.rms.rate, bucketStartMs, bucketEndMs),
@@ -55,10 +56,12 @@ function reduceMax(
   const endIdx = Math.min(values.length, Math.ceil((endMs / 1000) * rateHz));
   if (endIdx <= startIdx) {
     const idx = Math.min(values.length - 1, Math.max(0, Math.round((startMs / 1000) * rateHz)));
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     return values[idx] ?? 0;
   }
   let max = 0;
   for (let i = startIdx; i < endIdx; i++) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const v = values[i];
     if (v !== undefined && v > max) max = v;
   }
@@ -75,11 +78,13 @@ function reduceMean(
   const endIdx = Math.min(values.length, Math.ceil((endMs / 1000) * rateHz));
   if (endIdx <= startIdx) {
     const idx = Math.min(values.length - 1, Math.max(0, Math.round((startMs / 1000) * rateHz)));
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     return values[idx] ?? 0;
   }
   let sum = 0;
   let count = 0;
   for (let i = startIdx; i < endIdx; i++) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const v = values[i];
     if (v !== undefined) {
       sum += v;

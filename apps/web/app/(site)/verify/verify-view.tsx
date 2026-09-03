@@ -40,6 +40,7 @@ export function VerifyView(): React.JSX.Element {
     });
   }, [mutate, router, token]);
 
+  // eslint-disable-next-line security/detect-possible-timing-attacks -- sentinel comparison (null/undefined/boolean/empty-string), not a secret/MAC comparison -- reviewed for the same follow-up
   if (token === "") {
     return (
       <AuthCard title="That link is incomplete">

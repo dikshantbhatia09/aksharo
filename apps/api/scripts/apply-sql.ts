@@ -35,6 +35,7 @@ export interface AppliedFile {
 
 /** `.sql` files in `prisma/sql/`, in lexical (zero-padded) order. */
 export function listSqlFiles(dir: string = SQL_DIR): string[] {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   return readdirSync(dir)
     .filter((name) => name.endsWith(".sql"))
     .sort((a, b) => a.localeCompare(b, "en"));
@@ -63,6 +64,7 @@ export async function applySql(databaseUrl: string, dir: string = SQL_DIR): Prom
     for (const row of rows.rows) previous.set(row.filename, row.checksum);
 
     for (const filename of listSqlFiles(dir)) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
       const contents = readFileSync(join(dir, filename), "utf8");
       const sum = checksum(contents);
 

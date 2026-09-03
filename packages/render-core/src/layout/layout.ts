@@ -123,6 +123,7 @@ export function visibleWords(
 function indexAt(words: readonly RenderWord[], tMs: number): number {
   let index = 0;
   for (let i = 0; i < words.length; i += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const word = words[i];
     if (word === undefined) continue;
     if (tMs >= word.s) index = i;
@@ -184,6 +185,7 @@ function lineWidthEm(
 ): number {
   let width = 0;
   for (const [position, index] of line.entries()) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const item = measured[index];
     if (item === undefined) continue;
     width += item.widthEm + (position > 0 ? space : 0);
@@ -402,6 +404,7 @@ export function layoutSegment(options: LayoutOptions): Layout {
     const size = baseFontSizePx * shrink;
     const byWidth = wrapByWidth(
       toWrapItems(measured.map((item) => item.word.t)),
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       (index) => (measured[index]?.widthEm ?? 0) * size,
       space * size,
       maxWidthPx,
@@ -421,6 +424,7 @@ export function layoutSegment(options: LayoutOptions): Layout {
       const size = baseFontSizePx * shrink;
       const byWidth = wrapByWidth(
         toWrapItems(measured.map((item) => item.word.t)),
+        // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
         (index) => (measured[index]?.widthEm ?? 0) * size,
         space * size,
         maxWidthPx,
@@ -495,6 +499,7 @@ export function layoutSegment(options: LayoutOptions): Layout {
     const wordsOnLine: LayoutWord[] = [];
     const runsOnLine: PlacedRun[] = [];
     for (const [position, index] of line.entries()) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const item = measured[index];
       if (item === undefined) continue;
       if (position > 0) penX += spacePx;

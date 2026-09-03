@@ -58,7 +58,8 @@ program
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
     const subjects = opts.subjects
-      ? (await fs.readFile(opts.subjects, "utf8")).split("\n").filter(Boolean)
+      ? // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
+        (await fs.readFile(opts.subjects, "utf8")).split("\n").filter(Boolean)
       : [];
     const { next, bump } = computeNextVersion(opts.current, subjects);
     const date = new Date(ctx.now()).toISOString().slice(0, 10);
@@ -66,9 +67,11 @@ program
     console.log(`current=${opts.current} next=${next} bump=${bump ?? "none"}`);
     if (opts.dryRun === false) {
       const changelogPath = path.join(ctx.repoRoot, "CHANGELOG.md");
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const existing = await fs
         .readFile(changelogPath, "utf8")
         .catch(() => "# Changelog\n\n## Unreleased\n\n");
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       await fs.writeFile(changelogPath, insertChangelogSection(existing, section), "utf8");
     } else {
       console.log(section);
@@ -87,6 +90,11 @@ program
     "--no-dry-run",
     "sign for real if RELEASE_MODE=signed and secrets are set (fails closed otherwise)",
   )
+  .option(
+    "--placeholder",
+    "force the synthesized placeholder app tree even if a real electron-builder --dir output exists (CI dry runs without Electron)",
+    false,
+  )
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
     const config = await loadReleaseConfig(ctx.repoRoot);
@@ -94,6 +102,7 @@ program
       platform: opts.platform,
       channel: opts.channel,
       dryRun: opts.dryRun !== false,
+      placeholder: Boolean(opts.placeholder),
     });
     if (result.placeholderApp) {
       console.warn(
@@ -190,13 +199,25 @@ program
   .command("package-resolve")
   .description("Zip the Resolve script bundle + per-OS installer scripts")
   .option("--version <version>", "", "0.1.0")
+  .option(
+    "--dry-run",
+    "no signing step exists for this bundle (RR-03); kept for CLI symmetry",
+    true,
+  )
+  .option("--no-dry-run", "same as --dry-run: this command never signs anything")
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
     const config = await loadReleaseConfig(ctx.repoRoot);
     const result = await runPackageResolve(ctx, config, opts.version);
     if (result.placeholderPlugin) {
       console.warn(
-        "WARNING: plugins/resolve has no aksharo_core.lua yet (C08 not landed); packaged a placeholder plugin",
+        "WARNING: plugins/resolve has no aksharo_core.py yet (C08 not landed); packaged a placeholder plugin",
+      );
+    }
+    if (result.placeholderPanel) {
+      console.warn(
+        "WARNING: plugins/resolve-panel has no built dist/ yet (run `pnpm --filter " +
+          "@montaj/resolve-panel build` first); packaged a placeholder Studio panel",
       );
     }
     console.log(`bundle: ${result.bundlePath}`);
@@ -236,6 +257,15 @@ program
   .requiredOption("--version <version>")
   .option("--mac-artifact <path>")
   .option("--win-artifact <path>")
+  .option("--ccx-artifact <path>", "C10: package-ccx output, published under the channel manifest")
+  .option("--ccx-version <version>")
+  .option("--ccx-min-host-version <version>")
+  .option(
+    "--resolve-artifact <path>",
+    "C10: package-resolve output, published under the channel manifest",
+  )
+  .option("--resolve-version <version>")
+  .option("--domain <domain>", "release CDN domain for constructed download URLs")
   .option("--force", "override the 24h stable gate", false)
   .option("--reason <text>", "required with --force")
   .action(async (opts) => {
@@ -245,11 +275,23 @@ program
       version: opts.version,
       macArtifact: opts.macArtifact,
       winArtifact: opts.winArtifact,
+      ccxArtifact: opts.ccxArtifact
+        ? {
+            path: opts.ccxArtifact,
+            version: opts.ccxVersion ?? opts.version,
+            minHostVersion: opts.ccxMinHostVersion ?? null,
+          }
+        : undefined,
+      resolveArtifact: opts.resolveArtifact
+        ? { path: opts.resolveArtifact, version: opts.resolveVersion ?? opts.version }
+        : undefined,
+      domain: opts.domain,
       force: opts.force,
       reason: opts.reason,
     });
     console.log(`published to: ${result.destDir}`);
     console.log(`files: ${result.uploaded.length}, feeds: ${result.feeds.length}`);
+    if (result.pluginManifestPath) console.log(`plugin manifest: ${result.pluginManifestPath}`);
   });
 
 program

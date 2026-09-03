@@ -52,9 +52,11 @@ async function main(): Promise<void> {
   let changed = 0;
   for (const file of files) {
     const path = join(STYLES_DIR, file);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const raw = await readFile(path, "utf8");
     const doc = JSON.parse(raw) as Record<string, unknown>;
     const id = typeof doc["id"] === "string" ? doc["id"] : file.replace(/\.json$/, "");
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const result = results.styles[id];
     if (result === undefined) {
       console.warn(`no parity result for style "${id}" (${file}); leaving its flags untouched`);
@@ -72,6 +74,7 @@ async function main(): Promise<void> {
 
     const nextText = await formatJson(next, path);
     if (nextText !== raw) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       await writeFile(path, nextText, "utf8");
       changed += 1;
       console.warn(

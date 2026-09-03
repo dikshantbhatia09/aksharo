@@ -7,6 +7,7 @@ import type { ProbeResult } from "./probe-result.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { JobCompletionContext } from "../jobs/completion-handlers.js";
 import type { JobsService } from "../jobs/jobs.service.js";
+import type { ReplaceMediaAlignTrigger } from "../replace-media/replace-media-align.trigger.js";
 import type { EntitlementService } from "../workspaces/entitlement.service.js";
 import type { Job, MediaAsset } from "@prisma/client";
 
@@ -108,7 +109,10 @@ function harness(options: { asset?: MediaAsset | null; maxDurationMs?: number } 
   } as unknown as EntitlementService;
 
   const registry = new JobCompletionRegistry();
-  const handler = new MediaProbeCompletionHandler(prisma, jobs, entitlements, registry);
+  const realign = {
+    maybeEnqueue: vi.fn(async () => undefined),
+  } as unknown as ReplaceMediaAlignTrigger;
+  const handler = new MediaProbeCompletionHandler(prisma, jobs, entitlements, registry, realign);
   return { handler, update, enqueueChild, registry };
 }
 

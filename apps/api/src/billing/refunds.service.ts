@@ -89,6 +89,7 @@ export class RefundsService {
     const pass = await this.prisma.passPurchase.findFirst({
       where: { id: passPurchaseId, workspaceId },
     });
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- sentinel comparison (null/undefined/boolean/empty-string), not a secret/MAC comparison -- reviewed for the same follow-up
     if (pass === null) {
       throw new AppException(
         BILLING_ERRORS.passPurchaseNotFound,

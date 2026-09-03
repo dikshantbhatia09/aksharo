@@ -124,6 +124,7 @@ describe("EdgOp union", () => {
     expect(EDG_OP_TYPES).toHaveLength(19);
   });
 
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   it.each(EDG_OP_TYPES.map((type) => [type, samples[type]] as const))(
     "round-trips %s through Zod and JSON",
     (type, sample) => {
@@ -201,6 +202,29 @@ describe("op cross-field rules", () => {
     expect(
       SetAudioOpSchema.safeParse({ opId: id(), type: "SetAudio", ducking: { enabled: false } })
         .success,
+    ).toBe(true);
+  });
+
+  it("accepts a first-class cleanId on SetAudio.clean (B10b)", () => {
+    const cleanId = id();
+    const result = SetAudioOpSchema.safeParse({
+      opId: id(),
+      type: "SetAudio",
+      clean: { enabled: true, cleanId },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.clean?.cleanId).toBe(cleanId);
+    }
+  });
+
+  it("accepts a null cleanId on SetAudio.clean to clear a clean run", () => {
+    expect(
+      SetAudioOpSchema.safeParse({
+        opId: id(),
+        type: "SetAudio",
+        clean: { enabled: false, cleanId: null },
+      }).success,
     ).toBe(true);
   });
 

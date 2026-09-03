@@ -94,6 +94,13 @@ export const EXEMPT_FILES: ReadonlyMap<string, string> = new Map([
       "simulation hook, forbidden outside one (`common/forbidden`); nothing it " +
       "does happens in production.",
   ],
+  [
+    "evals/internal-evals.controller.ts",
+    "HMAC-signed worker-to-API callback (CONTRACTS §3, same `InternalSignatureGuard` " +
+      "as internal-jobs.controller.ts), not a user or admin action — the nightly " +
+      "eval report it ingests is durable and attributable in `EvalRun`/`EvalResult` " +
+      "themselves, which is the trail that matters here, not `audit_log`.",
+  ],
 ]);
 
 /** Recursively list every `*.controller.ts` under `srcRoot`, excluding tests. */
@@ -103,9 +110,11 @@ export function findControllerFiles(srcRoot: string): readonly string[] {
   return results;
 
   function walk(dir: string, out: string[]): void {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     for (const entry of readdirSync(dir)) {
       if (entry === "node_modules" || entry === "dist" || entry === ".openapi") continue;
       const full = join(dir, entry);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
       const stat = statSync(full);
       if (stat.isDirectory()) {
         walk(full, out);
@@ -121,6 +130,7 @@ function resolveImport(fromFile: string, specifier: string): string | null {
   const withoutExt = specifier.replace(/\.js$/, "");
   const base = resolve(dirname(fromFile), withoutExt);
   for (const candidate of [`${base}.ts`, join(base, "index.ts")]) {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     if (existsSync(candidate)) return candidate;
   }
   return null;
@@ -128,6 +138,7 @@ function resolveImport(fromFile: string, specifier: string): string | null {
 
 /** Every local file this file imports directly, resolved to `.ts` paths that exist. */
 function localImportsOf(file: string): string[] {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   const content = readFileSync(file, "utf8");
   const found: string[] = [];
   for (const match of content.matchAll(RELATIVE_IMPORT)) {
@@ -141,6 +152,7 @@ function localImportsOf(file: string): string[] {
 function dependencyGraphText(entryFile: string): string {
   const visited = new Set<string>([entryFile]);
   const queue = [entryFile];
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   const chunks: string[] = [readFileSync(entryFile, "utf8")];
 
   while (queue.length > 0 && visited.size < MAX_FILES_PER_CONTROLLER) {
@@ -150,6 +162,7 @@ function dependencyGraphText(entryFile: string): string {
       if (visited.has(dep) || visited.size >= MAX_FILES_PER_CONTROLLER) continue;
       visited.add(dep);
       queue.push(dep);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
       chunks.push(readFileSync(dep, "utf8"));
     }
   }
@@ -158,6 +171,7 @@ function dependencyGraphText(entryFile: string): string {
 
 /** Scan one controller file, following its local dependency graph for an audit-writer reference. */
 export function scanControllerFile(absolutePath: string, srcRoot: string): AuditedRoute {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   const ownText = readFileSync(absolutePath, "utf8");
   const graphText = dependencyGraphText(absolutePath);
   return {

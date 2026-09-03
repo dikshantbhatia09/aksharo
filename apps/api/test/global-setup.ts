@@ -180,17 +180,20 @@ function migrate(apiDir: string, url: string): void {
 function schemaFingerprint(apiDir: string): string {
   const hash = createHash("sha256");
   const migrations = resolve(apiDir, "prisma", "migrations");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   const dirs = readdirSync(migrations, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b, "en"));
   for (const dir of dirs) {
     hash.update(dir);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     hash.update(readFileSync(join(migrations, dir, "migration.sql"), "utf8"));
   }
   const sqlDir = resolve(apiDir, "prisma", "sql");
   for (const file of listSqlFiles(sqlDir)) {
     hash.update(file);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     hash.update(readFileSync(join(sqlDir, file), "utf8"));
   }
   return hash.digest("hex");
@@ -653,6 +656,7 @@ function assignSlots(paths: readonly string[]): Record<string, number> {
     .sort((a, b) => a.localeCompare(b, "en"));
   const slots: Record<string, number> = {};
   names.forEach((name, index) => {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     slots[name] = index;
   });
   return slots;

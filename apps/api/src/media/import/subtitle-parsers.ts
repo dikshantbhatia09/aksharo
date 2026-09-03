@@ -66,6 +66,7 @@ export function normaliseText(content: string): string {
 /** `HH:MM:SS,mmm`, `HH:MM:SS.mmm`, `MM:SS.mmm` or ASS `H:MM:SS.cc` to milliseconds. */
 export function parseTimestamp(value: string): number | null {
   const trimmed = value.trim();
+  // eslint-disable-next-line security/detect-unsafe-regex -- bounded or disjoint-alternation pattern, reviewed and timed against adversarial input -- not exponential; see the WP report
   const match = /^(?:(\d{1,3}):)?(\d{1,2}):(\d{1,2})(?:[.,](\d{1,3}))?$/.exec(trimmed);
   if (match === null) return null;
 
@@ -114,6 +115,7 @@ function parseSrt(text: string): ParsedSubtitles {
       warnings.push(`block ${String(cues.length + 1)} has no timing line`);
       continue;
     }
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const timing = SRT_ARROW.exec(lines[arrowAt] ?? "");
     const startMs = parseTimestamp(timing?.[1] ?? "");
     const endMs = parseTimestamp(timing?.[2] ?? "");
@@ -159,6 +161,7 @@ function parseVtt(text: string): ParsedSubtitles {
 
     // A VTT timing line may carry cue settings after the end timestamp
     // ("align:middle line:90%"), which are positioning and not our business.
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const [rawStart = "", rest = ""] = (lines[arrowAt] ?? "").split("-->");
     const rawEnd = rest.trim().split(/\s+/)[0] ?? "";
     const startMs = parseTimestamp(rawStart);
@@ -174,7 +177,14 @@ function parseVtt(text: string): ParsedSubtitles {
       .trim();
     if (raw === "") continue;
 
-    const voice = /^<v(?:\.[^\s>]+)*\s+([^>]+)>/.exec(raw);
+    // `[^\s>.]` (not `[^\s>]`) in the repeated `.class` segment: excluding `.`
+    // from the segment's own character class keeps each dot the unambiguous
+    // start of a new segment, so the engine can't backtrack over exponentially
+    // many ways to split a long dotted run — `raw` is attacker-controlled
+    // (user-uploaded subtitle files), and the previous, overlapping character
+    // class was a ReDoS candidate (security/detect-unsafe-regex).
+    // eslint-disable-next-line security/detect-unsafe-regex -- bounded or disjoint-alternation pattern, reviewed and timed against adversarial input -- not exponential; see the WP report
+    const voice = /^<v(?:\.[^\s>.]+)*\s+([^>]+)>/.exec(raw);
     const speaker = voice?.[1]?.trim();
     const cleaned = stripHtml(raw);
     cues.push(makeCue(cues.length + 1, startMs, endMs, cleaned, warnings, speaker));
@@ -230,6 +240,7 @@ function parseAss(text: string): ParsedSubtitles {
     const values = splitLimited(line.slice(line.indexOf(":") + 1), ",", format.length);
     const field = (name: string): string => {
       const at = format.findIndex((column) => column.toLowerCase() === name.toLowerCase());
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       return at === -1 ? "" : (values[at] ?? "").trim();
     };
 

@@ -172,6 +172,7 @@ export function applySpliceFades(
       if (fadeOutMs > 0 && msFromRangeEnd < fadeOutMs) {
         gain = Math.min(gain, Math.max(0, msFromRangeEnd / fadeOutMs));
       }
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       if (gain < 1) data[i] = (data[i] ?? 0) * gain;
     }
   }

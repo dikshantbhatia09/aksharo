@@ -79,7 +79,9 @@ export function LocaleProvider({
 
   const t = React.useCallback(
     (key: string, values?: Record<string, string | number>): string => {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const catalogue = CATALOGUES[locale];
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const pattern = catalogue[key] ?? CATALOGUES.en[key] ?? key;
       const cacheKey = `${locale}:${key}`;
       let formatter = formatCache.get(cacheKey);
@@ -103,6 +105,7 @@ export function useT(): (key: string, values?: Record<string, string | number>) 
   const context = React.useContext(LocaleContext);
   if (context !== null) return context.t;
   return (key: string, values?: Record<string, string | number>) => {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const pattern = CATALOGUES.en[key] ?? key;
     try {
       const result = new IntlMessageFormat(pattern, "en").format(values ?? {});

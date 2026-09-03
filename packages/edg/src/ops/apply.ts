@@ -271,11 +271,13 @@ function mergeTextOverrides(segments: readonly Segment[]): Record<string, string
   const first = segments[0];
   if (first === undefined) return undefined;
   const scripts = Object.keys(first.textOverrides ?? {}).filter((script) =>
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     segments.every((segment) => segment.textOverrides?.[script] !== undefined),
   );
   if (scripts.length === 0) return undefined;
   const merged: Record<string, string> = {};
   for (const script of scripts) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     merged[script] = segments.map((segment) => segment.textOverrides?.[script] ?? "").join(" ");
   }
   return merged;
@@ -326,6 +328,7 @@ function applyMergeSegments(draft: EdgDraft, op: MergeSegmentsOp): void {
   const indices = segments.map((segment) => orderIndexOf(draft, segment.id, segment.seq));
   for (let i = 1; i < indices.length; i += 1) {
     const previous = indices[i - 1];
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const current = indices[i];
     if (previous === undefined || current === undefined || current !== previous + 1) {
       fail("not-contiguous", "MergeSegments only joins neighbouring segments");

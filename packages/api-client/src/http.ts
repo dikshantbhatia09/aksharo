@@ -126,6 +126,7 @@ export class ApiClient {
 
     if (endpoint.auth === "bearer") {
       const token = this.options.getAccessToken?.() ?? null;
+      // eslint-disable-next-line security/detect-possible-timing-attacks -- equality check on a null/undefined/status/hash sentinel, not a secret or MAC comparison -- reviewed for M06's eslint-plugin-security promotion
       if (token !== null) headers["Authorization"] = `Bearer ${token}`;
     }
 
@@ -173,6 +174,7 @@ export class ApiClient {
 
     if (canRefresh) {
       const token = await this.refreshOnce();
+      // eslint-disable-next-line security/detect-possible-timing-attacks -- equality check on a null/undefined/status/hash sentinel, not a secret or MAC comparison -- reviewed for M06's eslint-plugin-security promotion
       if (token !== null) return this.send(endpoint, options, true);
       this.options.onUnauthenticated?.();
     }
@@ -199,6 +201,7 @@ export class ApiClient {
     query: CallOptions<unknown>["query"],
   ): string {
     const filled = path.replace(/\{(\w+)\}/g, (_match, name: string) => {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const value = params?.[name];
       if (value === undefined) throw new Error(`missing path parameter "${name}" for ${path}`);
       return encodeURIComponent(value);

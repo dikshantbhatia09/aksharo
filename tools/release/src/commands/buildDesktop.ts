@@ -13,14 +13,57 @@ export interface BuildDesktopOptions {
   platform: Platform;
   channel: Channel;
   dryRun: boolean;
+  /** Force the synthesized placeholder tree even when a real `electron-builder --dir`
+   * output exists under `<desktopAppDir>/release` (C00b scope §3) — for CI dry-run jobs
+   * that never install/build Electron and want a fast, deterministic exercise of the
+   * signing/notarize/checksum pipeline without depending on a real desktop build. */
+  placeholder?: boolean;
 }
 
 export interface BuildDesktopResult {
   appDir: string;
   artifactPath: string;
+  artifactSizeBytes: number;
   electronBuilderConfigPath: string;
   signed: { path: string; signed: boolean }[];
   placeholderApp: boolean;
+  /** Whether a real `apps/engine` build (`dist/`) was found and copied in (C03a). */
+  engineBundled: boolean;
+}
+
+/**
+ * Installer size budgets (`03-architecture/05-system-architecture.md` §6-7: "Windows NSIS
+ * ≤ 150 MB, macOS DMG ≤ 180 MB"). CI fails the build when a real installer exceeds this — a
+ * placeholder-app dry-run artifact (a few KB) never gets close, so this only bites once a real
+ * `electron-builder --dir` output (or eventually a real `.exe`/`.dmg`) is being packaged.
+ */
+export const INSTALLER_SIZE_BUDGET_BYTES: Record<Platform, number> = {
+  win: 150 * 1024 * 1024,
+  mac: 180 * 1024 * 1024,
+};
+
+export class InstallerBudgetExceededError extends Error {
+  constructor(
+    public readonly platform: Platform,
+    public readonly sizeBytes: number,
+    public readonly budgetBytes: number,
+  ) {
+    super(
+      `${platform} installer artifact is ${(sizeBytes / (1024 * 1024)).toFixed(1)} MB, ` +
+        `over the ${(budgetBytes / (1024 * 1024)).toFixed(0)} MB budget ` +
+        `(03-architecture/05-system-architecture.md §6-7).`,
+    );
+    this.name = "InstallerBudgetExceededError";
+  }
+}
+
+/** Throws {@link InstallerBudgetExceededError} when `sizeBytes` exceeds the platform's budget. */
+export function checkInstallerSizeBudget(platform: Platform, sizeBytes: number): void {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
+  const budget = INSTALLER_SIZE_BUDGET_BYTES[platform];
+  if (sizeBytes > budget) {
+    throw new InstallerBudgetExceededError(platform, sizeBytes, budget);
+  }
 }
 
 /** Generates the electron-builder YAML-shaped config as JSON from `release.config.ts`. Kept
@@ -48,38 +91,111 @@ export function generateElectronBuilderConfig(
       platform === "win"
         ? { target: [{ target: config.win.target, arch: [config.win.arch] }] }
         : undefined,
+    // Per-user install, silent-install flag, directory picker, differential blockmap
+    // updates and the bridge-discovery-file uninstall cleanup (`apps/desktop/build/
+    // installer.nsh`'s `customUnInstall`) -- mirrors `apps/desktop/electron-builder.yml`'s
+    // own `nsis:` block (C10) so both config generation paths agree.
+    nsis:
+      platform === "win"
+        ? {
+            oneClick: false,
+            perMachine: false,
+            allowToChangeInstallationDirectory: true,
+            deleteAppDataOnUninstall: false,
+            include: "apps/desktop/build/installer.nsh",
+          }
+        : undefined,
   };
 }
 
 /**
- * Builds a placeholder desktop app tree when `apps/desktop` has no real Electron code yet
- * (per brief, "build against a placeholder app if absent and report"). C02 has since landed
- * `apps/desktop/electron-builder.yml` with `appId: ai.aksharo.desktop`, `productName: Aksharo`
- * and mac category `public.app-category.video` — this file's `release.config.ts` mirrors
- * those exact values, so the two configs are provably consistent even though invoking the
- * real electron-builder (downloads Electron, needs a GUI toolchain) stays out of scope for
- * this dry-run harness; `ensureAppTree` still synthesizes a nested-binary tree either way so
- * `sign-nested`/`notarize`/`checksums` exercise their real logic against *some* tree.
+ * Looks for a real `electron-builder --dir` output under `<desktopAppDir>/release`
+ * (C02b, scope §4: "consumes the real apps/desktop output ... when a real build
+ * exists"). `pnpm --filter @montaj/desktop pack:dry` (or the new `release-desktop.yml`
+ * `e2e` job, C02b §3) produces this locally/in CI before `build-desktop` runs.
+ *
+ * **Known local blocker (verified 2026-09, not introduced by this WP):** in this
+ * pnpm workspace, `electron-builder --dir` currently fails before producing any
+ * output — `node_modules/@montaj/{bridge-core,config}` are pnpm symlinks whose
+ * real path resolves to `packages/*` (outside `apps/desktop/`), and app-builder-lib's
+ * asar packager (`AsarPackager.unpackPattern` → `getRelativePath`) throws
+ * `"<file> must be under <appDir>"` for every file under those packages once it
+ * tries to express their real path relative to the app dir. Reproduces with only
+ * `@montaj/bridge-core`/`@montaj/config` as dependencies (present since C01/C02),
+ * so it is a structural pnpm-workspace/electron-builder incompatibility, not
+ * something this WP's adapter/tray/preload changes caused. The standard fix is a
+ * flattened (non-symlinked) `node_modules` for the packaged app — e.g. `pnpm
+ * deploy`, a `node-linker=hoisted` app-local `.npmrc`, or bundling the main
+ * process with esbuild — all bigger than this WP's `apps/desktop/**` +
+ * `tools/release/**` boundary; flagged here for C00 (release pipeline owner)
+ * rather than worked around silently. Until it's fixed, this function's
+ * "real build" branch is unreachable in this sandbox and the placeholder
+ * branch below is what actually runs; the mechanism is still real so it picks
+ * up a genuine `release/` output the moment packaging works.
+ */
+async function findRealElectronBuilderOutput(
+  desktopAppDir: string,
+  platform: Platform,
+): Promise<string | undefined> {
+  const releaseDir = path.join(desktopAppDir, "release");
+  if (!(await pathExists(releaseDir))) return undefined;
+
+  if (platform === "win") {
+    const winUnpacked = path.join(releaseDir, "win-unpacked");
+    return (await pathExists(path.join(winUnpacked, "Aksharo.exe"))) ? releaseDir : undefined;
+  }
+
+  // mac: electron-builder names the output dir after the arch (`mac`, `mac-arm64`,
+  // `mac-universal`, ...); scan for whichever one actually holds the app bundle.
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
+  const entries = await fs.readdir(releaseDir, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const candidate = path.join(releaseDir, entry.name);
+    if (await pathExists(path.join(candidate, "Aksharo.app"))) return candidate;
+  }
+  return undefined;
+}
+
+/**
+ * Builds a placeholder desktop app tree when `apps/desktop` has no real Electron code, or
+ * no real `electron-builder --dir` output yet, to build against (per brief, "build against
+ * a placeholder app if absent and report"). C02 has since landed `apps/desktop/
+ * electron-builder.yml` with `appId: ai.aksharo.desktop`, `productName: Aksharo` and mac
+ * category `public.app-category.video` — this file's `release.config.ts` mirrors those
+ * exact values, so the two configs are provably consistent. `ensureAppTree` prefers a real
+ * `electron-builder --dir` output (`findRealElectronBuilderOutput`, C02b) and falls back to
+ * synthesizing a nested-binary tree so `sign-nested`/`notarize`/`checksums` exercise their
+ * real logic against *some* tree either way.
  */
 async function ensureAppTree(
   outDir: string,
   platform: Platform,
   desktopAppDir: string,
+  forcePlaceholder: boolean,
 ): Promise<{ appDir: string; placeholder: boolean }> {
+  const realOutput = forcePlaceholder
+    ? undefined
+    : await findRealElectronBuilderOutput(desktopAppDir, platform);
+  if (realOutput !== undefined) {
+    const appDir = path.join(outDir, "build", platform, "app");
+    await ensureDir(path.dirname(appDir));
+    await fs.rm(appDir, { recursive: true, force: true });
+    await fs.cp(realOutput, appDir, { recursive: true });
+    return { appDir, placeholder: false };
+  }
+
   const hasRealApp = await pathExists(path.join(desktopAppDir, "package.json"));
   const appDir = path.join(outDir, "build", platform, hasRealApp ? "app" : "placeholder-app");
-  if (hasRealApp) {
-    // Real electron-builder invocation would populate `appDir`; out of scope for a dry-run
-    // fixture, so we still materialize a minimal tree so downstream commands have something.
-    await ensureDir(appDir);
-  }
   await ensureDir(appDir);
 
   if (platform === "mac") {
     const contents = path.join(appDir, "Aksharo.app", "Contents");
     await ensureDir(path.join(contents, "MacOS"));
     await ensureDir(path.join(contents, "Frameworks", "Aksharo Helper.app", "Contents", "MacOS"));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(contents, "MacOS", "Aksharo"), "placeholder-mach-o-main\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(
       path.join(
         contents,
@@ -91,23 +207,59 @@ async function ensureAppTree(
       ),
       "placeholder-helper\n",
     );
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(
       path.join(contents, "MacOS", "montaj-engine"),
       "placeholder-engine-sidecar\n",
     );
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(contents, "MacOS", "ffmpeg"), "placeholder-ffmpeg\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(contents, "MacOS", "bridge"), "placeholder-bridge-sea\n");
   } else {
     const unpacked = path.join(appDir, "win-unpacked");
     await ensureDir(unpacked);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(unpacked, "Aksharo.exe"), "placeholder-pe-main\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(unpacked, "montaj-engine.exe"), "placeholder-engine-sidecar\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(unpacked, "ffmpeg.exe"), "placeholder-ffmpeg\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(unpacked, "bridge.exe"), "placeholder-bridge-sea\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(unpacked, "resources.dll"), "placeholder-dll\n");
   }
 
   return { appDir, placeholder: !hasRealApp };
+}
+
+/**
+ * Bundles `apps/engine`'s built supervisor (C03a) into the app tree's
+ * resources, dry run: `pnpm --filter @montaj/engine build` must have already
+ * produced `apps/engine/dist` — this function never invokes a build itself
+ * (the host guard's "build only what you need" is the caller's job, same as
+ * `findRealElectronBuilderOutput`'s own precedent). It is additive and never
+ * touches signing: the copied tree is plain `.js`, so `discoverNestedBinaries`
+ * does not pick it up, and C00 (signing) and C00b (packaging) own turning this
+ * resources folder into something electron-builder actually launches.
+ */
+async function bundleEngineSupervisor(
+  bundleRoot: string,
+  platform: Platform,
+  repoRoot: string,
+): Promise<boolean> {
+  const engineDist = path.join(repoRoot, "apps", "engine", "dist");
+  if (!(await pathExists(engineDist))) return false;
+
+  const resourcesDir =
+    platform === "mac"
+      ? path.join(bundleRoot, "Contents", "Resources", "engine")
+      : path.join(bundleRoot, "resources", "engine");
+  await ensureDir(path.dirname(resourcesDir));
+  await fs.rm(resourcesDir, { recursive: true, force: true });
+  await fs.cp(engineDist, resourcesDir, { recursive: true });
+  return true;
 }
 
 export async function runBuildDesktop(
@@ -126,11 +278,14 @@ export async function runBuildDesktop(
     outDir,
     opts.platform,
     path.join(ctx.repoRoot, config.desktopAppDir),
+    opts.placeholder ?? false,
   );
 
-  const nested = await discoverNestedBinaries(appDir, opts.platform);
   const bundleRoot =
     opts.platform === "mac" ? path.join(appDir, "Aksharo.app") : path.join(appDir, "win-unpacked");
+  const engineBundled = await bundleEngineSupervisor(bundleRoot, opts.platform, ctx.repoRoot);
+
+  const nested = await discoverNestedBinaries(appDir, opts.platform);
   const outer = outermostBundleTarget(bundleRoot, opts.platform);
 
   const provider = resolveSignProvider(opts.platform, ctx.mode);
@@ -147,5 +302,17 @@ export async function runBuildDesktop(
   const artifactPath = path.join(ctx.outDir, "artifacts", opts.channel, artifactName);
   await zipDirectory(bundleRoot, artifactPath);
 
-  return { appDir, artifactPath, electronBuilderConfigPath, signed, placeholderApp: placeholder };
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
+  const artifactSizeBytes = (await fs.stat(artifactPath)).size;
+  checkInstallerSizeBudget(opts.platform, artifactSizeBytes);
+
+  return {
+    appDir,
+    artifactPath,
+    artifactSizeBytes,
+    electronBuilderConfigPath,
+    signed,
+    placeholderApp: placeholder,
+    engineBundled,
+  };
 }

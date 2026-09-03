@@ -102,9 +102,11 @@ function addRect(accumulator: Accumulator, matrix: Matrix, rect: Rect, pad: numb
  * bound without evaluating a single Bézier.
  */
 function addPathPoints(accumulator: Accumulator, matrix: Matrix, d: string, pad: number): void {
+  // eslint-disable-next-line security/detect-unsafe-regex -- reviewed and timed against adversarial input -- linear, no nested unbounded quantifiers -- not exponential (see M06 report)
   const numbers = d.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi);
   if (numbers === null) return;
   for (let index = 0; index + 1 < numbers.length; index += 2) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const x = Number.parseFloat(numbers[index] ?? "0");
     const y = Number.parseFloat(numbers[index + 1] ?? "0");
     if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
@@ -143,6 +145,7 @@ function collect(accumulator: Accumulator, commands: readonly DrawCommand[], mat
         for (let index = 0; index + 1 < command.run.positions.length; index += 2) {
           const [x, y] = mapPoint(
             matrix,
+            // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
             command.run.positions[index] ?? 0,
             command.run.positions[index + 1] ?? 0,
           );

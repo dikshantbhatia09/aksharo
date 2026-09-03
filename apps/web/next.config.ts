@@ -1,6 +1,63 @@
 import type { NextConfig } from "next";
 
+/**
+ * Security response headers (X01 threat-model audit gap: neither this file
+ * nor `middleware.ts` set any before this change). Applied to every route via
+ * `headers()` rather than per-response in middleware so they cannot be
+ * skipped by a route that never runs the middleware chain.
+ *
+ * CSP is deliberately permissive on `script-src`/`style-src` (`'self'` plus
+ * `'unsafe-inline'`) rather than nonce-based: Next.js inlines hydration data
+ * and this app has no nonce plumbing yet. It still blocks the concrete
+ * threats in scope — framing (`frame-ancestors 'none'`, T25 desktop shell
+ * excluded since Electron loads its own origin allowlist, not this header),
+ * mixed content, and any object/base-uri injection. Tightening to nonces is
+ * a follow-up (see docs/security/threat-model-audit).
+ */
+const SECURITY_HEADERS = [
+  {
+    key: "Content-Security-Policy",
+    value: [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https:",
+      "media-src 'self' blob: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https: wss:",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "form-action 'self'",
+      "upgrade-insecure-requests",
+    ].join("; "),
+  },
+  { key: "Strict-Transport-Security", value: "max-age=15552000; includeSubDomains" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+];
+
 const nextConfig: NextConfig = {
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
+  /**
+   * X03: `/docs` is now the one docs surface (guides, plugin guides,
+   * developer API reference, legal) rather than a separate site. `/developers`
+   * (B14) is subsumed by `/docs/developers` — a permanent redirect keeps every
+   * inbound link and bookmark to the old URL working, per the brief's
+   * "redirects: ... /developers keep working (redirect or alias)", while the
+   * expanded reference (per-endpoint pages, generated from the OpenAPI
+   * document) lives at the new address. `(app)/help` is a separate,
+   * authenticated in-product surface (B12) and is unaffected — it keeps its
+   * own URLs; `/docs/guides` reuses the same MDX as a second, public entry
+   * point rather than replacing it.
+   */
+  async redirects() {
+    return [{ source: "/developers", destination: "/docs/developers", permanent: true }];
+  },
   reactStrictMode: true,
   // Lint runs as its own turbo task with the shared flat config, so the build
   // must not run a second, differently-configured pass.

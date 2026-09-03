@@ -112,6 +112,7 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 export function kindLabel(kind: string): string {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return KIND_LABEL[kind] ?? kind;
 }
 

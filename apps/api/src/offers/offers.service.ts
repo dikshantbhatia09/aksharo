@@ -60,6 +60,7 @@ export class OffersService {
       weekPass: {
         active: activeWeekPass !== null,
         endsAt: activeWeekPass?.endsAt?.toISOString() ?? null,
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         priceMinor: WEEK_PASS.prices[currency],
         currency,
         creditsGrantedTenths: WEEK_PASS.creditsTenths,
@@ -67,6 +68,7 @@ export class OffersService {
       },
       topupFree149: {
         available: true,
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         priceMinor: topupTier.prices[currency],
         currency,
         credits: topupTier.credits,

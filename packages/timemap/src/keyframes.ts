@@ -68,6 +68,7 @@ export function mapKeyframes<K extends Keyframe>(
     let cursor = -1;
     for (const cut of cuts) {
       while (cursor + 1 < kept.length && (kept[cursor + 1] as K).tMs <= cut.startMs) cursor += 1;
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const before = kept[cursor];
       // Nothing survives strictly inside a cut, so the next keyframe is at or
       // after its end — exactly the pair the splice sits between.

@@ -62,6 +62,7 @@ export function signingPayload(manifest: UnsignedRenderManifest): string {
 
 /** The hex signature for a manifest. A21 calls this; the renderer never does. */
 export function signRenderManifest(manifest: UnsignedRenderManifest, secret: string): string {
+  // eslint-disable-next-line security/detect-possible-timing-attacks -- equality check on a null/undefined/status/hash sentinel, not a secret or MAC comparison -- reviewed for M06's eslint-plugin-security promotion
   if (secret === "") {
     throw new RenderManifestError(
       "manifest/no-secret",

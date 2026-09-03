@@ -16,18 +16,56 @@ import type { StyleDoc } from "@montaj/caption-styles";
 import { ColourField, SelectField, SliderField, ToggleField } from "./controls";
 import { type PanelScope, type SetStyleOp } from "./ops";
 import { StylePicker } from "./StylePicker";
+import { AudioPanel, type AudioPanelProps } from "../audio/AudioPanel";
 import { StylePreviewCanvas } from "../canvas/StylePreviewCanvas";
 
+import { helpUrlFor, type HelpSlug } from "@/components/help/help-slug-map";
 import { cn } from "@/lib/utils";
 
-export type PanelTab = "style" | "colors" | "look" | "anim";
+export type PanelTab = "style" | "colors" | "look" | "anim" | "audio";
 
 export const PANEL_TABS: readonly { readonly id: PanelTab; readonly label: string }[] = [
   { id: "style", label: "Style" },
   { id: "colors", label: "Colors" },
   { id: "look", label: "Look" },
   { id: "anim", label: "Anim" },
+  { id: "audio", label: "Audio" },
 ];
+
+/**
+ * Which help article each tab's "?" affordance opens (brief §4). Style,
+ * Colors and Look are all facets of the same caption style document, so they
+ * share `caption-styles`; Anim is the per-word/emphasis timing article,
+ * which is what its cues (fade/pop/karaoke fill/...) and durations are
+ * about; Audio (B10b) has no dedicated article yet, so it falls back to the
+ * same `caption-styles` article rather than 404ing or hiding the "?".
+ * Copy itself lives in the article, not here — this is only the wiring seam
+ * `help-slug-map.ts` documents.
+ */
+export const PANEL_HELP_SLUGS: Record<PanelTab, HelpSlug> = {
+  style: "caption-styles",
+  colors: "caption-styles",
+  look: "caption-styles",
+  anim: "emphasis-timing",
+  audio: "caption-styles",
+};
+
+/** A small "?" affordance that opens the help article for the given slug in a new tab. */
+function HelpLink({ slug, testId }: { readonly slug: HelpSlug; readonly testId: string }) {
+  return (
+    <a
+      href={helpUrlFor(slug)}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Open help for this panel"
+      title="Help"
+      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs text-white/80 hover:bg-white/20"
+      data-testid={testId}
+    >
+      ?
+    </a>
+  );
+}
 
 export interface RightPanelProps {
   readonly styles: readonly StyleDoc[];
@@ -38,6 +76,8 @@ export interface RightPanelProps {
   readonly onSaveTemplate?: () => void;
   /** Hook for A18b's custom-font upload; the panel only opens the picker. */
   readonly onUploadFont?: () => void;
+  /** Props for the Audio tab (B10b); omitted while no project/media context is available. */
+  readonly audio?: AudioPanelProps;
   readonly className?: string;
 }
 
@@ -48,34 +88,39 @@ export function RightPanel({
   onOp,
   onSaveTemplate,
   onUploadFont,
+  audio,
   className,
 }: RightPanelProps): React.JSX.Element {
   const [tab, setTab] = useState<PanelTab>("style");
 
   return (
     <aside
-      className={cn("flex h-full w-80 flex-col gap-4 p-3", className)}
+      className={cn("flex h-full min-h-0 w-80 flex-col gap-4 p-3", className)}
       data-testid="right-panel"
     >
-      <div className="flex gap-1" role="tablist" aria-label="Caption settings">
-        {PANEL_TABS.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === entry.id}
-            onClick={() => {
-              setTab(entry.id);
-            }}
-            className={cn(
-              "flex-1 rounded-md px-2 py-1 text-sm",
-              tab === entry.id ? "bg-white text-black" : "bg-white/10 text-white/80",
-            )}
-            data-testid={`right-panel-tab-${entry.id}`}
-          >
-            {entry.label}
-          </button>
-        ))}
+      <div className="flex items-center gap-1">
+        <div className="flex flex-1 gap-1" role="tablist" aria-label="Caption settings">
+          {PANEL_TABS.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === entry.id}
+              onClick={() => {
+                setTab(entry.id);
+              }}
+              className={cn(
+                "flex-1 rounded-md px-2 py-1 text-sm",
+                tab === entry.id ? "bg-white text-black" : "bg-white/10 text-white/80",
+              )}
+              data-testid={`right-panel-tab-${entry.id}`}
+            >
+              {entry.label}
+            </button>
+          ))}
+        </div>
+        {/* eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up */}
+        <HelpLink slug={PANEL_HELP_SLUGS[tab]} testId={`right-panel-help-${tab}`} />
       </div>
 
       {tab === "style" ? (
@@ -84,8 +129,15 @@ export function RightPanel({
           selectedStyleId={style.id}
           scope={scope}
           onOp={onOp}
+          className="min-h-0 flex-1"
           {...(onSaveTemplate === undefined ? {} : { onSaveTemplate })}
         />
+      ) : tab === "audio" ? (
+        audio === undefined ? (
+          <p className="text-xs text-white/60">Audio clean is not available for this project.</p>
+        ) : (
+          <AudioPanel {...audio} />
+        )
       ) : (
         <>
           <StylePreviewCanvas style={style} width={288} height={162} className="w-full" />

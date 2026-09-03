@@ -88,6 +88,30 @@ Content lives in `content/site/**` (plan prices, comparison facts, legal
 scaffolds, the demo transcript, nav) rather than inline in the pages, each file
 documenting where its numbers came from — nothing on this site is invented.
 
+## Routes C11 owns
+
+| Route                  | What it is                                                                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/plugins` (signed in) | the activation card v2 (08 §4): one card per D65 product name, device list, activation-limit + upgrade link, licence-key management (B08) merged onto the same page |
+| `/plugins/keys`        | B08's licence-key create/revoke screen, unchanged                                                                                                                   |
+| `/settings/devices`    | B08's registered-devices section, unchanged                                                                                                                         |
+
+`/plugins` is two different screens depending on who is looking, the same
+way `/` is (see "Sessions" note on the Home rewrite below): A24's
+`(site)/(marketing)/plugins/page.tsx` answers it for a signed-out visitor,
+and Next.js refuses two page files that resolve the same path, so the
+signed-in screen actually lives at the internal route `app/(app)/
+plugins-app/page.tsx` and `middleware.ts` rewrites `/plugins` -> `/plugins-app`
+for an authenticated request — the address bar never changes. `/plugins/keys`
+has no marketing counterpart, so it needed no such trick.
+
+`components/plugins/plugin-status.ts` derives "installed and signed in / not
+installed / device limit reached" from `useDevices()` + `useEntitlement()`;
+both the Plugins page's activation cards and the Passes tab's licensing cue
+(`components/editor/passes/PluginActivationCue.tsx`, not wired into
+`PassesTab.tsx` — outside this WP's boundary) read the same helper so they
+cannot disagree.
+
 ## Sessions
 
 The **refresh token** lives in an httpOnly, SameSite=Lax cookie that only the
@@ -269,6 +293,37 @@ signed out — so they run without the shared-account or outbox machinery above.
 `codename-guard.spec.ts` extends A13's own codename check in `smoke.spec.ts`
 (which only covers `/`, `/login`, `/signup`, `/ui-kit`) to every page this WP
 adds.
+
+## Docs site (`/docs`, X03)
+
+`app/(site)/(marketing)/docs/**` is the one public docs surface — Guides, Plugins,
+Developers and Legal — built on top of `lib/docs/**`'s generators rather than a second,
+hand-maintained content tree:
+
+- **Guides** (`/docs/guides`, `/docs/guides/[slug]`) reuse B12's help MDX as-is
+  (`lib/content/loader.ts`/`schema.ts`) — the same articles `(app)/help` renders for a
+  signed-in user, at a second, public URL.
+- **Plugins** (`/docs/plugins`, `/docs/plugins/[slug]`) render each `plugins/*/README.md`
+  through `lib/docs/markdown.tsx`, a sibling of `lib/content/markdown.tsx` with GitHub-style
+  pipe-table support added (the READMEs use tables the original renderer doesn't parse).
+- **Developers** (`/docs/developers`, `/docs/developers/[version]`,
+  `/docs/developers/[version]/[tag]`) generates one page per API resource
+  (`projects`/`exports`/`jobs`) straight off `packages/api-client/openapi.json`
+  (`lib/docs/openapi.ts`) — parameters, responses and curl/Node/Python examples included, so
+  a new `/v1` route appears without a hand-edit. Grouped by the path's own resource segment,
+  not the OpenAPI `tag` (every `/v1/*` operation is tagged `public`, which would collapse
+  every endpoint into one meaningless group).
+- **Legal** links to the existing `/legal/*` scaffolds; nothing is duplicated there.
+
+Navigation (`lib/docs/nav.ts`) and the client-side search index (`lib/docs/search.ts`,
+MiniSearch, built at request time in `lib/docs/content.ts` and hydrated by
+`docs-shell.tsx`'s `DocsSearch`) are both derived from the same generators every page
+renders from, so nothing needs a second list kept in sync. `lib/docs/link-check.ts` is a
+pure, synchronous broken-internal-link checker exercised by the generator unit tests —
+no HTTP crawl.
+
+`/developers` (B14) redirects (308, `next.config.ts`) to `/docs/developers`; `(app)/help`
+(B12's authenticated in-product help) is untouched.
 
 ## Notes
 

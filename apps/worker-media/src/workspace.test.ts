@@ -10,10 +10,13 @@ describe("withWorkspace", () => {
     let seen = "";
     await withWorkspace("test", undefined, async (workspace) => {
       seen = workspace.dir;
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       expect(existsSync(workspace.dir)).toBe(true);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       await writeFile(workspace.path("a.txt"), "x");
       expect(await workspace.size("a.txt")).toBe(1);
     });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     expect(existsSync(seen)).toBe(false);
   });
 
@@ -24,10 +27,12 @@ describe("withWorkspace", () => {
     await expect(
       withWorkspace("test", undefined, async (workspace) => {
         seen = workspace.dir;
+        // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
         await writeFile(workspace.path("half-written.mp4"), "partial");
         throw new Error("encode died");
       }),
     ).rejects.toThrow("encode died");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     expect(existsSync(seen)).toBe(false);
   });
 

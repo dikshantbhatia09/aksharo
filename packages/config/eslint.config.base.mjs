@@ -9,6 +9,7 @@
 import js from "@eslint/js";
 import prettierConfig from "eslint-config-prettier";
 import importPlugin from "eslint-plugin-import";
+import securityPlugin from "eslint-plugin-security";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
@@ -49,6 +50,32 @@ const importOrder = {
   "import/no-named-as-default-member": "off",
 };
 
+// `eslint-plugin-security`'s own `recommended` flat config ships every rule at
+// "warn" (docs/security/threat-model-audit-2026-09-03.md follow-up: "add
+// eslint-plugin-security ... scoped to apps/api/src"; applied repo-wide here
+// instead so every workspace gets the same floor). C02c (2026-09-03) drove
+// apps/api, apps/web, packages/bridge-core and apps/desktop to zero findings
+// (one real ReDoS-shaped regex fixed, the rest reviewed and annotated) and
+// promoted those four to "error" via a per-package `securityRulesStrict`
+// override. M06 (2026-09-03) repeated that review for every remaining
+// package — every finding across the rest of the monorepo was reviewed and
+// confirmed a false positive of this plugin's known-noisy heuristics (bounded
+// regexes flagged as "unsafe", enum-bounded bracket access flagged as
+// "object injection", internal/manifest-driven paths flagged as "non-literal
+// fs filename"; see the WP report for the rule-by-rule breakdown) and
+// annotated with a reasoned `eslint-disable-next-line`. With the whole repo
+// now at zero unreviewed findings, `securityRules` (still exported below for
+// anything that references it) is promoted to "error" as the shared default
+// instead of "warn" — no package needs the split any more.
+export const securityRules = Object.fromEntries(
+  Object.keys(securityPlugin.configs.recommended.rules).map((rule) => [rule, "error"]),
+);
+
+/** Kept as an alias of `securityRules` (now already "error" repo-wide) so a
+ * package that still imports `securityRulesStrict` from before M06 does not
+ * need an edit. Prefer `securityRules` in new code. */
+export const securityRulesStrict = securityRules;
+
 const unused = {
   "@typescript-eslint/no-unused-vars": [
     "error",
@@ -80,7 +107,7 @@ export function montajEslintConfig(options = {}) {
     ...tseslint.configs.recommended,
     {
       files: ["**/*.{ts,tsx,mts,cts,js,mjs,cjs,jsx}"],
-      plugins: { import: importPlugin },
+      plugins: { import: importPlugin, security: securityPlugin },
       linterOptions: { reportUnusedDisableDirectives: "error" },
       languageOptions: {
         ecmaVersion: "latest",
@@ -94,6 +121,7 @@ export function montajEslintConfig(options = {}) {
       rules: {
         ...importOrder,
         ...unused,
+        ...securityRules,
         "@typescript-eslint/consistent-type-imports": [
           "error",
           { prefer: "type-imports", fixStyle: "inline-type-imports" },
