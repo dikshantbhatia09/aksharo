@@ -121,7 +121,7 @@ C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 | C08b | Fusion Text+ macro generator + style coverage report | C08 | done (merged + verified: 19 supported / 6 approximate / 5 unsupported of 30; classification_rules.json is the reference; real-Fusion check at Gate C) |
 | C00b | Real desktop packaging: esbuild-bundled main/preload, electron-builder over dist, CI e2e runnable | C02b | done (merged + verified: pack:dry produces Aksharo.exe, 270 MB unpacked; C10 measures the installer) |
 | C10 | Installers (NSIS/pkg/Resolve/.ccx), `/plugins/manifest`, plugins + download pages | C00, C02, C05a, C08 | briefed |
-| D08 | Eval harness & quality gates on fixture datasets, shadow routing, routing freeze, admin leaderboard | A10, B13, B16 | done pending merge (7d03c29: Indic-aware WER/CER + boundary/DER/transliteration/autocut/LLM metrics, 6 generated datasets + licensed-set seam, shadow rung + freeze, eval_runs/leaderboard/freeze API, nightly task; worker env-list drift test → M04) |
+| D08 | Eval harness & quality gates on fixture datasets, shadow routing, routing freeze, admin leaderboard | A10, B13, B16 | done (merged + verified — worker 752; 7d03c29: Indic-aware WER/CER + boundary/DER/transliteration/autocut/LLM metrics, 6 generated datasets + licensed-set seam, shadow rung + freeze, eval_runs/leaderboard/freeze API, nightly task; worker env-list drift test → M04) |
 | C06 | Premiere apply modes (transcript injection, MOGRT captions, overlay, SRT, cuts/zooms/audio, transactions, marker map, re-sync) over the mocked host | C05a, C06b | done (merged + verified, 99 tests; MOGRT param addressing + per-word keyframing flagged for Gate C) |
 | C06b | MOGRT authoring: definition.json generator, verifier, style coverage; the .aep itself is human (H-25) | C05a | done (merged + verified 136 tests; ff7662c + aba71de: 14 frozen params as the single source for C06 too, verifier in CI, 19/6/5 coverage matching Resolve) |
 
@@ -132,14 +132,14 @@ C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machine
 |---|---|---|---|
 | D06 | Text FX pass: key phrases → titles, layout solver never overlapping captions, 6 motion presets, exports + parity | B11, B20b | briefed |
 | D04a | Owned audio pack ingestion (licence columns, CLAP, loudness) + SFX pass + ducking, on a fixture pack until A00-07 | B19b, B20b, A00-07 | briefed |
-| C09 | Resolve Studio Workflow Integration panel over aksharo_core's loopback server | C08, C08b | done pending merge (721e8a2: panel + mock host, 3 new server methods, ?token= WS bearer on loopback (X01 to audit), packaged; manifest schema + install paths pending A00-04) |
+| C09 | Resolve Studio Workflow Integration panel over aksharo_core's loopback server | C08, C08b | done (merged + verified: panel 44 tests + resolve 94; ?token= WS bearer → C02c ticket exchange; manifest schema + install paths pending A00-04) |
 | D05 | Music pass: sections/mood/BPM, beat-aligned cuts, loops/fades, ducking; owned pack only | D04a | briefed |
 | C05b | After Effects CEP panel over a mocked AeHost; ZXP dry run | C05a, C06b, C00 | running |
 | C03a | `apps/engine` local sidecar supervisor: whisper.cpp/Silero/deep-filter/ffmpeg via a signed manifest, model manager, backend detection, FakeBackend | C02, A00-10 | done (merged + verified — engine 51, engine-client 15, release 53; c12df56: /health /models /transcribe(+WS) /align /clean /render, manifest + resumable SHA-256 model manager, tier table, FakeBackend; the A01 scaffold engine/montaj-engine is deleted by C03b) |
 | C03b | Local quality gate + tiered latency harness (real-hardware run at Gate C) | C03a, D08 | running |
 | C04 | Local mode: SQLite + files, local export, upload-to-cloud as a new project, Starter+ gate | C03a | running |
 | D09 | Apply passes inside Premiere/Resolve: audio tracks from owned assets, titles, ripple/keyframes via a shared apply-plan | C06, C08b, D04a, D06 | briefed |
-| X01 | Security review: threat-model audit with evidence, dependency/secret/header checks, negative tests, pen-test scope (H-26) | — | done pending merge (b154c3a: audit doc T1–T25, device-code rate limit + helmet + Next headers fixed, CI security-audit job; Electron bump → C02c) |
+| X01 | Security review: threat-model audit with evidence, dependency/secret/header checks, negative tests, pen-test scope (H-26) | — | done (merged + verified — api 137, web 790: audit doc T1–T25, device-code rate limit + helmet + Next headers fixed, CI security-audit job; Electron bump → C02c) |
 
 ## Wave 7 — Remaining
 
