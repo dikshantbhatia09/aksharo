@@ -35,6 +35,11 @@ export function planApply(input: ApplyPlanInput): ApplyPlanCounts {
     cuts: acceptedOf("cut"),
     zooms: acceptedOf("zoom"),
     audio: input.hasCleanedAudio ? 1 : 0,
+    // D09: accepted sfx/music items (regardless of licence — a refused item still counts here so
+    // the panel can show "3 selected, 1 cloud-render-only" rather than silently under-counting)
+    // and accepted title items (CONTRACTS §2 amendment: text-fx rides the `title` kind).
+    sfxMusic: acceptedOf("sfx") + acceptedOf("music"),
+    titles: acceptedOf("title"),
   };
 }
 

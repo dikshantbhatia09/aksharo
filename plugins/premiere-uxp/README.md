@@ -64,34 +64,69 @@ directly):
 (`planApply`) per mode, a mode disabled with a message when e.g. the MOGRT self-test fails, and
 an Apply button gated on at least one selection.
 
+## D09 apply modes: sfx/music, titles
+
+Two more apply modes (`sfxMusic`, `titles`), both built on `@montaj/shared-apply`'s
+`buildApplyPlan` rather than re-deriving accepted-item logic locally:
+
+- **sfx/music** (`src/apply/sfxMusic.ts`): accepted `sfx`/`music` items become clips on a
+  dedicated track (`"Aksharo SFX"` / `"Aksharo Music"`, `PremiereHost.ensureTrack` — idempotent
+  by name, unlike `zoom`'s caller-supplied track map), placed from a downloaded local asset path
+  the caller supplies (this module never downloads anything itself). Gain and fades become clip
+  gain keyframes (`buildGainKeyframes`); ducking is approximated as gain keyframes on the
+  dialogue track item (`buildDuckKeyframes`) — a coarse stand-in for a real sidechain compressor,
+  documented as such. A partner-catalogue asset (D43: `allowsRawFileDelivery=false` or
+  `licenceSnapshot.surface` excludes `"panel"`) is never placed; it comes back as an
+  `AudioClipRefusal` for the panel to render as the "cloud render only" badge.
+- **titles** (`src/apply/titles.ts`): accepted `title` items (CONTRACTS §2 amendment — there is
+  no `text_fx` kind, text-fx rides `title`'s `motionPreset`/`intent`/`anchorWordIds`/`layoutHint`
+  fields) become instances of a second MOGRT this WP added to C06b's generator
+  (`mogrt/title-params.ts`, `generateTitleMogrtDefinition`): the same frozen 14 caption params
+  plus one new `MotionPreset` param (index 14, append-only per that table's own rule). Param
+  values are resolved once, centrally, by `@montaj/shared-apply`'s `motionPresets.ts` — this
+  module only turns the resulting `TitleParamOp`s into `insertMogrt`/`setMogrtParams` calls, or
+  an overlay-clip fallback for a preset that table can't express (none of the six D06 presets
+  trigger this today; the branch is documented, not deleted).
+
+Both modes' host surface additions — `PremiereHost.ensureTrack`/`setClipGainKeyframes` — follow
+the same "mocked, throws in the real host until Gate C" rule as every other C06/D09 host call.
+
+`src/api/client.ts` (orchestrator addendum after C05a/C05b/C09) wraps `GET /styles` (A14),
+`GET /projects/{id}/transcript` (A11) and `GET /projects/{id}/edg/segments` (A12) behind one
+typed client — a plain HTTPS call bearing the panel's own session token, same pattern as
+`src/upload/mixdown.ts`'s `POST /transcribe`, not the bridge's JSON-RPC protocol (which has no
+generic REST-proxy method).
+
 ## Layout
 
-| Path                                 | What                                                                                                                                                                                          |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `manifest.json`                      | UXP manifest v5 (`ai.aksharo.panel`, host `PPRO` min `25.6`)                                                                                                                                  |
-| `index.html`                         | Panel entry point (UXP `main`)                                                                                                                                                                |
-| `src/host/premiere.ts`               | `PremiereHost` interface, `MockPremiereHost`, `createRealPremiereHost`                                                                                                                        |
-| `src/bridge/`                        | Typed JSON-RPC caller over `@montaj/bridge-core`'s protocol, plus the `fetch`-based production transport                                                                                      |
-| `src/auth/session.ts`                | Sign-in state machine (device-code/tray-gesture pairing, in-memory session only)                                                                                                              |
-| `src/upload/mixdown.ts`              | Mixdown → `media.uploadTicket` → presigned PUT → `POST /transcribe`                                                                                                                           |
-| `src/apply/`                         | C06 apply modes: transcript, MOGRT captions, alpha overlay, SRT to bin, cuts/zooms/audio, transaction + progress, re-sync (`types.ts` now imports `MOGRT_PARAM_ORDER` from `mogrt/params.ts`) |
-| `src/version/manifestCheck.ts`       | `/plugins/manifest` min/max-version → update banner logic                                                                                                                                     |
-| `src/i18n/strings.ts`                | English/Hindi string table (see "i18n" below)                                                                                                                                                 |
-| `src/ui/`                            | React panel UI (sign-in, source/transcribe, footer, update banner)                                                                                                                            |
-| `scripts/build.mjs`                  | esbuild → single IIFE bundle (`dist/panel.js`) — no `eval`, no dynamic import of remote code, per UXP's JS restrictions                                                                       |
-| `docs/GATE-C-CHECKLIST.md`           | Manual verification steps for the first real Premiere run                                                                                                                                     |
-| `mogrt/params.ts`                    | The 14 frozen MOGRT params, in order (C06b)                                                                                                                                                   |
-| `mogrt/generate.ts`                  | Builds `definition.json`'s contents deterministically from `params.ts`                                                                                                                        |
-| `mogrt/zip.ts`                       | Dependency-free STORE-only zip reader/writer                                                                                                                                                  |
-| `mogrt/verify.ts`                    | Verifies a `.mogrt`'s `definition.json` against the frozen table; used by CI and (once wired) C06's self-test                                                                                 |
-| `mogrt/build-placeholder.ts`         | Builds `mogrt/placeholder.mogrt` (committed; no `.aep`)                                                                                                                                       |
-| `mogrt/verify-cli.ts`                | CI entry point: `pnpm --filter @montaj/premiere-uxp verify:mogrt`                                                                                                                             |
-| `src/styles/classification-rules.ts` | Mirror of C08b's Resolve `classification_rules.json` rule set (checked against the real file once it exists)                                                                                  |
-| `src/styles/mogrt-map.ts`            | Classifies each of the 30 system styles supported/approximate/unsupported using those rules                                                                                                   |
-| `src/styles/generate-coverage.ts`    | Writes `docs/MOGRT-STYLE-COVERAGE.md` deterministically                                                                                                                                       |
-| `docs/MOGRT-PARAMS.md`               | The frozen param table, documented, plus the `definition.json`/Adobe-EGP distinction                                                                                                          |
-| `docs/MOGRT-STYLE-COVERAGE.md`       | Generated: which of the 30 styles map onto the MOGRT (or approximate it) and why the rest don't                                                                                               |
-| `docs/README-AUTHORING.md`           | Step-by-step guide for the human who authors the real `.aep` in After Effects (H-25)                                                                                                          |
+| Path                                 | What                                                                                                                                                                                                                 |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `manifest.json`                      | UXP manifest v5 (`ai.aksharo.panel`, host `PPRO` min `25.6`)                                                                                                                                                         |
+| `index.html`                         | Panel entry point (UXP `main`)                                                                                                                                                                                       |
+| `src/host/premiere.ts`               | `PremiereHost` interface, `MockPremiereHost`, `createRealPremiereHost`                                                                                                                                               |
+| `src/bridge/`                        | Typed JSON-RPC caller over `@montaj/bridge-core`'s protocol, plus the `fetch`-based production transport                                                                                                             |
+| `src/auth/session.ts`                | Sign-in state machine (device-code/tray-gesture pairing, in-memory session only)                                                                                                                                     |
+| `src/upload/mixdown.ts`              | Mixdown → `media.uploadTicket` → presigned PUT → `POST /transcribe`                                                                                                                                                  |
+| `src/apply/`                         | C06/D09 apply modes: transcript, MOGRT captions, alpha overlay, SRT to bin, cuts/zooms/audio, sfx/music, titles, transaction + progress, re-sync (`types.ts` now imports `MOGRT_PARAM_ORDER` from `mogrt/params.ts`) |
+| `src/api/client.ts`                  | D09: `GET /styles` / `GET /projects/{id}/transcript` / `GET /projects/{id}/edg/segments` client                                                                                                                      |
+| `mogrt/title-params.ts`              | D09: the title MOGRT's 15 params — the 14 caption ones plus `MotionPreset`                                                                                                                                           |
+| `src/version/manifestCheck.ts`       | `/plugins/manifest` min/max-version → update banner logic                                                                                                                                                            |
+| `src/i18n/strings.ts`                | English/Hindi string table (see "i18n" below)                                                                                                                                                                        |
+| `src/ui/`                            | React panel UI (sign-in, source/transcribe, footer, update banner)                                                                                                                                                   |
+| `scripts/build.mjs`                  | esbuild → single IIFE bundle (`dist/panel.js`) — no `eval`, no dynamic import of remote code, per UXP's JS restrictions                                                                                              |
+| `docs/GATE-C-CHECKLIST.md`           | Manual verification steps for the first real Premiere run                                                                                                                                                            |
+| `mogrt/params.ts`                    | The 14 frozen MOGRT params, in order (C06b)                                                                                                                                                                          |
+| `mogrt/generate.ts`                  | Builds `definition.json`'s contents deterministically from `params.ts`                                                                                                                                               |
+| `mogrt/zip.ts`                       | Dependency-free STORE-only zip reader/writer                                                                                                                                                                         |
+| `mogrt/verify.ts`                    | Verifies a `.mogrt`'s `definition.json` against the frozen table; used by CI and (once wired) C06's self-test                                                                                                        |
+| `mogrt/build-placeholder.ts`         | Builds `mogrt/placeholder.mogrt` (committed; no `.aep`)                                                                                                                                                              |
+| `mogrt/verify-cli.ts`                | CI entry point: `pnpm --filter @montaj/premiere-uxp verify:mogrt`                                                                                                                                                    |
+| `src/styles/classification-rules.ts` | Mirror of C08b's Resolve `classification_rules.json` rule set (checked against the real file once it exists)                                                                                                         |
+| `src/styles/mogrt-map.ts`            | Classifies each of the 30 system styles supported/approximate/unsupported using those rules                                                                                                                          |
+| `src/styles/generate-coverage.ts`    | Writes `docs/MOGRT-STYLE-COVERAGE.md` deterministically                                                                                                                                                              |
+| `docs/MOGRT-PARAMS.md`               | The frozen param table, documented, plus the `definition.json`/Adobe-EGP distinction                                                                                                                                 |
+| `docs/MOGRT-STYLE-COVERAGE.md`       | Generated: which of the 30 styles map onto the MOGRT (or approximate it) and why the rest don't                                                                                                                      |
+| `docs/README-AUTHORING.md`           | Step-by-step guide for the human who authors the real `.aep` in After Effects (H-25)                                                                                                                                 |
 
 ## MOGRT authoring (C06b)
 

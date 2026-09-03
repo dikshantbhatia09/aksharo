@@ -96,9 +96,18 @@ export interface EdgRevisionSnapshot {
   readonly liveSegmentIds: readonly string[];
 }
 
-/** The apply modes a user can select in the panel (brief §Scope 1-5). */
+/** The apply modes a user can select in the panel (C06 brief §Scope 1-5; D09 adds `sfxMusic`/
+ * `titles` §Scope 1). */
 export type ApplyMode =
-  "transcript" | "mogrtCaptions" | "alphaOverlay" | "srtToBin" | "cuts" | "zooms" | "audio";
+  | "transcript"
+  | "mogrtCaptions"
+  | "alphaOverlay"
+  | "srtToBin"
+  | "cuts"
+  | "zooms"
+  | "audio"
+  | "sfxMusic"
+  | "titles";
 
 export const APPLY_MODES: readonly ApplyMode[] = [
   "transcript",
@@ -108,4 +117,6 @@ export const APPLY_MODES: readonly ApplyMode[] = [
   "cuts",
   "zooms",
   "audio",
+  "sfxMusic",
+  "titles",
 ];

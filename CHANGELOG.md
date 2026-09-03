@@ -8,6 +8,39 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **D09: apply passes inside Premiere and Resolve — sfx/music audio clips, title MOGRT/Text+
+  instances.** New `plugins/shared-apply` (TS, no Node-only deps): `buildApplyPlan` turns
+  `accepted` EDG pass items into host-neutral `ApplyOp`s (`deleteRange`/`motionKeyframes`/
+  `audioClip`/`title`), re-checking the D43 licence predicate (`allowsRawFileDelivery` +
+  `licenceSnapshot.surface` includes `panel`) before ever letting a partner-catalogue asset reach
+  a track, and mapping `TitlePayload.motionPreset` (CONTRACTS §2 amendment; there is no
+  `text_fx` kind) to the frozen MOGRT/Text+ param table via `motionPresets.ts`. A checked-in
+  fixture pair (`fixtures/sample-items.json` -> `sample-plan.json`) is the parity source both
+  `planBuilder.test.ts` and the new `plugins/resolve/tests/test_apply_plan_parity.py` assert
+  against — JSON exchange was chosen over a full Python port of the plan-building logic to avoid
+  two independently-maintained copies of the licence gate/preset table; only the small static
+  tables (`licence.py`, `motion_presets.py`) are ported, mirroring the risk the brief's "pick one
+  and justify" question was about.
+  `plugins/premiere-uxp`: `src/apply/sfxMusic.ts` places accepted sfx/music clips on dedicated
+  audio tracks (new `PremiereHost.ensureTrack`/`setClipGainKeyframes`), with gain/fade keyframes
+  and ducking approximated as dialogue-track gain keyframes; `src/apply/titles.ts` inserts the
+  new title `.mogrt` this WP added to C06b's generator (`mogrt/title-params.ts`,
+  `generateTitleMogrtDefinition` — the frozen 14 caption params plus one new `MotionPreset`
+  param, index 14) or falls back to an overlay clip for a preset the table can't express (no D06
+  preset triggers this today). `ApplyMode` gains `sfxMusic`/`titles` (dry-run preview counts,
+  `ApplyPanel`). New `src/api/client.ts` wraps `GET /styles` (A14), `GET /projects/{id}/transcript`
+  (A11) and `GET /projects/{id}/edg/segments` (A12) behind one typed client, per the orchestrator
+  addendum after C05a/C05b/C09.
+  `plugins/resolve`: `sfx_music.py` (audio clips via new `ResolveHost.import_audio_clip`/
+  `set_volume_keyframes`, the latter documented as an open A00-04 question — the scripting
+  README describes `SetProperty` as a single-value setter, not a keyframe-track API) and
+  `titles.py` (Text+ macro instances via `append_text_plus`, same preset mapping) mirror the
+  Premiere modules' behaviour; `api_client.py` mirrors the same three GETs over `httpx`.
+  Deviation: `ResolveHost.add_track` has no idempotent "find by name" contract the way
+  `PremiereHost.ensureTrack` does, so `sfx_music.py` only dedupes a shared "Aksharo SFX"/"Aksharo
+  Music" track within one `apply_sfx_music` call, not across repeated calls/re-applies — flagged
+  as an open follow-up, not silently accepted as solved.
+
 - **D04d: audio mix pipeline — signed pack-asset URLs and real energy cues;
   browser/cloud cue-audio mixing deferred (see Deviations).** Closes two of
   D04c's three flagged deviations.
