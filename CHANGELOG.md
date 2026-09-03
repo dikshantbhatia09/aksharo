@@ -40,6 +40,80 @@ engine.ts` and `apps/render` (compositing `drawTextFxTitle`'s output onto
   pass — the manifest carries the data, but no engine consumes it yet. Left
   as an explicit follow-up rather than a rushed, untested wiring into the
   frozen render-parity gate.
+- **M07 — fixed the `@montaj/web` build OOM (`FATAL ERROR: ... JavaScript
+heap out of memory`, worker exit 134) that made `pnpm --filter @montaj/web
+build` unreliable even with `NODE_OPTIONS=--max-old-space-size=3072` (X03
+  reported 6144 also failed).** Root cause was a real infinite-loop bug, not
+  a memory-size problem: `apps/web/lib/docs/markdown.tsx`'s `toBlocks()`
+  paragraph branch stopped collecting lines on a bare `/^[-*#]|...` test,
+  which also matches a line that merely **starts** with `*` (e.g.
+  `**Status:** ...` — how every plugin README under `plugins/*/README.md`
+  opens its first paragraph) without being a bullet (`^[-*]\s+`). On such a
+  line the collection `while` ran zero iterations, the cursor `i` never
+  advanced, and the outer loop pushed empty paragraph blocks forever —
+  `/docs/plugins/premiere` alone was enough to exhaust any heap size the
+  static-generation worker was given (confirmed both via `next build` and by
+  reproducing the hang directly with `renderToStaticMarkup` outside of
+  Next). Fixed by narrowing the stop condition to the exact patterns the
+  branches above it test (bullet needs `\s+`, heading is `^#{1,3}\s`, etc.)
+  plus a defensive backstop that forces the cursor forward if a block is
+  ever collected empty. Also memoised two build-time derivations that
+  `/docs/**` static generation was redundantly recomputing on every one of
+  its ~20 pages instead of once per worker process — `loadApiGroups()`
+  (`apps/web/lib/docs/openapi.ts`, re-parsing all of
+  `packages/api-client/openapi.json` per call) and
+  `loadDocsSearchDocs()`/`loadDocsSearchIndexSerialised()`
+  (`apps/web/lib/docs/content.ts`, rebuilding the whole MiniSearch index per
+  call) — real waste, but not itself the crash (measured at ~58KB/tens of
+  ms, confirmed by a bisection that ruled out page count/order effects
+  before the actual markdown bug was found). Added `experimental.cpus: 1`
+  and `experimental.webpackMemoryOptimizations: true` to
+  `apps/web/next.config.ts` as a documented safety margin for this shared,
+  memory-constrained build host — not a substitute for the fix, and
+  confirmed unnecessary on its own (the bug reproduced identically with 1 or
+  4 workers). Verified: `NODE_OPTIONS=--max-old-space-size=3072 pnpm
+--filter @montaj/web build` succeeded twice from a clean `.next` (117/117
+  pages), peak main-process RSS ~1.9GB / heap ~718MB via
+  `next build --experimental-debug-memory-usage`; `pnpm --filter @montaj/web
+test -- --maxWorkers=2` and `turbo run typecheck --filter=@montaj/web`
+  green. Annotated the two pre-existing `security/detect-object-injection`
+  and `security/detect-unsafe-regex` findings in the two files this touched
+  (`lib/docs/openapi.ts`, `lib/docs/markdown.tsx`) per the C02c convention;
+  three more pre-existing findings in files this WP did not touch
+  (`app/(site)/(marketing)/docs/guides/page.tsx`,
+  `lib/docs/plugin-guides.ts`) were confirmed present on `main` before this
+  work (via `git stash`) and left alone as out of this WP's boundary.
+
+- **M07 (scope extension) — fixed the identical infinite-loop bug in
+  `apps/web/lib/content/markdown.tsx` (B12's own copy of the same
+  block-parser structure).** Its `toBlocks()` had the same bare `^[-*#]`
+  paragraph stop-condition bug as `lib/docs/markdown.tsx` — a line starting
+  with bold or italic text (e.g. two or one leading asterisks) satisfies
+  that test without being a bullet, so the paragraph-collection loop ran
+  zero iterations, the cursor never advanced, and the outer loop pushed
+  empty paragraph blocks forever. No current academy/help/changelog body
+  happens to open a paragraph that way, so this copy never actually crashed
+  a build, but the bug was live and would have. Fixed with the same
+  narrowed stop condition, adapted to this file's own heading branches
+  (level-2 and level-3 headings only), plus the same cursor-progress
+  backstop. Compared the two files in full before choosing an approach:
+  they diverge enough (the docs copy adds GFM pipe-table parsing, a
+  level-1 heading block kind, and a different inline-link target policy;
+  the content copy adds single-asterisk italic) that extracting one shared
+  block parser would not have been a small change, so both copies were
+  fixed independently rather than merged — the duplication between
+  `lib/docs/markdown.tsx` and `lib/content/markdown.tsx` remains and is
+  worth a dedicated follow-up to unify if a third caller ever needs this
+  kind of renderer. Added a regression test to the neighbouring test file
+  in each case (`lib/docs/markdown.test.tsx`, and a new
+  `lib/content/markdown.test.tsx` — no test file existed for
+  `MarkdownBody` before this) that renders a paragraph opening with bold
+  text and one opening with italic text, and asserts exactly one
+  (non-empty) paragraph is produced. `pnpm --filter @montaj/web test --
+maxWorkers=2`, lint and typecheck green; `format:changed` /
+  `format:changed:check` clean (this WP's convention is scoped formatting,
+  not repo-wide `format:check`, per the brief's formatting rule — ran that
+  instead, equivalent for the files this WP touched).
 
 - **M08: mounted C11's `PluginActivationCue` in the Passes tab.** C11 shipped
   the cue (`apps/web/components/editor/passes/PluginActivationCue.tsx`) but

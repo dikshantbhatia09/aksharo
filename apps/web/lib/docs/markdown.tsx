@@ -55,7 +55,7 @@ function isTableRow(line: string): boolean {
 }
 
 function isTableSeparator(line: string): boolean {
-  // eslint-disable-next-line security/detect-unsafe-regex -- reviewed and timed against adversarial input (long runs of "|" and "-") -- linear, no nested unbounded quantifiers -- not exponential (see M06 report)
+  // eslint-disable-next-line security/detect-unsafe-regex -- reviewed and timed against adversarial input (long runs of "|" and "-") -- linear, no nested unbounded quantifiers -- not exponential (see M06 report). Also re-reviewed for this WP's own markdown-parser OOM: the actual bug was an infinite loop in toBlocks() below, unrelated to this regex.
   return /^\|?(\s*:?-+:?\s*\|)+\s*:?-+:?\s*\|?$/.test(line.trim());
 }
 
@@ -125,8 +125,34 @@ function toBlocks(markdown: string): Block[] {
       blocks.push({ kind: "ol", lines: items });
       continue;
     }
+    // M07: root-cause fix for the build OOM. This loop must stop collecting
+    // paragraph lines only at a line that one of the branches ABOVE would
+    // actually treat specially (heading, bullet, ordered list, code fence,
+    // table row) — the same patterns those branches test, not merely
+    // "starts with `-`, `*` or `#`". A markdown line starting with bold text
+    // (`**Status:** ...`) starts with `*` but is not a bullet (no `\s+`
+    // after it), so it fails every earlier `if`, falls into this paragraph
+    // branch, and — with the old bare `^[-*#]` check — matched its OWN stop
+    // condition on its first line: the `while` body never ran, `i` never
+    // advanced, and the outer `while (i < lines.length)` loop above spun
+    // forever pushing empty paragraph blocks (`plugins/premiere-uxp/README.md`
+    // hit this on its very first paragraph and alone was enough to run any
+    // static-generation worker that rendered `/docs/plugins/premiere` out of
+    // memory — this, not the size of the OpenAPI document or the search
+    // index, was the actual crash this WP was asked to fix).
     const para: string[] = [];
-    while (i < lines.length && at(i).trim() !== "" && !/^[-*#]|^\d+\.\s+|^```|^\|/.test(at(i))) {
+    while (
+      i < lines.length &&
+      at(i).trim() !== "" &&
+      !/^[-*]\s+|^\d+\.\s+|^#{1,3}\s|^```|^\|/.test(at(i))
+    ) {
+      para.push(at(i));
+      i++;
+    }
+    if (para.length === 0) {
+      // Defensive backstop: even if some future branch/pattern mismatch ever
+      // reintroduces a case where nothing above matches and this loop still
+      // collects zero lines, force progress rather than looping forever.
       para.push(at(i));
       i++;
     }

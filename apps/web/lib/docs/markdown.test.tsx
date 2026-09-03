@@ -60,3 +60,39 @@ describe("DocsMarkdownBody", () => {
     expect(external).toHaveAttribute("target", "_blank");
   });
 });
+
+describe("DocsMarkdownBody regression: paragraph lines starting with * or **", () => {
+  // M07: `toBlocks()`'s paragraph-collection loop used to stop on a bare
+  // `^[-*#]` test, which also matches a line that merely starts with `*`
+  // without being a bullet (`^[-*]\s+`) — e.g. bold or italic text opening a
+  // paragraph. That line failed every earlier branch, fell into the
+  // paragraph branch, and matched its own stop condition on its first line:
+  // the collection loop ran zero iterations, the cursor never advanced, and
+  // the outer loop pushed empty paragraph blocks forever. This is exactly
+  // what every `plugins/*/README.md` hit (they open with `**Status:** ...`)
+  // and it alone was enough to run a static-generation worker out of memory.
+  // These render calls must terminate and must not produce empty paragraphs.
+  it("terminates and renders one paragraph for a line starting with **bold**", () => {
+    const { container } = render(
+      <DocsMarkdownBody
+        markdown={["**Status:** shipped, followed by more prose on the same paragraph."].join("\n")}
+      />,
+    );
+    const paragraphs = container.querySelectorAll("p");
+    expect(paragraphs).toHaveLength(1);
+    expect(paragraphs[0]?.textContent).toContain("Status:");
+    expect(paragraphs[0]?.textContent).toContain("same paragraph.");
+  });
+
+  it("terminates and renders one paragraph for a line starting with *emphasis*", () => {
+    const { container } = render(
+      <DocsMarkdownBody
+        markdown={["*Note:* this line opens with a single asterisk, not a bullet."].join("\n")}
+      />,
+    );
+    const paragraphs = container.querySelectorAll("p");
+    expect(paragraphs).toHaveLength(1);
+    expect(paragraphs[0]?.textContent).toContain("Note:");
+    expect(paragraphs[0]?.textContent).toContain("not a bullet.");
+  });
+});
