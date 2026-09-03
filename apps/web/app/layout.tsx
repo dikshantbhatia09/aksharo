@@ -10,6 +10,18 @@ import type { ReactNode } from "react";
 import { Providers } from "@/components/providers";
 import { readRuntimeConfig } from "@/lib/runtime-config";
 
+/**
+ * Runtime configuration must be read per request, not baked at build time.
+ *
+ * `readRuntimeConfig()` below runs in this server layout, so with static
+ * prerendering every page captured whatever `API_ORIGIN` happened to be set
+ * during `next build` — in practice the `http://localhost:3001` fallback, which
+ * the browser then tried to call ("We could not reach the server"). It also made
+ * a config change (a new tunnel URL, enabling a provider) require a full rebuild
+ * to take effect, which defeats the point of calling it runtime config.
+ */
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: {
     default: BRAND.name,
