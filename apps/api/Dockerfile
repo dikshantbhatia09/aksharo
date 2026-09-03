@@ -85,6 +85,23 @@ RUN pnpm --filter @montaj/api --prod deploy --ignore-scripts /app \
     && DEST=$(find /app/node_modules/.pnpm -maxdepth 1 -iname '@prisma+client@*' | head -n1) \
     && test -n "$SRC" && test -n "$DEST" \
     && cp -r "$SRC/node_modules/.prisma" "$DEST/node_modules/.prisma"
+# `scripts/e2e-stack.mjs`'s post-`up` `db:seed:sample` step needs `tsx` (a
+# devDependency, so absent from `--prod`) run *inside* this container rather
+# than on the host: `seed-sample.ts` mints its own access token with `iss`
+# set to `API_ORIGIN`, which the running API validates against its own
+# `API_ORIGIN` — the container's (`http://api:3001`), not the host's exposed
+# port. Running the script on the host makes those two origins disagree and
+# every minted token comes back `common/unauthorized` (caught by M17 running
+# the full e2e stack for the first time). `pnpm`'s isolated `node_modules`
+# makes copying a single package across from Stage 2's store impractical
+# (its own dependencies are symlinks into sibling store entries this image
+# does not otherwise ship) — a plain `npm install` pulls `tsx` and its full,
+# self-contained dependency tree in one step instead, pinned to the
+# workspace's own devDependency version.
+RUN mkdir /tmp/tsx-install \
+    && npm install --no-save --prefix /tmp/tsx-install tsx@4.23.13 \
+    && cp -r /tmp/tsx-install/node_modules/. /app/node_modules/ \
+    && rm -rf /tmp/tsx-install
 
 # ---------------------------------------------------------------------------
 # Stage 3c — runtime (only the deployed tree, not the whole monorepo)

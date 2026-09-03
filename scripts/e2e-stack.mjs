@@ -28,22 +28,17 @@ switch (action) {
     run(["up", "-d", "--build", "--wait"]);
     // `db:seed:sample` needs the API already listening (it drives the real
     // `POST /transcribe` path) — see docker-compose.test.yml's `api` service
-    // comment. It used to run inside the container via `docker compose
-    // exec`, but `api`'s image (M17) is now a `pnpm deploy --prod` runtime
-    // with no devDependencies — `tsx` (which `db:seed:sample` needs) is not
-    // on PATH there. Run it on the HOST instead, against the stack's exposed
-    // port: `seed-sample.ts` only ever talks to `API_ORIGIN` over HTTP plus
-    // Prisma directly, both of which work the same from outside the compose
-    // network as long as `.env` points at the exposed ports.
-    {
-      const seedResult = spawnSync("pnpm", ["--filter", "@montaj/api", "db:seed:sample"], {
-        stdio: "inherit",
-        shell: process.platform === "win32",
-      });
-      if (seedResult.status !== 0) {
-        process.exit(seedResult.status ?? 1);
-      }
-    }
+    // comment. Must run INSIDE the container, not on the host: the script
+    // mints its own access token with `iss` set to `API_ORIGIN`, which the
+    // running API validates against its own `API_ORIGIN` — the container's
+    // (`http://api:3001`), not the host's exposed port. Running it on the
+    // host makes those two origins disagree and every minted token comes
+    // back `common/unauthorized` (found bringing up the full stack for M17).
+    // `api`'s image is a `pnpm deploy --prod` runtime with no
+    // devDependencies, so `apps/api/Dockerfile`'s `runtime` target installs
+    // `tsx` on its own (not through the workspace) specifically so this can
+    // still run without a full devDependency image.
+    run(["exec", "api", "node_modules/.bin/tsx", "prisma/seed-sample.ts"]);
     break;
   case "down":
     run(["down", "-v"]);

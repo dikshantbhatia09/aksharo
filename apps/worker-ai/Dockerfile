@@ -64,6 +64,13 @@ RUN python -m pip install --no-cache-dir --no-deps /tmp/*.whl && rm -f /tmp/*.wh
 ADD --chmod=444 \
     https://raw.githubusercontent.com/snakers4/silero-vad/v5.1.2/src/silero_vad/data/silero_vad.onnx \
     /opt/models/silero_vad.onnx
+# `ADD --chmod=444` applies that mode to the directory it implicitly creates
+# too, not just the file — `/opt/models` came out `dr--r--r--` (no execute
+# bit), which makes it untraversable even by the `worker` user below
+# (`PermissionError` on `stat`, caught by M17 bringing up the full e2e
+# stack). Fix the directory back to a normal `755` while leaving the file
+# itself read-only.
+RUN chmod 755 /opt/models
 ENV WORKER_AI_VAD_MODEL=/opt/models/silero_vad.onnx
 
 # Model and Hugging Face caches live on a writable volume; the image itself stays
