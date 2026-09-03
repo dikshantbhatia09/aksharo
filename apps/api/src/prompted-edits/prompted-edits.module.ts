@@ -31,7 +31,9 @@ import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
       provide: PLANNER_CLIENT,
       useFactory: () => {
         const apiKey = process.env["ANTHROPIC_API_KEY"];
-        return apiKey === undefined || apiKey === "" ? new MockPlannerClient() : new AnthropicPlannerClient(apiKey);
+        return apiKey === undefined || apiKey === ""
+          ? new MockPlannerClient()
+          : new AnthropicPlannerClient(apiKey);
       },
     },
   ],

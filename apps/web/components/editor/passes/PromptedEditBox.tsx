@@ -112,7 +112,8 @@ export function PromptedEditBox({
     }
   }, [client, projectId, plan]);
 
-  const estimate = plan === null ? estimatePromptedEditQuote(sourceDurationMs, sourceDurationMs, engine) : null;
+  const estimate =
+    plan === null ? estimatePromptedEditQuote(sourceDurationMs, sourceDurationMs, engine) : null;
 
   return (
     <div
@@ -167,7 +168,10 @@ export function PromptedEditBox({
           </DialogHeader>
           {plan !== null ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }} data-testid="plan-pass-chips">
+              <div
+                style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
+                data-testid="plan-pass-chips"
+              >
                 {plan.passes.map((pass, index) => (
                   <Badge key={`${pass.kind}-${String(index)}`}>{PASS_KIND_LABELS[pass.kind]}</Badge>
                 ))}

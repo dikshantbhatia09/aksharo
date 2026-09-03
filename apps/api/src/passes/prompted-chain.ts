@@ -57,7 +57,14 @@ export class PromptedChainAdvancer {
     const next = remaining.shift();
 
     if (next === undefined) {
-      await this.settle(plan.id, plan.projectId, plan.workspaceId, plan.engine, plan.sourceDurationMs, plan.holdId);
+      await this.settle(
+        plan.id,
+        plan.projectId,
+        plan.workspaceId,
+        plan.engine,
+        plan.sourceDurationMs,
+        plan.holdId,
+      );
       return;
     }
 

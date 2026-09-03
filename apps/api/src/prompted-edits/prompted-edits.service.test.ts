@@ -59,10 +59,7 @@ interface Deps {
   edg: { document: ReturnType<typeof vi.fn>; segments: ReturnType<typeof vi.fn> };
 }
 
-function buildService(overrides?: {
-  plannerOutput?: EditPlanOutput;
-  planTier?: string;
-}): Deps {
+function buildService(overrides?: { plannerOutput?: EditPlanOutput; planTier?: string }): Deps {
   const plannerOutput = overrides?.plannerOutput ?? twoPassOutput();
 
   const prisma = {
@@ -82,9 +79,11 @@ function buildService(overrides?: {
       findFirst: vi.fn().mockResolvedValue(null),
     },
     promptedEditPlan: {
-      create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) =>
-        Promise.resolve({ ...data, createdAt: new Date(), updatedAt: new Date() }),
-      ),
+      create: vi
+        .fn()
+        .mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve({ ...data, createdAt: new Date(), updatedAt: new Date() }),
+        ),
       findFirst: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
     },
@@ -92,9 +91,7 @@ function buildService(overrides?: {
       findUniqueOrThrow: vi.fn().mockResolvedValue({ id: "job1", creditHoldId: "hold1" }),
     },
     subscription: {
-      findFirst: vi
-        .fn()
-        .mockResolvedValue({ plan: { key: overrides?.planTier ?? "creator" } }),
+      findFirst: vi.fn().mockResolvedValue({ plan: { key: overrides?.planTier ?? "creator" } }),
     },
   };
 
@@ -271,7 +268,7 @@ describe("PromptedEditsService.run", () => {
     expect(deps.passes.startMusic).not.toHaveBeenCalled();
   });
 
-  it("refuses to run a plan that is not \"planned\"", async () => {
+  it('refuses to run a plan that is not "planned"', async () => {
     deps.prisma.promptedEditPlan.findFirst.mockResolvedValue({
       id: PLAN_ID,
       projectId: PROJECT_ID,

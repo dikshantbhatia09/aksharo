@@ -63,11 +63,7 @@ export const EDIT_PLAN_FIXTURES: readonly EditPlanFixture[] = [
   },
   {
     id: "best-quality-pro",
-    input: inputFor(
-      "english",
-      "Give me the absolute best quality cut, spare no credits",
-      "agency",
-    ),
+    input: inputFor("english", "Give me the absolute best quality cut, spare no credits", "agency"),
   },
   {
     id: "existing-style",

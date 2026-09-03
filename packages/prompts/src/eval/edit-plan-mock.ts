@@ -80,8 +80,7 @@ export function mockEditPlan(input: EditPlanInput): EditPlanOutput {
   }));
   const rationale = chosen.map((rule) => rule.rationale(input.prompt));
 
-  const style =
-    input.existingStyles.length > 0 ? input.existingStyles[0] : undefined;
+  const style = input.existingStyles.length > 0 ? input.existingStyles[0] : undefined;
 
   return {
     passes,

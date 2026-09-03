@@ -147,9 +147,9 @@ function buildEditPlanMessages(input: EditPlanInput): TemplateMessages {
     ` Only ever propose pass kinds from this closed list: ${kinds}. ` +
     `Propose at most ${String(cap)} passes (this workspace's plan tier budget). ` +
     (proAllowed
-      ? "The \"pro\" engine tier may be requested when the instruction asks for " +
-        "best quality or is willing to spend more credits; otherwise use \"flash\"."
-      : "This workspace's plan does not allow the \"pro\" engine tier — always use \"flash\".") +
+      ? 'The "pro" engine tier may be requested when the instruction asks for ' +
+        'best quality or is willing to spend more credits; otherwise use "flash".'
+      : 'This workspace\'s plan does not allow the "pro" engine tier — always use "flash".') +
     " Reply with strict JSON only, shaped " +
     '{"passes":[{"kind":string,"params":object}],"style"?:string,"script"?:' +
     '"roman"|"native"|"translated","rationale":[string, one per pass, <=240 chars]}. ' +
@@ -240,7 +240,10 @@ export function validateEditPlan(
     input.existingStyles.length > 0 &&
     !input.existingStyles.includes(output.style)
   ) {
-    violations.push({ code: "unknown_style", detail: `"${output.style}" is not an existing style` });
+    violations.push({
+      code: "unknown_style",
+      detail: `"${output.style}" is not an existing style`,
+    });
   }
   if (output.rationale.length !== output.passes.length) {
     violations.push({

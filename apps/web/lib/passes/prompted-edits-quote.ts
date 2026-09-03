@@ -11,7 +11,12 @@
  * lets the engine toggle re-price itself instantly, client-side, before a
  * second request.
  */
-import { BILLING_QUANTUM_MS, deciMinutes, formatCredits, worstCaseHoldTenths } from "@montaj/config";
+import {
+  BILLING_QUANTUM_MS,
+  deciMinutes,
+  formatCredits,
+  worstCaseHoldTenths,
+} from "@montaj/config";
 
 import type { PromptedEditEngine } from "./prompted-edits-client";
 
@@ -45,4 +50,3 @@ export function estimatePromptedEditQuote(
     reason: `ai.pass (prompted, ${engine}) · held on ${minutes.toFixed(1)} source minutes`,
   };
 }
-

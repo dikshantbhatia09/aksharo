@@ -50,10 +50,13 @@ export class PromptedEditPlanDto {
   @ApiProperty({ description: "Tenths of a credit this plan would hold at `run()`." })
   holdTenths!: number;
 
-  @ApiProperty({ description: "Presentation string, e.g. \"3.0\"." })
+  @ApiProperty({ description: 'Presentation string, e.g. "3.0".' })
   holdCredits!: string;
 
-  @ApiProperty({ required: false, description: "Tenths of a credit actually settled, once completed." })
+  @ApiProperty({
+    required: false,
+    description: "Tenths of a credit actually settled, once completed.",
+  })
   settledTenths?: number;
 
   @ApiProperty()

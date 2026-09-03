@@ -37,9 +37,7 @@ const RUN_RESPONSE = {
 
 describe("PromptedEditBox", () => {
   it("shows a client-side hold estimate before a plan exists", () => {
-    renderWithProviders(
-      <PromptedEditBox projectId={PROJECT} sourceDurationMs={90_000} />,
-    );
+    renderWithProviders(<PromptedEditBox projectId={PROJECT} sourceDurationMs={90_000} />);
     expect(screen.getByTestId("prompted-edit-preplan-estimate")).toHaveTextContent(
       /Estimated hold: [\d.]+ credits/,
     );
@@ -47,10 +45,9 @@ describe("PromptedEditBox", () => {
 
   it("plans an edit and shows the plan preview sheet with passes, rationale and credits", async () => {
     const user = userEvent.setup();
-    renderWithProviders(
-      <PromptedEditBox projectId={PROJECT} sourceDurationMs={90_000} />,
-      { routes: { [`/projects/${PROJECT}/prompted-edits`]: PLAN_RESPONSE } },
-    );
+    renderWithProviders(<PromptedEditBox projectId={PROJECT} sourceDurationMs={90_000} />, {
+      routes: { [`/projects/${PROJECT}/prompted-edits`]: PLAN_RESPONSE },
+    });
 
     await user.type(
       screen.getByTestId("prompted-edit-prompt"),
@@ -72,15 +69,12 @@ describe("PromptedEditBox", () => {
 
   it("runs the plan and shows the first pass's realtime progress affordance", async () => {
     const user = userEvent.setup();
-    renderWithProviders(
-      <PromptedEditBox projectId={PROJECT} sourceDurationMs={90_000} />,
-      {
-        routes: {
-          [`/projects/${PROJECT}/prompted-edits`]: PLAN_RESPONSE,
-          [`/projects/${PROJECT}/prompted-edits/${PLAN_RESPONSE.id}/run`]: RUN_RESPONSE,
-        },
+    renderWithProviders(<PromptedEditBox projectId={PROJECT} sourceDurationMs={90_000} />, {
+      routes: {
+        [`/projects/${PROJECT}/prompted-edits`]: PLAN_RESPONSE,
+        [`/projects/${PROJECT}/prompted-edits/${PLAN_RESPONSE.id}/run`]: RUN_RESPONSE,
       },
-    );
+    });
 
     await user.type(screen.getByTestId("prompted-edit-prompt"), "Cut the silences");
     await user.click(screen.getByTestId("prompted-edit-plan-button"));
@@ -95,19 +89,16 @@ describe("PromptedEditBox", () => {
 
   it("shows an error when planning fails", async () => {
     const user = userEvent.setup();
-    renderWithProviders(
-      <PromptedEditBox projectId={PROJECT} sourceDurationMs={90_000} />,
-      {
-        routes: {
-          [`/projects/${PROJECT}/prompted-edits`]: new Response(
-            JSON.stringify({
-              error: { code: "prompted_edit/guardrail_violation", message: "budget exceeded" },
-            }),
-            { status: 422, headers: { "content-type": "application/json" } },
-          ),
-        },
+    renderWithProviders(<PromptedEditBox projectId={PROJECT} sourceDurationMs={90_000} />, {
+      routes: {
+        [`/projects/${PROJECT}/prompted-edits`]: new Response(
+          JSON.stringify({
+            error: { code: "prompted_edit/guardrail_violation", message: "budget exceeded" },
+          }),
+          { status: 422, headers: { "content-type": "application/json" } },
+        ),
       },
-    );
+    });
 
     await user.type(screen.getByTestId("prompted-edit-prompt"), "Do everything at once");
     await user.click(screen.getByTestId("prompted-edit-plan-button"));

@@ -67,7 +67,10 @@ export class PromptedEditsService {
     const project = await this.project(input.projectId, input.workspaceId);
     const media = await this.primaryMedia(project.id);
     const transcript = await this.latestTranscript(project.id);
-    const planTier = (await resolveWorkspacePlan(this.prisma, input.workspaceId)) as EditPlanPlanTier;
+    const planTier = (await resolveWorkspacePlan(
+      this.prisma,
+      input.workspaceId,
+    )) as EditPlanPlanTier;
     const existingStyles = await this.existingStylesOf(project.id, input.workspaceId);
 
     const editPlanInput: EditPlanInput = editPlanTemplate.inputSchema.parse({
@@ -247,7 +250,10 @@ export class PromptedEditsService {
   }
 
   private async latestTranscript(projectId: string): Promise<Transcript | null> {
-    return this.prisma.transcript.findFirst({ where: { projectId }, orderBy: { createdAt: "desc" } });
+    return this.prisma.transcript.findFirst({
+      where: { projectId },
+      orderBy: { createdAt: "desc" },
+    });
   }
 
   /** One {startMs,endMs,text,speaker?} row per chunk -- same shape insights.service.ts builds. */
@@ -257,9 +263,9 @@ export class PromptedEditsService {
     const rows = await this.transcripts.allChunks(transcript.id, transcript.currentRevision);
     const segments: { startMs: number; endMs: number; text: string; speaker?: string }[] = [];
     for (const row of rows) {
-      const words = (row.words as unknown as { t: string; sp?: string; deleted?: boolean }[]).filter(
-        (word) => word.deleted !== true,
-      );
+      const words = (
+        row.words as unknown as { t: string; sp?: string; deleted?: boolean }[]
+      ).filter((word) => word.deleted !== true);
       const text = words
         .map((word) => word.t)
         .join(" ")

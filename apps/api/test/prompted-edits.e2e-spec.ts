@@ -379,11 +379,9 @@ describe.skipIf(!CAN_RUN)("prompted edits: plan -> run -> chained pass completio
       status: "succeeded",
       result: { passId: "chain-music", passType: "music", items: [] },
     };
-    await callback(
-      `/internal/jobs/${musicJobId}/complete`,
-      body,
-      musicJob.attemptId ?? "",
-    ).expect(200);
+    await callback(`/internal/jobs/${musicJobId}/complete`, body, musicJob.attemptId ?? "").expect(
+      200,
+    );
 
     const finished = await prisma.promptedEditPlan.findUniqueOrThrow({ where: { id: planId } });
     expect(finished.status).toBe("completed");

@@ -8,6 +8,53 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **D07: prompted edits — planner, Flash/Pro engines, plan preview, chained
+  passes, credits held on source minutes and settled on finished minutes.**
+  - `packages/prompts`: `edit-plan@1` template (`{passes[], style?, script?,
+rationale[]}`), per-kind param schemas, guardrails (`validateEditPlan`
+    — only known pass kinds/params, per-plan-tier pass-count budget, `pro`
+    engine tier allowlist, style must be an existing project style), 12
+    prompt fixtures (English, Hindi, Tamil, Hinglish) and a deterministic
+    mock planner wired into the shared eval runner (`pnpm --filter
+@montaj/prompts eval`: PASS 24/24).
+  - `packages/config/src/engines.ts`: Flash (VAD-only cut, 540p tracking,
+    cached picks, no ASR re-pass) / Pro (LLM re-ranked cuts, full-res
+    tracking, an ASR re-pass model) preset table; mirrored in Python at
+    `apps/worker-ai/worker_ai/passes/engines.py`.
+  - `apps/api/src/prompted-edits/**`: `POST /projects/{id}/prompted-edits`
+    (plan only — calls the planner through a `PlannerClient` port, bound to
+    a deterministic mock by default and to a real Anthropic client only
+    when `ANTHROPIC_API_KEY` is set; re-checks guardrails server-side, never
+    trusts the planner's own schema validity alone), `GET .../{planId}`,
+    `POST .../{planId}/run` (holds credits on the source duration and
+    starts the plan's dependency-ordered chain — autocut before zoom/
+    reframe before sfx/music before textfx).
+  - `apps/api/src/passes/prompted-chain.ts` (`PromptedChainAdvancer`):
+    steps a running plan from each `ai.pass` completion — reusing
+    `PassesService.start*` for every real per-kind payload (words, catalogue,
+    protected ranges, ...) rather than duplicating it — and settles the
+    plan's credit hold on the finished (post-cut) duration once the chain
+    lands; wired into `PassCompletionHandler` without a circular module
+    import (`PassesModule` never imports `PromptedEditsModule`).
+    `PassesService` gains an additive `skipCredits`/`costOverrideTenths`
+    pair on every `Start*Request` so a chain-internal pass never double-bills
+    a plan that already holds its cost, plus a public `finishedDurationMs()`.
+    `CreditHold.jobId` is a real, unique FK into `jobs`, so the plan's whole
+    macro hold rides on the chain's first job via `costOverrideTenths`
+    rather than a second `reserve()` call.
+  - `apps/web`: `PromptedEditBox` (prompt textarea, Plan button, preview
+    sheet — pass chips, rationale, style/script, credits hold estimate,
+    Flash/Pro engine toggle that re-plans, Confirm & run, first-pass
+    realtime progress) mounted on the Passes tab.
+  - Tests: planner schema/guardrail unit tests, `quotePromptedEdit` credit
+    math (hold-on-source/settle-on-finished, Flash vs Pro, never-more-
+    than-hold), `PromptedEditsService` unit tests (guardrail rejections
+    never reach the database, chain-order-not-plan-order, macro hold folded
+    into the first job only), a full API e2e chain (plan → run → autocut
+    completion → chain advance → music completion → settle → completed),
+    Python engine-preset tests, web unit tests for the prompt box/preview
+    sheet. Deviation flagged below.
+
 - **D04e-4: music bed mixing (both engines).** `manifest.timemap.audio.
 music[]` (D05's own additive field, `MusicTrackSchema`) wired into both
   mixers, on top of D04e-1/2's `sfx` cue plumbing:

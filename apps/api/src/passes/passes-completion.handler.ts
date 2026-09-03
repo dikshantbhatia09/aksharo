@@ -287,7 +287,9 @@ export class PassCompletionHandler implements JobCompletionHandler, OnModuleInit
     // retried job, so they are logged rather than thrown.
     await this.promptedChain
       .onPassCompleted(job)
-      .catch((error: unknown) => this.logger.error({ jobId: job.id, error }, "chain advance failed"));
+      .catch((error: unknown) =>
+        this.logger.error({ jobId: job.id, error }, "chain advance failed"),
+      );
 
     return outcome;
   }
