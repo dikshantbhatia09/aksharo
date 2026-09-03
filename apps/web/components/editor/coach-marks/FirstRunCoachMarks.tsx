@@ -78,16 +78,35 @@ export function FirstRunCoachMarks(): React.JSX.Element | null {
       aria-label={t(step.titleKey)}
       data-testid="coach-mark"
       data-coach-mark-step={step.target}
-      className="border-border bg-bg-1 fixed z-50 w-72 rounded-md border p-3 shadow-lg"
+      className="border-border bg-bg-1 pointer-events-none fixed z-50 w-72 rounded-md border p-3 shadow-lg"
       style={{
         top,
         ...(left === undefined ? {} : { left }),
         ...(right === undefined ? {} : { right }),
+        // Belt-and-braces alongside the `pointer-events-none` utility class:
+        // Tailwind isn't compiled in the component-test environment, so the
+        // inline style is what actually makes the click-through assertion
+        // (and any consumer without the stylesheet) meaningful.
+        pointerEvents: "none",
       }}
     >
+      {/*
+       * The callout is positioned off the target's own rect (above), which
+       * for a panel docked at the viewport edge (the "style" step) can leave
+       * no room beside it — the box then overlaps the very panel it names.
+       * Rather than chase every layout that can produce that overlap, the
+       * callout itself never blocks pointer events: only its Skip/Next
+       * controls opt back in with `pointer-events-auto`, so a click anywhere
+       * else on the box (or the panel under it) reaches whatever is really
+       * there. A real user hitting this overlap would otherwise be stuck the
+       * same way `gate-a.spec.ts`'s style-picker click was (M14).
+       */}
       <p className="text-fg-0 text-sm font-semibold">{t(step.titleKey)}</p>
       <p className="text-fg-2 mt-1 text-xs">{t(step.bodyKey)}</p>
-      <div className="mt-3 flex items-center justify-between">
+      <div
+        className="pointer-events-auto mt-3 flex items-center justify-between"
+        style={{ pointerEvents: "auto" }}
+      >
         <span className="text-fg-3 text-2xs">
           {index + 1} / {STEPS.length}
         </span>

@@ -174,23 +174,33 @@ async function installWhatsNewAutoDismiss(page: Page): Promise<void> {
 /**
  * `FirstRunCoachMarks` (B17 §1): three sequential callouts (`data-testid
  * "coach-mark"`) shown once for a fresh account reaching the editor —
- * "transcript", then "style", then "export" — each positioned directly over
- * the very panel the next step's click needs, so it intercepts pointer
- * events (Playwright's own actionability check reports "<... data-coach-mark
- * ...> intercepts pointer events") for whatever a spec clicks next. No spec
- * dismisses it today, so a fresh-signup journey that reaches the editor is
- * one coach mark away from a blocked click. `Skip` (present at every step)
- * clears all three in one action, same auto-route pattern as
- * `installWhatsNewAutoDismiss`.
+ * "transcript", then "style", then "export" — each positioned off the
+ * target panel's own `getBoundingClientRect()`. No spec dismisses it today,
+ * so a fresh-signup journey that reaches the editor is one coach mark away
+ * unless something clears it. `Skip` (present at every step) clears all
+ * three in one action, same auto-route pattern as `installWhatsNewAutoDismiss`.
+ *
+ * M14/M16: the wrapper itself no longer blocks pointer events (only its
+ * Skip/Next controls do — see `FirstRunCoachMarks.tsx`), so this is no
+ * longer a correctness fix for a real user, only a test convenience. It is
+ * still worth keeping robust: the mark's wrapper (`role="dialog"`) attaches
+ * a render before its own `useEffect` measures the target's rect, so
+ * `addLocatorHandler` can see the wrapper before the Skip button inside it
+ * is actually there. Waiting on the control itself (not just the wrapper)
+ * before clicking dismisses via the component's own control once mounted,
+ * rather than racing that render.
  */
 async function installCoachMarkAutoDismiss(page: Page): Promise<void> {
   try {
     await page.addLocatorHandler(page.getByTestId("coach-mark"), async (mark) => {
-      await mark.getByTestId("coach-mark-skip").click();
+      const skip = mark.getByTestId("coach-mark-skip");
+      await skip.waitFor({ state: "visible", timeout: 5_000 });
+      await skip.click();
     });
   } catch {
-    // The page can close before the handler is installed; nothing to dismiss
-    // on a page nobody uses.
+    // The page can close before the handler is installed, or the mark can
+    // vanish (already dismissed elsewhere) before `waitFor` resolves;
+    // nothing to dismiss on a page nobody uses.
   }
 }
 

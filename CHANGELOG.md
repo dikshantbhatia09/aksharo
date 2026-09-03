@@ -8,6 +8,123 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M16: first-run coach marks intercepted the editor's own click targets
+  (gate-a blocker after M14).** Root cause: `FirstRunCoachMarks`
+  (`apps/web/components/editor/coach-marks/FirstRunCoachMarks.tsx`) rendered
+  its floating callout as a plain positioned box with no `pointer-events`
+  handling. Each step is placed off the target's own `getBoundingClientRect()`
+  (`data-coach-mark="transcript|style|export"`, marked by
+  `editor-client.tsx`), and for a panel docked at the viewport edge — the
+  "style" step's right-hand panel has nowhere to put a 288px-wide box beside
+  it — the callout ends up sitting on top of the very panel it names, fully
+  clickable, so it swallows the click a real user (or `gate-a.spec.ts`) makes
+  on the panel underneath. M10's `installCoachMarkAutoDismiss` fixture
+  (`e2e/fixtures.ts`) papered over this for specs that reach the editor before
+  the mark renders, but M14 confirmed it still blocked the journey — the
+  fixture cannot out-race a mark whose wrapper stays fully interactive for as
+  long as it is mounted.
+  - **Fix:** the callout (`role="dialog"`, `data-testid="coach-mark"`) is now
+    `pointer-events: none` by default — a click anywhere on its body passes
+    through to whatever is really there — with `pointer-events: auto`
+    re-enabled only on the Skip/Next control row, so the mark's own buttons
+    stay clickable. Applied as both the `pointer-events-none`/
+    `pointer-events-auto` Tailwind utilities and matching inline styles (the
+    inline styles are what make the behavior testable and correct without
+    depending on the Tailwind build being present). The component already
+    unmounts entirely (`return null`) once dismissed or once every step is
+    shown, so there is no leftover overlay after dismissal — confirmed by a
+    new test that asserts no `.fixed` node remains in the DOM. No change to
+    when or how a mark is shown, its copy, or the dismiss/advance logic.
+  - **Tests:** `apps/web/components/editor/coach-marks/FirstRunCoachMarks.test.tsx`
+    (new) — a click on the target element the "style" step's callout overlaps
+    now reaches its `onClick` (regression: failed before the fix, the click
+    landed on the callout and never fired); the mark and its Skip control have
+    the right `pointerEvents`; Skip and the mark's own controls stay clickable;
+    the mark is absent once every step is already dismissed
+    (`onboarding.coachMarksShownAt` set) and unmounts with no stray fixed/
+    absolute node once dismissed interactively.
+  - **Fixture hardening:** `installCoachMarkAutoDismiss` now waits for the
+    mark's own Skip control to be visible before clicking it, rather than
+    clicking as soon as the wrapper (`data-testid="coach-mark"`) is detected —
+    the wrapper's own `role="dialog"` node can attach a render before the
+    `useEffect` that measures the target's rect has run, so the control inside
+    it was not always there yet. Kept, though with the pointer-events fix it
+    is no longer load-bearing for correctness — only a convenience so specs
+    that assert on hidden state don't have to skip the mark themselves.
+  - **`gate-a.spec.ts`:** the style-picker click this WP was opened to unblock
+    is fixed at the component level (see above); the fixture and mark's own
+    behavior are covered by the new component test. The spec's own end-to-end
+    run could not be completed on this host: `next build` for `apps/web`
+    fails deterministically (`Error: <Html> should not be imported outside of
+pages/_document`, prerendering the auto-generated `/404` page, tracing
+    through `StyleGallery.tsx` → `@montaj/render-core` → `harfbuzzjs`'s
+    top-level-await chunk) — reproduced identically from a from-scratch
+    `next build` on a pristine `main` checkout (`_worktrees/main`, HEAD
+    `92392d9`), so it is a pre-existing, host-level build defect unrelated to
+    this WP's diff (`apps/web/components/editor/coach-marks/**`,
+    `apps/web/e2e/fixtures.ts` only) and outside this WP's file boundaries to
+    fix. `pnpm typecheck`/`eslint` (which do not require a production build)
+    are clean on the changed files; the new component test is green. See the
+    final report for the full incident note on the `main`-worktree
+    reproduction attempt.
+- **M14: realtime op self-echo showed a bogus "someone else edited this
+  word" conflict right after the editor's own edit.** Root cause:
+  `EdgOpQueue.absorbRemoteOps` (`apps/web/lib/edg/queue.ts`) rebased every
+  incoming realtime `edg.ops` event against the queue's still-`pending` ops
+  with no notion of who produced it — including the client's own
+  just-submitted batch, echoed back over the socket to every room member
+  (sender included, by design; `apps/api/src/edg/edg.service.ts`'s "The
+  realtime echo" comment). That self-echo typically beats the batch's own
+  HTTP response back to the same client, so it was still `pending` when the
+  echo arrived, got rebased against itself, and `rebaseOps` reported a
+  same-word conflict whose `yours`/`theirs` were the identical text of the
+  one edit the user actually made (`gate-a.spec.ts`'s repro: the dialog pops
+  right after the first word edit and blocks the next click). `EdgOpsEvent`'s
+  `source` field (CONTRACTS §7, "so an editor can ignore its own echo") turns
+  out to be the wrong granularity for this — it names the write-path kind
+  (`web`/`desktop`/`worker`), not a per-session identity, so it cannot tell
+  one browser tab's echo from another's genuine edit. `opId`, already unique
+  per op and already carried on the wire, is the real origin tag.
+  - **Fix:** `EdgOpQueue` now tracks every `opId` this client has minted
+    (`submittedOpIds`) and `absorbRemoteOps` filters them out of an incoming
+    batch before rebasing — whether the echo arrives while the op is still
+    pending (the common race) or after it already landed (an out-of-order
+    echo, by which point it's simply gone from `pending` and the filter is a
+    no-op). `EditorStore`'s and `EdgOpQueue`'s own idempotency-by-`opId`
+    (already documented, `packages/edg/README.md` "Idempotency") were correct
+    all along — only the _queue_'s local rebase step was missing the same
+    check. As a second line of defense, `dropIdenticalConflicts` now filters
+    any conflict (server-reported or locally rebased) whose `yours` and
+    `theirs` text are identical before it reaches `onConflict` — nothing to
+    choose between, so it auto-resolves silently rather than surfacing a
+    dialog that would read as a bug even for a case this opId filter did not
+    anticipate. No API/schema change: the fix is entirely in
+    `apps/web/lib/edg/queue.ts`.
+  - **Tests:** `apps/web/lib/edg/queue.test.ts` — self-echo of a pending op
+    (no conflict, no rebase), an out-of-order echo of an already-confirmed op
+    (no-op), and identical-text auto-resolve, alongside the pre-existing
+    genuine-remote-conflict case (kept, still asserts `yours`/`theirs` differ).
+    `apps/web/lib/edg/store.test.ts` — the same self-echo scenario through
+    `EditorStore.absorbRemoteOps`, and a genuine two-session same-word
+    conflict still raising the chooser with different texts. Verified the
+    fix reverts the bug: with `queue.ts` stashed back to `main`, the new
+    self-echo test fails with `{yours: "mine", theirs: "mine"}` — the exact
+    bogus-identical-text conflict `gate-a.spec.ts` hit.
+  - **e2e:** `gate-a.spec.ts` (chromium): the word-edit step this bug used to
+    block (`chip.press("Enter")` through `editor-pending-count` reaching
+    `"0"`) now passes clean with no conflict dialog, confirmed over two full
+    runs against a freshly seeded `montaj_m14` database. The spec's full
+    run is separately blocked by two pre-existing, out-of-scope issues hit
+    while chasing it green end to end, both outside this WP's file
+    boundaries and unrelated to realtime ops: (1) `montaj_m14` had never been
+    seeded (`workspace/plans_missing`, fixed by running the worktree's own
+    `db:seed` — an environment gap, not a code defect) and (2) a
+    `data-coach-mark="style"` wrapper (`FirstRunCoachMarks`,
+    `components/editor/coach-marks/`) intercepts the style-picker click
+    later in the journey — `e2e/fixtures.ts`'s own
+    `installCoachMarkAutoDismiss` comment already documents this as a known
+    gap ("No spec dismisses it today"). Neither touches `apps/web/lib/edg/**`
+    or the realtime path this WP owns.
 - **M10: Gate B defects (Docker build, streak widget, timeline drag, audit
   completeness).**
   - Item 0 (blocking): `docker compose -f docker-compose.test.yml build render
