@@ -114,6 +114,18 @@ export class EdgOpQueue {
   private disposed = false;
   /** `true` after `edg/too_stale`, until `resumeAfterReload` — see there. */
   private stalled = false;
+  /**
+   * Every opId this client has ever minted and enqueued, kept for the life of
+   * the queue. `absorbRemoteOps` uses this to recognize a realtime `edg.ops`
+   * broadcast of this session's *own* just-submitted batch (the server
+   * broadcasts to every room member, sender included — CONTRACTS §7 does not
+   * exempt the origin) and drop it before rebasing: without this, an echo
+   * that arrives while the op is still `pending` (the common case — the
+   * websocket push typically beats the HTTP response) gets rebased against
+   * itself, and `conflictsFrom` raises a same-word conflict whose "yours" and
+   * "theirs" are the identical text of the one op the user actually made.
+   */
+  private readonly submittedOpIds = new Set<string>();
 
   constructor(options: EdgOpQueueOptions) {
     this.options = options;
@@ -136,6 +148,7 @@ export class EdgOpQueue {
   /** Queue one op, debounced. Applied optimistically by the caller before this. */
   enqueue(op: EdgOp): void {
     this.pending.push(op);
+    this.submittedOpIds.add(op.opId);
     this.scheduleFlush();
   }
 
@@ -143,6 +156,7 @@ export class EdgOpQueue {
   enqueueMany(ops: readonly EdgOp[]): void {
     if (ops.length === 0) return;
     this.pending.push(...ops);
+    for (const op of ops) this.submittedOpIds.add(op.opId);
     this.scheduleFlush();
   }
 
@@ -158,19 +172,31 @@ export class EdgOpQueue {
    * them, exactly as a 409 would, so a queue that had local edits in flight
    * when a teammate's edit arrived does not silently overwrite it on its next
    * flush.
+   *
+   * Ops this same client submitted (their `opId` is in {@link submittedOpIds})
+   * are filtered out first — an echo of this session's own batch, not a
+   * remote edit — so they are never rebased against the very pending op they
+   * are an echo of. Their `opId` is already applied or rejected by the actual
+   * batch response (`onBatchSucceeded`/`onBatchFailed`), which is what really
+   * removes them from `pending`; the echo carries no new information for this
+   * client and is dropped silently, whether it arrives before that response
+   * (the common race) or after (an out-of-order echo, by which point it is
+   * already gone from `pending` and this is a no-op either way).
    */
   absorbRemoteOps(ops: readonly EdgOp[], revision: number): void {
-    if (ops.length > 0 && this.pending.length > 0) {
+    const remote = ops.filter((op) => !this.submittedOpIds.has(op.opId));
+    if (remote.length > 0 && this.pending.length > 0) {
       const before = this.pending;
-      const { rebased, rejected } = rebaseOps(before, ops);
+      const { rebased, rejected } = rebaseOps(before, remote);
       this.pending = rebased;
       const conflictRejections = rejected.filter((entry) => entry.reason === "conflict");
       if (conflictRejections.length > 0) {
-        this.options.onConflict?.(
-          conflictsFrom(conflictRejections, before, ops),
-          [...ops],
-          revision,
+        const realConflicts = dropIdenticalConflicts(
+          conflictsFrom(conflictRejections, before, remote),
         );
+        if (realConflicts.length > 0) {
+          this.options.onConflict?.(realConflicts, [...remote], revision);
+        }
       }
       const other = rejected.filter((entry) => entry.reason !== "conflict");
       if (other.length > 0) this.options.onRejected?.(other);
@@ -278,9 +304,10 @@ export class EdgOpQueue {
       const conflictIds = new Set(serverConflicts.map((entry) => entry.opId));
       const other = rejected.filter((entry) => !conflictIds.has(entry.opId));
       if (other.length > 0) this.options.onRejected?.(other);
-      if (serverConflicts.length > 0) {
+      const realConflicts = dropIdenticalConflicts(serverConflicts);
+      if (realConflicts.length > 0) {
         this.options.onConflict?.(
-          serverConflicts,
+          realConflicts,
           error.details.opsSince,
           error.details.latestRevision,
         );
@@ -321,6 +348,19 @@ export class EdgOpQueue {
       void this.flush();
     }, delayMs);
   }
+}
+
+/**
+ * Belt-and-suspenders on top of the `submittedOpIds` self-echo filter above:
+ * a conflict whose `yours` and `theirs` text are identical carries nothing
+ * for the user to choose between (whichever they pick lands the same text),
+ * so it is dropped rather than shown — the dialog title itself would
+ * otherwise read as a bug ("someone else edited this" over two identical
+ * strings) even in a case this module did not anticipate, such as two
+ * genuinely different clients coincidentally typing the same correction.
+ */
+function dropIdenticalConflicts(conflicts: readonly TextConflict[]): TextConflict[] {
+  return conflicts.filter((conflict) => conflict.yours !== conflict.theirs);
 }
 
 /** Builds `{yours, theirs}` for a locally-rebased conflict (no 409 body to read one from). */

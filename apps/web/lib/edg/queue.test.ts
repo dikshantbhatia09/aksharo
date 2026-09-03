@@ -310,6 +310,86 @@ describe("EdgOpQueue", () => {
     queue.dispose();
   });
 
+  it("auto-resolves a conflict silently when yours and theirs happen to be identical text", async () => {
+    const clock = fakeClock();
+    const mine = editWord("0:0", "same", undefined, id);
+    const theirEdit = editWord("0:0", "same", undefined, id);
+
+    const applyBatch = vi.fn(async () => {
+      throw new EdgConflictError({
+        latestRevision: 5,
+        opsSince: [theirEdit],
+        conflicts: [
+          { opId: mine.opId, target: "word", targetId: "0:0", yours: "same", theirs: "same" },
+        ],
+      });
+    });
+
+    const onConflict = vi.fn();
+    const queue = new EdgOpQueue({
+      applyBatch,
+      baseRevision: 1,
+      setTimeoutFn: clock.setTimeoutFn,
+      clearTimeoutFn: clock.clearTimeoutFn,
+      onConflict,
+    });
+
+    queue.enqueue(mine);
+    clock.runTimers();
+    await settled(() => expect(queue.getBaseRevision()).toBe(5));
+
+    expect(onConflict).not.toHaveBeenCalled();
+
+    queue.dispose();
+  });
+
+  it("absorbRemoteOps drops an echo of this client's own pending op instead of conflicting it with itself", () => {
+    const mine = editWord("0:0", "mine", undefined, id);
+    const onConflict = vi.fn();
+    const applyBatch = vi.fn(async (body: { ops: EdgOp[] }) => accept(1)({ ops: body.ops }));
+    const queue = new EdgOpQueue({ applyBatch, baseRevision: 1, onConflict });
+
+    queue.enqueue(mine);
+    // The realtime broadcast of this exact op — same opId — beats the HTTP
+    // response back to this same client, as M10's gate-a repro found.
+    queue.absorbRemoteOps([mine], 2);
+
+    expect(onConflict).not.toHaveBeenCalled();
+    // Not a real conflict, so nothing was rebased away — the op is still
+    // pending, waiting for the real batch response to confirm it.
+    expect(queue.pendingOps()).toEqual([mine]);
+    expect(queue.getBaseRevision()).toBe(2);
+
+    queue.dispose();
+  });
+
+  it("absorbRemoteOps ignores an out-of-order echo of an already-confirmed op", async () => {
+    const mine = editWord("0:0", "mine", undefined, id);
+    const onConflict = vi.fn();
+    const applyBatch = vi.fn(async (body: { ops: EdgOp[] }) => accept(2)({ ops: body.ops }));
+    const clock = fakeClock();
+    const queue = new EdgOpQueue({
+      applyBatch,
+      baseRevision: 1,
+      onConflict,
+      setTimeoutFn: clock.setTimeoutFn,
+      clearTimeoutFn: clock.clearTimeoutFn,
+    });
+
+    queue.enqueue(mine);
+    clock.runTimers();
+    await settled(() => expect(queue.pendingOps()).toHaveLength(0));
+
+    // The echo of `mine` finally arrives after the batch already confirmed
+    // it and it left `pending` — a stale, out-of-order broadcast.
+    queue.absorbRemoteOps([mine], 2);
+
+    expect(onConflict).not.toHaveBeenCalled();
+    expect(queue.pendingOps()).toHaveLength(0);
+
+    queue.dispose();
+  });
+
   it("flushNow sends immediately, bypassing the debounce", async () => {
     const applyBatch = vi.fn(async (body: { ops: EdgOp[] }) => accept(2)({ ops: body.ops }));
     const queue = new EdgOpQueue({ applyBatch, baseRevision: 1, debounceMs: 10_000 });
