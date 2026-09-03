@@ -31,11 +31,19 @@ job payload as `catalogue[]`.
       ]
     }
 
-`rmsSamples` rides empty in this pass (B19b's proxy-frame/RMS sampling is
-wired for `zoom`/`reframe` only, `worker_ai.processors.reframe_zoom_pass`);
-`detect_energy_cues` simply sees no signal, so only the word/text-derived
-cue kinds (`emphasis`, `question`, `silence_gap`) fire — an explicit, reported
-narrowing of `sfx.py`'s documented four-signal pipeline, not a silent one.
+`rmsSamples` rides empty from the producer (`passes.service.ts`'s
+`startSfx`), same as `zoom`/`reframe`'s payload before B19b sampled the
+proxy themselves. D04d closes that gap for `sfx` too: when the payload
+carries no `rmsSamples`, this processor downloads the 540p proxy (via the
+shared `worker_ai.processors.proxy_media.download_proxy`, factored out of
+`reframe_zoom_pass.py`) and samples audio energy at 10 Hz with
+`worker_ai.passes.frame_sampling.sample_rms` — the same helper B19b's
+zoom/reframe passes use, so an energy cue fires on identical RMS windows
+regardless of which pass asked for them. Frames are not decoded here: `sfx`
+has no need of scene cuts or subject tracking, so the (comparatively
+expensive) `sample_frames` call `reframe_zoom_pass.py` also makes is skipped.
+A payload that already carries a non-empty `rmsSamples` (a unit test's own
+fixture) is honoured as-is and no download happens.
 
 ### Duck default
 
@@ -52,12 +60,33 @@ from typing import Any
 
 from worker_ai.audio_embed import StubEmbedder
 from worker_ai.callbacks import JobUsage
+from worker_ai.passes.frame_sampling import sample_rms
 from worker_ai.passes.sfx import CatalogueAsset, Cue, SfxItem, build_sfx_items, detect_cues
 from worker_ai.processors.context import JobContext, JobFailureError, ProcessorOutcome
+from worker_ai.processors.proxy_media import download_proxy
 
 __all__ = ["process_sfx"]
 
 _DEFAULT_DUCK = {"depthDb": -12, "attackMs": 150, "releaseMs": 150}
+
+
+def _needs_rms_sampling(payload: dict[str, Any]) -> bool:
+    """True when the producer sent no (or an empty) `rmsSamples` — mirrors
+    `reframe_zoom_pass._payload_needs_sampling`'s treatment of an empty list
+    as "not sampled yet", not as "the audio is silent"."""
+    raw = payload.get("rmsSamples")
+    return not (isinstance(raw, list) and len(raw) > 0)
+
+
+def _read_rms_samples(payload: dict[str, Any]) -> list[tuple[int, float]]:
+    raw = payload.get("rmsSamples")
+    if not isinstance(raw, list):
+        return []
+    samples: list[tuple[int, float]] = []
+    for item in raw:
+        if isinstance(item, list) and len(item) == 2:
+            samples.append((_int(item[0], default=0), float(item[1])))
+    return samples
 
 
 def _int(value: Any, *, default: int) -> int:
@@ -174,9 +203,17 @@ async def process_sfx(context: JobContext) -> ProcessorOutcome:
     protected_ranges = _read_ranges(payload.get("protectedRanges"))
     catalogue, pack_by_asset = _read_catalogue(payload)
 
+    rms_by_ms: list[tuple[int, float]]
+    if _needs_rms_sampling(payload):
+        await context.progress(5, message="sampling audio energy from the proxy")
+        destination = await download_proxy(context)
+        rms_by_ms = sample_rms(destination, duration_ms)
+    else:
+        rms_by_ms = _read_rms_samples(payload)
+
     await context.progress(10, message="detecting sfx cues")
     cues: list[Cue] = detect_cues(
-        rms_by_ms=[],
+        rms_by_ms=rms_by_ms,
         emphasis_words=emphasis_words,
         sentences=sentences,
         speech_ranges=speech_ranges,

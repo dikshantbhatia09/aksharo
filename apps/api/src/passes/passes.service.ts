@@ -391,14 +391,13 @@ export class PassesService {
    * than the worker querying Postgres itself (`audio-assets/README.md`'s "What
    * is NOT here" list, now built).
    *
-   * `rmsSamples` rides empty on purpose: real audio-energy cues need a
-   * decoded proxy, and B19b's proxy-sampling infrastructure is `zoom`/
-   * `reframe`-specific (`worker_ai.processors.reframe_zoom_pass`); wiring the
-   * same sampling into the sfx pass was out of reach in this pass, so the
-   * worker's `detect_energy_cues` simply sees no signal and contributes no
-   * cues — `emphasis`/`question`/`silence_gap` cues (word- and text-derived,
-   * no audio decode needed) still fire. Flagged in the final report rather
-   * than silently narrowing `sfx.py`'s documented four-signal pipeline.
+   * `rmsSamples` still rides empty here, same as `zoom`/`reframe`'s payload
+   * (`startZoom`/`startReframe` above) — the worker, not this producer,
+   * downloads and decodes the proxy when it sees an empty array
+   * (`worker_ai.processors.sfx_pass._needs_rms_sampling`, D04d, generalised
+   * from B19b's `reframe_zoom_pass._payload_needs_sampling` via the shared
+   * `worker_ai.processors.proxy_media.download_proxy` helper). So energy
+   * cues do fire now, on the same 10 Hz RMS windows `zoom`/`reframe` use.
    */
   async startSfx(request: StartSfxRequest): Promise<StartSfxAccepted> {
     const project = await this.project(request.projectId, request.workspaceId);

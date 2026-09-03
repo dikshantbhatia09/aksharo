@@ -1256,3 +1256,12 @@ export interface ConfirmDiagnosticsBundleRequest {
 export interface ConfirmDiagnosticsBundleResponse {
   bundleKey: string;
 }
+
+/** `GET /audio-assets/{assetId}/url` (D04d) — a ten-minute signed URL onto
+ * one pack asset's bytes, re-checked against the licence predicate at
+ * signing time (`apps/api/src/audio-assets/audio-assets.dto.ts`). */
+export interface PackAssetUrl {
+  assetId: string;
+  url: string;
+  expiresAt: string;
+}
