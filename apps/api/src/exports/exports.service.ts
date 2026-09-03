@@ -32,6 +32,7 @@ import {
 } from "../common/storage/index.js";
 import { EdgRepository } from "../edg/index.js";
 import { JobsService } from "../jobs/jobs.service.js";
+import { resolveKeyframeTracks } from "../passes/keyframe-tracks.js";
 import { EXPORT_COMPLETED_EVENT } from "../referrals/export-completed.event.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
@@ -226,6 +227,11 @@ export class ExportsService {
 
     const audioClean = await this.resolveAudioClean(edg.audio, project.id);
 
+    // B20b: accepted zoom/reframe items' packed curves — inline or fetched
+    // from derived storage by `keyframesRef` — resolved into the manifest's
+    // `timemap.keyframes` tracks (CONTRACTS §2's keyframe payload rule).
+    const keyframeTracks = await resolveKeyframeTracks(allItems, this.store);
+
     const { manifest: unsigned } = buildRenderManifest({
       workspaceId: input.workspaceId,
       projectId: input.projectId,
@@ -249,6 +255,7 @@ export class ExportsService {
         ...(media.fps === null || media.fps === undefined ? {} : { fps: media.fps }),
       },
       timemapEdits: [...timeMap.edits],
+      ...(keyframeTracks.length === 0 ? {} : { keyframeTracks }),
       outputDurationMs,
       decision,
       kind: input.kind,

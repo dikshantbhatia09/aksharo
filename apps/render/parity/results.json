@@ -1,5 +1,26 @@
 {
-  "generatedAt": "2026-09-02T22:05:57.986Z",
+  "generatedAt": "2026-09-03T01:53:44.834Z",
+  "maxDiffPxTolerance": 1.05,
+  "sourceWidth": 1080,
+  "sourceHeight": 1920,
+  "edits": {
+    "cut-plus-zoom": {
+      "fixtureId": "cut-plus-zoom",
+      "label": "A cut plus a zoom-in",
+      "samples": 6,
+      "maxDiffPx": 1.1368683772161603e-13,
+      "pass": true,
+      "measuredAt": "2026-09-03T01:53:44.834Z"
+    },
+    "cut-plus-reframe": {
+      "fixtureId": "cut-plus-reframe",
+      "label": "A cut plus a reframe sweep",
+      "samples": 8,
+      "maxDiffPx": 5.684341886080802e-14,
+      "pass": true,
+      "measuredAt": "2026-09-03T01:53:44.834Z"
+    }
+  },
   "audio": {
     "description": "Browser-export vs cloud-render audio-track hash comparison for audio.strategy: \"replace\" (B10b).",
     "strategy": "replace",

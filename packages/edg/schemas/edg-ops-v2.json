@@ -53,6 +53,9 @@
           "$ref": "#/$defs/DecideItems"
         },
         {
+          "$ref": "#/$defs/EditPassItem"
+        },
+        {
           "$ref": "#/$defs/MergePass"
         },
         {
@@ -584,6 +587,36 @@
       "type": "string",
       "enum": ["proposed", "accepted", "rejected", "modified"],
       "title": "ItemState"
+    },
+    "EditPassItem": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "EditPassItem"
+        },
+        "itemId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "startMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "endMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        }
+      },
+      "required": ["opId", "type", "itemId", "startMs", "endMs"],
+      "additionalProperties": false,
+      "title": "EditPassItem"
     },
     "MergePass": {
       "type": "object",

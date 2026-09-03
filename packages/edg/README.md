@@ -211,6 +211,15 @@ Op semantics worth knowing, because CONTRACTS §2 fixes the shape but not the me
   idempotent by `passId`.
 - **EditWord** with `script: "translated"` is `invalid`: `Word.scripts` has only
   `roman`/`native`/`en` slots (CONTRACTS §2).
+- **EditPassItem** (B20b, added after B20's timeline lanes) adjusts a
+  `proposed`/`accepted` cut/zoom/reframe item's bounds — `stale` once the
+  item is `rejected`, `invalid` for any other kind or state. The new range
+  is clamped to `[0, durationMs]` of the primary media and to the nearest
+  neighbouring **accepted** item of the same kind on either side (a
+  `proposed` item may still overlap another proposal freely). An inline
+  `payload.keyframes` curve is re-timed linearly onto the new duration
+  (`tMs` scaled by new-over-old); a `keyframesRef` curve is left untouched
+  for the worker to re-base on the item's next pass.
 
 ### The rebase transform table
 
@@ -218,23 +227,24 @@ Op semantics worth knowing, because CONTRACTS §2 fixes the shape but not the me
 behind. It reads **only ops** — never the document — so the browser can run it too. Rules
 fire in this order:
 
-| #   | `opsSince` contains            | Incoming op                                                                           | Outcome                                                                               |
-| --- | ------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| 1   | `Resegment`                    | any segment-addressed op                                                              | `stale-after-resegment`                                                               |
-| 1   | `Resegment`                    | word- or document-level op                                                            | kept                                                                                  |
-| 2   | `DeleteWord{w}`                | any op naming `w`, including `SetWordTiming{w}`                                       | `stale`                                                                               |
-| 3   | `EditWord{w}`                  | `EditWord{w}`                                                                         | `conflict` (409 carries both texts)                                                   |
-| 3   | `EditWord{w}`                  | `EditWord{other}`                                                                     | kept                                                                                  |
-| 4   | `MergeSegments{[A,B] -> AB}`   | `SetEmphasis`, `SetSegmentPosition`, `HideSegment`, `SetStyle`, `SplitSegment` on `A` | remapped to `AB` (chained merges are followed to the end)                             |
-| 4   | `MergeSegments{[A,B] -> AB}`   | `SetSegmentText`, `SetSegmentBounds` on `A`                                           | `stale` — the merged line is a different line                                         |
-| 4   | `MergeSegments{[A,B] -> AB}`   | `MergeSegments{[A,B]}`                                                                | `rebased-away` (nothing left to join)                                                 |
-| 4   | `SplitSegment{A -> A,C}`       | `MergeSegments{[A, ...]}`                                                             | list grows to `[A, C, ...]`, so the ids are neighbours again                          |
-| 5   | `SetSegmentText{s, script}`    | `SetSegmentText{s, script}`                                                           | `conflict` — caption text is never dropped silently                                   |
-| 5   | any write to `(target, field)` | a write to the **same** field                                                         | `rebased-away` (last writer wins: the applied revision is later) — except text, above |
-| 5   | any write to `(target, field)` | a write to another field, script, word or segment                                     | kept                                                                                  |
-| 5   | `DecideItems`                  | `DecideItems` overlapping it                                                          | narrowed to the undecided items; `rebased-away` when none are left                    |
-| 5   | `SetAudio`                     | `SetAudio` overlapping it                                                             | narrowed to the half nobody set; `rebased-away` when both are set                     |
-| 6   | anything                       | an op still naming a dead id                                                          | `stale` — a rebased batch can never resurrect an id                                   |
+| #   | `opsSince` contains                          | Incoming op                                                                           | Outcome                                                                               |
+| --- | -------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 1   | `Resegment`                                  | any segment-addressed op                                                              | `stale-after-resegment`                                                               |
+| 1   | `Resegment`                                  | word- or document-level op                                                            | kept                                                                                  |
+| 2   | `DeleteWord{w}`                              | any op naming `w`, including `SetWordTiming{w}`                                       | `stale`                                                                               |
+| 3   | `EditWord{w}`                                | `EditWord{w}`                                                                         | `conflict` (409 carries both texts)                                                   |
+| 3   | `EditWord{w}`                                | `EditWord{other}`                                                                     | kept                                                                                  |
+| 4   | `MergeSegments{[A,B] -> AB}`                 | `SetEmphasis`, `SetSegmentPosition`, `HideSegment`, `SetStyle`, `SplitSegment` on `A` | remapped to `AB` (chained merges are followed to the end)                             |
+| 4   | `MergeSegments{[A,B] -> AB}`                 | `SetSegmentText`, `SetSegmentBounds` on `A`                                           | `stale` — the merged line is a different line                                         |
+| 4   | `MergeSegments{[A,B] -> AB}`                 | `MergeSegments{[A,B]}`                                                                | `rebased-away` (nothing left to join)                                                 |
+| 4   | `SplitSegment{A -> A,C}`                     | `MergeSegments{[A, ...]}`                                                             | list grows to `[A, C, ...]`, so the ids are neighbours again                          |
+| 5   | `SetSegmentText{s, script}`                  | `SetSegmentText{s, script}`                                                           | `conflict` — caption text is never dropped silently                                   |
+| 5   | any write to `(target, field)`               | a write to the **same** field                                                         | `rebased-away` (last writer wins: the applied revision is later) — except text, above |
+| 5   | any write to `(target, field)`               | a write to another field, script, word or segment                                     | kept                                                                                  |
+| 5   | `DecideItems`                                | `DecideItems` overlapping it                                                          | narrowed to the undecided items; `rebased-away` when none are left                    |
+| 5   | `EditPassItem{i}` or `DecideItems{[..., i]}` | `EditPassItem{i}`                                                                     | `rebased-away` — same `item:<i>` field, last write wins                               |
+| 5   | `SetAudio`                                   | `SetAudio` overlapping it                                                             | narrowed to the half nobody set; `rebased-away` when both are set                     |
+| 6   | anything                                     | an op still naming a dead id                                                          | `stale` — a rebased batch can never resurrect an id                                   |
 
 Last writer wins is for the **scalar** fields — bounds, emphasis, position, hidden, style
 and the document-level fields — where the loser is a setting the user can see and set

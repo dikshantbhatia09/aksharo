@@ -161,6 +161,9 @@ export function analyseOpsSince(opsSince: readonly EdgOp[]): Since {
       case "DecideItems":
         for (const itemId of op.itemIds) since.fields.add(itemField(itemId));
         break;
+      case "EditPassItem":
+        since.fields.add(itemField(op.itemId));
+        break;
       case "MergePass":
         since.fields.add(passField(op.pass.passId));
         break;
@@ -330,6 +333,8 @@ function writtenFields(op: EdgOp): string[] {
       return [timingField(op.wordId)];
     case "SetProtectedRanges":
       return [PROTECTED_FIELD];
+    case "EditPassItem":
+      return [itemField(op.itemId)];
     default:
       return [];
   }

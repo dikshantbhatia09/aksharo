@@ -374,6 +374,27 @@ describe("ops that lose only part of themselves", () => {
     expect(reasons(rejected)).toEqual(["rebased-away"]);
   });
 
+  it("rebases EditPassItem away once a later writer already edited the same item (last-write-wins)", () => {
+    const itemId = nextSegmentId();
+    const { rebased, rejected } = rebaseOps(
+      [op("EditPassItem", { itemId, startMs: 1_000, endMs: 2_000 })],
+      [op("EditPassItem", { itemId, startMs: 1_200, endMs: 2_400 })],
+    );
+    expect(rebased).toEqual([]);
+    expect(reasons(rejected)).toEqual(["rebased-away"]);
+  });
+
+  it("EditPassItem on one item survives a DecideItems since the base naming a different item", () => {
+    const itemId = nextSegmentId();
+    const other = nextSegmentId();
+    const incoming = [op("EditPassItem", { itemId, startMs: 1_000, endMs: 2_000 })];
+    const { rebased, rejected } = rebaseOps(incoming, [
+      op("DecideItems", { itemIds: [other], state: "accepted" }),
+    ]);
+    expect(rejected).toEqual([]);
+    expect(rebased).toEqual(incoming);
+  });
+
   it("narrows SetAudio to the half nobody has set", () => {
     const { rebased, rejected } = rebaseOps(
       [op("SetAudio", { clean: { enabled: true }, ducking: { enabled: true } })],
