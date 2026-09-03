@@ -13,7 +13,21 @@ import type { NextConfig } from "next";
  * excluded since Electron loads its own origin allowlist, not this header),
  * mixed content, and any object/base-uri injection. Tightening to nonces is
  * a follow-up (see docs/security/threat-model-audit).
+ *
+ * `connect-src`'s `https:` keyword only matches TLS origins, so it never
+ * covered a plain-`http://` API — the case for every local dev server and
+ * every Playwright run, which each work package points at its own
+ * `http://127.0.0.1:<port>`. Without the API's actual origin listed
+ * explicitly, the browser blocks the sign-up/login/etc. `fetch()` calls
+ * outright (silently — no network entry, just a CSP console error), which
+ * made every authenticated e2e spec hang at the shared sign-up helper
+ * waiting for a response that was never sent. `API_ORIGIN` is read here at
+ * server start (same env var `lib/runtime-config.ts` hands the browser), so
+ * production's `https://api...` origin is allowed alongside dev/e2e's `http`
+ * one — no wildcard scheme needed for either case.
  */
+const API_ORIGIN = process.env["API_ORIGIN"]?.trim() ?? "";
+
 const SECURITY_HEADERS = [
   {
     key: "Content-Security-Policy",
@@ -24,7 +38,7 @@ const SECURITY_HEADERS = [
       "img-src 'self' data: blob: https:",
       "media-src 'self' blob: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https: wss:",
+      ["connect-src 'self' https: wss:", API_ORIGIN].filter(Boolean).join(" "),
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "object-src 'none'",
