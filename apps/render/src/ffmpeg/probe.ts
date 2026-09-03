@@ -192,3 +192,40 @@ export async function probeMedia(
   }
   return result;
 }
+
+/**
+ * `probeMedia`, minus the "must have a video stream" requirement — for a
+ * pack asset (an `sfx` cue or `music` bed's own WAV), which is audio-only by
+ * construction. D04e's `render/pipeline.ts` uses this to learn a downloaded
+ * music bed's own duration (`audio-mix.ts`'s `MusicMixCue.assetDurationMs`),
+ * which the manifest track itself does not carry.
+ */
+export async function probeAudioAsset(
+  path: string,
+  options: { ffprobePath?: string; timeoutMs?: number } = {},
+): Promise<ProbeResult> {
+  const args = [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-print_format",
+    "json",
+    "-show_format",
+    "-show_streams",
+    path,
+  ];
+  let stdout: string;
+  try {
+    ({ stdout } = await run(options.ffprobePath ?? "ffprobe", args, {
+      timeout: options.timeoutMs ?? 60_000,
+      maxBuffer: 8 * 1024 * 1024,
+      windowsHide: true,
+    }));
+  } catch (error) {
+    throw new ProbeError(
+      "render/unprobeable",
+      `ffprobe could not read ${path}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  return parseProbeOutput(stdout);
+}

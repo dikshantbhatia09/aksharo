@@ -84,7 +84,7 @@
   },
   "sfx": {
     "generatedAt": "2026-09-03T03:19:58.442Z",
-    "maxDiffLinearTolerance": 1e-6,
+    "maxDiffLinearTolerance": 0.000001,
     "fixtures": {
       "default-duck": {
         "fixtureId": "default-duck",
@@ -109,6 +109,28 @@
         "maxDiffLinear": 0,
         "pass": true,
         "measuredAt": "2026-09-03T03:19:58.442Z"
+      }
+    }
+  },
+  "audioMix": {
+    "generatedAt": "2026-09-03T05:19:24.612Z",
+    "toleranceDb": 0.5,
+    "windowMs": 50,
+    "sampleCount": 120,
+    "maxDeviationDb": 0.04974744651159568,
+    "pass": true,
+    "cueWindowsPresent": {
+      "01JD04EPARDNG000000000000": {
+        "reference": true,
+        "cloud": true
+      },
+      "01JD04EPARWSH000000000000": {
+        "reference": true,
+        "cloud": true
+      },
+      "01JD04EPARPOP000000000000": {
+        "reference": true,
+        "cloud": true
       }
     }
   }

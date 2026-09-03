@@ -175,4 +175,6 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | D04c | SFX pass wiring (edg kinds, route, worker, card, lane, manifest) | Sonnet | merged + verified (edg 306, api 161); mix pipeline -> D04d |
 | D04d | Audio mix pipeline (browser+cloud), signed pack URLs, energy cues | Sonnet | merged a0198ca + verified (signed URLs, preview, energy cues); mixer -> D04e |
 | M09 | Maintenance: signup-sent Playwright regression (Gate B blocker) | Sonnet | merged + verified (CSP connect-src blocked http API in e2e; WhatsNewModal auto-dismiss). Open: streak widget not on /billing; export/gate-a need media+render workers in the Gate B harness |
-| D04e | Cue audio mixing into exports, browser + cloud, envelope parity (mix only) | Sonnet | running |
+| D04e | Cue audio mixing into exports, browser + cloud, envelope parity (mix only) | Sonnet | merged + verified (4 increments; parity 0.05 dB; asetnsamples duck fix) |
+| GATE-B | Gate B verification runs (see _orchestration/GATE-B-CHECKLIST.md) | Fable | run 4: 9/12 specs green; M10 owns timeline/streak/export/gate-a |
+| M10 | Maintenance: Docker image build (packages/config tsc), Gate B run-4 defects (timeline drag, streak /billing, export, gate-a) | Sonnet | briefed; launches after D07 (one-agent rule) |

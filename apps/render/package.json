@@ -19,7 +19,8 @@
     "parity": "tsx parity/run.ts",
     "parity:audio": "tsx parity/run-audio-parity.ts",
     "parity:titles": "tsx parity/run-textfx-parity.ts",
-    "parity:sfx": "tsx parity/run-sfx-parity.ts"
+    "parity:sfx": "tsx parity/run-sfx-parity.ts",
+    "parity:audio-mix": "tsx parity/run-audio-mix-parity.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1124.0",

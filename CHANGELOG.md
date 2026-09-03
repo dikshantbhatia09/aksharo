@@ -8,6 +8,124 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **D04e-4: music bed mixing (both engines).** `manifest.timemap.audio.
+music[]` (D05's own additive field, `MusicTrackSchema`) wired into both
+  mixers, on top of D04e-1/2's `sfx` cue plumbing:
+  - `apps/render/src/ffmpeg/audio-mix.ts`: `buildMusicFilters` gains D05's
+    own fixed fade pair (`MUSIC_FADE_IN_MS`=300, `MUSIC_FADE_OUT_MS`=800 —
+    `MusicTrackSchema`'s own doc comment: "fade lengths are D05's own fixed
+    constants... applied at mix time"), applied at the bed's own window
+    edges the same way `buildCueFilters` fades a cue at its own edges
+    (only the piece touching the real edge, when a bed is split by a cut).
+    `apps/render/src/render/pipeline.ts` downloads every accepted `music`
+    track's `storageKey` the same way as an `sfx` cue's, probing the
+    downloaded asset (new `probe.ts#probeAudioAsset` — `probeMedia` minus
+    its "must have a video stream" requirement, since a pack asset is
+    audio-only) for `MusicMixCue.assetDurationMs` (needed to decide
+    whether/how much `loopPolicy: "loop"` loops).
+  - `apps/web/lib/export/audio-mix.ts`: `mixMusicCueIntoChunk` gains the
+    identical fixed fade pair, plus `bedDuck` (the same `duckGainAt`
+    trapezoid an `sfx` cue's `duck` uses) and `loopPolicy: "loop"`
+    wraparound via a modulo asset-index lookup. `engine.ts` gains
+    `decodeMusicCues` (mirrors `decodeSfxCues` exactly: fetch+decode once
+    per distinct `assetId`, only when the manifest carries accepted music
+    beds) and a `mixMusicCuesIntoChunk` call alongside the `sfx` one in the
+    audio-encode loop.
+  - New tests throughout: `audio-mix.test.ts` (both apps) gains fade-edge
+    and `bedDuck`/loop cases; `pipeline.test.ts` gains a full download+loop
+    end-to-end case; `engine.test.ts` gains `decodeMusicCues` cases
+    (fetch/decode/cache, the fetchCueAsset-required error, no-beds no-op).
+    Full suites green: `apps/render` 133 tests (17 in `pipeline.test.ts`
+    alone), `apps/web/lib/export` 100 tests.
+
+- **D04e-3: audio-mix envelope parity gate (`apps/render/parity`).** New
+  `parity/audio-mix-fixtures.ts` (a 6-second, three-cue fixture: a "ding"
+  with a 50ms fade in/out, a "whoosh" ducked -12dB under a speech range, a
+  plain "pop" — the WP brief's own description), `parity/audio-mix-parity.ts`
+  (50ms-window RMS-in-dBFS comparison, `computeAudioMixParity`, plus
+  `cueWindowIsPresent`), and `parity/run-audio-mix-parity.ts` (renders the
+  fixture through the _real_ cloud ffmpeg graph and decodes it back to PCM;
+  computes a reference PCM signal from the same closed-form gain/fade/duck
+  arithmetic `apps/web/lib/export/audio-mix.ts`'s `mixSfxCueIntoChunk`
+  applies, ported rather than imported — apps do not import one another —
+  the same convention D04c's SFX-duck gate's `browserDuckGainAt` already
+  follows; the base clip and cloud output both use lossless PCM, not AAC, so
+  the comparison measures the mixing math, not codec noise). Writes
+  `results.json`'s `audioMix` key, merge-preserving next to `edits`/`audio`/
+  `titles`/`sfx`. Max deviation ≈0.05 dB over 120 windows against the
+  brief's 0.5 dB tolerance; every cue window present on both sides.
+  - **A real bug found and fixed, not worked around**: the gate's first run
+    measured a ~2.8 dB deviation concentrated entirely inside the "whoosh"
+    cue's duck ramp. Cause: ffmpeg's `volume=eval=frame` filter recomputes
+    its expression once per _frame_, not per sample — at whatever frame
+    size the graph otherwise settled on, the real ramp was a coarse
+    staircase rather than the smooth trapezoid the expression (and the
+    browser's per-sample mixer) describe. Fixed in `apps/render/src/ffmpeg/
+audio-mix.ts` by forcing a 64-sample (~1.3ms) frame with `asetnsamples`
+    immediately before every duck filter (`DUCK_FRAME_SAMPLES`) — a genuine
+    improvement to the cloud render's own duck-curve fidelity, not a gate-
+    specific hack, and something D04c's symbolic (never-rendered) SFX-duck
+    parity gate could not have caught.
+
+- **D04e-2: browser sfx cue mixing (`apps/web/lib/export`).** Closes D04d's
+  first flagged deviation, browser half. `apps/web/lib/export/audio-mix.ts`
+  (module written in an earlier pass of this WP) mixes a decoded cue's
+  samples directly into whichever export audio chunk overlaps it, in place
+  — `engine.ts`'s audio path streams `AudioBuffer` chunks straight off
+  Mediabunny's `AudioSampleSink` with no Web Audio graph at all, so there is
+  no `OfflineAudioContext` to schedule an `AudioBufferSourceNode`/`GainNode`
+  pair against (the WP brief assumed one exists; documented as a deviation
+  in `audio-mix.ts`'s own doc comment rather than silently built anyway).
+  Wired into `engine.ts`: `RunExportOptions` gains `fetchCueAsset` (the
+  D04d signed-URL hook) and `decodeCueAsset` (defaults to a scratch
+  `AudioContext`'s `decodeAudioData`, injectable for tests); new
+  `decodeSfxCues` fetches+decodes each distinct `assetId` once (cached),
+  eagerly and only when the manifest actually carries accepted `sfx`
+  cues — no `fetchCueAsset` needed otherwise, same "pay for what you use"
+  shape the watermark/clean-audio paths already follow. The audio-encode
+  loop now tracks a running _output_-clock position across every chunk of
+  every retained range (distinct from `applySpliceFades`'s per-range
+  `elapsedMs`) and calls `mixSfxCuesIntoChunk` before each chunk is added
+  to the output. New tests: `decodeSfxCues` (fetch/decode/cache, the
+  fetchCueAsset-required error, no-cues no-op) in `engine.test.ts`; the
+  mixer itself (`audio-mix.test.ts`, synthetic `AudioBuffer`s, no network,
+  including a cue split across a cut via `@montaj/timemap`'s `mapRange`).
+
+- **D04e-1: cloud sfx cue mixing (`apps/render`).** Closes D04d's first
+  flagged deviation, cloud half. New `apps/render/src/ffmpeg/audio-mix.ts`:
+  `speechRangesFromWords` (duplicated from `apps/api/src/passes/
+passes.service.ts`'s helper of the same shape — apps do not import one
+  another), `buildCueFilters`/`buildMusicFilters` (one ffmpeg filter chain
+  per accepted `sfx`/`music` item: `atrim`/`asetpts` → static `volume` for
+  the item's own `gainDb` → `afade` in/out at the item's own edges (not at
+  an internal cut split) → `adelay` to the item's _output_-clock start via
+  `@montaj/timemap`'s `mapRange` — the same cuts/ripples remap B20's crop
+  keyframes and D06b's titles already get — → an `eval=frame` `volume`
+  duck expression (`sfx-duck-expr.ts`'s closed form) when the item carries
+  a `duck`/`bedDuck` curve), and `buildAudioMixPlan` (assigns each cue its
+  own extra ffmpeg input, `amix`es every cue/music label with the existing
+  dialogue bus, or with an `anullsrc` bed when there is no dialogue track
+  at all). Wired into `ffmpeg/graph.ts` (`GraphInput` gains `sfxCues`/
+  `musicCues`/`speechRanges`/`timemap`; a cue mix disables the passthrough
+  `-c:a copy` fast path, same as any other edit) and `render/pipeline.ts`
+  (downloads every accepted `sfx` track's `storageKey` from the derived
+  bucket to the job's scratch dir, derives `speechRanges` from
+  `payload.projection.words`). Unit tests on the filter strings
+  (`audio-mix.test.ts`, `graph.test.ts`'s new "D04e" block, including a cue
+  split across a cut) plus a real-ffmpeg render (`audio-mix.integration.
+test.ts`) and a full-pipeline download+mix case (`pipeline.test.ts`'s new
+  "D04e" block) proving the cue's own window rises well past the brief's
+  ≥6 dB bar (measured: baseline ≈ −180 dBFS true silence vs. mixed
+  ≈ −11.8 dBFS, a ≈168 dB delta on this fixture — the bar is met with
+  large margin because the baseline fixture is silent, not merely quiet).
+  - **Deviation from the brief's prose**: the brief describes ducking as
+    "dialogue bus `volume` driven by the duck expression"; this ducks the
+    _cue_ under speech instead, matching the already-shipped, parity-tested
+    D04a contract (`sfx-duck-expr.ts`'s own doc comment: "applied to the
+    SFX layer itself"; `apps/web/lib/export/engine.ts`'s `applySfxDucking`
+    likewise multiplies the cue buffer, never the dialogue track). Flagged
+    rather than silently reinterpreted either way.
+
 - **M09: fixed the CSP regression blocking every authenticated Playwright
   spec at the shared sign-up helper.** `next.config.ts`'s CSP `connect-src`
   (added by the X01 threat-model hardening) was `'self' https: wss:` — the
