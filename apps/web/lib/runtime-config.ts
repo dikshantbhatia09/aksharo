@@ -41,7 +41,11 @@ function optional(name: string): string | null {
 }
 
 export function readRuntimeConfig(): RuntimeConfig {
-  const mailProvider = optional("MAIL_PROVIDER") ?? "dev";
+  // Read the raw value, not the "dev" default: the API refuses to boot with
+  // AUTH_DEV_AUTO_VERIFY=1 unless MAIL_PROVIDER was set to "dev" on purpose, so
+  // inheriting the default here would let the sign-up page promise an instant
+  // account that the API never granted.
+  const mailProvider = optional("MAIL_PROVIDER");
   return {
     apiOrigin: optional("API_ORIGIN") ?? "http://localhost:3001",
     posthogKey: optional("POSTHOG_KEY"),
@@ -56,6 +60,9 @@ export function readRuntimeConfig(): RuntimeConfig {
       optional("RAZORPAY_KEY_ID") !== null &&
       optional("RAZORPAY_KEY_SECRET") !== null &&
       optional("RAZORPAY_WEBHOOK_SECRET") !== null,
-    authDevAutoVerify: mailProvider === "dev" && optional("AUTH_DEV_AUTO_VERIFY") === "1",
+    authDevAutoVerify:
+      mailProvider === "dev" &&
+      optional("NODE_ENV") !== "production" &&
+      optional("AUTH_DEV_AUTO_VERIFY") === "1",
   };
 }

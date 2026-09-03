@@ -8,6 +8,48 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M20 (review follow-up): the sign-up bypass now fails closed, and every
+  purchase surface is gated.** An adversarial review of increments 3-4 found
+  `AUTH_DEV_AUTO_VERIFY` was gated on `MAIL_PROVIDER` alone — and
+  `MAIL_PROVIDER` itself _defaults_ to `dev`, so a deployment that simply never
+  set it could run the bypass in production, where an unsafe combination was
+  silently ignored rather than refused. `crossFieldProblems` now rejects the
+  flag at boot when the transport is not `dev`, when `MAIL_PROVIDER` is merely
+  defaulting rather than explicitly chosen, or when `NODE_ENV=production`;
+  `devAutoVerifyEnabled` repeats the production term because the validated `Env`
+  is a mutable singleton, and `readRuntimeConfig` applies the same rule so the
+  web app cannot promise an instant account the API refused. Auto-verified
+  sign-ups now also emit the `auth.email.verified` audit action with
+  `reason: "dev_auto_verify"`, so one query answers how any address became
+  verified. The documented blast radius is explicit: `emailVerifiedAt` gates
+  claiming pending workspace invitations, so this is a single-developer local
+  convenience, never a staging setting. Separately, `razorpayEnabled` was
+  consulted on only two of five purchase surfaces: `TopupCard`,
+  `ExportUpsellPanel` (the ₹9 clean export and week pass, in the core export
+  journey) and `BillingUpgradeGate` — documented as the one way any locked
+  control shows a lock — all opened a checkout that cannot charge without keys.
+  All three are now gated, with tests for the no-key state of each. Corrected
+  two `docs/FREE-STACK.md` instructions that could not work as written
+  (`pnpm setup` shadows the package script; Next.js does not read the root
+  `.env`) and stated the local-Whisper accuracy trade-off plainly.
+
+- **M20 (increments 3-5): dev auto-verification and a complete no-key UI.**
+  Added strict `AUTH_DEV_AUTO_VERIFY=0|1` configuration. The opt-in is
+  honoured only with `MAIL_PROVIDER=dev`: sign-up still emits the would-be
+  verification message/link to the development outbox, marks the new account
+  verified, logs that local link and sends the web form directly to sign-in
+  guidance. SMTP and SES always retain ordinary mailbox verification. The web
+  runtime config now exposes provider-availability booleans without exposing
+  credentials: absent Google configuration removes the Google action and
+  divider; absent Razorpay configuration replaces billing purchases with an
+  admin-granted-credit explanation and never mounts checkout. The existing
+  audited, finance/superadmin-only `/admin/credits` adjustment action is reused
+  for grants. Added policy/config unit tests, real auth e2e cases for the switch
+  off/on, sign-up component tests for both completion states, and Google/billing
+  no-key component tests. Finished `docs/FREE-STACK.md` with the exact provider
+  block, local startup walkthrough, Whisper `small` trade-off and intentionally
+  unavailable vendor features.
+
 - **M20 (increment 2b): small-model output normalisation for the Ollama
   path.** `qwen2.5:3b`'s JSON replies are often _almost_ schema-valid
   rather than exactly valid. Added `apps/worker-ai/worker_ai/llm/normalize.py`

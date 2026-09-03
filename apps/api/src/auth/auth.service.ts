@@ -162,6 +162,19 @@ export class AuthService {
         { userId: created.userId, verificationLink },
         "development sign-up auto-verified; would-be verification link",
       );
+      // Same action as the real click, so one audit query answers "how did this
+      // address become verified?" for every account. `reason` tells the two apart:
+      // without it, auto-verified users look unverified to a compliance filter on
+      // `auth.email.verified` even though `emailVerifiedAt` is set.
+      await this.audit.record({
+        action: AUTH_AUDIT_ACTIONS.emailVerified,
+        resource: "user",
+        resourceId: created.userId,
+        actorId: created.userId,
+        workspaceId: created.workspaceId,
+        ...(input.ip === undefined ? {} : { ip: input.ip }),
+        data: { reason: "dev_auto_verify" },
+      });
     }
     await this.audit.record({
       action: AUTH_AUDIT_ACTIONS.signupStarted,
