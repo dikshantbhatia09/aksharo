@@ -72,18 +72,39 @@ export path unconditionally when true (D43: partner assets are
 cloud-render-only). Both are proven with property/unit tests and need no
 flag, no database, and no partner data to exercise.
 
-## What this work package did not build
+## D04b2: the HTTP surface, pass wiring, usage emission, render check, admin table, badge
 
-Out of the numbered acceptance criteria this pass focused on (flag default
-off, the D43 refusal proven, no partner asset in fixtures, grant + usage
-report + expiry plumbing against the mock), the following are **not** wired
-up yet — see the work package's final report for the full reasoning:
+D04b built the interface, grant lifecycle and refusal proofs; nothing
+exposed or used them. D04b2 closed that gap:
 
-- An HTTP surface (`POST /partner-catalogue/search` etc.) — no controller.
-- Retrieval integration into `passes.service.ts`'s `sfxCatalogueOf`/
-  `musicCatalogueOf` (outside this work package's file boundary).
-- The B13 admin grants/usage table and the Passes-tab D43 badge (`apps/web`).
-- `apps/render`'s grant fetch at render time.
-- The real `export.completed` → `reportUsage` emission (the retry task in
-  `../scheduler/tasks/partner-usage-report-retry.task.ts` exists and is
-  tested, but nothing calls it yet because nothing emits the initial report).
+- **HTTP surface** (`partner-catalogue.controller.ts`): `GET
+/partner-catalogue/search`, `POST /partner-catalogue/grants`, `DELETE
+/partner-catalogue/grants/{grantId}` — workspace-member-gated,
+  rate-limited, 404 (not 403) while the flag is off, audit-logged on
+  create/revoke. `internal-partner-grant.controller.ts` adds the signed
+  internal sibling `POST /internal/partner-catalogue/verify-grant`,
+  `apps/render`'s pre-download check.
+- **Pass wiring** (`../passes/partner-catalogue-items.ts` +
+  `passes.service.ts`): `sfxCatalogueOf`/`musicCatalogueOf` append mock
+  partner hits, mapped through a pure bridge, only while the flag is on.
+- **Usage emission** (`usage-emission.ts` + `../exports/
+render-completion.handler.ts`): `render.video` completion reports usage
+  for every not-yet-exported `AssetUsage` row carrying a
+  `clearanceGrantId`, leaving exactly the row shape
+  `PartnerUsageReportRetryTask` already sweeps on failure.
+  `apps/render/src/render/partner-grant.ts`: the render-side grant check —
+  fails closed (refuses to download) on anything but an explicit
+  `{ allowed: true }` from the internal endpoint.
+- **Admin table** (`../admin/partner-catalogue/
+admin-partner-catalogue.controller.ts` +
+  `PartnerCatalogueService.listGrants`/`adminRevoke`): works even while the
+  flag is off for a workspace, so staff can always see/revoke what it
+  holds. `apps/web/app/(admin)/admin/partner-catalogue/page.tsx` is the
+  table.
+- **Web badge** (`apps/web/components/editor/passes/ProposalCard.tsx`): a
+  "Partner — cloud render only" badge, read from
+  `payload.licenceSnapshot.partner === true`.
+
+Still not built — H-28 itself (the signed partner contract) and its real
+adapter's field-mapping, which is `epidemic-partner-catalogue.ts`'s own
+follow-up once credentials exist.

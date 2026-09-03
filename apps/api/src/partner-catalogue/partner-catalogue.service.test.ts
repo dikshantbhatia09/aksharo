@@ -22,6 +22,21 @@ function fakePrisma() {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
         return grants.get(where.id) ?? null;
       }),
+      findFirst: vi.fn(
+        async ({
+          where,
+        }: {
+          where: { workspaceId: string; partnerUserId: string; status: string };
+        }) => {
+          const rows = [...grants.values()].filter(
+            (row) =>
+              row["workspaceId"] === where.workspaceId &&
+              row["partnerUserId"] === where.partnerUserId &&
+              row["status"] === where.status,
+          );
+          return rows[rows.length - 1] ?? null;
+        },
+      ),
       update: vi.fn(
         async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
           const existing = grants.get(where.id);
@@ -141,5 +156,75 @@ describe("PartnerCatalogueService (D04b) — grant lifecycle, flag on, mock prov
     ).rejects.toMatchObject({
       code: PARTNER_CATALOGUE_ERRORS.grantNotFound,
     });
+  });
+});
+
+describe("PartnerCatalogueService.verifyActiveGrant (D04b2 scope §4 — apps/render's pre-download check)", () => {
+  it("is false while the flag is off, even with a matching active grant row", async () => {
+    const prisma = fakePrisma();
+    const enabled = new PartnerCatalogueService(
+      fakeEnv({ "assets.partnerCatalogue": true }),
+      prisma as never,
+    );
+    const { providerAssetId } = { providerAssetId: "mock-sfx-0001" };
+    await enabled.grant({ providerAssetId, workspaceId: "ws_1", useContext: "cloud_render" });
+
+    const disabled = new PartnerCatalogueService(fakeEnv({}), prisma as never);
+    await expect(
+      disabled.verifyActiveGrant({ workspaceId: "ws_1", providerAssetId }),
+    ).resolves.toBe(false);
+  });
+
+  it("is true for an active grant in the same workspace for the same asset", async () => {
+    const prisma = fakePrisma();
+    const service = new PartnerCatalogueService(
+      fakeEnv({ "assets.partnerCatalogue": true }),
+      prisma as never,
+    );
+    const providerAssetId = "mock-sfx-0001";
+    await service.grant({ providerAssetId, workspaceId: "ws_1", useContext: "cloud_render" });
+
+    await expect(service.verifyActiveGrant({ workspaceId: "ws_1", providerAssetId })).resolves.toBe(
+      true,
+    );
+  });
+
+  it("is false for a different workspace, a different asset, or no grant at all", async () => {
+    const prisma = fakePrisma();
+    const service = new PartnerCatalogueService(
+      fakeEnv({ "assets.partnerCatalogue": true }),
+      prisma as never,
+    );
+    const providerAssetId = "mock-sfx-0001";
+    await service.grant({ providerAssetId, workspaceId: "ws_1", useContext: "cloud_render" });
+
+    await expect(
+      service.verifyActiveGrant({ workspaceId: "ws_other", providerAssetId }),
+    ).resolves.toBe(false);
+    await expect(
+      service.verifyActiveGrant({ workspaceId: "ws_1", providerAssetId: "mock-music-0001" }),
+    ).resolves.toBe(false);
+    await expect(
+      service.verifyActiveGrant({ workspaceId: "ws_1", providerAssetId: "no-such-asset" }),
+    ).resolves.toBe(false);
+  });
+
+  it("is false once the grant has been revoked", async () => {
+    const prisma = fakePrisma();
+    const service = new PartnerCatalogueService(
+      fakeEnv({ "assets.partnerCatalogue": true }),
+      prisma as never,
+    );
+    const providerAssetId = "mock-sfx-0001";
+    const { grantId } = await service.grant({
+      providerAssetId,
+      workspaceId: "ws_1",
+      useContext: "cloud_render",
+    });
+    await service.revoke(grantId);
+
+    await expect(service.verifyActiveGrant({ workspaceId: "ws_1", providerAssetId })).resolves.toBe(
+      false,
+    );
   });
 });

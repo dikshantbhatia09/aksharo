@@ -226,6 +226,37 @@ export class CallbackClient {
     return this.#post(`/internal/jobs/${jobId}/complete`, attemptId, encodeCompletion(completion));
   }
 
+  /**
+   * `POST /internal/partner-catalogue/verify-grant` (D04b2 scope §4). Fails
+   * closed on anything but an explicit `{ allowed: true }` reply — a
+   * transport error, a non-2xx status, or an unparseable body all refuse,
+   * exactly like an explicit denial. No retry: a licence check that is slow
+   * to answer should not hold a render queue hostage, and the caller
+   * (`partner-grant.ts`) is what turns "not allowed" into an abandoned job,
+   * not a silently permissive default.
+   */
+  async verifyPartnerGrant(
+    attemptId: string,
+    input: { readonly workspaceId: string; readonly providerAssetId: string },
+  ): Promise<boolean> {
+    const body = JSON.stringify(input);
+    const url = `${this.#origin}/internal/partner-catalogue/verify-grant`;
+    const headers = signatureHeaders({ secret: this.#secret, attemptId, body });
+    try {
+      const response = await this.#fetch(url, { method: "POST", body, headers });
+      if (response.status >= 400) return false;
+      const text = await response.text();
+      const parsed: unknown = text === "" ? {} : JSON.parse(text);
+      return (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        (parsed as Record<string, unknown>)["allowed"] === true
+      );
+    } catch {
+      return false;
+    }
+  }
+
   async #post(
     path: string,
     attemptId: string,

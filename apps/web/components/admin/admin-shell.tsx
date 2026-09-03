@@ -20,6 +20,7 @@ const NAV = [
   { href: "/admin/share-reports", label: "Share reports" },
   { href: "/admin/jobs", label: "Jobs" },
   { href: "/admin/support", label: "Support" },
+  { href: "/admin/partner-catalogue", label: "Partner catalogue" },
 ] as const;
 
 /**

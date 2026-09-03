@@ -32,6 +32,7 @@ import {
   type FrameSource,
   type FrameStats,
 } from "./frames.js";
+import { assertPartnerGrantForTrack, type VerifyPartnerGrant } from "./partner-grant.js";
 import { createRasterPool, defaultPoolSize, type RasterPool } from "./pool.js";
 import { buildRenderTimeMap, parseStyleCatalogue, toEdgProjection } from "./projection.js";
 import { watermarkCommandFor } from "./watermark.js";
@@ -74,6 +75,13 @@ export interface RenderDependencies {
   readonly signal?: AbortSignal;
   /** Overrides the rasteriser worker entry point; a test points it elsewhere. */
   readonly workerPath?: string | undefined;
+  /**
+   * D04b2 scope §4: verifies a partner-catalogue grant before a partner
+   * asset's pack object is downloaded. Undefined behaves exactly like a
+   * verification that always returns `false` (fail closed) — see
+   * `partner-grant.ts`'s `assertPartnerGrantForTrack`.
+   */
+  readonly verifyPartnerGrant?: VerifyPartnerGrant;
 }
 
 export interface RenderOutcome {
@@ -140,6 +148,7 @@ export async function renderVideo(
     const sfxTracks = manifest.timemap.audio?.sfx ?? [];
     const sfxCues: SfxMixCue[] = [];
     for (const track of sfxTracks) {
+      await assertPartnerGrantForTrack(track, workspaceId, dependencies.verifyPartnerGrant);
       const localPath = join(scratch, `sfx-${track.itemId}${extensionOf(track.storageKey)}`);
       await dependencies.derivedStore.download(track.storageKey, localPath);
       sfxCues.push({
@@ -162,6 +171,7 @@ export async function renderVideo(
     const musicTracks = manifest.timemap.audio?.music ?? [];
     const musicCues: MusicMixCue[] = [];
     for (const track of musicTracks) {
+      await assertPartnerGrantForTrack(track, workspaceId, dependencies.verifyPartnerGrant);
       const localPath = join(scratch, `music-${track.itemId}${extensionOf(track.storageKey)}`);
       await dependencies.derivedStore.download(track.storageKey, localPath);
       const assetProbe = await probeAudioAsset(localPath);

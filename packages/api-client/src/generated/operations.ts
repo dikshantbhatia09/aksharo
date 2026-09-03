@@ -173,6 +173,13 @@ export const API_OPERATIONS = [
     summary: "List jobs across every workspace",
   },
   {
+    operationId: "adminListPartnerCatalogueGrants",
+    method: "GET",
+    path: "/admin/partner-catalogue/grants",
+    tags: ["admin"],
+    summary: "Every partner-catalogue grant, newest first (asset, workspace, use context, expiry, usage-report status)",
+  },
+  {
     operationId: "adminListRoutingWeights",
     method: "GET",
     path: "/admin/routing/weights",
@@ -269,6 +276,13 @@ export const API_OPERATIONS = [
     path: "/affiliate/admin/{affiliateId}/revoke-code",
     tags: ["affiliate"],
     summary: "Revoke and regenerate an affiliate's code (admin)",
+  },
+  {
+    operationId: "adminRevokePartnerCatalogueGrant",
+    method: "POST",
+    path: "/admin/partner-catalogue/grants/{id}/revoke",
+    tags: ["admin"],
+    summary: "Revoke a partner-catalogue grant (works even while the flag is off for that workspace)",
   },
   {
     operationId: "adminSearchUsers",
@@ -619,6 +633,13 @@ export const API_OPERATIONS = [
     path: "/admin/ops/incidents",
     tags: ["admin"],
     summary: "Open a status-page incident",
+  },
+  {
+    operationId: "createPartnerCatalogueGrant",
+    method: "POST",
+    path: "/partner-catalogue/grants",
+    tags: ["partner-catalogue"],
+    summary: "Create a safelisting grant for a partner asset in a use context",
   },
   {
     operationId: "createPassCheckout",
@@ -1853,6 +1874,13 @@ export const API_OPERATIONS = [
     summary: "Revoke a mandate (cancels its subscription)",
   },
   {
+    operationId: "revokePartnerCatalogueGrant",
+    method: "DELETE",
+    path: "/partner-catalogue/grants/{grantId}",
+    tags: ["partner-catalogue"],
+    summary: "Revoke a partner catalogue grant",
+  },
+  {
     operationId: "revokeShareLink",
     method: "DELETE",
     path: "/projects/{projectId}/share-links/{shareLinkId}",
@@ -1886,6 +1914,13 @@ export const API_OPERATIONS = [
     path: "/admin/scheduler/tasks/{name}/run",
     tags: ["admin"],
     summary: "Run one scheduled task now, out of band",
+  },
+  {
+    operationId: "searchPartnerCatalogue",
+    method: "GET",
+    path: "/partner-catalogue/search",
+    tags: ["partner-catalogue"],
+    summary: "Search the partner catalogue (SFX/music), 404 while assets.partnerCatalogue is off",
   },
   {
     operationId: "sendWebhookTestEvent",
