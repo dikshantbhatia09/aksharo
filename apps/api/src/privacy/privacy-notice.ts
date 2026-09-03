@@ -86,6 +86,14 @@ const PURPOSES: readonly NoticePurpose[] = [
     essential: false,
     defaultGranted: false,
   },
+  {
+    purpose: "telemetry",
+    title: "Desktop and plugin diagnostics",
+    summary:
+      "Crash reports and basic usage from the desktop app and editor plugins, so problems there can be found and fixed. Off until granted.",
+    essential: false,
+    defaultGranted: false,
+  },
 ];
 
 export const PRIVACY_NOTICE: PrivacyNotice = {

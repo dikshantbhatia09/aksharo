@@ -30,9 +30,9 @@ export interface BridgeAppConfig {
   /**
    * C12: local mirror of the `telemetry` consent, same reasoning as the
    * desktop shell's `telemetry/consent-store.ts` — off until the server row
-   * says otherwise. Not yet synced from `GET /consents` (no consent-read
-   * call exists in this process today); flagged in the WP report as a
-   * follow-up for whichever WP wires the bridge's own consent sync.
+   * says otherwise. Synced from `GET /consents` on startup and refreshed on
+   * a poll (M04, `consent-sync.ts`; `main.ts` persists whatever the server
+   * last answered here).
    */
   telemetryConsent?: boolean;
 }

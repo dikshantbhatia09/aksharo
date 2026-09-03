@@ -94,6 +94,13 @@ export const EXEMPT_FILES: ReadonlyMap<string, string> = new Map([
       "simulation hook, forbidden outside one (`common/forbidden`); nothing it " +
       "does happens in production.",
   ],
+  [
+    "evals/internal-evals.controller.ts",
+    "HMAC-signed worker-to-API callback (CONTRACTS §3, same `InternalSignatureGuard` " +
+      "as internal-jobs.controller.ts), not a user or admin action — the nightly " +
+      "eval report it ingests is durable and attributable in `EvalRun`/`EvalResult` " +
+      "themselves, which is the trail that matters here, not `audit_log`.",
+  ],
 ]);
 
 /** Recursively list every `*.controller.ts` under `srcRoot`, excluding tests. */
