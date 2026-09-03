@@ -131,7 +131,7 @@ C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machine
 | ID | Package | Deps | Status |
 |---|---|---|---|
 | D06 | Text FX pass: key phrases → titles, layout solver never overlapping captions, 6 motion presets, exports + parity | B11, B20b | merged ef2a137 + verified (render-core 510, web 904, api 52, worker 784); draw path -> D06b |
-| D04a | Owned audio pack ingestion (licence columns, CLAP, loudness) + SFX pass + ducking, on a fixture pack until A00-07 | B19b, B20b, A00-07 | done 8ecad65; merging (pass wiring -> D04c) |
+| D04a | Owned audio pack ingestion (licence columns, CLAP, loudness) + SFX pass + ducking, on a fixture pack until A00-07 | B19b, B20b, A00-07 | merged 91dcb80 + verified; wiring -> D04c |
 | C09 | Resolve Studio Workflow Integration panel over aksharo_core's loopback server | C08, C08b | done (merged + verified: panel 44 tests + resolve 94; ?token= WS bearer → C02c ticket exchange; manifest schema + install paths pending A00-04) |
 | D05 | Music pass: sections/mood/BPM, beat-aligned cuts, loops/fades, ducking; owned pack only | D04a | briefed |
 | C05b | After Effects CEP panel over a mocked AeHost; ZXP dry run | C05a, C06b, C00 | merged fc694e2 |
@@ -170,6 +170,6 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | M05 | Maintenance: hermetic free-tier daily-cap test state (cross-file Redis key interference) | Sonnet | merged (test hardening; daily-cap failure unexplained, on flake watch) || M07 | Maintenance: web build heap OOM on the shared host (docs/OpenAPI build-time memoisation, Next worker settings) | Sonnet | running |
 | M06 | Maintenance: eslint-plugin-security promotion for remaining packages | Sonnet | merged (566 findings annotated, 0 real; rules at error repo-wide) |
 | M08 | Maintenance: mount PluginActivationCue in PassesTab (+ edg strict-lint fix from B20b) | Sonnet | merged + verified |
-| M07 | see brief | Sonnet | merged (markdown infinite loop fixed in both parsers; build 117 pages) |
+| M07 | see brief | Sonnet | merged 91dcb80- + verified (full build incl. web green; web 917, render 238, api 2405/2406 with referrals-http load flake, worker 803) |
 | D06b | Text FX draw path + parity | Sonnet | running |
 | D04c | SFX pass wiring (edg kinds, route, worker, card, lane, manifest) | Sonnet | running |
