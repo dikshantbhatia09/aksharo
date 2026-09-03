@@ -66,9 +66,16 @@ export class MediaProxyCompletionHandler implements JobCompletionHandler, OnModu
     // The media is only now genuinely usable, which is the first moment
     // `POST /projects/{id}/transcribe` can succeed. Starting it here rather than
     // in the browser is what stops an upload from stalling forever with no
-    // transcript and no editing document (see `AutoTranscribeTrigger`). Only on
-    // the transition, so an at-least-once replay does not re-enqueue.
-    const transcribe = applied ? await this.autoTranscribe.maybeEnqueue(mediaId) : undefined;
+    // transcript and no editing document (see `AutoTranscribeTrigger`).
+    //
+    // Deliberately NOT gated on `applied`: worker-media patches the asset to
+    // `ready` itself over the internal media route, so by the time this
+    // completion runs the transition has usually already happened and `resolve`
+    // reports no change. Gating on it skipped the trigger on exactly the normal
+    // path. Replay safety comes from the trigger instead, which re-reads the
+    // asset, refuses a project that already has a document or transcript, and
+    // enqueues under a jobKey that dedupes.
+    const transcribe = await this.autoTranscribe.maybeEnqueue(mediaId);
     return {
       data: {
         mediaId,

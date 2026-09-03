@@ -202,3 +202,19 @@ describe("MediaProxyCompletionHandler", () => {
     expect(h.findUnique).not.toHaveBeenCalled();
   });
 });
+
+describe("first transcription", () => {
+  // Regression: this was gated on the status actually changing, but worker-media
+  // patches the asset to `ready` itself, so the completion normally sees no
+  // change — and every real upload silently skipped its own transcription.
+  it("starts it even when the worker already marked the asset ready", async () => {
+    const ready = harness("ready");
+    await ready.handler.handle(successContext());
+    expect(ready.autoTranscribe).toHaveBeenCalledWith(MEDIA);
+  });
+
+  it("starts it on the ordinary transition too", async () => {
+    await h.handler.handle(successContext());
+    expect(h.autoTranscribe).toHaveBeenCalledWith(MEDIA);
+  });
+});
