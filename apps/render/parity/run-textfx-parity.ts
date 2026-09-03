@@ -142,6 +142,7 @@ function compositeOverBlack(rgba: Uint8Array): Uint8Array {
   const out = new Uint8Array(rgba.length);
   for (let index = 0; index < rgba.length; index += 4) {
     const alpha = (rgba[index + 3] ?? 0) / 255;
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on an internal, index-bounded loop counter, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     out[index] = Math.round((rgba[index] ?? 0) * alpha);
     out[index + 1] = Math.round((rgba[index + 1] ?? 0) * alpha);
     out[index + 2] = Math.round((rgba[index + 2] ?? 0) * alpha);

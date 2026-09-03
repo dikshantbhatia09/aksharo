@@ -99,7 +99,7 @@ describe("createFrameSource with D06b title items", () => {
     expect(source.commandsAt(500)).toEqual([]);
   });
 
-  it("rasterises a title frame without throwing, end to end through the pool-free path", () => {
+  it("rasterises a title frame without throwing, end to end through the pool-free path", async () => {
     const style = loadSystemStyleMap().get("vertical-clean");
     if (style === undefined) throw new Error("fixture style missing");
     const source = createFrameSource({
@@ -111,7 +111,7 @@ describe("createFrameSource with D06b title items", () => {
       ],
       titleStyle: style,
     });
-    const bytes = source.frame(5); // frame 5 of 10fps lands mid-window
+    const bytes = await source.frame(5); // frame 5 of 10fps lands mid-window
     expect(bytes.length).toBe(320 * 480 * 4);
   });
 });

@@ -18,8 +18,6 @@
 import { type StyleDoc } from "@montaj/caption-styles";
 import { type TimeQuery } from "@montaj/timemap";
 
-import { type Layout } from "../layout/types.js";
-
 import { countUpText } from "./count.js";
 import { drawTextFxTitle } from "./draw.js";
 import { placeTitleBox, type TitleSize } from "./layout.js";
@@ -29,6 +27,7 @@ import { resolveFontOrThrow } from "../fonts/registry.js";
 import { codePointsOf } from "../fonts/shaper.js";
 import { type Shaper } from "../fonts/shaper.js";
 import { type FontRegistry } from "../fonts/types.js";
+import { type Layout } from "../layout/types.js";
 import { detectWordScript, type WordScript } from "../script.js";
 import { assertCanvas, type CanvasSize } from "../units.js";
 
@@ -125,10 +124,10 @@ function runCentredInBox(run: GlyphRun, size: TitleSize, box: Rect): GlyphRun {
   const baseline = (box[1] + box[3]) / 2 + size.height * 0.32;
   const positions: number[] = [];
   for (let index = 0; index < run.positions.length; index += 2) {
-    positions.push(
-      (run.positions[index] as number) + left,
-      (run.positions[index + 1] as number) + baseline,
-    );
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on an internal, index-bounded loop counter, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
+    const x = run.positions[index] as number;
+    const y = run.positions[index + 1] as number;
+    positions.push(x + left, y + baseline);
   }
   return { ...run, positions };
 }
