@@ -201,13 +201,23 @@ export function buildCueFilters(
   return { filters, labels };
 }
 
+/** D05's own fixed music-bed fade constants (`MusicTrackSchema`'s own doc
+ * comment: "fade lengths are D05's own fixed constants (300 ms in / 800 ms
+ * out), applied at mix time" — i.e. here, and identically in
+ * `apps/web/lib/export/audio-mix.ts`), applied at the bed's own window edges
+ * rather than a per-item fade pair like an `sfx` cue's `fadeInMs`/
+ * `fadeOutMs`. */
+export const MUSIC_FADE_IN_MS = 300;
+export const MUSIC_FADE_OUT_MS = 800;
+
 /** A music bed's filter chain: optionally looped/trimmed to the item's own
- * window, gained, and — when `bedDuck` is set — ducked under speech the same
- * way an `sfx` cue is. Simpler than `buildCueFilters`: a bed is not expected to
- * straddle a cut the way a short cue might (D05's `loopPolicy` already accounts
- * for the bed running under edited material), so this builds one piece per
- * `mapRange` result but does not special-case fades (music has none of its own
- * in `MusicPayload`).
+ * window, gained, D05's fixed 300ms/800ms fade pair at the bed's own window
+ * edges, and — when `bedDuck` is set — ducked under speech the same way an
+ * `sfx` cue is. Simpler than `buildCueFilters`: a bed is not expected to
+ * straddle a cut the way a short cue might (D05's `loopPolicy` already
+ * accounts for the bed running under edited material), so this builds one
+ * piece per `mapRange` result but only the piece touching the bed's own real
+ * edge gets that edge's fade — the same rule `buildCueFilters` uses.
  */
 export function buildMusicFilters(
   music: MusicMixCue,
@@ -247,6 +257,19 @@ export function buildMusicFilters(
 
     const gainLinear = dbToLinear(music.gainDb);
     if (gainLinear !== 1) steps.push(`volume=${gainLinear.toFixed(6)}`);
+
+    const isFirstPiece = Math.abs(assetStartMs) < 0.5;
+    const isLastPiece = Math.abs(assetEndMs - windowDurationMs) < 0.5;
+    if (isFirstPiece) {
+      steps.push(`afade=type=in:start_time=0:duration=${seconds(MUSIC_FADE_IN_MS)}`);
+    }
+    if (isLastPiece) {
+      const pieceDurationMs = assetEndMs - assetStartMs;
+      const fadeOutStartMs = Math.max(0, pieceDurationMs - MUSIC_FADE_OUT_MS);
+      steps.push(
+        `afade=type=out:start_time=${seconds(fadeOutStartMs)}:duration=${seconds(MUSIC_FADE_OUT_MS)}`,
+      );
+    }
 
     const delayMs = Math.max(0, Math.round(piece.outputStart));
     steps.push(`adelay=${String(delayMs)}|${String(delayMs)}`);

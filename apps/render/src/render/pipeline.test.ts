@@ -503,6 +503,65 @@ describe("the refusals", () => {
   });
 });
 
+describe("D04e-4: an accepted music bed downloads, loops, and mixes end-to-end", () => {
+  it("downloads the pack asset by its storageKey, loops it to the bed's window, and the export carries it", async () => {
+    const musicKey = "packs/fixture/music-calm-fast.wav";
+    await derivedStore.seed(
+      musicKey,
+      join(
+        __dirname,
+        "..",
+        "..",
+        "..",
+        "..",
+        "fixtures",
+        "audio-pack",
+        "wav",
+        "music-calm-fast.wav",
+      ),
+    );
+
+    const payload = await samplePayload(
+      SECRET,
+      {
+        ...baseOverrides(),
+        timemap: {
+          sourceDurationMs: CLIP_SECONDS * 1000,
+          edits: [],
+          snapCutsToFrames: false,
+          audio: {
+            music: [
+              {
+                itemId: "01JD04EMFX0000000000000000",
+                startMs: 0,
+                endMs: CLIP_SECONDS * 1000,
+                assetId: "fixture-calm-fast",
+                packId: "fixture",
+                storageKey: musicKey,
+                gainDb: -10,
+                loopPolicy: "loop",
+                bedDuck: null,
+                mood: [],
+              },
+            ],
+          },
+        },
+      },
+      CLIP_SECONDS * 1000,
+    );
+
+    const before = derivedStore.written.length;
+    const outcome = await renderVideo(payload, FIXTURE_IDS.workspaceId, dependencies());
+    expect(derivedStore.written.length).toBe(before + 1);
+    expect(outcome.filterGraph).toContain("aloop=loop=-1");
+    expect(outcome.filterGraph).toContain("amix=inputs=2:normalize=0");
+
+    const probe = await ffprobe(derivedStore.pathFor(outcome.outputKey));
+    const audio = streams(probe).find((stream) => stream.codec_type === "audio");
+    expect(audio?.codec_name).toBe("aac");
+  });
+});
+
 describe("D04e: an accepted sfx cue downloads and mixes end-to-end", () => {
   it("downloads the pack asset by its storageKey and the export carries the cue", async () => {
     const cueKey = "packs/fixture/sfx-ding-01.wav";

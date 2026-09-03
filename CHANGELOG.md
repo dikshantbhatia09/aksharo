@@ -8,6 +8,36 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **D04e-4: music bed mixing (both engines).** `manifest.timemap.audio.
+music[]` (D05's own additive field, `MusicTrackSchema`) wired into both
+  mixers, on top of D04e-1/2's `sfx` cue plumbing:
+  - `apps/render/src/ffmpeg/audio-mix.ts`: `buildMusicFilters` gains D05's
+    own fixed fade pair (`MUSIC_FADE_IN_MS`=300, `MUSIC_FADE_OUT_MS`=800 —
+    `MusicTrackSchema`'s own doc comment: "fade lengths are D05's own fixed
+    constants... applied at mix time"), applied at the bed's own window
+    edges the same way `buildCueFilters` fades a cue at its own edges
+    (only the piece touching the real edge, when a bed is split by a cut).
+    `apps/render/src/render/pipeline.ts` downloads every accepted `music`
+    track's `storageKey` the same way as an `sfx` cue's, probing the
+    downloaded asset (new `probe.ts#probeAudioAsset` — `probeMedia` minus
+    its "must have a video stream" requirement, since a pack asset is
+    audio-only) for `MusicMixCue.assetDurationMs` (needed to decide
+    whether/how much `loopPolicy: "loop"` loops).
+  - `apps/web/lib/export/audio-mix.ts`: `mixMusicCueIntoChunk` gains the
+    identical fixed fade pair, plus `bedDuck` (the same `duckGainAt`
+    trapezoid an `sfx` cue's `duck` uses) and `loopPolicy: "loop"`
+    wraparound via a modulo asset-index lookup. `engine.ts` gains
+    `decodeMusicCues` (mirrors `decodeSfxCues` exactly: fetch+decode once
+    per distinct `assetId`, only when the manifest carries accepted music
+    beds) and a `mixMusicCuesIntoChunk` call alongside the `sfx` one in the
+    audio-encode loop.
+  - New tests throughout: `audio-mix.test.ts` (both apps) gains fade-edge
+    and `bedDuck`/loop cases; `pipeline.test.ts` gains a full download+loop
+    end-to-end case; `engine.test.ts` gains `decodeMusicCues` cases
+    (fetch/decode/cache, the fetchCueAsset-required error, no-beds no-op).
+    Full suites green: `apps/render` 133 tests (17 in `pipeline.test.ts`
+    alone), `apps/web/lib/export` 100 tests.
+
 - **D04e-3: audio-mix envelope parity gate (`apps/render/parity`).** New
   `parity/audio-mix-fixtures.ts` (a 6-second, three-cue fixture: a "ding"
   with a 50ms fade in/out, a "whoosh" ducked -12dB under a speech range, a

@@ -176,6 +176,28 @@ describe("buildMusicFilters", () => {
     );
     expect(filters[0]).toContain("volume=eval=frame");
   });
+
+  it("applies D05's fixed 300ms fade-in / 800ms fade-out at the bed's own window edges", () => {
+    const { filters } = buildMusicFilters(MUSIC, 0, null, []);
+    expect(filters[0]).toContain("afade=type=in:start_time=0:duration=0.300000");
+    // Window is 6000ms; fade-out starts at 6000 - 800 = 5200ms.
+    expect(filters[0]).toContain("afade=type=out:start_time=5.200000:duration=0.800000");
+  });
+
+  it("only fades the piece touching the bed's own real edge when split by a cut", () => {
+    const map = buildTimeMap({ sourceDurationMs: 10_000, edits: [cutEdit(3_000, 3_200)] });
+    const { filters, labels } = buildMusicFilters(
+      { ...MUSIC, assetDurationMs: 10_000, loopPolicy: "none" },
+      0,
+      map,
+      [],
+    );
+    expect(labels).toEqual(["music0_0", "music0_1"]);
+    expect(filters[0]).toContain("afade=type=in");
+    expect(filters[0]).not.toContain("afade=type=out");
+    expect(filters[1]).toContain("afade=type=out");
+    expect(filters[1]).not.toContain("afade=type=in");
+  });
 });
 
 describe("buildAudioMixPlan", () => {

@@ -189,6 +189,14 @@ export function mixSfxCuesIntoChunk(
   for (const cue of cues) mixSfxCueIntoChunk(chunk, chunkOutputStartMs, cue, timemap, speechRanges);
 }
 
+/** D05's own fixed music-bed fade constants (`MusicTrackSchema`'s own doc
+ * comment: "fade lengths are D05's own fixed constants (300 ms in / 800 ms
+ * out), applied at mix time" — i.e. here, and identically in
+ * `apps/render/src/ffmpeg/audio-mix.ts`), applied at the bed's own window
+ * edges rather than per item like an `sfx` cue's `fadeInMs`/`fadeOutMs`. */
+export const MUSIC_FADE_IN_MS = 300;
+export const MUSIC_FADE_OUT_MS = 800;
+
 /** A music bed's own asset-index lookup, wrapping when `loopPolicy` asks for
  * it and the asset is shorter than the bed's window. */
 function musicAssetIndex(music: MusicMixCue, assetMs: number): number {
@@ -198,8 +206,9 @@ function musicAssetIndex(music: MusicMixCue, assetMs: number): number {
 }
 
 /** Adds one music bed's samples into `chunk`, in place — the same mechanism
- * as `mixSfxCueIntoChunk`, minus fades (a `MusicPayload` has none of its own)
- * and with `loopPolicy`'s wraparound instead of a hard trim. */
+ * as `mixSfxCueIntoChunk`, with D05's fixed 300ms/800ms fade pair at the
+ * bed's own window edges instead of a per-item fade pair, and with
+ * `loopPolicy`'s wraparound instead of a hard trim. */
 export function mixMusicCueIntoChunk(
   chunk: AudioBuffer,
   chunkOutputStartMs: number,
@@ -209,6 +218,7 @@ export function mixMusicCueIntoChunk(
 ): void {
   const pieces = piecesFor(music.startMs, music.endMs, timemap);
   const gainLinear = dbToLinear(music.gainDb);
+  const windowDurationMs = music.endMs - music.startMs;
   const chunkMsPerSample = 1000 / chunk.sampleRate;
   const chunkDurationMs = chunk.length * chunkMsPerSample;
   const chunkOutputEndMs = chunkOutputStartMs + chunkDurationMs;
@@ -218,6 +228,8 @@ export function mixMusicCueIntoChunk(
     const overlapEndMs = Math.min(chunkOutputEndMs, piece.outputEnd);
     if (overlapEndMs <= overlapStartMs) continue;
     const assetPieceStartMs = piece.sourceStart - music.startMs;
+    const isFirstPiece = Math.abs(assetPieceStartMs) < 0.5;
+    const isLastPiece = Math.abs(piece.sourceEnd - music.startMs - windowDurationMs) < 0.5;
 
     for (let channel = 0; channel < chunk.numberOfChannels; channel += 1) {
       const destination = chunk.getChannelData(channel);
@@ -228,6 +240,12 @@ export function mixMusicCueIntoChunk(
         const assetMs = sampleOutputMs - piece.outputStart + assetPieceStartMs;
         const assetIndex = musicAssetIndex(music, assetMs);
         let gain = gainLinear;
+        if (isFirstPiece && assetMs < MUSIC_FADE_IN_MS) {
+          gain *= Math.max(0, assetMs / MUSIC_FADE_IN_MS);
+        }
+        if (isLastPiece && assetMs > windowDurationMs - MUSIC_FADE_OUT_MS) {
+          gain *= Math.max(0, (windowDurationMs - assetMs) / MUSIC_FADE_OUT_MS);
+        }
         if (music.bedDuck !== null) {
           gain *= duckGainAt(
             sampleOutputMs,

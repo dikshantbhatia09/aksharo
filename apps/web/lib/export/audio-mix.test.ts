@@ -186,6 +186,66 @@ describe("mixMusicCueIntoChunk", () => {
     const data = chunk.getChannelData(0);
     // One full asset length in (0.5s), the loop wraps back to index 0 (value 2).
     expect(data.at(assetSamples)).toBeCloseTo(2, 4);
-    expect(data[Math.round(0.25 * SAMPLE_RATE)]).toBeCloseTo(1, 4);
+    expect(data.at(Math.round(0.4 * SAMPLE_RATE))).toBeCloseTo(1, 4);
+  });
+
+  it("applies D05's fixed 300ms fade-in at the bed's own start", () => {
+    const chunk = fakeAudioBuffer(2 * SAMPLE_RATE, SAMPLE_RATE, 0);
+    const buffer = fakeAudioBuffer(2 * SAMPLE_RATE, SAMPLE_RATE, 1);
+    const music: MusicMixCue = {
+      itemId: "music-1",
+      startMs: 0,
+      endMs: 2_000,
+      gainDb: 0,
+      loopPolicy: "none",
+      bedDuck: null,
+      buffer,
+    };
+    mixMusicCueIntoChunk(chunk, 0, music, null, []);
+    const data = chunk.getChannelData(0);
+    // Halfway through the 300ms fade-in, gain should be ~0.5.
+    expect(data.at(Math.round(0.15 * SAMPLE_RATE))).toBeCloseTo(0.5, 1);
+    // Well past the fade-in and well before the fade-out, full gain.
+    expect(data.at(Math.round(1.0 * SAMPLE_RATE))).toBeCloseTo(1, 4);
+  });
+
+  it("applies D05's fixed 800ms fade-out at the bed's own end", () => {
+    const chunk = fakeAudioBuffer(2 * SAMPLE_RATE, SAMPLE_RATE, 0);
+    const buffer = fakeAudioBuffer(2 * SAMPLE_RATE, SAMPLE_RATE, 1);
+    const music: MusicMixCue = {
+      itemId: "music-1",
+      startMs: 0,
+      endMs: 2_000,
+      gainDb: 0,
+      loopPolicy: "none",
+      bedDuck: null,
+      buffer,
+    };
+    mixMusicCueIntoChunk(chunk, 0, music, null, []);
+    const data = chunk.getChannelData(0);
+    // Halfway through the 800ms fade-out (window ends at 2000ms, fade starts
+    // at 1200ms), gain should be ~0.5.
+    expect(data.at(Math.round(1.6 * SAMPLE_RATE))).toBeCloseTo(0.5, 1);
+    // Right at the very end, gain should be ~0.
+    expect(data.at(2 * SAMPLE_RATE - 1)).toBeCloseTo(0, 1);
+  });
+
+  it("ducks a bed under speech via bedDuck, same trapezoid as an sfx cue's duck", () => {
+    const chunk = fakeAudioBuffer(3 * SAMPLE_RATE, SAMPLE_RATE, 0);
+    const buffer = fakeAudioBuffer(3 * SAMPLE_RATE, SAMPLE_RATE, 1);
+    const music: MusicMixCue = {
+      itemId: "music-1",
+      startMs: 0,
+      endMs: 3_000,
+      gainDb: 0,
+      loopPolicy: "none",
+      bedDuck: { depthDb: -18, attackMs: 100, releaseMs: 100 },
+      buffer,
+    };
+    mixMusicCueIntoChunk(chunk, 0, music, null, [{ startMs: 0, endMs: 3_000 }]);
+    const data = chunk.getChannelData(0);
+    const duckedGain = Math.pow(10, -18 / 20);
+    // Deep inside the speech range, past both the duck ramp and the fade-in.
+    expect(data.at(Math.round(0.5 * SAMPLE_RATE))).toBeCloseTo(duckedGain, 3);
   });
 });
