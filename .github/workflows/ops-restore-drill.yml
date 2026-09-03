@@ -1,0 +1,75 @@
+name: Ops — restore drill
+
+# Weekly, plus on demand: `05-system-architecture.md` §10's "quarterly restore
+# drill" gets exercised far more often than quarterly here, because the local/CI
+# half (`scripts/ops/restore-drill.mjs`) costs nothing but CI minutes — a dump,
+# restore, migrate and seed-smoke against a scratch database, never touching a
+# real backup or cloud account. `docs/runbooks/backup-restore.md` explains the
+# split with the real, staging-RDS drill in `docs/runbooks/restore-from-pitr.md`,
+# which stays a human-run quarterly exercise.
+on:
+  schedule:
+    - cron: "0 3 * * 1" # Monday 03:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  TURBO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  restore-drill:
+    name: Restore drill (Postgres service)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: montaj
+          POSTGRES_PASSWORD: montaj
+          POSTGRES_DB: montaj_ops_drill_source
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U montaj -d montaj_ops_drill_source"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install postgresql-client (pg_dump/psql/createdb/dropdb)
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+
+      # Seeds the "source" database the drill will dump — a fresh migrate +
+      # seed, standing in for "the latest backup" the same way the runbook
+      # documents for a local run.
+      - name: Migrate and seed the source database
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://montaj:montaj@localhost:5432/montaj_ops_drill_source
+        run: |
+          pnpm exec prisma migrate deploy
+          pnpm exec tsx prisma/seed.ts
+
+      - name: Run the restore drill
+        env:
+          RESTORE_DRILL_MODE: tcp
+          RESTORE_DRILL_PG_USER: montaj
+          RESTORE_DRILL_PG_PASSWORD: montaj
+          DATABASE_URL: postgresql://montaj:montaj@localhost:5432/montaj_ops_drill_source
+        run: node scripts/ops/restore-drill.mjs

@@ -3196,6 +3196,54 @@ model SupportTicket {
   @@map("support_tickets")
 }
 
+/// X04: admin-managed public status-page incident (distinct from `BreachIncident`,
+/// which is the confidential DPDP breach record). Severity/status drive the
+/// public copy on `/status`; `component` is a free label ("api" | "worker" |
+/// "render" | "queue" | ...) matching `StatusComponent.id` in the snapshot JSON.
+enum OpsIncidentSeverity {
+  minor
+  major
+  critical
+}
+
+enum OpsIncidentStatus {
+  investigating
+  monitoring
+  resolved
+}
+
+model OpsIncident {
+  id          String              @id @db.Char(26)
+  title       String
+  body        String
+  component   String
+  severity    OpsIncidentSeverity @default(minor)
+  status      OpsIncidentStatus   @default(investigating)
+  startedAt   DateTime            @default(now()) @map("started_at") @db.Timestamptz(6)
+  resolvedAt  DateTime?           @map("resolved_at") @db.Timestamptz(6)
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, startedAt])
+  @@map("ops_incidents")
+}
+
+/// The latest published `status.json` (X04 §1). One row per publish tick; the
+/// public status endpoint reads only the newest by `publishedAt` — history is
+/// kept because it is cheap and useful for "was it degraded an hour ago", not
+/// because anything replays it. `payload` is the full public JSON body
+/// (components, overall status, open incidents) so the read path never
+/// recomputes anything the scheduler task already computed.
+model OpsStatusSnapshot {
+  id          String   @id @db.Char(26)
+  publishedAt DateTime @default(now()) @map("published_at") @db.Timestamptz(6)
+  /// Zod: `StatusSnapshotSchema`.
+  payload     Json     @db.JsonB
+
+  @@index([publishedAt])
+  @@map("ops_status_snapshots")
+}
+
 /// One eval-harness run (D08 §3/§5): a nightly or manual pass of the worker's
 /// dataset-scoring runner, reported over the signed internal callback
 /// (`POST /internal/evals/runs`, CONTRACTS §3's signing scheme) the same way a

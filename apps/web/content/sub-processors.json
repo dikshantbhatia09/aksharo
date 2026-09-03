@@ -1,0 +1,77 @@
+{
+  "version": "2026-09-02",
+  "processors": [
+    {
+      "name": "Amazon Web Services (S3, SES, EKS)",
+      "purpose": "Raw media storage, transactional and marketing email delivery, application hosting",
+      "region": "ap-south-1 (Mumbai)",
+      "dpaDate": "2026-01-15"
+    },
+    {
+      "name": "Cloudflare (R2, CDN)",
+      "purpose": "Derived media, exports and font storage; content delivery",
+      "region": "Global (object storage pinned to APAC)",
+      "dpaDate": "2026-01-15"
+    },
+    {
+      "name": "Razorpay Software Pvt. Ltd.",
+      "purpose": "Payment processing, subscription billing, UPI Autopay mandates, RazorpayX payouts",
+      "region": "India",
+      "dpaDate": "2026-01-20"
+    },
+    {
+      "name": "Sarvam AI",
+      "purpose": "Indic speech-to-text transcription and transliteration",
+      "region": "India",
+      "dpaDate": "2026-02-01"
+    },
+    {
+      "name": "AssemblyAI, Inc.",
+      "purpose": "Speech-to-text transcription (non-Indic languages, fallback provider)",
+      "region": "United States",
+      "dpaDate": "2026-02-01"
+    },
+    {
+      "name": "ElevenLabs, Inc.",
+      "purpose": "Text-to-speech voiceover generation",
+      "region": "United States / European Union",
+      "dpaDate": "2026-02-01"
+    },
+    {
+      "name": "Anthropic, PBC",
+      "purpose": "LLM-assisted editing suggestions, captioning and content passes",
+      "region": "United States",
+      "dpaDate": "2026-02-10"
+    },
+    {
+      "name": "OpenAI, L.L.C.",
+      "purpose": "LLM-assisted editing suggestions (fallback provider)",
+      "region": "United States",
+      "dpaDate": "2026-02-10"
+    },
+    {
+      "name": "Google LLC",
+      "purpose": "Google OAuth sign-in",
+      "region": "Global",
+      "dpaDate": "2026-01-10"
+    },
+    {
+      "name": "PostHog Inc.",
+      "purpose": "Product analytics (only for workspaces that grant the analytics purpose)",
+      "region": "European Union",
+      "dpaDate": "2026-02-15"
+    },
+    {
+      "name": "Sentry (Functional Software, Inc.)",
+      "purpose": "Application error monitoring",
+      "region": "United States",
+      "dpaDate": "2026-02-15"
+    },
+    {
+      "name": "GPU inference provider (serverless render/transcode capacity)",
+      "purpose": "On-demand GPU capacity for rendering and AI inference bursts",
+      "region": "Configurable per deployment (GPU_PROVIDER_URL)",
+      "dpaDate": "2026-02-20"
+    }
+  ]
+}

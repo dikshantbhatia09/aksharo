@@ -22,8 +22,14 @@ const MARKETING_PAGES = [
   { path: "/legal/aup", name: "legal aup" },
   { path: "/legal/refunds", name: "legal refunds" },
   { path: "/legal/dpa", name: "legal dpa" },
+  { path: "/legal/cookies", name: "legal cookies" },
+  { path: "/legal/sub-processors", name: "legal sub-processors" },
   { path: "/legal/grievance", name: "legal grievance" },
   { path: "/changelog", name: "changelog" },
+  // X04: the public status page is marketing-shell chrome (header/footer),
+  // same as every other page in this list, so it belongs in the same smoke
+  // pass rather than a second spec file.
+  { path: "/status", name: "status" },
 ] as const;
 
 for (const page of MARKETING_PAGES) {

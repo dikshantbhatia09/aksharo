@@ -44,6 +44,14 @@ export default function LegalIndexPage(): React.JSX.Element {
             Who to contact, and how quickly we respond, under the IT Rules.
           </p>
         </li>
+        <li className="border-border border-b pb-4">
+          <Link href="/legal/sub-processors" className="text-fg-0 font-semibold hover:underline">
+            Sub-processors
+          </Link>
+          <p className="text-fg-2 mt-1 text-sm">
+            Every third party we share personal data with, and why.
+          </p>
+        </li>
       </ul>
 
       <p className="text-fg-2 mt-10 text-xs">{ATTRIBUTION_LINE}</p>

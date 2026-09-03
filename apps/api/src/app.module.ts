@@ -33,6 +33,7 @@ import { MediaModule } from "./media/media.module.js";
 import { MemoryModule } from "./memory/memory.module.js";
 import { NotifyModule } from "./notify/notify.module.js";
 import { OffersModule } from "./offers/offers.module.js";
+import { OpsModule } from "./ops/ops.module.js";
 import { PassesModule } from "./passes/passes.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
@@ -139,6 +140,8 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // C12: consent-gated desktop/bridge telemetry events and crash reports.
     TelemetryModule,
     HealthModule,
+    // X04: `ops_incidents` + the public `status.json`/RSS surface.
+    OpsModule,
     BillingModule,
     OffersModule,
     StreakModule,

@@ -203,6 +203,44 @@ export const LEGAL_DOCS: readonly LegalDoc[] = [
           "The categories of personal data processed on a customer's behalf, the sub-processor list (with the same no-training, zero-retention contractual requirement that already applies to every routed provider), international transfer mechanism, and each party's security obligations.",
         ],
       },
+      {
+        heading: "The sub-processor list, published now",
+        body: [
+          "While the signable DPA document is pending, the sub-processor annex it will carry is already published and kept current: see the Sub-processors page (linked from Legal), the same list served live at the API's public sub-processor endpoint.",
+        ],
+      },
+    ],
+  },
+  {
+    slug: "cookies",
+    title: "Cookie Notice",
+    shortTitle: "Cookies",
+    summary: "What we store in your browser, and why.",
+    sections: [
+      {
+        heading: "Strictly necessary",
+        body: [
+          "A session cookie that keeps you signed in, and a short-lived CSRF/state cookie used only during sign-in and OAuth callbacks. These are not optional: the product cannot authenticate a request without them, so they are never covered by the analytics/marketing consent toggle in Settings.",
+        ],
+      },
+      {
+        heading: "Analytics (consent-gated)",
+        body: [
+          "PostHog's cookie is set only for a workspace that has granted the 'Product analytics' purpose in the itemised privacy notice, and is cleared the moment that consent is withdrawn. It never loads before consent is given.",
+        ],
+      },
+      {
+        heading: "Nothing else",
+        body: [
+          "No third-party advertising cookies, no cross-site tracking pixels. If that changes, this notice changes first, with a new version number the same way the privacy notice versions its purposes.",
+        ],
+      },
+      {
+        heading: "Managing cookies",
+        body: [
+          "You can clear cookies from your browser at any time; doing so simply signs you out. Analytics consent is managed from Settings → Privacy, not from a cookie banner, because it is the same per-purpose consent record the privacy notice describes (`consent_records`), not a separate mechanism.",
+        ],
+      },
     ],
   },
 ];

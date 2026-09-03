@@ -1,0 +1,40 @@
+name: Ops — DPDP records of processing
+
+# X04 §5: fails when a table the Prisma schema says holds personal data (a
+# direct relation to User or Workspace) has no entry in
+# docs/compliance/dpdp-records.manifest.json, or when docs/compliance/dpdp-records.md
+# is out of date relative to the schema + manifest.
+on:
+  push:
+    branches: ["main", "wave/**", "wp/**"]
+    paths:
+      - "apps/api/prisma/schema.prisma"
+      - "docs/compliance/dpdp-records.manifest.json"
+      - "docs/compliance/dpdp-records.md"
+      - "scripts/ops/dpdp-records-generate.mjs"
+  pull_request:
+    branches: ["main", "wave/**"]
+    paths:
+      - "apps/api/prisma/schema.prisma"
+      - "docs/compliance/dpdp-records.manifest.json"
+      - "docs/compliance/dpdp-records.md"
+      - "scripts/ops/dpdp-records-generate.mjs"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  dpdp-records:
+    name: DPDP records generator (--check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check docs/compliance/dpdp-records.md is up to date and the manifest is complete
+        run: node scripts/ops/dpdp-records-generate.mjs --check

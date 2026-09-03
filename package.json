@@ -24,7 +24,7 @@
     "test": "turbo run test",
     "release": "tsx tools/release/src/cli.ts",
     "test:e2e": "turbo run test:e2e",
-    "test:scripts": "node --test scripts/*.test.mjs",
+    "test:scripts": "node --test scripts/*.test.mjs scripts/**/*.test.mjs",
     "e2e": "pnpm --filter @montaj/web test:e2e",
     "e2e:stack": "node scripts/e2e-stack.mjs",
     "verify-wave": "node scripts/verify-wave.mjs",

@@ -1,4 +1,8 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { CHANGELOG_ENTRIES } from "@/content/site/changelog";
 import { COMPARISON_PAGES, comparisonBySlug } from "@/content/site/comparisons";
@@ -17,6 +21,7 @@ import {
 } from "@/content/site/pricing-data";
 import { OUR_OBJECTIONS, PAUSE_OBJECTIONS } from "@/content/site/pricing-faq";
 import { mergeLivePlans } from "@/content/site/pricing-live";
+import subProcessors from "@/content/sub-processors.json";
 
 /**
  * The content layer is data, not UI — Playwright proves it renders correctly
@@ -45,6 +50,7 @@ function collectStrings(value: unknown): void {
   GRIEVANCE_OFFICER,
   PRIMARY_NAV,
   FOOTER_LEGAL_NAV,
+  subProcessors,
   OUR_OBJECTIONS,
   PAUSE_OBJECTIONS,
   FALLBACK_PLAN_CATALOGUE,
@@ -246,5 +252,46 @@ describe("download-data", () => {
       "macos",
       "windows",
     ]);
+  });
+});
+
+describe("sub-processors.json (X04 §4)", () => {
+  const subProcessorSchema = z.object({
+    name: z.string().min(1),
+    purpose: z.string().min(1),
+    region: z.string().min(1),
+    dpaDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "dpaDate must be YYYY-MM-DD"),
+  });
+  const subProcessorsSchema = z.object({
+    version: z.string().min(1),
+    processors: z.array(subProcessorSchema).min(1),
+  });
+
+  it("matches the schema apps/api/src/privacy/privacy.controller.ts publishes", () => {
+    expect(() => subProcessorsSchema.parse(subProcessors)).not.toThrow();
+  });
+
+  it("has no duplicate processor names", () => {
+    const names = subProcessors.processors.map((p) => p.name);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it("stays byte-identical with apps/api/content/sub-processors.json", () => {
+    // A build-time mirror (same reasoning as `privacy-notice-mirror.ts`): `next
+    // build` must not depend on the API being up. A mirror that drifts from
+    // its source is worse than no mirror.
+    //
+    // Resolved from `process.cwd()` (this suite always runs with the cwd at
+    // `apps/web`, same as every other `pnpm --filter @montaj/web test` run)
+    // rather than `import.meta.url`: Vitest's module loader does not always
+    // hand a real `file:` URL for a test file's own `import.meta.url`, which
+    // makes a relative `new URL(..., import.meta.url)` throw here even though
+    // the equivalent works for ordinary source modules.
+    const apiCopy = readFileSync(
+      resolve(process.cwd(), "../api/content/sub-processors.json"),
+      "utf8",
+    );
+    const webCopy = readFileSync(resolve(process.cwd(), "content/sub-processors.json"), "utf8");
+    expect(webCopy).toBe(apiCopy);
   });
 });
