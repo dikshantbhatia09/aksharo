@@ -34,7 +34,9 @@ Pipeline, in order:
    guarded (emphasis/textOverrides) span are dropped; overlapping candidates are
    merged; a kept segment shorter than 350 ms is bridged into its neighbours; the
    pacing preset's removal cap is enforced by dropping the lowest-confidence
-   items first.
+   items first. Protection is re-checked after merging and again after
+   bridging, since either step can combine two candidates that individually
+   cleared a protected range into one that newly swallows it.
 
 No candidate ever splits a word: every boundary is either a word's own `s`/`e`
 or a gap between two words, so "never cut inside a word" is true by
@@ -192,7 +194,10 @@ class AutocutInput:
     padding_ms: int = PADDING_MS
     max_removal_ratio: float | None = None
     #: Ranges (ms) that must never be touched by any cut (`EdgHot.protected[]` —
-    #: see the module docstring's CONTRACTS note).
+    #: see the module docstring's CONTRACTS note). Half-open `[s, e)` with
+    #: `e > s`; `SetProtectedRanges` rejects `s >= e` as `invalid-range`
+    #: (`packages/edg/src/ops/apply.ts`), so a zero-width range never reaches
+    #: this pass from the engine.
     protected_ranges: tuple[tuple[int, int], ...] = ()
     #: Word ids that carry emphasis/textOverrides on their segment: a filler
     #: candidate naming one of these is dropped outright.
@@ -478,9 +483,7 @@ def _overlaps_any(start: int, end: int, ranges: tuple[tuple[int, int], ...]) -> 
     return any(start < range_end and range_start < end for range_start, range_end in ranges)
 
 
-def _apply_protection(
-    candidates: list[CutCandidate], input_: AutocutInput
-) -> list[CutCandidate]:
+def _apply_protection(candidates: list[CutCandidate], input_: AutocutInput) -> list[CutCandidate]:
     ranges = tuple(input_.protected_ranges) + tuple(input_.guarded_ranges)
     if not ranges and not input_.guarded_word_ids:
         return candidates
@@ -601,12 +604,23 @@ def run_autocut(input_: AutocutInput) -> AutocutResult:
     ]
     protected = _apply_protection(all_candidates, input_)
     merged = _merge_overlaps(protected)
+    # Merging two candidates that individually cleared protection (e.g. two
+    # filler runs either side of a protected range narrower than the gap
+    # between them) can produce a combined span that newly swallows a
+    # protected range neither pre-merge candidate touched. Re-checking after
+    # merge (and again after bridging, below) is what keeps "never touch a
+    # protected range" true of the *final* items, not just the pre-merge ones.
+    merged = _apply_protection(merged, input_)
     # The cap is applied to the merged (but not yet bridged) candidates, so it
     # ranks genuinely distinct proposals by confidence rather than a
     # bridging-inflated blob; bridging runs last purely to satisfy the minimum
     # kept-segment invariant among whatever the cap let through.
     capped = _apply_removal_cap(merged, input_.duration_ms, preset.max_removal_ratio)
     bridged = _bridge_short_kept_segments(capped, MIN_KEPT_SEGMENT_MS)
+    # Bridging combines two cuts across a short kept sliver, which — like
+    # merging above — can newly swallow a protected range that sat in that
+    # sliver; re-check before the final cap pass.
+    bridged = _apply_protection(bridged, input_)
     # Bridging can push the total slightly over the cap (it exists to satisfy a
     # different invariant — no sliver of kept audio under 350ms — and the two
     # can conflict on a dense fixture). A second, final cap pass is the safety

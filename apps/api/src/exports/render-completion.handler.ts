@@ -8,6 +8,8 @@ import { quote } from "@montaj/config";
 import { EXPORT_RETENTION_DAYS } from "./exports.constants.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
+import { PartnerCatalogueService } from "../partner-catalogue/partner-catalogue.service.js";
+import { reportPartnerUsageForExport } from "../partner-catalogue/usage-emission.js";
 import { EXPORT_COMPLETED_EVENT } from "../referrals/export-completed.event.js";
 
 import type {
@@ -115,6 +117,7 @@ export class RenderVideoCompletionHandler implements JobCompletionHandler, OnMod
     private readonly prisma: PrismaService,
     private readonly registry: JobCompletionRegistry,
     private readonly events: EventEmitter2,
+    private readonly partnerCatalogue: PartnerCatalogueService,
   ) {}
 
   onModuleInit(): void {
@@ -177,6 +180,15 @@ export class RenderVideoCompletionHandler implements JobCompletionHandler, OnMod
       manifest.projectId,
       manifest.exportId,
     );
+
+    // D04b2 scope §3: report usage for every partner asset used in this
+    // project's not-yet-exported placements — best-effort, retried by
+    // `PartnerUsageReportRetryTask` on failure.
+    await reportPartnerUsageForExport(this.prisma, this.partnerCatalogue, this.logger, {
+      workspaceId: manifest.workspaceId,
+      projectId: manifest.projectId,
+      exportId: manifest.exportId,
+    });
 
     this.logger.log(
       { jobId: job.id, exportId: manifest.exportId, outputKey: result.outputKey, actualTenths },

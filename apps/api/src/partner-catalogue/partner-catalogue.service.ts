@@ -177,8 +177,102 @@ export class PartnerCatalogueService {
     return { reportRef: result.reportRef, reportedAt: new Date(result.reportedAt) };
   }
 
+  /**
+   * D04b2 scope §4 — `apps/render`'s pre-download check: is there an active,
+   * unexpired grant for this partner asset in this workspace? Looked up by
+   * `partnerUserId` (the provider asset id, `grant()`'s own field) rather
+   * than `assetId`, since a partner-catalogue grant carries no local
+   * `AudioAsset` row (`schema.prisma`'s `assetId` is nullable for exactly
+   * this reason). `false` while the flag is off, exactly like every other
+   * method here — a render never sees a grant the workspace could not have
+   * created in the first place.
+   */
+  async verifyActiveGrant(input: {
+    readonly workspaceId: string;
+    readonly providerAssetId: string;
+  }): Promise<boolean> {
+    if (!this.enabled) return false;
+    const grant = await this.prisma.assetClearanceGrant.findFirst({
+      where: {
+        workspaceId: input.workspaceId,
+        partnerUserId: input.providerAssetId,
+        status: "active",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (grant === null) return false;
+    if (grant.expiresAt !== null && grant.expiresAt < new Date()) return false;
+    return true;
+  }
+
+  /**
+   * D04b2 scope §5 — the B13 admin grants table's read. Deliberately not
+   * gated by `assertEnabled()`: platform staff must be able to see (and
+   * revoke) every grant a workspace holds even after `assets.partnerCatalogue`
+   * is turned back off for that workspace, the same "admin can always see
+   * what happened" posture the rest of `admin/**` takes.
+   */
+  async listGrants(): Promise<
+    {
+      readonly id: string;
+      readonly workspaceId: string;
+      readonly providerAssetId: string | null;
+      readonly useContext: string | null;
+      readonly status: string;
+      readonly expiresAt: string | null;
+      readonly createdAt: string;
+      readonly reportStatus: "reported" | "unreported" | "no_usage";
+    }[]
+  > {
+    const grants = await this.prisma.assetClearanceGrant.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 500,
+      include: { usages: { select: { reportedAt: true } } },
+    });
+    return grants.map((grant) => ({
+      id: grant.id,
+      workspaceId: grant.workspaceId,
+      providerAssetId: grant.partnerUserId,
+      useContext: grant.useContext,
+      status: grant.status,
+      expiresAt: grant.expiresAt?.toISOString() ?? null,
+      createdAt: grant.createdAt.toISOString(),
+      reportStatus:
+        grant.usages.length === 0
+          ? "no_usage"
+          : grant.usages.every((usage) => usage.reportedAt !== null)
+            ? "reported"
+            : "unreported",
+    }));
+  }
+
   async revoke(grantId: string): Promise<void> {
     this.assertEnabled();
+    const grant = await this.prisma.assetClearanceGrant.findUnique({ where: { id: grantId } });
+    if (grant === null) {
+      throw new AppException(
+        PARTNER_CATALOGUE_ERRORS.grantNotFound,
+        `No such grant: ${grantId}.`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    if (grant.providerLicenceId !== null) {
+      await this.adapter().revoke(grant.providerLicenceId);
+    }
+    await this.prisma.assetClearanceGrant.update({
+      where: { id: grantId },
+      data: { status: "revoked", revokedAt: new Date() },
+    });
+  }
+
+  /**
+   * D04b2 scope §5 — the admin table's revoke action. Same steps as
+   * {@link revoke}, deliberately without the `assertEnabled()` gate: a
+   * platform-staff member must be able to revoke a grant a workspace holds
+   * even after the flag has been turned back off for that workspace (the
+   * same reasoning {@link listGrants} documents).
+   */
+  async adminRevoke(grantId: string): Promise<void> {
     const grant = await this.prisma.assetClearanceGrant.findUnique({ where: { id: grantId } });
     if (grant === null) {
       throw new AppException(

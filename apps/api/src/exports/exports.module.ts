@@ -15,6 +15,7 @@ import { ManifestSignerService } from "../common/crypto/manifest-signer.js";
 import { EdgModule } from "../edg/index.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { OffersModule } from "../offers/offers.module.js";
+import { PartnerCatalogueModule } from "../partner-catalogue/partner-catalogue.module.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 import { WorkspacesModule } from "../workspaces/workspaces.module.js";
 
@@ -36,7 +37,14 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
  * DI binding moved.
  */
 @Module({
-  imports: [JobsModule, EdgModule, WorkspacesModule, OffersModule, AudioAssetsModule],
+  imports: [
+    JobsModule,
+    EdgModule,
+    WorkspacesModule,
+    OffersModule,
+    AudioAssetsModule,
+    PartnerCatalogueModule,
+  ],
   controllers: [ExportsController, BrandAssetsController],
   providers: [
     ExportsService,

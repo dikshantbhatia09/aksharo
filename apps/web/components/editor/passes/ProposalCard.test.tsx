@@ -222,4 +222,39 @@ describe("<ProposalCard />", () => {
     render(<ProposalCard item={item()} onDecide={vi.fn()} onUndo={vi.fn()} />);
     expect(screen.queryByTestId("proposal-card-music")).not.toBeInTheDocument();
   });
+
+  // D04b2 scope §6: the "Partner — cloud render only" badge.
+  it("shows the partner badge for an sfx item whose licence snapshot marks it partner-sourced", () => {
+    const partnerSfx = sfxItem();
+    (partnerSfx as { payload: Record<string, unknown> }).payload["licenceSnapshot"] = {
+      provider: "epidemic",
+      partner: true,
+    };
+    render(<ProposalCard item={partnerSfx} onDecide={vi.fn()} onUndo={vi.fn()} />);
+    expect(screen.getByTestId("proposal-card-partner-badge")).toHaveTextContent(
+      "Partner — cloud render only",
+    );
+  });
+
+  it("shows the partner badge for a music item whose licence snapshot marks it partner-sourced", () => {
+    const partnerMusic = musicItem();
+    (partnerMusic as { payload: Record<string, unknown> }).payload["licenceSnapshot"] = {
+      provider: "epidemic",
+      partner: true,
+    };
+    render(<ProposalCard item={partnerMusic} onDecide={vi.fn()} onUndo={vi.fn()} />);
+    expect(screen.getByTestId("proposal-card-partner-badge")).toHaveTextContent(
+      "Partner — cloud render only",
+    );
+  });
+
+  it("omits the partner badge for an owned sfx/music item", () => {
+    render(<ProposalCard item={sfxItem()} onDecide={vi.fn()} onUndo={vi.fn()} />);
+    expect(screen.queryByTestId("proposal-card-partner-badge")).not.toBeInTheDocument();
+  });
+
+  it("omits the partner badge for a non-sfx/music item, even if licenceSnapshot leaks onto it", () => {
+    render(<ProposalCard item={item()} onDecide={vi.fn()} onUndo={vi.fn()} />);
+    expect(screen.queryByTestId("proposal-card-partner-badge")).not.toBeInTheDocument();
+  });
 });
