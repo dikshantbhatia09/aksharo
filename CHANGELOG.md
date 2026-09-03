@@ -8,6 +8,47 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **D04b: partner catalogue integration (contract-gated) — H-28 open, plumbing
+  built dark behind `assets.partnerCatalogue` (default off).**
+  - `apps/api/src/partner-catalogue/**`: the `PartnerCatalogue` interface
+    (`search`/`stream`/`grant`/`reportUsage`/`revoke`), `MockPartnerCatalogue`
+    (in-memory fixtures shaped after Epidemic Sound's public Partner API
+    field names — no real partner data, never seeded), and
+    `EpidemicPartnerCatalogue`, a skeleton that throws the H-28 contract-gate
+    error (`partner-catalogue/contract_gate`) on every method until
+    `EPIDEMIC_PARTNER_API_KEY`/`EPIDEMIC_PARTNER_API_SECRET` are set.
+    `PartnerCatalogueService` gates every call on `assets.partnerCatalogue`
+    (`FEATURE_FLAGS_JSON`, default off) and persists grants to
+    `asset_clearance_grants` with a `licenceSnapshot` carrying a
+    `TODO(H-28)` placeholder sentinel until the contract signs
+    (`licence-snapshot.ts`).
+  - `apps/api/prisma`: `asset_clearance_grants` gains `asset_id`,
+    `use_context`, `licence_snapshot` columns (migration
+    `20260903150000_d04b_partner_catalogue_grants`) — the existing D04a
+    grant/usage tables (`asset_clearance_grants`, `asset_usages`) are reused
+    rather than duplicated.
+  - `apps/api/src/audio-assets/asset-allowed.ts`: the licence predicate gains
+    `partnerCatalogueEnabled` (defaults to refuse) and the
+    `partner-catalogue-disabled` reason — every non-`owned` asset is refused
+    on every surface, cloud render included, while the flag is off; proven
+    with property tests.
+  - `apps/api/src/exports/decision.ts`: `hasPartnerCatalogueAssets` refuses
+    the browser export path unconditionally (D43: partner assets are
+    cloud-render-only), with `export/unsupported_in_browser` for an explicit
+    browser request.
+  - `apps/api/src/scheduler/tasks/partner-grant-expiry.task.ts` (hourly) and
+    `partner-usage-report-retry.task.ts` (every 15 min): grant expiry and the
+    B16 usage-report retry sweep, both idempotent and fake-clock-tested.
+  - Tests: interface contract tests against the mock (11), H-28 contract-gate
+    tests against the real adapter skeleton (9), licence-snapshot placeholder
+    tests (3), service unit tests (8), scheduler task tests (9), an e2e spec
+    against a real Postgres proving flag-off refusal / grant persistence /
+    expiry (4), plus new `decision.ts` (6) and `asset-allowed.ts` (3)
+    property/unit tests. Not built in this pass: an HTTP surface for
+    search/grant/revoke, the B13 admin grants table, the Passes-tab D43
+    badge, and render-time grant fetch — see the work package's final report
+    for the full list and reasoning.
+
 - **D07: prompted edits — planner, Flash/Pro engines, plan preview, chained
   passes, credits held on source minutes and settled on finished minutes.**
   - `packages/prompts`: `edit-plan@1` template (`{passes[], style?, script?,
