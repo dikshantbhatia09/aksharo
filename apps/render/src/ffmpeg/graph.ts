@@ -36,8 +36,14 @@
 
 import type { CropKeyframe } from "@montaj/render-core";
 import { coverScaleCrop, type RenderManifest } from "@montaj/render-manifest";
-import type { TimeSpan } from "@montaj/timemap";
+import type { TimeQuery, TimeSpan } from "@montaj/timemap";
 
+import {
+  buildAudioMixPlan,
+  type MusicMixCue,
+  type SfxMixCue,
+  type SpeechRange,
+} from "./audio-mix.js";
 import { buildDynamicCropFilter } from "./crop-expr.js";
 
 /** Encoders the service can select between; `05 §5.2`'s NVENC hook. */
@@ -88,6 +94,25 @@ export interface GraphInput {
    * dynamic `crop` filter is skipped entirely rather than inserted as a no-op.
    */
   readonly cropKeyframes?: readonly CropKeyframe[];
+  /**
+   * D04e: accepted `sfx`/`music` cue items, already carrying the local path of
+   * their downloaded pack asset (`pipeline.ts` downloads each `storageKey`
+   * before the graph is built). Empty/omitted renders exactly as before D04e.
+   */
+  readonly sfxCues?: readonly SfxMixCue[];
+  readonly musicCues?: readonly MusicMixCue[];
+  /** Where speech is, on the **source** clock — `audio-mix.ts`'s
+   * `speechRangesFromWords` over `payload.projection.words`. Needed only when
+   * a cue/bed carries a `duck`/`bedDuck` curve. */
+  readonly speechRanges?: readonly SpeechRange[];
+  /**
+   * The same `TimeMap` `outputCropKeyframesFromTracks` was given — used to
+   * remap each cue's `[startMs, endMs)` onto the output clock
+   * (`@montaj/timemap`'s `mapRange`), the identical cuts/ripples remap every
+   * other accepted-item track already gets. `null`/omitted is the identity
+   * map (an unedited render).
+   */
+  readonly timemap?: TimeQuery | null;
 }
 
 export interface GraphPlan {
@@ -465,11 +490,38 @@ export function buildFfmpegArgs(input: GraphInput): GraphPlan {
     audioLabel = replacing ? "2:a" : cuts.audioLabel;
   }
 
+  // D04e: mix accepted sfx/music cues into whatever dialogue bus this render
+  // already has. `wantsAudio` (not `hasAudio`) gates it: a silent source with
+  // cues to play still gets an audio track (an `anullsrc` bed under them),
+  // which `hasAudio` alone would not let through.
+  const sfxCues = input.sfxCues ?? [];
+  const musicCues = input.musicCues ?? [];
+  let outputHasAudio = hasAudio;
+  if (wantsAudio && (sfxCues.length > 0 || musicCues.length > 0)) {
+    const inputCountSoFar = args.filter((arg) => arg === "-i").length;
+    const mixPlan = buildAudioMixPlan({
+      dialogueLabel: hasAudio ? audioLabel : null,
+      sfxCues,
+      musicCues,
+      timemap: input.timemap ?? null,
+      speechRanges: input.speechRanges ?? [],
+      outputDurationMs: input.outputDurationMs,
+      nextInputIndex: inputCountSoFar,
+      sampleRate: AUDIO_SAMPLE_RATE,
+    });
+    if (mixPlan !== null) {
+      args.push(...mixPlan.extraInputArgs);
+      filters.push(...mixPlan.filters);
+      audioLabel = mixPlan.outLabel;
+      outputHasAudio = true;
+    }
+  }
+
   const filterGraph = filters.join(";");
   if (filterGraph !== "") args.push("-filter_complex", filterGraph);
 
   args.push("-map", filterGraph === "" ? `${videoLabel}` : `[${videoLabel}]`);
-  if (hasAudio && audioLabel !== null) {
+  if (outputHasAudio && audioLabel !== null) {
     args.push("-map", audioLabel.includes(":") ? audioLabel : `[${audioLabel}]`);
   }
 
@@ -477,11 +529,12 @@ export function buildFfmpegArgs(input: GraphInput): GraphPlan {
   args.push(
     ...audioCodecArgs(
       manifest,
-      // A copy is only possible when nothing touched the samples.
-      hasAudio && !replacing && isUnedited(input.spans),
+      // A copy is only possible when nothing touched the samples — a mixed
+      // cue bus never qualifies, whatever `isUnedited` says about the cuts.
+      outputHasAudio && !replacing && audioLabel === "0:a" && isUnedited(input.spans),
     ),
   );
-  if (!hasAudio) {
+  if (!outputHasAudio) {
     // `audioCodecArgs` only says `-an` for strategy `none`; a silent source
     // needs it too, or ffmpeg looks for a stream that is not mapped.
     if (!args.includes("-an")) args.push("-an");
@@ -496,11 +549,12 @@ export function buildFfmpegArgs(input: GraphInput): GraphPlan {
     filterGraph,
     overlayFrames,
     outputDurationMs: input.outputDurationMs,
-    hasAudio,
+    hasAudio: outputHasAudio,
     summary:
       `${output.kind} ${String(output.width)}×${String(output.height)}@${String(fps)} ` +
       `${output.videoCodec} (${input.encoder}) → ${output.container}` +
-      `${hasAudio ? `, audio ${audio.strategy}/${audio.codec}` : ", no audio"}` +
+      `${outputHasAudio ? `, audio ${audio.strategy}/${audio.codec}` : ", no audio"}` +
+      `${sfxCues.length + musicCues.length > 0 ? `, ${String(sfxCues.length)} sfx + ${String(musicCues.length)} music cue(s) mixed` : ""}` +
       `, ${String(overlayFrames)} overlay frames`,
   };
 }

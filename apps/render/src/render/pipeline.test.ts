@@ -502,3 +502,54 @@ describe("the refusals", () => {
     expect(isRenderManifestError(caught, "manifest/malformed")).toBe(true);
   });
 });
+
+describe("D04e: an accepted sfx cue downloads and mixes end-to-end", () => {
+  it("downloads the pack asset by its storageKey and the export carries the cue", async () => {
+    const cueKey = "packs/fixture/sfx-ding-01.wav";
+    await derivedStore.seed(
+      cueKey,
+      join(__dirname, "..", "..", "..", "..", "fixtures", "audio-pack", "wav", "sfx-ding-01.wav"),
+    );
+
+    const payload = await samplePayload(
+      SECRET,
+      {
+        ...baseOverrides(),
+        timemap: {
+          sourceDurationMs: CLIP_SECONDS * 1000,
+          edits: [],
+          snapCutsToFrames: false,
+          audio: {
+            sfx: [
+              {
+                itemId: "01JD04ECFX0000000000000000",
+                startMs: 2_000,
+                endMs: 2_500,
+                assetId: "fixture-ding",
+                packId: "fixture",
+                storageKey: cueKey,
+                gainDb: 0,
+                fadeInMs: 0,
+                fadeOutMs: 0,
+                duck: null,
+              },
+            ],
+          },
+        },
+      },
+      CLIP_SECONDS * 1000,
+    );
+
+    const before = derivedStore.written.length;
+    const outcome = await renderVideo(payload, FIXTURE_IDS.workspaceId, dependencies());
+    // The cue asset itself is never *written* to derivedStore (only the
+    // export is) — this just proves the render did not fail while
+    // downloading and mixing it in, and the export it produced is present.
+    expect(derivedStore.written.length).toBe(before + 1);
+    expect(outcome.filterGraph).toContain("amix=inputs=2:normalize=0");
+
+    const probe = await ffprobe(derivedStore.pathFor(outcome.outputKey));
+    const audio = streams(probe).find((stream) => stream.codec_type === "audio");
+    expect(audio?.codec_name).toBe("aac");
+  });
+});

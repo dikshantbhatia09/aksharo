@@ -8,6 +8,41 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **D04e-1: cloud sfx cue mixing (`apps/render`).** Closes D04d's first
+  flagged deviation, cloud half. New `apps/render/src/ffmpeg/audio-mix.ts`:
+  `speechRangesFromWords` (duplicated from `apps/api/src/passes/
+passes.service.ts`'s helper of the same shape — apps do not import one
+  another), `buildCueFilters`/`buildMusicFilters` (one ffmpeg filter chain
+  per accepted `sfx`/`music` item: `atrim`/`asetpts` → static `volume` for
+  the item's own `gainDb` → `afade` in/out at the item's own edges (not at
+  an internal cut split) → `adelay` to the item's _output_-clock start via
+  `@montaj/timemap`'s `mapRange` — the same cuts/ripples remap B20's crop
+  keyframes and D06b's titles already get — → an `eval=frame` `volume`
+  duck expression (`sfx-duck-expr.ts`'s closed form) when the item carries
+  a `duck`/`bedDuck` curve), and `buildAudioMixPlan` (assigns each cue its
+  own extra ffmpeg input, `amix`es every cue/music label with the existing
+  dialogue bus, or with an `anullsrc` bed when there is no dialogue track
+  at all). Wired into `ffmpeg/graph.ts` (`GraphInput` gains `sfxCues`/
+  `musicCues`/`speechRanges`/`timemap`; a cue mix disables the passthrough
+  `-c:a copy` fast path, same as any other edit) and `render/pipeline.ts`
+  (downloads every accepted `sfx` track's `storageKey` from the derived
+  bucket to the job's scratch dir, derives `speechRanges` from
+  `payload.projection.words`). Unit tests on the filter strings
+  (`audio-mix.test.ts`, `graph.test.ts`'s new "D04e" block, including a cue
+  split across a cut) plus a real-ffmpeg render (`audio-mix.integration.
+test.ts`) and a full-pipeline download+mix case (`pipeline.test.ts`'s new
+  "D04e" block) proving the cue's own window rises well past the brief's
+  ≥6 dB bar (measured: baseline ≈ −180 dBFS true silence vs. mixed
+  ≈ −11.8 dBFS, a ≈168 dB delta on this fixture — the bar is met with
+  large margin because the baseline fixture is silent, not merely quiet).
+  - **Deviation from the brief's prose**: the brief describes ducking as
+    "dialogue bus `volume` driven by the duck expression"; this ducks the
+    _cue_ under speech instead, matching the already-shipped, parity-tested
+    D04a contract (`sfx-duck-expr.ts`'s own doc comment: "applied to the
+    SFX layer itself"; `apps/web/lib/export/engine.ts`'s `applySfxDucking`
+    likewise multiplies the cue buffer, never the dialogue track). Flagged
+    rather than silently reinterpreted either way.
+
 - **D04d: audio mix pipeline — signed pack-asset URLs and real energy cues;
   browser/cloud cue-audio mixing deferred (see Deviations).** Closes two of
   D04c's three flagged deviations.
