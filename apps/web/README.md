@@ -294,6 +294,37 @@ signed out — so they run without the shared-account or outbox machinery above.
 (which only covers `/`, `/login`, `/signup`, `/ui-kit`) to every page this WP
 adds.
 
+## Docs site (`/docs`, X03)
+
+`app/(site)/(marketing)/docs/**` is the one public docs surface — Guides, Plugins,
+Developers and Legal — built on top of `lib/docs/**`'s generators rather than a second,
+hand-maintained content tree:
+
+- **Guides** (`/docs/guides`, `/docs/guides/[slug]`) reuse B12's help MDX as-is
+  (`lib/content/loader.ts`/`schema.ts`) — the same articles `(app)/help` renders for a
+  signed-in user, at a second, public URL.
+- **Plugins** (`/docs/plugins`, `/docs/plugins/[slug]`) render each `plugins/*/README.md`
+  through `lib/docs/markdown.tsx`, a sibling of `lib/content/markdown.tsx` with GitHub-style
+  pipe-table support added (the READMEs use tables the original renderer doesn't parse).
+- **Developers** (`/docs/developers`, `/docs/developers/[version]`,
+  `/docs/developers/[version]/[tag]`) generates one page per API resource
+  (`projects`/`exports`/`jobs`) straight off `packages/api-client/openapi.json`
+  (`lib/docs/openapi.ts`) — parameters, responses and curl/Node/Python examples included, so
+  a new `/v1` route appears without a hand-edit. Grouped by the path's own resource segment,
+  not the OpenAPI `tag` (every `/v1/*` operation is tagged `public`, which would collapse
+  every endpoint into one meaningless group).
+- **Legal** links to the existing `/legal/*` scaffolds; nothing is duplicated there.
+
+Navigation (`lib/docs/nav.ts`) and the client-side search index (`lib/docs/search.ts`,
+MiniSearch, built at request time in `lib/docs/content.ts` and hydrated by
+`docs-shell.tsx`'s `DocsSearch`) are both derived from the same generators every page
+renders from, so nothing needs a second list kept in sync. `lib/docs/link-check.ts` is a
+pure, synchronous broken-internal-link checker exercised by the generator unit tests —
+no HTTP crawl.
+
+`/developers` (B14) redirects (308, `next.config.ts`) to `/docs/developers`; `(app)/help`
+(B12's authenticated in-product help) is untouched.
+
 ## Notes
 
 - `@montaj/ui` and `@montaj/api-client` are in `transpilePackages`: the first

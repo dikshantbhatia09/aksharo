@@ -93,6 +93,32 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     warning fixed with the same `eslint-disable-next-line` style already used
     elsewhere in the repo; `pnpm -w lint` is clean.
 
+- **X03 — Docs site & API docs.** One docs surface at `apps/web/app/(site)/(marketing)/docs`
+  (`/docs`): Guides (B12 help articles reused via the same `lib/content/loader.ts`), Plugins
+  (guide pages generated from each `plugins/*/README.md`), Developers (the public API expanded
+  into per-resource pages generated at build time from `packages/api-client/openapi.json`,
+  covering parameters/responses/curl-Node-Python examples, webhooks, rate limits, SSRF rules
+  and the product changelog), and Legal (links to the existing `/legal` scaffolds). Shared
+  chrome (`docs-shell.tsx`) provides a sidebar nav, breadcrumb and a client-side MiniSearch
+  index built at build time (no external service), plus a version switcher for the API
+  reference (only `v1` published so far).
+  - New generators under `apps/web/lib/docs/**`: `openapi.ts` (groups `/v1/*` endpoints by
+    resource — the OpenAPI document's own `tags` are uniformly `public` and would collapse
+    every endpoint into one group — and templates curl/Node/Python snippets), `plugin-guides.ts`
+    (reads the four plugin READMEs from the repo root), `markdown.tsx` (a sibling of
+    `lib/content/markdown.tsx` with GitHub-style pipe-table support, since the READMEs use
+    tables that renderer doesn't parse), `nav.ts`, `search.ts` and `link-check.ts` (a
+    deterministic, synchronous broken-internal-link check used by the generator unit tests).
+  - `next.config.ts`: `/developers` (B14) now redirects (308) to `/docs/developers` — every
+    inbound link keeps working, and the expanded reference lives at the new address.
+    `(app)/help` (B12's authenticated in-product help) is untouched; `/docs/guides` is a
+    second, public entry point onto the same MDX.
+  - `apps/web/app/(site)/sitemap.ts` gained every `/docs/**` route (guides, plugin guides,
+    developer API groups).
+  - **Deviation from the brief**: the per-endpoint pages are grouped by the resource segment
+    of the path (`projects`, `exports`, `jobs`) rather than by the OpenAPI `tag` literally,
+    for the reason above — flagged rather than shipping a nav with one meaningless "Public"
+    group.
 - C10: installers, plugins page and the real `/plugins/manifest`.
   - `GET /plugins/manifest` extends the C11 stub into a real channel manifest: fetches
     `tools/release`'s published `plugins-manifest.json` (5-minute Redis cache), reporting
