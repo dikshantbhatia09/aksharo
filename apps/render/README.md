@@ -295,11 +295,12 @@ scripts/benchmark.ts    the numbers in BENCHMARK.md
 
 ## Scripts
 
-| Script                                   | What it does                                    |
-| ---------------------------------------- | ----------------------------------------------- |
-| `pnpm --filter @montaj/render dev`       | run the worker against the local stack          |
-| `pnpm --filter @montaj/render build`     | `tsc` to `dist/`                                |
-| `pnpm --filter @montaj/render typecheck` | type-check including tests                      |
-| `pnpm --filter @montaj/render lint`      | ESLint flat config from `@montaj/config/eslint` |
-| `pnpm --filter @montaj/render test`      | Vitest, including the end-to-end render         |
-| `pnpm --filter @montaj/render bench`     | the benchmark in `BENCHMARK.md`                 |
+| Script                                   | What it does                                                                                |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `pnpm --filter @montaj/render dev`       | run the worker against the local stack                                                      |
+| `pnpm --filter @montaj/render build`     | `tsc` to `dist/`                                                                            |
+| `pnpm --filter @montaj/render typecheck` | type-check including tests                                                                  |
+| `pnpm --filter @montaj/render lint`      | ESLint flat config from `@montaj/config/eslint`                                             |
+| `pnpm --filter @montaj/render test`      | Vitest, including the end-to-end render                                                     |
+| `pnpm --filter @montaj/render bench`     | the benchmark in `BENCHMARK.md`                                                             |
+| `pnpm --filter @montaj/render parity`    | regenerates `parity/results.json` (B20b's crop-window parity gate — see `parity/README.md`) |

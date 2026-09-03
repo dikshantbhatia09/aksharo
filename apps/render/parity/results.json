@@ -1,0 +1,24 @@
+{
+  "generatedAt": "2026-09-03T01:11:04.159Z",
+  "maxDiffPxTolerance": 1.05,
+  "sourceWidth": 1080,
+  "sourceHeight": 1920,
+  "edits": {
+    "cut-plus-zoom": {
+      "fixtureId": "cut-plus-zoom",
+      "label": "A cut plus a zoom-in",
+      "samples": 6,
+      "maxDiffPx": 1.1368683772161603e-13,
+      "pass": true,
+      "measuredAt": "2026-09-03T01:11:04.159Z"
+    },
+    "cut-plus-reframe": {
+      "fixtureId": "cut-plus-reframe",
+      "label": "A cut plus a reframe sweep",
+      "samples": 8,
+      "maxDiffPx": 5.684341886080802e-14,
+      "pass": true,
+      "measuredAt": "2026-09-03T01:11:04.159Z"
+    }
+  }
+}

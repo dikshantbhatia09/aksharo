@@ -168,6 +168,7 @@ export class EditorStore {
         hot: running.hot,
         segments: running.segments,
         words: running.words,
+        items: running.items,
       };
       forwardInverses.push(...computeInverseOps(op, inverseState, this.mintId, this.mintId));
       running = applyOps(running, [op], { source: "web" }).state;

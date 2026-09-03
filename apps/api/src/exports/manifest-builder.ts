@@ -78,10 +78,10 @@ export interface BuildManifestInput {
   };
   readonly timemapEdits: readonly TimemapEdit[];
   /**
-   * B20: accepted zoom/reframe items' packed curves. Optional and unwired by
-   * this work package (needs B19's keyframe-bytes storage) — the call site is
-   * `exports.service.ts`'s `requestExport`, alongside its existing
-   * `timemapEdits: [...timeMap.edits]` line.
+   * Accepted zoom/reframe items' packed curves (B20's field; wired by B20b's
+   * `../passes/keyframe-tracks.ts` `resolveKeyframeTracks`, called from
+   * `exports.service.ts`'s `requestExport` alongside its
+   * `timemapEdits: [...timeMap.edits]` line).
    */
   readonly keyframeTracks?: readonly KeyframeTrack[];
   readonly outputDurationMs: number;
@@ -196,10 +196,8 @@ export function buildRenderManifest(input: BuildManifestInput): BuiltManifest {
       edits: [...input.timemapEdits],
       ...(input.source.fps === undefined ? {} : { fps: input.source.fps }),
       snapCutsToFrames: false,
-      // B20: accepted zoom/reframe curves. Left empty here — populating it from
-      // `edg.passes` items needs B19's keyframe-bytes storage/fetch, which is
-      // outside this file's ownership (A21) and not yet available when this was
-      // written; see the B20 final report for the exact follow-up call site.
+      // Accepted zoom/reframe curves, resolved by the caller (B20b) from
+      // `edg.passes` items via `../passes/keyframe-tracks.ts`.
       keyframes: input.keyframeTracks ? [...input.keyframeTracks] : [],
     },
     output: {

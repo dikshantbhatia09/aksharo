@@ -14,7 +14,18 @@ export default mergeConfig(
   mergeConfig(
     defineConfig(vitestBaseConfig),
     defineConfig({
-      test: { name: "@montaj/render", testTimeout: 600_000, hookTimeout: 600_000 },
+      test: {
+        name: "@montaj/render",
+        testTimeout: 600_000,
+        hookTimeout: 600_000,
+        // B20b: the crop-window parity gate's own unit test lives under
+        // `parity/**` (its file boundary), alongside `src/**`/`tests/**`.
+        include: [
+          "src/**/*.{test,spec}.{ts,tsx}",
+          "tests/**/*.{test,spec}.{ts,tsx}",
+          "parity/**/*.{test,spec}.{ts,tsx}",
+        ],
+      },
     }),
   ),
   mergeConfig(

@@ -20,6 +20,7 @@ import { EXPORT_ERROR_CODES } from "./exports.errors.js";
 import { buildRenderManifest, RENDER_CORE_VERSION } from "./manifest-builder.js";
 import { NINE_PASS_LEDGER, type NinePassLedger } from "./nine-pass-ledger.js";
 import { buildRenderProjection, resolveStyleSnapshot } from "./projection.js";
+import { resolveKeyframeTracks } from "../passes/keyframe-tracks.js";
 import { ManifestSignerService } from "../common/crypto/manifest-signer.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
@@ -226,6 +227,11 @@ export class ExportsService {
 
     const audioClean = await this.resolveAudioClean(edg.audio, project.id);
 
+    // B20b: accepted zoom/reframe items' packed curves — inline or fetched
+    // from derived storage by `keyframesRef` — resolved into the manifest's
+    // `timemap.keyframes` tracks (CONTRACTS §2's keyframe payload rule).
+    const keyframeTracks = await resolveKeyframeTracks(allItems, this.store);
+
     const { manifest: unsigned } = buildRenderManifest({
       workspaceId: input.workspaceId,
       projectId: input.projectId,
@@ -249,6 +255,7 @@ export class ExportsService {
         ...(media.fps === null || media.fps === undefined ? {} : { fps: media.fps }),
       },
       timemapEdits: [...timeMap.edits],
+      ...(keyframeTracks.length === 0 ? {} : { keyframeTracks }),
       outputDurationMs,
       decision,
       kind: input.kind,

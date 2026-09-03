@@ -194,3 +194,20 @@ export function boxToCss(
     height: (box[3] - box[1]) * fit.scale,
   };
 }
+
+/**
+ * A normalised crop rectangle (`@montaj/render-core`'s `CropRect` — `x`/`y`/
+ * `w`/`h` as fractions of the source frame, `frame/crop-window.ts`'s shape),
+ * turned into a project-pixel `Box` (B20b: the canvas overlay showing the
+ * current zoom/reframe crop window during scrub). Structural, not imported —
+ * this module has no dependency on `@montaj/render-core` and the shape is a
+ * closed, four-field one unlikely to drift without CONTRACTS noticing.
+ */
+export function cropRectToBox(
+  cropRect: { readonly x: number; readonly y: number; readonly w: number; readonly h: number },
+  canvas: Size,
+): Box {
+  const left = cropRect.x * canvas.width;
+  const top = cropRect.y * canvas.height;
+  return [left, top, left + cropRect.w * canvas.width, top + cropRect.h * canvas.height];
+}

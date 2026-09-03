@@ -10,6 +10,59 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **B20b — Passes follow-ups: keyframe tracks wired into manifests,
+  `EditPassItem` drag-to-adjust, keyframe markers, canvas overlays, scrub
+  preview, crop parity in the gate report.**
+  `packages/edg`: `schemas/ops.ts` adds `EditPassItem{itemId, startMs,
+endMs}` (CONTRACTS §2), rebase field `item:<itemId>` (reusing `DecideItems`'
+  own field helper), last-write-wins; `ops/apply.ts`'s `applyEditPassItem`
+  accepts only `proposed`/`accepted` cut/zoom/reframe items, clamps to the
+  media duration and to neighbouring _accepted_ items of the same kind, and
+  linearly re-times an inline `payload.keyframes` curve to the item's new
+  duration (a `keyframesRef` curve is left for the worker to re-base on the
+  next pass).
+  `apps/api`: `src/passes/keyframe-tracks.ts` (new) resolves every accepted
+  zoom/reframe item's packed curve — inline `payload.keyframes` as-is, or a
+  `keyframesRef` fetched from derived storage — into `KeyframeTrack[]`;
+  `exports.service.ts`'s `requestExport` calls it and passes the result to
+  `manifest-builder.ts`'s `keyframeTracks` input (previously wired but
+  unpopulated pending B19b), so both the browser and cloud manifests now
+  carry `timemap.keyframes` for accepted items (`exports.e2e-spec.ts` proves
+  it on both paths).
+  `apps/web`: `lib/edg/ops.ts` adds the `editPassItem` builder and its undo
+  inverse (`InverseState.items`); `Timeline.tsx` adds drag-to-adjust on a
+  proposed/accepted cut/zoom/reframe lane item's edge (`lib/timeline/
+pass-item-drag.ts`'s clamp/resolve pipeline, mirroring `snapping.ts`),
+  keyframe markers and the zoom lane's mini scale-curve plot
+  (`lib/timeline/keyframe-markers.ts`), and one Playwright chromium case
+  (`e2e/timeline.spec.ts`, seeded via a new `mergePassForTest` internal-HMAC
+  helper). `components/editor/canvas/CaptionStage.tsx`'s `children` prop now
+  also accepts a `({fit, canvas}) => ReactNode` render function, so
+  `CropWindowOverlay.tsx` (new) can draw the current zoom/reframe crop
+  window over the stage without CaptionStage needing to know about it;
+  `lib/timeline/current-crop-rect.ts` samples an accepted item's inline
+  curve at the playhead, and `lib/timeline/scrub-preview.ts` computes the
+  brief's ±1.5 s scrub window and the `"frames"`/`"rect-only"` mode name a
+  caller's CanvasKit-readiness flag maps to (the fallback the brief allows
+  when real frames are not available).
+  `apps/render`: `parity/` (new) — `run.ts`/`crop-fixtures.ts` measure the
+  same two crop-window fixtures `src/ffmpeg/crop-parity.test.ts` already
+  checks (a cut+zoom and a cut+reframe) and write `parity/results.json`'s
+  `edits` block plus a `README.md` gate report; independent of the caption
+  _style_ parity gate (`packages/caption-styles/parity/results.json`,
+  untouched). `vitest.config.ts` gained `parity/**` in its test `include`
+  so the gate's own unit test runs under `pnpm test`.
+  **Deviation:** the Playwright case (`timeline.spec.ts`'s "dragging a
+  proposed cut item's edge lands an EditPassItem op") is written, wired end
+  to end, and passes at the component-test level (`Timeline.test.tsx`), but
+  could not be confirmed green in a live browser run in this environment —
+  the shared host was under severe memory pressure (free RAM as low as
+  ~1.9 GB across repeated attempts, ~15-20 concurrent Node processes from
+  other agents), and every `next build`/`nest build` invocation the
+  Playwright harness needs timed out or produced no output before the
+  420 s webServer window elapsed, even after pre-warming `.next` with a
+  standalone build. See the final report for the full account.
+
 - **B19b — Reframe/zoom wiring: one keyframe codec, keyframe storage, `zoom`
   pass type, word-timed emphasis cues, frame/RMS sampling from the proxy.**
   `packages/edg`: `src/keyframes.ts` (`MKF1`) is deleted — `src/passes/

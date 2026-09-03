@@ -5,6 +5,7 @@ import {
   type Box,
   boxContains,
   boxToCss,
+  cropRectToBox,
   fitStage,
   positionFromDrag,
   safeZonesFor,
@@ -199,5 +200,23 @@ describe("hit testing and placement", () => {
   it("places the drag handle in CSS pixels", () => {
     const fit = fitStage({ width: 540, height: 960 }, CANVAS);
     expect(boxToCss(box, fit)).toEqual({ left: 50, top: 100, width: 100, height: 100 });
+  });
+});
+
+describe("cropRectToBox (B20b: the scrub-preview crop-window overlay)", () => {
+  it("turns a normalised crop rect into a project-pixel box", () => {
+    expect(cropRectToBox({ x: 0.25, y: 0.1, w: 0.5, h: 0.4 }, CANVAS)).toEqual([
+      270, 192, 810, 960,
+    ]);
+  });
+
+  it("the full frame maps to the whole canvas", () => {
+    expect(cropRectToBox({ x: 0, y: 0, w: 1, h: 1 }, CANVAS)).toEqual([0, 0, 1080, 1920]);
+  });
+
+  it("composes with boxToCss to place the overlay in CSS pixels", () => {
+    const fit = fitStage({ width: 540, height: 960 }, CANVAS);
+    const projectBox = cropRectToBox({ x: 0.5, y: 0.5, w: 0.25, h: 0.25 }, CANVAS);
+    expect(boxToCss(projectBox, fit)).toEqual({ left: 270, top: 480, width: 135, height: 240 });
   });
 });

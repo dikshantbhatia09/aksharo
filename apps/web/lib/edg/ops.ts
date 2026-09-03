@@ -6,7 +6,7 @@
  * itself (CONTRACTS §2) is frozen in `@montaj/edg`; nothing here redefines it.
  */
 import { makeWordId, parseWordId } from "@montaj/edg";
-import type { EdgOp, EdgState, ScriptId, Segment, Word, WordId } from "@montaj/edg";
+import type { EdgOp, EdgState, PassItem, ScriptId, Segment, Word, WordId } from "@montaj/edg";
 import { mergeOverrides } from "@montaj/render-core";
 
 /**
@@ -196,6 +196,20 @@ export function isFullyProtected(
   return cursor >= e;
 }
 
+/**
+ * Drag-to-adjust a proposed/accepted cut/zoom/reframe item's bounds
+ * (CONTRACTS §2, B20b) — `Timeline.tsx`'s `onEditPassItem` callback builds
+ * this from its resolved drag preview.
+ */
+export function editPassItem(
+  itemId: string,
+  startMs: number,
+  endMs: number,
+  newOpId: OpIdFactory,
+): EdgOp {
+  return { type: "EditPassItem", opId: newOpId(), itemId, startMs, endMs };
+}
+
 export function setEmphasis(
   segmentId: string,
   wordId: string,
@@ -325,6 +339,8 @@ export interface InverseState {
   readonly hot: EdgState["hot"];
   readonly segments: ReadonlyMap<string, Segment>;
   readonly words: ReadonlyMap<string, Word>;
+  /** B20b: `EditPassItem`'s inverse needs the item's bounds before the drag. */
+  readonly items?: ReadonlyMap<string, PassItem>;
 }
 
 /** Text a script displays for a word when nothing overrides it. */
@@ -507,6 +523,12 @@ export function computeInverseOps(
           overrides: inline?.doc ?? {},
         },
       ];
+    }
+
+    case "EditPassItem": {
+      const item = state.items?.get(op.itemId);
+      if (item === undefined) return [];
+      return [editPassItem(op.itemId, item.startMs, item.endMs, newOpId)];
     }
 
     // Not offered by the editor's undo stack: `Resegment` replaces every

@@ -657,6 +657,206 @@ describe("MergePass and DecideItems", () => {
   });
 });
 
+describe("EditPassItem", () => {
+  function buildZoomPass(passId: string, itemId: string, keyframes: string): Pass {
+    return {
+      passId,
+      type: "zoom",
+      engine: "zoom@v1",
+      params: {},
+      status: "ready",
+      items: [
+        {
+          itemId,
+          passId,
+          kind: "zoom",
+          startMs: 10_000,
+          endMs: 12_000,
+          payload: {
+            target: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
+            scaleFrom: 1,
+            scaleTo: 1.4,
+            easing: "easeInOut",
+            keyframes,
+          },
+          state: "proposed",
+        },
+      ],
+    };
+  }
+
+  it("adjusts a proposed item's bounds and re-times its inline keyframes linearly", () => {
+    const { state } = setup();
+    const mint = idFactory(900);
+    const passId = mint();
+    const itemId = mint();
+    // MKF2, base64 of two rows: tMs=0 and tMs=2000 (the item's own 2s span).
+    const keyframes = Buffer.concat([
+      Buffer.from([0x4d, 0x4b, 0x46, 0x32]),
+      (() => {
+        const b = Buffer.alloc(8);
+        b.writeUInt32LE(1, 0);
+        b.writeUInt32LE(2, 4);
+        return b;
+      })(),
+      (() => {
+        const row = (tMs: number) => {
+          const b = Buffer.alloc(20);
+          b.writeFloatLE(tMs, 0);
+          b.writeFloatLE(1.2, 4);
+          b.writeFloatLE(0.5, 8);
+          b.writeFloatLE(0.5, 12);
+          b.writeFloatLE(0, 16);
+          return b;
+        };
+        return Buffer.concat([row(0), row(2_000)]);
+      })(),
+    ]).toString("base64");
+
+    const merged = apply(
+      state,
+      [op("MergePass", { pass: buildZoomPass(passId, itemId, keyframes) })],
+      {
+        source: "worker",
+      },
+    );
+
+    // Double the item's duration (2s -> 4s): every keyframe row should scale by 2x.
+    const edited = apply(merged.state, [
+      op("EditPassItem", { itemId, startMs: 10_000, endMs: 14_000 }),
+    ]);
+    const item = edited.state.items.get(itemId);
+    expect(item?.startMs).toBe(10_000);
+    expect(item?.endMs).toBe(14_000);
+    const payload = item?.payload as { keyframes: string };
+    const bytes = Buffer.from(payload.keyframes, "base64");
+    expect(bytes.readFloatLE(12)).toBeCloseTo(0, 5);
+    expect(bytes.readFloatLE(32)).toBeCloseTo(4_000, 1);
+  });
+
+  it("clamps to the media duration (the fixture's primary media is 90,000 ms)", () => {
+    const { state } = setup();
+    const mint = idFactory(910);
+    const passId = mint();
+    const itemId = mint();
+    const keyframes = Buffer.concat([
+      Buffer.from([0x4d, 0x4b, 0x46, 0x32]),
+      (() => {
+        const b = Buffer.alloc(8);
+        b.writeUInt32LE(1, 0);
+        b.writeUInt32LE(0, 4);
+        return b;
+      })(),
+    ]).toString("base64");
+    const merged = apply(
+      state,
+      [op("MergePass", { pass: buildZoomPass(passId, itemId, keyframes) })],
+      {
+        source: "worker",
+      },
+    );
+    const edited = apply(merged.state, [
+      op("EditPassItem", { itemId, startMs: 89_000, endMs: 95_000 }),
+    ]);
+    expect(edited.state.items.get(itemId)?.endMs).toBe(90_000);
+  });
+
+  it("clamps a drag against a neighbouring accepted item of the same kind", () => {
+    const { state } = setup();
+    const mint = idFactory(920);
+    const first = mint();
+    const firstItem = mint();
+    const second = mint();
+    const secondItem = mint();
+    const withFirst = apply(
+      state,
+      [
+        op("MergePass", {
+          pass: {
+            passId: first,
+            type: "autocut",
+            engine: "autocut@2",
+            params: {},
+            status: "ready",
+            items: [
+              {
+                itemId: firstItem,
+                passId: first,
+                kind: "cut",
+                startMs: 1_000,
+                endMs: 2_000,
+                payload: {},
+                state: "proposed",
+              },
+            ],
+          },
+        }),
+      ],
+      { source: "worker" },
+    );
+    const withSecond = apply(
+      withFirst.state,
+      [
+        op("MergePass", {
+          pass: {
+            passId: second,
+            type: "autocut",
+            engine: "autocut@2",
+            params: {},
+            status: "ready",
+            items: [
+              {
+                itemId: secondItem,
+                passId: second,
+                kind: "cut",
+                startMs: 5_000,
+                endMs: 6_000,
+                payload: {},
+                state: "proposed",
+              },
+            ],
+          },
+        }),
+      ],
+      { source: "worker" },
+    );
+    const accepted = apply(withSecond.state, [
+      op("DecideItems", { itemIds: [secondItem], state: "accepted" }),
+    ]);
+
+    // The first item's own edit tries to grow past the second, accepted item's
+    // start — it should clamp at 5,000 rather than overlap it.
+    const dragged = apply(accepted.state, [
+      op("EditPassItem", { itemId: firstItem, startMs: 1_000, endMs: 5_500 }),
+    ]);
+    const item = dragged.state.items.get(firstItem);
+    expect(item?.endMs).toBe(5_000);
+  });
+
+  it("rejects an unknown item, a rejected item and a non-editable kind", () => {
+    const { state } = setup();
+    const mint = idFactory(930);
+    const passId = mint();
+    const itemId = mint();
+    const merged = apply(
+      state,
+      [op("MergePass", { pass: buildZoomPass(passId, itemId, "AAAA") })],
+      {
+        source: "worker",
+      },
+    );
+    const decided = apply(merged.state, [
+      op("DecideItems", { itemIds: [itemId], state: "rejected" }),
+    ]);
+
+    const result = applyOps(decided.state, [
+      op("EditPassItem", { itemId: mint(), startMs: 0, endMs: 100 }),
+      op("EditPassItem", { itemId, startMs: 10_000, endMs: 12_500 }),
+    ]);
+    expect(reasons(result)).toEqual(["unknown-id", "stale"]);
+  });
+});
+
 describe("SetAudio and SetRender", () => {
   it("merges the audio chain key by key", () => {
     const { state } = setup();
