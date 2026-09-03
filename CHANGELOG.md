@@ -37,6 +37,26 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     `/plugins/manifest` live (server-side fetch with a static-copy fallback) for per-OS/
     per-host download buttons and a checksum-verification note, alongside the existing
     SmartScreen/Gatekeeper first-run copy and D65 non-affiliation line.
+- **C05b — After Effects CEP 12 panel (minimal).** New `plugins/ae-cep` (`@montaj/ae-cep`):
+  CEP 12 manifest (`CSXS/manifest.xml`, bundle id `ai.aksharo.ae` from `@montaj/config`,
+  `AEFT` host min version `24.0`), bridge sign-in (device-code, same pattern as C05a's
+  Premiere panel), WAV mixdown via Adobe Media Encoder, styled text layers per segment
+  (mapped through a hand-copied mirror of C08b/C06b's shared style classification table —
+  19 supported / 6 approximate / 5 unsupported of 30 system styles, `docs/AE-STYLE-COVERAGE.md`),
+  alpha overlay import for unsupported/approximate styles, one `app.beginUndoGroup`/
+  `endUndoGroup` per apply, host-id map via a layer marker comment, and re-sync (a re-apply for
+  the same project replaces only its own previously tagged layers). Every host call is isolated
+  behind `AeHost` (`src/host/ae.ts`) with `MockAeHost`; ExtendScript (`src/jsx/aksharo.jsx`) is
+  a small ES3-compatible subset enforced by a dedicated lint config
+  (`eslint.extendscript.mjs`) — no real After Effects exists on the build host, so
+  `createRealAeHost()` throws until a human runs the new `docs/GATE-C-CHECKLIST.md`.
+  `tools/release/src/commands/signZxp.ts` now stages only the shippable subset (`CSXS`,
+  `index.html`, `dist`, `src/jsx`) from a real plugin tree before zipping, the same way
+  `packageCcx.ts` already staged the UXP plugin — `pnpm release sign-zxp --dry-run` now
+  packages the real panel instead of a placeholder. Deviation from the brief: the package
+  lives at `plugins/ae-cep` (the directory `docs/CONTRACTS.md`, `release.config.ts` and the
+  licensing plugin-channel schema already use), not the brief's literal
+  `plugins/after-effects-cep`.
 
 - C09: DaVinci Resolve Studio Workflow Integration panel (`plugins/resolve-panel`) — docked React shell over `aksharo_core`'s loopback server (discover → bearer → JSON-RPC), `WorkflowIntegrationHost` adapter + mock, sign-in mirrored from the script, timeline picker, "Caption this timeline", passes review + "Apply in Resolve", version/update banner; C08 loopback server gains `session.status`, `transcribe.start`, `passes.list` (`plugins/resolve/aksharo_core_app/session.py|transcribe.py|passes.py`) plus a `?token=` query-param bearer path for browser `WebSocket` callers; `tools/release`'s `package-resolve` now also stages the panel bundle for Studio installs.
 
