@@ -497,6 +497,12 @@ shape) and `llm_pass_rate` (aggregates recorded pass/fail checks in B11's
 report-format spirit — this harness does not re-run `packages/prompts`'s
 TypeScript checks itself).
 
+**Local-engine metrics bridge** (`evals/local_engine.py`, C03b): a thin CLI —
+one JSON request on stdin, one JSON response on stdout — that lets
+`apps/engine/bench/**`'s Node harness reuse `wer`/`cer`/`median_onset_error_ms`
+above instead of a second WER/CER implementation in TypeScript. Not a server:
+one `spawnSync` per fixture item (`apps/engine/bench/metrics-bridge.ts`).
+
 **Runner** (`evals/runner_datasets.py`, `evals/nightly.py`): `run_dataset`
 dispatches on `kind` — `transcript` reuses A09's `EvalSet`/provider path,
 the other four kinds score directly with no provider. `run_nightly` scores
