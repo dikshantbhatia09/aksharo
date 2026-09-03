@@ -1,7 +1,9 @@
 import { Module } from "@nestjs/common";
 
 import { AccessLogPurgeTask } from "./tasks/access-log-purge.task.js";
+import { CrashReportRetentionTask } from "./tasks/crash-report-retention.task.js";
 import { DeviceCodeExpiryTask } from "./tasks/device-code-expiry.task.js";
+import { EvalNightlyTask } from "./tasks/eval-nightly.task.js";
 import { ExportFilingReportTask } from "./tasks/export-filing-report.task.js";
 import { ExportRetentionTask } from "./tasks/export-retention.task.js";
 import { LedgerReconciliationTask } from "./tasks/ledger-reconciliation.task.js";
@@ -47,6 +49,8 @@ import { OpsModule } from "../ops/ops.module.js";
     LedgerReconciliationTask,
     ExportFilingReportTask,
     UsageReportTask,
+    CrashReportRetentionTask,
+    EvalNightlyTask,
     // X04: publishes the public `status.json` every 5 minutes.
     StatusPublishTask,
   ],

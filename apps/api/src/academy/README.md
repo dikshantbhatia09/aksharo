@@ -53,16 +53,15 @@ either changes.
   steps are done is tracked per `(workspaceId, userId, trackId, stepId)` — two
   editors in the same workspace each see their own checklist.
 
-## Conflict with CONTRACTS §4, flagged for the orchestrator
+## `CreditLotSource: "academy"` (resolved by M03)
 
-The brief's §2 says `grantLot(source: "academy")`. CONTRACTS §4's
-`CreditLotSource` is a frozen closed union — `"grant" | "topup" | "pass" |
-"referral" | "adjust" | "reversal"` — with no `"academy"` member. This module
-calls `grantLot({ source: "adjust", ... })` instead (a manual credit
-adjustment, the closest existing member) rather than widening a frozen type
-without an ADR. `reason` and `refId` on the lot still identify it as an
-Academy grant for the credit history and B13's admin view. Revisit if/when
-CONTRACTS §4 gains an `"academy"` (or generic `"reward"`) source.
+CONTRACTS §4 gained an `"academy"` member on `CreditLotSource` in M03
+(Prisma migration `20260902222436_m03_academy_lot_source`). This module now
+calls `grantLot({ source: "academy", ... })` directly instead of B12's
+stopgap `"adjust"`. The ledger records it as a `grant` kind
+(`ledgerKindForSource` in `credits/ledger-credits.facade.ts`). `reason` and
+`refId` on the lot still identify it as an Academy grant for the credit
+history and B13's admin view.
 
 ## What B13 (admin console) reads
 

@@ -4,10 +4,11 @@
  * propagation through the heartbeat.
  */
 import request from "supertest";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createB08TestContext, b08SkipReason, type B08TestContext } from "./b08-harness.js";
 import { isDatabaseAvailable, skipReason } from "./db-harness.js";
+import { redisKeyPrefix } from "../src/common/redis/redis-keys.js";
 
 import type { INestApplication } from "@nestjs/common";
 import type { Server } from "node:http";
@@ -308,5 +309,71 @@ describe.skipIf(!available)("B08: devices and licence keys", () => {
     const stored = await c.prisma.device.findUniqueOrThrow({ where: { id: body.device.id } });
     expect(stored.workspaceId).toBe(c.teamWorkspaceId);
     expect(stored.userId).toBe(c.ownerId);
+  });
+
+  it("C10: GET /plugins/manifest is public and falls back to unavailable when nothing has been published", async () => {
+    const res = await request(server).get("/plugins/manifest");
+    expect(res.status).toBe(200);
+    const body = res.body as {
+      channels: Record<string, { available: boolean; downloadUrl: string | null }>;
+      desktop: { available: boolean; downloadUrl: { win: string | null } };
+    };
+    for (const channel of ["premiere-uxp", "ae-cep", "resolve-script"] as const) {
+      expect(body.channels[channel]?.available).toBe(false);
+      expect(body.channels[channel]?.downloadUrl).toBeNull();
+    }
+    expect(body.desktop.available).toBe(false);
+    expect(body.desktop.downloadUrl.win).toBeNull();
+  });
+
+  it("C10: GET /plugins/manifest reflects a published channel manifest and is cached for 5 minutes", async () => {
+    const c = ctx;
+    // The previous test already cached the "unavailable" fallback under this same key --
+    // clear it first so this test's mocked fetch is actually consulted.
+    await c.redis.del(`${redisKeyPrefix()}:licensing:plugin-manifest`);
+    const published = {
+      channel: "stable",
+      channels: {
+        "premiere-uxp": {
+          version: "1.2.0",
+          minHostVersion: "25.2",
+          maxHostVersion: null,
+          downloadUrl: "https://releases.aksharo.ai/releases/stable/aksharo-panel-1.2.0.ccx",
+          notes: null,
+        },
+      },
+      desktop: {
+        version: "0.9.0",
+        notes: "unsigned dry-run build",
+        downloadUrl: {
+          win: "https://releases.aksharo.ai/releases/stable/Aksharo-Setup-0.9.0.exe",
+          mac: "https://releases.aksharo.ai/releases/stable/Aksharo-0.9.0.dmg",
+          linux: null,
+        },
+      },
+    };
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(published), { status: 200 }));
+    try {
+      const first = await request(server).get("/plugins/manifest");
+      expect(first.status).toBe(200);
+      expect(first.body.channels["premiere-uxp"].available).toBe(true);
+      expect(first.body.channels["premiere-uxp"].version).toBe("1.2.0");
+      expect(first.body.channels["premiere-uxp"].channel).toBe("stable");
+      expect(first.body.desktop.available).toBe(true);
+      expect(first.body.desktop.downloadUrl.win).toBe(published.desktop.downloadUrl.win);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      // Second call within the 5-minute window must be served from the Redis
+      // cache, not re-fetched.
+      const second = await request(server).get("/plugins/manifest");
+      expect(second.status).toBe(200);
+      expect(second.body.channels["premiere-uxp"].version).toBe("1.2.0");
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      fetchSpy.mockRestore();
+      await c.redis.del(`${redisKeyPrefix()}:licensing:plugin-manifest`);
+    }
   });
 });

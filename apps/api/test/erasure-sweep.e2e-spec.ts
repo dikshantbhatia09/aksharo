@@ -134,6 +134,25 @@ describe.skipIf(!available)("erasure cascade — the sweep (acceptance criterion
       data: { id: id("CM1"), projectId, authorId: userId, body: "note to self" },
     });
 
+    // C12: telemetry rows are FK-less (`CrashReport`/`ProductEvent`, by
+    // design), so they need their own explicit sweep in the cascade — proven
+    // here rather than trusting an absent seed to look like coverage.
+    await prisma.crashReport.create({
+      data: {
+        id: id("CX1"),
+        workspaceId,
+        userId,
+        clientKind: "desktop",
+        appVersion: "1.0.0",
+        osVersion: "Windows 11",
+        stack: "Error: boom",
+        logTail: [],
+      },
+    });
+    await prisma.productEvent.create({
+      data: { id: id("PE1"), kind: "app_launched", workspaceId, userId, props: {} },
+    });
+
     // Billing document: retained by design.
     const invoice = await prisma.invoice.create({
       data: {

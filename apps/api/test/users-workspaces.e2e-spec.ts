@@ -18,6 +18,7 @@ import { authSkipReason, createAdminContext, createAuthTestContext } from "./aut
 import { isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { redisKeys } from "../src/auth/auth.constants.js";
 import { CommonAuditService } from "../src/common/audit/audit.service.js";
+import { CONSENT_PURPOSES } from "../src/consents/consents.dto.js";
 import { hashEmail } from "../src/privacy/parental-waitlist.js";
 import { PRIVACY_NOTICE_VERSION } from "../src/users/users.service.js";
 import { workspacesRedisKeys } from "../src/workspaces/workspaces.constants.js";
@@ -461,7 +462,7 @@ describe.skipIf(!available)("users, workspaces, consents and privacy (e2e)", () 
 
       expect(response.body.noticeVersion).toBe(PRIVACY_NOTICE_VERSION);
       expect(response.body.reconsentRequired).toBe(false);
-      expect(response.body.purposes).toHaveLength(5);
+      expect(response.body.purposes).toHaveLength(CONSENT_PURPOSES.length);
 
       const byPurpose = Object.fromEntries(
         (response.body.purposes as { purpose: string; granted: boolean; recorded: boolean }[]).map(
@@ -540,7 +541,7 @@ describe.skipIf(!available)("users, workspaces, consents and privacy (e2e)", () 
       await request(server)
         .post("/consents")
         .set("Authorization", auth(user))
-        .send({ purpose: "telemetry", granted: true })
+        .send({ purpose: "profiling", granted: true })
         .expect(400);
     });
   });

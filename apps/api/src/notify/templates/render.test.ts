@@ -86,6 +86,18 @@ const DATA: Readonly<Record<NotifyKind, TemplateData>> = {
     diagnostics: "attached",
     link: "https://app.example.test/admin/support/01JTICKET00000000000000000",
   },
+  "share-report-resolved": {
+    reportedAt: "2026-09-01",
+    resolution: "taken down",
+    resolutionNote: "The link no longer works.",
+    link: "https://aksharo.ai/help/sharing",
+  },
+  "support-ticket-reply": {
+    subject: "Export stuck at 90%",
+    replyBody: "We've restarted the export — please try again.",
+    ticketId: "01JTICKET00000000000000000",
+    link: "https://app.example.test/support/01JTICKET00000000000000000",
+  },
 };
 
 const UNSUBSCRIBE = "https://app.example.test/settings/notifications";

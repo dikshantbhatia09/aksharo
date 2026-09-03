@@ -1,9 +1,16 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post } from "@nestjs/common";
 import { ApiBody, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 
-import { ActivateDto, activateSchema, HeartbeatDto, heartbeatSchema } from "./licensing.dto.js";
+import {
+  ActivateDto,
+  activateSchema,
+  HeartbeatDto,
+  heartbeatSchema,
+  type PluginManifestResponse,
+  pluginManifestSchema,
+} from "./licensing.dto.js";
 import { type ActivateResult, type HeartbeatResult, PluginsService } from "./plugins.service.js";
-import { zodBody } from "../auth/dto/openapi.js";
+import { zodBody, zodResponse } from "../auth/dto/openapi.js";
 import { Public } from "../common/guards/index.js";
 
 /**
@@ -58,5 +65,20 @@ export class PluginsController {
   @ApiOkResponse({ description: "A signed, compact snapshot token." })
   async revocationSnapshot(): Promise<{ snapshot: string }> {
     return { snapshot: await this.plugins.revocationSnapshot() };
+  }
+
+  @Get("manifest")
+  @Public()
+  @ApiOperation({
+    summary: "Channel manifest for the plugins page and installer download links",
+    description:
+      "Per host (premiere-uxp, ae-cep, resolve-script): version, min/max host " +
+      "version, download URL (D65). Every channel reports `available: false` " +
+      "until C10 (installer builds and hosting) lands.",
+    operationId: "pluginManifest",
+  })
+  @ApiOkResponse(zodResponse(pluginManifestSchema, "The current channel manifest."))
+  async manifest(): Promise<PluginManifestResponse> {
+    return this.plugins.manifest();
   }
 }

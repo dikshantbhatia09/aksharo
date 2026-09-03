@@ -87,6 +87,11 @@ program
     "--no-dry-run",
     "sign for real if RELEASE_MODE=signed and secrets are set (fails closed otherwise)",
   )
+  .option(
+    "--placeholder",
+    "force the synthesized placeholder app tree even if a real electron-builder --dir output exists (CI dry runs without Electron)",
+    false,
+  )
   .action(async (opts) => {
     const ctx = contextFromOpts(opts);
     const config = await loadReleaseConfig(ctx.repoRoot);
@@ -94,6 +99,7 @@ program
       platform: opts.platform,
       channel: opts.channel,
       dryRun: opts.dryRun !== false,
+      placeholder: Boolean(opts.placeholder),
     });
     if (result.placeholderApp) {
       console.warn(
@@ -205,6 +211,12 @@ program
         "WARNING: plugins/resolve has no aksharo_core.py yet (C08 not landed); packaged a placeholder plugin",
       );
     }
+    if (result.placeholderPanel) {
+      console.warn(
+        "WARNING: plugins/resolve-panel has no built dist/ yet (run `pnpm --filter " +
+          "@montaj/resolve-panel build` first); packaged a placeholder Studio panel",
+      );
+    }
     console.log(`bundle: ${result.bundlePath}`);
   });
 
@@ -242,6 +254,15 @@ program
   .requiredOption("--version <version>")
   .option("--mac-artifact <path>")
   .option("--win-artifact <path>")
+  .option("--ccx-artifact <path>", "C10: package-ccx output, published under the channel manifest")
+  .option("--ccx-version <version>")
+  .option("--ccx-min-host-version <version>")
+  .option(
+    "--resolve-artifact <path>",
+    "C10: package-resolve output, published under the channel manifest",
+  )
+  .option("--resolve-version <version>")
+  .option("--domain <domain>", "release CDN domain for constructed download URLs")
   .option("--force", "override the 24h stable gate", false)
   .option("--reason <text>", "required with --force")
   .action(async (opts) => {
@@ -251,11 +272,23 @@ program
       version: opts.version,
       macArtifact: opts.macArtifact,
       winArtifact: opts.winArtifact,
+      ccxArtifact: opts.ccxArtifact
+        ? {
+            path: opts.ccxArtifact,
+            version: opts.ccxVersion ?? opts.version,
+            minHostVersion: opts.ccxMinHostVersion ?? null,
+          }
+        : undefined,
+      resolveArtifact: opts.resolveArtifact
+        ? { path: opts.resolveArtifact, version: opts.resolveVersion ?? opts.version }
+        : undefined,
+      domain: opts.domain,
       force: opts.force,
       reason: opts.reason,
     });
     console.log(`published to: ${result.destDir}`);
     console.log(`files: ${result.uploaded.length}, feeds: ${result.feeds.length}`);
+    if (result.pluginManifestPath) console.log(`plugin manifest: ${result.pluginManifestPath}`);
   });
 
 program

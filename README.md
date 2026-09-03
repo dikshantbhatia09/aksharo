@@ -24,18 +24,18 @@ Verify with `pnpm lint && pnpm typecheck && pnpm test && pnpm build`, then
 
 ## Layout
 
-| Path                          | What                                                                                                                                               |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/web`                    | Next.js 15 studio + marketing site — route groups `(site)`, `(app)`, `(share)`, `(admin)`                                                          |
-| `apps/api`                    | NestJS modular monolith + Prisma; OpenAPI at `/docs`                                                                                               |
-| `apps/worker-media`           | Node BullMQ + ffmpeg: probe, audio, proxies, waveform, thumbs                                                                                      |
-| `apps/worker-ai`              | Python 3.12 BullMQ worker: providers, VAD, alignment, passes, LLM                                                                                  |
-| `apps/render`                 | Skia (`@napi-rs/canvas`) frame renderer + ffmpeg encode                                                                                            |
-| `apps/desktop`, `apps/bridge` | Electron shell and the local bridge (README only until C01/C02)                                                                                    |
-| `plugins/*`                   | Premiere UXP, After Effects CEP, DaVinci Resolve script (README only)                                                                              |
-| `engine/montaj-engine`        | native local engine (README only until C03a)                                                                                                       |
-| `packages/*`                  | `edg`, `timemap`, `caption-styles`, `render-core`, `render-canvaskit`, `render-skia-node`, `ass-exporter`, `api-client`, `ui`, `prompts`, `config` |
-| `docs/`                       | `PLAN.md` (waves and status), `CONTRACTS.md` (frozen interfaces), `THREAT-MODEL.md`, `adr/`                                                        |
+| Path                          | What                                                                                                                                                           |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web`                    | Next.js 15 studio + marketing site — route groups `(site)`, `(app)`, `(share)`, `(admin)`                                                                      |
+| `apps/api`                    | NestJS modular monolith + Prisma; OpenAPI at `/docs`                                                                                                           |
+| `apps/worker-media`           | Node BullMQ + ffmpeg: probe, audio, proxies, waveform, thumbs                                                                                                  |
+| `apps/worker-ai`              | Python 3.12 BullMQ worker: providers, VAD, alignment, passes, LLM                                                                                              |
+| `apps/render`                 | Skia (`@napi-rs/canvas`) frame renderer + ffmpeg encode                                                                                                        |
+| `apps/desktop`, `apps/bridge` | Electron shell and the local bridge (README only until C01/C02)                                                                                                |
+| `plugins/*`                   | Premiere UXP, After Effects CEP, DaVinci Resolve script (README only)                                                                                          |
+| `apps/engine`                 | native local engine sidecar (`montaj-engine`): HTTP/WS contract, model manager, backend/tier detection, `FakeBackend` (C03a); quality gate + benchmarks (C03b) |
+| `packages/*`                  | `edg`, `timemap`, `caption-styles`, `render-core`, `render-canvaskit`, `render-skia-node`, `ass-exporter`, `api-client`, `ui`, `prompts`, `config`             |
+| `docs/`                       | `PLAN.md` (waves and status), `CONTRACTS.md` (frozen interfaces), `THREAT-MODEL.md`, `adr/`                                                                    |
 
 ## Working here
 

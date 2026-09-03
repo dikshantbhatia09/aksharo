@@ -117,11 +117,39 @@ export const API_OPERATIONS = [
     summary: "Subscriptions past due, with mandate status and next actions",
   },
   {
+    operationId: "adminEvalsLeaderboard",
+    method: "GET",
+    path: "/admin/evals/leaderboard",
+    tags: ["admin"],
+    summary: "Eval leaderboard: latest metric per (dataset, language, provider, metric), with trend",
+  },
+  {
+    operationId: "adminFreezeRouting",
+    method: "POST",
+    path: "/admin/evals/freeze",
+    tags: ["admin"],
+    summary: "Freeze the routing chain to its last approved snapshot (reason mandatory, audited)",
+  },
+  {
     operationId: "adminGetFlag",
     method: "GET",
     path: "/admin/flags/{key}",
     tags: ["admin"],
     summary: "One flag's current state",
+  },
+  {
+    operationId: "adminGetRoutingFreeze",
+    method: "GET",
+    path: "/admin/evals/freeze",
+    tags: ["admin"],
+    summary: "Current routing-freeze state",
+  },
+  {
+    operationId: "adminGetSupportTicket",
+    method: "GET",
+    path: "/admin/support/tickets/{id}",
+    tags: ["admin"],
+    summary: "One ticket",
   },
   {
     operationId: "adminJobQueueStats",
@@ -166,6 +194,13 @@ export const API_OPERATIONS = [
     summary: "The system style catalogue, with parity results",
   },
   {
+    operationId: "adminListSupportTickets",
+    method: "GET",
+    path: "/admin/support/tickets",
+    tags: ["admin"],
+    summary: "Support tickets, newest first, optionally filtered by status/category",
+  },
+  {
     operationId: "adminPendingAffiliates",
     method: "GET",
     path: "/admin/affiliates/pending",
@@ -206,6 +241,13 @@ export const API_OPERATIONS = [
     path: "/admin/referrals/{id}/reject",
     tags: ["admin"],
     summary: "Reject a held reward",
+  },
+  {
+    operationId: "adminReplyToSupportTicket",
+    method: "POST",
+    path: "/admin/support/tickets/{id}/reply",
+    tags: ["admin"],
+    summary: "Reply to a ticket via the notify interface",
   },
   {
     operationId: "adminResolveShareReport",
@@ -250,18 +292,18 @@ export const API_OPERATIONS = [
     summary: "Set (create or replace) one lane/provider's weight override",
   },
   {
+    operationId: "adminSetSupportTicketStatus",
+    method: "POST",
+    path: "/admin/support/tickets/{id}/status",
+    tags: ["admin"],
+    summary: "Move a ticket to open/in_progress/resolved/closed",
+  },
+  {
     operationId: "adminStepUp",
     method: "POST",
     path: "/admin/auth/step-up",
     tags: ["admin"],
     summary: "Exchange a normal session plus a TOTP code for a 30-minute admin token",
-  },
-  {
-    operationId: "adminSupportStatus",
-    method: "GET",
-    path: "/admin/support/status",
-    tags: ["admin"],
-    summary: "Whether the support-ticket panel has a real backend yet (B12)",
   },
   {
     operationId: "adminSuspendAffiliate",
@@ -283,6 +325,13 @@ export const API_OPERATIONS = [
     path: "/admin/auth/totp/verify",
     tags: ["admin"],
     summary: "Confirm TOTP enrolment with the first valid code",
+  },
+  {
+    operationId: "adminUnfreezeRouting",
+    method: "POST",
+    path: "/admin/evals/unfreeze",
+    tags: ["admin"],
+    summary: "Unfreeze the routing chain (reason mandatory, audited)",
   },
   {
     operationId: "adminUpdateFlag",
@@ -500,6 +549,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/media/{mediaId}/complete",
     tags: ["media"],
     summary: "Finish an upload (project-scoped form)",
+  },
+  {
+    operationId: "confirmDiagnosticsBundle",
+    method: "POST",
+    path: "/telemetry/diagnostics-bundle/confirm",
+    tags: ["telemetry"],
+    summary: "Confirm an uploaded diagnostics bundle and attach it to the ticket",
   },
   {
     operationId: "createApiKey",
@@ -1083,6 +1139,13 @@ export const API_OPERATIONS = [
     summary: "Razorpay webhook (THREAT-MODEL T16)",
   },
   {
+    operationId: "importEdgDocument",
+    method: "POST",
+    path: "/projects/{projectId}/edg/import",
+    tags: ["edg"],
+    summary: "Write a whole EDG document as revision 1 of a fresh project",
+  },
+  {
     operationId: "importMemoryGlossary",
     method: "POST",
     path: "/memory/import",
@@ -1503,6 +1566,13 @@ export const API_OPERATIONS = [
     summary: "Renew the 7-day entitlement lease",
   },
   {
+    operationId: "pluginManifest",
+    method: "GET",
+    path: "/plugins/manifest",
+    tags: ["plugins"],
+    summary: "Channel manifest for the plugins page and installer download links",
+  },
+  {
     operationId: "pluginRevocationSnapshot",
     method: "GET",
     path: "/plugins/revocation-snapshot",
@@ -1510,11 +1580,25 @@ export const API_OPERATIONS = [
     summary: "Signed daily revocation snapshot for fully offline clients",
   },
   {
+    operationId: "presignDiagnosticsBundle",
+    method: "POST",
+    path: "/telemetry/diagnostics-bundle/presign",
+    tags: ["telemetry"],
+    summary: "Presign an upload for a diagnostics bundle on the caller's own support ticket",
+  },
+  {
     operationId: "previewChangePlan",
     method: "GET",
     path: "/billing/subscription/change-preview",
     tags: ["billing"],
     summary: "Proration preview for a plan/interval/seat change",
+  },
+  {
+    operationId: "previewShareLink",
+    method: "GET",
+    path: "/s/{token}/preview",
+    tags: ["share-public"],
+    summary: "Proxy URL + EDG projection for the CanvasKit preview",
   },
   {
     operationId: "quoteBatch",
@@ -1837,6 +1921,20 @@ export const API_OPERATIONS = [
     path: "/streak/test-hooks",
     tags: ["streak"],
     summary: "Simulate weeks (test environment only)",
+  },
+  {
+    operationId: "submitCrashReport",
+    method: "POST",
+    path: "/telemetry/crash",
+    tags: ["telemetry"],
+    summary: "Submit a redacted crash report",
+  },
+  {
+    operationId: "submitTelemetryEvents",
+    method: "POST",
+    path: "/telemetry/events",
+    tags: ["telemetry"],
+    summary: "Submit a batch of consent-gated telemetry events",
   },
   {
     operationId: "TaxRegistrationsController_list",

@@ -40,9 +40,20 @@ export const LICENSE_CLOCK_SKEW_MS = 5 * 60 * 1000;
 /** How long a signed daily revocation snapshot is cached before recomputing. */
 export const REVOCATION_SNAPSHOT_TTL_SEC = 24 * 60 * 60;
 
+/**
+ * `GET /plugins/manifest` (C10): how long the fetched channel manifest (C00's
+ * `publish` output, `plugins-manifest.json`) is cached before re-fetching (brief
+ * section 4: "served from the API with a 5-minute cache").
+ */
+export const PLUGIN_MANIFEST_CACHE_TTL_SEC = 5 * 60;
+
+/** Which release channel `/plugins/manifest` reads by default (D65/07 §Plugins). */
+export const PLUGIN_MANIFEST_CHANNEL = "stable" as const;
+
 /** A function since A23b's `redisKeyPrefix()` is (per-suite isolation in tests). */
 export const licensingRedisKeys = {
   heartbeatNonce: (deviceId: string, nonce: string) =>
     `${redisKeyPrefix()}:licensing:heartbeat-nonce:${deviceId}:${nonce}`,
   revocationSnapshot: () => `${redisKeyPrefix()}:licensing:revocation-snapshot`,
+  pluginManifest: () => `${redisKeyPrefix()}:licensing:plugin-manifest`,
 };

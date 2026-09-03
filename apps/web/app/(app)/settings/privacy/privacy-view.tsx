@@ -79,6 +79,7 @@ export function PrivacyView(): React.JSX.Element {
         analytics: granted("analytics"),
         memory: granted("memory"),
         marketing: granted("marketing"),
+        telemetry: granted("telemetry"),
       }),
     );
   }, [consents.data]);
@@ -93,7 +94,10 @@ export function PrivacyView(): React.JSX.Element {
    * when they turn a switch off. The API takes one purpose per call: a consent
    * record is per purpose, and a refusal is a row too.
    */
-  const update = (purpose: "analytics" | "memory" | "marketing", granted: boolean): void => {
+  const update = (
+    purpose: "analytics" | "memory" | "marketing" | "telemetry",
+    granted: boolean,
+  ): void => {
     setLocal(writePrivacy({ [purpose]: granted }));
     if (purpose === "analytics" && !granted) resetAnalytics();
     setConsent.mutate(
@@ -181,6 +185,16 @@ export function PrivacyView(): React.JSX.Element {
           disabled={isMinor}
           onChange={(granted) => {
             update("marketing", granted);
+          }}
+        />
+
+        <ConsentToggle
+          id="settings-telemetry"
+          label="Desktop and plugin telemetry"
+          description="Crash reports and usage events from the desktop app, local bridge and editor plugins — never sent without this on, never to a third party directly from your device."
+          checked={local.telemetry}
+          onChange={(granted) => {
+            update("telemetry", granted);
           }}
         />
 

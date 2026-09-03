@@ -98,9 +98,9 @@ Sub-wave order: {B01, B02, B05, B09} → {B03, B04, B06, B07, B07b, B08} → {B1
 | B10 | Audio clean: 48 kHz deep-filter path, loudness targets, A/B preview, applied in browser + cloud exports | A09, A20, A19 | done (B10 + B10b merged + verified: Quick clean, SetAudio.cleanId, Audio tab, D82 tiers, audio parity, bounded-window DSP) |
 | B11 | LLM features (chapters, summary, hooks) + `packages/prompts` registry, region pinning, evals, Insights tab | A11, B02 | done (B11/B11b merged: per-kind burn rates in config, one lexicon loader, EDG-segment insights payload) |
 | B12 | Academy tracks + rewards, Changelog + What's new, Help centre, support tickets with diagnostics | A13, B02 | done (merged + verified: 4 academy tracks with exactly-once rewards, 10 help articles, /updates changelog + What's new + RSS, support tickets; academy lot source + academy-help Playwright → M03) |
-| B13 | Admin console: roles + step-up, users/credits/refunds, flags, styles/parity, routing weights, jobs/DLQ, mandates, TDS, affiliate review, DSR/breach, share reports, metrics | B01–B12, B16 | done (merged + verified 158b118: roles/step-up, all panels, (admin) shell; B13b follow-ups launched) |
+| B13 | Admin console: roles + step-up, users/credits/refunds, flags, styles/parity, routing weights, jobs/DLQ, mandates, TDS, affiliate review, DSR/breach, share reports, metrics | B01–B12, B16 | done (B13 + B13b merged + verified: roles/step-up, all panels, routing overrides to the worker, support queue, server-side admin gate, SVG charts) |
 | B14 | Public API v1 + scoped API keys + signed webhooks + SSRF-guarded URL import + developer docs | B02, A21, A06 | done (B14 + B14b merged: keys, /v1, idempotency, SSRF ingest, signed webhooks with real event emits + fixture-server e2e, Developers docs) |
-| B15 | Share/review links (view/comment/approve, hygiene), comments, batch, replace media (re-align), import transcript & align | A12, A21, A10, B08 | in-progress (API half merged: share links scope ladder/password/expiry/view cap/auto-disable, comments, batch; web viewer + replace-media re-align + import-align running on wp/B15) |
+| B15 | Share/review links (view/comment/approve, hygiene), comments, batch, replace media (re-align), import transcript & align | A12, A21, A10, B08 | merged 7706267 (share links web+api) |
 | B18 | Autocut pass (silences, filler lexicons, retakes, protection, pacing) → pass items | A10, A11, A02c | done (B18 + B18b merged: autocut pass, protected ranges op + timeline protect + passes payload) |
 | B19 | Reframe & zoom pass (scene detection, subject tracking, cues, packed keyframes) | A07, A11, B18 | done (B19 + B19b merging: single MKF2 codec, zoom PassType, inline/ref keyframe storage, proxy frame + RMS sampling, word-timed cues; 30-min pass 2.4 min after two perf fixes; H-22 weights) |
 | B20 | Proposal review UI + exports apply cuts/zooms via `timemap` (browser + cloud) + parity fixtures | A17, A19, A20, B18, B19 | done (merged: shared crop-window curve for browser + ffmpeg, Passes tab/ProposalCard/bulk accept, split lanes, output-length test, crop parity; B20b after B19b) |
@@ -114,16 +114,16 @@ C05a, C06, C06b, C08, C08b, C10, C11, C12, D08.
 
 | ID | Package | Deps | Status |
 |---|---|---|---|
-| C11 | Plugin licensing & devices UI (activation limits, revoke, offline lease, activation card) | B08, B08b, C01 | running |
-| C12 | Desktop/plugin telemetry (consent), crash reporting, diagnostics bundle | C02, A05, B12, B16 | running |
+| C11 | Plugin licensing & devices UI (activation limits, revoke, offline lease, activation card) | B08, B08b, C01 | done (merged + verified; 8c196c4: activation card v2 at /plugins→/plugins-app, GET /plugins/manifest stub, middleware prefix bug fixed; cue mounted by B20b) |
+| C12 | Desktop/plugin telemetry (consent), crash reporting, diagnostics bundle | C02, A05, B12, B16 | done (merged + verified; a296f94: telemetry consent, events/crash endpoints, 30-day retention, shared redaction, diagnostics bundle → ticket; bridge consent sync is a follow-up) |
 | C05a | Premiere UXP plugin foundation over a mocked host adapter (Gate C runs it on a real machine) | C01, C00, A00-03 | done (merged: manifest v5 ai.aksharo.panel, PremiereHost + mock, in-memory session per T13, .ccx packaged; C06/C06b running) |
 | C08 | Resolve `aksharo_core` over a FakeResolve adapter | C01, A00-04 | done (merged + verified 58 tests; DynamicZoom property keys flagged for Gate C; C08b running) |
-| C08b | Fusion Text+ macro generator + style coverage report | C08 | done pending merge (704c92b: 19/6/5 of 30 styles; rules JSON is the reference for C06b) |
-| C00b | Real desktop packaging: esbuild-bundled main/preload, electron-builder over dist, CI e2e runnable | C02b | briefed |
-| C10 | Installers (NSIS/pkg/Resolve/.ccx), `/plugins/manifest`, plugins + download pages | C00, C02, C05a, C08 | briefed |
-| D08 | Eval harness & quality gates on fixture datasets, shadow routing, routing freeze, admin leaderboard | A10, B13, B16 | briefed |
-| C06 | Premiere apply modes (transcript injection, MOGRT captions, overlay, SRT, cuts/zooms/audio, transactions, marker map, re-sync) over the mocked host | C05a, C06b | done pending verification (b1f59e1, 99 tests) |
-| C06b | MOGRT authoring: definition.json generator, verifier, style coverage; the .aep itself is human (H-25) | C05a | briefed |
+| C08b | Fusion Text+ macro generator + style coverage report | C08 | done (merged + verified: 19 supported / 6 approximate / 5 unsupported of 30; classification_rules.json is the reference; real-Fusion check at Gate C) |
+| C00b | Real desktop packaging: esbuild-bundled main/preload, electron-builder over dist, CI e2e runnable | C02b | done (merged + verified: pack:dry produces Aksharo.exe, 270 MB unpacked; C10 measures the installer) |
+| C10 | Installers (NSIS/pkg/Resolve/.ccx), `/plugins/manifest`, plugins + download pages | C00, C02, C05a, C08 | merged e82fc18 (installers, plugins page, size budgets) |
+| D08 | Eval harness & quality gates on fixture datasets, shadow routing, routing freeze, admin leaderboard | A10, B13, B16 | done (merged + verified — worker 752; 7d03c29: Indic-aware WER/CER + boundary/DER/transliteration/autocut/LLM metrics, 6 generated datasets + licensed-set seam, shadow rung + freeze, eval_runs/leaderboard/freeze API, nightly task; worker env-list drift test → M04) |
+| C06 | Premiere apply modes (transcript injection, MOGRT captions, overlay, SRT, cuts/zooms/audio, transactions, marker map, re-sync) over the mocked host | C05a, C06b | done (merged + verified, 99 tests; MOGRT param addressing + per-word keyframing flagged for Gate C) |
+| C06b | MOGRT authoring: definition.json generator, verifier, style coverage; the .aep itself is human (H-25) | C05a | done (merged + verified 136 tests; ff7662c + aba71de: 14 frozen params as the single source for C06 too, verifier in CI, 19/6/5 coverage matching Resolve) |
 
 ## Wave 6 — AE, local engine, library
 C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machines).
@@ -132,14 +132,14 @@ C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machine
 |---|---|---|---|
 | D06 | Text FX pass: key phrases → titles, layout solver never overlapping captions, 6 motion presets, exports + parity | B11, B20b | briefed |
 | D04a | Owned audio pack ingestion (licence columns, CLAP, loudness) + SFX pass + ducking, on a fixture pack until A00-07 | B19b, B20b, A00-07 | briefed |
-| C09 | Resolve Studio Workflow Integration panel over aksharo_core's loopback server | C08, C08b | briefed |
+| C09 | Resolve Studio Workflow Integration panel over aksharo_core's loopback server | C08, C08b | done (merged + verified: panel 44 tests + resolve 94; ?token= WS bearer → C02c ticket exchange; manifest schema + install paths pending A00-04) |
 | D05 | Music pass: sections/mood/BPM, beat-aligned cuts, loops/fades, ducking; owned pack only | D04a | briefed |
-| C05b | After Effects CEP panel over a mocked AeHost; ZXP dry run | C05a, C06b, C00 | briefed |
-| C03a | `apps/engine` local sidecar supervisor: whisper.cpp/Silero/deep-filter/ffmpeg via a signed manifest, model manager, backend detection, FakeBackend | C02, A00-10 | running |
-| C03b | Local quality gate + tiered latency harness (real-hardware run at Gate C) | C03a, D08 | briefed |
-| C04 | Local mode: SQLite + files, local export, upload-to-cloud as a new project, Starter+ gate | C03a | briefed |
+| C05b | After Effects CEP panel over a mocked AeHost; ZXP dry run | C05a, C06b, C00 | merged fc694e2 |
+| C03a | `apps/engine` local sidecar supervisor: whisper.cpp/Silero/deep-filter/ffmpeg via a signed manifest, model manager, backend detection, FakeBackend | C02, A00-10 | done (merged + verified — engine 51, engine-client 15, release 53; c12df56: /health /models /transcribe(+WS) /align /clean /render, manifest + resumable SHA-256 model manager, tier table, FakeBackend; the A01 scaffold engine/montaj-engine is deleted by C03b) |
+| C03b | Local quality gate + tiered latency harness (real-hardware run at Gate C) | C03a, D08 | merged 2afc827 + verified (engine 68/68, worker-ai 740 passed; real-backend wiring stays A00-10) |
+| C04 | Local mode: SQLite + files, local export, upload-to-cloud as a new project, Starter+ gate | C03a | merged 24d2589 (local mode; C04b follows) |
 | D09 | Apply passes inside Premiere/Resolve: audio tracks from owned assets, titles, ripple/keyframes via a shared apply-plan | C06, C08b, D04a, D06 | briefed |
-| X01 | Security review: threat-model audit with evidence, dependency/secret/header checks, negative tests, pen-test scope (H-26) | — | running |
+| X01 | Security review: threat-model audit with evidence, dependency/secret/header checks, negative tests, pen-test scope (H-26) | — | done (merged + verified — api 137, web 790: audit doc T1–T25, device-code rate limit + helmet + Next headers fixed, CI security-audit job; Electron bump → C02c) |
 
 ## Wave 7 — Remaining
 
@@ -148,8 +148,10 @@ C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machine
 | D07 | Prompted edits: edit-plan@1 planner, Flash/Pro engines, plan preview, hold on source / settle on finished minutes | D05, D06 | briefed |
 | X03 | Docs site under /docs: guides, plugin guides, generated API reference, search | C10 | briefed |
 | X04 | Launch checklist: status page, backup/restore drill, on-call runbooks, legal pages (H-27), DPDP records generator, sub-processor list | B13, B16 | running |
-| X08 | Cilium FQDN egress policies + inventory check + runbook (charts only, nothing applied) | X05 | running |
+| X08 | Cilium FQDN egress policies + inventory check + runbook (charts only, nothing applied) | X05 | done (merged + verified: 17-host inventory with drift check, off/audit/enforce modes, runbook; 22 infra tests) |
 | D04b | Partner catalogue over a mock adapter behind PARTNER_CATALOGUE (contract gate A00-11 / H-28) | D05 | briefed |
+| C02c | Electron major bump + Playwright-Electron smoke, eslint-plugin-security, C09 WebSocket ticket exchange | X01, C09 | running |
+| C04b | Local mode follow-ups: transcript chunks in the local store (word ops + resegment), engine /probe, editor gating copy | C04 | briefed |
 
 D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for prod — chart variant exists from X05; prod-hardening item before Gate C), X07 hardening also includes: split `packages/api-client`'s hand-written `endpoints/hooks/index/query-keys/types` into per-module files with a generated barrel (three WPs in a row — A22, A14, B04 — conflicted on those five files; B07 found a second latent defect there: Nest controllers returning bare `null` send an empty body which `readJson` turns into `undefined` — `GET /billing/subscription` still does this; wrap nullable responses in an object), D81 schema migration (invoice/ledger/commission foreign keys to workspaces → Restrict; workspaces soft-delete only), the web e2e fixture's hard-coded `montaj:auth:dev-outbox` key (A23 addendum), a browser-safe subpath export for `packages/bridge-core` (C05a vendored the protocol schemas because the barrel pulls Node-only modules), and under D08: extend A22's rule-table transliteration (Hindi + Tamil today) to the remaining AI4Bharat languages as table data once A00-05 eval sets exist. **Gate D**.
 

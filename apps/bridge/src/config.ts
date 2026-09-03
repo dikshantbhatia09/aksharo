@@ -27,6 +27,14 @@ export interface BridgeAppConfig {
   sessionRefreshToken?: string;
   /** Epoch ms `deviceToken` expires at (CONTRACTS §5: 15 minutes from mint). */
   deviceTokenExpiresAt?: number;
+  /**
+   * C12: local mirror of the `telemetry` consent, same reasoning as the
+   * desktop shell's `telemetry/consent-store.ts` — off until the server row
+   * says otherwise. Synced from `GET /consents` on startup and refreshed on
+   * a poll (M04, `consent-sync.ts`; `main.ts` persists whatever the server
+   * last answered here).
+   */
+  telemetryConsent?: boolean;
 }
 
 function configPath(): string {

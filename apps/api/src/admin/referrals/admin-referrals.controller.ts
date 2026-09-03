@@ -33,6 +33,16 @@ import type { AuthenticatedRequest } from "../../common/guards/principal.js";
  * "chained self-referral" holds — still `status: "pending"`, never
  * auto-granted (`ReferralsService.grantForExport`'s own check) — surfaced
  * here for `ops`/`finance`/`superadmin` to approve or reject.
+ *
+ * **Clustering candidate, not built (B13b, orchestrator ruling 2026-09-03,
+ * item 7).** Today's hold reason is purely referral-graph shape (a chain of
+ * self-referrals). A device-fingerprint or IP signal shared across two
+ * workspaces' `referral_rewards` rows — the same device or address behind
+ * both the referrer and the referred signup — is a stronger fraud signal
+ * this queue does not surface: it would need joining `referral_rewards`
+ * against B08's device rows (or a request-IP log this WP does not have) and
+ * a clustering pass to flag pairs, and it stays a documented follow-up
+ * rather than code this WP was told to write.
  */
 @ApiTags("admin")
 @ApiBearerAuth("access-token")

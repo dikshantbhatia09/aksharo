@@ -40,6 +40,25 @@ describe("middleware", () => {
     expect(middleware(request("/", SIGNED_IN)).headers.get("location")).toBeNull();
   });
 
+  it("leaves the marketing plugins page alone for a signed-out visitor (C11)", () => {
+    const response = middleware(request("/plugins"));
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("x-middleware-rewrite")).toBeNull();
+  });
+
+  it("rewrites /plugins to the signed-in activation-card screen (C11)", () => {
+    const response = middleware(request("/plugins", SIGNED_IN));
+    const rewrite = new URL(response.headers.get("x-middleware-rewrite") ?? "");
+    expect(rewrite.pathname).toBe("/plugins-app");
+  });
+
+  it("leaves /plugins/keys alone in both directions (C11, no marketing page there)", () => {
+    expect(middleware(request("/plugins/keys")).headers.get("x-middleware-rewrite")).toBeNull();
+    expect(
+      middleware(request("/plugins/keys", SIGNED_IN)).headers.get("x-middleware-rewrite"),
+    ).toBeNull();
+  });
+
   it("never intercepts the session route handlers", () => {
     // They are how a browser with a cookie and no access token gets one; a
     // redirect here would make signing in impossible.

@@ -1,7 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { z } from "zod";
 
-import { EdgOpSchema, ItemStateSchema, OpBatchRequestSchema } from "@montaj/edg/schemas";
+import {
+  EdgHotSchema,
+  EdgOpSchema,
+  EdgSourceSchema,
+  ItemStateSchema,
+  OpBatchRequestSchema,
+  SegmentSchema,
+} from "@montaj/edg/schemas";
 
 import { MAX_SEGMENT_PAGE_SIZE, SEGMENT_PAGE_SIZE } from "./edg.errors.js";
 import { zodDto } from "../common/validation/zod-validation.pipe.js";
@@ -71,6 +78,32 @@ const InternalOpBatchRequest = OpBatchRequestSchema.extend({
 });
 
 export class InternalOpBatchRequestDto extends zodDto(InternalOpBatchRequest) {}
+
+/**
+ * `POST /projects/{id}/edg/import` (brief C04 §3): a whole EDG v2 document,
+ * written verbatim as revision 1 of a project that has none yet — "Upload to
+ * cloud" creates a *new* cloud project from a local one's already-edited
+ * document, never a merge onto an existing one (out of scope per the brief).
+ *
+ * Deliberately not `OpBatchRequestSchema`: the caller is not replaying ops
+ * against a revision, it is handing over the whole document the local editor
+ * already produced, exactly as `EdgService.initialise` does with a
+ * segmenter's output.
+ */
+const ImportRequest = z.object({
+  hot: EdgHotSchema,
+  segments: z.array(SegmentSchema).min(1),
+  author: z.string().min(1).nullable().optional(),
+  source: EdgSourceSchema.optional(),
+});
+
+export class ImportRequestDto extends zodDto(ImportRequest) {}
+
+export class ImportResultDto {
+  @ApiProperty() edgId!: string;
+  @ApiProperty() revision!: number;
+  @ApiProperty() segments!: number;
+}
 
 // ---------------------------------------------------------------------------
 // Responses

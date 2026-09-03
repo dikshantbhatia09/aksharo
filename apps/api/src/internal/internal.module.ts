@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { InternalJobsController } from "./internal-jobs.controller.js";
 import { InternalMediaController } from "./internal-media.controller.js";
 import { InternalSignatureGuard } from "./internal-signature.guard.js";
+import { InternalRoutingOverridesController } from "./routing-overrides.controller.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 
 /**
@@ -14,7 +15,11 @@ import { JobsModule } from "../jobs/jobs.module.js";
  */
 @Module({
   imports: [JobsModule],
-  controllers: [InternalJobsController, InternalMediaController],
+  controllers: [
+    InternalJobsController,
+    InternalMediaController,
+    InternalRoutingOverridesController,
+  ],
   providers: [InternalSignatureGuard],
   exports: [InternalSignatureGuard],
 })

@@ -59,6 +59,7 @@ export const queryKeys = {
   members: (workspaceId: string) => ["ws", workspaceId, "members"] as const,
   devices: (workspaceId: string) => ["ws", workspaceId, "devices"] as const,
   licenseKeys: (workspaceId: string) => ["ws", workspaceId, "licenseKeys"] as const,
+  pluginManifest: () => ["pluginManifest"] as const,
   clientTags: (workspaceId: string) => ["ws", workspaceId, "clientTags"] as const,
   apiKeys: (workspaceId: string) => ["ws", workspaceId, "apiKeys"] as const,
   webhooks: (workspaceId: string) => ["ws", workspaceId, "webhooks"] as const,

@@ -454,6 +454,76 @@ routing change. A set is a directory under `fixtures/` with a `manifest.yaml`
 real and the media has not shipped yet, so a provider that reads audio skips the
 set and the mock still exercises the harness. The real sets arrive with **A00-05**.
 
+### D08: datasets, metrics, nightly runs, shadow routing, freeze
+
+Everything above is A09's transcript-only harness. D08 adds a wider
+`evals/datasets/` loader that also scores transliteration, autocut,
+diarisation and LLM-eval-style datasets, plus the nightly job, shadow
+routing and the routing freeze.
+
+```bash
+python -m worker_ai.evals nightly                       # score every bundled dataset, write eval-results/<date>/report.{json,md}
+python -m worker_ai.evals nightly --post                 # also POST the report to {API_ORIGIN}/internal/evals/runs
+python -m worker_ai.evals nightly --max-items 20 --trigger manual
+pnpm --filter @montaj/worker-ai eval                      # same as `nightly`, wired for the B16 scheduler task
+```
+
+**Datasets** (`evals/datasets/`): a `Dataset` is `{name, kind, language, script,
+licence, items[]}` — `licence` is mandatory, so a set with no attached licence
+string cannot load. Three roots are searched, in order: `datasets/generated/`
+(synthetic Hindi/Tamil/Hinglish/transliteration/autocut/LLM-check sets this WP
+wrote, all `licence: generated-internal`), `datasets/fixtures/` (adapters over
+already-committed fixtures — `hinglish-mini` reuses A09's own set without
+duplicating its audio/words files), and, if `EVAL_LICENSED_DATASETS_DIR` is
+set, that external directory for A00-05's real licensed corpus — same
+manifest format, so nothing here changes when it lands. `datasets/manifest.json`
+records a SHA-256 per bundled file (`datasets/checksums.py`); a test
+(`tests/test_evals_datasets.py`) fails if a bundled fixture is hand-edited
+without regenerating it.
+
+**Metrics** (`evals/metrics.py`): WER/CER now run on an Indic-aware
+`normalise()` — NFD, then ZWJ/ZWNJ stripped, then the four nukta letters with
+no Unicode canonical decomposition folded to base + combining nukta by hand,
+then punctuation (danda included) and whitespace collapse, then NFC — so a
+provider's font/encoding preference is never charged as a word error. New
+metrics: `word_boundary_error` (does a hypothesis span agree with the
+reference aligner's, as opposed to `median_onset_error_ms`'s "how far off"),
+`diarisation_der` (a dependency-free, grid-based DER — stricter than
+`pyannote.metrics`'s optimal-assignment algorithm but monotonic with it),
+`transliteration_accuracy` (exact match after `normalise()`, scored against
+A22's real `transliterate_word`/`romanise_word`), `autocut_precision_recall`
+(tolerance-windowed, greedy one-to-one matching against B18's cut-list
+shape) and `llm_pass_rate` (aggregates recorded pass/fail checks in B11's
+report-format spirit — this harness does not re-run `packages/prompts`'s
+TypeScript checks itself).
+
+**Local-engine metrics bridge** (`evals/local_engine.py`, C03b): a thin CLI —
+one JSON request on stdin, one JSON response on stdout — that lets
+`apps/engine/bench/**`'s Node harness reuse `wer`/`cer`/`median_onset_error_ms`
+above instead of a second WER/CER implementation in TypeScript. Not a server:
+one `spawnSync` per fixture item (`apps/engine/bench/metrics-bridge.ts`).
+
+**Runner** (`evals/runner_datasets.py`, `evals/nightly.py`): `run_dataset`
+dispatches on `kind` — `transcript` reuses A09's `EvalSet`/provider path,
+the other four kinds score directly with no provider. `run_nightly` scores
+every bundled dataset (cost-capped at `DEFAULT_MAX_ITEMS_PER_DATASET` items
+each, per D74's CPU-lane rule), and `post_nightly_report` signs the summary
+exactly like a job-completion callback and posts it to
+`POST {API_ORIGIN}/internal/evals/runs`, which the API stores as `eval_runs` +
+`eval_results` and serves back at `GET /admin/evals/leaderboard`.
+
+**Shadow routing and freeze** (`routing.py`): a candidate can carry
+`shadow: true` in `routing.yaml` (or via an admin override's `shadow` key).
+`resolve_chain`/`resolve` never return a shadow candidate — it is excluded
+from the live chain entirely, not merely ranked last — while
+`shadow_candidates()` lists the ones this deployment could actually run, for
+a caller to run in parallel and record without ever serving its result.
+`ROUTING_FROZEN=1` (or an admin toggle upstream of it) makes
+`load_routing_table_guarded()` skip `routing.yaml` entirely and serve the
+last-approved snapshot (`write_routing_snapshot`/`load_routing_snapshot`,
+default `routing.snapshot.json`) instead — "refuses routing.yaml reloads"
+literally: the file can change on disk and a frozen worker will not notice.
+
 ## Configuration
 
 `docs/CONTRACTS.md` §1 variables are read through `settings.py`, which fails fast

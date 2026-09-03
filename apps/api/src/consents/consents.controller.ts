@@ -13,6 +13,7 @@ import { consentsResponseSchema, SetConsentDto, setConsentSchema } from "./conse
 import { ConsentsService } from "./consents.service.js";
 import { zodBody, zodResponse } from "../auth/dto/openapi.js";
 import {
+  AllowBridgeToken,
   CurrentUser,
   JwtAuthGuard,
   RateLimit,
@@ -42,11 +43,16 @@ export class ConsentsController {
   constructor(private readonly consents: ConsentsService) {}
 
   @Get()
+  @AllowBridgeToken()
   @ApiOperation({
     summary: "The caller's current answer for every purpose",
     description:
       "`reconsentRequired` is true when a purpose was last answered against an " +
-      "older privacy notice — the choice has to be asked again (D61, Rule 3).",
+      "older privacy notice — the choice has to be asked again (D61, Rule 3). " +
+      "`@AllowBridgeToken()` (M04): the local bridge process reads this on " +
+      "startup and on its periodic refresh to know whether the `telemetry` " +
+      "purpose is granted, the same read a browser session makes — it is a " +
+      "read of the caller's own consent state, not an action on anyone else's.",
     operationId: "getConsents",
   })
   @ApiOkResponse(zodResponse(consentsResponseSchema, "Current consent state."))

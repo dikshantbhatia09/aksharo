@@ -1,0 +1,22 @@
+name: autocut-synth
+kind: autocut
+language: und
+script: n/a
+licence: generated-internal
+description: >
+  Synthetic ground-truth cut lists paired with a candidate cut list a human
+  reviewer would produce from B18's autocut pass, scored with
+  `autocut_precision_recall`. B18 ships no committed fixture files of its own
+  (its tests build `AutocutInput` inline), so this dataset is generated for
+  D08 rather than adapted from an existing fixture; wiring the runner to score
+  a *live* `passes/autocut.py` run against synthetic audio is a follow-up (see
+  this WP's final report).
+items:
+  - id: ac-001
+    reference:
+      referenceCuts: [[0, 1200], [3400, 3900], [8000, 9500]]
+      candidateCuts: [[50, 1180], [3420, 3880], [12000, 12400]]
+  - id: ac-002
+    reference:
+      referenceCuts: [[500, 900], [2000, 2600]]
+      candidateCuts: [[520, 910], [2010, 2590]]

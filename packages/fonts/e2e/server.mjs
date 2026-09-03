@@ -62,5 +62,6 @@ const server = createServer((request, response) => {
 });
 
 server.listen(port, "127.0.0.1", () => {
+  // eslint-disable-next-line no-console -- this is a CLI harness; stdout is its status line.
   console.log(`fonts e2e harness on http://127.0.0.1:${port}`);
 });
