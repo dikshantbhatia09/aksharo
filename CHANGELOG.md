@@ -56,11 +56,25 @@ overflow-y-auto` (the row scrolls its own lanes past that budget instead
 panels/StylePicker.tsx` and `RightPanel.tsx` were read end to end and are
     correct as written — the defect was purely in the layout budget one level
     up, in `editor-client.tsx`.
-  - **Verification:** `gate-a.spec.ts` chromium, `export.spec.ts`,
-    `timeline.spec.ts` — see this package's final report for the 3/3 gate-a
-    result lines (a shared-host Redis/Docker outage during this package's own
-    run interrupted the last verification pass; see the report for exactly
-    what ran clean and what is still outstanding).
+  - **Second, unrelated fixture drift found past the layout fix:** with the
+    tile now clickable, the journey reached its browser-export eligibility
+    check and failed there — `mode: "auto"` now returned `"cloud"`, not
+    `"browser"`. Root cause: merging current `main` pulled in the A19c ruling
+    (`decision.ts`'s `softwareEncoderAboveHd`, already reflected in
+    `export.spec.ts`'s own comments) that routes `auto` at 1080p-and-up to
+    the cloud whenever the client does not report `capabilities.
+hardwareEncoder`. `gate-a.spec.ts`'s capabilities payload for this step
+    predates that ruling and never set the field, so every `auto` request —
+    real headless Chromium included — now gets `cloud` regardless of
+    eligibility. Fixed by adding `hardwareEncoder: true` to that payload,
+    matching the step's own documented intent ("the same decision the
+    dialog's click would have gotten" on a real desktop Chrome, most of
+    which do report one).
+  - **Verification:** `gate-a.spec.ts` chromium 3/3 green, `export.spec.ts`
+    2/2 green, `timeline.spec.ts` 10/10 green (1 flaky axe-scan retry,
+    pre-existing per `GATE-B-CHECKLIST.md` run 5's own note, unrelated to
+    this change) — see this package's final report for the exact result
+    lines.
 
 - **M19: `scripts/local-ai-smoke.mjs` now derives its target database from
   `DATABASE_URL` instead of a hardcoded `montaj_m15`.** The script's `docker
