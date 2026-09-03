@@ -8,6 +8,30 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **D04e-2: browser sfx cue mixing (`apps/web/lib/export`).** Closes D04d's
+  first flagged deviation, browser half. `apps/web/lib/export/audio-mix.ts`
+  (module written in an earlier pass of this WP) mixes a decoded cue's
+  samples directly into whichever export audio chunk overlaps it, in place
+  — `engine.ts`'s audio path streams `AudioBuffer` chunks straight off
+  Mediabunny's `AudioSampleSink` with no Web Audio graph at all, so there is
+  no `OfflineAudioContext` to schedule an `AudioBufferSourceNode`/`GainNode`
+  pair against (the WP brief assumed one exists; documented as a deviation
+  in `audio-mix.ts`'s own doc comment rather than silently built anyway).
+  Wired into `engine.ts`: `RunExportOptions` gains `fetchCueAsset` (the
+  D04d signed-URL hook) and `decodeCueAsset` (defaults to a scratch
+  `AudioContext`'s `decodeAudioData`, injectable for tests); new
+  `decodeSfxCues` fetches+decodes each distinct `assetId` once (cached),
+  eagerly and only when the manifest actually carries accepted `sfx`
+  cues — no `fetchCueAsset` needed otherwise, same "pay for what you use"
+  shape the watermark/clean-audio paths already follow. The audio-encode
+  loop now tracks a running _output_-clock position across every chunk of
+  every retained range (distinct from `applySpliceFades`'s per-range
+  `elapsedMs`) and calls `mixSfxCuesIntoChunk` before each chunk is added
+  to the output. New tests: `decodeSfxCues` (fetch/decode/cache, the
+  fetchCueAsset-required error, no-cues no-op) in `engine.test.ts`; the
+  mixer itself (`audio-mix.test.ts`, synthetic `AudioBuffer`s, no network,
+  including a cue split across a cut via `@montaj/timemap`'s `mapRange`).
+
 - **D04e-1: cloud sfx cue mixing (`apps/render`).** Closes D04d's first
   flagged deviation, cloud half. New `apps/render/src/ffmpeg/audio-mix.ts`:
   `speechRangesFromWords` (duplicated from `apps/api/src/passes/
