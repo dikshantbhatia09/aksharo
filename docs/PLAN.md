@@ -186,3 +186,4 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | M17 | Maintenance: e2e stack API image (no install at boot) + verify-wave --wave 7 green | Sonnet | running |
 | M18 | Maintenance: gate-a harness mode ruling + style-picker tile blocker; 3/3 green | Sonnet | running |
 | M19 | Maintenance: local-ai-smoke derives DB from DATABASE_URL | Sonnet | merged |
+| M20 | Free-stack MVP mode: Ollama local LLM, dev auto-verify, no-key UI, docs/FREE-STACK.md | Sonnet | running: inc1 ollama provider committed 73f7092; inc2 real run + eval:local next |
