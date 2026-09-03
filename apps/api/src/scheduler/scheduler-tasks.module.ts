@@ -11,9 +11,12 @@ import { ProjectRetentionTask } from "./tasks/project-retention.task.js";
 import { ProviderDeletionFollowupTask } from "./tasks/provider-deletion-followup.task.js";
 import { RenewalDunningTask } from "./tasks/renewal-dunning.task.js";
 import { ShareReportSlaTask } from "./tasks/share-report-sla.task.js";
+import { StatusPublishTask } from "./tasks/status-publish.task.js";
 import { UsageReportTask } from "./tasks/usage-report.task.js";
 import { BillingModule } from "../billing/billing.module.js";
+import { HealthModule } from "../health/health.module.js";
 import { MediaModule } from "../media/media.module.js";
+import { OpsModule } from "../ops/ops.module.js";
 
 /**
  * The scheduled tasks B16 owns directly (`06-data-model.md` §Retention jobs).
@@ -30,7 +33,7 @@ import { MediaModule } from "../media/media.module.js";
  * the sweep. See the final report's "already covered" table.
  */
 @Module({
-  imports: [MediaModule, BillingModule],
+  imports: [MediaModule, BillingModule, HealthModule, OpsModule],
   providers: [
     MediaRetentionTask,
     ProjectRetentionTask,
@@ -44,6 +47,8 @@ import { MediaModule } from "../media/media.module.js";
     LedgerReconciliationTask,
     ExportFilingReportTask,
     UsageReportTask,
+    // X04: publishes the public `status.json` every 5 minutes.
+    StatusPublishTask,
   ],
 })
 export class SchedulerTasksModule {}

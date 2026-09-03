@@ -12053,6 +12053,94 @@
         ]
       }
     },
+    "/admin/ops/incidents": {
+      "get": {
+        "operationId": "listOpsIncidents",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Array of ops incidents."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List ops incidents, newest first",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "createOpsIncident",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The created incident."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Open a status-page incident",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/ops/incidents/{id}": {
+      "patch": {
+        "operationId": "updateOpsIncident",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The updated incident."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — the caller is not an administrator."
+          },
+          "404": {
+            "description": "No such incident."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Update, escalate or resolve a status-page incident",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/offers/eligibility": {
       "get": {
         "description": "Every amount is read from the same catalogue `/billing/passes/checkout` quotes from — the export dialog never hardcodes a price.",
@@ -12290,6 +12378,201 @@
         "summary": "Every pass this workspace has bought, newest first",
         "tags": [
           "offers"
+        ]
+      }
+    },
+    "/ops/status.json": {
+      "get": {
+        "description": "Written every 5 minutes by the `status-publish` scheduler task. Before the first tick (a brand-new environment) this returns an empty, all-operational snapshot dated the Unix epoch, never a 404 — a status page must never itself be the outage.",
+        "operationId": "getStatusSnapshot",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The current status snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "generatedAt": {
+                      "type": "string"
+                    },
+                    "overall": {
+                      "type": "string",
+                      "enum": [
+                        "operational",
+                        "degraded",
+                        "down"
+                      ]
+                    },
+                    "components": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "operational",
+                              "degraded",
+                              "down"
+                            ]
+                          },
+                          "detail": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "status"
+                        ]
+                      }
+                    },
+                    "incidents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "component": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "minor",
+                              "major",
+                              "critical"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "investigating",
+                              "monitoring",
+                              "resolved"
+                            ]
+                          },
+                          "startedAt": {
+                            "type": "string"
+                          },
+                          "resolvedAt": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "body",
+                          "component",
+                          "severity",
+                          "status",
+                          "startedAt",
+                          "resolvedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "generatedAt",
+                    "overall",
+                    "components",
+                    "incidents"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": "The latest published status snapshot",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/ops/status/rss.xml": {
+      "get": {
+        "description": "The same incidents `status.json` embeds, as an RSS 2.0 feed.",
+        "operationId": "getStatusRss",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Incident history as RSS",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Liveness probe",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "getReadiness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Readiness probe (db, redis, storage)",
+        "tags": [
+          "health"
         ]
       }
     },
@@ -15055,60 +15338,6 @@
         "summary": "This workspace's support tickets",
         "tags": [
           "support"
-        ]
-      }
-    },
-    "/health": {
-      "get": {
-        "operationId": "getHealth",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Liveness probe",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/ready": {
-      "get": {
-        "operationId": "getReadiness",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadinessResponseDto"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "A dependency is down.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadinessResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Readiness probe (db, redis, storage)",
-        "tags": [
-          "health"
         ]
       }
     },
@@ -23319,6 +23548,95 @@
         "type": "object",
         "properties": {}
       },
+      "HealthResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok",
+            "enum": [
+              "ok"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "example": "0.1.0",
+            "description": "Deployed API version."
+          }
+        },
+        "required": [
+          "status",
+          "version"
+        ]
+      },
+      "DependencyCheckDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ]
+          },
+          "latencyMs": {
+            "type": "number",
+            "example": 3,
+            "description": "Round-trip time for the check."
+          },
+          "error": {
+            "type": "string",
+            "description": "Present only when the check failed."
+          }
+        },
+        "required": [
+          "status",
+          "latencyMs"
+        ]
+      },
+      "ReadinessChecksDto": {
+        "type": "object",
+        "properties": {
+          "db": {
+            "$ref": "#/components/schemas/DependencyCheckDto"
+          },
+          "redis": {
+            "$ref": "#/components/schemas/DependencyCheckDto"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/DependencyCheckDto"
+          }
+        },
+        "required": [
+          "db",
+          "redis",
+          "storage"
+        ]
+      },
+      "ReadinessResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "example": "0.1.0"
+          },
+          "checks": {
+            "$ref": "#/components/schemas/ReadinessChecksDto"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "checks"
+        ]
+      },
       "CleanRequestDto": {
         "type": "object",
         "properties": {}
@@ -24018,95 +24336,6 @@
       "CreateSupportTicketDto": {
         "type": "object",
         "properties": {}
-      },
-      "HealthResponseDto": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "example": "ok",
-            "enum": [
-              "ok"
-            ]
-          },
-          "version": {
-            "type": "string",
-            "example": "0.1.0",
-            "description": "Deployed API version."
-          }
-        },
-        "required": [
-          "status",
-          "version"
-        ]
-      },
-      "DependencyCheckDto": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "up",
-              "down"
-            ]
-          },
-          "latencyMs": {
-            "type": "number",
-            "example": 3,
-            "description": "Round-trip time for the check."
-          },
-          "error": {
-            "type": "string",
-            "description": "Present only when the check failed."
-          }
-        },
-        "required": [
-          "status",
-          "latencyMs"
-        ]
-      },
-      "ReadinessChecksDto": {
-        "type": "object",
-        "properties": {
-          "db": {
-            "$ref": "#/components/schemas/DependencyCheckDto"
-          },
-          "redis": {
-            "$ref": "#/components/schemas/DependencyCheckDto"
-          },
-          "storage": {
-            "$ref": "#/components/schemas/DependencyCheckDto"
-          }
-        },
-        "required": [
-          "db",
-          "redis",
-          "storage"
-        ]
-      },
-      "ReadinessResponseDto": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "ok",
-              "degraded"
-            ]
-          },
-          "version": {
-            "type": "string",
-            "example": "0.1.0"
-          },
-          "checks": {
-            "$ref": "#/components/schemas/ReadinessChecksDto"
-          }
-        },
-        "required": [
-          "status",
-          "version",
-          "checks"
-        ]
       },
       "AdminDunningEntryDto": {
         "type": "object",

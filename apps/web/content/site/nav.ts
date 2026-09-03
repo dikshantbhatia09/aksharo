@@ -40,11 +40,14 @@ export const FOOTER_COMPARE_NAV: readonly SiteNavItem[] = [
 
 export const FOOTER_LEGAL_NAV: readonly SiteNavItem[] = [
   { label: "Privacy notice", href: "/legal/privacy" },
+  { label: "Cookie notice", href: "/legal/cookies" },
   { label: "Terms of Service", href: "/legal/terms" },
   { label: "Acceptable Use Policy", href: "/legal/aup" },
   { label: "Refunds & Cancellation", href: "/legal/refunds" },
   { label: "Data Processing Addendum", href: "/legal/dpa" },
+  { label: "Sub-processors", href: "/legal/sub-processors" },
   { label: "Grievance Officer", href: "/legal/grievance" },
+  { label: "Status", href: "/status" },
 ];
 
 export const AUTH_NAV = {

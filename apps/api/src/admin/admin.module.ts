@@ -9,6 +9,7 @@ import { AdminCreditsController } from "./credits/admin-credits.controller.js";
 import { AdminDlqController } from "./dlq/dlq.controller.js";
 import { AdminFlagsController } from "./flags/admin-flags.controller.js";
 import { AdminJobsController } from "./jobs/admin-jobs.controller.js";
+import { AdminOpsController } from "./ops/admin-ops.controller.js";
 import { AdminParentalWaitlistController } from "./parental-waitlist.controller.js";
 import { AdminPrivacyController } from "./privacy/admin-privacy.controller.js";
 import { AdminRoutingController } from "./routing/admin-routing.controller.js";
@@ -20,6 +21,7 @@ import { AdminSupportController } from "./support/admin-support.controller.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { AdminOffersController } from "../offers/admin-offers.controller.js";
 import { OffersModule } from "../offers/offers.module.js";
+import { OpsModule } from "../ops/ops.module.js";
 import { PrivacyModule } from "../privacy/privacy.module.js";
 
 /**
@@ -44,7 +46,7 @@ import { PrivacyModule } from "../privacy/privacy.module.js";
  * ₹9-hypothesis instrumentation), which is not `@Global()`.
  */
 @Module({
-  imports: [JobsModule, PrivacyModule, OffersModule],
+  imports: [JobsModule, PrivacyModule, OffersModule, OpsModule],
   controllers: [
     AdminStepUpController,
     AdminDlqController,
@@ -60,6 +62,9 @@ import { PrivacyModule } from "../privacy/privacy.module.js";
     AdminRoutingController,
     AdminStylesController,
     AdminSupportController,
+    // X04: the status-page incident list (`ops_incidents`) — added alongside
+    // B13b's controllers above, none of which were touched.
+    AdminOpsController,
   ],
   providers: [AdminGuard, AdminStepUpService, AdminStreakService, AdminAcquisitionService],
   exports: [AdminGuard],

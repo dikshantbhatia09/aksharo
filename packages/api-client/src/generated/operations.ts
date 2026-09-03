@@ -558,6 +558,13 @@ export const API_OPERATIONS = [
     summary: "Create or merge a memory entry",
   },
   {
+    operationId: "createOpsIncident",
+    method: "POST",
+    path: "/admin/ops/incidents",
+    tags: ["admin"],
+    summary: "Open a status-page incident",
+  },
+  {
     operationId: "createPassCheckout",
     method: "POST",
     path: "/billing/passes/checkout",
@@ -978,6 +985,20 @@ export const API_OPERATIONS = [
     summary: "This workspace's referral code and reward counts",
   },
   {
+    operationId: "getStatusRss",
+    method: "GET",
+    path: "/ops/status/rss.xml",
+    tags: ["ops"],
+    summary: "Incident history as RSS",
+  },
+  {
+    operationId: "getStatusSnapshot",
+    method: "GET",
+    path: "/ops/status.json",
+    tags: ["ops"],
+    summary: "The latest published status snapshot",
+  },
+  {
     operationId: "getStreak",
     method: "GET",
     path: "/streak",
@@ -1270,6 +1291,13 @@ export const API_OPERATIONS = [
     path: "/offers/passes",
     tags: ["offers"],
     summary: "Every pass this workspace has bought, newest first",
+  },
+  {
+    operationId: "listOpsIncidents",
+    method: "GET",
+    path: "/admin/ops/incidents",
+    tags: ["admin"],
+    summary: "List ops incidents, newest first",
   },
   {
     operationId: "listOrphanedCreditHolds",
@@ -1893,6 +1921,13 @@ export const API_OPERATIONS = [
     path: "/memory/{id}",
     tags: ["memory"],
     summary: "Edit one memory entry",
+  },
+  {
+    operationId: "updateOpsIncident",
+    method: "PATCH",
+    path: "/admin/ops/incidents/{id}",
+    tags: ["admin"],
+    summary: "Update, escalate or resolve a status-page incident",
   },
   {
     operationId: "updateProject",
