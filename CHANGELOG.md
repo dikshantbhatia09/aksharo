@@ -62,6 +62,23 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     run interrupted the last verification pass; see the report for exactly
     what ran clean and what is still outstanding).
 
+- **M19: `scripts/local-ai-smoke.mjs` now derives its target database from
+  `DATABASE_URL` instead of a hardcoded `montaj_m15`.** The script's `docker
+exec psql` calls used a literal `montaj_m15`, so a run from any other
+  worktree seeded credits into the wrong database and hit an FK violation on
+  `credit_accounts.workspace_id`. New `scripts/lib/db-url.mjs` exports
+  `parseDatabaseName(url)`, which parses the database name out of a
+  `postgresql://`/`postgres://` connection string and throws a clear error
+  if `DATABASE_URL` is unset, invalid, or has no path segment; the smoke
+  script now calls it against the loaded `.env`'s `DATABASE_URL`. Covered by
+  `scripts/lib/db-url.test.mjs` (`node:test`). The Redis key prefix
+  (`MONTAJ_REDIS_PREFIX`) was already read from the environment with no
+  hardcoded fallback beyond the shared default, so no change was needed
+  there. Verified with a real dry run of `node scripts/local-ai-smoke.mjs`
+  against `montaj_m19` (API + worker-media + worker-ai + render running from
+  the M19 worktree): full sign-up/transcribe/export cycle passed, and the
+  `psql` calls it made along the way targeted `montaj_m19`, not `montaj_m15`.
+
 - **M16: first-run coach marks intercepted the editor's own click targets
   (gate-a blocker after M14).** Root cause: `FirstRunCoachMarks`
   (`apps/web/components/editor/coach-marks/FirstRunCoachMarks.tsx`) rendered
