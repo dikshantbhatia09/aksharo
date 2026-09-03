@@ -71,3 +71,37 @@ export function quoteReframeZoom(kind: "zoom" | "reframe", durationMs: number): 
     reason: `ai.pass (${kind}) · ${minutes.toFixed(1)} source minutes`,
   };
 }
+
+/**
+ * What an sfx (or music) pass costs (D04a; 09-ai-pipeline §6).
+ *
+ * `BURN_RATES.sfxMusicPass` (basis `finishedMinute`, 1 credit/min, Studio+
+ * only — "library entitlement is carried at plan level, not per credit")
+ * already exists in `@montaj/config`, landed ahead of this work package. Its
+ * basis is the *finished* (post-cut) timeline, not the source, unlike
+ * `autocutPass`/`reframeZoomPass` — callers pass the project's current
+ * finished duration (segments minus accepted cuts), which
+ * `PassesService.startSfx` reads off the EDG working set the same way it
+ * reads `protectedRanges` today.
+ */
+export interface SfxQuote {
+  readonly durationMs: number;
+  readonly deciMinutes: number;
+  readonly tenths: number;
+  readonly credits: string;
+  readonly reason: string;
+}
+
+export function quoteSfx(finishedDurationMs: number): SfxQuote {
+  const units = deciMinutes(finishedDurationMs);
+  const tenths = creditCostTenths({ operation: "sfxMusicPass", durationMs: finishedDurationMs });
+  const minutes = (units * BILLING_QUANTUM_MS) / 60_000;
+
+  return {
+    durationMs: finishedDurationMs,
+    deciMinutes: units,
+    tenths,
+    credits: formatCredits(tenths),
+    reason: `ai.pass (sfx) · ${minutes.toFixed(1)} finished minutes`,
+  };
+}

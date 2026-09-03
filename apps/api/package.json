@@ -21,6 +21,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:sample": "tsx prisma/seed-sample.ts",
     "db:sql": "tsx scripts/apply-sql.ts",
+    "ingest:audio-pack": "tsx scripts/ingest-audio-pack.ts",
     "gen:client": "tsc -p tsconfig.openapi.json && node .openapi/scripts/export-openapi.js",
     "prisma:generate": "node scripts/prisma-generate.mjs",
     "postinstall": "node scripts/prisma-generate.mjs",
