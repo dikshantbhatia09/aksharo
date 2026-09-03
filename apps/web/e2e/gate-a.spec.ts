@@ -556,11 +556,24 @@ test.describe("Gate A journey", () => {
             // `decision.ts`'s `browserEligibility`: H.264 decode+encode and
             // a usable audio encoder are required at every resolution
             // (`hasH264Support`/`hasUsableAudio`), not only above 1080p.
+            // `hardwareEncoder: true` (M18): A19c ruling (2), shipped after
+            // this assertion was written, routes `auto` at 1080p-and-up to
+            // the cloud by default once the client does not report one
+            // (`softwareEncoderAboveHd` in `decision.ts`) — real headless
+            // Chromium reports none (`export.spec.ts`'s own established
+            // finding), so without this field this call now gets `cloud`
+            // regardless of eligibility, not because a fresh upload stopped
+            // being eligible. This comment's own "the same decision the
+            // dialog's click would have gotten" is a real desktop Chrome,
+            // and most of those do report a hardware encoder — so `true`
+            // here is what keeps this assertion honest for that machine,
+            // not a workaround for this sandbox's own.
             capabilities: {
               isMobile: false,
               isDesktopChromium: true,
               codecs: ["avc1.42E01E"],
               audioEncoder: true,
+              hardwareEncoder: true,
             },
           },
         },

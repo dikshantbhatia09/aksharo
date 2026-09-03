@@ -61,6 +61,34 @@ header for why).
   cloud-render export, and reload persistence. Its own header lists the
   same test-environment simplifications as the rest of the suite.
 
+### Running `gate-a.spec.ts` (M18)
+
+Run it exactly like any other spec — `pnpm exec playwright test
+e2e/gate-a.spec.ts --project=chromium --workers=1` from this worktree's
+`apps/web`, against `playwright.config.ts`'s own locally-spawned `api`/`web`
+(**not** the full `docker-compose.test.yml` stack, and specifically **not**
+with `apps/worker-media`, `apps/worker-ai` or `apps/render` also running
+against this worktree's queue prefix**):
+
+- **Harness mode is fixed, not a per-run choice**: the spec drives probe,
+  proxy, transcription, subtitle-render and video-render entirely through
+  `internal-callback.ts`'s signed `completeJobForTest` (CONTRACTS §3) — the
+  same "API-side test hook" the rest of the suite uses in place of a running
+  worker (see the spec's own file header). If a real `worker-media` /
+  `worker-ai` / `apps/render` process is also consuming jobs on this
+  worktree's `MONTAJ_QUEUE_PREFIX`, it races the spec's own
+  `expect(probeJob).toBeDefined()` / `completeJobForTest` calls — that raced
+  probe assertion is what several Gate B run notes flagged as a harness
+  ambiguity; it was never one, the fix is to not start those workers for this
+  spec.
+- The spec needs `ffmpeg`/`ffprobe` on `PATH` (it builds a real vertical MP4
+  fixture and probes the downloaded cloud-render output) and a real MinIO at
+  `S3_ENDPOINT` for the real multipart upload and the fabricated
+  sidecar/render-output uploads.
+- One retry outside CI (`playwright.config.ts`) absorbs the shared dev-mail
+  outbox losing a signup's confirmation email to a concurrent worktree's own
+  traffic (see that file's comment) — not a gate-a-specific flake.
+
 ## Full compose-stack run
 
 `pnpm e2e:stack up` (repository root) brings up the fuller stack —
