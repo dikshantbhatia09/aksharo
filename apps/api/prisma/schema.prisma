@@ -3195,3 +3195,76 @@ model SupportTicket {
   @@index([status])
   @@map("support_tickets")
 }
+
+/// One eval-harness run (D08 §3/§5): a nightly or manual pass of the worker's
+/// dataset-scoring runner, reported over the signed internal callback
+/// (`POST /internal/evals/runs`, CONTRACTS §3's signing scheme) the same way a
+/// job posts its completion. `EvalResult` rows are the per-(dataset, metric)
+/// numbers; this row is the run they belong to plus the routing state at the
+/// time it ran, so the leaderboard can show "measured while frozen".
+model EvalRun {
+  id            String    @id @db.Char(26)
+  /// `nightly` (B16 scheduler) | `manual` (an operator's CLI invocation) | `ci`.
+  trigger       String
+  startedAt     DateTime  @map("started_at") @db.Timestamptz(6)
+  finishedAt    DateTime? @map("finished_at") @db.Timestamptz(6)
+  /// Whether `ROUTING_FROZEN` (or the admin toggle) was in effect for this run.
+  routingFrozen Boolean   @default(false) @map("routing_frozen")
+  /// Commit the worker ran at, when the caller supplies one (nightly always does).
+  gitSha        String?   @map("git_sha")
+  /// `{datasetsRun, datasetsSkipped: [{name, reason}], reportUrl?}` — the report
+  /// itself (`eval-results/<date>/report.json`) is not stored in Postgres; this
+  /// is a summary for the leaderboard list view.
+  summary       Json      @db.JsonB
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  results EvalResult[]
+
+  @@index([createdAt])
+  @@map("eval_runs")
+}
+
+/// One (dataset, metric) number from one `EvalRun` (D08 §2/§6). A dataset that
+/// reports several metrics (e.g. a transcript set's `corpusWer` and
+/// `corpusCer`) writes one row per metric, which is what lets the admin
+/// leaderboard group `GET /admin/evals/leaderboard` by language x provider x
+/// metric and trend a single number against the previous run.
+model EvalResult {
+  id          String   @id @db.Char(26)
+  runId       String   @map("run_id") @db.Char(26)
+  dataset     String
+  /// transcript | transliteration | autocut | diarisation | llm.
+  kind        String
+  language    String
+  /// Null for kinds with no provider concept (transliteration, autocut, llm).
+  provider    String?
+  /// METRICS.md-style dotted name, e.g. `eval.wer`, `eval.cer`,
+  /// `eval.transliteration.accuracy`, `eval.autocut.precision`, `eval.der`,
+  /// `eval.llm.pass_rate` (this WP's own metric names; see the final report).
+  metricName  String   @map("metric_name")
+  metricValue Float    @map("metric_value")
+  itemCount   Int      @map("item_count")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  run EvalRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([dataset, language, metricName, createdAt])
+  @@index([runId])
+  @@map("eval_results")
+}
+
+/// The routing-freeze switch (D08 §4): a singleton row (`id: "singleton"`) an
+/// admin flips with a mandatory reason. `apps/worker-ai` observes freezing
+/// through `ROUTING_FROZEN` today; B13b's `GET /internal/routing/overrides`
+/// loader is the seam that will read this row and pass the freeze state to the
+/// worker alongside its weight overrides (this WP's final report says so
+/// explicitly so the two WPs do not each build half of a second mechanism).
+model RoutingFreeze {
+  id        String   @id @default("singleton") @db.VarChar(16)
+  frozen    Boolean  @default(false)
+  reason    String?
+  updatedBy String?  @map("updated_by") @db.Char(26)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("routing_freeze")
+}

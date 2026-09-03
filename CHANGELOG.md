@@ -8,6 +8,42 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- C09: DaVinci Resolve Studio Workflow Integration panel (`plugins/resolve-panel`) — docked React shell over `aksharo_core`'s loopback server (discover → bearer → JSON-RPC), `WorkflowIntegrationHost` adapter + mock, sign-in mirrored from the script, timeline picker, "Caption this timeline", passes review + "Apply in Resolve", version/update banner; C08 loopback server gains `session.status`, `transcribe.start`, `passes.list` (`plugins/resolve/aksharo_core_app/session.py|transcribe.py|passes.py`) plus a `?token=` query-param bearer path for browser `WebSocket` callers; `tools/release`'s `package-resolve` now also stages the panel bundle for Studio installs.
+
+### Added
+
+- **X01 — security review before Gate C.** Threat-model audit re-verifying
+  every `docs/THREAT-MODEL.md` row (T1-T25) against implementing code and
+  tests: `docs/security/threat-model-audit-2026-09-03.md`. Local `pnpm audit`
+  and `pip-audit` triage (all findings are transitive build/desktop-packaging
+  deps, none reachable at runtime — Electron flagged High for a follow-up
+  version bump), a local secret-scan sweep (clean — 53 hits, all test
+  fixtures/local dev creds, no real secrets), and a pen-test hand-off doc with
+  in-scope surfaces, a seeded test-account procedure, and rules of engagement:
+  `docs/security/pentest-scope.md` (includes the H-26 human-action text to
+  engage an external tester before Gate C).
+
+### Fixed
+
+- **X01 — `GET /auth/device/code/:userCode` had no rate limit.** The
+  approval-screen lookup requires an authenticated session (correct per
+  THREAT-MODEL T3) but carried no `@RateLimit` decorator, unlike its sibling
+  device-code routes; `RateLimitGuard` is a no-op with no rule attached, so
+  any signed-in account could grind the 8-character user-code space to read
+  someone else's pending device grant (host app, OS, IP, coarse location).
+  Added a `deviceDescribeUser` bucket (`apps/api/src/auth/auth.constants.ts`)
+  and applied it to the route (`apps/api/src/auth/device.controller.ts`), with
+  a new negative test in `apps/api/test/auth.e2e-spec.ts`.
+- **X01 — no security response headers on the web app or the API.** Neither
+  `apps/web/next.config.ts` nor `apps/web/middleware.ts` set CSP, HSTS,
+  `X-Frame-Options`/`frame-ancestors`, or `Referrer-Policy`, and
+  `apps/api/src/main.ts` never installed `helmet`. Added a `headers()`
+  function to `next.config.ts` (CSP, HSTS, no-sniff, deny-framing,
+  strict-origin-when-cross-origin referrer policy, a conservative
+  Permissions-Policy) with a new test (`apps/web/next.config.test.ts`), and
+  `helmet()` to the API's bootstrap with CSP left off (Swagger UI at `/docs`
+  needs inline scripts) but HSTS/frameguard/referrer-policy applied.
+
 - C12: consent-gated desktop/bridge telemetry (`POST /telemetry/events|crash`), `crash_reports` with 30-day retention, shared redaction in `bridge-core`, diagnostics bundle attached to support tickets, server-side Sentry/PostHog forwarding behind env keys.
 
 - C06b (follow-up): `plugins/premiere-uxp/src/apply/types.ts`'s `MOGRT_PARAM_ORDER`/`MogrtParamName` now import from `mogrt/params.ts` (14 params, append-only) instead of re-declaring their own copy of the appendix table, so there is exactly one source of truth across C06 and C06b; `MogrtCaptionParams` gained the optional `BoxFill`/`BoxOpacity` fields to match. `mogrtCaptions.ts` and its tests needed no other changes.
@@ -56,6 +92,60 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   run end to end once on this host; see `docs/verification/verify-wave-2026-09-03.md`.
 
 ### Added
+
+- **D08 — Eval harness & quality gates: datasets, nightly runs, shadow
+  routing, admin leaderboard, routing freeze.** Built on synthetic and fixture
+  datasets only (A00-05's licensed Indic sets have not reported).
+  `apps/worker-ai/worker_ai/evals/datasets/`: a `Dataset(name, kind, language,
+script, licence, items[])` loader — `licence` mandatory — searching bundled
+  `generated/` (six hand-authored synthetic sets: Hinglish/Hindi/Tamil
+  transcript, transliteration pairs drawn from A22's real dictionary tables,
+  autocut ground-truth cut lists, LLM check outcomes), `fixtures/` (an
+  adapter reusing A09's `hinglish-mini` set without duplicating its
+  audio/words files) and, if `EVAL_LICENSED_DATASETS_DIR` is set, an external
+  root for A00-05's real corpus with no code change. `checksums.py` writes/
+  verifies a SHA-256 `manifest.json` over every bundled file.
+  `evals/metrics.py`: Indic-aware `normalise()` now folds ZWJ/ZWNJ and all
+  nine nukta letters (four with no Unicode canonical decomposition, mapped by
+  hand) in addition to the existing case/punctuation/whitespace folding, so a
+  provider's spelling convention is never charged as a WER/CER error; new
+  `word_boundary_error`, `diarisation_der` (dependency-free, grid-based, no
+  `pyannote.metrics`), `transliteration_accuracy`, `autocut_precision_recall`
+  (tolerance-windowed greedy matching) and `llm_pass_rate`.
+  `evals/runner_datasets.py` dispatches `run_dataset` by kind (transcript
+  reuses A09's `EvalSet`/provider path; the rest score directly).
+  `evals/nightly.py`: `run_nightly` (cost-capped per D74:
+  `DEFAULT_MAX_ITEMS_PER_DATASET`), `write_report` (`eval-results/<date>/
+report.{json,md}`), `post_nightly_report` (signed like a job-completion
+  callback, `POST {API_ORIGIN}/internal/evals/runs`); `python -m
+worker_ai.evals nightly[--post]` and `pnpm --filter @montaj/worker-ai eval`.
+  `routing.py`: `RoutingCandidate.shadow` — a shadow candidate is excluded
+  from `resolve`/`resolve_chain` entirely (never a fallback, never returned)
+  while `shadow_candidates()` lists the ones this deployment could run in
+  parallel for a nightly comparison; `ROUTING_FROZEN=1` (or an upstream admin
+  toggle) makes `load_routing_table_guarded()` skip `routing.yaml` and serve
+  the last-approved snapshot (`write_routing_snapshot`/`load_routing_snapshot`)
+  instead — reloads are refused outright while frozen. `apps/api`: new Prisma
+  models `EvalRun`/`EvalResult`/`RoutingFreeze` (migration
+  `20260903130000_d08_evals`); `POST /internal/evals/runs`
+  (`src/evals/`, signed like other internal callbacks, idempotent on the
+  signed attempt id used as `EvalRun.id`); `GET /admin/evals/leaderboard`
+  (groups a recent window of results by dataset/language/provider/metric,
+  reporting each group's latest value and trend vs. the previous run),
+  `GET|POST /admin/evals/freeze`, `POST /admin/evals/unfreeze` (superadmin
+  only, mandatory reason, audited — `src/admin/evals/`); B16 scheduler task
+  `eval-nightly.task.ts` purges `eval_runs`/`eval_results` past 90 days and
+  shells out to `pnpm --filter @montaj/worker-ai eval -- --post` (a
+  documented pre-Gate-A simplification: the two apps share one monorepo
+  checkout today; see the WP's final report for the production-shape follow-
+  up). `apps/web`: `(admin)/admin/evals` panel (leaderboard table, freeze/
+  unfreeze form). `packages/api-client` regenerated. Tests: Python unit tests
+  for the Indic normalisation edge cases, dataset loader/manifest/licence
+  checks, per-kind runner dispatch, shadow-exclusion and freeze-precedence
+  routing tests; API unit tests (leaderboard grouping, freeze audit) and an
+  e2e spec against real Postgres/Redis (signed ingestion + idempotency,
+  leaderboard trend, freeze role-gating and audit, unfreeze). Deviations and
+  open questions for A00-05 are in the WP's final report.
 
 - **X08 — Cilium FQDN egress adoption for production (D73's staged rollout,
   prod hardening before Gate C).** `infra/k8s/montaj/values.yaml`'s

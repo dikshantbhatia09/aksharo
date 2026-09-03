@@ -1,0 +1,12 @@
+{
+  "algorithm": "sha256",
+  "files": {
+    "fixtures/hinglish-mini/manifest.yaml": "50ae98da57fefb8fcdf99affe6af9c460521a403050bb4da72a6a797d40f13df",
+    "generated/autocut-synth/manifest.yaml": "8f13f8f737ab4d0c4ec9cb907954f20147b3eae7cece2ed35c5241fb54862e8d",
+    "generated/hindi-synth/manifest.yaml": "eb70acc547c1d0535f4727d54e0e2a5a66aff5488bbdeb3d29bb9a3992a1ca05",
+    "generated/hinglish-synth/manifest.yaml": "7159e5540e0489354e6e2f115f675a19ea9b79fc7906fd0cfbd5276a73b411cb",
+    "generated/llm-synth/manifest.yaml": "bfeff36f5182e918e529928319f33c34fbe6c12ff080f13be495c14703e38c55",
+    "generated/tamil-synth/manifest.yaml": "2bb03475e14181bd469a02b06b28b6b6ff03410fedeaba08072113ca9d87a16f",
+    "generated/transliteration-synth/manifest.yaml": "4543c5c2532fbfd4ef809ecb378de28881fb8983d54e1f0a5e624e28c5dfa6e5"
+  }
+}

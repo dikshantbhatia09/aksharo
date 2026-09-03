@@ -1039,6 +1039,24 @@ describe.skipIf(!available)("auth (e2e)", () => {
         .set("Authorization", `Bearer ${approver.accessToken}`)
         .expect(404);
     });
+
+    // X01 threat-model audit (T3): the lookup requires a session but had no
+    // rate limit, so a signed-in caller could grind the 8-char user-code
+    // space to find and read someone else's pending device grant.
+    it("rate-limits guessing at the user-code lookup, even though it requires a session", async () => {
+      const guesser = await newVerifiedUser("device-guesser", "203.0.113.86");
+      for (let i = 0; i < 20; i += 1) {
+        await request(server)
+          .get(`/auth/device/code/AAAA-000${String(i % 10)}`)
+          .set("Authorization", `Bearer ${guesser.accessToken}`)
+          .expect(404);
+      }
+      const capped = await request(server)
+        .get("/auth/device/code/AAAA-0000")
+        .set("Authorization", `Bearer ${guesser.accessToken}`)
+        .expect(429);
+      expect(capped.body.error.code).toBe("common/rate_limited");
+    });
   });
 
   // --- rate limits (THREAT-MODEL T1) --------------------------------------
