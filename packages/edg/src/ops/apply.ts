@@ -1,9 +1,12 @@
 import { newId as defaultNewId, parseWordId, type WordId } from "../ids.js";
+import { decodeKeyframes, encodeKeyframes } from "../passes/keyframes.js";
 import { type ProtectedRange } from "../schemas/document.js";
+import { type PassItem } from "../schemas/pass.js";
 import {
   type DecideItemsOp,
   type EdgOp,
   type EdgSource,
+  type EditPassItemOp,
   type EditWordOp,
   type DeleteWordOp,
   type HideSegmentOp,
@@ -268,11 +271,13 @@ function mergeTextOverrides(segments: readonly Segment[]): Record<string, string
   const first = segments[0];
   if (first === undefined) return undefined;
   const scripts = Object.keys(first.textOverrides ?? {}).filter((script) =>
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     segments.every((segment) => segment.textOverrides?.[script] !== undefined),
   );
   if (scripts.length === 0) return undefined;
   const merged: Record<string, string> = {};
   for (const script of scripts) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     merged[script] = segments.map((segment) => segment.textOverrides?.[script] ?? "").join(" ");
   }
   return merged;
@@ -323,6 +328,7 @@ function applyMergeSegments(draft: EdgDraft, op: MergeSegmentsOp): void {
   const indices = segments.map((segment) => orderIndexOf(draft, segment.id, segment.seq));
   for (let i = 1; i < indices.length; i += 1) {
     const previous = indices[i - 1];
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const current = indices[i];
     if (previous === undefined || current === undefined || current !== previous + 1) {
       fail("not-contiguous", "MergeSegments only joins neighbouring segments");
@@ -709,6 +715,132 @@ function applyDecideItems(draft: EdgDraft, op: DecideItemsOp): void {
   for (const item of items) draft.items.set(item.itemId, { ...item, state: op.state });
 }
 
+const BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const BASE64_INDEX: Record<string, number> = Object.fromEntries(
+  [...BASE64_ALPHABET].map((ch, index) => [ch, index]),
+);
+
+/** Hand-rolled, not `Buffer`/`atob`: this package runs in the browser and the API alike. */
+function base64ToBytes(b64: string): Uint8Array {
+  const clean = b64.replace(/[^A-Za-z0-9+/]/g, "");
+  const byteLength = Math.floor((clean.length * 6) / 8);
+  const bytes = new Uint8Array(byteLength);
+  let bitBuffer = 0;
+  let bitCount = 0;
+  let byteIndex = 0;
+  for (const ch of clean) {
+    const value = BASE64_INDEX[ch];
+    if (value === undefined) continue;
+    bitBuffer = (bitBuffer << 6) | value;
+    bitCount += 6;
+    if (bitCount >= 8) {
+      bitCount -= 8;
+      bytes[byteIndex] = (bitBuffer >> bitCount) & 0xff;
+      byteIndex += 1;
+    }
+  }
+  return bytes;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let out = "";
+  let bitBuffer = 0;
+  let bitCount = 0;
+  for (const byte of bytes) {
+    bitBuffer = (bitBuffer << 8) | byte;
+    bitCount += 8;
+    while (bitCount >= 6) {
+      bitCount -= 6;
+      out += BASE64_ALPHABET[(bitBuffer >> bitCount) & 0x3f];
+    }
+  }
+  if (bitCount > 0) {
+    out += BASE64_ALPHABET[(bitBuffer << (6 - bitCount)) & 0x3f];
+  }
+  while (out.length % 4 !== 0) out += "=";
+  return out;
+}
+
+/**
+ * Linearly re-times an item's inline keyframe curve onto a new
+ * `[startMs, endMs)` window — `tMs` stays relative to the item's own start, so
+ * every row scales by the new-over-old duration ratio. A `keyframesRef` curve
+ * (uploaded to derived storage) cannot be rewritten here — this leaves it
+ * untouched, for the worker to re-base on the item's next pass, exactly as
+ * CONTRACTS §2 documents.
+ */
+function retimeInlineKeyframes(
+  payloadKeyframes: string,
+  oldDurationMs: number,
+  newDurationMs: number,
+): string {
+  if (oldDurationMs <= 0 || newDurationMs <= 0) return payloadKeyframes;
+  const ratio = newDurationMs / oldDurationMs;
+  const frames = decodeKeyframes(base64ToBytes(payloadKeyframes));
+  const retimed = frames.map((frame) => ({ ...frame, tMs: frame.tMs * ratio }));
+  return bytesToBase64(encodeKeyframes(retimed));
+}
+
+const EDITABLE_ITEM_KINDS = new Set(["cut", "zoom", "reframe"]);
+
+/**
+ * User-driven drag-to-adjust on a proposed/accepted cut/zoom/reframe item
+ * (CONTRACTS §2, added after B20). Clamps to the media duration and to
+ * neighbouring *accepted* items of the same kind (a proposed item may
+ * overlap another proposal freely — only accepted items are load-bearing on
+ * the timemap), then re-times any inline keyframe curve linearly.
+ */
+function applyEditPassItem(draft: EdgDraft, op: EditPassItemOp): void {
+  const item = draft.items.get(op.itemId);
+  if (item === undefined) fail("unknown-id", `pass item ${op.itemId} is not in the document`);
+  if (item.state === "rejected") fail("stale", `pass item ${op.itemId} was rejected`);
+  if (item.state !== "proposed" && item.state !== "accepted") {
+    fail("invalid", `pass item ${op.itemId} is ${item.state}, not proposed or accepted`);
+  }
+  if (!EDITABLE_ITEM_KINDS.has(item.kind)) {
+    fail("invalid", `pass item ${op.itemId} is a ${item.kind}, not cut/zoom/reframe`);
+  }
+
+  const durationMs = mediaDurationMs(draft);
+  let startMs = Math.max(0, op.startMs);
+  let endMs = durationMs === undefined ? op.endMs : Math.min(op.endMs, durationMs);
+  if (startMs >= endMs) fail("invalid-range", `${op.itemId} would collapse to an empty range`);
+
+  for (const other of draft.items.values()) {
+    if (other.itemId === op.itemId) continue;
+    if (other.kind !== item.kind || other.state !== "accepted") continue;
+    if (startMs < other.endMs && endMs > other.startMs) {
+      // Clamp against the neighbour rather than reject outright: a drag that
+      // overshoots a neighbouring accepted item stops at its edge.
+      if (other.startMs >= item.startMs) endMs = Math.min(endMs, other.startMs);
+      else startMs = Math.max(startMs, other.endMs);
+    }
+  }
+  if (startMs >= endMs) {
+    fail("invalid-range", `${op.itemId} would overlap a neighbouring accepted ${item.kind}`);
+  }
+
+  const oldDurationMs = item.endMs - item.startMs;
+  const newDurationMs = endMs - startMs;
+  const payload = item.payload as Record<string, unknown>;
+  const inlineKeyframes =
+    typeof payload["keyframes"] === "string" ? payload["keyframes"] : undefined;
+  const nextPayload =
+    inlineKeyframes === undefined
+      ? payload
+      : {
+          ...payload,
+          keyframes: retimeInlineKeyframes(inlineKeyframes, oldDurationMs, newDurationMs),
+        };
+
+  draft.items.set(op.itemId, {
+    ...item,
+    startMs,
+    endMs,
+    payload: nextPayload,
+  } as PassItem);
+}
+
 function applyMergePass(draft: EdgDraft, op: MergePassOp, ctx: ApplyContext): void {
   if ((ctx.source ?? "web") !== "worker") {
     fail("forbidden", "MergePass may only be submitted by a worker");
@@ -775,6 +907,8 @@ function dispatch(draft: EdgDraft, op: EdgOp, ctx: ApplyContext): void {
       return applyResegment(draft, op, ctx);
     case "DecideItems":
       return applyDecideItems(draft, op);
+    case "EditPassItem":
+      return applyEditPassItem(draft, op);
     case "MergePass":
       return applyMergePass(draft, op, ctx);
     case "SetAudio":

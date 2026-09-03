@@ -30,6 +30,7 @@ interface GoldenCase {
   expected: GoldenSegment[];
 }
 
+// eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
 const golden = JSON.parse(readFileSync(GOLDEN_PATH, "utf8")) as {
   params: typeof DEFAULT_SEGMENTER_PARAMS;
   cases: GoldenCase[];
@@ -75,6 +76,7 @@ describe("the committed golden fixtures", () => {
           for (const [index, chars] of segment.lineChars.entries()) {
             expect(
               chars,
+              // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
               `${segment.id} line ${index}: ${segment.lines[index] ?? ""}`,
             ).toBeLessThanOrEqual(entry.limits.maxCharsPerLine);
           }

@@ -163,6 +163,30 @@ export const DecideItemsOpSchema = op("DecideItems", {
   state: ItemStateSchema,
 });
 
+/**
+ * User adjusts a proposed or accepted cut/zoom/reframe item's bounds on the
+ * timeline (CONTRACTS §2, added 2026-09-03 after B20). Only `proposed` or
+ * `accepted` items may be retargeted; the engine clamps the new range to the
+ * media duration and to neighbouring accepted items of the same kind, and
+ * re-times the item's inline keyframes linearly (a `keyframesRef` curve is
+ * left for the worker to re-base on the next pass). Rebase field
+ * `item:<itemId>`, last-write-wins; `stale` once the item is rejected.
+ */
+export const EditPassItemOpSchema = op("EditPassItem", {
+  itemId: UlidSchema,
+  startMs: MsSchema,
+  endMs: MsSchema,
+}).check((ctx) => {
+  if (ctx.value.startMs >= ctx.value.endMs) {
+    ctx.issues.push({
+      code: "custom",
+      input: ctx.value,
+      path: ["startMs"],
+      message: "startMs must be before endMs",
+    });
+  }
+});
+
 /** Worker-only: lands a finished pass and its items in the document. */
 export const MergePassOpSchema = op("MergePass", { pass: PassSchema });
 
@@ -205,6 +229,7 @@ export const EdgOpSchema = z
     SetWordTimingOpSchema,
     ResegmentOpSchema,
     DecideItemsOpSchema,
+    EditPassItemOpSchema,
     MergePassOpSchema,
     SetAudioOpSchema,
     SetRenderOpSchema,
@@ -228,6 +253,7 @@ export const EDG_OP_TYPES = [
   "SetWordTiming",
   "Resegment",
   "DecideItems",
+  "EditPassItem",
   "MergePass",
   "SetAudio",
   "SetRender",
@@ -342,6 +368,7 @@ export type SetProtectedRangesOp = z.infer<typeof SetProtectedRangesOpSchema>;
 export type SetWordTimingOp = z.infer<typeof SetWordTimingOpSchema>;
 export type ResegmentOp = z.infer<typeof ResegmentOpSchema>;
 export type DecideItemsOp = z.infer<typeof DecideItemsOpSchema>;
+export type EditPassItemOp = z.infer<typeof EditPassItemOpSchema>;
 export type MergePassOp = z.infer<typeof MergePassOpSchema>;
 export type SetAudioOp = z.infer<typeof SetAudioOpSchema>;
 export type SetRenderOp = z.infer<typeof SetRenderOpSchema>;

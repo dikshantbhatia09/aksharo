@@ -184,8 +184,10 @@ export async function createObjectStore(config: BucketConfig): Promise<ObjectSto
     bucket: config.bucket,
 
     async download(key, destination) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       await mkdir(dirname(destination), { recursive: true });
       const body = await bodyOf(key);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       await pipeline(body, createWriteStream(destination));
       return destination;
     },
@@ -202,12 +204,14 @@ export async function createObjectStore(config: BucketConfig): Promise<ObjectSto
     },
 
     async upload(key, source, options) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const info = await stat(source);
       try {
         await client.send(
           new PutObjectCommand({
             Bucket: config.bucket,
             Key: key,
+            // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
             Body: createReadStream(source),
             ContentLength: info.size,
             ...(options?.contentType === undefined ? {} : { ContentType: options.contentType }),

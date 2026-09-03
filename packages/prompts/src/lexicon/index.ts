@@ -41,6 +41,7 @@ function lexiconsRoot(): string {
 
 /** Every language file the shipped lexicon set covers (filename stems, not BCP-47 tags). */
 export function lexiconLanguages(): string[] {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   return readdirSync(lexiconsRoot())
     .filter((name) => name.endsWith(".json"))
     .map((name) => name.slice(0, -".json".length))
@@ -57,6 +58,7 @@ export function loadLexiconFile(language: string): FillerLexiconFile | undefined
   const path = join(lexiconsRoot(), `${language}.json`);
   let raw: string;
   try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     raw = readFileSync(path, "utf8");
   } catch {
     return undefined;

@@ -46,6 +46,7 @@ function packFetch(): FetchLike & { readonly asked: string[] } {
     asked.push(url);
     const name = url.replace(/^\/fonts\//, "");
     try {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const bytes = readFileSync(join(bundledPackDirectory(), name));
       return Promise.resolve({
         ok: true,
@@ -264,6 +265,7 @@ describe("the default decompressor", () => {
   it("loads woff2-encoder and round-trips a real face", async () => {
     const decompress = await defaultWoff2Decompressor();
     const woff2 = new Uint8Array(
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       readFileSync(join(bundledPackDirectory(), "noto-sans-tamil-400.woff2")),
     );
     const sfnt = await decompress(woff2);

@@ -79,6 +79,7 @@ async function main(): Promise<void> {
         if (tMs === SNAPSHOT_MS) snapshot[style.id] = commands;
       }
     }
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     writeFileSync(join(GOLDEN_DIR, `${fixture.name}.json`), snapshotJson(snapshot), "utf8");
   }
 

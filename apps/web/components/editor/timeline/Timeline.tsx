@@ -38,6 +38,11 @@ import {
   type Viewport,
 } from "@/lib/timeline/coords";
 import {
+  decodeItemKeyframes,
+  keyframeMarkersOf,
+  zoomMiniPlotPoints,
+} from "@/lib/timeline/keyframe-markers";
+import {
   buildLanes,
   laneItemStrokeStyle,
   laneStateColor,
@@ -58,6 +63,7 @@ import {
   toSourceMs,
   type TimeDisplayMode,
 } from "@/lib/timeline/output-clock";
+import { resolvePassItemDrag, type PassItemNeighbour } from "@/lib/timeline/pass-item-drag";
 import { resolveSegmentDrag, resolveWordEdgeDrag, type Neighbour } from "@/lib/timeline/snapping";
 import { useMemoryNudgeSink } from "@/lib/timeline/use-memory-nudge-sink";
 import { reduceWaveform, type WaveformLike } from "@/lib/timeline/waveform-view";
@@ -98,6 +104,21 @@ export interface WordTimingOp {
   readonly e: number;
 }
 
+/** One resolved pass-item edge drag, ready for `EditPassItem{itemId, startMs, endMs}` (B20b). */
+export interface PassItemBoundsOp {
+  readonly itemId: string;
+  readonly startMs: number;
+  readonly endMs: number;
+}
+
+/** Editable kinds and states for drag-to-adjust (CONTRACTS §2, B20b). */
+const EDITABLE_PASS_ITEM_KINDS = new Set<LaneItem["kind"]>(["cut", "zoom", "reframe"]);
+const EDITABLE_PASS_ITEM_STATES = new Set<LaneItem["state"]>(["proposed", "accepted"]);
+
+function isPassItemEditable(item: LaneItem): boolean {
+  return EDITABLE_PASS_ITEM_KINDS.has(item.kind) && EDITABLE_PASS_ITEM_STATES.has(item.state);
+}
+
 export interface TimelineProps {
   readonly words: readonly Word[];
   readonly segments: readonly Segment[];
@@ -132,14 +153,17 @@ export interface TimelineProps {
   readonly onHoverPassItem?: (item: LaneItem | undefined) => void;
   /** B20 §4: click a lane item to select its `ProposalCard` in the Passes tab. */
   readonly onSelectPassItem?: (item: LaneItem) => void;
+  /** B20b: drag-to-adjust a proposed/accepted cut/zoom/reframe item's edge. */
+  readonly onEditPassItem?: (op: PassItemBoundsOp) => void;
   readonly className?: string;
 }
 
 interface DragState {
   readonly pointerId: number;
-  readonly kind: "segment-edge" | "word-edge" | "playhead";
+  readonly kind: "segment-edge" | "word-edge" | "pass-item-edge" | "playhead";
   readonly segmentId?: string;
   readonly wordId?: string;
+  readonly itemId?: string;
   readonly edge?: "start" | "end";
   readonly startMs?: number;
   readonly endMs?: number;
@@ -182,6 +206,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     nudgeSink = noopNudgeSink,
     onHoverPassItem,
     onSelectPassItem,
+    onEditPassItem,
     className,
   } = props;
 
@@ -248,6 +273,12 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   );
 
   const lanes: readonly LaneRow[] = useMemo(() => buildLanes(passItems), [passItems]);
+  /** B20b: full pass items by id — `LaneItem` strips `payload`, but the zoom
+   * lane's mini-plot needs the item's own keyframe curve to decode. */
+  const passItemsById = useMemo(
+    () => new Map(passItems.map((item) => [item.itemId, item])),
+    [passItems],
+  );
 
   const laneTops = useMemo(() => {
     let y = RULER_HEIGHT;
@@ -438,9 +469,15 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       const top = laneTops.passTops[laneIndex];
       if (top === undefined) return;
       for (const item of lane.items) {
-        if (item.endMs < startMs || item.startMs > endMs) continue;
-        const x0 = msToPx(item.startMs, viewport);
-        const x1 = msToPx(item.endMs, viewport);
+        const preview =
+          dragRef.current?.kind === "pass-item-edge" && dragRef.current.itemId === item.itemId
+            ? dragPreviewRef.current
+            : undefined;
+        const itemStartMs = preview?.startMs ?? item.startMs;
+        const itemEndMs = preview?.endMs ?? item.endMs;
+        if (itemEndMs < startMs || itemStartMs > endMs) continue;
+        const x0 = msToPx(itemStartMs, viewport);
+        const x1 = msToPx(itemEndMs, viewport);
         const w = Math.max(1, x1 - x0);
         const style = laneItemStrokeStyle(item.state);
         ctx.fillStyle = laneStateColor(item.state);
@@ -468,6 +505,39 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
           ctx.lineWidth = 2;
           ctx.strokeRect(x0, top, w, PASS_LANE_HEIGHT);
           ctx.lineWidth = 1;
+        }
+
+        // B20b: keyframe markers + the zoom lane's mini scale-curve plot,
+        // from the item's own decoded (inline-only) curve.
+        if (lane.kind === "zoom") {
+          const fullItem = passItemsById.get(item.itemId);
+          const frames = fullItem === undefined ? undefined : decodeItemKeyframes(fullItem.payload);
+          if (frames !== undefined && frames.length > 0) {
+            const markers = keyframeMarkersOf(frames, itemStartMs);
+            const plotHeight = Math.min(8, PASS_LANE_HEIGHT - 4);
+            const plotTop = top + PASS_LANE_HEIGHT - plotHeight - 2;
+            const points = zoomMiniPlotPoints(
+              markers,
+              { startMs: itemStartMs, endMs: itemEndMs },
+              { widthPx: w, heightPx: plotHeight },
+            );
+            if (points.length > 0) {
+              ctx.strokeStyle = "#e0e7ff";
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              points.forEach((point, index) => {
+                const px = x0 + point.x;
+                const py = plotTop + point.y;
+                if (index === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+              });
+              ctx.stroke();
+              ctx.fillStyle = "#ffffff";
+              for (const point of points) {
+                ctx.fillRect(x0 + point.x - 1, plotTop - 1, 2, plotHeight + 2);
+              }
+            }
+          }
         }
       }
     });
@@ -502,6 +572,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     timeMap,
     msPerPx,
     hoveredPassItemId,
+    passItemsById,
   ]);
 
   // ---------------------------------------------------------------------
@@ -524,6 +595,43 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       return undefined;
     },
     [lanes, laneTops.passTops, viewport],
+  );
+
+  /** B20b: which editable lane item's edge, if any, sits under `(px, py)`. */
+  const hitTestPassItemEdge = useCallback(
+    (px: number, py: number): { item: LaneItem; edge: "start" | "end" } | undefined => {
+      for (const [laneIndex, lane] of lanes.entries()) {
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
+        const top = laneTops.passTops[laneIndex];
+        if (top === undefined || py < top || py > top + PASS_LANE_HEIGHT) continue;
+        for (const item of lane.items) {
+          if (!isPassItemEditable(item)) continue;
+          const x0 = msToPx(item.startMs, viewport);
+          const x1 = msToPx(item.endMs, viewport);
+          if (Math.abs(px - x0) <= EDGE_HIT_PX) return { item, edge: "start" };
+          if (Math.abs(px - x1) <= EDGE_HIT_PX) return { item, edge: "end" };
+        }
+      }
+      return undefined;
+    },
+    [lanes, laneTops.passTops, viewport],
+  );
+
+  /** Accepted items of `kind` other than `itemId` — what a drag must not cross. */
+  const passItemNeighbours = useCallback(
+    (kind: LaneItem["kind"], itemId: string): PassItemNeighbour[] => {
+      const neighbours: PassItemNeighbour[] = [];
+      for (const lane of lanes) {
+        for (const other of lane.items) {
+          if (other.itemId === itemId || other.kind !== kind || other.state !== "accepted") {
+            continue;
+          }
+          neighbours.push({ startMs: other.startMs, endMs: other.endMs });
+        }
+      }
+      return neighbours;
+    },
+    [lanes],
   );
 
   const onCanvasMouseMove = useCallback(
@@ -651,6 +759,25 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         return;
       }
 
+      const passEdgeHit = onEditPassItem !== undefined ? hitTestPassItemEdge(px, py) : undefined;
+      if (passEdgeHit !== undefined) {
+        dragRef.current = {
+          pointerId: event.pointerId,
+          kind: "pass-item-edge",
+          itemId: passEdgeHit.item.itemId,
+          edge: passEdgeHit.edge,
+          startMs: passEdgeHit.item.startMs,
+          endMs: passEdgeHit.item.endMs,
+        };
+        dragPreviewRef.current = {
+          startMs: passEdgeHit.item.startMs,
+          endMs: passEdgeHit.item.endMs,
+        };
+        onSelectPassItem?.(passEdgeHit.item);
+        event.currentTarget.setPointerCapture(event.pointerId);
+        return;
+      }
+
       const wordEdgeHit = hitTestWordEdge(px, py);
       if (wordEdgeHit !== undefined && onSetWordTiming !== undefined) {
         dragRef.current = {
@@ -689,13 +816,16 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     },
     [
       hitTestSegmentEdge,
+      hitTestPassItemEdge,
       hitTestWordEdge,
       hitTestWord,
       hitTestSegmentBody,
       onSeek,
       onSelectSegment,
       onSelectWord,
+      onSelectPassItem,
       onSetWordTiming,
+      onEditPassItem,
       segments,
       viewport,
       displayMode,
@@ -746,9 +876,36 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         );
         dragPreviewRef.current = resolved;
         forceRedraw((n) => n + 1);
+        return;
+      }
+
+      if (drag.kind === "pass-item-edge" && drag.itemId !== undefined && drag.edge !== undefined) {
+        const item = lanes.flatMap((lane) => lane.items).find((i) => i.itemId === drag.itemId);
+        if (item === undefined) return;
+        const candidateMs = pxToMs(px, viewport);
+        const resolved = resolvePassItemDrag(
+          drag.edge,
+          candidateMs,
+          { startMs: item.startMs, endMs: item.endMs },
+          { durationMs, neighbours: passItemNeighbours(item.kind, item.itemId) },
+        );
+        dragPreviewRef.current = resolved;
+        forceRedraw((n) => n + 1);
       }
     },
-    [segments, liveWords, viewport, wordBoundariesOf, wordNeighbours, onSeek, displayMode, timeMap],
+    [
+      segments,
+      liveWords,
+      viewport,
+      wordBoundariesOf,
+      wordNeighbours,
+      onSeek,
+      displayMode,
+      timeMap,
+      lanes,
+      durationMs,
+      passItemNeighbours,
+    ],
   );
 
   const onPointerUp = useCallback(
@@ -796,11 +953,36 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         }
       }
 
+      if (drag.kind === "pass-item-edge" && drag.itemId !== undefined && drag.edge !== undefined) {
+        const item = lanes.flatMap((lane) => lane.items).find((i) => i.itemId === drag.itemId);
+        const resolved = dragPreviewRef.current;
+        if (item !== undefined && resolved !== undefined && onEditPassItem !== undefined) {
+          const fromMs = drag.edge === "start" ? item.startMs : item.endMs;
+          const toMs = drag.edge === "start" ? resolved.startMs : resolved.endMs;
+          if (fromMs !== toMs) {
+            onEditPassItem({
+              itemId: item.itemId,
+              startMs: resolved.startMs,
+              endMs: resolved.endMs,
+            });
+          }
+        }
+      }
+
       dragRef.current = undefined;
       dragPreviewRef.current = undefined;
       forceRedraw((n) => n + 1);
     },
-    [segments, wordBoundariesOf, liveWords, onSetSegmentBounds, onSetWordTiming, resolvedNudgeSink],
+    [
+      segments,
+      wordBoundariesOf,
+      liveWords,
+      onSetSegmentBounds,
+      onSetWordTiming,
+      onEditPassItem,
+      resolvedNudgeSink,
+      lanes,
+    ],
   );
 
   const onDoubleClick = useCallback(

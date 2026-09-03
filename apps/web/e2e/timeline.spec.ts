@@ -1,7 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 
-import { API_ORIGIN, seedEditorProject } from "./editor-fixtures";
+import { API_ORIGIN, seedEditorProject, testUlid } from "./editor-fixtures";
 import { expect, gotoHydrated, test } from "./fixtures";
+import { mergePassForTest } from "./internal-callback";
 import { grantTimelineTestCredits } from "./timeline-credits";
 
 import type { Account } from "./fixtures";
@@ -54,6 +55,79 @@ async function fetchSegments(page: Page, projectId: string): Promise<DocumentSeg
   });
   const doc = (await docResponse.json()) as { segments: DocumentSegment[] };
   return [...doc.segments].sort((a, b) => a.startMs - b.startMs);
+}
+
+interface PassItemView {
+  readonly itemId: string;
+  readonly startMs: number;
+  readonly endMs: number;
+}
+
+/** The access token an e2e page's own session carries, refreshed on demand. */
+async function accessTokenOf(page: Page): Promise<string> {
+  const { accessToken } = await page.evaluate(async () => {
+    const response = await fetch("/api/session/refresh", { method: "POST" });
+    return (await response.json()) as { accessToken: string };
+  });
+  return accessToken;
+}
+
+/** The EDG document's current revision (`GET /projects/{id}/edg`). */
+async function fetchRevision(page: Page, projectId: string): Promise<number> {
+  const accessToken = await accessTokenOf(page);
+  const response = await page.request.get(`${API_ORIGIN}/projects/${projectId}/edg`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const body = (await response.json()) as { revision: number };
+  return body.revision;
+}
+
+/** Every pass item on the document, across every pass (B20b). */
+async function fetchPassItems(page: Page, projectId: string): Promise<PassItemView[]> {
+  const accessToken = await accessTokenOf(page);
+  const response = await page.request.get(`${API_ORIGIN}/projects/${projectId}/passes`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const body = (await response.json()) as { passes: { items: PassItemView[] }[] };
+  return body.passes.flatMap((pass) => pass.items);
+}
+
+/**
+ * Merges one proposed `cut` pass item directly, the way `PassCompletionHandler`
+ * would after a real `ai.pass` job — the internal, HMAC-signed write path
+ * (`mergePassForTest`), so the drag-to-adjust test below needs no worker.
+ */
+async function seedCutItem(
+  page: Page,
+  projectId: string,
+  bounds: { startMs: number; endMs: number },
+): Promise<string> {
+  const revision = await fetchRevision(page, projectId);
+  const passId = testUlid();
+  const itemId = testUlid();
+  await mergePassForTest(projectId, {
+    baseRevision: revision,
+    opId: testUlid(),
+    pass: {
+      passId,
+      type: "autocut",
+      engine: "autocut@2",
+      params: {},
+      status: "ready",
+      items: [
+        {
+          itemId,
+          passId,
+          kind: "cut",
+          startMs: bounds.startMs,
+          endMs: bounds.endMs,
+          payload: {},
+          state: "proposed",
+        },
+      ],
+    },
+  });
+  return itemId;
 }
 
 /** Reads `EdgHot.protected` straight from the API (B18b), for the "P" toggle test. */
@@ -224,6 +298,48 @@ test.describe("timeline", () => {
         { timeout: 10_000 },
       )
       .not.toBe(word.e);
+  });
+
+  test("dragging a proposed cut item's edge lands an EditPassItem op (B20b)", async ({
+    page,
+    sharedAccount,
+  }) => {
+    const projectId = await openSeededTimeline(page, sharedAccount, `B20b ${test.info().title}`);
+    const itemId = await seedCutItem(page, projectId, { startMs: 10_000, endMs: 20_000 });
+
+    // The pass merged directly through the internal write path, bypassing the
+    // page's own realtime subscription — reload so the editor's initial
+    // document fetch (which does carry `passes`) picks it up.
+    await gotoHydrated(page, `/p/${projectId}`);
+    await expect(page.getByTestId("editor-root")).toBeVisible({ timeout: 30_000 });
+
+    const canvas = page.getByTestId("timeline-canvas");
+    const box = await canvas.boundingBox();
+    if (box === null) throw new Error("timeline canvas has no box");
+
+    // Default zoom is 30 ms/px, scroll 0 — the first (cuts) pass lane sits at
+    // y = 24 (ruler) + 64+2 (waveform) + 28+2 (word lane) + 36+2 (segment
+    // lane) = 158, 20px tall, so its centre is 168 (`Timeline.test.tsx`'s own
+    // geometry comment derives the same number).
+    const msPerPx = 30;
+    const cutsLaneTop = 158;
+    const endX = box.x + 20_000 / msPerPx;
+    const y = box.y + cutsLaneTop + 10;
+
+    await page.mouse.move(endX, y);
+    await page.mouse.down();
+    await page.mouse.move(endX + 3_000 / msPerPx, y, { steps: 8 });
+    await page.mouse.up();
+
+    await expect
+      .poll(
+        async () => {
+          const items = await fetchPassItems(page, projectId);
+          return items.find((item) => item.itemId === itemId)?.endMs;
+        },
+        { timeout: 10_000 },
+      )
+      .not.toBe(20_000);
   });
 
   test("Alt+Arrow nudges a selected word's edge by 10ms (100ms with Shift) (A02d)", async ({

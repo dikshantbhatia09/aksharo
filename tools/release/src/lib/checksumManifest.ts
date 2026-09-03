@@ -16,6 +16,7 @@ export async function buildChecksumManifest(artifactsDir: string): Promise<Check
   );
   const entries: ChecksumEntry[] = [];
   for (const file of files.sort()) {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const [sha256, stat] = await Promise.all([sha256File(file), fs.stat(file)]);
     entries.push({
       file: path.relative(artifactsDir, file).split(path.sep).join("/"),
@@ -44,6 +45,7 @@ export async function writeSignedChecksums(
   const body = manifestBody(entries);
   const manifestPath = path.join(artifactsDir, "CHECKSUMS.sha256");
   await ensureDir(artifactsDir);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   await fs.writeFile(manifestPath, body, "utf8");
 
   const key = signingKeyBase64
@@ -54,6 +56,7 @@ export async function writeSignedChecksums(
   const marker = signingKeyBase64
     ? ""
     : "# UNSIGNED (dry-run key) — do not trust for a real release\n";
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   await fs.writeFile(
     signaturePath,
     `${marker}hmac-sha256  ${signature}  CHECKSUMS.sha256\n`,

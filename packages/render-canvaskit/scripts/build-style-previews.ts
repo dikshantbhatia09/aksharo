@@ -36,6 +36,7 @@ async function main(): Promise<void> {
     dirname(require.resolve("@montaj/caption-styles/package.json")),
     "previews",
   );
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   mkdirSync(previewDir, { recursive: true });
 
   const { registry, shaper } = await createFixtureRenderer();
@@ -59,6 +60,7 @@ async function main(): Promise<void> {
         height: PREVIEW_CANVAS.height,
         background: PREVIEW_BACKGROUND,
       });
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       writeFileSync(join(previewDir, `${style.id}.png`), png);
       console.log(`${style.id}.png — ${String(png.length)} bytes`);
     }

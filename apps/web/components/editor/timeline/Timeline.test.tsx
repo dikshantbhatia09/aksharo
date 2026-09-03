@@ -107,3 +107,79 @@ describe("<Timeline /> B20 lane interaction", () => {
     expect(onSelectPassItem).not.toHaveBeenCalled();
   });
 });
+
+function fireCanvasPointerEvent(
+  type: "pointerdown" | "pointermove" | "pointerup",
+  x: number,
+  y: number,
+): void {
+  const canvasEl = screen.getByTestId("timeline-canvas");
+  vi.spyOn(canvasEl, "getBoundingClientRect").mockReturnValue({
+    left: 0,
+    top: 0,
+    right: 2_000,
+    bottom: 400,
+    width: 2_000,
+    height: 400,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  });
+  fireEvent[
+    type === "pointerdown" ? "pointerDown" : type === "pointermove" ? "pointerMove" : "pointerUp"
+  ](canvasEl, { clientX: x, clientY: y, pointerId: 1 });
+}
+
+describe("<Timeline /> B20b drag-to-adjust", () => {
+  it("drags the item's end edge and emits one EditPassItem op on pointer-up", () => {
+    const onEditPassItem = vi.fn();
+    renderTimeline({ onEditPassItem });
+
+    // 2000ms is the item's own end edge (px = 2000/30 ≈ 66.7).
+    fireCanvasPointerEvent("pointerdown", 2_000 / 30, CUTS_LANE_Y);
+    fireCanvasPointerEvent("pointermove", 3_500 / 30, CUTS_LANE_Y);
+    fireCanvasPointerEvent("pointerup", 3_500 / 30, CUTS_LANE_Y);
+
+    expect(onEditPassItem).toHaveBeenCalledTimes(1);
+    const [op] = onEditPassItem.mock.calls[0] as [
+      { itemId: string; startMs: number; endMs: number },
+    ];
+    expect(op.itemId).toBe("01ITEM0000000000000000001");
+    expect(op.startMs).toBe(1_000);
+    expect(op.endMs).toBeCloseTo(3_500, -1);
+  });
+
+  it("never emits when the pointer never lands on an edge", () => {
+    const onEditPassItem = vi.fn();
+    renderTimeline({ onEditPassItem });
+
+    fireCanvasPointerEvent("pointerdown", 1_500 / 30, CUTS_LANE_Y); // the item's body, not an edge
+    fireCanvasPointerEvent("pointermove", 3_500 / 30, CUTS_LANE_Y);
+    fireCanvasPointerEvent("pointerup", 3_500 / 30, CUTS_LANE_Y);
+
+    expect(onEditPassItem).not.toHaveBeenCalled();
+  });
+
+  it("clamps the drag against a neighbouring accepted item of the same kind", () => {
+    const onEditPassItem = vi.fn();
+    const neighbour = cutItem({
+      itemId: "01ITEM0000000000000000002",
+      startMs: 4_000,
+      endMs: 5_000,
+      state: "accepted",
+    });
+    renderTimeline({ passItems: [cutItem(), neighbour], onEditPassItem });
+
+    fireCanvasPointerEvent("pointerdown", 2_000 / 30, CUTS_LANE_Y);
+    fireCanvasPointerEvent("pointermove", 4_500 / 30, CUTS_LANE_Y);
+    fireCanvasPointerEvent("pointerup", 4_500 / 30, CUTS_LANE_Y);
+
+    expect(onEditPassItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        itemId: "01ITEM0000000000000000001",
+        startMs: 1_000,
+        endMs: 4_000,
+      }),
+    );
+  });
+});

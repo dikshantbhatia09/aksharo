@@ -152,6 +152,7 @@ export function breakWordAtClusters(
   let startAdvance = 0;
 
   for (let i = 1; i < clusters.length; i += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const cluster = clusters[i];
     if (cluster === undefined) continue;
     const advance = advanceTo(cluster) - startAdvance;

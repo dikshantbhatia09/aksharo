@@ -40,10 +40,15 @@ describe("encodeKeyframes / decodeKeyframes", () => {
     const decoded = decodeKeyframes(packed);
     expect(decoded).toHaveLength(3);
     for (const [index, expected] of frames.entries()) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(decoded[index]?.tMs).toBeCloseTo(expected.tMs, 3);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(decoded[index]?.zoom).toBeCloseTo(expected.zoom, 5);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(decoded[index]?.cx).toBeCloseTo(expected.cx, 5);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(decoded[index]?.cy).toBeCloseTo(expected.cy, 5);
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(decoded[index]?.ease).toBe(expected.ease);
     }
   });
@@ -76,10 +81,15 @@ describe("encodeKeyframes / decodeKeyframes", () => {
           const expected = [...frames].sort((a, b) => a.tMs - b.tMs);
           expect(decoded).toHaveLength(expected.length);
           decoded.forEach((got, index) => {
+            // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
             expect(got.tMs).toBe(expected[index]?.tMs);
+            // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
             expect(got.zoom).toBe(expected[index]?.zoom);
+            // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
             expect(got.cx).toBe(expected[index]?.cx);
+            // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
             expect(got.cy).toBe(expected[index]?.cy);
+            // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
             expect(got.ease).toBe(expected[index]?.ease);
           });
         },

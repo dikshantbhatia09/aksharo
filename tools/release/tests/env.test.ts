@@ -88,6 +88,7 @@ describe("parseDotEnv / loadReleaseDotEnv", () => {
     const env: NodeJS.ProcessEnv = { RELEASE_MODE: "signed", EMPTY_ALREADY: "" };
     const dir = mkdtempSync(path.join(tmpdir(), "release-dotenv-"));
     const file = path.join(dir, ".env");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     writeFileSync(
       file,
       "RELEASE_MODE=dry-run\nWIN_SIGN_PROVIDER=digicert-key-locker\nEMPTY_ALREADY=filled\n",

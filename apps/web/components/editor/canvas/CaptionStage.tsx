@@ -67,8 +67,21 @@ export interface CaptionStageProps {
   readonly selectedSegmentId?: string;
   readonly showSafeZones?: boolean;
   readonly className?: string;
-  /** Extra layers (B20's proposal overlays) drawn above the caption overlay. */
-  readonly children?: React.ReactNode;
+  /**
+   * Extra layers (B20's proposal overlays) drawn above the caption overlay.
+   * A plain node for a layer that draws its own geometry, or a function for
+   * one that needs the stage's own fit (B20b: `CropWindowOverlay` positions
+   * itself against exactly this stage's letterboxing) — this is the only
+   * place `fit`/the resolved canvas size leave the component, since neither
+   * is otherwise knowable from outside (the container is measured here, by
+   * a `ResizeObserver` on `containerRef`).
+   */
+  readonly children?:
+    | React.ReactNode
+    | ((geometry: {
+        readonly fit: StageFit;
+        readonly canvas: { width: number; height: number };
+      }) => React.ReactNode);
 }
 
 interface DragState {
@@ -324,7 +337,7 @@ export function CaptionStage({
           data-testid="caption-stage-box"
         />
       ) : null}
-      {children}
+      {typeof children === "function" ? children({ fit, canvas: surfaceCanvas }) : children}
     </div>
   );
 }

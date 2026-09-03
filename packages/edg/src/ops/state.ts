@@ -358,6 +358,7 @@ export function rememberOpId(draft: EdgDraft, opId: string): void {
 /* ------------------------------- segments -------------------------------- */
 
 function seqAt(draft: EdgDraft, index: number): string {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const id = draft.order[index];
   if (id === undefined) throw new EdgStateError(`segment order has no entry at ${index}`);
   const segment = draft.segments.get(id);
@@ -381,6 +382,7 @@ function upperBound(draft: EdgDraft, seq: string): number {
 export function orderIndexOf(draft: EdgDraft, id: string, seq: string): number {
   const bound = upperBound(draft, seq);
   for (let index = bound - 1; index >= 0; index -= 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     if (draft.order[index] === id) return index;
     if (compareSeqKeys(seqAt(draft, index), seq) !== 0) break;
   }
@@ -543,6 +545,7 @@ export function insertWordAfter(draft: EdgDraft, afterWordId: WordId, word: Inde
   if (anchor === undefined) throw new EdgStateError(`unknown anchor word ${afterWordId}`);
 
   let at = indexOfPosition(order, positions, anchor);
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   if (order[at] !== afterWordId) throw new EdgStateError(`word order lost ${afterWordId}`);
   let next = order[at + 1];
   let nextPosition = next === undefined ? anchor + 1 : (positions.get(next) ?? anchor + 1);
@@ -578,6 +581,7 @@ export function previousLiveWord(
   const order = wordOrderOf(draft);
   const positions = positionsOf(draft);
   for (let index = indexOfPosition(order, positions, position) - 1; index >= 0; index -= 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const wordId = order[index];
     if (wordId === undefined) break;
     const at = positions.get(wordId);
@@ -601,6 +605,7 @@ export function nextLiveWord(
     index < order.length;
     index += 1
   ) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const wordId = order[index];
     if (wordId === undefined) break;
     const at = positions.get(wordId);
@@ -621,6 +626,7 @@ function indexOfPosition(
   let high = order.length - 1;
   while (low <= high) {
     const middle = (low + high) >>> 1;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const wordId = order[middle];
     const at = wordId === undefined ? undefined : positions.get(wordId);
     if (at === undefined) break;

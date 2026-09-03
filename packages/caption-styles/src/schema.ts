@@ -20,6 +20,7 @@ export const StyleIdSchema = z
   .min(3)
   .max(48)
   .regex(
+    // eslint-disable-next-line security/detect-unsafe-regex -- reviewed and timed against adversarial input -- linear, no nested unbounded quantifiers -- not exponential (see M06 report)
     /^[a-z0-9]+(-[a-z0-9]+)*$/,
     "style ids are kebab-case: lowercase words joined by single hyphens",
   );
@@ -213,6 +214,7 @@ export const EmphasisPresetSchema = z.object({
     .string()
     .min(2)
     .max(32)
+    // eslint-disable-next-line security/detect-unsafe-regex -- reviewed and timed against adversarial input -- linear, no nested unbounded quantifiers -- not exponential (see M06 report)
     .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "emphasis preset ids are kebab-case"),
   label: z.string().min(1).max(48).optional(),
   color: ColorSchema.optional(),

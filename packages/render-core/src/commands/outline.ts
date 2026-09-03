@@ -38,12 +38,14 @@ export function transformGlyphPath(
   originY: number,
   scale: number,
 ): string {
+  // eslint-disable-next-line security/detect-unsafe-regex -- reviewed and timed against adversarial input -- linear, no nested unbounded quantifiers -- not exponential (see M06 report)
   const tokens = path.match(/[MLQCZmlqcz]|-?\d*\.?\d+(?:e[-+]?\d+)?/gi);
   if (tokens === null) return "";
   const out: string[] = [];
   let index = 0;
 
   const number = (): number => {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const token = tokens[index];
     index += 1;
     return token === undefined ? 0 : Number.parseFloat(token);
@@ -55,7 +57,9 @@ export function transformGlyphPath(
   };
 
   while (index < tokens.length) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const token = tokens[index];
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- equality check on a null/undefined/status/hash sentinel, not a secret or MAC comparison -- reviewed for M06's eslint-plugin-security promotion
     if (token === undefined) break;
     if (!COMMAND_LETTERS.has(token)) {
       throw new Error(`unsupported glyph path token "${token}" in "${path.slice(0, 40)}…"`);

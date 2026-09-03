@@ -157,6 +157,7 @@ export function insideCuts(cuts: readonly CutEdit[], ms: number): boolean {
   let high = cuts.length - 1;
   while (low <= high) {
     const mid = (low + high) >> 1;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const cut = cuts[mid] as CutEdit;
     if (ms <= cut.startMs) high = mid - 1;
     else if (ms >= cut.endMs) low = mid + 1;
@@ -223,6 +224,7 @@ export function normaliseEdits(edits: readonly Edit[], options: NormaliseOptions
 
   for (let i = 1; i < clippedSpeeds.length; i += 1) {
     const previous = clippedSpeeds[i - 1] as SpeedEdit;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const current = clippedSpeeds[i] as SpeedEdit;
     if (current.startMs < previous.endMs) {
       throw new TimeMapError(

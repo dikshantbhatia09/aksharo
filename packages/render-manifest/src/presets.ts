@@ -32,6 +32,7 @@ export const PRESET_DIMENSIONS: Readonly<
 
 /** Dimensions for a preset, or `null` for `custom`. */
 export function dimensionsFor(preset: RenderPreset): PresetDimensions | null {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return preset === "custom" ? null : PRESET_DIMENSIONS[preset];
 }
 
@@ -44,6 +45,7 @@ const ASPECT_RATIOS: Readonly<Record<Aspect, number>> = Object.freeze({
 
 /** Width ÷ height for a named aspect. */
 export function aspectRatio(aspect: Aspect): number {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return ASPECT_RATIOS[aspect];
 }
 

@@ -49,7 +49,7 @@ describe("build output", () => {
       "  process.stdout.write(String(m.EDG_OP_TYPES.length));",
       "});",
     ].join("\n");
-    expect(run(process.execPath, ["-e", script])).toBe("18");
+    expect(run(process.execPath, ["-e", script])).toBe("19");
     expect(JSON.parse(readFileSync(join(DIST, "esm", "package.json"), "utf8"))).toEqual({
       type: "module",
     });
@@ -58,7 +58,9 @@ describe("build output", () => {
 
   it("emits declarations for both conditions", () => {
     for (const file of ["index.d.ts", "schemas/index.d.ts", "seq.d.ts"]) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       expect(existsSync(join(DIST, file)), `dist/${file}`).toBe(true);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       expect(existsSync(join(DIST, "esm", file)), `dist/esm/${file}`).toBe(true);
     }
   });

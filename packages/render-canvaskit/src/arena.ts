@@ -29,6 +29,7 @@ export class Arena {
   /** Frees everything, newest first. Safe to call twice. */
   release(): void {
     for (let index = this.#owned.length - 1; index >= 0; index -= 1) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const value = this.#owned[index];
       if (value === undefined) continue;
       try {

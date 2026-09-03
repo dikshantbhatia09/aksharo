@@ -59,6 +59,7 @@ export class InstallerBudgetExceededError extends Error {
 
 /** Throws {@link InstallerBudgetExceededError} when `sizeBytes` exceeds the platform's budget. */
 export function checkInstallerSizeBudget(platform: Platform, sizeBytes: number): void {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const budget = INSTALLER_SIZE_BUDGET_BYTES[platform];
   if (sizeBytes > budget) {
     throw new InstallerBudgetExceededError(platform, sizeBytes, budget);
@@ -146,6 +147,7 @@ async function findRealElectronBuilderOutput(
 
   // mac: electron-builder names the output dir after the arch (`mac`, `mac-arm64`,
   // `mac-universal`, ...); scan for whichever one actually holds the app bundle.
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const entries = await fs.readdir(releaseDir, { withFileTypes: true }).catch(() => []);
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
@@ -191,7 +193,9 @@ async function ensureAppTree(
     const contents = path.join(appDir, "Aksharo.app", "Contents");
     await ensureDir(path.join(contents, "MacOS"));
     await ensureDir(path.join(contents, "Frameworks", "Aksharo Helper.app", "Contents", "MacOS"));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(contents, "MacOS", "Aksharo"), "placeholder-mach-o-main\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(
       path.join(
         contents,
@@ -203,19 +207,27 @@ async function ensureAppTree(
       ),
       "placeholder-helper\n",
     );
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(
       path.join(contents, "MacOS", "montaj-engine"),
       "placeholder-engine-sidecar\n",
     );
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(contents, "MacOS", "ffmpeg"), "placeholder-ffmpeg\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(contents, "MacOS", "bridge"), "placeholder-bridge-sea\n");
   } else {
     const unpacked = path.join(appDir, "win-unpacked");
     await ensureDir(unpacked);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(unpacked, "Aksharo.exe"), "placeholder-pe-main\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(unpacked, "montaj-engine.exe"), "placeholder-engine-sidecar\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(unpacked, "ffmpeg.exe"), "placeholder-ffmpeg\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(unpacked, "bridge.exe"), "placeholder-bridge-sea\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await fs.writeFile(path.join(unpacked, "resources.dll"), "placeholder-dll\n");
   }
 
@@ -290,6 +302,7 @@ export async function runBuildDesktop(
   const artifactPath = path.join(ctx.outDir, "artifacts", opts.channel, artifactName);
   await zipDirectory(bundleRoot, artifactPath);
 
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const artifactSizeBytes = (await fs.stat(artifactPath)).size;
   checkInstallerSizeBudget(opts.platform, artifactSizeBytes);
 

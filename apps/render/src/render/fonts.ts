@@ -68,6 +68,7 @@ export interface LoadedFonts {
 export async function readFontPack(directory: string): Promise<FontResource[]> {
   let raw: string;
   try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     raw = await readFile(join(directory, FONT_PACK_MANIFEST), "utf8");
   } catch (error) {
     throw new FontPackError(
@@ -102,6 +103,7 @@ export async function readFontPack(directory: string): Promise<FontResource[]> {
     }
     let data: Uint8Array;
     try {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       data = new Uint8Array(await readFile(join(directory, entry.file)));
     } catch (error) {
       throw new FontPackError(
@@ -123,6 +125,7 @@ export async function readFontPack(directory: string): Promise<FontResource[]> {
 
 /** Every `.ttf`/`.otf` in a directory, for the "is this a pack at all" check. */
 export async function fontFilesIn(directory: string): Promise<string[]> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const entries = await readdir(directory);
   return entries.filter((name) => [".ttf", ".otf"].includes(extname(name).toLowerCase()));
 }

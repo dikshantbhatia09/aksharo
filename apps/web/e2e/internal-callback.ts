@@ -71,6 +71,48 @@ export async function completeJobForTest(
   return ack;
 }
 
+/**
+ * `POST /internal/projects/{id}/edg/ops` (`edg-internal.controller.ts`) —
+ * the only route that can submit `source: "worker"` ops, signed the same
+ * way as the job-completion callback. Used by B20b's timeline drag-to-adjust
+ * Playwright case to land a proposed pass item directly, the way
+ * `PassCompletionHandler` would after a real `ai.pass` job, without running
+ * a worker.
+ */
+export async function mergePassForTest(
+  projectId: string,
+  input: { baseRevision: number; pass: Record<string, unknown>; opId: string },
+): Promise<{ revision: number }> {
+  const env = loadRepoEnv();
+  const secret = env["INTERNAL_CALLBACK_SECRET"];
+  if (secret === undefined || secret === "") {
+    throw new Error("INTERNAL_CALLBACK_SECRET is not set — copy .env.example to .env first.");
+  }
+
+  const body = JSON.stringify({
+    baseRevision: input.baseRevision,
+    ops: [{ opId: input.opId, type: "MergePass", pass: input.pass }],
+    clientOpIds: [],
+  });
+  const timestamp = Math.floor(Date.now() / 1000);
+  const response = await fetch(`${API_ORIGIN}/internal/projects/${projectId}/edg/ops`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-montaj-attempt": "e2e-merge-pass",
+      "x-montaj-timestamp": String(timestamp),
+      "x-montaj-signature": sign(secret, timestamp, body),
+    },
+    body,
+  });
+  if (!response.ok) {
+    throw new Error(
+      `mergePassForTest(${projectId}) -> HTTP ${String(response.status)}: ${await response.text()}`,
+    );
+  }
+  return (await response.json()) as { revision: number };
+}
+
 export interface MediaPatchAck {
   readonly mediaId: string;
   readonly status: string;

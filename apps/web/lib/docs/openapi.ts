@@ -32,7 +32,7 @@ const GROUP_LABELS: Record<string, string> = {
 };
 
 function labelFor(tag: string): string {
-  // eslint-disable-next-line security/detect-object-injection -- `tag` is derived from `groupTagFor`'s own regex over the build-time, non-attacker-controlled `openapi.json` path list, not user input -- reviewed for the same follow-up (C02c)
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a path segment parsed from this repo's own generated openapi.json, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   return GROUP_LABELS[tag] ?? `${tag.charAt(0).toUpperCase()}${tag.slice(1)}`;
 }
 
@@ -88,7 +88,7 @@ export function loadApiGroups(): readonly ApiGroup[] {
     if (!path.startsWith("/v1/")) continue;
     const tag = groupTagFor(path);
     for (const method of METHOD_ORDER) {
-      // eslint-disable-next-line security/detect-object-injection -- `method` is one of the fixed `METHOD_ORDER` literals, not user input, indexing into the build-time, non-attacker-controlled `openapi.json` document -- reviewed for the same follow-up (C02c)
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on `method`, a fixed literal from METHOD_ORDER, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const op = methods[method];
       if (op === undefined) continue;
       const endpoint: ApiEndpoint = {

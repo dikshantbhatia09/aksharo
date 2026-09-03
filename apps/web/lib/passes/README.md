@@ -33,6 +33,29 @@ exports does **not** live here — it lives in `@montaj/render-core`'s
 renderer (`apps/render`). See that package's README and
 `apps/web/lib/export/keyframe-adapter.ts`.
 
+## B20b: drag-to-adjust, keyframe markers, canvas overlay, scrub preview
+
+B20b's follow-ups live one level up, alongside the timeline and canvas they
+extend rather than here:
+
+```
+apps/web/lib/edg/ops.ts                    editPassItem builder + undo inverse (CONTRACTS §2)
+apps/web/lib/timeline/pass-item-drag.ts    clamp/resolve pipeline for dragging a lane item's
+                                            edge, mirroring lib/timeline/snapping.ts
+apps/web/lib/timeline/keyframe-markers.ts  decoded-keyframe markers + the zoom lane's mini
+                                            scale-curve plot points
+apps/web/lib/timeline/current-crop-rect.ts the crop window an accepted zoom/reframe item wants
+                                            at a given instant (inline curves only)
+apps/web/lib/timeline/scrub-preview.ts     the ±1.5s scrub window + "frames"/"rect-only" mode
+apps/web/components/editor/canvas/CropWindowOverlay.tsx
+                                            draws the current crop window over CaptionStage
+                                            (via its children render-prop)
+```
+
+`Timeline.tsx` wires the drag (one `EditPassItem` op per drag, on
+`proposed`/`accepted` cut/zoom/reframe items) and the zoom lane's markers;
+`editor-client.tsx` wires `CropWindowOverlay` and `currentCropRect`.
+
 ## Scripts
 
 `pnpm --filter @montaj/web test -- lib/passes`,

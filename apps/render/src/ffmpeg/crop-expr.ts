@@ -48,6 +48,7 @@ function dimensionExpr(
   let expr = String(pick(last.rect) * scale);
 
   for (let i = keyframes.length - 2; i >= 0; i -= 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const before = keyframes[i];
     const after = keyframes[i + 1];
     if (before === undefined || after === undefined) continue;

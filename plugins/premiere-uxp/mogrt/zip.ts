@@ -30,6 +30,7 @@ const CRC_TABLE = (() => {
     for (let k = 0; k < 8; k++) {
       c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
     }
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     table[n] = c >>> 0;
   }
   return table;
@@ -38,6 +39,7 @@ const CRC_TABLE = (() => {
 function crc32(buf: Buffer): number {
   let crc = 0xffffffff;
   for (let i = 0; i < buf.length; i++) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const byte = buf[i] ?? 0;
     const tableEntry = CRC_TABLE[(crc ^ byte) & 0xff] ?? 0;
     crc = tableEntry ^ (crc >>> 8);

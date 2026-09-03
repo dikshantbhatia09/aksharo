@@ -24,6 +24,7 @@ import type { SetAudioCleanOp } from "@/components/editor/audio/use-audio-clean"
 import type { EditorSnapshot, EditorStore } from "@/lib/edg/store";
 
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
+import { CropWindowOverlay } from "@/components/editor/canvas/CropWindowOverlay";
 import { useRenderer } from "@/components/editor/canvas/use-canvaskit";
 import { FirstRunCoachMarks } from "@/components/editor/coach-marks/FirstRunCoachMarks";
 import { ExportButton } from "@/components/editor/export/ExportButton";
@@ -32,6 +33,7 @@ import { RightPanel } from "@/components/editor/panels/RightPanel";
 import { SYSTEM_STYLE_MAP, SYSTEM_STYLES } from "@/components/editor/panels/system-styles";
 import {
   Timeline,
+  type PassItemBoundsOp,
   type SegmentBoundsOp,
   type WordTimingOp,
 } from "@/components/editor/timeline/Timeline";
@@ -51,6 +53,7 @@ import { findSameSpelling } from "@/lib/edg/find-replace";
 import { useKeyboardShortcuts } from "@/lib/edg/keyboard-shortcuts";
 import {
   deleteWord,
+  editPassItem,
   editWord,
   insertWordAfter,
   mergeSegments,
@@ -66,6 +69,7 @@ import { PlayheadStore } from "@/lib/edg/playhead";
 import { toRenderProjection } from "@/lib/edg/render-projection";
 import { useEdgRealtime, useEditorStore } from "@/lib/edg/use-editor-store";
 import { readPrivacy, subscribePrivacy } from "@/lib/privacy/consent";
+import { currentCropRect } from "@/lib/timeline/current-crop-rect";
 import { noopNudgeSink } from "@/lib/timeline/nudge";
 import { type TimeDisplayMode } from "@/lib/timeline/output-clock";
 import { useTimelineMedia } from "@/lib/timeline/use-timeline-media";
@@ -288,6 +292,15 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     if (cutItems.length === 0) return undefined;
     return fromAcceptedItems(passItems, { sourceDurationMs: primaryMedia.durationMs });
   }, [passItems, primaryMedia]);
+
+  // B20b: the current zoom/reframe crop window, drawn as a canvas overlay
+  // whenever an accepted item covers the playhead (an inline curve only —
+  // `currentCropRect`'s own doc comment explains why a `keyframesRef` item
+  // draws nothing here rather than fetching bytes from a pure function).
+  const currentCrop = useMemo(
+    () => currentCropRect(passItems, playheadSnapshot.ms),
+    [passItems, playheadSnapshot.ms],
+  );
   const [timelineDisplayMode, setTimelineDisplayMode] = useState<TimeDisplayMode>("source");
 
   const reflow = useMemo(() => {
@@ -389,6 +402,12 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
 
   function onTimelineSetWordTiming(op: WordTimingOp): void {
     store.submitOp(setWordTiming(op.wordId, op.s, op.e, newId), { label: "Retime word" });
+  }
+
+  function onTimelineEditPassItem(op: PassItemBoundsOp): void {
+    store.submitOp(editPassItem(op.itemId, op.startMs, op.endMs, newId), {
+      label: "Adjust pass item",
+    });
   }
 
   function onToggleProtection(s: number, e: number): void {
@@ -678,7 +697,11 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                 position: op.position,
               });
             }}
-          />
+          >
+            {({ fit, canvas }) => (
+              <CropWindowOverlay cropRect={currentCrop} canvas={canvas} fit={fit} />
+            )}
+          </CaptionStage>
         </div>
 
         <div
@@ -731,6 +754,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           }}
           onSetSegmentBounds={onTimelineSetSegmentBounds}
           onSetWordTiming={onTimelineSetWordTiming}
+          onEditPassItem={onTimelineEditPassItem}
           onSplitSegment={onSplitAt}
           onMergeSegments={([a]) => onMergeWithNext(a)}
           {...(timeMap === undefined ? {} : { timeMap })}

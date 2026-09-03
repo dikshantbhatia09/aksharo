@@ -31,6 +31,7 @@ async function main(): Promise<void> {
         height: BASELINE_CANVAS.height,
         background: BASELINE_BACKGROUND,
       });
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       writeFileSync(join(BASELINE_DIR, `${frame.name}.png`), png);
       console.log(`${frame.name}.png — ${String(png.length)} bytes`);
     }

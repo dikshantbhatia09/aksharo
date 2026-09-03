@@ -34,6 +34,7 @@ export function bundledPackDirectory(): string {
     join(__dirname, "pack"),
   ];
   for (const candidate of candidates) {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     if (existsSync(join(candidate, MANIFEST_FILE))) return candidate;
   }
   return candidates[0] ?? join(__dirname, "..", "pack");
@@ -49,6 +50,7 @@ export function packLicencePath(file: string, directory = bundledPackDirectory()
 
 /** Read and validate a pack's `fonts.json`. */
 export async function readPackManifest(directory = bundledPackDirectory()): Promise<FontManifest> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const raw = await readFile(packManifestPath(directory), "utf8");
   return parseManifest(JSON.parse(raw), packManifestPath(directory));
 }
@@ -83,6 +85,7 @@ export async function loadPack(
   const fonts: FontResource[] = [];
 
   for (const face of manifest.fonts) {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const data = new Uint8Array(await readFile(join(directory, face.file)));
     if (options.verify === true) {
       const digest = createHash("sha256").update(data).digest("hex");

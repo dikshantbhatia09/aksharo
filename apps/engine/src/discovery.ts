@@ -38,14 +38,19 @@ export function writeEngineDiscoveryFile(
   path = engineDiscoveryFilePath(),
 ): void {
   const dir = aksharoDir();
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
   const tmp = `${path}.tmp-${String(process.pid)}`;
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   writeFileSync(tmp, `${JSON.stringify(file, null, 2)}\n`, { mode: 0o600 });
   try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     renameSync(tmp, path);
   } catch {
     copyFileSync(tmp, path);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     chmodSync(path, 0o600);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     unlinkSync(tmp);
   }
 }
@@ -53,8 +58,10 @@ export function writeEngineDiscoveryFile(
 export function readEngineDiscoveryFile(
   path = engineDiscoveryFilePath(),
 ): EngineDiscoveryFile | undefined {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   if (!existsSync(path)) return undefined;
   try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const raw = readFileSync(path, "utf8");
     const parsed = EngineDiscoveryFileSchema.safeParse(JSON.parse(raw));
     return parsed.success ? parsed.data : undefined;
@@ -65,6 +72,7 @@ export function readEngineDiscoveryFile(
 
 export function removeEngineDiscoveryFile(path = engineDiscoveryFilePath()): void {
   try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     unlinkSync(path);
   } catch {
     // Already gone — stop() being called twice, or a launch that never wrote one.

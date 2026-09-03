@@ -18,11 +18,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { loadSystemStyleMap } from "@montaj/caption-styles";
+import { encodeKeyframes, newId } from "@montaj/edg";
+import { type Pass } from "@montaj/edg/schemas";
 import { verifyRenderManifest } from "@montaj/render-manifest";
 
 import { isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { createEdgTestContext, edgSkipReason, type EdgTestContext } from "./edg-harness.js";
 import { PLAN_SEEDS } from "../prisma/seed-data.js";
+import { EdgService } from "../src/edg/index.js";
 
 const available = isDatabaseAvailable();
 if (!available) console.warn(`[exports.e2e] skipped: ${skipReason}`);
@@ -576,5 +579,133 @@ describe.skipIf(!available)("exports — A21b: source URLs alongside the manifes
       token,
     });
     expect(refreshed.status).toBe(404);
+  });
+
+  // ---------------------------------------------------------------------
+  // B20b: an accepted zoom item's inline keyframe curve rides both the
+  // browser manifest and the cloud manifest's `timemap.keyframes`.
+  // ---------------------------------------------------------------------
+  describe("keyframe tracks (B20b)", () => {
+    /** Merges a zoom pass with one inline-keyframe item directly, worker-style. */
+    async function mergeZoomPass(
+      projectId: string,
+      baseRevision: number,
+    ): Promise<{ itemId: string; revision: number }> {
+      const edg = ctx.app.get(EdgService);
+      const passId = newId();
+      const itemId = newId();
+      const keyframes = Buffer.from(
+        encodeKeyframes([
+          { tMs: 0, zoom: 1, cx: 0.5, cy: 0.5, ease: "linear" },
+          { tMs: 1_000, zoom: 1.3, cx: 0.5, cy: 0.4, ease: "inOut" },
+        ]),
+      ).toString("base64");
+      const pass: Pass = {
+        passId,
+        type: "zoom",
+        engine: "zoom@v1",
+        params: {},
+        status: "ready",
+        items: [
+          {
+            itemId,
+            passId,
+            kind: "zoom",
+            startMs: 2_000,
+            endMs: 3_000,
+            payload: {
+              target: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
+              scaleFrom: 1,
+              scaleTo: 1.3,
+              easing: "easeInOut",
+              keyframes,
+            },
+            state: "proposed",
+          },
+        ],
+      };
+      const merged = await edg.applyWorkerOps({
+        projectId,
+        baseRevision,
+        ops: [{ opId: newId(), type: "MergePass", pass }],
+        clientOpIds: [],
+      });
+      return { itemId, revision: merged.revision };
+    }
+
+    async function acceptItem(
+      projectId: string,
+      token: string,
+      baseRevision: number,
+      itemId: string,
+    ): Promise<void> {
+      const decided = await call("POST", `/projects/${projectId}/edg/ops`, {
+        token,
+        body: {
+          baseRevision,
+          ops: [{ opId: newId(), type: "DecideItems", itemIds: [itemId], state: "accepted" }],
+          clientOpIds: [],
+        },
+      });
+      expect(decided.status).toBe(200);
+    }
+
+    it("carries the accepted zoom item's curve on the browser manifest's timemap.keyframes", async () => {
+      const seeded = await ctx.seed({ words: 20, chunkSize: 20 });
+      const token = ctx.token("editor");
+
+      const { itemId, revision } = await mergeZoomPass(seeded.projectId, seeded.revision);
+      await acceptItem(seeded.projectId, token, revision, itemId);
+
+      const response = await call<DecisionBody>("POST", `/projects/${seeded.projectId}/exports`, {
+        token,
+        body: {
+          kind: "video",
+          preset: "reels",
+          outputKind: "video",
+          mode: "browser",
+          script: "roman",
+          capabilities: { codecs: ["avc1.640034"], audioEncoder: true },
+        },
+      });
+
+      expect(response.status).toBe(201);
+      const manifest = response.body.manifest as {
+        timemap: { keyframes: { itemId: string; kind: string; itemStartMs: number }[] };
+      };
+      const tracks = manifest.timemap.keyframes;
+      expect(tracks).toHaveLength(1);
+      expect(tracks[0]).toMatchObject({ itemId, kind: "zoom", itemStartMs: 2_000 });
+    });
+
+    it("carries the same curve on a cloud manifest (subtitle export, free path)", async () => {
+      const seeded = await ctx.seed({ words: 20, chunkSize: 20 });
+      const token = ctx.token("editor");
+
+      const { itemId, revision } = await mergeZoomPass(seeded.projectId, seeded.revision);
+      await acceptItem(seeded.projectId, token, revision, itemId);
+
+      const response = await call<DecisionBody>("POST", `/projects/${seeded.projectId}/exports`, {
+        token,
+        body: {
+          kind: "subtitle",
+          subtitle: { formats: ["srt"], scripts: ["roman"] },
+          mode: "auto",
+        },
+      });
+      expect(response.status).toBe(201);
+      expect(response.body.path).toBe("cloud");
+
+      const manifestRow = await ctx.prisma.exportManifest.findFirst({
+        where: { projectId: seeded.projectId, mode: "cloud" },
+        orderBy: { issuedAt: "desc" },
+      });
+      expect(manifestRow).not.toBeNull();
+      const manifest = manifestRow?.manifest as {
+        timemap: { keyframes: { itemId: string; kind: string }[] };
+      };
+      expect(manifest.timemap.keyframes).toHaveLength(1);
+      expect(manifest.timemap.keyframes[0]).toMatchObject({ itemId, kind: "zoom" });
+    });
   });
 });

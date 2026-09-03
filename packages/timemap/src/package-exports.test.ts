@@ -62,7 +62,9 @@ describe("build output", () => {
 
   it("emits declarations for both conditions", () => {
     for (const file of ["index.d.ts", "timemap.d.ts", "query.d.ts"]) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       expect(existsSync(join(DIST, file)), `dist/${file}`).toBe(true);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       expect(existsSync(join(DIST, "esm", file)), `dist/esm/${file}`).toBe(true);
     }
   });
@@ -70,7 +72,9 @@ describe("build output", () => {
   it("imports nothing Node-only, so the browser exporter can bundle it", () => {
     const forbidden = /require\(["']node:|from ["']node:|require\(["'](fs|path|crypto|os)["']/;
     for (const file of ["index.js", "timemap.js", "spans.js", "edits.js", "search.js"]) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       expect(readFileSync(join(DIST, file), "utf8"), file).not.toMatch(forbidden);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       expect(readFileSync(join(DIST, "esm", file), "utf8"), `esm/${file}`).not.toMatch(forbidden);
     }
   });

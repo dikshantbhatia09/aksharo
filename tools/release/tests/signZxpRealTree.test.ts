@@ -23,22 +23,34 @@ describe("sign-zxp against a real (non-placeholder) plugin tree", () => {
     outDir = path.join(repoRoot, ".release");
 
     const pluginDir = path.join(repoRoot, "plugins", "ae-cep");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await mkdir(path.join(pluginDir, "CSXS"), { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(
       path.join(pluginDir, "CSXS", "manifest.xml"),
       '<?xml version="1.0" encoding="UTF-8"?>\n<ExtensionManifest ExtensionBundleId="ai.aksharo.ae" ExtensionBundleVersion="0.1.0" Version="10.0" />\n',
     );
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(pluginDir, "index.html"), "<!-- panel entry -->\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await mkdir(path.join(pluginDir, "dist"), { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(pluginDir, "dist", "panel.js"), "// bundled panel\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await mkdir(path.join(pluginDir, "src", "jsx"), { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(pluginDir, "src", "jsx", "aksharo.jsx"), "// extendscript\n");
 
     // Dev-only files that must NOT be shipped.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(pluginDir, "package.json"), "{}\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await mkdir(path.join(pluginDir, "src", "host"), { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(pluginDir, "src", "host", "ae.ts"), "// dev source, not shipped\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await mkdir(path.join(pluginDir, "node_modules", "some-dep"), { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(pluginDir, "node_modules", "some-dep", "index.js"), "// dep\n");
   });
 
@@ -56,12 +68,15 @@ describe("sign-zxp against a real (non-placeholder) plugin tree", () => {
     expect(result.signed).toBe(false);
 
     const stagedDir = path.join(outDir, "build-zxp", "staged-plugin");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const staged = await readdir(stagedDir);
     expect(staged.sort()).toEqual(["CSXS", "dist", "index.html", "src"]);
 
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const stagedSrc = await readdir(path.join(stagedDir, "src"));
     expect(stagedSrc).toEqual(["jsx"]);
 
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     const stagedJsx = await readdir(path.join(stagedDir, "src", "jsx"));
     expect(stagedJsx).toEqual(["aksharo.jsx"]);
   });

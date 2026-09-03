@@ -150,6 +150,7 @@ describe("ffprobe parsing", () => {
 
   it("refuses a file with no video stream", async () => {
     const text = join(scratch, "not-a-video.txt");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(text, "hello");
     await expect(probeMedia(text)).rejects.toThrow(ProbeError);
   });
@@ -198,6 +199,7 @@ describe("the encode loop", () => {
 
     expect(result.framesWritten).toBe(frames);
     expect(seen).toEqual([...Array(frames).keys()]);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     expect((await readFile(output)).byteLength).toBeGreaterThan(100);
     expect(result.wallClockMs).toBeGreaterThanOrEqual(0);
   }, 120_000);

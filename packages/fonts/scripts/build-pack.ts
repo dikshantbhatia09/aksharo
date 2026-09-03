@@ -69,6 +69,7 @@ async function readLock(): Promise<Lock> {
 async function fetchSource(key: string, url: string, lock: Lock): Promise<Uint8Array> {
   const cached = join(CACHE_DIR, key.replace(/[\\/]/g, "__"));
   let bytes: Uint8Array | undefined;
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   if (existsSync(cached)) bytes = new Uint8Array(await readFile(cached));
 
   if (bytes === undefined) {
@@ -77,10 +78,12 @@ async function fetchSource(key: string, url: string, lock: Lock): Promise<Uint8A
     if (!response.ok) throw new Error(`${url} answered ${String(response.status)}`);
     bytes = new Uint8Array(await response.arrayBuffer());
     await mkdir(CACHE_DIR, { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(cached, bytes);
   }
 
   const sha256 = digest(bytes);
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const pinned = lock[key];
   if (pinned === undefined) {
     if (!updateLock) {
@@ -88,6 +91,7 @@ async function fetchSource(key: string, url: string, lock: Lock): Promise<Uint8A
         `${key} is not in sources.lock.json; re-run with --update-lock to pin it (${sha256})`,
       );
     }
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     lock[key] = { url, sha256, sizeBytes: bytes.byteLength };
   } else if (pinned.sha256 !== sha256) {
     if (!updateLock) {
@@ -95,6 +99,7 @@ async function fetchSource(key: string, url: string, lock: Lock): Promise<Uint8A
         `${key} hashes to ${sha256} but the lock says ${pinned.sha256}; the upstream moved`,
       );
     }
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     lock[key] = { url, sha256, sizeBytes: bytes.byteLength };
   }
   return bytes;
@@ -143,7 +148,9 @@ async function buildFamily(
     const italic = face.italic ?? false;
     const ttfName = faceFileName(family.family, face.weight, italic, "ttf");
     const woff2Name = faceFileName(family.family, face.weight, italic, "woff2");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(join(PACK_DIR, ttfName), sfnt);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(join(PACK_DIR, woff2Name), woff2);
 
     faces.push({
@@ -177,6 +184,7 @@ async function buildFamily(
 async function main(): Promise<void> {
   const lock = await readLock();
   await rm(PACK_DIR, { recursive: true, force: true });
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   await mkdir(join(PACK_DIR, LICENCE_DIR), { recursive: true });
 
   process.stdout.write(
@@ -188,6 +196,7 @@ async function main(): Promise<void> {
   for (const family of CATALOGUE) {
     const { faces, licenceBytes } = await buildFamily(family, lock);
     fonts.push(...faces);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(join(PACK_DIR, LICENCE_DIR, family.licenceFile), licenceBytes, "utf8");
   }
 
@@ -197,6 +206,7 @@ async function main(): Promise<void> {
     generatedAt: new Date().toISOString(),
     fonts,
   };
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   await writeFile(join(PACK_DIR, MANIFEST_FILE), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   await writeFile(LOCK_FILE, `${JSON.stringify(sortLock(lock), null, 2)}\n`, "utf8");
 

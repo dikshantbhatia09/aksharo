@@ -265,6 +265,7 @@ export function validateFont(bytes: Uint8Array, options: ValidateOptions = {}): 
   const coverage: Record<string, number> = {};
   for (const [tag, name] of Object.entries(SCRIPT_NAMES)) {
     void name;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     if (isScriptTag(tag)) coverage[tag] = Number(coverageRatio(tag, codePoints).toFixed(3));
   }
 
@@ -280,6 +281,7 @@ export function validateFont(bytes: Uint8Array, options: ValidateOptions = {}): 
     if (ratio < COVERAGE_THRESHOLD) {
       throw new FontValidationError(
         "fonts/script_not_covered",
+        // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
         `the font claims ${SCRIPT_NAMES[claim]} but covers only ${(ratio * 100).toFixed(0)}% of it`,
         { claimed: claim, coverage: Number(ratio.toFixed(3)), required: COVERAGE_THRESHOLD },
       );

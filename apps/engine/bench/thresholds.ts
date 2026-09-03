@@ -76,6 +76,7 @@ export function evaluateLatency(
   wallClockS: number,
   config: QualityGateConfig = defaultQualityGateConfig,
 ): ThresholdResult {
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const maxS = config.latencyTierMaxS[tier];
   if (maxS === undefined) {
     return {

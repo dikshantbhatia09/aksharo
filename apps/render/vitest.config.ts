@@ -18,7 +18,13 @@ export default mergeConfig(
         name: "@montaj/render",
         testTimeout: 600_000,
         hookTimeout: 600_000,
-        include: ["src/**/*.{test,spec}.{ts,tsx}", "parity/**/*.{test,spec}.{ts,tsx}"],
+        // B10b/B20b: each package's own parity gate has its own unit test
+        // under `parity/**` (its file boundary), alongside `src/**`/`tests/**`.
+        include: [
+          "src/**/*.{test,spec}.{ts,tsx}",
+          "tests/**/*.{test,spec}.{ts,tsx}",
+          "parity/**/*.{test,spec}.{ts,tsx}",
+        ],
       },
     }),
   ),

@@ -42,7 +42,9 @@ export function ApplyPanel({
       <h3>Apply to sequence</h3>
       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {APPLY_MODES.map((mode) => {
+          // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
           const disabledMessage = disabledModes?.[mode];
+          // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
           const count = counts?.[mode] ?? 0;
           return (
             <li key={mode}>
@@ -54,6 +56,7 @@ export function ApplyPanel({
                   disabled={disabledMessage !== undefined || applying}
                   onChange={() => onToggle(mode)}
                 />
+                {/* eslint-disable-next-line security/detect-object-injection -- bracket access on `mode`, a value from a fixed enum-like mode list, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion */}
                 <span>{MODE_LABELS[mode]}</span>
                 <span data-testid={`apply-mode-count-${mode}`} style={{ color: TEXT.fg2 }}>
                   ({count})

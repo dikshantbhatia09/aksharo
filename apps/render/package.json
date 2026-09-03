@@ -16,6 +16,7 @@
     "test:coverage": "vitest run --coverage",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "bench": "tsx scripts/benchmark.ts",
+    "parity": "tsx parity/run.ts",
     "parity:audio": "tsx parity/run-audio-parity.ts"
   },
   "dependencies": {

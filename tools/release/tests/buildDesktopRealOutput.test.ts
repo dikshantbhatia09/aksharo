@@ -50,8 +50,11 @@ describe("build-desktop against a real electron-builder output", () => {
 
   it("uses the real win-unpacked tree when Aksharo.exe is present", async () => {
     const winUnpacked = path.join(repoRoot, "apps/desktop/release/win-unpacked");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await mkdir(winUnpacked, { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(winUnpacked, "Aksharo.exe"), "real-pe-main\n");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(winUnpacked, "bridge.exe"), "real-bridge-sea\n");
 
     const result = await runBuildDesktop(ctx(), config, {
@@ -70,7 +73,9 @@ describe("build-desktop against a real electron-builder output", () => {
     // C00b scope §3: CI's dry-run job never builds apps/desktop, so it always wants the
     // synthesized tree explicitly rather than accidentally picking up a real one.
     const winUnpacked = path.join(repoRoot, "apps/desktop/release/win-unpacked");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await mkdir(winUnpacked, { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(winUnpacked, "Aksharo.exe"), "real-pe-main\n");
 
     const result = await runBuildDesktop(ctx(), config, {
@@ -87,7 +92,9 @@ describe("build-desktop against a real electron-builder output", () => {
   it("falls back to the placeholder tree when release/ exists but has no Aksharo.exe yet", async () => {
     // e.g. a partial/failed electron-builder run (only Electron's own binaries copied).
     const winUnpacked = path.join(repoRoot, "apps/desktop/release/win-unpacked");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await mkdir(winUnpacked, { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     await writeFile(path.join(winUnpacked, "electron.exe"), "electron-runtime\n");
 
     const result = await runBuildDesktop(ctx(), config, {

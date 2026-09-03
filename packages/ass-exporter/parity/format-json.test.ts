@@ -54,8 +54,10 @@ describe("formatJson", () => {
       // rather than a hard-coded set of options.
       const target = join(dir, "sample-style.json");
       const formatted = await formatJson(SAMPLE_STYLE_DOC, target);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       await writeFile(target, formatted, "utf8");
 
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       expect(await check(await readFile(target, "utf8"), { filepath: target })).toBe(true);
       // The short array stays on one line — this is the exact case a plain
       // `JSON.stringify(x, null, 2)` gets wrong.

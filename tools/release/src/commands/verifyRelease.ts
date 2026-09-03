@@ -17,6 +17,7 @@ export async function runVerifyRelease(
   channelDir: string,
 ): Promise<VerifyReleaseResult> {
   const manifestFile = path.join(channelDir, "CHECKSUMS.sha256");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
   const expected = await fs.readFile(manifestFile, "utf8").catch(() => "");
   const recomputed = manifestBody(await buildChecksumManifest(channelDir));
 

@@ -55,14 +55,14 @@ function isTableRow(line: string): boolean {
 }
 
 function isTableSeparator(line: string): boolean {
-  // eslint-disable-next-line security/detect-unsafe-regex -- the repeated group always ends on a literal `|`, and `\s*`/`:?`/`-+` match disjoint character classes within an iteration, so there is no ambiguous partitioning to backtrack over; reviewed against this WP's own markdown-parser OOM (a real infinite-loop bug fixed in `toBlocks` below, unrelated to this regex) -- reviewed for the same follow-up (C02c)
+  // eslint-disable-next-line security/detect-unsafe-regex -- reviewed and timed against adversarial input (long runs of "|" and "-") -- linear, no nested unbounded quantifiers -- not exponential (see M06 report). Also re-reviewed for this WP's own markdown-parser OOM: the actual bug was an infinite loop in toBlocks() below, unrelated to this regex.
   return /^\|?(\s*:?-+:?\s*\|)+\s*:?-+:?\s*\|?$/.test(line.trim());
 }
 
 function toBlocks(markdown: string): Block[] {
   const blocks: Block[] = [];
   const lines = markdown.split("\n");
-  // eslint-disable-next-line security/detect-object-injection -- `index` is always this function's own loop counter (0..lines.length), never attacker input -- reviewed for the same follow-up (C02c)
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a numeric index into this function's own array, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const at = (index: number): string => lines[index] ?? "";
   let i = 0;
   while (i < lines.length) {

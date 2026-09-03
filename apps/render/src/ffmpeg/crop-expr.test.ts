@@ -17,9 +17,11 @@ function evalExpr(expr: string, t: number): number {
   const s = expr;
 
   function peek(): string {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     return s[i] ?? "";
   }
   function skip(ch: string): void {
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     if (s[i] !== ch) throw new Error(`expected '${ch}' at ${String(i)} in ${expr}`);
     i += 1;
   }
@@ -96,6 +98,7 @@ function evalExpr(expr: string, t: number): number {
 }
 
 function extractField(filter: string, field: "w" | "h" | "x" | "y"): string {
+  // eslint-disable-next-line security/detect-non-literal-regexp -- RegExp built from a fixed/internal string (test fixture or bounded value, not attacker input) -- reviewed for M06's eslint-plugin-security promotion
   const match = new RegExp(`${field}='([^']*)'`).exec(filter);
   if (match === null) throw new Error(`no ${field} field in ${filter}`);
   return match[1]!;

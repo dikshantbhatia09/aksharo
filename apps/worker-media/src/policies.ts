@@ -93,7 +93,9 @@ export const QUEUE_POLICY_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy
 /** The policy for a queue: its family defaults, with any per-queue override. */
 export function queuePolicyFor(queueName: string): QueuePolicy {
   const family = queueName.split(".")[0] ?? queueName;
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const base = QUEUE_POLICY_BY_FAMILY[family] ?? DEFAULT_QUEUE_POLICY;
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const override = QUEUE_POLICY_OVERRIDES[queueName];
   return override === undefined ? base : Object.freeze({ ...base, ...override });
 }

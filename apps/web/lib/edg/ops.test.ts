@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { EdgOp, EdgState, Segment, Word } from "@montaj/edg";
+import type { EdgOp, EdgState, PassItem, Segment, Word } from "@montaj/edg";
 
 import {
   computeInverseOps,
   currentOverridesAt,
   deleteWord,
+  editPassItem,
   editWord,
   hideSegment,
   insertWordAfter,
@@ -85,6 +86,12 @@ describe("op builders", () => {
     expect(setProtectedRanges([{ id: "r1", s: 1_000, e: 2_000 }], id)).toMatchObject({
       type: "SetProtectedRanges",
       ranges: [{ id: "r1", s: 1_000, e: 2_000 }],
+    });
+    expect(editPassItem("item-1", 1_000, 2_000, id)).toMatchObject({
+      type: "EditPassItem",
+      itemId: "item-1",
+      startMs: 1_000,
+      endMs: 2_000,
     });
   });
 
@@ -346,6 +353,32 @@ describe("computeInverseOps", () => {
 
   it("SetWordTiming on an unknown word has no inverse", () => {
     const op: EdgOp = setWordTiming("0:9", 0, 100, id);
+    expect(computeInverseOps(op, state(), id, id)).toEqual([]);
+  });
+
+  it("EditPassItem inverts to the item's prior bounds", () => {
+    const item: PassItem = {
+      itemId: "item-1",
+      passId: "pass-1",
+      kind: "cut",
+      startMs: 2_000,
+      endMs: 3_000,
+      payload: {},
+      state: "proposed",
+    };
+    const s = state({ items: new Map([["item-1", item]]) });
+    const op: EdgOp = editPassItem("item-1", 2_200, 3_400, id);
+    const [inverse] = computeInverseOps(op, s, id, id);
+    expect(inverse).toMatchObject({
+      type: "EditPassItem",
+      itemId: "item-1",
+      startMs: 2_000,
+      endMs: 3_000,
+    });
+  });
+
+  it("EditPassItem on an unknown item has no inverse", () => {
+    const op: EdgOp = editPassItem("item-9", 0, 100, id);
     expect(computeInverseOps(op, state(), id, id)).toEqual([]);
   });
 

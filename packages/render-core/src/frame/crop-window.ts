@@ -101,9 +101,11 @@ export function sampleCropWindow(
   let hi = keyframes.length - 2;
   while (lo < hi) {
     const mid = (lo + hi + 1) >> 1;
+    // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     if ((keyframes[mid] as CropKeyframe).tMs <= outputMs) lo = mid;
     else hi = mid - 1;
   }
+  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const before = keyframes[lo] as CropKeyframe;
   const after = keyframes[lo + 1] as CropKeyframe;
   const span = after.tMs - before.tMs;

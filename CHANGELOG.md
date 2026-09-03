@@ -52,6 +52,43 @@ test -- --maxWorkers=2` and `turbo run typecheck --filter=@montaj/web`
   `lib/docs/plugin-guides.ts`) were confirmed present on `main` before this
   work (via `git stash`) and left alone as out of this WP's boundary.
 
+- **M06: `eslint-plugin-security` promoted to `error` repo-wide.** C02c drove
+  `apps/api`, `apps/web`, `packages/bridge-core` and `apps/desktop` to zero
+  findings; this WP reviewed every remaining finding across the other 21
+  packages (559 warnings: 275 `detect-non-literal-fs-filename`, 255
+  `detect-object-injection`, 14 `detect-unsafe-regex`, 10
+  `detect-possible-timing-attacks`, 5 `detect-non-literal-regexp`). Every one
+  was a false positive of this plugin's known-noisy heuristics — bounded,
+  linear regexes (commit-subject classifiers, kebab-case ids, SVG path-token
+  scanners) flagged as "unsafe"; enum-/manifest-bounded bracket access flagged
+  as "object injection"; internal build, manifest- and config-driven paths
+  flagged as "non-literal fs filename"; null/status/hash sentinel `===`
+  checks flagged as "timing attacks" (the one real constant-time comparison,
+  `packages/render-manifest/src/signature.ts`'s `verifyManifestSignature`,
+  already uses `crypto.timingSafeEqual`) — verified by re-running the flagged
+  regexes against adversarial input (no exponential blowup) and by reading
+  every object-injection/fs-filename site's key/path provenance. No real fix
+  was needed; every finding was annotated with a reasoned
+  `eslint-disable-next-line security/<rule> -- <reason>` following C02c's
+  convention. `packages/config/eslint.config.base.mjs`'s `securityRules` is
+  now `error` by default (no more `warn` floor), `securityRulesStrict` is
+  kept as an alias for callers that still import it, and the now-redundant
+  per-package `{ rules: securityRulesStrict }` overrides in `apps/api`,
+  `apps/web`, `apps/desktop` and `packages/bridge-core` were removed. Three
+  of this WP's own annotations landed inside JSX children
+  (`plugins/premiere-uxp/.../ApplyPanel.tsx`, `packages/ui/.../chips.tsx`,
+  `packages/ui/.../job-progress.tsx`) where a `//` line comment is literal
+  text, not a disable directive; caught by the follow-up lint run and fixed
+  to `{/* eslint-disable-next-line ... */}` — a gap worth knowing about for
+  future JSX annotations. After merging `main` (which had since pulled in
+  X03's docs site and X04's status/legal pages), `apps/web` — already at
+  `error` from C02c — picked up 7 new findings in `lib/docs/openapi.ts`,
+  `lib/docs/markdown.tsx`, `lib/docs/plugin-guides.ts` and
+  `app/(site)/(marketing)/docs/guides/page.tsx`; reviewed and annotated the
+  same way (a fixed-list bracket lookup, an `fs` call on a path built from a
+  hardcoded plugin list, and a linear markdown-table-separator regex, timed
+  clean against adversarial input).
+
 - **M05 — main hygiene: hermetic free-tier daily-cap workspace id in
   `noop-credits.facade.test.ts`.** Investigated a reported flake in
   "free-tier daily cap (THREAT-MODEL T23) > gives the allowance back when a
@@ -245,6 +282,58 @@ src`, described as cross-file interference on a shared Redis daily-cap key
 
 ### Added
 
+- **B20b — Passes follow-ups: keyframe tracks wired into manifests,
+  `EditPassItem` drag-to-adjust, keyframe markers, canvas overlays, scrub
+  preview, crop parity in the gate report.**
+  `packages/edg`: `schemas/ops.ts` adds `EditPassItem{itemId, startMs,
+endMs}` (CONTRACTS §2), rebase field `item:<itemId>` (reusing `DecideItems`'
+  own field helper), last-write-wins; `ops/apply.ts`'s `applyEditPassItem`
+  accepts only `proposed`/`accepted` cut/zoom/reframe items, clamps to the
+  media duration and to neighbouring _accepted_ items of the same kind, and
+  linearly re-times an inline `payload.keyframes` curve to the item's new
+  duration (a `keyframesRef` curve is left for the worker to re-base on the
+  next pass).
+  `apps/api`: `src/passes/keyframe-tracks.ts` (new) resolves every accepted
+  zoom/reframe item's packed curve — inline `payload.keyframes` as-is, or a
+  `keyframesRef` fetched from derived storage — into `KeyframeTrack[]`;
+  `exports.service.ts`'s `requestExport` calls it and passes the result to
+  `manifest-builder.ts`'s `keyframeTracks` input (previously wired but
+  unpopulated pending B19b), so both the browser and cloud manifests now
+  carry `timemap.keyframes` for accepted items (`exports.e2e-spec.ts` proves
+  it on both paths).
+  `apps/web`: `lib/edg/ops.ts` adds the `editPassItem` builder and its undo
+  inverse (`InverseState.items`); `Timeline.tsx` adds drag-to-adjust on a
+  proposed/accepted cut/zoom/reframe lane item's edge (`lib/timeline/
+pass-item-drag.ts`'s clamp/resolve pipeline, mirroring `snapping.ts`),
+  keyframe markers and the zoom lane's mini scale-curve plot
+  (`lib/timeline/keyframe-markers.ts`), and one Playwright chromium case
+  (`e2e/timeline.spec.ts`, seeded via a new `mergePassForTest` internal-HMAC
+  helper). `components/editor/canvas/CaptionStage.tsx`'s `children` prop now
+  also accepts a `({fit, canvas}) => ReactNode` render function, so
+  `CropWindowOverlay.tsx` (new) can draw the current zoom/reframe crop
+  window over the stage without CaptionStage needing to know about it;
+  `lib/timeline/current-crop-rect.ts` samples an accepted item's inline
+  curve at the playhead, and `lib/timeline/scrub-preview.ts` computes the
+  brief's ±1.5 s scrub window and the `"frames"`/`"rect-only"` mode name a
+  caller's CanvasKit-readiness flag maps to (the fallback the brief allows
+  when real frames are not available).
+  `apps/render`: `parity/` (new) — `run.ts`/`crop-fixtures.ts` measure the
+  same two crop-window fixtures `src/ffmpeg/crop-parity.test.ts` already
+  checks (a cut+zoom and a cut+reframe) and write `parity/results.json`'s
+  `edits` block plus a `README.md` gate report; independent of the caption
+  _style_ parity gate (`packages/caption-styles/parity/results.json`,
+  untouched). `vitest.config.ts` gained `parity/**` in its test `include`
+  so the gate's own unit test runs under `pnpm test`.
+  **Deviation:** the Playwright case (`timeline.spec.ts`'s "dragging a
+  proposed cut item's edge lands an EditPassItem op") is written, wired end
+  to end, and passes at the component-test level (`Timeline.test.tsx`), but
+  could not be confirmed green in a live browser run in this environment —
+  the shared host was under severe memory pressure (free RAM as low as
+  ~1.9 GB across repeated attempts, ~15-20 concurrent Node processes from
+  other agents), and every `next build`/`nest build` invocation the
+  Playwright harness needs timed out or produced no output before the
+  420 s webServer window elapsed, even after pre-warming `.next` with a
+  standalone build. See the final report for the full account.
 - **X01 — security review before Gate C.** Threat-model audit re-verifying
   every `docs/THREAT-MODEL.md` row (T1-T25) against implementing code and
   tests: `docs/security/threat-model-audit-2026-09-03.md`. Local `pnpm audit`

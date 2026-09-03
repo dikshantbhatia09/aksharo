@@ -71,11 +71,13 @@ export async function applyCaptions(
     });
     const { layerIds } = await host.addTextLayers(request.compId, specs);
     for (let i = 0; i < layerIds.length; i += 1) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const layerId = layerIds[i];
       if (!layerId) continue;
       const metadata: AksharoLayerMetadata = {
         aksharo: {
           projectId: request.projectId,
+          // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
           segmentId: request.segments[i]?.segmentId,
           rev: request.rev,
         },

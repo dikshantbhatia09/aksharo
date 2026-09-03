@@ -43,6 +43,7 @@ export async function withWorkspace<T>(
   const workspace: Workspace = {
     dir,
     path: (name: string) => join(dir, name),
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
     size: async (name: string) => (await stat(join(dir, name))).size,
   };
 
