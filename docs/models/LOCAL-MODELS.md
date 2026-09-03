@@ -160,16 +160,46 @@ packages most worker-ai tasks never need.
 
 ## Start commands
 
-```powershell
-# from apps/worker-ai, once .venv is set up and the .env vars above are set
-pnpm dev              # runs the worker (node scripts/py.mjs -m worker_ai)
+Build the internal packages once first (`pnpm dev` does not build workspace
+package dependencies for you — a fresh worktree's `apps/api`/`worker-media`/
+`render` fail to resolve `@montaj/config`, `@montaj/edg`, `@montaj/render-
+manifest` etc. until this has run once):
 
-# from the repo root — the rest of the stack
-pnpm --filter @montaj/api dev
-pnpm --filter @montaj/web dev
+```powershell
+pnpm --filter "./packages/*" build
+```
+
+Then, each in its own terminal (or backgrounded), from the repo root unless
+noted — every process below picks up this worktree's `.env` on its own
+(`loadRepoDotenv`/`--env-file` walk up from cwd to find it; see each app's
+own `dev`/`start` script):
+
+```powershell
+pnpm --filter @montaj/api dev            # http://127.0.0.1:<API_PORT>
 pnpm --filter @montaj/worker-media dev
 pnpm --filter @montaj/render dev
+pnpm --filter @montaj/web dev            # http://127.0.0.1:<WEB_PORT>
+
+# worker-ai: give it its own WORKER_AI_PORT so multiple worktrees' control
+# apps don't fight over 8091.
+cd apps\worker-ai
+$env:WORKER_AI_PORT = "8095"
+node scripts/py.mjs -m worker_ai --env-file=../../.env
 ```
+
+First run only, once the API is up and `montaj_<wp>` is migrated:
+
+```powershell
+cd apps\api
+pnpm db:seed          # plans + system styles + feature flags; POST /projects/sample
+                       # answers 503 workspace/plans_missing without this.
+```
+
+`MAIL_PROVIDER=dev` must be in `.env` (not just `.env.example`) — with it
+unset, `@montaj/config` defaults to `"dev"` for the app itself, but add it
+explicitly if you rely on the default in your own tooling; a
+`local-ai-smoke.mjs` run reads verification tokens out of the Redis dev
+outbox (`<MONTAJ_REDIS_PREFIX>:auth:dev-outbox`) that only that mode writes.
 
 ## Verifying a weight loads (skips cleanly when absent)
 
@@ -185,3 +215,23 @@ On a machine with none of these set, the same command skips all three real-
 model tests (`test_audio_embed.py`, `test_deepfilternet3.py`,
 `test_tracking.py`) with a message naming the missing variable — never a
 failure.
+
+## Real end-to-end smoke test
+
+`scripts/local-ai-smoke.mjs` (repo root, plain `node`, no dependencies of its
+own — it shells out to `docker exec psql`/`redis-cli` against the shared
+compose stack rather than adding `pg`/`ioredis`) reproduces a full local run:
+sign-up, email verification via the dev outbox, a credits grant, the bundled
+sample project (real `welcome.wav`, real `media.probe`/`media.proxy`), a real
+transcription (routed to `local-whisper` since no vendor ASR key is set),
+the first caption segment(s) printed, and a real SRT export.
+
+```powershell
+node scripts/local-ai-smoke.mjs
+```
+
+Requires: the compose stack (`montaj-postgres`, `montaj-redis`, `montaj-
+minio`) up, `montaj_<wp>` migrated and seeded (`pnpm --filter @montaj/api
+db:seed`), and the API + worker-media + render + worker-ai processes running
+against this worktree's `.env` (see "Start commands" above). Prints per-step
+timings and exits non-zero on any failure.
