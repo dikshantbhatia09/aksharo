@@ -10,6 +10,7 @@ import { AdminShareModule } from "./admin/share/admin-share.module.js";
 import { AdminUsersModule } from "./admin/users/admin-users.module.js";
 import { AffiliatesModule } from "./affiliates/affiliates.module.js";
 import { AudioModule } from "./audio/audio.module.js";
+import { AudioAssetsModule } from "./audio-assets/audio-assets.module.js";
 import { AuthModule } from "./auth/auth.module.js";
 import { BatchModule } from "./batch/batch.module.js";
 import { BillingModule } from "./billing/billing.module.js";
@@ -125,6 +126,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     EdgModule,
     TranscriptsModule,
     AudioModule,
+    AudioAssetsModule,
     PassesModule,
     ScriptsModule,
     FontsModule,

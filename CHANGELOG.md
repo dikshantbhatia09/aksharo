@@ -8,6 +8,82 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **D04a: Tier 0 owned audio-pack ingestion, licence predicate, SFX cue-detection/
+  retrieval, and export/render ducking — against a synthetic fixture pack.**
+  The commissioned Tier 0 pack (A00-07) does not exist yet, so this WP builds and
+  proves the whole pipeline against `fixtures/audio-pack/` (a dozen generated WAV
+  cues across the taxonomy — impact, whoosh, pop, ding, riser, boom, comedic,
+  notification — with a manifest carrying full D44 licence fields), so the real
+  pack drops in through the same manifest unchanged. The `audio_assets`/
+  `asset_usages`/`asset_clearance_grants` schema (typed licence columns, pgvector
+  `embedding vector(512)`, HNSW index) already existed on `main` from A03's base
+  schema (D43/D44's target design) — this WP builds the application layer on top
+  of it rather than re-defining it, which the brief's literal "audio_assets...
+  audio_packs..." schema sketch predates; noted as a brief/architecture
+  reconciliation, not a silent deviation.
+  - `apps/api/src/audio-assets/`: `assetAllowed` — the one licence predicate
+    every retrieval path must call, surface/plan/territory/clearance/term gates,
+    evaluated before any CLAP ranking (D43: only `allowsRawFileDelivery` assets
+    ever reach panel/desktop/api; partner assets are `cloud_render`-only and
+    additionally Studio-plan- and clearance-gated) — proven by 8 `fast-check`
+    property tests (monotonicity, partner-catalogue exclusion, term windows,
+    purity). `AudioAssetsRepository` — idempotent upsert (raw SQL for the
+    `Unsupported("vector(512)")` column Prisma cannot type) keyed on
+    `(provider, providerAssetId)`, and pgvector `<=>` cosine-ranked retrieval
+    (`ORDER BY distance ASC, id ASC` for determinism). `manifest.schema.ts` (zod)
+    validates a pack manifest 1:1 against `AudioAsset`'s typed columns.
+    `loudness.ts` runs ffmpeg's `ebur128` filter (a small standalone twin of
+    `worker-media`'s identical pass — apps don't depend on one another here, only
+    `packages/*`). `embedder.ts`: `StubEmbedder` (deterministic, content-hashed,
+    L2-normalised 512-dim) is the default; `ClapSubprocessEmbedder` shells out to
+    `apps/worker-ai`'s `python -m worker_ai.audio_embed` only when
+    `CLAP_MODEL_PATH` is set (H-22: the frozen LAION checkpoint is a model
+    weight, never committed, absent on this machine).
+  - `apps/api/scripts/ingest-audio-pack.ts` (`pnpm --filter @montaj/api
+ingest:audio-pack <manifest>`): validate → measure loudness → embed → upload
+    to the derived bucket → idempotent upsert. **Open question for the
+    coordinator**: uploads to `packs/{packId}/{assetId}.wav`, a key
+    `docs/CONTRACTS.md` §6 does not enumerate (every existing prefix is
+    workspace/project-scoped; a shared audio-pack library is neither) —
+    documented in `pack-keys.ts` rather than silently added to the frozen
+    contract.
+  - `apps/worker-ai/worker_ai/audio_embed/`: the `Embedder` protocol,
+    `StubEmbedder`, and `ClapEmbedder` (lazy `laion_clap` import, guarded by
+    `CLAP_MODEL_PATH`; its own real-model test is `slow`-marked and skips
+    without the checkpoint). `python -m worker_ai.audio_embed <file>` is the
+    subprocess CLI `ClapSubprocessEmbedder` calls.
+  - `apps/worker-ai/worker_ai/passes/sfx.py`: pure, deterministic cue detection
+    (RMS energy z-score peaks, emphasis words, question-intonation-by-punctuation
+    proxy, silence-gap transitions) → text query → CLAP retrieval over an
+    already licence-filtered candidate catalogue (cosine distance, matching the
+    SQL repository's tie-break) → rate-limited to ≤ 1 cue per 4 s, dropped
+    (never clamped) inside a protected range or over an accepted cut. 13 unit
+    tests cover detection, ranking determinism and every guard.
+  - `packages/config/src/credits.ts`'s `BURN_RATES.sfxMusicPass` (basis
+    `finishedMinute`, Studio+ only) already existed ahead of this WP;
+    `apps/api/src/passes/passes.quote.ts` adds `quoteSfx`, quoting against the
+    _finished_ (post-cut) timeline per that basis, the same "rate lives in
+    `@montaj/config`, duration choice lives with the producer" split
+    `quoteAutocut`/`quoteReframeZoom` already established.
+  - Ducking (−12 dB under speech, 150 ms linear ramps on both edges of every
+    speech range, D04a): `apps/web/lib/export/engine.ts`'s `duckGainAt`/
+    `applySfxDucking` (browser, per-sample) and
+    `apps/render/src/ffmpeg/sfx-duck-expr.ts`'s `buildSfxDuckVolumeExpr`
+    (cloud, an exact closed-form ffmpeg `volume=eval=frame` trapezoid, unlike
+    `crop-expr.ts`'s keyframe-chain approximation) are proven numerically
+    equivalent by `apps/render/parity/sfx-parity.ts` (21 web tests, 8+4 render
+    tests).
+  - **Deferred, and why**: the `ai.pass` producer→worker→`MergePass` completion
+    wiring for `passType: "sfx"` needs `packages/edg`'s `PassTypeSchema`/
+    `PassItem` schemas extended for the `sfx` kind — outside this WP's file
+    boundaries (`packages/edg/**` is not listed) and adjacent to a frozen
+    interface, so raised here rather than changed unilaterally. Full HTTP route
+    - completion-handler wiring, the Passes-tab SFX card with a preview player,
+      and the timeline `sfx` lane are consequently not built this pass — the
+      licence predicate, ingestion, retrieval/ranking, cue detection, quoting and
+      both render paths' ducking curves are, and are exercised end to end against
+      real PostgreSQL/pgvector and MinIO in `apps/api/test/audio-assets.e2e-spec.ts`.
+
 - **D06: text FX pass — key phrases to titles, with a no-overlap layout
   solver.** New worker pass `textfx` (`apps/worker-ai/worker_ai/passes/
 text_fx.py` + `processors/text_fx_pass.py`): runs the `keyphrases@1`
