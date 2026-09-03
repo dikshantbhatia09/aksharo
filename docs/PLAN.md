@@ -169,3 +169,4 @@ D04b (contract-gated), D07, C09, X03, X04, X08 (Cilium FQDN egress adoption for 
 Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm db:seed` → `pnpm test` → Playwright smoke → parity gate → screenshot review → update this file.
 | M05 | Maintenance: hermetic free-tier daily-cap test state (cross-file Redis key interference) | Sonnet | merged (test hardening; daily-cap failure unexplained, on flake watch) || M07 | Maintenance: web build heap OOM on the shared host (docs/OpenAPI build-time memoisation, Next worker settings) | Sonnet | running |
 | M06 | Maintenance: eslint-plugin-security promotion for remaining packages | Sonnet | merged (566 findings annotated, 0 real; rules at error repo-wide) |
+| M08 | Maintenance: mount PluginActivationCue in PassesTab (+ edg strict-lint fix from B20b) | Sonnet | done 6508c85, merging |
