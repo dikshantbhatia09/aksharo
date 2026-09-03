@@ -171,5 +171,7 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | M06 | Maintenance: eslint-plugin-security promotion for remaining packages | Sonnet | merged (566 findings annotated, 0 real; rules at error repo-wide) |
 | M08 | Maintenance: mount PluginActivationCue in PassesTab (+ edg strict-lint fix from B20b) | Sonnet | merged + verified |
 | M07 | see brief | Sonnet | merged 91dcb80- + verified (full build incl. web green; web 917, render 238, api 2405/2406 with referrals-http load flake, worker 803) |
-| D06b | Text FX draw path + parity | Sonnet | running |
-| D04c | SFX pass wiring (edg kinds, route, worker, card, lane, manifest) | Sonnet | running |
+| D06b | Text FX draw path + parity | Sonnet | merged + verified (a3933fc; render-core 526, render 245, web 921) |
+| D04c | SFX pass wiring (edg kinds, route, worker, card, lane, manifest) | Sonnet | merged + verified (edg 306, api 161); mix pipeline -> D04d |
+| D04d | Audio mix pipeline (browser+cloud), signed pack URLs, energy cues | Sonnet | running |
+| M09 | Maintenance: signup-sent Playwright regression (Gate B blocker) | Sonnet | running |
