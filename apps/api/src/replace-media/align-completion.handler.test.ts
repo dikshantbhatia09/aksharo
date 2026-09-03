@@ -66,6 +66,12 @@ function makeHandler() {
       rebased: [],
       rejected: [],
     })),
+    initialise: vi.fn(async () => ({
+      edgId: "01JEDGNEW00000000000000A",
+      revision: 1,
+      segments: 2,
+      created: true,
+    })),
   };
   const prisma = {
     edgDocument: {
@@ -73,14 +79,18 @@ function makeHandler() {
     },
   };
   const registry = { register: vi.fn() };
+  const transcripts = {
+    persist: vi.fn(async () => ({ transcript: {}, chunks: 1, words: 0, submissions: 0 })),
+  };
 
   const handler = new AlignCompletionHandler(
     edgRepository as never,
     prisma as never,
     edgService as never,
+    transcripts as never,
     registry as never,
   );
-  return { handler, edgRepository, edgService, prisma };
+  return { handler, edgRepository, edgService, prisma, transcripts };
 }
 
 describe("AlignCompletionHandler", () => {
@@ -189,5 +199,72 @@ describe("AlignCompletionHandler", () => {
 
     expect(outcome).toBeUndefined();
     expect(edgService.applyWorkerOps).not.toHaveBeenCalled();
+  });
+});
+
+describe("AlignCompletionHandler — import mode (B15 sec6)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("persists one transcript chunk and initialises a new EDG document, in cue order", async () => {
+    const { handler, transcripts, edgService } = makeHandler();
+    edgService.applyWorkerOps = vi.fn();
+    const job = makeJob({
+      mode: "import",
+      transcriptId: "01JTRANSCRIPT0000000000A",
+      mediaId: "01JMEDIA00000000000000000",
+      language: "en",
+      cueWordCounts: [2, 1],
+      segments: [
+        { startMs: 0, endMs: 900 },
+        { startMs: 900, endMs: 1500 },
+      ],
+    });
+    job.projectId = PROJECT;
+
+    const result = {
+      words: [
+        { s: 0, e: 400, t: "hello" },
+        { s: 400, e: 900, t: "world" },
+        { s: 900, e: 1500, t: "again" },
+      ],
+    };
+
+    const outcome = await handler.handle(makeContext(job, result));
+
+    expect(transcripts.persist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcriptId: "01JTRANSCRIPT0000000000A",
+        projectId: PROJECT,
+        provider: "import",
+        chunks: [
+          expect.objectContaining({
+            chunkIdx: 0,
+            words: [
+              { wid: "0:0", s: 0, e: 400, t: "hello" },
+              { wid: "0:1", s: 400, e: 900, t: "world" },
+              { wid: "0:2", s: 900, e: 1500, t: "again" },
+            ],
+          }),
+        ],
+      }),
+    );
+    expect(outcome?.data?.["outcome"]).toMatchObject({ transcriptId: "01JTRANSCRIPT0000000000A" });
+  });
+
+  it("throws when the worker returns a different word count than the cues requested", async () => {
+    const { handler } = makeHandler();
+    const job = makeJob({
+      mode: "import",
+      transcriptId: "01JTRANSCRIPT0000000000A",
+      mediaId: null,
+      language: "en",
+      cueWordCounts: [2],
+      segments: [{ startMs: 0, endMs: 900 }],
+    });
+    job.projectId = PROJECT;
+
+    await expect(
+      handler.handle(makeContext(job, { words: [{ s: 0, e: 400, t: "only-one" }] })),
+    ).rejects.toThrow(/returned 1 words for 2 cue words requested/);
   });
 });

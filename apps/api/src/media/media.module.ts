@@ -12,6 +12,7 @@ import { JobsModule } from "../jobs/jobs.module.js";
 import { ProjectsModule } from "../projects/projects.module.js";
 import { AlignCompletionHandler } from "../replace-media/align-completion.handler.js";
 import { ReplaceMediaAlignTrigger } from "../replace-media/replace-media-align.trigger.js";
+import { TranscriptsModule } from "../transcripts/transcripts.module.js";
 import { WorkspacesModule } from "../workspaces/workspaces.module.js";
 
 /**
@@ -42,7 +43,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
  * caller of the trigger and this is where its own completion handler lives.
  */
 @Module({
-  imports: [ProjectsModule, WorkspacesModule, JobsModule, EdgModule],
+  imports: [ProjectsModule, WorkspacesModule, JobsModule, EdgModule, TranscriptsModule],
   controllers: [MediaController, MediaUploadsController, SampleProjectController],
   providers: [
     MediaService,
