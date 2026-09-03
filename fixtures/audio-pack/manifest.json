@@ -12,14 +12,8 @@
       "kind": "sfx",
       "cueType": "impact",
       "title": "Fixture impact (sfx-impact-01)",
-      "tags": [
-        "impact",
-        "hit",
-        "punch"
-      ],
-      "mood": [
-        "hard"
-      ],
+      "tags": ["impact", "hit", "punch"],
+      "mood": ["hard"],
       "filePath": "wav/sfx-impact-01.wav",
       "provider": "owned",
       "catalogueMode": "mirrored",
@@ -27,9 +21,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -48,13 +40,8 @@
       "kind": "sfx",
       "cueType": "impact",
       "title": "Fixture impact (sfx-impact-02)",
-      "tags": [
-        "impact",
-        "thud"
-      ],
-      "mood": [
-        "soft"
-      ],
+      "tags": ["impact", "thud"],
+      "mood": ["soft"],
       "filePath": "wav/sfx-impact-02.wav",
       "provider": "owned",
       "catalogueMode": "mirrored",
@@ -62,9 +49,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -83,13 +68,8 @@
       "kind": "sfx",
       "cueType": "whoosh",
       "title": "Fixture whoosh (sfx-whoosh-01)",
-      "tags": [
-        "whoosh",
-        "swipe"
-      ],
-      "mood": [
-        "fast"
-      ],
+      "tags": ["whoosh", "swipe"],
+      "mood": ["fast"],
       "filePath": "wav/sfx-whoosh-01.wav",
       "provider": "owned",
       "catalogueMode": "mirrored",
@@ -97,9 +77,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -118,13 +96,8 @@
       "kind": "sfx",
       "cueType": "whoosh",
       "title": "Fixture whoosh (sfx-whoosh-02)",
-      "tags": [
-        "whoosh",
-        "transition"
-      ],
-      "mood": [
-        "smooth"
-      ],
+      "tags": ["whoosh", "transition"],
+      "mood": ["smooth"],
       "filePath": "wav/sfx-whoosh-02.wav",
       "provider": "owned",
       "catalogueMode": "mirrored",
@@ -132,9 +105,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -153,13 +124,8 @@
       "kind": "sfx",
       "cueType": "pop",
       "title": "Fixture pop (sfx-pop-01)",
-      "tags": [
-        "pop",
-        "click"
-      ],
-      "mood": [
-        "light"
-      ],
+      "tags": ["pop", "click"],
+      "mood": ["light"],
       "filePath": "wav/sfx-pop-01.wav",
       "provider": "owned",
       "catalogueMode": "mirrored",
@@ -167,9 +133,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -188,14 +152,8 @@
       "kind": "sfx",
       "cueType": "ding",
       "title": "Fixture ding (sfx-ding-01)",
-      "tags": [
-        "ding",
-        "chime",
-        "success"
-      ],
-      "mood": [
-        "bright"
-      ],
+      "tags": ["ding", "chime", "success"],
+      "mood": ["bright"],
       "filePath": "wav/sfx-ding-01.wav",
       "provider": "owned",
       "catalogueMode": "mirrored",
@@ -203,9 +161,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -224,14 +180,8 @@
       "kind": "sfx",
       "cueType": "riser",
       "title": "Fixture riser (sfx-riser-01)",
-      "tags": [
-        "riser",
-        "tension",
-        "buildup"
-      ],
-      "mood": [
-        "tense"
-      ],
+      "tags": ["riser", "tension", "buildup"],
+      "mood": ["tense"],
       "filePath": "wav/sfx-riser-01.wav",
       "provider": "owned",
       "catalogueMode": "mirrored",
@@ -239,9 +189,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -260,14 +208,8 @@
       "kind": "sfx",
       "cueType": "boom",
       "title": "Fixture boom (sfx-boom-01)",
-      "tags": [
-        "boom",
-        "explosion",
-        "impact"
-      ],
-      "mood": [
-        "heavy"
-      ],
+      "tags": ["boom", "explosion", "impact"],
+      "mood": ["heavy"],
       "filePath": "wav/sfx-boom-01.wav",
       "provider": "owned",
       "catalogueMode": "mirrored",
@@ -275,9 +217,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -296,14 +236,8 @@
       "kind": "sfx",
       "cueType": "comedic",
       "title": "Fixture comedic (sfx-comedic-01)",
-      "tags": [
-        "comedic",
-        "boing",
-        "funny"
-      ],
-      "mood": [
-        "playful"
-      ],
+      "tags": ["comedic", "boing", "funny"],
+      "mood": ["playful"],
       "filePath": "wav/sfx-comedic-01.wav",
       "provider": "owned",
       "catalogueMode": "mirrored",
@@ -311,9 +245,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -332,14 +264,8 @@
       "kind": "sfx",
       "cueType": "comedic",
       "title": "Fixture comedic (sfx-comedic-02)",
-      "tags": [
-        "comedic",
-        "slide-whistle",
-        "funny"
-      ],
-      "mood": [
-        "playful"
-      ],
+      "tags": ["comedic", "slide-whistle", "funny"],
+      "mood": ["playful"],
       "filePath": "wav/sfx-comedic-02.wav",
       "provider": "owned",
       "catalogueMode": "mirrored",
@@ -347,9 +273,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -368,14 +292,8 @@
       "kind": "sfx",
       "cueType": "notification",
       "title": "Fixture notification (sfx-notification-01)",
-      "tags": [
-        "notification",
-        "alert",
-        "message"
-      ],
-      "mood": [
-        "neutral"
-      ],
+      "tags": ["notification", "alert", "message"],
+      "mood": ["neutral"],
       "filePath": "wav/sfx-notification-01.wav",
       "provider": "owned",
       "catalogueMode": "mirrored",
@@ -383,9 +301,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -404,13 +320,8 @@
       "kind": "sfx",
       "cueType": "notification",
       "title": "Fixture notification (sfx-notification-02)",
-      "tags": [
-        "notification",
-        "pop-up"
-      ],
-      "mood": [
-        "neutral"
-      ],
+      "tags": ["notification", "pop-up"],
+      "mood": ["neutral"],
       "filePath": "wav/sfx-notification-02.wav",
       "provider": "owned",
       "catalogueMode": "mirrored",
@@ -418,9 +329,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -438,13 +347,8 @@
       "id": "music-upbeat-fast",
       "kind": "music",
       "title": "Fixture upbeat bed (music-upbeat-fast)",
-      "tags": [
-        "upbeat",
-        "128bpm"
-      ],
-      "mood": [
-        "upbeat"
-      ],
+      "tags": ["upbeat", "128bpm"],
+      "mood": ["upbeat"],
       "bpm": 128,
       "introMs": 200,
       "outroMs": 200,
@@ -455,9 +359,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -475,13 +377,8 @@
       "id": "music-upbeat-slow",
       "kind": "music",
       "title": "Fixture upbeat bed (music-upbeat-slow)",
-      "tags": [
-        "upbeat",
-        "92bpm"
-      ],
-      "mood": [
-        "upbeat"
-      ],
+      "tags": ["upbeat", "92bpm"],
+      "mood": ["upbeat"],
       "bpm": 92,
       "introMs": 200,
       "outroMs": 200,
@@ -492,9 +389,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -512,13 +407,8 @@
       "id": "music-calm-fast",
       "kind": "music",
       "title": "Fixture calm bed (music-calm-fast)",
-      "tags": [
-        "calm",
-        "128bpm"
-      ],
-      "mood": [
-        "calm"
-      ],
+      "tags": ["calm", "128bpm"],
+      "mood": ["calm"],
       "bpm": 128,
       "introMs": 200,
       "outroMs": 200,
@@ -529,9 +419,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -549,13 +437,8 @@
       "id": "music-calm-slow",
       "kind": "music",
       "title": "Fixture calm bed (music-calm-slow)",
-      "tags": [
-        "calm",
-        "92bpm"
-      ],
-      "mood": [
-        "calm"
-      ],
+      "tags": ["calm", "92bpm"],
+      "mood": ["calm"],
       "bpm": 92,
       "introMs": 200,
       "outroMs": 200,
@@ -566,9 +449,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -586,13 +467,8 @@
       "id": "music-tense-fast",
       "kind": "music",
       "title": "Fixture tense bed (music-tense-fast)",
-      "tags": [
-        "tense",
-        "128bpm"
-      ],
-      "mood": [
-        "tense"
-      ],
+      "tags": ["tense", "128bpm"],
+      "mood": ["tense"],
       "bpm": 128,
       "introMs": 200,
       "outroMs": 200,
@@ -603,9 +479,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -623,13 +497,8 @@
       "id": "music-tense-slow",
       "kind": "music",
       "title": "Fixture tense bed (music-tense-slow)",
-      "tags": [
-        "tense",
-        "92bpm"
-      ],
-      "mood": [
-        "tense"
-      ],
+      "tags": ["tense", "92bpm"],
+      "mood": ["tense"],
       "bpm": 92,
       "introMs": 200,
       "outroMs": 200,
@@ -640,9 +509,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -660,13 +527,8 @@
       "id": "music-dramatic-fast",
       "kind": "music",
       "title": "Fixture dramatic bed (music-dramatic-fast)",
-      "tags": [
-        "dramatic",
-        "128bpm"
-      ],
-      "mood": [
-        "dramatic"
-      ],
+      "tags": ["dramatic", "128bpm"],
+      "mood": ["dramatic"],
       "bpm": 128,
       "introMs": 200,
       "outroMs": 200,
@@ -677,9 +539,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,
@@ -697,13 +557,8 @@
       "id": "music-dramatic-slow",
       "kind": "music",
       "title": "Fixture dramatic bed (music-dramatic-slow)",
-      "tags": [
-        "dramatic",
-        "92bpm"
-      ],
-      "mood": [
-        "dramatic"
-      ],
+      "tags": ["dramatic", "92bpm"],
+      "mood": ["dramatic"],
       "bpm": 92,
       "introMs": 200,
       "outroMs": 200,
@@ -714,9 +569,7 @@
       "licensor": "montaj-fixtures",
       "licenceRef": "fixtures/audio-pack/LICENCE-FIXTURE.txt",
       "licenceVersion": "1",
-      "territory": [
-        "WORLD"
-      ],
+      "territory": ["WORLD"],
       "allowsCommercialUse": true,
       "allowsMonetisation": true,
       "allowsPaidAds": true,

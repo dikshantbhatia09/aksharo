@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { BURN_RATES } from "@montaj/config";
 
-import { quoteAutocut, quoteMusic, quoteReframeZoom, quoteSfx, quoteTextFx } from "./passes.quote.js";
+import {
+  quoteAutocut,
+  quoteMusic,
+  quoteReframeZoom,
+  quoteSfx,
+  quoteTextFx,
+} from "./passes.quote.js";
 
 describe("the autocut pass quote", () => {
   it("charges the CONTRACTS §4 rate from packages/config, not a number of its own", () => {

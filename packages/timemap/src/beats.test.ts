@@ -22,10 +22,9 @@ describe("alignCutBoundariesToBeats", () => {
   const BPM = 120; // 500ms/beat
 
   it("snaps a boundary to the nearest beat within tolerance", () => {
-    const adjustments = alignCutBoundariesToBeats(
-      [{ itemId: "a", startMs: 490, endMs: 1_020 }],
-      { bpm: BPM },
-    );
+    const adjustments = alignCutBoundariesToBeats([{ itemId: "a", startMs: 490, endMs: 1_020 }], {
+      bpm: BPM,
+    });
     expect(adjustments).toEqual([
       { itemId: "a", field: "startMs", fromMs: 490, toMs: 500 },
       { itemId: "a", field: "endMs", fromMs: 1_020, toMs: 1_000 },
@@ -74,8 +73,8 @@ describe("alignCutBoundariesToBeats", () => {
   });
 
   it("returns nothing for a non-positive bpm", () => {
-    expect(alignCutBoundariesToBeats([{ itemId: "a", startMs: 490, endMs: 490 }], { bpm: 0 })).toEqual(
-      [],
-    );
+    expect(
+      alignCutBoundariesToBeats([{ itemId: "a", startMs: 490, endMs: 490 }], { bpm: 0 }),
+    ).toEqual([]);
   });
 });

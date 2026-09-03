@@ -78,14 +78,18 @@ describe("alignCutBoundariesToBeats — properties", () => {
 
   it("defaults to the brief's ±120ms tolerance when none is given", () => {
     fc.assert(
-      fc.property(fc.array(boundaryArbitrary, { maxLength: 20 }), fc.integer({ min: 40, max: 220 }), (cuts, bpm) => {
-        const adjustments = alignCutBoundariesToBeats(cuts, { bpm });
-        for (const adjustment of adjustments) {
-          expect(Math.abs(adjustment.toMs - adjustment.fromMs)).toBeLessThanOrEqual(
-            DEFAULT_BEAT_SNAP_TOLERANCE_MS,
-          );
-        }
-      }),
+      fc.property(
+        fc.array(boundaryArbitrary, { maxLength: 20 }),
+        fc.integer({ min: 40, max: 220 }),
+        (cuts, bpm) => {
+          const adjustments = alignCutBoundariesToBeats(cuts, { bpm });
+          for (const adjustment of adjustments) {
+            expect(Math.abs(adjustment.toMs - adjustment.fromMs)).toBeLessThanOrEqual(
+              DEFAULT_BEAT_SNAP_TOLERANCE_MS,
+            );
+          }
+        },
+      ),
     );
   });
 });

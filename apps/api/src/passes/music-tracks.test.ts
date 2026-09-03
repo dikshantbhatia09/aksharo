@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { acceptedMusicAssetIds, resolveMusicTracks, type MusicCarryingItem } from "./music-tracks.js";
+import {
+  acceptedMusicAssetIds,
+  resolveMusicTracks,
+  type MusicCarryingItem,
+} from "./music-tracks.js";
 
 function musicItem(overrides: Partial<MusicCarryingItem> = {}): MusicCarryingItem {
   return {

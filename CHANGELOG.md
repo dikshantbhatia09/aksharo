@@ -26,7 +26,7 @@ process_pass`'s dispatch. Every accepted item gets the same `-12dB/150ms`
     bed duck `sfx_pass.py` uses. **Deviation:** mood classification's
     "sentiment" input is a tiny deterministic word-list scorer
     (`PassesService.sentimentCuesOf`), not a real B11 LLM client call — wiring
-    an actual prompted round trip into pass *production* was out of reach in
+    an actual prompted round trip into pass _production_ was out of reach in
     this pass; the seam (`(tMs, score)` pairs) is ready for B11 to replace.
   - `apps/api/src/passes/passes.service.ts`: `startMusic` (mirrors `startSfx`
     exactly — finished-timeline quote, licence-gated catalogue, protected

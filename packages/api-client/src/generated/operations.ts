@@ -1909,6 +1909,13 @@ export const API_OPERATIONS = [
     summary: "Start an autocut pass",
   },
   {
+    operationId: "startMusicPass",
+    method: "POST",
+    path: "/projects/{projectId}/passes/music",
+    tags: ["passes"],
+    summary: "Start a music pass",
+  },
+  {
     operationId: "startReframePass",
     method: "POST",
     path: "/projects/{projectId}/passes/reframe",

@@ -20,9 +20,7 @@ export interface MusicCarryingItem {
   readonly payload: Record<string, unknown>;
 }
 
-function isDuck(
-  value: unknown,
-): value is { depthDb: number; attackMs: number; releaseMs: number } {
+function isDuck(value: unknown): value is { depthDb: number; attackMs: number; releaseMs: number } {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -57,7 +55,9 @@ export function resolveMusicTracks(
     if (storageKey === undefined) continue;
 
     const gainDb = typeof item.payload["gainDb"] === "number" ? item.payload["gainDb"] : 0;
-    const loopPolicy = isLoopPolicy(item.payload["loopPolicy"]) ? item.payload["loopPolicy"] : "none";
+    const loopPolicy = isLoopPolicy(item.payload["loopPolicy"])
+      ? item.payload["loopPolicy"]
+      : "none";
     const bedDuck = isDuck(item.payload["bedDuck"]) ? item.payload["bedDuck"] : null;
     const mood = Array.isArray(item.payload["mood"])
       ? (item.payload["mood"] as unknown[]).filter((tag): tag is string => typeof tag === "string")

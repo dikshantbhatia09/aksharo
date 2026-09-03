@@ -149,7 +149,11 @@ describe("<ProposalCard />", () => {
   });
 
   function musicItem(
-    overrides: { readonly mood?: string[]; readonly bpm?: number; readonly loopPolicy?: string } = {},
+    overrides: {
+      readonly mood?: string[];
+      readonly bpm?: number;
+      readonly loopPolicy?: string;
+    } = {},
   ): PassItem {
     return item({
       kind: "music",
