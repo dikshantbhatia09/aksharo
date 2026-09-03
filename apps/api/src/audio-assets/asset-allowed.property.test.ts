@@ -124,6 +124,56 @@ describe("assetAllowed (D04a licence predicate, property tests)", () => {
     );
   });
 
+  it("D04b: never allows a partner asset while assets.partnerCatalogue is off (default)", () => {
+    fc.assert(
+      fc.property(assetArb, contextArb, (asset, context) => {
+        const result = assetAllowed(asset, context);
+        if (asset.provider !== "owned") {
+          expect(result.allowed).toBe(false);
+          expect(result.reasons).toContain("partner-catalogue-disabled");
+        }
+      }),
+    );
+  });
+
+  it("D04b: the flag gate is refused on every surface, including cloud_render", () => {
+    fc.assert(
+      fc.property(assetArb, contextArb, (asset, context) => {
+        if (asset.provider === "owned") return;
+        const cloud = assetAllowed(asset, { ...context, surface: "cloud_render" });
+        expect(cloud.allowed).toBe(false);
+        expect(cloud.reasons).toContain("partner-catalogue-disabled");
+      }),
+    );
+  });
+
+  it("D04b: setting partnerCatalogueEnabled true never turns off the flag gate reason on its own — other gates can still refuse", () => {
+    const asset: AssetAllowedInput = {
+      provider: "epidemic",
+      territory: ["WORLD"],
+      termStart: null,
+      termEnd: null,
+      allowsRawFileDelivery: false,
+      clearanceMethod: "channel_safelist",
+    };
+    const withoutFlag = assetAllowed(asset, {
+      surface: "cloud_render",
+      plan: "studio",
+      territory: "WORLD",
+    });
+    expect(withoutFlag.allowed).toBe(false);
+    expect(withoutFlag.reasons).toEqual(["partner-catalogue-disabled"]);
+
+    const withFlag = assetAllowed(asset, {
+      surface: "cloud_render",
+      plan: "studio",
+      territory: "WORLD",
+      partnerCatalogueEnabled: true,
+    });
+    expect(withFlag.allowed).toBe(true);
+    expect(withFlag.reasons).toEqual([]);
+  });
+
   it("an owned, world-territory, no-term asset on cloud_render at any plan is always allowed", () => {
     const asset: AssetAllowedInput = {
       provider: "owned",

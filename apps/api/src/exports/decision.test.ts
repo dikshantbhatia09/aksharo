@@ -624,3 +624,54 @@ describe("decideExport — A21b: HDR sources are cloud-only", () => {
     expect(hdr.watermark).toBe(sdr.watermark);
   });
 });
+
+/**
+ * D04b (D43): a project that placed a partner-catalogue asset must never
+ * render in the browser — the licence predicate already refuses the asset
+ * on every non-cloud surface (`asset-allowed.ts`), and this is the export
+ * dialog's own refusal for the same rule, proven independently here with no
+ * database at all.
+ */
+describe("decideExport — D04b: partner catalogue assets are cloud-render-only", () => {
+  it("refused the browser path even when otherwise fully eligible", () => {
+    const decision = decideExport(base({ hasPartnerCatalogueAssets: true }));
+    expect(decision.path).toBe("cloud");
+    expect(decision.reasons.join(" ")).toMatch(/partner catalogue/i);
+  });
+
+  it("falls back to cloud under auto mode without throwing", () => {
+    expect(() =>
+      decideExport(base({ hasPartnerCatalogueAssets: true, requestedMode: "auto" })),
+    ).not.toThrow();
+  });
+
+  it("an explicit browser mode request is refused with export/unsupported_in_browser", () => {
+    try {
+      decideExport(base({ hasPartnerCatalogueAssets: true, requestedMode: "browser" }));
+      expect.unreachable("should have thrown");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AppException);
+      expect((error as AppException).code).toBe("export/unsupported_in_browser");
+      expect((error as AppException).message).toMatch(/partner catalogue/i);
+    }
+  });
+
+  it("an explicit cloud mode request is unaffected (already cloud)", () => {
+    const decision = decideExport(
+      base({ hasPartnerCatalogueAssets: true, requestedMode: "cloud" }),
+    );
+    expect(decision.path).toBe("cloud");
+  });
+
+  it("a project with no partner assets is unaffected — still gets the browser", () => {
+    const decision = decideExport(base({ hasPartnerCatalogueAssets: false }));
+    expect(decision.path).toBe("browser");
+  });
+
+  it("undefined (the default, matching every export before D04b) behaves exactly like false", () => {
+    const withUndefined = decideExport(base({}));
+    const withFalse = decideExport(base({ hasPartnerCatalogueAssets: false }));
+    expect(withUndefined.path).toBe(withFalse.path);
+    expect(withUndefined.reasons).toEqual(withFalse.reasons);
+  });
+});
