@@ -172,6 +172,70 @@ describe.skipIf(!available)("EDG import (upload to cloud)", () => {
     expect(result.body.error.code).toBe("common/forbidden");
   });
 
+  it("brief C04b §1: imports chunks too, so a word-addressed op resolves on the uploaded project", async () => {
+    const projectId = await createEmptyProject();
+    const { hot, segments } = localDocument(projectId);
+    const chunks = [
+      {
+        chunkIdx: 0,
+        startMs: 0,
+        endMs: 400,
+        words: [{ wid: "0:0", s: 0, e: 400, t: "Bhai" }],
+      },
+    ];
+
+    const result = await call<{ edgId: string; revision: number; segments: number }>(
+      "POST",
+      `/projects/${projectId}/edg/import`,
+      { token: ctx.token(), body: { hot, segments, chunks } },
+    );
+    expect(result.status).toBe(200);
+
+    const transcript = await ctx.prisma.transcript.findUnique({
+      where: { id: hot.transcript.transcriptId },
+    });
+    expect(transcript?.projectId).toBe(projectId);
+
+    const chunkRow = await ctx.prisma.transcriptChunk.findFirst({
+      where: { transcriptId: hot.transcript.transcriptId },
+    });
+    expect(chunkRow?.chunkIdx).toBe(0);
+
+    // The word id the imported chunk carries now resolves, instead of `unknown-id`.
+    const editOpId = newId();
+    const batch = await call<{ applied: string[]; rejected: unknown[] }>(
+      "POST",
+      `/projects/${projectId}/edg/ops`,
+      {
+        token: ctx.token(),
+        body: {
+          baseRevision: 1,
+          ops: [{ opId: editOpId, type: "EditWord", wordId: "0:0", text: "Namaste" }],
+          clientOpIds: [editOpId],
+        },
+      },
+    );
+    expect(batch.status).toBe(200);
+    expect(batch.body.rejected).toEqual([]);
+    expect(batch.body.applied).toHaveLength(1);
+  });
+
+  it("imports without chunks exactly as before (no transcript row created)", async () => {
+    const projectId = await createEmptyProject();
+    const { hot, segments } = localDocument(projectId);
+
+    const result = await call("POST", `/projects/${projectId}/edg/import`, {
+      token: ctx.token(),
+      body: { hot, segments },
+    });
+    expect(result.status).toBe(200);
+
+    const transcript = await ctx.prisma.transcript.findUnique({
+      where: { id: hot.transcript.transcriptId },
+    });
+    expect(transcript).toBeNull();
+  });
+
   it("rejects a document with no segments", async () => {
     const projectId = await createEmptyProject();
     const { hot } = localDocument(projectId);

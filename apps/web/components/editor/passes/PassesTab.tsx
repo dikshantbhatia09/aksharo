@@ -29,6 +29,7 @@ import {
 } from "../../../lib/passes/decisions";
 import { estimateAutocutQuote } from "../../../lib/passes/quote";
 import { usePassRunProgress } from "../../../lib/passes/realtime";
+import { LocalModeNotice } from "../local-mode-gate";
 
 import type { EditorStore } from "../../../lib/edg/store";
 
@@ -40,6 +41,15 @@ export interface PassesTabProps {
   readonly sourceDurationMs: number;
   readonly onPreview?: (item: PassItem, mode: "before" | "after") => void;
   readonly className?: string;
+  /**
+   * Brief C04b §3: passes run on the worker/cloud, never locally — a local
+   * project's caller passes `true` so this tab greys "Run autocut" and shows
+   * the "upload to cloud" affordance instead of pretending the run button
+   * works. Undefined/`false` behaves exactly as before this WP.
+   */
+  readonly isLocalProject?: boolean;
+  readonly onUploadToCloud?: () => void;
+  readonly uploadingToCloud?: boolean;
 }
 
 const KIND_OPTIONS: readonly { readonly id: PassItem["kind"] | "all"; readonly label: string }[] = [
@@ -76,6 +86,9 @@ export function PassesTab({
   sourceDurationMs,
   onPreview,
   className,
+  isLocalProject = false,
+  onUploadToCloud,
+  uploadingToCloud = false,
 }: PassesTabProps): React.JSX.Element {
   const { client } = useApiContext();
 
@@ -199,10 +212,18 @@ export function PassesTab({
       className={className}
       style={{ display: "flex", flexDirection: "column", gap: 12, outline: "none" }}
     >
+      {isLocalProject ? (
+        <LocalModeNotice
+          feature="passes"
+          {...(onUploadToCloud === undefined ? {} : { onUploadToCloud })}
+          uploading={uploadingToCloud}
+        />
+      ) : null}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Button
           type="button"
           onClick={() => setRunDialogOpen(true)}
+          disabled={isLocalProject}
           data-testid="run-autocut-button"
         >
           Run autocut

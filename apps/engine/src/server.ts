@@ -8,6 +8,7 @@ import {
   CleanRequestSchema,
   ModelDeleteRequestSchema,
   ModelDownloadRequestSchema,
+  ProbeRequestSchema,
   RenderRequestSchema,
   TranscribeRequestSchema,
   type HealthResponse,
@@ -186,6 +187,10 @@ async function dispatchRoute(
   if (method === "POST" && path === "/clean") {
     const parsed = parseOrThrow(CleanRequestSchema, body);
     return options.backend.clean(parsed);
+  }
+  if (method === "POST" && path === "/probe") {
+    const parsed = parseOrThrow(ProbeRequestSchema, body);
+    return options.backend.probe(parsed);
   }
   if (method === "POST" && path === "/render") {
     const parsed = parseOrThrow(RenderRequestSchema, body);

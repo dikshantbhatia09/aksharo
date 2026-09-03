@@ -41,6 +41,25 @@ export const SCHEMA_STATEMENTS: readonly string[] = [
    )`,
   `CREATE INDEX IF NOT EXISTS local_edg_snapshots_project_idx
      ON local_edg_snapshots(project_id, revision)`,
+  // C04b §1: transcript chunks, one row per `chunkIdx`, kept current (not
+  // versioned per revision) — a local project has exactly one writer, so
+  // there is no history to replay, only the newest chunk state a word op
+  // patched in place, exactly like `EdgRepository.persistWords` does for a
+  // single revision's worth of change. `revision` records which EDG snapshot
+  // revision last touched the row, for debugging only; nothing reads it back.
+  `CREATE TABLE IF NOT EXISTS local_transcript_chunks (
+     id TEXT PRIMARY KEY,
+     project_id TEXT NOT NULL,
+     revision INTEGER NOT NULL,
+     chunk_idx INTEGER NOT NULL,
+     start_ms INTEGER NOT NULL,
+     end_ms INTEGER NOT NULL,
+     words TEXT NOT NULL,
+     updated_at TEXT NOT NULL,
+     UNIQUE(project_id, chunk_idx)
+   )`,
+  `CREATE INDEX IF NOT EXISTS local_transcript_chunks_project_idx
+     ON local_transcript_chunks(project_id)`,
   `CREATE TABLE IF NOT EXISTS local_exports (
      id TEXT PRIMARY KEY,
      project_id TEXT NOT NULL,

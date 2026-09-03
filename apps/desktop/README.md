@@ -63,25 +63,82 @@ hosted page's and would never see the page's own network calls. GETs and
 requests to the local engine/OAuth/CDN are never blocked; only the upload
 path local mode promises not to take.
 
-**Media probe.** `apps/engine`'s contract (`README.md`) has no dedicated
-probe route yet — only `/transcribe`, `/align`, `/clean`, `/render`,
-`/models`, `/health` — so `importMedia`'s duration/fps/width/height are
-`null` until a caller supplies them. Open question for C03b (whose real
-ffmpeg backend is the natural place for a probe route).
+**Media probe (brief C04b §2).** `apps/engine` now has `/probe` (duration,
+fps, width, height, audio channels/sample rate, an HDR flag), backed by the
+manifest's ffprobe (`apps/engine/src/probe.ts`, sibling of the manifest's
+`bin/ffmpeg` entry — not wired into a live backend yet, since only
+`FakeBackend` is constructed today; `FakeBackend.probe` returns deterministic
+fixture values so this WP's tests never need a real ffprobe binary).
+`importMedia` calls `EngineClient.probe` itself when the caller does not
+already supply duration/fps/width/height, and leaves them `null` (never
+throws) when the engine is unavailable or the probe call itself fails.
+
+**Transcript chunks in the local store (brief C04b §1).** A fifth table,
+`local_transcript_chunks`, stores the project's transcript — one row per
+`chunkIdx`, kept current rather than versioned per revision, since a local
+project has exactly one writer. `saveEdgSnapshot` accepts an optional
+`chunks` array (sent only when a word-addressed op actually touched the
+transcript) and `latestSnapshot`/`transcriptChunks` read them back. This is
+what lets the hosted editor's local branch (`apps/web/lib/edg/store.ts`) run
+the **full** EDG op set on a local project: `EditWord`, `DeleteWord`,
+`SetWordTiming`, `InsertWordAfter` all resolve against a real word index now
+(previously rejected `unknown-id` against an empty one), and `Resegment`
+works locally too — it mints its own op and applies it through the same
+`packages/edg` engine the cloud path uses, since `applyResegment` only ever
+reads `state.words`, never a database. A project with no transcript chunks
+saved yet still gets a clear `LocalResegmentUnsupportedError` rather than a
+silent no-op.
+
+**Upload to cloud, chunks included.** `POST /projects/{id}/edg/import` now
+accepts an optional `chunks` array (`apps/api/src/edg/edg.dto.ts`); when
+given, `EdgRepository.createDocument` writes a fresh `Transcript` +
+`TranscriptChunk` row generation alongside the document, so a project
+uploaded from local mode keeps every word-addressed edit intact instead of
+losing its transcript on the way to the cloud.
+
+**Editor gating in local mode (brief C04b §3).** `apps/web/components/editor/local-mode-gate.tsx`
+is the shared "cloud project — upload to use" affordance (`LocalModeNotice`)
+plus `uploadLocalProjectToCloud`, which hands a local project's `hot`/
+`segments`/`chunks` to a new cloud project via the extended import route.
+`PassesTab` (autocut), `AudioPanel` (audio clean) and `ExportDialog`'s
+cloud-render fallback all accept an optional `isLocalProject` prop that
+greys their cloud-dependent control and renders the notice instead —
+callers on a cloud project pass nothing and see no change.
 
 **Tests:** `src/local/*.test.ts` — schema/persistence (`db.test.ts`), the
-full round trip create → import → transcribe (mocked `EngineClient`) → save
-EDG → export (`store.test.ts`), the network guard and entitlement gate as
-pure predicates, and the engine discovery reader. All in-memory/injected —
-no Electron runtime, no real engine sidecar, no native module.
+full round trip create → import → transcribe (mocked `EngineClient`) → probe
+→ save EDG (chunks included) → export (`store.test.ts`), the network guard
+and entitlement gate as pure predicates, and the engine discovery reader.
+`apps/web/lib/edg/local-store.test.ts` covers every EDG op kind round-tripping
+locally, resegment included. All in-memory/injected — no Electron runtime, no
+real engine sidecar, no native module.
 
 **Electron smoke path for Gate C** (no Playwright budget for this WP, per
-the host guard): `pnpm build && pnpm pack:dry`, launch the unpacked build,
-and manually: create a local project, import a media file via the native
-picker, confirm "Local projects" lists it on Home, open DevTools' Network
-tab and confirm no request reaches `api.<domain>` while the project stays
-open, then delete the project and confirm its media directory is gone from
-`app.getPath("userData")/local-media`.
+the host guard — and Electron cannot launch in the C04b sandbox either, so
+this section is a manual script, not something this WP ran): `pnpm build &&
+pnpm pack:dry`, launch the unpacked build, and manually:
+
+1. Create a local project, import a media file via the native picker, and
+   confirm the imported media's duration/fps/dimensions are populated (not
+   blank) — proof `/probe` ran.
+2. Transcribe it, then in the editor: edit a word's text, delete a word, drag
+   a word's timing handle, and split a caption mid-word (`InsertWordAfter`).
+   Reload the project and confirm every edit is still there — proof word-level
+   ops persist through `local_transcript_chunks`, not just in memory.
+3. Run "Reflow captions" (resegment) and confirm the caption boundaries
+   change and the transcript still reads correctly afterwards.
+4. Open the Passes tab and the Audio tab; confirm "Run autocut" and "Clean
+   audio" are greyed with a "local project — upload to cloud to use …"
+   notice, and open Export with a clip too large for browser export;
+   confirm the dialog shows the same notice instead of "This export renders
+   in the cloud."
+5. Click "Upload to cloud" from one of those notices, sign in if prompted,
+   and confirm a new cloud project appears with the same captions — including
+   the word edited in step 2 — proof the import route's `chunks` round-trip.
+6. Confirm "Local projects" lists the project on Home throughout, open
+   DevTools' Network tab and confirm no request reaches `api.<domain>` while
+   the project stays local, then delete the project and confirm its media
+   directory is gone from `app.getPath("userData")/local-media`.
 
 ## Security configuration
 

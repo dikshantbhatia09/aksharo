@@ -1419,12 +1419,44 @@ export class EdgRepository implements EdgRepositoryContract {
     projectId: string;
     hot: EdgHot;
     segments: readonly Segment[];
+    /**
+     * Brief C04b §1: the local project's transcript, handed over by "Upload
+     * to cloud" alongside its document. Written as generation 1 of a fresh
+     * `Transcript` row (`hot.transcript.transcriptId`/`.language`) so every
+     * word-addressed op resolves on the uploaded project from the moment it
+     * lands — omitted, a project imports with no addressable transcript,
+     * same as before this WP.
+     */
+    chunks?: readonly TranscriptChunk[];
     author: string | null;
     source: EdgSource;
   }): Promise<{ edgId: string; revision: number; segments: number }> {
     return this.prisma.withTransaction(
       async (tx) => {
         const hot: EdgHot = { ...input.hot, meta: { ...input.hot.meta, revision: 1 } };
+
+        if (input.chunks !== undefined && input.chunks.length > 0) {
+          await tx.transcript.create({
+            data: {
+              id: hot.transcript.transcriptId,
+              projectId: input.projectId,
+              language: hot.transcript.language,
+              currentRevision: hot.transcript.revision,
+            },
+          });
+          await tx.transcriptChunk.createMany({
+            data: input.chunks.map((chunk) => ({
+              id: newId(),
+              transcriptId: hot.transcript.transcriptId,
+              revision: hot.transcript.revision,
+              chunkIdx: chunk.chunkIdx,
+              startMs: chunk.startMs,
+              endMs: chunk.endMs,
+              words: chunk.words as unknown as Prisma.InputJsonValue,
+              nextWordSeq: nextWordSeqOf(chunk, 0),
+            })),
+          });
+        }
 
         await tx.edgDocument.create({
           data: {

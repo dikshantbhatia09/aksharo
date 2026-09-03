@@ -10,6 +10,8 @@ import {
   ModelDeleteRequestSchema,
   ModelDownloadRequestSchema,
   ModelsResponseSchema,
+  ProbeRequestSchema,
+  ProbeResponseSchema,
   RenderRequestSchema,
   RenderResponseSchema,
   TranscribeRequestSchema,
@@ -24,6 +26,8 @@ import type {
   CleanResponse,
   HealthResponse,
   ModelsResponse,
+  ProbeRequest,
+  ProbeResponse,
   RenderRequest,
   RenderResponse,
   TranscribeRequest,
@@ -99,6 +103,11 @@ export class EngineClient {
   async clean(input: CleanRequest): Promise<CleanResponse> {
     const body = await this.request("POST", "/clean", CleanRequestSchema.parse(input));
     return CleanResponseSchema.parse(body);
+  }
+
+  async probe(input: ProbeRequest): Promise<ProbeResponse> {
+    const body = await this.request("POST", "/probe", ProbeRequestSchema.parse(input));
+    return ProbeResponseSchema.parse(body);
   }
 
   async render(input: RenderRequest): Promise<RenderResponse> {

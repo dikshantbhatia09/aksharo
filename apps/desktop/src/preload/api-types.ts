@@ -1,4 +1,4 @@
-import type { EdgHot, Segment } from "@montaj/edg/schemas";
+import type { EdgHot, Segment, TranscriptChunk } from "@montaj/edg/schemas";
 
 /**
  * Shape of `window.aksharoDesktop`, exposed by `src/preload/index.ts` via
@@ -68,6 +68,8 @@ export interface LocalEdgSnapshotInfo {
   readonly revision: number;
   readonly hot: EdgHot;
   readonly segments: Segment[];
+  /** Transcript chunks as of now (brief C04b §1) — see `LocalStore.LocalEdgSnapshot`. */
+  readonly chunks: TranscriptChunk[];
   readonly createdAt: string;
 }
 
@@ -108,6 +110,8 @@ export interface AksharoDesktopLocalApi {
     projectId: string;
     hot: EdgHot;
     segments: Segment[];
+    /** Word-addressed ops changed the transcript; omitted for a pure segment-level edit. */
+    chunks?: TranscriptChunk[];
   }): Promise<LocalEdgSnapshotInfo>;
   latestSnapshot(projectId: string): Promise<LocalEdgSnapshotInfo | null>;
   runExport(input: {

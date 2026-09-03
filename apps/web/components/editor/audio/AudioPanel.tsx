@@ -5,6 +5,7 @@ import * as React from "react";
 import { Button, ProgressBar, Switch } from "@montaj/ui";
 
 import { applyCleanOp, clearCleanOp, useAudioClean, type SetAudioCleanOp } from "./use-audio-clean";
+import { LocalModeNotice } from "../local-mode-gate";
 
 import type { AudioClean, AudioCleanStrength, AudioCleanTarget } from "./audio-endpoints";
 
@@ -23,6 +24,10 @@ export interface AudioPanelProps {
    * Quick clean (spectral gate) is free and available on every lane either way.
    */
   readonly deepCleanEnabled?: boolean;
+  /** Brief C04b §3: audio clean runs on the worker/cloud — greyed for a local project. */
+  readonly isLocalProject?: boolean;
+  readonly onUploadToCloud?: () => void;
+  readonly uploadingToCloud?: boolean;
 }
 
 export type AudioCleanTier = "quick" | "deep";
@@ -143,7 +148,21 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
         </label>
       </div>
 
-      <Button type="button" onClick={handleRun} disabled={starting}>
+      {props.isLocalProject === true ? (
+        <LocalModeNotice
+          feature="audio clean"
+          {...(props.onUploadToCloud === undefined
+            ? {}
+            : { onUploadToCloud: props.onUploadToCloud })}
+          uploading={props.uploadingToCloud ?? false}
+        />
+      ) : null}
+
+      <Button
+        type="button"
+        onClick={handleRun}
+        disabled={starting || props.isLocalProject === true}
+      >
         {starting ? "Starting…" : "Clean audio"}
       </Button>
 
