@@ -97,6 +97,16 @@ describe("analyseWorkingSet", () => {
     expect(passId).toHaveLength(26);
   });
 
+  it("carries the item id for EditPassItem (M10: was missing, so the row never loaded and applyEditPassItem always rejected unknown-id)", () => {
+    const itemId = "01JCITEM0000000000000000BB";
+    const request = analyseWorkingSet([
+      { opId: OP, type: "EditPassItem", itemId, startMs: 1_000, endMs: 2_000 },
+    ]);
+
+    expect(request.itemIds).toEqual([itemId]);
+    expect(request.wholeDocument).toBe(false);
+  });
+
   it("asks for nothing at all for a document-level op", () => {
     const request = analyseWorkingSet([{ opId: OP, type: "SetRender", presets: ["reels-1080"] }]);
 

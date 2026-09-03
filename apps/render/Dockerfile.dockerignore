@@ -1,0 +1,28 @@
+# BuildKit reads THIS file (named after the Dockerfile it sits next to) instead
+# of a root `.dockerignore`, which the monorepo does not otherwise have.
+#
+# Root cause of the M10 item-0 build failure: this Dockerfile's build stage
+# COPYs source directories (`packages/config`, `packages/edg`, ..., `apps/render`)
+# on top of the `node_modules` that `pnpm install --frozen-lockfile --filter
+# @montaj/render...` had just linked correctly inside the image. On a host
+# where `pnpm` creates absolute symlinks into the *host* pnpm store (as it does
+# on Windows, e.g. `packages/config/node_modules/typescript ->
+# C:\...\node_modules\.pnpm\typescript@5.9.3\node_modules\typescript`), those
+# host-relative-looking-but-actually-absolute symlinks got copied straight into
+# the image, replacing the container's own valid relative symlinks. Inside the
+# container the host path does not exist, so `tsc` (and anything else resolved
+# through a workspace package's `node_modules`) fails with MODULE_NOT_FOUND.
+#
+# `apps/worker-media/Dockerfile.dockerignore` already carries this exact fix;
+# this file mirrors it for `apps/render`, whose Dockerfile has the same
+# "copy source over an already-installed `node_modules`" shape.
+
+**/node_modules
+**/.git
+**/.turbo
+**/dist
+**/.next
+**/coverage
+**/playwright-report
+**/test-results
+**/*.tsbuildinfo

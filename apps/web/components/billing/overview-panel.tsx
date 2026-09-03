@@ -63,7 +63,10 @@ export function OverviewPanel(): React.JSX.Element {
   const [confirmAction, setConfirmAction] = React.useState<"cancel" | "pause" | null>(null);
   const [upgradeOpen, setUpgradeOpen] = React.useState(false);
 
-  const streakEnabled = config.flags["streak.enabled"] === true;
+  // Same flag key the sidebar chip (`shell/sidebar.tsx`) and `streak-chip.tsx`
+  // read — this was `"streak.enabled"`, a key nothing ever sets, which is why
+  // the widget never mounted on `/billing` (Gate B run 3/4: "widget missing").
+  const streakEnabled = config.flags["growth.streakWidget"] === true;
 
   const runAction = (action: "cancel" | "pause" | "resume"): void => {
     const mutation = action === "cancel" ? cancel : action === "pause" ? pause : resume;

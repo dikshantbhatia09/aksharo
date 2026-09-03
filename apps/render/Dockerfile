@@ -31,6 +31,14 @@ COPY packages/caption-styles/package.json ./packages/caption-styles/
 COPY packages/render-core/package.json ./packages/render-core/
 COPY packages/render-manifest/package.json ./packages/render-manifest/
 COPY packages/render-skia-node/package.json ./packages/render-skia-node/
+# `pnpm deploy` (below) re-resolves the whole workspace manifest and fails
+# `ERR_PNPM_WORKSPACE_PKG_NOT_FOUND` if a `workspace:*` reference in any
+# copied package.json — even a devDependency, which `--prod` then skips
+# installing — cannot be found in the visible workspace. `@montaj/fonts` and
+# `@montaj/render-canvaskit` are devDependencies-only of `apps/render`
+# (tooling/tests), so only their manifests are needed here, not their source.
+COPY packages/fonts/package.json ./packages/fonts/
+COPY packages/render-canvaskit/package.json ./packages/render-canvaskit/
 COPY apps/render/package.json ./apps/render/
 
 RUN pnpm install --frozen-lockfile --filter @montaj/render...
@@ -44,8 +52,25 @@ COPY packages/render-manifest ./packages/render-manifest
 COPY packages/render-skia-node ./packages/render-skia-node
 COPY apps/render ./apps/render
 
-RUN pnpm --filter @montaj/render... build \
-    && pnpm --filter @montaj/render... --prod deploy /app --legacy
+# `pnpm deploy` in 9.x has no `--legacy` flag (that was a pre-9 pnpm option);
+# passing it is a hard error ("Unknown option: 'legacy'"). The default
+# (non-legacy) deploy strategy hard-links `node_modules` into the target
+# directory, which is what the runtime stage below expects.
+#
+# `deploy` also refuses a filter that matches more than one project
+# ("Cannot deploy more than 1 project") — `@montaj/render...` matches render
+# plus every workspace dependency it needs to build first, so the build step
+# keeps that filter while the deploy step targets `@montaj/render` alone;
+# `pnpm deploy` resolves and hard-links its workspace dependencies itself.
+#
+# `@montaj/render...` also pulls in `apps/render`'s devDependencies-only
+# workspace members (`@montaj/fonts`, `@montaj/render-canvaskit` — tooling and
+# tests, not runtime code), whose manifests are present above only so `pnpm
+# deploy`'s workspace validation can resolve their `workspace:*` reference;
+# their source was never copied in, so building them fails. Exclude them from
+# the build.
+RUN pnpm --filter @montaj/render... --filter '!@montaj/fonts' --filter '!@montaj/render-canvaskit' build \
+    && pnpm --filter @montaj/render --prod deploy /app
 
 # ---------------------------------------------------------------------------
 # Stage 2 — runtime

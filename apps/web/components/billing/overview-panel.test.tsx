@@ -2,6 +2,8 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { StreakView } from "@montaj/api-client";
+
 import { OverviewPanel } from "./overview-panel";
 
 import type { CreditsSummary, SubscriptionView } from "@/lib/billing/types";
@@ -55,6 +57,55 @@ const CREDITS: CreditsSummary = {
     },
   ],
 };
+
+const STREAK: StreakView = {
+  eligible: true,
+  holdout: false,
+  creditsOnly: false,
+  level: 2,
+  publishDaysThisWeek: 3,
+  bar: 3,
+  paused: false,
+  freezesRemaining: 2,
+  consecutiveWeeks: 1,
+  weekWindowStart: "2027-01-04",
+  weekWindowEnd: "2027-01-11",
+  nextRewardLabel: "10% off your next renewal at L3",
+  discountPercent: 5,
+  creditGrantTenths: 0,
+};
+
+describe("<OverviewPanel /> streak widget (M10: was gated on the wrong flag key)", () => {
+  it("mounts the streak widget on /billing when growth.streakWidget is on", async () => {
+    renderWithProviders(<OverviewPanel />, {
+      routes: {
+        "/billing/subscription": ACTIVE_SUBSCRIPTION,
+        "/workspaces/01JWORKSPACE/credits": CREDITS,
+        "/billing/mandates": [],
+        "/streak": STREAK,
+      },
+      config: { flags: { "growth.streakWidget": true } },
+    });
+
+    const summary = await screen.findByTestId("streak-widget-summary");
+    expect(summary).toHaveTextContent("3 of 3 publish days · L2 · 2 freezes left");
+  });
+
+  it("never mounts the streak widget when growth.streakWidget is off", async () => {
+    renderWithProviders(<OverviewPanel />, {
+      routes: {
+        "/billing/subscription": ACTIVE_SUBSCRIPTION,
+        "/workspaces/01JWORKSPACE/credits": CREDITS,
+        "/billing/mandates": [],
+        "/streak": STREAK,
+      },
+      config: { flags: {} },
+    });
+
+    await screen.findByTestId("credits-card");
+    expect(screen.queryByTestId("streak-widget-slot")).toBeNull();
+  });
+});
 
 describe("<OverviewPanel />", () => {
   it("shows the plan, status and renewal date, with the Autopay mandate cap named", async () => {

@@ -143,6 +143,15 @@ export function analyseWorkingSet(ops: readonly EdgOp[]): WorkingSetRequest {
       case "DecideItems":
         for (const id of op.itemIds) itemIds.add(id);
         break;
+      case "EditPassItem":
+        // Missing before M10: `applyEditPassItem` (packages/edg/src/ops/apply.ts)
+        // does `draft.items.get(op.itemId)` and fails `unknown-id` the same way
+        // it would for an item that genuinely does not exist, if that item's row
+        // was never loaded into the working set — this case was absent, so
+        // *every* `EditPassItem` op was rejected `unknown-id` regardless of
+        // whether the item existed (Gate B run 4, B20b drag-to-adjust).
+        itemIds.add(op.itemId);
+        break;
       case "MergePass":
         passIds.add(op.pass.passId);
         break;
