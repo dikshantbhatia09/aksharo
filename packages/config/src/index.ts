@@ -10,4 +10,5 @@
 
 export * from "./brand.js";
 export * from "./credits.js";
+export * from "./entitlements.js";
 export * from "./env.js";

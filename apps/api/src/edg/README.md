@@ -22,18 +22,29 @@ Nothing here interprets an op. If a verdict looks wrong, it is wrong in
 
 ## Endpoints
 
-| Method | Path                                              | Role   | Notes                                                            |
-| ------ | ------------------------------------------------- | ------ | ---------------------------------------------------------------- |
-| `GET`  | `/projects/{id}/edg`                              | viewer | Hot document, revision, first page of segments, passes, cursor.  |
-| `GET`  | `/projects/{id}/edg/segments?cursor=&limit=`      | viewer | `seq` order, 500 a page (1000 max). Cursor is the last `seq`.    |
-| `GET`  | `/projects/{id}/edg/passes`                       | viewer | Every pass with its items.                                       |
-| `GET`  | `/projects/{id}/edg/passes/{passId}/items?state=` | viewer | One pass's proposals, optionally by review state.                |
-| `GET`  | `/projects/{id}/edg/revisions?from=&limit=`       | viewer | The op log, oldest first, 200 a page.                            |
-| `GET`  | `/projects/{id}/edg/snapshots`                    | viewer | Revisions a snapshot exists at, newest first.                    |
-| `POST` | `/projects/{id}/edg/ops`                          | editor | `OpBatchRequest` → `OpBatchResponse`; 409 `edg/conflict`.        |
-| `POST` | `/projects/{id}/edg/resegment`                    | editor | Server-minted `Resegment` op.                                    |
-| `POST` | `/projects/{id}/edg/snapshots/{n}/restore`        | editor | Appends a revision replacing the state; 409 if it dangles.       |
-| `POST` | `/internal/projects/{id}/edg/ops`                 | HMAC   | The worker surface: the only writer that may submit `MergePass`. |
+| Method | Path                                              | Role   | Notes                                                                                            |
+| ------ | ------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------ |
+| `GET`  | `/projects/{id}/edg`                              | viewer | Hot document, revision, first page of segments, passes, cursor.                                  |
+| `GET`  | `/projects/{id}/edg/segments?cursor=&limit=`      | viewer | `seq` order, 500 a page (1000 max). Cursor is the last `seq`.                                    |
+| `GET`  | `/projects/{id}/edg/passes`                       | viewer | Every pass with its items.                                                                       |
+| `GET`  | `/projects/{id}/edg/passes/{passId}/items?state=` | viewer | One pass's proposals, optionally by review state.                                                |
+| `GET`  | `/projects/{id}/edg/revisions?from=&limit=`       | viewer | The op log, oldest first, 200 a page.                                                            |
+| `GET`  | `/projects/{id}/edg/snapshots`                    | viewer | Revisions a snapshot exists at, newest first.                                                    |
+| `POST` | `/projects/{id}/edg/ops`                          | editor | `OpBatchRequest` → `OpBatchResponse`; 409 `edg/conflict`.                                        |
+| `POST` | `/projects/{id}/edg/resegment`                    | editor | Server-minted `Resegment` op.                                                                    |
+| `POST` | `/projects/{id}/edg/snapshots/{n}/restore`        | editor | Appends a revision replacing the state; 409 if it dangles.                                       |
+| `POST` | `/projects/{id}/edg/import`                       | editor | Whole document as revision 1 of a fresh project (C04); 409 `edg/already_imported` if one exists. |
+| `POST` | `/internal/projects/{id}/edg/ops`                 | HMAC   | The worker surface: the only writer that may submit `MergePass`.                                 |
+
+**`/edg/import` (C04, "Upload to cloud"):** the desktop's local mode creates a
+new cloud project from a local one's already-edited EDG v2 document and hands
+it over verbatim (`{hot, segments}`) rather than replaying an op log — no
+route existed for that (this WP added it, per its brief's instruction to
+"report it" if none did), and it is deliberately not `initialise` (which
+segments a raw transcript) or `/edg/ops` (which replays against a revision):
+the local document already has its segments. Never a merge — a project that
+already has a document refuses with `edg/already_imported`; local-to-cloud
+sync is out of this WP's scope.
 
 `@Roles("editor")` admits editor, admin and owner; a viewer reads and is refused
 a write with `common/forbidden`. A share-link reviewer holds no membership, so it

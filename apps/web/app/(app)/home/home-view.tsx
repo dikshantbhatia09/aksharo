@@ -21,6 +21,8 @@ import * as React from "react";
 
 import { useCurrentUser, useProjects } from "@montaj/api-client";
 
+import { LocalProjectsSection } from "./local-projects-section";
+
 import type { UploadQuickPick } from "@/lib/upload/types";
 
 import { BatchApplyToAllSheet, type BatchConfirmed } from "@/components/batch/BatchApplyToAllSheet";
@@ -143,6 +145,8 @@ export function HomeView(): React.JSX.Element {
         </div>
         <ProjectGrid projects={projects} loading={recent.isPending} />
       </div>
+
+      <LocalProjectsSection />
     </div>
   );
 }

@@ -7835,6 +7835,62 @@
         ]
       }
     },
+    "/projects/{projectId}/edg/import": {
+      "post": {
+        "description": "The desktop's 'Upload to cloud' (brief C04 §3): creates a new cloud project from a local one's already-edited document, handed over verbatim rather than replayed as ops. Never a merge — a project that already has a document refuses with `edg/already_imported`.",
+        "operationId": "importEdgDocument",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          },
+          "409": {
+            "description": "`edg/already_imported`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Write a whole EDG document as revision 1 of a fresh project",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
     "/projects/{projectId}/edg/snapshots/{revision}/restore": {
       "post": {
         "description": "History is never rewritten: the restore is appended, so restoring a later snapshot undoes it. The transcript is not rolled back — words live in their own table and a spelling fixed after the snapshot stays fixed. A snapshot that names a word the transcript no longer has live is refused with `edg/restore_invalid` and the dangling ids, rather than written as a caption nothing can render.",
@@ -23066,6 +23122,29 @@
       "ResegmentRequestDto": {
         "type": "object",
         "properties": {}
+      },
+      "ImportRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ImportResultDto": {
+        "type": "object",
+        "properties": {
+          "edgId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "number"
+          },
+          "segments": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "edgId",
+          "revision",
+          "segments"
+        ]
       },
       "RestoreResultDto": {
         "type": "object",
