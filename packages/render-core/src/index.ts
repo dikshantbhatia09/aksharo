@@ -281,7 +281,14 @@ export {
   qRect,
 } from "./units.js";
 
+export { countUpText, formatLocaleNumber } from "./textfx/count.js";
 export { drawTextFxTitle, type TextFxDrawOptions } from "./textfx/draw.js";
+export {
+  captionBoxFromLayouts,
+  renderTitleFrame,
+  type RenderTitlesOptions,
+  type TitleFxTrack,
+} from "./textfx/frame.js";
 export {
   placeTitleBox,
   rectsOverlap,

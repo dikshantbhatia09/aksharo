@@ -56,3 +56,41 @@ pnpm --filter @montaj/render parity
 Exits non-zero (and logs which fixture) if any exceeds `maxDiffPxTolerance`.
 `run.test.ts` asserts the same tolerance on every `pnpm test` run, so a
 regression fails CI before anyone has to read this file.
+
+## Text-fx parity gate (D06b)
+
+A different kind of gate from the one above: not two independently-computed
+formulas agreeing on numbers, but two rasterisers — `@montaj/render-canvaskit`
+(the browser exporter's own backend) and `@montaj/render-skia-node` (the
+cloud renderer's) — drawing the _same_ `DrawCommand[]` and being compared
+pixel for pixel. What differs between the two apps is guaranteed identical
+by construction (`@montaj/render-core`'s `renderTitleFrame` is the one call
+site both `apps/web/lib/export/engine.ts` and `../src/render/frames.ts`
+use), so this measures only the two backends' own drawing.
+
+`textfx-fixtures.ts` builds one title per D06 motion preset (`pop`,
+`slide-up`, `typewriter`, `underline`, `count-up`, `fade`), each spanning a
+6-second clip with no caption on screen, sampled at three instants (entry,
+mid-hold, exit). `run-textfx-parity.ts` rasterises every sample with both
+backends and reports the worst per-preset pixel-difference ratio.
+
+Regenerate with `pnpm --filter @montaj/render parity:titles`; `results.json`
+gains (or updates) its own `titles` key, merge-preserving the same way this
+gate's `run.ts` preserves `audio` and vice versa.
+
+| preset       | samples | max diff ratio | tolerance | status   |
+| ------------ | ------- | -------------- | --------- | -------- |
+| `pop`        | 3       | ~0.0033        | 0.02      | **PASS** |
+| `slide-up`   | 3       | ~0.0032        | 0.02      | **PASS** |
+| `typewriter` | 3       | ~0.0022        | 0.02      | **PASS** |
+| `underline`  | 3       | ~0.0044        | 0.02      | **PASS** |
+| `count-up`   | 3       | ~0.0026        | 0.02      | **PASS** |
+| `fade`       | 3       | ~0.0032        | 0.02      | **PASS** |
+
+Every preset is well inside D33's own general 1% (`PARITY_MAX_DIFF_RATIO`)
+budget; the gate's own tolerance is set at 2% rather than 1% for the same
+reason `apps/web/lib/export/engine-parity.test.ts`'s `KNOWN_TEXT_RESIDUALS`
+documents for captions — glyph-edge anti-aliasing differs slightly between
+CanvasKit and Skia-node, and a title's larger, heavier type shows a touch
+more of that residual than a caption's own type does. `run-textfx-parity.test.ts`
+asserts the same tolerance on every `pnpm test` run.

@@ -227,6 +227,30 @@ src/testing.ts   fixture fonts and caption fixtures (`@montaj/render-core/testin
 fixtures/        the fixture fonts and the committed goldens
 ```
 
+## Text FX (D06/D06b)
+
+`src/textfx/` is the title track's own vertical slice, kept separate from
+`src/frame/render-frame.ts` because a title is not a caption (`presets.ts`,
+`layout.ts`, `draw.ts`, `count.ts`, `frame.ts`):
+
+- `presets.ts` — `textFxPhase(preset, progress, totalMs)`: the six named
+  motion curves (`pop`, `slide-up`, `typewriter`, `underline`, `count-up`,
+  `fade`) as pure functions of a 0..1 progress through the item's own
+  window.
+- `layout.ts` — `placeTitleBox`: a deterministic slot solver that places a
+  title's box so it never overlaps the caption's live safe area, for any
+  caption position × title size.
+- `draw.ts` — `drawTextFxTitle`: a placement + phase + shaped glyph run to
+  the same `DrawCommand[]` every other item kind emits.
+- `count.ts` — `countUpText`: finds the number inline in a `count-up`
+  title's text (the wire schema carries no separate numeric field) and
+  re-formats the animated fraction in the title's own script's digits.
+- `frame.ts` — `renderTitleFrame`: the one call both `apps/web/lib/export/
+engine.ts` (browser) and `apps/render/src/render/frames.ts` (cloud) make
+  per output millisecond, so a title draws identically on both backends
+  (decision D33) — see `apps/render/parity/textfx-fixtures.ts` for the
+  proof.
+
 ## Goldens
 
 `fixtures/goldens/` holds a hash for every (style × fixture × instant) — 30 × 4 × 3 —

@@ -33,13 +33,17 @@
 
 import type { StyleDoc } from "@montaj/caption-styles";
 import {
+  captionBoxFromLayouts,
   hashCommands,
+  layoutFrame,
   renderFrame,
+  renderTitleFrame,
   type DrawCommand,
   type EdgProjection,
   type FontRegistry,
   type RenderFrameOptions,
   type Shaper,
+  type TitleFxTrack,
 } from "@montaj/render-core";
 import type { FrameBatch, SkiaNodeBackend } from "@montaj/render-skia-node";
 import type { TimeQuery } from "@montaj/timemap";
@@ -58,6 +62,10 @@ export interface FrameCommandOptions {
   readonly watermark: DrawCommand | null;
   readonly script?: RenderFrameOptions["script"];
   readonly dropFillers?: boolean;
+  /** Accepted text-fx title items (D06), from `manifest.timemap.titles ?? []`. */
+  readonly titles?: readonly TitleFxTrack[];
+  /** The render's default caption style; a title borrows its ink and family. Required whenever `titles` is non-empty. */
+  readonly titleStyle?: StyleDoc;
 }
 
 export interface FrameSourceOptions extends FrameCommandOptions {
@@ -114,8 +122,9 @@ export function frameTimeMs(index: number, fps: number): number {
 
 /** The `renderFrame` call both sources make, with the watermark on top. */
 function commandBuilder(options: FrameCommandOptions): (outputMs: number) => DrawCommand[] {
+  const titles = options.titles ?? [];
   return (outputMs: number) => {
-    const commands = renderFrame({
+    const frameOptions = {
       projection: options.projection,
       timemap: options.timemap,
       catalogue: options.catalogue,
@@ -124,7 +133,30 @@ function commandBuilder(options: FrameCommandOptions): (outputMs: number) => Dra
       outputMs,
       ...(options.script === undefined ? {} : { script: options.script }),
       ...(options.dropFillers === undefined ? {} : { dropFillers: options.dropFillers }),
-    });
+    };
+    const commands = renderFrame(frameOptions);
+
+    if (titles.length > 0 && options.titleStyle !== undefined) {
+      // D06b: same shared step `apps/web/lib/export/engine.ts` calls, so a
+      // title item draws identically in the browser and the cloud (D33). The
+      // caption's own live safe area (D06 rule 2) comes from re-running
+      // `layoutFrame` — the same call `renderFrame` makes internally — for
+      // its geometry alone.
+      const captionBox = captionBoxFromLayouts(layoutFrame(frameOptions));
+      commands.push(
+        ...renderTitleFrame({
+          titles,
+          timemap: options.timemap,
+          outputMs,
+          canvas: options.projection.canvas,
+          registry: options.registry,
+          shaper: options.shaper,
+          style: options.titleStyle,
+          ...(captionBox === undefined ? {} : { captionBox }),
+        }),
+      );
+    }
+
     // The manifest's watermark is drawn last so nothing can cover it. The
     // projection's own `render.watermarkAssetId` is deliberately not used: the
     // decision that matters is the signed one.

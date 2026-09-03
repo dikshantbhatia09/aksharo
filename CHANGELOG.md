@@ -8,6 +8,41 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **D06b: text FX draw path — browser export engine, cloud render, parity
+  fixture.** D06 shipped the presets, the layout solver and the worker
+  pass, and `RenderManifest.timemap.titles` carried the data, but nothing
+  drew it; this closes that gap. New `packages/render-core/src/textfx/
+frame.ts`: `renderTitleFrame`, the one shared step that turns a manifest's
+  accepted title items into `DrawCommand[]` for one output millisecond —
+  finds every title on screen, evaluates its motion preset, shapes its text
+  (heavier weight of the render's own default caption style, borrowed
+  colours), places its box with `placeTitleBox` against the active
+  caption's live safe area, and hands it to D06's `drawTextFxTitle`. New
+  `packages/render-core/src/textfx/count.ts`: `countUpText` finds the
+  number inline in a `count-up` title's text (`TitleTrackSchema` carries no
+  separate numeric field) and re-formats the animated value in the title's
+  own script's digits (Devanagari for Hindi/Marathi, Tamil numerals for
+  Tamil) via `Intl.NumberFormat`'s `numberingSystem`. Wired into both
+  render paths from the same call site: `apps/web/lib/export/engine.ts`
+  (browser, CanvasKit) and `apps/render/src/render/frames.ts` (cloud,
+  Skia-node) each call `renderTitleFrame` after their own caption commands
+  for the frame, using `layoutFrame`'s own geometry (`captionBoxFromLayouts`)
+  for the safe area — so a title draws identically on both backends by
+  construction, not by convention. New parity fixture
+  `apps/render/parity/textfx-fixtures.ts` + `run-textfx-parity.ts`: one
+  title per D06 motion preset across a 6-second clip, rasterised by both
+  `@montaj/render-canvaskit` and `@montaj/render-skia-node` and diffed
+  pixel for pixel (`pnpm --filter @montaj/render parity:titles`);
+  `results.json` gains a merge-preserving `titles` block alongside B20b's
+  `edits` and B10b's `audio`. Every preset measured well inside a 2%
+  tolerance (max ~0.44%), comfortably under decision D33's general 1% SLO.
+  Deviation: the caption safe-area geometry is recomputed once more per
+  frame (`layoutFrame` called a second time, after `renderFrame`'s own
+  internal call) rather than threading it out of `renderFrame` itself,
+  to stay inside this work package's file boundary
+  (`packages/render-core/src/textfx/**`, not `frame/render-frame.ts`); a
+  follow-up could return the active caption box from `renderFrame` directly
+  to remove the duplicate layout pass.
 - **D04a: Tier 0 owned audio-pack ingestion, licence predicate, SFX cue-detection/
   retrieval, and export/render ducking — against a synthetic fixture pack.**
   The commissioned Tier 0 pack (A00-07) does not exist yet, so this WP builds and

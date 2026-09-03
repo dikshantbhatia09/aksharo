@@ -17,7 +17,8 @@
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "bench": "tsx scripts/benchmark.ts",
     "parity": "tsx parity/run.ts",
-    "parity:audio": "tsx parity/run-audio-parity.ts"
+    "parity:audio": "tsx parity/run-audio-parity.ts",
+    "parity:titles": "tsx parity/run-textfx-parity.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1124.0",
@@ -37,6 +38,7 @@
     "@montaj/fonts": "workspace:*",
     "@montaj/render-canvaskit": "workspace:*",
     "@types/node": "^22.19.2",
+    "canvaskit-wasm": "0.42.0",
     "@vitest/coverage-v8": "^3.2.7",
     "eslint": "^9.39.5",
     "tsx": "^4.23.13",
