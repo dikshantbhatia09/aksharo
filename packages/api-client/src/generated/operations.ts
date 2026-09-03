@@ -1538,6 +1538,13 @@ export const API_OPERATIONS = [
     summary: "Proration preview for a plan/interval/seat change",
   },
   {
+    operationId: "previewShareLink",
+    method: "GET",
+    path: "/s/{token}/preview",
+    tags: ["share-public"],
+    summary: "Proxy URL + EDG projection for the CanvasKit preview",
+  },
+  {
     operationId: "quoteBatch",
     method: "POST",
     path: "/batch/quote",
