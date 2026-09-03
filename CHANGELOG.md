@@ -8,6 +8,49 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M11: pass follow-ups — auto beat-alignment for music beds, LLM sentiment
+  through the B11 seam, prompted-edit chain retry-from-partial-failure.**
+  - **Auto beat-alignment (D05 follow-up):** `apps/worker-ai/worker_ai/passes/
+music/beats.py` (new) mirrors `packages/timemap/src/beats.ts`'s
+    `alignCutBoundariesToBeats` on the Python side (same ±120 ms
+    `DEFAULT_BEAT_SNAP_TOLERANCE_MS`); `build_music_items` (`placement.py`)
+    snaps a bed's `start_ms` to the nearest beat of the section's `bpm_target`
+    whenever the resolved `loop_policy != "none"` (on by default,
+    `align_to_beat=True`), never landing inside a protected range — a
+    `loopPolicy: "none"` bed, or a snap that would violate tolerance or a
+    protected range, is left at its raw section boundary. New placement-level
+    tests (`tests/test_music_pass.py`) cover snapping, the `"none"`-policy
+    skip, the protected-range refusal and the `align_to_beat=False` opt-out.
+  - **LLM sentiment (D05 follow-up):** `packages/prompts` gains the
+    `music-mood@1` template (`templates/music-mood.ts`, registry entry,
+    per-fixture eval in `eval/music-mood.eval.test.ts` against a deterministic
+    mock scorer) and its Python mirror (`worker_ai/llm/templates.py`,
+    `schemas.py`, `providers/mock.py`). `worker_ai/passes/music/sentiment.py`
+    (new) scores transcript sentences through B11's LLM client seam
+    (`generate_insight`), falling back to the old lexicon scorer — ported
+    from `apps/api`'s now-removed `sentimentCuesOf` stub — on any provider
+    failure or region block; every `Section` (`analysis.py`) carries an
+    explicit `sentiment_source: "lexicon" | "llm"`. `apps/api/src/passes/
+passes.service.ts`'s `startMusic` now ships raw `sentences` (plus
+    `language`/`region`) instead of a precomputed score, matching CONTRACTS'
+    "all AI runs in apps/worker-ai" — the real Anthropic/OpenAI client path is
+    type-checked only (no `ANTHROPIC_API_KEY` on this machine); tests run
+    against the mock provider and the lexicon fallback.
+  - **Chain retry (D07 follow-up):** `POST /projects/{id}/prompted-edits/
+{planId}/retry` (`prompted-edits.controller.ts`, minimal addition —
+    `passes/prompted-chain.ts`'s `fail()` now keeps `currentJobId` and the
+    credit hold on a chain step's failure instead of releasing them, so a
+    retry has a job to identify the failed kind from and a hold to reuse) —
+    re-enqueues the failed pass kind with no new `CreditHold` (`skipCredits:
+true`, same as any other chain-internal step), keeps every completed kind
+    done and every kind still in `remainingKinds` ahead of it, audit-written
+    via `CommonAuditService` (`prompted_edit.plan.retried`). Dedup collision
+    with an in-flight manual pass of the same kind is handled by the existing
+    `JobsService.enqueue` job-key dedup (retry attaches to the live job
+    rather than starting a second one) — proven by a unit test in
+    `prompted-edits.service.test.ts`; the full fail -> retry -> complete path
+    is proven end to end in `apps/api/test/prompted-edits.e2e-spec.ts`.
+
 - **D07: prompted edits — planner, Flash/Pro engines, plan preview, chained
   passes, credits held on source minutes and settled on finished minutes.**
   - `packages/prompts`: `edit-plan@1` template (`{passes[], style?, script?,

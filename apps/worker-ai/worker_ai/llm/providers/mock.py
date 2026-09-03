@@ -55,6 +55,8 @@ class MockLlmProvider(LlmProvider):
             payload = self._hooks(transcript)
         elif kind == "keyphrases":
             payload = self._keyphrases(transcript)
+        elif kind == "music-mood":
+            payload = self._music_mood(transcript)
         else:
             raise ValueError(f"mock provider has no generator for kind={kind!r}")
         usage = LlmUsage(input_tokens=100, output_tokens=100)
@@ -104,6 +106,19 @@ class MockLlmProvider(LlmProvider):
                 hashtags.append(f"#{tag}" if tag else f"#tag{i}")
             result[platform] = {"hooks": hooks, "titles": titles, "hashtags": hashtags}
         return result
+
+    def _music_mood(self, transcript: TranscriptInput) -> dict[str, Any]:
+        """Mirrors ``packages/prompts/src/eval/music-mood-mock.ts``'s scorer
+        exactly (same word lists, same clamp): deterministic and grounded,
+        the same "everything it emits is lifted from the transcript" property
+        every other mock generator here has."""
+        from worker_ai.passes.music.sentiment import lexicon_score
+
+        scores = [
+            {"index": i, "sentiment": round(lexicon_score(segment.text), 3)}
+            for i, segment in enumerate(transcript.segments)
+        ]
+        return {"scores": scores}
 
     def _keyphrases(self, transcript: TranscriptInput) -> dict[str, Any]:
         """One phrase per segment (its first 1-6 words, verbatim), capped at

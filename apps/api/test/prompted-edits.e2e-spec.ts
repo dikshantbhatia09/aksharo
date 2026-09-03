@@ -397,3 +397,129 @@ describe.skipIf(!CAN_RUN)("prompted edits: plan -> run -> chained pass completio
       .expect(409);
   });
 });
+
+describe.skipIf(!CAN_RUN)(
+  "prompted edits: retry (D07 follow-up) — fail -> retry -> complete",
+  () => {
+    let retryPlanId: string;
+    let firstJobId: string;
+    let firstAttemptId: string;
+
+    it("plans and runs a second prompted edit, to fail its first (autocut) step", async () => {
+      const planResponse = await request(app.getHttpServer())
+        .post(`/projects/${PROJECT}/prompted-edits`)
+        .set("Authorization", `Bearer ${accessToken()}`)
+        .send({ prompt: "Cut the silences and add some background music", engine: "flash" })
+        .expect(201);
+      retryPlanId = planResponse.body.id as string;
+
+      const runResponse = await request(app.getHttpServer())
+        .post(`/projects/${PROJECT}/prompted-edits/${retryPlanId}/run`)
+        .set("Authorization", `Bearer ${accessToken()}`)
+        .expect(202);
+      expect(runResponse.body.firstPassKind).toBe("autocut");
+      firstJobId = runResponse.body.jobId as string;
+
+      const job = await prisma.job.findUniqueOrThrow({ where: { id: firstJobId } });
+      firstAttemptId = job.attemptId ?? "";
+    });
+
+    it("retry() on a plan that has not failed yet is rejected", async () => {
+      await request(app.getHttpServer())
+        .post(`/projects/${PROJECT}/prompted-edits/${retryPlanId}/retry`)
+        .set("Authorization", `Bearer ${accessToken()}`)
+        .expect(409);
+    });
+
+    it("the autocut pass fails, marking the plan failed but keeping its hold and currentJobId", async () => {
+      await callback(
+        `/internal/jobs/${firstJobId}/complete`,
+        { status: "failed" },
+        firstAttemptId,
+      ).expect(200);
+
+      const row = await prisma.promptedEditPlan.findUniqueOrThrow({ where: { id: retryPlanId } });
+      expect(row.status).toBe("failed");
+      expect(row.currentJobId).toBe(firstJobId);
+      expect(row.holdId).not.toBeNull();
+      expect(row.remainingKinds).toEqual(["music"]);
+
+      const failedJob = await prisma.job.findUniqueOrThrow({ where: { id: firstJobId } });
+      expect(failedJob.status).toBe("failed");
+    });
+
+    let retryJobId: string;
+    let retryAttemptId: string;
+
+    it("retry() re-enqueues autocut, no new hold, plan back to running", async () => {
+      const before = await prisma.promptedEditPlan.findUniqueOrThrow({
+        where: { id: retryPlanId },
+      });
+
+      const response = await request(app.getHttpServer())
+        .post(`/projects/${PROJECT}/prompted-edits/${retryPlanId}/retry`)
+        .set("Authorization", `Bearer ${accessToken()}`)
+        .expect(202);
+
+      expect(response.body.firstPassKind).toBe("autocut");
+      expect(response.body.status).toBe("running");
+      retryJobId = response.body.jobId as string;
+      expect(retryJobId).not.toBe(firstJobId);
+
+      const row = await prisma.promptedEditPlan.findUniqueOrThrow({ where: { id: retryPlanId } });
+      expect(row.status).toBe("running");
+      expect(row.currentJobId).toBe(retryJobId);
+      expect(row.remainingKinds).toEqual(["music"]);
+      // Same hold reused, not a new one.
+      expect(row.holdId).toBe(before.holdId);
+      expect(row.holdTenths).toBe(before.holdTenths);
+
+      const retryJob = await prisma.job.findUniqueOrThrow({ where: { id: retryJobId } });
+      // The retried job costs 0 on top of the plan's existing hold -- it is
+      // not the job the hold's own `creditHoldId` foreign key points at.
+      expect(retryJob.creditsChargedTenths).toBe(0);
+      retryAttemptId = retryJob.attemptId ?? "";
+    });
+
+    it("completing the retried autocut pass advances the chain to music, then completing music settles the plan", async () => {
+      await callback(
+        `/internal/jobs/${retryJobId}/complete`,
+        {
+          status: "succeeded",
+          result: { passId: "retry-autocut", passType: "autocut", preset: "standard", items: [] },
+        },
+        retryAttemptId,
+      ).expect(200);
+
+      const advanced = await prisma.promptedEditPlan.findUniqueOrThrow({
+        where: { id: retryPlanId },
+      });
+      expect(advanced.status).toBe("running");
+      expect(advanced.remainingKinds).toEqual([]);
+      const musicJobId = advanced.currentJobId;
+      expect(musicJobId).not.toBeNull();
+      expect(musicJobId).not.toBe(retryJobId);
+
+      const musicJob = await prisma.job.findUniqueOrThrow({ where: { id: musicJobId as string } });
+      await callback(
+        `/internal/jobs/${musicJobId}/complete`,
+        { status: "succeeded", result: { passId: "retry-music", passType: "music", items: [] } },
+        musicJob.attemptId ?? "",
+      ).expect(200);
+
+      const finished = await prisma.promptedEditPlan.findUniqueOrThrow({
+        where: { id: retryPlanId },
+      });
+      expect(finished.status).toBe("completed");
+      expect(finished.currentJobId).toBeNull();
+      expect(finished.settledTenths).not.toBeNull();
+    });
+
+    it("retry() on a completed plan is rejected", async () => {
+      await request(app.getHttpServer())
+        .post(`/projects/${PROJECT}/prompted-edits/${retryPlanId}/retry`)
+        .set("Authorization", `Bearer ${accessToken()}`)
+        .expect(409);
+    });
+  },
+);

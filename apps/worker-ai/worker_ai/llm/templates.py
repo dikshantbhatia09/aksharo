@@ -17,6 +17,7 @@ __all__ = [
     "CHAPTERS_TEMPLATE_VERSION",
     "HOOKS_TEMPLATE_VERSION",
     "KEYPHRASES_TEMPLATE_VERSION",
+    "MUSIC_MOOD_TEMPLATE_VERSION",
     "SUMMARY_TEMPLATE_VERSION",
     "TEMPLATE_VERSIONS",
     "TemplateMessages",
@@ -31,12 +32,16 @@ CHAPTERS_TEMPLATE_VERSION = "chapters@1"
 SUMMARY_TEMPLATE_VERSION = "summary@1"
 HOOKS_TEMPLATE_VERSION = "hooks@1"
 KEYPHRASES_TEMPLATE_VERSION = "keyphrases@1"
+#: Must match `packages/prompts/src/templates/music-mood.ts`'s
+#: `MUSIC_MOOD_TEMPLATE_VERSION` byte for byte (this module's own docstring).
+MUSIC_MOOD_TEMPLATE_VERSION = "music-mood@1"
 
 TEMPLATE_VERSIONS: dict[str, str] = {
     "chapters": CHAPTERS_TEMPLATE_VERSION,
     "summary": SUMMARY_TEMPLATE_VERSION,
     "hooks": HOOKS_TEMPLATE_VERSION,
     "keyphrases": KEYPHRASES_TEMPLATE_VERSION,
+    "music-mood": MUSIC_MOOD_TEMPLATE_VERSION,
 }
 
 #: `{maxTokens, temperature}` per kind, mirroring each TS template definition.
@@ -45,9 +50,10 @@ TEMPLATE_CONFIG: dict[str, dict[str, float]] = {
     "summary": {"maxTokens": 1536, "temperature": 0.4},
     "hooks": {"maxTokens": 2048, "temperature": 0.6},
     "keyphrases": {"maxTokens": 1024, "temperature": 0.2},
+    "music-mood": {"maxTokens": 1024, "temperature": 0.1},
 }
 
-InsightKind = Literal["chapters", "summary", "hooks", "keyphrases"]
+InsightKind = Literal["chapters", "summary", "hooks", "keyphrases", "music-mood"]
 
 _SUMMARY_MAX_CHARS = {"short": 240, "medium": 600, "long": 1_200}
 _HOOK_PLATFORMS = ("youtube", "instagram", "tiktok")
@@ -186,11 +192,29 @@ def _build_keyphrases(transcript: TranscriptInput) -> TemplateMessages:
     return TemplateMessages(system=system, user=_render_transcript_block(transcript))
 
 
+def _build_music_mood(transcript: TranscriptInput) -> TemplateMessages:
+    """Mirrors ``packages/prompts/src/templates/music-mood.ts``'s system prompt
+    byte for byte where it matters (the JSON shape and the sentiment range) —
+    D05's music pass replaces its lexicon stub with this template's output.
+    """
+    system = (
+        "You score the emotional sentiment of each sentence of a creator's video "
+        "transcript, for picking background music that matches the mood. "
+        + _GUARDRAIL_PREAMBLE
+        + ' Reply with strict JSON only: {"scores":[{"index":number,"sentiment":number}]}. '
+        "One entry per transcript line, in any order, `index` matching the line's "
+        "bracketed number. `sentiment` is a number from -1 (negative/sad/tense) to "
+        "1 (positive/upbeat/happy), 0 for neutral — never a word or label, only the number."
+    )
+    return TemplateMessages(system=system, user=_render_transcript_block(transcript))
+
+
 _BUILDERS = {
     "chapters": _build_chapters,
     "summary": _build_summary,
     "hooks": _build_hooks,
     "keyphrases": _build_keyphrases,
+    "music-mood": _build_music_mood,
 }
 
 

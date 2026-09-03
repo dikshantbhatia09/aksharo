@@ -536,20 +536,19 @@ export class PassesService {
    * `assetAllowed` here, rides in the job payload rather than the worker
    * querying Postgres itself, the same split `startSfx` uses.
    *
-   * `sentiment` rides from `sentimentCuesOf`, a small lexicon-based scorer
-   * standing in for B11's LLM client (mocked in every worker test — brief
-   * §2's own instruction) rather than a real prompted call: wiring an actual
-   * `ai.llm` round trip into pass *production* (as opposed to consumption of
-   * its own queue) was out of reach in this pass, and `worker_ai.passes.
-   * music.analysis.detect_sections` only ever reads a plain `(tMs, score)`
-   * list regardless of where it came from, so the seam is ready for B11 to
-   * replace this scorer outright. Flagged in the final report as a
-   * deviation, the same way `startSfx`'s empty `rmsSamples` is.
+   * `sentences` (raw transcript text + timing) rides instead of a
+   * precomputed sentiment score (D05 follow-up, brief §2): scoring now
+   * happens worker-side, through B11's LLM client seam
+   * (`worker_ai.passes.music.sentiment.score_sentiment`, `music-mood@1`,
+   * lexicon fallback on any LLM failure) — CONTRACTS' "all AI runs in
+   * apps/worker-ai" precisely rules out doing that scoring here in `apps/api`,
+   * which is what the old `sentimentCuesOf` lexicon stand-in did.
    */
   async startMusic(request: StartMusicRequest): Promise<StartMusicAccepted> {
     const project = await this.project(request.projectId, request.workspaceId);
     const media = await this.primaryMedia(project.id);
     const transcript = await this.transcriptOf(project.id);
+    const region = await this.regionOf(request.workspaceId);
 
     const cutRanges = await this.acceptedCutRangesOf(project.id, request.workspaceId);
     const removedMs = cutRanges.reduce((total, [s, e]) => total + Math.max(0, e - s), 0);
@@ -561,7 +560,6 @@ export class PassesService {
     const sentences = await this.segmentsForTextFx(transcript);
     const speechRanges = speechRangesFromWords(words, media.durationMs ?? 0);
     const cutTimesMs = cutRanges.flatMap(([s, e]) => [s, e]);
-    const sentiment = sentimentCuesOf(sentences);
     const storedProtected = await this.storedProtectedRangesOf(project.id, request.workspaceId);
     const guardedRanges = await this.guardedRangesOf(project.id, request.workspaceId);
     const catalogue = await this.musicCatalogueOf(request.workspaceId);
@@ -585,10 +583,12 @@ export class PassesService {
         passType: "music",
         durationMs: media.durationMs,
         mediaId: media.id,
+        language: transcript.language,
+        region,
         speechRanges,
         cutRanges,
         cutTimesMs,
-        sentiment,
+        sentences,
         protectedRanges: [...storedProtected, ...guardedRanges],
         catalogue,
       },
@@ -641,6 +641,19 @@ export class PassesService {
       );
     }
     return media;
+  }
+
+  /**
+   * The workspace's region, for `startMusic`'s worker-side `music-mood@1`
+   * call (D05 follow-up) to pin its LLM provider choice to — same lookup and
+   * fallback `InsightsService.regionOf` uses for `ai.llm`.
+   */
+  private async regionOf(workspaceId: string): Promise<string> {
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { region: true },
+    });
+    return workspace?.region ?? "in";
   }
 
   private async transcriptOf(projectId: string): Promise<Transcript> {
@@ -1009,57 +1022,4 @@ function speechRangesFromWords(
   }
   regions.push([start, Math.min(end, durationMs)]);
   return regions;
-}
-
-/**
- * D05: a tiny lexicon-based sentiment score per transcript sentence, standing
- * in for B11's LLM client (mocked in every worker test) — `startMusic`'s own
- * docstring explains why this is a deliberate, reported simplification
- * rather than a real prompted call. Deterministic, no network: counts a
- * fixed positive/negative word list against the sentence's own words,
- * clamped to `[-1, 1]`.
- */
-const POSITIVE_WORDS = new Set([
-  "great",
-  "amazing",
-  "love",
-  "awesome",
-  "happy",
-  "exciting",
-  "fun",
-  "best",
-  "win",
-  "yes",
-]);
-const NEGATIVE_WORDS = new Set([
-  "bad",
-  "sad",
-  "hate",
-  "terrible",
-  "worst",
-  "fail",
-  "no",
-  "angry",
-  "afraid",
-  "wrong",
-]);
-
-function sentimentScore(text: string): number {
-  const words = text.toLowerCase().match(/[a-z']+/g) ?? [];
-  if (words.length === 0) return 0;
-  let score = 0;
-  for (const word of words) {
-    if (POSITIVE_WORDS.has(word)) score += 1;
-    if (NEGATIVE_WORDS.has(word)) score -= 1;
-  }
-  return Math.max(-1, Math.min(1, score / Math.max(3, words.length)));
-}
-
-function sentimentCuesOf(
-  sentences: { startMs: number; endMs: number; text: string }[],
-): [number, number][] {
-  return sentences.map((sentence) => {
-    const midMs = Math.round((sentence.startMs + sentence.endMs) / 2);
-    return [midMs, sentimentScore(sentence.text)];
-  });
 }

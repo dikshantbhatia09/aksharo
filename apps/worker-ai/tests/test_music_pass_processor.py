@@ -79,7 +79,9 @@ def _payload(**overrides: Any) -> dict[str, Any]:
         "durationMs": 30_000,
         "speechRanges": [[0, 30_000]],
         "cutTimesMs": [1_000, 2_000, 3_000],
-        "sentiment": [[15_000, 0.4]],
+        "language": "en",
+        "region": "in",
+        "sentences": [{"startMs": 14_000, "endMs": 16_000, "text": "this is amazing and awesome"}],
         "protectedRanges": [],
         "catalogue": [
             _catalogue_entry("01JASSET0000000000000000B1", "calm", 92),
