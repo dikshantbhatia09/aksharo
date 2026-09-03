@@ -174,5 +174,5 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | D06b | Text FX draw path + parity | Sonnet | merged + verified (a3933fc; render-core 526, render 245, web 921) |
 | D04c | SFX pass wiring (edg kinds, route, worker, card, lane, manifest) | Sonnet | merged + verified (edg 306, api 161); mix pipeline -> D04d |
 | D04d | Audio mix pipeline (browser+cloud), signed pack URLs, energy cues | Sonnet | merged a0198ca + verified (signed URLs, preview, energy cues); mixer -> D04e |
-| M09 | Maintenance: signup-sent Playwright regression (Gate B blocker) | Sonnet | running |
+| M09 | Maintenance: signup-sent Playwright regression (Gate B blocker) | Sonnet | merged + verified (CSP connect-src blocked http API in e2e; WhatsNewModal auto-dismiss). Open: streak widget not on /billing; export/gate-a need media+render workers in the Gate B harness |
 | D04e | Cue audio mixing into exports, browser + cloud, envelope parity (mix only) | Sonnet | running |
