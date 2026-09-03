@@ -184,3 +184,4 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | M14 | Maintenance: realtime op self-echo raises bogus conflict dialog (gate-a) | Sonnet | merged + verified (web lib/edg green); gate-a coach-mark blocker -> M16 |
 | M16 | Maintenance: first-run coach marks intercept editor clicks (gate-a) | Sonnet | merged (callout pointer-events pass-through; fixture waits for Skip); gate-a e2e rerun pending on main |
 | M17 | Maintenance: e2e stack API image (no install at boot) + verify-wave --wave 7 green | Sonnet | running |
+| M18 | Maintenance: gate-a harness mode ruling + style-picker tile blocker; 3/3 green | Sonnet | running |
