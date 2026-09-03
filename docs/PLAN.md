@@ -145,7 +145,7 @@ C05b, C03a, C03b, C04, D04a, D05, D06, D09, X01. **Gate C** (human, real machine
 
 | ID | Package | Deps | Status |
 |---|---|---|---|
-| D07 | Prompted edits: edit-plan@1 planner, Flash/Pro engines, plan preview, hold on source / settle on finished minutes | D05, D06 | paused at wip 5360b73 (one-agent rule); resumes after D04e |
+| D07 | Prompted edits: edit-plan@1 planner, Flash/Pro engines, plan preview, hold on source / settle on finished minutes | D05, D06 | merged 7a442ac + verified (prompts 38 + eval 24/24, config 49, web 950, api 2456/2457, worker 827); audit-writer gap on prompted-edits controller -> M10 item 5 |
 | X03 | Docs site under /docs: guides, plugin guides, generated API reference, search | C10 | merged (docs site; docs.spec -> Gate B) |
 | X04 | Launch checklist: status page, backup/restore drill, on-call runbooks, legal pages (H-27), DPDP records generator, sub-processor list | B13, B16 | merged (status page, incidents, runbooks, restore drill; marketing-smoke -> Gate B) |
 | X08 | Cilium FQDN egress policies + inventory check + runbook (charts only, nothing applied) | X05 | done (merged + verified: 17-host inventory with drift check, off/audit/enforce modes, runbook; 22 infra tests) |
