@@ -176,7 +176,7 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | D04d | Audio mix pipeline (browser+cloud), signed pack URLs, energy cues | Sonnet | merged a0198ca + verified (signed URLs, preview, energy cues); mixer -> D04e |
 | M09 | Maintenance: signup-sent Playwright regression (Gate B blocker) | Sonnet | merged + verified (CSP connect-src blocked http API in e2e; WhatsNewModal auto-dismiss). Open: streak widget not on /billing; export/gate-a need media+render workers in the Gate B harness |
 | D04e | Cue audio mixing into exports, browser + cloud, envelope parity (mix only) | Sonnet | merged + verified (4 increments; parity 0.05 dB; asetnsamples duck fix) |
-| GATE-B | Gate B verification runs (see _orchestration/GATE-B-CHECKLIST.md) | Fable | run 4: 9/12 specs green; M10 owns timeline/streak/export/gate-a |
+| GATE-B | Gate B verification runs (see _orchestration/GATE-B-CHECKLIST.md) | Fable | run 5 in progress after M10; gate-a -> M14; fresh-clone verify-wave next |
 | M10 | Maintenance: Docker image build (packages/config tsc), Gate B run-4 defects (timeline drag, streak /billing, export, gate-a) | Sonnet | merged (Docker build fixed; streak/timeline/export green; gate-a reaches editor, realtime self-echo -> M14; audit writers on passes + prompted-edits) |
 | M11 | Maintenance: auto beat-alignment, LLM sentiment via B11 seam, prompted-edit chain retry | Sonnet | merged (beat-align, LLM mood via B11 seam, chain retry e2e) |
 | M12 | Maintenance: one markdown block parser for docs + help content | Sonnet | merged + verified (web 964; shared parser + property tests) || D04b2 | Partner catalogue wiring behind flag: HTTP, pass wiring, usage emission, render grant check, admin table, badge | Sonnet | running |
