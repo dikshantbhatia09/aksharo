@@ -291,6 +291,84 @@ describe("EditorStore", () => {
     expect(store.getSnapshot().serverRevision).toBe(2);
   });
 
+  it("a realtime echo of this session's own pending op is a safe no-op, not a conflict (M14)", async () => {
+    // The exact bug M10's gate-a repro found: right after this store submits
+    // an op, the server broadcasts it to every room member including the
+    // sender, and that broadcast typically beats the HTTP response back —
+    // `absorbRemoteOps` must recognize its own opId and not rebase the still-
+    // pending op against an "incoming" copy of itself.
+    const init = fixtureInit();
+    let resolveNetwork: ((response: OpBatchResponse) => void) | undefined;
+    const store = new EditorStore(init, {
+      applyBatch: () =>
+        new Promise((resolve) => {
+          resolveNetwork = resolve;
+        }),
+      resegment: () => Promise.reject(new Error("n/a")),
+      reloadDocument: () => Promise.reject(new Error("n/a")),
+      newId: () => "mine",
+      // Fire the debounce immediately (synchronously) so `flush()` — and so
+      // `applyBatch` — has actually started by the time this test inspects
+      // `pendingCount`, instead of waiting on a real 250ms timer.
+      setTimeoutFn: (handler) => {
+        handler();
+        return 0;
+      },
+      clearTimeoutFn: () => undefined,
+    });
+
+    const op: EdgOp = { type: "EditWord", opId: "mine", wordId: "0:0" as never, text: "hola" };
+    store.submitOp(op);
+    expect(store.getSnapshot().pendingCount).toBe(1);
+
+    // The echo of `op` — same opId — arrives over the socket before the HTTP
+    // response does.
+    store.absorbRemoteOps([op], 2);
+
+    expect(store.getSnapshot().conflicts).toHaveLength(0);
+    expect(store.getSnapshot().state.words.get("0:0" as never)?.t).toBe("hola");
+    // Still pending — only the real batch response resolves it.
+    expect(store.getSnapshot().pendingCount).toBe(1);
+
+    resolveNetwork?.({ revision: 2, applied: ["mine"], rebased: [], rejected: [] });
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(store.getSnapshot().conflicts).toHaveLength(0);
+    expect(store.getSnapshot().pendingCount).toBe(0);
+  });
+
+  it("a genuinely remote edit on the same word still raises the conflict chooser with different texts (M14)", async () => {
+    const init = fixtureInit();
+    const server = new FakeEdgServer(init);
+    const alice = new EditorStore(init, depsFor(server, { newId: () => "alice-op" }));
+    const bob = new EditorStore(init, depsFor(server, { newId: () => "bob-op" }));
+
+    alice.submitOp({ type: "EditWord", opId: "alice-op", wordId: "0:0" as never, text: "hola" });
+    await alice.flush();
+
+    bob.submitOp({ type: "EditWord", opId: "bob-op", wordId: "0:0" as never, text: "bonjour" });
+    // Bob's own realtime client also receives Alice's broadcasted op before
+    // his own batch resolves — a genuinely different opId, so it must still
+    // merge as a real remote edit.
+    bob.absorbRemoteOps(
+      [{ type: "EditWord", opId: "alice-op", wordId: "0:0" as never, text: "hola" }],
+      2,
+    );
+    await bob.flush();
+
+    const snapshot = bob.getSnapshot();
+    expect(snapshot.conflicts).toHaveLength(1);
+    expect(snapshot.conflicts[0]).toMatchObject({
+      target: "word",
+      targetId: "0:0",
+      yours: "bonjour",
+      theirs: "hola",
+    });
+    expect(snapshot.conflicts[0]!.yours).not.toBe(snapshot.conflicts[0]!.theirs);
+  });
+
   // ---------------------------------------------------------------------
   // Acceptance criterion 3: undo/redo round-trips N random ops back to the
   // initial projection.

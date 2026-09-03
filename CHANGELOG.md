@@ -8,6 +8,64 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M14: realtime op self-echo showed a bogus "someone else edited this
+  word" conflict right after the editor's own edit.** Root cause:
+  `EdgOpQueue.absorbRemoteOps` (`apps/web/lib/edg/queue.ts`) rebased every
+  incoming realtime `edg.ops` event against the queue's still-`pending` ops
+  with no notion of who produced it — including the client's own
+  just-submitted batch, echoed back over the socket to every room member
+  (sender included, by design; `apps/api/src/edg/edg.service.ts`'s "The
+  realtime echo" comment). That self-echo typically beats the batch's own
+  HTTP response back to the same client, so it was still `pending` when the
+  echo arrived, got rebased against itself, and `rebaseOps` reported a
+  same-word conflict whose `yours`/`theirs` were the identical text of the
+  one edit the user actually made (`gate-a.spec.ts`'s repro: the dialog pops
+  right after the first word edit and blocks the next click). `EdgOpsEvent`'s
+  `source` field (CONTRACTS §7, "so an editor can ignore its own echo") turns
+  out to be the wrong granularity for this — it names the write-path kind
+  (`web`/`desktop`/`worker`), not a per-session identity, so it cannot tell
+  one browser tab's echo from another's genuine edit. `opId`, already unique
+  per op and already carried on the wire, is the real origin tag.
+  - **Fix:** `EdgOpQueue` now tracks every `opId` this client has minted
+    (`submittedOpIds`) and `absorbRemoteOps` filters them out of an incoming
+    batch before rebasing — whether the echo arrives while the op is still
+    pending (the common race) or after it already landed (an out-of-order
+    echo, by which point it's simply gone from `pending` and the filter is a
+    no-op). `EditorStore`'s and `EdgOpQueue`'s own idempotency-by-`opId`
+    (already documented, `packages/edg/README.md` "Idempotency") were correct
+    all along — only the _queue_'s local rebase step was missing the same
+    check. As a second line of defense, `dropIdenticalConflicts` now filters
+    any conflict (server-reported or locally rebased) whose `yours` and
+    `theirs` text are identical before it reaches `onConflict` — nothing to
+    choose between, so it auto-resolves silently rather than surfacing a
+    dialog that would read as a bug even for a case this opId filter did not
+    anticipate. No API/schema change: the fix is entirely in
+    `apps/web/lib/edg/queue.ts`.
+  - **Tests:** `apps/web/lib/edg/queue.test.ts` — self-echo of a pending op
+    (no conflict, no rebase), an out-of-order echo of an already-confirmed op
+    (no-op), and identical-text auto-resolve, alongside the pre-existing
+    genuine-remote-conflict case (kept, still asserts `yours`/`theirs` differ).
+    `apps/web/lib/edg/store.test.ts` — the same self-echo scenario through
+    `EditorStore.absorbRemoteOps`, and a genuine two-session same-word
+    conflict still raising the chooser with different texts. Verified the
+    fix reverts the bug: with `queue.ts` stashed back to `main`, the new
+    self-echo test fails with `{yours: "mine", theirs: "mine"}` — the exact
+    bogus-identical-text conflict `gate-a.spec.ts` hit.
+  - **e2e:** `gate-a.spec.ts` (chromium): the word-edit step this bug used to
+    block (`chip.press("Enter")` through `editor-pending-count` reaching
+    `"0"`) now passes clean with no conflict dialog, confirmed over two full
+    runs against a freshly seeded `montaj_m14` database. The spec's full
+    run is separately blocked by two pre-existing, out-of-scope issues hit
+    while chasing it green end to end, both outside this WP's file
+    boundaries and unrelated to realtime ops: (1) `montaj_m14` had never been
+    seeded (`workspace/plans_missing`, fixed by running the worktree's own
+    `db:seed` — an environment gap, not a code defect) and (2) a
+    `data-coach-mark="style"` wrapper (`FirstRunCoachMarks`,
+    `components/editor/coach-marks/`) intercepts the style-picker click
+    later in the journey — `e2e/fixtures.ts`'s own
+    `installCoachMarkAutoDismiss` comment already documents this as a known
+    gap ("No spec dismisses it today"). Neither touches `apps/web/lib/edg/**`
+    or the realtime path this WP owns.
 - **M10: Gate B defects (Docker build, streak widget, timeline drag, audit
   completeness).**
   - Item 0 (blocking): `docker compose -f docker-compose.test.yml build render
