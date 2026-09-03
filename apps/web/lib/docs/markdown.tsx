@@ -55,12 +55,14 @@ function isTableRow(line: string): boolean {
 }
 
 function isTableSeparator(line: string): boolean {
+  // eslint-disable-next-line security/detect-unsafe-regex -- reviewed and timed against adversarial input (long runs of "|" and "-") -- linear, no nested unbounded quantifiers -- not exponential (see M06 report)
   return /^\|?(\s*:?-+:?\s*\|)+\s*:?-+:?\s*\|?$/.test(line.trim());
 }
 
 function toBlocks(markdown: string): Block[] {
   const blocks: Block[] = [];
   const lines = markdown.split("\n");
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a numeric index into this function's own array, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   const at = (index: number): string => lines[index] ?? "";
   let i = 0;
   while (i < lines.length) {

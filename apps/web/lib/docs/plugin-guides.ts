@@ -40,7 +40,9 @@ export function loadPluginGuides(): readonly PluginGuide[] {
     cache = PLUGIN_SOURCES.flatMap(({ slug, dir, title }) => {
       const sourcePath = path.join("plugins", dir, "README.md");
       const absolutePath = path.join(REPO_ROOT, sourcePath);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from the fixed PLUGIN_SOURCES list above, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       if (!fs.existsSync(absolutePath)) return [];
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from the fixed PLUGIN_SOURCES list above, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const raw = fs.readFileSync(absolutePath, "utf8");
       return [
         {

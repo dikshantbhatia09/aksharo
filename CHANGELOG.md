@@ -36,7 +36,14 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `packages/ui/.../job-progress.tsx`) where a `//` line comment is literal
   text, not a disable directive; caught by the follow-up lint run and fixed
   to `{/* eslint-disable-next-line ... */}` — a gap worth knowing about for
-  future JSX annotations.
+  future JSX annotations. After merging `main` (which had since pulled in
+  X03's docs site and X04's status/legal pages), `apps/web` — already at
+  `error` from C02c — picked up 7 new findings in `lib/docs/openapi.ts`,
+  `lib/docs/markdown.tsx`, `lib/docs/plugin-guides.ts` and
+  `app/(site)/(marketing)/docs/guides/page.tsx`; reviewed and annotated the
+  same way (a fixed-list bracket lookup, an `fs` call on a path built from a
+  hardcoded plugin list, and a linear markdown-table-separator regex, timed
+  clean against adversarial input).
 
 - **M05 — main hygiene: hermetic free-tier daily-cap workspace id in
   `noop-credits.facade.test.ts`.** Investigated a reported flake in
