@@ -8,17 +8,22 @@
  * the filesystem.
  */
 import { runChecks } from "./checks.js";
+import { runEditPlanChecks } from "./edit-plan-checks.js";
+import { EDIT_PLAN_FIXTURES } from "./edit-plan-fixtures.js";
+import { mockEditPlan } from "./edit-plan-mock.js";
 import { FIXTURES } from "./fixtures.js";
 import { mockGenerate } from "./mock-provider.js";
+import { EDIT_PLAN_TEMPLATE_VERSION } from "../templates/edit-plan.js";
 import { INSIGHT_KINDS, templateFor } from "../templates/registry.js";
 
 import type { CheckResult } from "./checks.js";
+import type { EditPlanFixture } from "./edit-plan-fixtures.js";
 import type { Fixture } from "./fixtures.js";
 import type { InsightKind } from "../templates/registry.js";
 
 export interface EvalCase {
   readonly fixtureId: string;
-  readonly kind: InsightKind;
+  readonly kind: InsightKind | "edit-plan";
   readonly templateVersion: string;
   readonly checks: readonly CheckResult[];
   readonly ok: boolean;
@@ -33,7 +38,10 @@ export interface EvalReport {
   readonly ok: boolean;
 }
 
-export function run(fixtures: readonly Fixture[] = FIXTURES): EvalReport {
+export function run(
+  fixtures: readonly Fixture[] = FIXTURES,
+  editPlanFixtures: readonly EditPlanFixture[] = EDIT_PLAN_FIXTURES,
+): EvalReport {
   const cases: EvalCase[] = [];
   for (const fixture of fixtures) {
     for (const kind of INSIGHT_KINDS) {
@@ -45,6 +53,18 @@ export function run(fixtures: readonly Fixture[] = FIXTURES): EvalReport {
       const ok = checks.every((c) => c.ok);
       cases.push({ fixtureId: fixture.id, kind, templateVersion: template.version, checks, ok });
     }
+  }
+  for (const fixture of editPlanFixtures) {
+    const output = mockEditPlan(fixture.input);
+    const checks = runEditPlanChecks(fixture.input, output);
+    const ok = checks.every((c) => c.ok);
+    cases.push({
+      fixtureId: `plan:${fixture.id}`,
+      kind: "edit-plan",
+      templateVersion: EDIT_PLAN_TEMPLATE_VERSION,
+      checks,
+      ok,
+    });
   }
   const failedCases = cases.filter((c) => !c.ok).length;
   return {

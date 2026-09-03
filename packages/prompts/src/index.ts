@@ -64,6 +64,31 @@ export { FIXTURES } from "./eval/fixtures.js";
 export type { Fixture } from "./eval/fixtures.js";
 export { mockGenerate } from "./eval/mock-provider.js";
 
+export { EDIT_PLAN_FIXTURES } from "./eval/edit-plan-fixtures.js";
+export type { EditPlanFixture } from "./eval/edit-plan-fixtures.js";
+export { mockEditPlan } from "./eval/edit-plan-mock.js";
+export { runEditPlanChecks } from "./eval/edit-plan-checks.js";
+
+export {
+  editPlanTemplate,
+  validateEditPlan,
+  EDIT_PLAN_TEMPLATE_VERSION,
+  EDIT_PLAN_PASS_KINDS,
+  EDIT_PLAN_PARAM_SCHEMAS,
+  ENGINE_TIERS,
+  PLAN_TIERS,
+  MAX_PASSES_BY_TIER,
+  PRO_ENGINE_TIERS,
+} from "./templates/edit-plan.js";
+export type {
+  EditPlanInput,
+  EditPlanOutput,
+  EditPlanPassKind,
+  EditPlanEngineTier,
+  EditPlanPlanTier,
+  EditPlanViolation,
+} from "./templates/edit-plan.js";
+
 /** Build-time identity of this package, used by diagnostics bundles and the admin console. */
 export interface PackageInfo {
   readonly name: `@montaj/${string}`;
