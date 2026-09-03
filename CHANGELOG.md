@@ -8,6 +8,25 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M08: mounted C11's `PluginActivationCue` in the Passes tab.** C11 shipped
+  the cue (`apps/web/components/editor/passes/PluginActivationCue.tsx`) but
+  it was never wired into `PassesTab`. This WP adds a `PluginActivationCues`
+  row (rendered next to the run-autocut toolbar, i.e. the apply-to-NLE
+  affordance) that reuses `useDevices`/`useEntitlement` and
+  `components/plugins/plugin-status.ts` — the same activation-state
+  derivation the Plugins page and the cue itself already use — to decide,
+  per Premiere/Resolve host, whether the cue is worth showing: hidden while
+  loading/erroring, hidden entirely once every host is `signed_in`, hidden
+  when the workspace has paired no plugin device at all (nothing to nudge
+  yet), and hidden for a local project (C04b — passes/plugins need the
+  cloud). Otherwise shows one cue per host still short of `signed_in`. No
+  changes to `PluginActivationCue.tsx` itself — its own shown-in-every-state
+  behaviour (used by the Plugins page later) stays intact. Tests added to
+  `PassesTab.test.tsx` cover the matrix: both hosts activated (hidden), one
+  host pending while another device is paired (shown, "Not installed" /
+  "Device limit reached"), no device paired at all (hidden), and local mode
+  (hidden).
+
 - **M06: `eslint-plugin-security` promoted to `error` repo-wide.** C02c drove
   `apps/api`, `apps/web`, `packages/bridge-core` and `apps/desktop` to zero
   findings; this WP reviewed every remaining finding across the other 21
