@@ -41,6 +41,7 @@ export type CreditOperation =
   | "autocutPass"
   | "reframeZoomPass"
   | "sfxMusicPass"
+  | "textFxPass"
   | "promptedEdit"
   | "insightsChapters"
   | "insightsSummary"
@@ -119,6 +120,16 @@ export const BURN_RATES = {
     ratePerUnitTenths: 10,
     minimumPlan: "studio",
     note: "Library entitlement is carried at plan level, not per credit.",
+  },
+  textFxPass: {
+    operation: "textFxPass",
+    basis: "finishedMinute",
+    ratePerUnitTenths: 10,
+    minimumPlan: "creator",
+    note:
+      "Key-phrase title extraction (D06 §6). Billed per finished minute (D07 " +
+      "principle: passes that read the post-cut timeline settle on it), one " +
+      "LLM call regardless of phrase count.",
   },
   promptedEdit: {
     operation: "promptedEdit",

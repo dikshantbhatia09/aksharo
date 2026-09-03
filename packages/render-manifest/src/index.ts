@@ -67,6 +67,8 @@ export {
   SubtitleScriptSchema,
   type KeyframeTrack,
   KeyframeTrackSchema,
+  type TitleTrack,
+  TitleTrackSchema,
   type TimemapEdit,
   TimemapEditSchema,
   type UnsignedRenderManifest,

@@ -725,3 +725,109 @@ describe.skipIf(!CAN_RUN)(
     });
   },
 );
+
+describe.skipIf(!CAN_RUN)("textfx pass: producer → worker completion → MergePass (D06)", () => {
+  let textFxJobId: string;
+  let textFxAttemptId: string;
+  let textFxPassId: string;
+
+  it("quotes and enqueues a text-fx pass, on the finished (no cuts yet) timeline", async () => {
+    const response = await request(app.getHttpServer())
+      .post(`/projects/${PROJECT}/passes/textfx`)
+      .set("Authorization", `Bearer ${accessToken()}`)
+      .expect(202);
+
+    expect(response.body).toMatchObject({
+      status: "queued",
+      deduplicated: false,
+      // 90s, no accepted cuts yet: 1.5 finished minutes at 1 credit/min.
+      quote: { tenths: 15, credits: "1.5", durationMs: DURATION_MS },
+    });
+    expect(response.body.passId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+
+    textFxJobId = response.body.jobId as string;
+    textFxPassId = response.body.passId as string;
+
+    const job = await prisma.job.findUniqueOrThrow({ where: { id: textFxJobId } });
+    expect(job.type).toBe("ai.pass");
+    const params = job.params as Record<string, unknown>;
+    expect(params["passType"]).toBe("textfx");
+    expect(Array.isArray(params["segments"])).toBe(true);
+    textFxAttemptId = job.attemptId ?? "";
+  });
+
+  it("accepts a fake worker completion and merges the proposed title item", async () => {
+    const body = {
+      status: "succeeded",
+      result: {
+        passId: textFxPassId,
+        passType: "textfx",
+        items: [
+          {
+            text: "welcome back",
+            intent: "title",
+            startMs: 0,
+            endMs: 1200,
+            anchorWordIds: ["0:0", "0:1"],
+            motionPreset: "pop",
+            confidence: 0.7,
+            reason: "keyphrase",
+          },
+        ],
+      },
+      usage: { mediaSeconds: DURATION_MS / 1_000 },
+    };
+
+    const response = await callback(
+      `/internal/jobs/${textFxJobId}/complete`,
+      body,
+      textFxAttemptId,
+    ).expect(200);
+    expect(response.body).toMatchObject({ applied: true, status: "succeeded" });
+  });
+
+  it("lists the merged textfx pass and its title item through GET /projects/{id}/passes", async () => {
+    const response = await request(app.getHttpServer())
+      .get(`/projects/${PROJECT}/passes`)
+      .set("Authorization", `Bearer ${accessToken("viewer")}`)
+      .expect(200);
+
+    const passes = response.body.passes as Record<string, unknown>[];
+    const landed = passes.find((pass) => pass["passId"] === textFxPassId);
+    expect(landed).toBeDefined();
+    expect(landed).toMatchObject({ type: "textfx", status: "ready" });
+
+    const items = landed?.["items"] as Record<string, unknown>[];
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ kind: "title", state: "proposed" });
+    const payload = items[0]?.["payload"] as Record<string, unknown>;
+    expect(payload["text"]).toBe("welcome back");
+    expect(payload["intent"]).toBe("title");
+    expect(payload["motionPreset"]).toBe("pop");
+    expect(payload["anchorWordIds"]).toEqual(["0:0", "0:1"]);
+    expect(payload["position"]).toBeDefined();
+  });
+
+  it("refuses to start textfx for a project with no transcript", async () => {
+    const noTranscript = id("PRNT");
+    await prisma.project.create({
+      data: { id: noTranscript, workspaceId: WORKSPACE, title: "no transcript", aspect: "r9x16" },
+    });
+    await prisma.mediaAsset.create({
+      data: {
+        id: id("MDNT"),
+        projectId: noTranscript,
+        role: "primary",
+        storageKey: `ws/${WORKSPACE}/p/${noTranscript}/media/raw.mp4`,
+        durationMs: DURATION_MS,
+        status: "ready",
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .post(`/projects/${noTranscript}/passes/textfx`)
+      .set("Authorization", `Bearer ${accessToken()}`)
+      .expect(409);
+    expect(response.body.error.code).toBe("pass/transcript_not_ready");
+  });
+});

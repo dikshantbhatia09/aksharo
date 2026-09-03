@@ -28,6 +28,17 @@ from worker_ai.passes.scenes import (
     frame_stat_from_hsv,
     scene_ranges,
 )
+from worker_ai.passes.text_fx import (
+    MAX_PER_WINDOW,
+    MIN_GAP_MS,
+    RATE_LIMIT_WINDOW_MS,
+    TextFxEvent,
+    build_text_fx_events,
+    classify_intent,
+)
+from worker_ai.passes.text_fx import (
+    Word as TextFxWord,
+)
 from worker_ai.passes.tracking import (
     BrightBlobDetector,
     Detection,
@@ -52,6 +63,9 @@ from worker_ai.passes.zoom import (
 )
 
 __all__ = [
+    "MAX_PER_WINDOW",
+    "MIN_GAP_MS",
+    "RATE_LIMIT_WINDOW_MS",
     "ZOOM_PRESETS",
     "AutocutInput",
     "AutocutResult",
@@ -72,13 +86,17 @@ __all__ = [
     "SceneBoundary",
     "SpeechRegion",
     "SubjectPoint",
+    "TextFxEvent",
+    "TextFxWord",
     "Word",
     "ZoomEvent",
     "ZoomKeyframeRow",
     "ZoomPreset",
     "build_reframe_track",
+    "build_text_fx_events",
     "build_zoom_events",
     "clamp_crop_window",
+    "classify_intent",
     "detect_energy_cues",
     "detect_scenes",
     "detect_sentence_start_cues",

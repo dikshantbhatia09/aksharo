@@ -84,6 +84,23 @@ export function ProposalCard({
         </span>
       </div>
 
+      {item.kind === "title" ? (
+        <p
+          data-testid="proposal-card-title-text"
+          style={{ margin: 0, fontSize: 15, fontWeight: 600 }}
+        >
+          “{item.payload.text}”
+          {item.payload.motionPreset !== undefined ? (
+            <span
+              data-testid="proposal-card-title-preset"
+              style={{ marginLeft: 8, fontSize: 12, fontWeight: 400, opacity: 0.7 }}
+            >
+              {item.payload.motionPreset}
+            </span>
+          ) : null}
+        </p>
+      ) : null}
+
       {item.reason !== undefined ? (
         <p data-testid="proposal-card-reason" style={{ margin: 0, fontSize: 13, opacity: 0.85 }}>
           {item.reason}

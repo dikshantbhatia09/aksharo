@@ -53,6 +53,8 @@ class MockLlmProvider(LlmProvider):
             payload = self._summary(transcript)
         elif kind == "hooks":
             payload = self._hooks(transcript)
+        elif kind == "keyphrases":
+            payload = self._keyphrases(transcript)
         else:
             raise ValueError(f"mock provider has no generator for kind={kind!r}")
         usage = LlmUsage(input_tokens=100, output_tokens=100)
@@ -102,3 +104,23 @@ class MockLlmProvider(LlmProvider):
                 hashtags.append(f"#{tag}" if tag else f"#tag{i}")
             result[platform] = {"hooks": hooks, "titles": titles, "hashtags": hashtags}
         return result
+
+    def _keyphrases(self, transcript: TranscriptInput) -> dict[str, Any]:
+        """One phrase per segment (its first 1-6 words, verbatim), capped at
+        ``transcript.max_phrases`` — deterministic and grounded, same
+        no-invention property as every other mock generator here. The D06
+        pass module applies the real rate limits (<=1 per 20s, <=12 per
+        10 min) and word-timing snap on top of whatever this returns.
+        """
+        keyphrases: list[dict[str, Any]] = []
+        for segment in transcript.segments:
+            if len(keyphrases) >= transcript.max_phrases:
+                break
+            words = segment.text.split()
+            if not words:
+                continue
+            phrase = _clip(" ".join(words[: min(6, len(words))]), 80)
+            keyphrases.append(
+                {"phrase": phrase, "startMs": segment.start_ms, "endMs": segment.end_ms}
+            )
+        return {"keyphrases": keyphrases}

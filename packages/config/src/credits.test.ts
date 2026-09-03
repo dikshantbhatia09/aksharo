@@ -65,6 +65,11 @@ describe("creditCostTenths", () => {
     );
   });
 
+  it("charges 1 credit per finished minute for the text-fx pass", () => {
+    expect(creditCostTenths({ operation: "textFxPass", durationMs: MINUTE })).toBe(10);
+    expect(creditCostTenths({ operation: "textFxPass", durationMs: 3 * MINUTE })).toBe(30);
+  });
+
   it("charges a flat rate for job-basis operations", () => {
     expect(creditCostTenths({ operation: "insightsChapters" })).toBe(20);
     expect(creditCostTenths({ operation: "insightsChapters", durationMs: 99 * MINUTE })).toBe(20);
@@ -102,7 +107,7 @@ describe("worstCaseHoldTenths", () => {
 
 describe("BURN_RATES", () => {
   it("covers every operation exactly once", () => {
-    expect(CREDIT_OPERATIONS).toHaveLength(11);
+    expect(CREDIT_OPERATIONS).toHaveLength(12);
     for (const operation of CREDIT_OPERATIONS) {
       // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       expect(BURN_RATES[operation].operation).toBe(operation);
