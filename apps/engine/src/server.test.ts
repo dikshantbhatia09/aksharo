@@ -154,6 +154,19 @@ describe("engine server (contract tests against FakeBackend)", () => {
     expect(body.frameCount).toBe(2);
   });
 
+  it("POST /probe returns duration/fps/dimensions/audio layout from FakeBackend", async () => {
+    const response = await fetch(`${base}/probe`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${BEARER}`, "content-type": "application/json" },
+      body: JSON.stringify({ path: "/tmp/clip.mp4" }),
+    });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { fps: number; width: number; height: number };
+    expect(body.fps).toBe(30);
+    expect(body.width).toBe(1080);
+    expect(body.height).toBe(1920);
+  });
+
   it("POST /models/download for an unknown model id returns a structured 400, not a crash", async () => {
     const response = await fetch(`${base}/models/download`, {
       method: "POST",

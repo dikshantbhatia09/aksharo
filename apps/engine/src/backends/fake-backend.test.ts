@@ -79,6 +79,26 @@ describe("FakeBackend", () => {
     await fs.rm(dir, { recursive: true, force: true });
   });
 
+  it("probe returns non-null duration/fps/dimensions/audio layout for a matching fixture", async () => {
+    const backend = new FakeBackend();
+    const result = await backend.probe({ path: "file:///tmp/hinglish-sample.mp4" });
+    expect(result.durationMs).toBeGreaterThan(0);
+    expect(result.fps).toBe(30);
+    expect(result.width).toBe(1080);
+    expect(result.height).toBe(1920);
+    expect(result.audioChannels).toBe(2);
+    expect(result.audioSampleRateHz).toBe(48_000);
+    expect(result.hdr).toBe(false);
+    expect(result.backend).toBe("fake");
+  });
+
+  it("probe is deterministic across calls for the same path", async () => {
+    const backend = new FakeBackend();
+    const a = await backend.probe({ path: "hinglish-sample" });
+    const b = await backend.probe({ path: "hinglish-sample" });
+    expect(a.durationMs).toBe(b.durationMs);
+  });
+
   it("engineVersions reports a version string for every subsystem", () => {
     const backend = new FakeBackend();
     const versions = backend.engineVersions();

@@ -36,6 +36,8 @@ import { useExportDialog } from "./use-export-dialog";
 import { VideoTab, type VideoTabValue } from "./VideoTab";
 import { WatermarkNotice } from "./WatermarkNotice";
 
+import { LocalModeNotice } from "../local-mode-gate";
+
 import { isBrowserExportEligible } from "@/lib/export";
 
 export interface ExportDialogProps {
@@ -46,6 +48,17 @@ export interface ExportDialogProps {
   readonly catalogue: ReadonlyMap<string, StyleDoc>;
   readonly registry: FontRegistry | undefined;
   readonly shaper: Shaper | undefined;
+  /**
+   * Brief C04b §3: a local project cannot fall back to the cloud renderer
+   * (C04 "no uploads of any kind") — when this export needs the cloud path
+   * (`state.phase === "cloud-offered"`), the dialog shows the "upload to
+   * cloud" affordance instead of the normal cloud offer, so exporting a
+   * clip too big/slow for this browser has an honest next step rather than
+   * a silent upload. Undefined/`false` behaves exactly as before this WP.
+   */
+  readonly isLocalProject?: boolean;
+  readonly onUploadToCloud?: () => void;
+  readonly uploadingToCloud?: boolean;
 }
 
 const DEFAULT_VIDEO: VideoTabValue = { preset: "reels", script: "roman", dropFillers: false };
@@ -197,7 +210,17 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
           </div>
         ) : null}
 
-        {state.phase === "cloud-offered" ? (
+        {state.phase === "cloud-offered" && props.isLocalProject === true ? (
+          <div className="mt-4" data-testid="export-cloud-offer-gated">
+            <LocalModeNotice
+              feature="cloud rendering"
+              {...(props.onUploadToCloud === undefined ? {} : { onUploadToCloud: props.onUploadToCloud })}
+              uploading={props.uploadingToCloud ?? false}
+            />
+          </div>
+        ) : null}
+
+        {state.phase === "cloud-offered" && props.isLocalProject !== true ? (
           <div
             className="mt-4 flex items-start gap-2 rounded-md bg-amber-400/10 p-3 text-xs text-amber-200"
             data-testid="export-cloud-offer"
@@ -251,7 +274,11 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
           ) : (
             <Button
               onClick={tab === "video" ? onExportVideo : onExportSubtitles}
-              disabled={busy || tab === "to-editor"}
+              disabled={
+                busy ||
+                tab === "to-editor" ||
+                (props.isLocalProject === true && state.phase === "cloud-offered")
+              }
               data-testid="export-start"
             >
               {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}

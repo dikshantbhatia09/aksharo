@@ -64,6 +64,24 @@ describe("<AudioPanel />", () => {
     expect(screen.queryByTestId("audio-tier-deep-copy")).not.toBeInTheDocument();
   });
 
+  it("brief C04b §3: greys 'Clean audio' and shows the upload-to-cloud notice for a local project", () => {
+    useAudioCleanMock.mockReturnValue(baseResult());
+    const onUploadToCloud = vi.fn();
+    render(
+      <AudioPanel
+        projectId="p1"
+        onSetAudio={vi.fn()}
+        isLocalProject
+        onUploadToCloud={onUploadToCloud}
+      />,
+    );
+
+    expect(screen.getByTestId("local-mode-notice")).toHaveTextContent(
+      "upload to cloud to use audio clean",
+    );
+    expect(screen.getByRole("button", { name: /clean audio/i })).toBeDisabled();
+  });
+
   it("emits a SetAudio op with the clean's cleanId when 'Apply to export' is switched on", async () => {
     const user = userEvent.setup();
     useAudioCleanMock.mockReturnValue(baseResult({ cleans: [succeeded] }));

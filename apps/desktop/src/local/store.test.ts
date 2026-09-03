@@ -4,8 +4,13 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { EdgHot, Segment } from "@montaj/edg/schemas";
-import type { EngineClient, RenderResponse, TranscribeResponse } from "@montaj/engine-client";
+import type { EdgHot, Segment, TranscriptChunk } from "@montaj/edg/schemas";
+import type {
+  EngineClient,
+  ProbeResponse,
+  RenderResponse,
+  TranscribeResponse,
+} from "@montaj/engine-client";
 
 import { openLocalDb, type LocalDb } from "./db.js";
 import { EngineUnavailableError, LocalProjectNotFoundError, LocalStore } from "./store.js";
@@ -41,6 +46,21 @@ function fakeEngine(overrides: Partial<EngineClient> = {}): EngineClient {
           backend: "fake",
         }) satisfies RenderResponse,
     ),
+    probe: vi.fn(
+      async () =>
+        ({
+          durationMs: 12_000,
+          fps: 30,
+          width: 1080,
+          height: 1920,
+          audioChannels: 2,
+          audioSampleRateHz: 48_000,
+          hdr: false,
+          requestId: "req-3",
+          engineVersions: {},
+          backend: "fake",
+        }) satisfies ProbeResponse,
+    ),
     health: vi.fn(),
     models: vi.fn(),
     downloadModel: vi.fn(),
@@ -74,6 +94,15 @@ function sampleDoc(projectId: string): { hot: EdgHot; segments: Segment[] } {
         endMs: 400,
       } as Segment,
     ],
+  };
+}
+
+function sampleChunk(): TranscriptChunk {
+  return {
+    chunkIdx: 0,
+    startMs: 0,
+    endMs: 400,
+    words: [{ wid: "0:0", s: 0, e: 400, t: "Namaste" }],
   };
 }
 
@@ -208,5 +237,87 @@ describe("LocalStore", () => {
     expect(store.listMedia(project.id)).toHaveLength(0);
     expect(store.latestSnapshot(project.id)).toBeNull();
     await expect(rm(media.filePath, { force: false })).rejects.toThrow(); // the file is gone
+  });
+
+  it("probes an imported media file via the engine and stores duration/fps/dimensions", async () => {
+    const engine = fakeEngine();
+    const store = new LocalStore({ db, mediaDir, engine });
+    const project = await store.createProject({ title: "Probed", aspect: "9:16" });
+
+    const media = await store.importMedia({
+      projectId: project.id,
+      sourcePath: sourceFile,
+      role: "primary",
+    });
+
+    expect(engine.probe).toHaveBeenCalledWith({ path: media.filePath });
+    expect(media.durationMs).toBe(12_000);
+    expect(media.fps).toBe(30);
+    expect(media.width).toBe(1080);
+    expect(media.height).toBe(1920);
+  });
+
+  it("leaves probe fields null (not throwing) when the engine is unavailable", async () => {
+    const store = new LocalStore({ db, mediaDir, engine: null });
+    const project = await store.createProject({ title: "No engine", aspect: "9:16" });
+    const media = await store.importMedia({
+      projectId: project.id,
+      sourcePath: sourceFile,
+      role: "primary",
+    });
+    expect(media.durationMs).toBeNull();
+    expect(media.fps).toBeNull();
+  });
+
+  it("leaves probe fields null when the caller already supplies them, without re-probing", async () => {
+    const engine = fakeEngine();
+    const store = new LocalStore({ db, mediaDir, engine });
+    const project = await store.createProject({ title: "Explicit probe", aspect: "9:16" });
+    const media = await store.importMedia({
+      projectId: project.id,
+      sourcePath: sourceFile,
+      role: "primary",
+      probe: { durationMs: 5000, fps: 24, width: 640, height: 360 },
+    });
+    expect(engine.probe).not.toHaveBeenCalled();
+    expect(media.durationMs).toBe(5000);
+    expect(media.fps).toBe(24);
+  });
+
+  it("round-trips transcript chunks through save/latest snapshot", async () => {
+    const store = new LocalStore({ db, mediaDir, engine: fakeEngine() });
+    const project = await store.createProject({ title: "Chunks", aspect: "9:16" });
+    const { hot, segments } = sampleDoc(project.id);
+    const chunk = sampleChunk();
+
+    const saved = await store.saveEdgSnapshot({ projectId: project.id, hot, segments, chunks: [chunk] });
+    expect(saved.chunks).toEqual([chunk]);
+    expect(store.latestSnapshot(project.id)?.chunks).toEqual([chunk]);
+    expect(store.transcriptChunks(project.id)).toEqual([chunk]);
+
+    // A word edit patches the chunk's row in place rather than duplicating it.
+    const edited: TranscriptChunk = {
+      ...chunk,
+      words: [{ ...chunk.words[0]!, t: "Bhai" }],
+    };
+    const second = await store.saveEdgSnapshot({
+      projectId: project.id,
+      hot,
+      segments,
+      chunks: [edited],
+    });
+    expect(second.chunks).toEqual([edited]);
+    expect(store.transcriptChunks(project.id)).toHaveLength(1);
+  });
+
+  it("leaves existing chunks untouched when a save omits them (a pure segment-level edit)", async () => {
+    const store = new LocalStore({ db, mediaDir, engine: fakeEngine() });
+    const project = await store.createProject({ title: "Chunks", aspect: "9:16" });
+    const { hot, segments } = sampleDoc(project.id);
+    const chunk = sampleChunk();
+
+    await store.saveEdgSnapshot({ projectId: project.id, hot, segments, chunks: [chunk] });
+    const second = await store.saveEdgSnapshot({ projectId: project.id, hot, segments });
+    expect(second.chunks).toEqual([chunk]);
   });
 });

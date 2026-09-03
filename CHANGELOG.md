@@ -8,6 +8,32 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- C04b: local mode follow-ups — transcript chunks in the local store, engine `/probe`,
+  editor gating copy, local resegment.
+  - `apps/desktop/src/local`: a fifth SQLite table, `local_transcript_chunks` (one row per
+    `chunkIdx`, kept current), so `LocalStore.saveEdgSnapshot`/`latestSnapshot` carry
+    transcript chunks; `apps/web/lib/edg/store.ts`'s local `EditorStore` branch now runs
+    the full EDG op set — `EditWord`/`DeleteWord`/`SetWordTiming`/`InsertWordAfter` resolve
+    against a real word index instead of rejecting `unknown-id`, and `Resegment` runs
+    locally (mints its own op, applies through the same `packages/edg` engine the cloud
+    path uses) instead of throwing `LocalResegmentUnsupportedError` unconditionally.
+  - `apps/engine`: `POST /probe` (duration, fps, width, height, audio channels/sample rate,
+    an HDR flag) — `FakeBackend.probe` returns deterministic fixture values;
+    `packages/engine-client` gained the typed `probe()` method and schemas; a standalone
+    `apps/engine/src/probe.ts` shells the manifest's ffprobe (sibling of `bin/ffmpeg`) for a
+    future real backend to call unchanged. `LocalStore.importMedia` now probes an imported
+    file via the engine when the caller does not already supply duration/fps/width/height.
+  - `POST /projects/{id}/edg/import` accepts an optional `chunks` array; when given,
+    `EdgRepository.createDocument` writes a fresh `Transcript` + `TranscriptChunk`
+    generation alongside the document, so "Upload to cloud" keeps every word-addressed
+    edit intact.
+  - `apps/web/components/editor/local-mode-gate.tsx`: the shared "cloud project — upload
+    to use" affordance (`LocalModeNotice`) and `uploadLocalProjectToCloud`; wired into
+    `PassesTab` (autocut), `AudioPanel` (audio clean) and `ExportDialog`'s cloud-render
+    fallback via an optional `isLocalProject` prop — a cloud project caller sees no change.
+  - `apps/desktop/README.md`: manual Electron smoke steps updated for word edits, resegment
+    and upload-to-cloud (Electron cannot launch in this sandbox).
+
 - C10: installers, plugins page and the real `/plugins/manifest`.
   - `GET /plugins/manifest` extends the C11 stub into a real channel manifest: fetches
     `tools/release`'s published `plugins-manifest.json` (5-minute Redis cache), reporting

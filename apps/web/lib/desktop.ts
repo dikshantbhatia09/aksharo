@@ -68,6 +68,12 @@ export interface DesktopLocalEdgSnapshot {
   readonly revision: number;
   readonly hot: unknown;
   readonly segments: unknown[];
+  /**
+   * Transcript chunks as of now (brief C04b §1), left `unknown[]` for the
+   * same reason `hot`/`segments` are — `apps/web/lib/edg/store.ts`'s local
+   * branch is the one place that casts them back to `TranscriptChunk[]`.
+   */
+  readonly chunks: unknown[];
   readonly createdAt: string;
 }
 
@@ -99,6 +105,8 @@ export interface AksharoDesktopLocalApi {
     projectId: string;
     hot: unknown;
     segments: unknown[];
+    /** Word-addressed ops changed the transcript; omitted for a pure segment-level edit. */
+    chunks?: unknown[];
   }): Promise<DesktopLocalEdgSnapshot>;
   latestSnapshot(projectId: string): Promise<DesktopLocalEdgSnapshot | null>;
   runExport(input: {

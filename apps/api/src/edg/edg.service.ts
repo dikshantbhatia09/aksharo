@@ -499,6 +499,8 @@ export class EdgService {
     workspaceId: string;
     hot: EdgHot;
     segments: readonly Segment[];
+    /** Brief C04b §1: the local project's transcript, so word-addressed ops resolve after upload. */
+    chunks?: readonly TranscriptChunk[];
     author?: string | null;
     source?: EdgSource;
   }): Promise<{ edgId: string; revision: number; segments: number }> {
@@ -528,6 +530,7 @@ export class EdgService {
       projectId: input.projectId,
       hot,
       segments: input.segments,
+      ...(input.chunks === undefined ? {} : { chunks: input.chunks }),
       author: input.author ?? null,
       source: input.source ?? "desktop",
     });
