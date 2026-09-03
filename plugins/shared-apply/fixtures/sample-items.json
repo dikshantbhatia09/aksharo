@@ -1,0 +1,79 @@
+[
+  {
+    "itemId": "cut-1",
+    "passId": "pass-autocut-1",
+    "kind": "cut",
+    "startMs": 1000,
+    "endMs": 1500,
+    "state": "accepted",
+    "payload": {}
+  },
+  {
+    "itemId": "cut-2",
+    "passId": "pass-autocut-1",
+    "kind": "cut",
+    "startMs": 2000,
+    "endMs": 2200,
+    "state": "proposed",
+    "payload": {}
+  },
+  {
+    "itemId": "sfx-1",
+    "passId": "pass-sfx-1",
+    "kind": "sfx",
+    "startMs": 3000,
+    "endMs": 3400,
+    "state": "accepted",
+    "payload": {
+      "assetId": "asset-whoosh-1",
+      "packId": "pack-tier0",
+      "startMs": 3000,
+      "durationMs": 400,
+      "gainDb": -4,
+      "fadeInMs": 20,
+      "fadeOutMs": 40,
+      "duck": { "depthDb": -8, "attackMs": 15, "releaseMs": 150 },
+      "licenceSnapshot": { "allowsRawFileDelivery": true, "surface": ["panel", "cloud_render"] },
+      "cueReason": "impact"
+    }
+  },
+  {
+    "itemId": "music-1",
+    "passId": "pass-music-1",
+    "kind": "music",
+    "startMs": 0,
+    "endMs": 8000,
+    "state": "accepted",
+    "payload": {
+      "assetId": "asset-partner-bed-1",
+      "packId": "pack-partner-1",
+      "startMs": 0,
+      "durationMs": 8000,
+      "gainDb": -14,
+      "loopPolicy": "loop",
+      "bedDuck": { "depthDb": -10, "attackMs": 30, "releaseMs": 300 },
+      "licenceSnapshot": { "allowsRawFileDelivery": false, "surface": ["cloud_render"] },
+      "mood": "calm",
+      "bpm": 90
+    }
+  },
+  {
+    "itemId": "title-1",
+    "passId": "pass-textfx-1",
+    "kind": "title",
+    "startMs": 500,
+    "endMs": 2500,
+    "state": "accepted",
+    "payload": {
+      "text": "Shipped in 3 days",
+      "intent": "hook",
+      "motionPreset": "slide-up",
+      "anchorWordIds": ["0:4", "0:5"],
+      "layoutHint": {
+        "candidate": "upper-left",
+        "safeArea": { "x": 40, "y": 40, "width": 1000, "height": 400 }
+      },
+      "styleRef": "style-hook-1"
+    }
+  }
+]

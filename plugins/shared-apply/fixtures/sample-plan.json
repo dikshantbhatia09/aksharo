@@ -1,0 +1,47 @@
+{
+  "ops": [
+    { "op": "deleteRange", "itemId": "cut-1", "startMs": 1000, "endMs": 1500 },
+    {
+      "op": "audioClip",
+      "itemId": "sfx-1",
+      "kind": "sfx",
+      "assetId": "asset-whoosh-1",
+      "packId": "pack-tier0",
+      "startMs": 3000,
+      "durationMs": 400,
+      "gainDb": -4,
+      "fade": { "fadeInMs": 20, "fadeOutMs": 40 },
+      "duck": { "depthDb": -8, "attackMs": 15, "releaseMs": 150 },
+      "loopPolicy": null,
+      "trackName": "Aksharo SFX"
+    },
+    {
+      "op": "title",
+      "itemId": "title-1",
+      "startMs": 500,
+      "endMs": 2500,
+      "text": "Shipped in 3 days",
+      "motionPreset": "slide-up",
+      "intent": "hook",
+      "layoutCandidate": "upper-left",
+      "params": {
+        "Text": "Shipped in 3 days",
+        "PositionY": 20,
+        "MotionPreset": "slide-up",
+        "HighlightStart": 0,
+        "HighlightEnd": 100,
+        "StyleId": "style-hook-1"
+      },
+      "requiresOverlayFallback": false
+    }
+  ],
+  "audioRefusals": [
+    {
+      "itemId": "music-1",
+      "kind": "music",
+      "assetId": "asset-partner-bed-1",
+      "reasons": ["not-owned", "surface-not-allowed"],
+      "message": "This track is a partner-catalogue asset and can only be used in a cloud render, not placed directly on the timeline."
+    }
+  ]
+}

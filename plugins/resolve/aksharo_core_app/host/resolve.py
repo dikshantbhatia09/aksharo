@@ -145,6 +145,30 @@ class ResolveHost(Protocol):
         """`TimelineItem.DeleteMarkerByCustomData(customData)`."""
         ...
 
+    def import_audio_clip(
+        self,
+        timeline: TimelineHandle,
+        track_index: int,
+        start_frame: int,
+        end_frame: int,
+        media_path: str,
+    ) -> TimelineItemHandle:
+        """`MediaPool.ImportMedia([path])` then `MediaPool.AppendToTimeline()` on an audio
+        track (D09 brief §Scope 2: accepted sfx/music items as clips on dedicated audio
+        tracks)."""
+        ...
+
+    def set_volume_keyframes(
+        self, item: TimelineItemHandle, keyframes: list[tuple[int, float]]
+    ) -> bool:
+        """`TimelineItem.SetProperty("Volume", value)` per keyframe (D09 brief §Scope 2: "fades
+        via clip properties, ducking as keyframed volume where the API allows (document
+        limits)") — the public scripting README documents `SetProperty` as a single current-value
+        setter, not a keyframe-track API; `RealResolveHost` below flags this as the open question
+        for A00-04 (does Studio's per-clip volume actually accept a keyframed automation this
+        way, or does this need the Fusion page's own keyframing instead)."""
+        ...
+
 
 class FakeResolveHost:
     """In-memory `ResolveHost` used by every test in this package."""
@@ -271,6 +295,32 @@ class FakeResolveHost:
             del item.markers[fid]
         return len(matches) > 0
 
+    def import_audio_clip(
+        self,
+        timeline: TimelineHandle,
+        track_index: int,
+        start_frame: int,
+        end_frame: int,
+        media_path: str,
+    ) -> TimelineItemHandle:
+        item = TimelineItemHandle(
+            item_id=self._fresh_id(),
+            track_type="audio",
+            track_index=track_index,
+            start_frame=start_frame,
+            end_frame=end_frame,
+            name=media_path,
+            properties={"sourcePath": media_path},
+        )
+        timeline.items.append(item)
+        return item
+
+    def set_volume_keyframes(
+        self, item: TimelineItemHandle, keyframes: list[tuple[int, float]]
+    ) -> bool:
+        item.properties["volumeKeyframes"] = list(keyframes)
+        return True
+
 
 class RealResolveHost:
     """Wraps the real `DaVinciResolveScript` module, imported lazily.
@@ -363,3 +413,26 @@ class RealResolveHost:
 
     def delete_marker_by_custom_data(self, item: TimelineItemHandle, custom_data: str) -> bool:
         raise NotImplementedError("wraps TimelineItem.DeleteMarkerByCustomData(customData)")
+
+    def import_audio_clip(
+        self,
+        timeline: TimelineHandle,
+        track_index: int,
+        start_frame: int,
+        end_frame: int,
+        media_path: str,
+    ) -> TimelineItemHandle:
+        raise NotImplementedError(
+            "wraps MediaPool.ImportMedia([path]) + MediaPool.AppendToTimeline on an audio track "
+            "(A00-04: confirm ImportMedia's own audio-track placement vs. needing "
+            "MediaPool.AppendToTimeline's explicit trackIndex clipInfo)"
+        )
+
+    def set_volume_keyframes(
+        self, item: TimelineItemHandle, keyframes: list[tuple[int, float]]
+    ) -> bool:
+        raise NotImplementedError(
+            "wraps TimelineItem.SetProperty('Volume', value) per keyframe; A00-04 must confirm "
+            "whether this actually keyframes or only sets one current value (see this method's "
+            "Protocol docstring)"
+        )

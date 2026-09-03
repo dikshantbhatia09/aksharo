@@ -6,3 +6,5 @@ export * from "./srtBin.js";
 export * from "./cutsZoomsAudio.js";
 export * from "./runApply.js";
 export * from "./resync.js";
+export * from "./sfxMusic.js";
+export * from "./titles.js";

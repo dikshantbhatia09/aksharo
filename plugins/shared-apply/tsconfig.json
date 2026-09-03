@@ -1,0 +1,9 @@
+{
+  "extends": "@montaj/config/tsconfig.node.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts", "scripts/**/*.ts"],
+  "exclude": ["node_modules", "dist", ".turbo"]
+}
