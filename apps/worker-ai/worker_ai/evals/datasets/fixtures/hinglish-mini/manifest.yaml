@@ -1,0 +1,14 @@
+name: hinglish-mini
+kind: transcript
+language: hi-en
+script: Latin+Devanagari
+licence: generated-internal
+codeMix: true
+# Adapts A09's existing `worker_ai/fixtures/hinglish-mini` set (its own audio
+# and mock-provider `words/*.json` fixtures) instead of duplicating those
+# files — the loader resolves this instead of an inline `items` list.
+adaptsEvalSet: hinglish-mini
+description: >
+  D08 dataset-loader view of A09's recorded Hinglish smoke set, so it counts
+  toward the harness's own manifest/checksum coverage without a second copy of
+  the audio/words fixtures.

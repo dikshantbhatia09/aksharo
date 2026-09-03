@@ -18,11 +18,13 @@ provider hostnames and nothing else.
 Two honest limits, both worth stating plainly:
 
   * A Kubernetes NetworkPolicy matches IP ranges, never hostnames. With the
-    stock AWS VPC CNI the FQDN allow-list below cannot be enforced in-cluster:
-    a component that needs a provider gets TCP 443 to the internet, and the real
-    enforcement point is the egress proxy in docs/runbooks/deploy.md. Setting
-    networkPolicy.fqdn.enabled=true on a Cilium cluster moves enforcement here
-    (see networkpolicy-fqdn.yaml).
+    stock AWS VPC CNI, or with networkPolicy.fqdn.mode left at "off" or set to
+    "audit", the FQDN allow-list below cannot (or does not yet) enforce
+    in-cluster: a component that needs a provider gets TCP 443 to the internet,
+    and the real enforcement point is the egress proxy in
+    docs/runbooks/deploy.md. Setting networkPolicy.fqdn.mode=enforce on a
+    Cilium cluster moves enforcement here (see networkpolicy-fqdn.yaml) and
+    this coarse rule is no longer rendered for that component.
 
   * The VPC CIDR allowance covers RDS, ElastiCache and the S3 gateway endpoint,
     which share that range. It is narrowed by port: 5432 and 6379 only, plus 443
@@ -154,12 +156,14 @@ spec:
           port: 4317
         - protocol: TCP
           port: 4318
-    {{- if or $net.allowInternetHttps (and $net.allowProviderEgress (not $.Values.networkPolicy.fqdn.enabled)) }}
+    {{- if or $net.allowInternetHttps (and $net.allowProviderEgress (ne $.Values.networkPolicy.fqdn.mode "enforce")) }}
     # --- outbound HTTPS ----------------------------------------------------
     # {{ if $net.allowInternetHttps }}Unrestricted: this component talks to
     # Razorpay and Google, whose address ranges are not stable enough to pin.
-    # {{ else }}Provider allow-list, enforced by hostname only where Cilium is
-    # available; here it degrades to "443 to anywhere off the private ranges".
+    # {{ else }}Provider allow-list, enforced by hostname only once Cilium is
+    # available and networkPolicy.fqdn.mode is "enforce"; here (mode "off" or
+    # "audit") it degrades to "443 to anywhere off the private ranges", the
+    # coarse rule this component falls back on.
     # {{ end }}RFC1918, loopback, link-local and the IMDS address are excluded
     # so this rule can never become an SSRF path back into the VPC
     # (THREAT-MODEL T6).

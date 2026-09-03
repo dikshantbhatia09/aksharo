@@ -27,6 +27,18 @@ const config: ReleaseConfig = {
       linux: "~/.local/share/DaVinciResolve/Fusion/Scripts/Utility",
     },
   },
+  // C09: Studio-only Workflow Integration panel. Paths are this WP's best guess at where
+  // Resolve Studio's "Workflow Integration Plugins" folder lives (no confirmed doc found in
+  // this repo, and C10's installer had not landed when this was written — flagged in the WP
+  // report as needing a Gate C confirmation against a real Studio install).
+  resolvePanel: {
+    pluginDir: "plugins/resolve-panel",
+    installPaths: {
+      win: "%APPDATA%/Blackmagic Design/DaVinci Resolve/Support/Workflow Integration Plugins",
+      mac: "~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Workflow Integration Plugins",
+      linux: "~/.local/share/DaVinciResolve/Workflow Integration Plugins",
+    },
+  },
   channels: ["alpha", "beta", "stable"],
 };
 

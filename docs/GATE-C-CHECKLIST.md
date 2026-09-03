@@ -123,6 +123,48 @@ Fusion's real `.setting` serialisation. This section is the actual proof.
       follow-up against `classification_rules.json` for any row that looks
       wrong once verified.
 
+## 9. Studio panel (C09)
+
+Nothing below has been run against a real DaVinci Resolve Studio install —
+`plugins/resolve-panel`'s automated tests exercise `MockWorkflowIntegrationHost`
+and a mock JSON-RPC transport only (`plugins/resolve-panel/README.md`
+"Known limitations"). This section is the actual proof, **Studio only**
+(D24/D65 — the panel never loads on Free).
+
+- [ ] `manifest.xml` is accepted by Resolve Studio's Workflow Integration
+      host with no load error, and "Aksharo" appears as a dockable panel
+      (Workflow Integration Plugins menu/palette — exact UI path TBD, record
+      what you find).
+- [ ] Confirm whether a `window.workflowIntegration`-style bridge global
+      exists in the panel's JS context at all (`src/host/workflow-integration.ts`'s
+      header comment, single highest-risk item for this section).
+- [ ] If it exists, confirm it can read `~/.aksharo/resolve.json`
+      (`readDiscoveryFile()`) — if it cannot, this WP's discovery transport
+      needs to change (see the README) before anything below can work.
+- [ ] Once discovery works: the panel connects to the loopback server via
+      `ws://127.0.0.1:<port>?token=<bearer>` and shows the current timeline
+      name/fps (`host.info`/`timeline.current`). Confirm this WP's `?token=`
+      query-param bearer fallback in
+      `plugins/resolve/aksharo_core_app/server.py` (`_query_token`) actually
+      authenticates — a real browser `WebSocket` cannot set the
+      `Authorization` header the Python bridge client uses.
+- [ ] `session.status` reflects the script's own sign-in state; a pending
+      device-code pairing shows the code and opens the verification URL via
+      `openExternalUrl`.
+- [ ] "Caption this timeline" (`transcribe.start`) runs the mixdown -> upload
+      -> transcribe pipeline (`plugins/resolve/aksharo_core_app/transcribe.py`)
+      without the panel needing any Resolve API of its own.
+- [ ] "Apply in Resolve" (`passes.list` + `apply.begin`/`apply.step`/
+      `apply.commit`) applies accepted pass items onto the real timeline via
+      the same `apply.*` methods C08's own bridge-driven apply uses; confirm
+      it surfaces `cuts.py`'s no-grouped-undo warning (Gate C §5) the same
+      way.
+- [ ] Confirm `packageResolve.ts`'s `panel/` install paths
+      (`release.config.ts`'s `resolvePanel.installPaths`) are where Resolve
+      Studio actually looks for Workflow Integration plugins on each OS —
+      this WP guessed them; C10's installer (once it lands) should use the
+      confirmed path instead.
+
 ## Sign-off
 
 | Item             | Free | Studio | Notes |
@@ -135,6 +177,7 @@ Fusion's real `.setting` serialisation. This section is the actual proof.
 | Zooms            |      |        |       |
 | Re-sync          |      |        |       |
 | Fusion macro     |      |        |       |
+| Studio panel     | n/a  |        |       |
 
 Record the Resolve build number tested and file follow-up issues for any
 `host/resolve.py` assumption that turned out wrong — that file is the single

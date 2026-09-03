@@ -124,6 +124,19 @@ export const RATE_LIMITS = {
     capacity: 20,
     refillPerSec: 20 / 600,
   },
+  /**
+   * X01 threat-model audit (T3): `GET /auth/device/code/:userCode` requires an
+   * authenticated session but had no rate limit at all, so a signed-in caller
+   * could grind through the 8-char user-code space to find someone else's
+   * pending device grant and read its device/location details. Keyed on the
+   * caller, not the IP, since the guard already requires a session.
+   */
+  deviceDescribeUser: {
+    name: "auth:device:describe:user",
+    by: "user",
+    capacity: 20,
+    refillPerSec: 20 / 600,
+  },
   oauthStartIp: { name: "auth:oauth:start:ip", by: "ip", capacity: 20, refillPerSec: 20 / 600 },
   waitlistIp: { name: "auth:waitlist:ip", by: "ip", capacity: 5, refillPerSec: 5 / 3600 },
 } as const satisfies Record<string, RateLimitRule>;

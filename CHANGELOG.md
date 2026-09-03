@@ -38,7 +38,45 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     per-host download buttons and a checksum-verification note, alongside the existing
     SmartScreen/Gatekeeper first-run copy and D65 non-affiliation line.
 
+- C09: DaVinci Resolve Studio Workflow Integration panel (`plugins/resolve-panel`) — docked React shell over `aksharo_core`'s loopback server (discover → bearer → JSON-RPC), `WorkflowIntegrationHost` adapter + mock, sign-in mirrored from the script, timeline picker, "Caption this timeline", passes review + "Apply in Resolve", version/update banner; C08 loopback server gains `session.status`, `transcribe.start`, `passes.list` (`plugins/resolve/aksharo_core_app/session.py|transcribe.py|passes.py`) plus a `?token=` query-param bearer path for browser `WebSocket` callers; `tools/release`'s `package-resolve` now also stages the panel bundle for Studio installs.
+
+### Added
+
+- **X01 — security review before Gate C.** Threat-model audit re-verifying
+  every `docs/THREAT-MODEL.md` row (T1-T25) against implementing code and
+  tests: `docs/security/threat-model-audit-2026-09-03.md`. Local `pnpm audit`
+  and `pip-audit` triage (all findings are transitive build/desktop-packaging
+  deps, none reachable at runtime — Electron flagged High for a follow-up
+  version bump), a local secret-scan sweep (clean — 53 hits, all test
+  fixtures/local dev creds, no real secrets), and a pen-test hand-off doc with
+  in-scope surfaces, a seeded test-account procedure, and rules of engagement:
+  `docs/security/pentest-scope.md` (includes the H-26 human-action text to
+  engage an external tester before Gate C).
+
+### Fixed
+
+- **X01 — `GET /auth/device/code/:userCode` had no rate limit.** The
+  approval-screen lookup requires an authenticated session (correct per
+  THREAT-MODEL T3) but carried no `@RateLimit` decorator, unlike its sibling
+  device-code routes; `RateLimitGuard` is a no-op with no rule attached, so
+  any signed-in account could grind the 8-character user-code space to read
+  someone else's pending device grant (host app, OS, IP, coarse location).
+  Added a `deviceDescribeUser` bucket (`apps/api/src/auth/auth.constants.ts`)
+  and applied it to the route (`apps/api/src/auth/device.controller.ts`), with
+  a new negative test in `apps/api/test/auth.e2e-spec.ts`.
+- **X01 — no security response headers on the web app or the API.** Neither
+  `apps/web/next.config.ts` nor `apps/web/middleware.ts` set CSP, HSTS,
+  `X-Frame-Options`/`frame-ancestors`, or `Referrer-Policy`, and
+  `apps/api/src/main.ts` never installed `helmet`. Added a `headers()`
+  function to `next.config.ts` (CSP, HSTS, no-sniff, deny-framing,
+  strict-origin-when-cross-origin referrer policy, a conservative
+  Permissions-Policy) with a new test (`apps/web/next.config.test.ts`), and
+  `helmet()` to the API's bootstrap with CSP left off (Swagger UI at `/docs`
+  needs inline scripts) but HSTS/frameguard/referrer-policy applied.
+
 - C12: consent-gated desktop/bridge telemetry (`POST /telemetry/events|crash`), `crash_reports` with 30-day retention, shared redaction in `bridge-core`, diagnostics bundle attached to support tickets, server-side Sentry/PostHog forwarding behind env keys.
+
+- C06b (follow-up): `plugins/premiere-uxp/src/apply/types.ts`'s `MOGRT_PARAM_ORDER`/`MogrtParamName` now import from `mogrt/params.ts` (14 params, append-only) instead of re-declaring their own copy of the appendix table, so there is exactly one source of truth across C06 and C06b; `MogrtCaptionParams` gained the optional `BoxFill`/`BoxOpacity` fields to match. `mogrtCaptions.ts` and its tests needed no other changes.
 
 ### Fixed
 
@@ -85,6 +123,126 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ### Added
 
+- **D08 — Eval harness & quality gates: datasets, nightly runs, shadow
+  routing, admin leaderboard, routing freeze.** Built on synthetic and fixture
+  datasets only (A00-05's licensed Indic sets have not reported).
+  `apps/worker-ai/worker_ai/evals/datasets/`: a `Dataset(name, kind, language,
+script, licence, items[])` loader — `licence` mandatory — searching bundled
+  `generated/` (six hand-authored synthetic sets: Hinglish/Hindi/Tamil
+  transcript, transliteration pairs drawn from A22's real dictionary tables,
+  autocut ground-truth cut lists, LLM check outcomes), `fixtures/` (an
+  adapter reusing A09's `hinglish-mini` set without duplicating its
+  audio/words files) and, if `EVAL_LICENSED_DATASETS_DIR` is set, an external
+  root for A00-05's real corpus with no code change. `checksums.py` writes/
+  verifies a SHA-256 `manifest.json` over every bundled file.
+  `evals/metrics.py`: Indic-aware `normalise()` now folds ZWJ/ZWNJ and all
+  nine nukta letters (four with no Unicode canonical decomposition, mapped by
+  hand) in addition to the existing case/punctuation/whitespace folding, so a
+  provider's spelling convention is never charged as a WER/CER error; new
+  `word_boundary_error`, `diarisation_der` (dependency-free, grid-based, no
+  `pyannote.metrics`), `transliteration_accuracy`, `autocut_precision_recall`
+  (tolerance-windowed greedy matching) and `llm_pass_rate`.
+  `evals/runner_datasets.py` dispatches `run_dataset` by kind (transcript
+  reuses A09's `EvalSet`/provider path; the rest score directly).
+  `evals/nightly.py`: `run_nightly` (cost-capped per D74:
+  `DEFAULT_MAX_ITEMS_PER_DATASET`), `write_report` (`eval-results/<date>/
+report.{json,md}`), `post_nightly_report` (signed like a job-completion
+  callback, `POST {API_ORIGIN}/internal/evals/runs`); `python -m
+worker_ai.evals nightly[--post]` and `pnpm --filter @montaj/worker-ai eval`.
+  `routing.py`: `RoutingCandidate.shadow` — a shadow candidate is excluded
+  from `resolve`/`resolve_chain` entirely (never a fallback, never returned)
+  while `shadow_candidates()` lists the ones this deployment could run in
+  parallel for a nightly comparison; `ROUTING_FROZEN=1` (or an upstream admin
+  toggle) makes `load_routing_table_guarded()` skip `routing.yaml` and serve
+  the last-approved snapshot (`write_routing_snapshot`/`load_routing_snapshot`)
+  instead — reloads are refused outright while frozen. `apps/api`: new Prisma
+  models `EvalRun`/`EvalResult`/`RoutingFreeze` (migration
+  `20260903130000_d08_evals`); `POST /internal/evals/runs`
+  (`src/evals/`, signed like other internal callbacks, idempotent on the
+  signed attempt id used as `EvalRun.id`); `GET /admin/evals/leaderboard`
+  (groups a recent window of results by dataset/language/provider/metric,
+  reporting each group's latest value and trend vs. the previous run),
+  `GET|POST /admin/evals/freeze`, `POST /admin/evals/unfreeze` (superadmin
+  only, mandatory reason, audited — `src/admin/evals/`); B16 scheduler task
+  `eval-nightly.task.ts` purges `eval_runs`/`eval_results` past 90 days and
+  shells out to `pnpm --filter @montaj/worker-ai eval -- --post` (a
+  documented pre-Gate-A simplification: the two apps share one monorepo
+  checkout today; see the WP's final report for the production-shape follow-
+  up). `apps/web`: `(admin)/admin/evals` panel (leaderboard table, freeze/
+  unfreeze form). `packages/api-client` regenerated. Tests: Python unit tests
+  for the Indic normalisation edge cases, dataset loader/manifest/licence
+  checks, per-kind runner dispatch, shadow-exclusion and freeze-precedence
+  routing tests; API unit tests (leaderboard grouping, freeze audit) and an
+  e2e spec against real Postgres/Redis (signed ingestion + idempotency,
+  leaderboard trend, freeze role-gating and audit, unfreeze). Deviations and
+  open questions for A00-05 are in the WP's final report.
+
+- **X08 — Cilium FQDN egress adoption for production (D73's staged rollout,
+  prod hardening before Gate C).** `infra/k8s/montaj/values.yaml`'s
+  `networkPolicy.fqdn.enabled` boolean becomes `networkPolicy.fqdn.mode:
+off | audit | enforce`: `off` is unchanged from X05 (the coarse
+  `0.0.0.0/0:443`-minus-private-ranges rule); `audit` (new) renders the
+  `CiliumNetworkPolicy` with Cilium's `policy.cilium.io/audit-mode: "true"`
+  annotation so a denial is logged (Hubble/`cilium monitor`) rather than
+  dropped, with the coarse rule still up underneath it; `enforce` drops the
+  coarse rule and lets Cilium reject anything outside
+  `networkPolicy.providerAllowlist`/`providerAllowlistSuffixes`
+  (`templates/networkpolicy.yaml`, `templates/networkpolicy-fqdn.yaml`).
+  `.github/workflows/infra.yml` now `helm lint`/`helm template`s the `audit`
+  and `enforce` variants (previously only the single `fqdn.enabled=true`
+  case) and asserts the audit annotation is present on `audit` and absent on
+  `enforce`. New `infra/policies/egress-inventory.json`, generated by
+  `infra/scripts/generate-egress-inventory.mjs` from a source scan of
+  `apps/api/src`, `apps/worker-ai`, `apps/worker-media/src`, `apps/render/src`
+  and `apps/model-server` (`infra/scripts/egress-hosts.mjs`): 17 hostnames
+  across ASR/LLM vendors, RunPod, R2, Sentry, Razorpay/RazorpayX, Google OAuth,
+  HIBP and AWS SES/SNS, each with an owner and a purpose. `--check` (wired into
+  `infra-validate` in CI) fails the build on drift against the committed file
+  or on any outbound hostname a provider adapter dials with no metadata entry —
+  the mechanism scope item 1 asked for ("a CI check fails when a new outbound
+  host appears in code without an inventory entry"). Host guard note: this
+  host has no `helm` binary (shared machine, ~13 concurrent agents; nothing
+  vendored per instruction, no new root dependency added either), so
+  `infra/scripts/validate-chart-local.mjs` substitutes a dependency-free,
+  line-oriented structural scan (`node:fs`/`node:path` only) of `values.yaml`'s
+  `providerAllowlist`/`providerAllowlistSuffixes` (every entry has a host and a
+  reason) and `components.*` (every enabled component has `kind`, `repository`
+  and a `network` block, cross-checked against the allow-list when
+  `allowProviderEgress` is set), plus balanced `{{- if/range/with/define }}`/
+  `{{- end }}` counts across every template; the real `helm
+lint`/`helm template`/`kubeconform` pipeline still runs in
+  `.github/workflows/infra.yml`, which already had Helm 3.19 and kubeconform
+  0.8 installed from X05. New `docs/runbooks/egress-policy.md`: the mode
+  table, how to roll a mode change out and back, reading a DNS-proxy denial via
+  Hubble/`cilium monitor`, and adding a vendor (allow-list entry + metadata +
+  regenerate). 19 new tests: `infra/scripts/egress-hosts.test.mjs` (9),
+  `infra/scripts/generate-egress-inventory.test.mjs` (4, CLI-level) and
+  `infra/scripts/validate-chart-local.test.mjs` (6).
+
+- **M03 — Main hygiene: academy lot source, load-sensitive assertions, DLQ/jobs/offers
+  e2e triage, help-slug wiring.** `apps/api/prisma`: migration
+  `20260902222436_m03_academy_lot_source` adds `academy` to the
+  `CreditLotSource` enum (CONTRACTS §4, 2026-09-03); `academy.service.ts`
+  grants with `source: "academy"` instead of B12's stopgap `"adjust"`, and
+  `ledger-credits.facade.ts`'s `ledgerKindForSource` ledgers it as a `grant`.
+  `apps/api/test`: `edg.e2e-spec.ts`'s "costs the same on a 9,000-segment
+  document" ratio budget widened from `3x`/30ms to `5x`/150ms (a real host
+  observation of ~3.5x under load was ordinary jitter, not an O(n)
+  regression); `dlq.e2e-spec.ts` and `jobs.e2e-spec.ts` switched their
+  generic-completion fixture queue from `ai.clean` to `ai.vad` after B10
+  registered a real `AudioCleanCompletionHandler` against `ai.clean` that
+  400s a bare `{status:"succeeded"}` completion; `offers.e2e-spec.ts`'s ₹9
+  pass suite now sends a real capability probe on its explicit
+  `mode:"browser"` export request, which A21b started requiring. `apps/web`:
+  the editor's right panel (`RightPanel.tsx`) gains a "?" affordance per tab
+  opening the matching help article via B12's `help-slug-map.ts`
+  (Style/Colors/Look → `caption-styles`, Anim → `emphasis-timing`, Audio →
+  `caption-styles`), unit-tested against the real slug catalogue
+  (`RightPanel.help.test.ts`). Verified: `dlq.e2e-spec.ts`, `jobs.e2e-spec.ts`
+  and `offers.e2e-spec.ts` green 3× on the compose stack after merging main
+  (which independently landed B13's `createAdminContext` fix for the same
+  admin-auth 403s these suites hit, and B13d's chained-self-referral hold,
+  which `referrals-http.e2e-spec.ts` already passes 3×).
 - **C03a — `apps/engine` local sidecar (whisper.cpp/Silero/deep-filter/ffmpeg
   supervisor), model manager, backend detection, `@montaj/engine-client`.**
   New app `apps/engine`: a Node supervisor (no native compilation in the
@@ -129,6 +287,40 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   vs. the cloud aligner), and the faster-whisper Windows fallback are not
   implemented here — only their detection/versioning surface is, per the
   brief's own scope split.
+- **C06b — Aksharo caption `.mogrt` authoring: frozen param table, generator,
+  verifier, placeholder, style mapping mirrored with C08b.** No After Effects
+  on the build host, so this ships everything except the binary `.aep`:
+  `plugins/premiere-uxp/mogrt/params.ts` freezes the 14-param order (`Text`,
+  `Font`, `Size`, `Colour`, `StrokeColour`, `StrokeWidth`, `ShadowOpacity`,
+  `PositionY`, `HighlightColour`, `HighlightStart`, `HighlightEnd`, `StyleId`,
+  `BoxFill`, `BoxOpacity`) C06 depends on — the first 12 are C06's own
+  appendix table verbatim; `BoxFill`/`BoxOpacity` were appended (never
+  reordering the original 12) once C08b's Resolve rule set landed mid-WP, so a
+  whole-cue background box classifies the same real capability gap on both
+  hosts instead of MOGRT blanket-rejecting every boxed style. `generate.ts`
+  builds `definition.json` deterministically (golden fixture in
+  `definition.golden.json`); `zip.ts` is a small dependency-free STORE-only zip
+  reader/writer; `verify.ts` unzips a `.mogrt`, validates `definition.json`
+  against the frozen table and reports mismatches by name/index, and checks for
+  a `.aep` unless the file is marked `placeholder`; `build-placeholder.ts`
+  builds the committed `mogrt/placeholder.mogrt` (definition + a `PLACEHOLDER.txt`
+  note, no `.aep`); `verify-cli.ts` is the CI entry point
+  (`pnpm --filter @montaj/premiere-uxp verify:mogrt`).
+  `src/styles/classification-rules.ts` mirrors C08b's
+  `plugins/resolve/aksharo_core_app/fusion/classification_rules.json`
+  (same rule ids/predicates/status, reworded reasons for AE/Premiere), plus a
+  `classification-rules.test.ts` check that it matches the canonical file
+  byte-for-structure once `wp/C08b` is on `main`. `src/styles/mogrt-map.ts`
+  applies those rules (plus one MOGRT-only font-bundling rule) to classify all
+  30 `@montaj/caption-styles` system styles as supported/approximate/unsupported
+  with reasons — **19 supported / 6 approximate / 5 unsupported**, matching
+  C08b's own `RESOLVE-STYLE-COVERAGE.md` counts and per-style buckets exactly
+  (checked against commit `704c92b` on `wp/C08b`); `generate-coverage.ts`
+  writes `docs/MOGRT-STYLE-COVERAGE.md` deterministically. `docs/MOGRT-PARAMS.md`
+  documents the frozen table, the `BoxFill`/`BoxOpacity` addition, and the
+  `definition.json`/Adobe-EGP distinction; `docs/README-AUTHORING.md` is the
+  step-by-step AE authoring guide for H-25 (a human task, not done here). One
+  CI step (`.github/workflows/ci.yml`) verifies the placeholder.
 
 - **C06 — Premiere Pro apply modes: transcript injection, MOGRT captions, alpha
   overlay, SRT to bin, cuts/zooms/audio, transactions, host-id map + re-sync.**

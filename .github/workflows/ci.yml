@@ -69,6 +69,13 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # C06b: the committed placeholder .mogrt (no .aep, no After Effects on any
+      # CI runner) must still unzip and its definition.json must still match the
+      # frozen param table — this is the same check C06's start-up self-test
+      # runs against the real shipped .mogrt.
+      - name: MOGRT placeholder verifies
+        run: pnpm --filter @montaj/premiere-uxp verify:mogrt
+
   # ---------------------------------------------------------------------------
   # Python AI worker: ruff, mypy --strict, pytest
   # ---------------------------------------------------------------------------
@@ -428,3 +435,48 @@ jobs:
             fi
           done
           exit $missing
+
+  # ---------------------------------------------------------------------------
+  # X01 security review: dependency audit, non-blocking.
+  #
+  # `pnpm audit --audit-level=high` currently reports findings only in
+  # build-time/desktop-packaging dependency chains (Electron, electron-builder's
+  # bundled tar, Next's bundled PostCSS, gray-matter's js-yaml, the release
+  # tool's CycloneDX generator) — none reachable by an attacker over the
+  # network at runtime. `docs/security/threat-model-audit-2026-09-03.md`
+  # triages every finding; this job reports rather than blocks so a new
+  # advisory in one of those chains does not stall every PR, but the exit code
+  # is still logged for a maintainer to review each run.
+  # ---------------------------------------------------------------------------
+  security-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: pnpm audit (high/critical, non-blocking — see triage table above)
+        run: pnpm audit --audit-level=high || true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: pip-audit — worker-ai
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          python -m pip_audit -r apps/worker-ai/requirements.lock
+
+      - name: pip-audit — model-server
+        run: python -m pip_audit -r apps/model-server/requirements.lock

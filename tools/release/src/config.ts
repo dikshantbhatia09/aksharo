@@ -35,6 +35,14 @@ export interface ReleaseConfig {
   ccx: { pluginDir: string; minPremiereVersion: string };
   zxp: { pluginDir: string };
   resolveBundle: { scriptDir: string; installPaths: Record<"win" | "mac" | "linux", string> };
+  /**
+   * C09: the Studio-only Workflow Integration panel bundle, packaged alongside `resolveBundle`
+   * but installed to a different Resolve-owned folder ("Workflow Integration Plugins", not
+   * Fusion's `Scripts/Utility`). Optional so existing `ReleaseConfig` fixtures/tests that
+   * predate C09 keep compiling; `packageResolve.ts` stages a placeholder when absent, same as
+   * it does for a not-yet-landed `resolveBundle.scriptDir`.
+   */
+  resolvePanel?: { pluginDir: string; installPaths: Record<"win" | "mac" | "linux", string> };
   channels: readonly ["alpha", "beta", "stable"];
 }
 
