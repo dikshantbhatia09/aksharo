@@ -1,7 +1,26 @@
 import { newId as defaultNewId, parseWordId, type WordId } from "../ids.js";
+import {
+  draftLiveWords,
+  type EdgDraft,
+  type EdgState,
+  fromDraft,
+  chunkStartsOf,
+  insertWordAfter,
+  maxWordSeqOf,
+  nextLiveWord,
+  orderIndexOf,
+  positionOf,
+  previousLiveWord,
+  putSegment,
+  putWord,
+  rememberOpId,
+  removeSegment,
+  segmentsOnBoundary,
+  toDraft,
+  wordAfter,
+} from "./state.js";
 import { decodeKeyframes, encodeKeyframes } from "../passes/keyframes.js";
 import { type ProtectedRange } from "../schemas/document.js";
-import { type PassItem } from "../schemas/pass.js";
 import {
   type DecideItemsOp,
   type EdgOp,
@@ -27,30 +46,11 @@ import {
   type SetWordTimingOp,
   type SplitSegmentOp,
 } from "../schemas/ops.js";
+import { type PassItem } from "../schemas/pass.js";
 import { type Emphasis, type Segment } from "../schemas/segment.js";
 import { type SegmenterParams, segmentWords } from "../segmenter/segmenter.js";
 import { compareSeqKeys, seqBetween } from "../seq.js";
 import { type IndexedWord } from "../transcript-index.js";
-import {
-  draftLiveWords,
-  type EdgDraft,
-  type EdgState,
-  fromDraft,
-  chunkStartsOf,
-  insertWordAfter,
-  maxWordSeqOf,
-  nextLiveWord,
-  orderIndexOf,
-  positionOf,
-  previousLiveWord,
-  putSegment,
-  putWord,
-  rememberOpId,
-  removeSegment,
-  segmentsOnBoundary,
-  toDraft,
-  wordAfter,
-} from "./state.js";
 
 /**
  * `applyOps` — the one implementation of what an `EdgOp` means (D29).
@@ -729,12 +729,14 @@ function base64ToBytes(b64: string): Uint8Array {
   let bitCount = 0;
   let byteIndex = 0;
   for (const ch of clean) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access into BASE64_INDEX keyed by `ch`, restricted by the preceding regex to the base64 alphabet, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const value = BASE64_INDEX[ch];
     if (value === undefined) continue;
     bitBuffer = (bitBuffer << 6) | value;
     bitCount += 6;
     if (bitCount >= 8) {
       bitCount -= 8;
+      // eslint-disable-next-line security/detect-object-injection -- numeric index into a pre-sized Uint8Array, bounded by a monotonically increasing local counter, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       bytes[byteIndex] = (bitBuffer >> bitCount) & 0xff;
       byteIndex += 1;
     }
