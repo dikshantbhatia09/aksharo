@@ -13,6 +13,14 @@
  * `Segment`, `Word` and `PassItem` shapes it reads.
  */
 export {
+  type AlignCutBoundariesToBeatsOptions,
+  alignCutBoundariesToBeats,
+  type BeatBoundaryAdjustment,
+  beatTimesInRange,
+  type CutBoundaryInput,
+  DEFAULT_BEAT_SNAP_TOLERANCE_MS,
+} from "./beats.js";
+export {
   type CutEdit,
   cutEdit,
   type Edit,

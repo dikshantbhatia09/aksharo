@@ -187,6 +187,31 @@ export const SfxTrackSchema = z.object({
 export type SfxTrack = z.infer<typeof SfxTrackSchema>;
 
 /**
+ * One accepted `music` pass item (D05, CONTRACTS §2 amendment `MusicPayload`),
+ * mirroring `SfxTrackSchema`: `startMs`/`endMs` on the **source** clock, a
+ * consumer remaps with `@montaj/timemap`'s `mapRange`; `storageKey` is the
+ * pack object's derived key, resolved the same way `SfxTrackSchema.storageKey`
+ * is. Unlike `SfxTrack`, a music bed carries `loopPolicy` (how to fit a bed
+ * shorter/longer than its section) instead of a fade pair — fade lengths are
+ * D05's own fixed constants (300 ms in / 800 ms out), applied at mix time
+ * (D04d), not carried per item.
+ */
+export const MusicTrackSchema = z.object({
+  itemId: Ulid,
+  startMs: WholeMs,
+  endMs: WholeMs,
+  assetId: z.string().min(1).max(128),
+  packId: z.string().min(1).max(128),
+  storageKey: z.string().min(1).max(1024),
+  gainDb: z.number().min(-60).max(24),
+  loopPolicy: z.enum(["none", "loop", "trim"]),
+  bedDuck: DuckTrackSchema.nullable(),
+  mood: z.array(z.string().min(1)).max(16).default([]),
+  bpm: z.number().int().positive().optional(),
+});
+export type MusicTrack = z.infer<typeof MusicTrackSchema>;
+
+/**
  * The style documents this render is pinned to.
  *
  * `catalogueSnapshotIds` are content ids of the exact StyleDocs used —
@@ -322,16 +347,19 @@ export const RenderManifestSchema = z.object({
      */
     titles: z.array(TitleTrackSchema).max(2_000).optional(),
     /**
-     * Accepted sfx (and, once D05 lands, music) items, per the CONTRACTS §2
-     * amendment 2026-09-03: `RenderManifest.timemap.audio.sfx[]` / `.music[]`
-     * are additive optional arrays; renderers ignore unknown arrays. Optional,
+     * Accepted sfx and music items, per the CONTRACTS §2 amendment
+     * 2026-09-03: `RenderManifest.timemap.audio.sfx[]` / `.music[]` are
+     * additive optional arrays; renderers ignore unknown arrays. Optional,
      * not defaulted, same backward-compatibility rule as `keyframes`/`titles`
      * above — every manifest and fixture built before this field existed
-     * stays valid; a consumer reads `manifest.timemap.audio?.sfx ?? []`.
+     * stays valid; a consumer reads `manifest.timemap.audio?.sfx ?? []` /
+     * `manifest.timemap.audio?.music ?? []`. D05 populates `.music[]`;
+     * mixing it into the export is D04d's job (out of this package's scope).
      */
     audio: z
       .object({
         sfx: z.array(SfxTrackSchema).max(2_000).optional(),
+        music: z.array(MusicTrackSchema).max(2_000).optional(),
       })
       .optional(),
   }),

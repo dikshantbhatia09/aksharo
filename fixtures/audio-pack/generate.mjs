@@ -167,51 +167,132 @@ const CUES = [
   },
 ];
 
+/**
+ * D05's music beds: 4 moods x 2 BPM bands, each a short loopable pattern (a
+ * repeating one-bar chord/bassline sequence, not the real commissioned
+ * pack's full 30-60s length — a fixture only needs `durationMs`/`introMs`/
+ * `outroMs`/loop-policy maths to exercise correctly, and a dozen 40s WAVs
+ * would blow well past this pack's "a few hundred KB" budget; flagged as a
+ * deliberate fixture simplification, not the real pack's shape). `introMs`/
+ * `outroMs` mark a short fade-safe margin at each end, so `loopStart =
+ * introMs` / `loopEnd = durationMs - outroMs` is always a well-formed,
+ * non-empty loop region.
+ */
+function musicPattern(durationS, rootHz, { gain = 0.5 } = {}) {
+  const n = Math.round(durationS * SAMPLE_RATE);
+  const samples = new Float64Array(n);
+  for (let i = 0; i < n; i += 1) {
+    const t = i / SAMPLE_RATE;
+    // A simple two-note alternating pattern gives the loop audible structure
+    // without needing real instruments — deterministic and tiny to encode.
+    const beatIndex = Math.floor(t * (rootHz / 55)) % 2;
+    const freq = beatIndex === 0 ? rootHz : rootHz * 1.5;
+    const env = 0.5 + 0.5 * Math.sin(2 * Math.PI * 2 * t);
+    samples[i] = gain * env * Math.sin(2 * Math.PI * freq * t);
+  }
+  return samples;
+}
+
+const MUSIC_INTRO_MS = 200;
+const MUSIC_OUTRO_MS = 200;
+const MUSIC_DURATION_S = 4;
+
+const MUSIC_BEDS = [
+  { id: "music-upbeat-fast", mood: ["upbeat"], bpm: 128, rootHz: 220 },
+  { id: "music-upbeat-slow", mood: ["upbeat"], bpm: 92, rootHz: 196 },
+  { id: "music-calm-fast", mood: ["calm"], bpm: 128, rootHz: 130 },
+  { id: "music-calm-slow", mood: ["calm"], bpm: 92, rootHz: 110 },
+  { id: "music-tense-fast", mood: ["tense"], bpm: 128, rootHz: 98 },
+  { id: "music-tense-slow", mood: ["tense"], bpm: 92, rootHz: 87 },
+  { id: "music-dramatic-fast", mood: ["dramatic"], bpm: 128, rootHz: 73 },
+  { id: "music-dramatic-slow", mood: ["dramatic"], bpm: 92, rootHz: 65 },
+];
+
 const manifest = {
   pack: {
     id: "fixture-pack-01",
     owner: "montaj-fixtures",
     licenceRef: "fixtures/audio-pack/LICENCE-FIXTURE.txt",
     version: "0.1.0-fixture",
+    // Descriptive only (not enforced per-asset — each manifest asset carries
+    // its own `kind`); this pack mixes `sfx` cues and D05's `music` beds.
     kind: "sfx",
   },
-  assets: CUES.map((cue) => {
-    const samples = cue.spec();
-    const wav = encodeWav(samples, SAMPLE_RATE);
-    const filePath = `wav/${cue.id}.wav`;
-    writeFileSync(join(here, filePath), wav);
-    return {
-      id: cue.id,
-      kind: "sfx",
-      cueType: cue.cueType,
-      title: `Fixture ${cue.cueType} (${cue.id})`,
-      tags: cue.tags,
-      mood: cue.mood,
-      filePath,
-      // Licence fields — a wholly-owned fixture pack, so every gate opens
-      // except the ones that would only ever be true for a commercially
-      // licenced real pack (attribution, ai-training).
-      provider: "owned",
-      catalogueMode: "mirrored",
-      licenceType: "work-for-hire",
-      licensor: "montaj-fixtures",
-      licenceRef: "fixtures/audio-pack/LICENCE-FIXTURE.txt",
-      licenceVersion: "1",
-      territory: ["WORLD"],
-      allowsCommercialUse: true,
-      allowsMonetisation: true,
-      allowsPaidAds: true,
-      allowsBroadcast: true,
-      allowsRawFileDelivery: true,
-      allowsOfflineCache: true,
-      allowsEmbeddingIndex: true,
-      allowsAiTraining: false,
-      requiresAttribution: false,
-      clearanceMethod: "none",
-      contentIdRegistered: false,
-      requiresUsageReport: false,
-    };
-  }),
+  assets: [
+    ...CUES.map((cue) => {
+      const samples = cue.spec();
+      const wav = encodeWav(samples, SAMPLE_RATE);
+      const filePath = `wav/${cue.id}.wav`;
+      writeFileSync(join(here, filePath), wav);
+      return {
+        id: cue.id,
+        kind: "sfx",
+        cueType: cue.cueType,
+        title: `Fixture ${cue.cueType} (${cue.id})`,
+        tags: cue.tags,
+        mood: cue.mood,
+        filePath,
+        // Licence fields — a wholly-owned fixture pack, so every gate opens
+        // except the ones that would only ever be true for a commercially
+        // licenced real pack (attribution, ai-training).
+        provider: "owned",
+        catalogueMode: "mirrored",
+        licenceType: "work-for-hire",
+        licensor: "montaj-fixtures",
+        licenceRef: "fixtures/audio-pack/LICENCE-FIXTURE.txt",
+        licenceVersion: "1",
+        territory: ["WORLD"],
+        allowsCommercialUse: true,
+        allowsMonetisation: true,
+        allowsPaidAds: true,
+        allowsBroadcast: true,
+        allowsRawFileDelivery: true,
+        allowsOfflineCache: true,
+        allowsEmbeddingIndex: true,
+        allowsAiTraining: false,
+        requiresAttribution: false,
+        clearanceMethod: "none",
+        contentIdRegistered: false,
+        requiresUsageReport: false,
+      };
+    }),
+    ...MUSIC_BEDS.map((bed) => {
+      const samples = musicPattern(MUSIC_DURATION_S, bed.rootHz, { gain: 0.4 });
+      const wav = encodeWav(samples, SAMPLE_RATE);
+      const filePath = `wav/${bed.id}.wav`;
+      writeFileSync(join(here, filePath), wav);
+      return {
+        id: bed.id,
+        kind: "music",
+        title: `Fixture ${bed.mood[0]} bed (${bed.id})`,
+        tags: [bed.mood[0], `${String(bed.bpm)}bpm`],
+        mood: bed.mood,
+        bpm: bed.bpm,
+        introMs: MUSIC_INTRO_MS,
+        outroMs: MUSIC_OUTRO_MS,
+        filePath,
+        provider: "owned",
+        catalogueMode: "mirrored",
+        licenceType: "work-for-hire",
+        licensor: "montaj-fixtures",
+        licenceRef: "fixtures/audio-pack/LICENCE-FIXTURE.txt",
+        licenceVersion: "1",
+        territory: ["WORLD"],
+        allowsCommercialUse: true,
+        allowsMonetisation: true,
+        allowsPaidAds: true,
+        allowsBroadcast: true,
+        allowsRawFileDelivery: true,
+        allowsOfflineCache: true,
+        allowsEmbeddingIndex: true,
+        allowsAiTraining: false,
+        requiresAttribution: false,
+        clearanceMethod: "none",
+        contentIdRegistered: false,
+        requiresUsageReport: false,
+      };
+    }),
+  ],
 };
 
 writeFileSync(join(here, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);

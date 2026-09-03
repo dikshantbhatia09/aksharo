@@ -926,6 +926,76 @@ describe("EditPassItem", () => {
     ]);
     expect(reasons(result)).toEqual(["stale"]);
   });
+
+  function buildMusicPass(passId: string, itemId: string): Pass {
+    return {
+      passId,
+      type: "music",
+      engine: "music@1",
+      params: {},
+      status: "ready",
+      items: [
+        {
+          itemId,
+          passId,
+          kind: "music",
+          startMs: 0,
+          endMs: 20_000,
+          payload: {
+            assetId: itemId,
+            packId: "fixture-pack",
+            startMs: 0,
+            durationMs: 20_000,
+            gainDb: -18,
+            loopPolicy: "loop",
+            bedDuck: { depthDb: -12, attackMs: 150, releaseMs: 150 },
+            licenceSnapshot: { provider: "owned" },
+            mood: ["calm"],
+          },
+          confidence: 0.7,
+          reason: "section:calm -> bed",
+          state: "proposed",
+        },
+      ],
+    };
+  }
+
+  it("moves a proposed music item and keeps payload.startMs/durationMs in lockstep", () => {
+    const { state } = setup();
+    const mint = idFactory(960);
+    const passId = mint();
+    const itemId = mint();
+    const merged = apply(state, [op("MergePass", { pass: buildMusicPass(passId, itemId) })], {
+      source: "worker",
+    });
+
+    const edited = apply(merged.state, [
+      op("EditPassItem", { itemId, startMs: 1_000, endMs: 19_000 }),
+    ]);
+    const item = edited.state.items.get(itemId);
+    expect(item?.startMs).toBe(1_000);
+    expect(item?.endMs).toBe(19_000);
+    const payload = item?.payload as { startMs: number; durationMs: number };
+    expect(payload.startMs).toBe(1_000);
+    expect(payload.durationMs).toBe(18_000);
+  });
+
+  it("rejects an EditPassItem on a rejected music item as stale", () => {
+    const { state } = setup();
+    const mint = idFactory(970);
+    const passId = mint();
+    const itemId = mint();
+    const merged = apply(state, [op("MergePass", { pass: buildMusicPass(passId, itemId) })], {
+      source: "worker",
+    });
+    const decided = apply(merged.state, [
+      op("DecideItems", { itemIds: [itemId], state: "rejected" }),
+    ]);
+    const result = applyOps(decided.state, [
+      op("EditPassItem", { itemId, startMs: 1_000, endMs: 19_000 }),
+    ]);
+    expect(reasons(result)).toEqual(["stale"]);
+  });
 });
 
 describe("SetAudio and SetRender", () => {

@@ -147,4 +147,75 @@ describe("<ProposalCard />", () => {
     render(<ProposalCard item={item()} onDecide={vi.fn()} onUndo={vi.fn()} />);
     expect(screen.queryByTestId("proposal-card-sfx")).not.toBeInTheDocument();
   });
+
+  function musicItem(
+    overrides: { readonly mood?: string[]; readonly bpm?: number; readonly loopPolicy?: string } = {},
+  ): PassItem {
+    return item({
+      kind: "music",
+      payload: {
+        assetId: "01JASSET0000000000000000B1",
+        packId: "fixture-pack",
+        startMs: 0,
+        durationMs: 20_000,
+        gainDb: -18,
+        loopPolicy: overrides.loopPolicy ?? "loop",
+        bedDuck: { depthDb: -12, attackMs: 150, releaseMs: 150 },
+        licenceSnapshot: { provider: "owned" },
+        mood: overrides.mood ?? ["calm"],
+        bpm: overrides.bpm ?? 92,
+      },
+    } as Partial<PassItem>);
+  }
+
+  it("shows mood, bpm and loop policy for a music item (D05)", () => {
+    render(<ProposalCard item={musicItem()} onDecide={vi.fn()} onUndo={vi.fn()} />);
+    expect(screen.getByTestId("proposal-card-music-mood")).toHaveTextContent("calm");
+    expect(screen.getByTestId("proposal-card-music-bpm")).toHaveTextContent("92 BPM");
+    expect(screen.getByTestId("proposal-card-music-loop")).toHaveTextContent("loop");
+  });
+
+  it("renders an <audio> preview only when musicPreviewUrl is supplied", () => {
+    const { rerender } = render(
+      <ProposalCard item={musicItem()} onDecide={vi.fn()} onUndo={vi.fn()} />,
+    );
+    expect(screen.queryByTestId("proposal-card-music-preview")).not.toBeInTheDocument();
+    rerender(
+      <ProposalCard
+        item={musicItem()}
+        onDecide={vi.fn()}
+        onUndo={vi.fn()}
+        musicPreviewUrl="https://cdn.example/packs/fixture-pack/bed.wav?sig=abc"
+      />,
+    );
+    expect(screen.getByTestId("proposal-card-music-preview")).toHaveAttribute(
+      "src",
+      "https://cdn.example/packs/fixture-pack/bed.wav?sig=abc",
+    );
+  });
+
+  it("calls onSwapMusicBed from the swap-bed button, only when supplied", async () => {
+    const user = userEvent.setup();
+    const onSwapMusicBed = vi.fn();
+    render(
+      <ProposalCard
+        item={musicItem()}
+        onDecide={vi.fn()}
+        onUndo={vi.fn()}
+        onSwapMusicBed={onSwapMusicBed}
+      />,
+    );
+    await user.click(screen.getByTestId("proposal-card-music-swap"));
+    expect(onSwapMusicBed).toHaveBeenCalled();
+  });
+
+  it("omits the swap-bed button when onSwapMusicBed is not supplied", () => {
+    render(<ProposalCard item={musicItem()} onDecide={vi.fn()} onUndo={vi.fn()} />);
+    expect(screen.queryByTestId("proposal-card-music-swap")).not.toBeInTheDocument();
+  });
+
+  it("renders no music block for a non-music item", () => {
+    render(<ProposalCard item={item()} onDecide={vi.fn()} onUndo={vi.fn()} />);
+    expect(screen.queryByTestId("proposal-card-music")).not.toBeInTheDocument();
+  });
 });

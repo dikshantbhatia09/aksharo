@@ -8,6 +8,96 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **D05: music pass — sections, mood, BPM, retrieval, placement; beat-alignment
+  utility; `RenderManifest.timemap.audio.music[]`.** Fills in `MusicPayload`
+  (edg schema and route already prepared by D04c's CONTRACTS §2 amendment).
+  - `apps/worker-ai/worker_ai/passes/music/**` (new package): `analysis.py`
+    (`detect_sections` — a sliding window over speech ratio and cut density,
+    merging adjacent same-mood windows; `classify_mood`, a fixed six-mood rule
+    table over sentiment x energy; `bpm_target_from_cut_cadence`, mapping
+    average cut gap onto the fixture pack's two BPM bands), `retrieval.py`
+    (`rank_music_assets` — CLAP similarity + mood-tag match + BPM proximity,
+    weighted 0.5/0.3/0.2, deterministic ties by id), `placement.py`
+    (`build_music_items` — one bed per section, `loopPolicy` from the bed's
+    own measured length vs. the section's, dropped outright on a protected
+    range). `apps/worker-ai/worker_ai/processors/music_pass.py`: the `ai.pass`
+    (`passType: "music"`) queue adapter, wired into `autocut_pass.
+process_pass`'s dispatch. Every accepted item gets the same `-12dB/150ms`
+    bed duck `sfx_pass.py` uses. **Deviation:** mood classification's
+    "sentiment" input is a tiny deterministic word-list scorer
+    (`PassesService.sentimentCuesOf`), not a real B11 LLM client call — wiring
+    an actual prompted round trip into pass *production* was out of reach in
+    this pass; the seam (`(tMs, score)` pairs) is ready for B11 to replace.
+  - `apps/api/src/passes/passes.service.ts`: `startMusic` (mirrors `startSfx`
+    exactly — finished-timeline quote, licence-gated catalogue, protected
+    ranges); `musicCatalogueOf` reads `AudioAssetsRepository.
+findCatalogueWithEmbeddings("music")`. `passes.quote.ts`: `quoteMusic`, a
+    thin sibling of `quoteSfx` sharing `sfxMusicPass`'s burn rate (finished
+    minutes, Studio+) rather than a new rate. `passes.controller.ts`:
+    `POST /projects/{id}/passes/music`. `passes-completion.handler.ts`:
+    `MusicResultSchema`/`handleMusic`, minting `PassItem{kind:"music"}` rows
+    the same way `handleSfx` mints `sfx` ones.
+  - `apps/api/src/audio-assets/manifest.schema.ts`: `introMs`/`outroMs` added
+    to a manifest asset (D04a's `AudioAsset.introMs`/`outroMs` columns existed
+    but were never written); `audio-assets.repository.ts`'s `upsertRow` now
+    writes them and `findCatalogueWithEmbeddings` returns `mood`/`bpm`/
+    `introMs`/`outroMs`/`durationMs` for every kind (harmless additive fields
+    for `sfx` callers, load-bearing for `music`'s loop-policy maths). A music
+    bed's safe loop region is `[introMs, durationMs - outroMs]` — no new
+    columns needed.
+  - `fixtures/audio-pack/generate.mjs`: 8 new music beds (4 moods x 2 BPM
+    bands: upbeat/calm/tense/dramatic x 92/128 BPM), `kind:"music"`, each
+    carrying `mood`/`bpm`/`introMs`/`outroMs`. **Deviation:** beds are 4s
+    loopable patterns, not the brief's 30-60s — a fixture only needs to
+    exercise loop-policy/BPM-target maths correctly, and a dozen 40s WAVs
+    would blow well past this pack's "a few hundred KB" budget.
+  - `packages/edg/src/ops/apply.ts`: `EditPassItem` (drag-to-adjust) now
+    accepts `music` alongside `cut`/`zoom`/`reframe`/`sfx`, keeping
+    `payload.startMs`/`durationMs` in lockstep with the item's own bounds.
+  - `packages/render-manifest`: `MusicTrackSchema` (mirrors `SfxTrackSchema`:
+    `itemId, startMs, endMs, assetId, packId, storageKey, gainDb, loopPolicy,
+bedDuck, mood, bpm` — no fade fields, since `MusicPayload` carries none;
+    D05's own fixed 300ms/800ms fades apply at mix time) and
+    `RenderManifest.timemap.audio.music[]`, additive and optional. New
+    `apps/api/src/passes/music-tracks.ts` (`resolveMusicTracks`/
+    `acceptedMusicAssetIds`, mirroring `sfx-tracks.ts`), wired into
+    `manifest-builder.ts`/`exports.service.ts` alongside the existing `sfx`
+    line. **Scope note:** populating `timemap.audio.music[]` is this work
+    package's job; mixing it into an export (loop, fades, bed duck under the
+    amix graph) is D04d's, running in parallel — `apps/render/**` and
+    `apps/web/lib/export/engine.ts`'s audio mixing are untouched by design,
+    per the orchestrator's addendum, so the brief's own "export unit + parity
+    fixture" acceptance item is deferred to D04d/a follow-up rather than
+    built here against a moving target.
+  - `packages/timemap/src/beats.ts` (new): `alignCutBoundariesToBeats` —
+    snaps a cut boundary to the nearest beat of a target BPM within ±120ms
+    (never further), never landing inside a protected range; works entirely
+    in output-clock milliseconds, off by default (the caller decides whether
+    to request it — nothing in this work package auto-applies it yet).
+    `beatTimesInRange` lists a grid's own instants (tests/UI overlays).
+    Property-tested (`beats.properties.test.ts`, fast-check): every emitted
+    adjustment lands exactly on the beat grid, never inside a protected
+    range, and never exceeds the configured tolerance, across generated
+    cuts/bpm/anchor/protected-range combinations.
+  - `apps/web/components/editor/passes/ProposalCard.tsx`: a `music` block
+    (mood/BPM/loop-policy read-out, an optional `<audio>` preview, and a
+    "swap bed" button via a new `onSwapMusicBed` callback seam — this card
+    has no catalogue of its own to re-rank against, so the caller supplies
+    the swap, the same split `onGainDbPreview` already uses for `sfx`).
+    `apps/web/lib/timeline/lanes.ts` and `PassesTab.tsx`'s kind filter
+    already had `music` wired by D04c; unchanged here.
+  - Tests: `apps/worker-ai/tests/test_music_pass.py` (analysis/retrieval/
+    placement unit tests), `test_music_pass_processor.py` (the queue
+    adapter); `packages/timemap/src/beats.test.ts` +
+    `beats.properties.test.ts`; `packages/render-manifest/src/manifest.test.ts`
+    (`MusicTrackSchema` round-trip); `apps/api/src/passes/passes.quote.test.ts`
+    (`quoteMusic`), `music-tracks.test.ts`, `audio-assets/
+manifest.schema.test.ts` (fixture-pack validation, `introMs`/`outroMs`);
+    `apps/api/test/passes.e2e-spec.ts` (producer -> worker completion ->
+    `MergePass` -> `GET /projects/{id}/passes`, end to end against the
+    fixture catalogue); `packages/edg/src/ops/apply.test.ts` (`EditPassItem`
+    on a `music` item); `apps/web/components/editor/passes/
+ProposalCard.test.tsx` (the new music block).
 - **D06b: text FX draw path — browser export engine, cloud render, parity
   fixture.** D06 shipped the presets, the layout solver and the worker
   pass, and `RenderManifest.timemap.titles` carried the data, but nothing
