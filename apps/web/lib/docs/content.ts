@@ -15,7 +15,21 @@ import { loadHelpArticles } from "@/lib/content/loader";
  * `fs`; the client-facing pieces (`docs-search.tsx`) get the *serialised*
  * search index instead, same as `/help`.
  */
+// M07: `DocsLayout` (`app/(site)/(marketing)/docs/layout.tsx`) calls
+// `loadDocsSearchIndexSerialised()` once per rendered `/docs/**` page, and
+// during static generation that is once per page in the site (guides,
+// plugin guides, every API version/tag), not once per build. Each call used
+// to re-assemble every doc (including all 298 OpenAPI operations' summaries
+// concatenated into search bodies) and rebuild the MiniSearch index from
+// scratch — the accumulation across ~100+ `/docs` pages was a real
+// contributor to the build OOM this WP fixes. The underlying MDX/plugin/API
+// data is static per process, so both the doc list and the serialised index
+// are memoised once per worker instead of rebuilt per page.
+let searchDocsCache: readonly DocsSearchDoc[] | undefined;
+let searchIndexCache: string | undefined;
+
 export function loadDocsSearchDocs(): readonly DocsSearchDoc[] {
+  if (searchDocsCache) return searchDocsCache;
   const helpDocs: DocsSearchDoc[] = loadHelpArticles().map((article) => ({
     id: `guides-${article.slug}`,
     title: article.title,
@@ -45,9 +59,13 @@ export function loadDocsSearchDocs(): readonly DocsSearchDoc[] {
     href: `/docs/developers/v1/${group.tag}`,
   }));
 
-  return [...helpDocs, ...pluginDocs, ...apiDocs];
+  searchDocsCache = [...helpDocs, ...pluginDocs, ...apiDocs];
+  return searchDocsCache;
 }
 
 export function loadDocsSearchIndexSerialised(): string {
-  return buildDocsSearchIndex(loadDocsSearchDocs());
+  if (!searchIndexCache) {
+    searchIndexCache = buildDocsSearchIndex(loadDocsSearchDocs());
+  }
+  return searchIndexCache;
 }
