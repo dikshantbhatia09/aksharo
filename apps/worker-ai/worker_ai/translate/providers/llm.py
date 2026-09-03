@@ -6,6 +6,10 @@ last on purpose. One call per segment, through the region-pinned Anthropic or
 OpenAI endpoint named by `LLM_PROVIDER` (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`,
 CONTRACTS section 1) — never both, and never a default that silently picks one.
 
+`LLM_PROVIDER=ollama` speaks the same OpenAI-compatible shape against a local
+Ollama server (`LLM_BASE_URL`, `LLM_MODEL`), so the free stack has a real
+translator with no key and no data leaving the host.
+
 `LLM_PROVIDER=mock` (the worker's own default, `settings.py`) never calls a
 network at all: it returns a deterministic, clearly-marked translation so the
 provider chain, the length-aware retry and the glossary substitution are all
@@ -36,6 +40,8 @@ _ANTHROPIC_BASE_URL = "https://api.anthropic.com"
 _ANTHROPIC_MODEL = "claude-haiku-4-5"
 _OPENAI_BASE_URL = "https://api.openai.com"
 _OPENAI_MODEL = "gpt-4o-mini"
+_OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+_OLLAMA_MODEL = "qwen2.5:3b"
 
 
 class LLMTranslateProvider(TranslationProvider):
@@ -49,10 +55,13 @@ class LLMTranslateProvider(TranslationProvider):
         provider: str,
         anthropic_api_key: str = "",
         openai_api_key: str = "",
+        base_url: str = "",
+        model: str = "",
         client: httpx2.AsyncClient | None = None,
     ) -> None:
         self._provider = provider
         self._client_owned = client is None
+        self._model = model
         if provider == "anthropic":
             if not anthropic_api_key:
                 raise ValueError("LLMTranslateProvider(anthropic) needs ANTHROPIC_API_KEY")
@@ -72,6 +81,21 @@ class LLMTranslateProvider(TranslationProvider):
                 provider=self.name,
                 base_url=_OPENAI_BASE_URL,
                 headers={"authorization": f"Bearer {openai_api_key}"},
+                client=client,
+            )
+        elif provider == "ollama":
+            # Local, OpenAI-compatible, and keyless: nothing leaves the host. The
+            # configured base URL already ends in `/v1` (that is what the OpenAI
+            # client shape expects), while `VendorHttp` paths add `/v1` themselves,
+            # so trim it here rather than calling `/v1/v1/chat/completions`.
+            root = (base_url or _OLLAMA_BASE_URL).rstrip("/")
+            if root.endswith("/v1"):
+                root = root[: -len("/v1")]
+            self._model = model or _OLLAMA_MODEL
+            self._http = VendorHttp(
+                provider=self.name,
+                base_url=root or _OLLAMA_BASE_URL,
+                headers={},
                 client=client,
             )
         elif provider == "mock":
@@ -145,7 +169,7 @@ class LLMTranslateProvider(TranslationProvider):
             "POST",
             "/v1/chat/completions",
             json_body={
-                "model": _OPENAI_MODEL,
+                "model": self._model or _OPENAI_MODEL,
                 "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},

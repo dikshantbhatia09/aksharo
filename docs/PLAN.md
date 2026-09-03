@@ -183,7 +183,7 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | M13 | Maintenance: autocut vs zero-width protected range (Hypothesis failure on main) | Sonnet | merged (strategy fix + real autocut protection re-check after merge/bridge) || M15 | Local AI provisioning: faster-whisper, DeepFilterNet, YuNet, CLAP weights; real e2e clip; docs/models/LOCAL-MODELS.md | Sonnet | running |
 | M14 | Maintenance: realtime op self-echo raises bogus conflict dialog (gate-a) | Sonnet | merged + verified (web lib/edg green); gate-a coach-mark blocker -> M16 |
 | M16 | Maintenance: first-run coach marks intercept editor clicks (gate-a) | Sonnet | merged (callout pointer-events pass-through; fixture waits for Skip); gate-a e2e rerun pending on main |
-| M17 | Maintenance: e2e stack API image (no install at boot) + verify-wave --wave 7 green | Sonnet | running |
+| M17 | Maintenance: e2e stack API image (no install at boot) + verify-wave --wave 7 green | Sonnet | NOT merged: e2e images/compose fixed and stack healthy, but verify-wave still cannot reach PASS (host seed step, inert env fix, 24 unexplained api failures) - see HANDOFF |
 | M18 | Maintenance: gate-a harness mode ruling + style-picker tile blocker; 3/3 green | Sonnet | merged (gate-a 3/3; timeline row max-height + content-row floor fixed a real layout defect; export 2/2, timeline 10/10) |
 | M19 | Maintenance: local-ai-smoke derives DB from DATABASE_URL | Sonnet | merged |
-| M20 | Free-stack MVP mode: Ollama local LLM, dev auto-verify, no-key UI, docs/FREE-STACK.md | Sonnet | running: inc1 73f7092, inc2 7fe864c (qwen2.5:3b real runs; eval:local 7/24 -> normaliser requested); inc3-5 next |
+| M20 | Free-stack MVP mode: Ollama local LLM, dev auto-verify, no-key UI, docs/FREE-STACK.md | Sonnet | merged: Ollama provider + normaliser, dev auto-verify (fail-closed after review), no-key UI on all 5 purchase surfaces, FREE-STACK.md |

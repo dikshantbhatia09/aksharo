@@ -8,6 +8,17 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M20 (post-merge): `LLM_PROVIDER=ollama` took the whole AI worker down.**
+  Found by running the merged build rather than by any test: `runtime.py` builds
+  the translation chain eagerly at startup, and `LLMTranslateProvider` knew only
+  `anthropic`, `openai` and `mock`, so selecting the free stack's own provider
+  raised `unknown provider 'ollama'` and worker-ai exited before serving
+  anything. Added the keyless, OpenAI-compatible Ollama branch (`LLM_BASE_URL`,
+  `LLM_MODEL`) as the chain's last link, trimming the `/v1` the configured base
+  URL already carries so the call is not made to `/v1/v1/chat/completions`, and
+  passed the settings through from `runtime.py`. Tests cover construction with
+  no key, the URL shape and a translation through a mocked transport.
+
 - **M20 (review follow-up): the sign-up bypass now fails closed, and every
   purchase surface is gated.** An adversarial review of increments 3-4 found
   `AUTH_DEV_AUTO_VERIFY` was gated on `MAIL_PROVIDER` alone — and

@@ -199,6 +199,8 @@ def build_translation_providers(settings: Settings) -> tuple[TranslationProvider
             provider=settings.llm_provider,
             anthropic_api_key=settings.anthropic_api_key,
             openai_api_key=settings.openai_api_key,
+            base_url=settings.llm_base_url,
+            model=settings.llm_model,
         )
     )
     return tuple(providers)
