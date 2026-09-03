@@ -1,0 +1,15 @@
+# BuildKit reads THIS file (named after the Dockerfile it sits next to) instead
+# of a root `.dockerignore`. Without it, stage 1 — which needs the whole
+# workspace so `turbo prune` can see every `package.json` and compute the
+# dependency graph — would also copy every app's `node_modules`, build cache
+# and git history into the image. Mirrors `apps/worker-media/Dockerfile.dockerignore`.
+
+**/node_modules
+**/.git
+**/.turbo
+**/dist
+**/.next
+**/coverage
+**/playwright-report
+**/test-results
+**/*.tsbuildinfo
