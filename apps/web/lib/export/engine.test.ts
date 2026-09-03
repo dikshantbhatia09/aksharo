@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { applySpliceFades, retainedSourceRangesMs, SPLICE_FADE_MS } from "./engine";
+import {
+  applySfxDucking,
+  applySpliceFades,
+  dbToLinear,
+  duckGainAt,
+  retainedSourceRangesMs,
+  SFX_DUCK_DB,
+  SFX_DUCK_RAMP_MS,
+  SPLICE_FADE_MS,
+} from "./engine";
 
 /** A minimal duck-typed stand-in for `AudioBuffer` — Node has no such global. */
 function fakeAudioBuffer(samples: number, sampleRate: number, value = 1): AudioBuffer {
@@ -119,5 +128,72 @@ describe("applySpliceFades (A19c brief §4: 5ms splice fades at cut boundaries)"
     // rangeIndex === 0 -> fadeInMs 0; rangeIndex === last -> fadeOutMs 0, per engine.ts's call site.
     applySpliceFades(buffer, 0, 10_000, 0, 0);
     expect([...buffer.getChannelData(0)]).toEqual(new Array<number>(100).fill(1));
+  });
+});
+
+describe("duckGainAt (D04a: -12dB SFX duck under speech, 150ms ramps)", () => {
+  it("is unity gain far from every speech range", () => {
+    expect(duckGainAt(10_000, [{ startMs: 1_000, endMs: 2_000 }])).toBe(1);
+  });
+
+  it("is unity gain with no speech ranges at all", () => {
+    expect(duckGainAt(1_500, [])).toBe(1);
+  });
+
+  it("reaches the full duck at the centre of a range at least 2*rampMs long", () => {
+    const gain = duckGainAt(1_500, [{ startMs: 1_000, endMs: 2_000 }]);
+    expect(gain).toBeCloseTo(dbToLinear(SFX_DUCK_DB), 5);
+  });
+
+  it("ramps down linearly on approach to a range's start", () => {
+    const range = [{ startMs: 1_000, endMs: 2_000 }];
+    const halfwayIn = duckGainAt(1_000 - SFX_DUCK_RAMP_MS / 2, range);
+    const atEdge = duckGainAt(1_000, range);
+    const beforeRamp = duckGainAt(1_000 - SFX_DUCK_RAMP_MS - 1, range);
+    expect(beforeRamp).toBe(1);
+    expect(halfwayIn).toBeLessThan(1);
+    expect(halfwayIn).toBeGreaterThan(atEdge);
+  });
+
+  it("ramps back up linearly leaving a range's end", () => {
+    const range = [{ startMs: 1_000, endMs: 2_000 }];
+    const atEdge = duckGainAt(2_000, range);
+    const halfwayOut = duckGainAt(2_000 + SFX_DUCK_RAMP_MS / 2, range);
+    const afterRamp = duckGainAt(2_000 + SFX_DUCK_RAMP_MS + 1, range);
+    expect(halfwayOut).toBeGreaterThan(atEdge);
+    expect(afterRamp).toBe(1);
+  });
+
+  it("never overshoots past the duck floor in a very short speech range", () => {
+    const gain = duckGainAt(1_010, [{ startMs: 1_000, endMs: 1_020 }]);
+    expect(gain).toBeGreaterThanOrEqual(dbToLinear(SFX_DUCK_DB) - 1e-9);
+  });
+
+  it("takes the deepest duck when speech ranges overlap", () => {
+    const gain = duckGainAt(1_500, [
+      { startMs: 1_000, endMs: 2_000 },
+      { startMs: 1_400, endMs: 1_600 },
+    ]);
+    expect(gain).toBeCloseTo(dbToLinear(SFX_DUCK_DB), 5);
+  });
+});
+
+describe("applySfxDucking (D04a)", () => {
+  const SAMPLE_RATE = 48_000;
+
+  it("is a no-op with no speech ranges", () => {
+    const buffer = fakeAudioBuffer(100, SAMPLE_RATE);
+    applySfxDucking(buffer, 0, []);
+    expect([...buffer.getChannelData(0)]).toEqual(new Array<number>(100).fill(1));
+  });
+
+  it("attenuates samples that fall inside a speech range toward the duck floor", () => {
+    const buffer = fakeAudioBuffer(SAMPLE_RATE, SAMPLE_RATE); // 1000ms of samples
+    applySfxDucking(buffer, 0, [{ startMs: 200, endMs: 800 }]); // long enough to reach the floor
+    const data = buffer.getChannelData(0);
+    const centreIndex = Math.round(0.5 * SAMPLE_RATE);
+    // eslint-disable-next-line security/detect-object-injection -- centreIndex is a bounded numeric index derived from a fixed sample rate, not attacker-controlled -- reviewed for D04a
+    expect(data[centreIndex]).toBeCloseTo(dbToLinear(SFX_DUCK_DB), 3);
+    expect(data[0]).toBe(1);
   });
 });

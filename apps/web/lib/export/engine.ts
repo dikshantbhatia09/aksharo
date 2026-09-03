@@ -181,6 +181,89 @@ export function applySpliceFades(
   }
 }
 
+/**
+ * SFX ducking (D04a; 09-ai-pipeline §6): −12 dB under speech, 150 ms ramps.
+ *
+ * An accepted `sfx` item's own gain (`payload.gainDb`, the pass's confidence-
+ * scaled cue gain) is further attenuated by {@link SFX_DUCK_DB} whenever the
+ * sample sits inside one of the transcript's speech ranges, so a cue landing
+ * mid-sentence never fights the narration for headroom; outside every speech
+ * range the cue plays at its own gain, unattenuated. The ramp is linear over
+ * {@link SFX_DUCK_RAMP_MS} on both edges of a speech range so the duck is
+ * inaudible as a click — the same reasoning `applySpliceFades` already
+ * documents for splice boundaries.
+ */
+export const SFX_DUCK_DB = -12;
+export const SFX_DUCK_RAMP_MS = 150;
+
+/** `10^(db/20)` — linear amplitude from a decibel value. */
+export function dbToLinear(db: number): number {
+  return Math.pow(10, db / 20);
+}
+
+/**
+ * The duck gain (linear, 1 = no duck, `dbToLinear(duckDb)` = fully ducked) at
+ * one instant, given the transcript's speech ranges. Ramps linearly over
+ * `rampMs` as `tMs` crosses into or out of a range, so the curve is
+ * continuous rather than a step.
+ */
+export function duckGainAt(
+  tMs: number,
+  speechRanges: readonly { readonly startMs: number; readonly endMs: number }[],
+  duckDb: number = SFX_DUCK_DB,
+  rampMs: number = SFX_DUCK_RAMP_MS,
+): number {
+  const duckedGain = dbToLinear(duckDb);
+  let deepest = 1;
+
+  for (const range of speechRanges) {
+    // A trapezoid: unducked outside `[start - rampMs, end + rampMs]`, fully
+    // ducked inside `[start + rampMs, end - rampMs]`, linear in between.
+    // `distanceIn` is how far `tMs` sits from whichever *outer* transition
+    // edge is nearer — 0 at either outer edge, growing symmetrically toward
+    // both inner edges — so one formula covers both ramps and a range
+    // shorter than `2 * rampMs` simply never reaches `2 * rampMs` of
+    // distance, capping the duck short of the floor rather than crossing
+    // through it twice.
+    const outerStart = range.startMs - rampMs;
+    const outerEnd = range.endMs + rampMs;
+    if (tMs < outerStart || tMs > outerEnd) continue;
+
+    const distanceIn = Math.max(0, Math.min(tMs - outerStart, outerEnd - tMs));
+    const depth = Math.min(1, distanceIn / (2 * rampMs));
+    const gain = 1 + depth * (duckedGain - 1);
+    deepest = Math.min(deepest, gain);
+  }
+
+  return deepest;
+}
+
+/**
+ * Applies {@link duckGainAt} sample-by-sample to one decoded SFX cue buffer,
+ * in place. `cueStartMs` is the cue's own position on the finished timeline
+ * (`PassItem.startMs`), so `speechRanges` — already in finished-timeline
+ * coordinates (the transcript's own) — line up directly.
+ */
+export function applySfxDucking(
+  buffer: AudioBuffer,
+  cueStartMs: number,
+  speechRanges: readonly { readonly startMs: number; readonly endMs: number }[],
+  duckDb: number = SFX_DUCK_DB,
+  rampMs: number = SFX_DUCK_RAMP_MS,
+): void {
+  if (speechRanges.length === 0) return;
+  const msPerSample = 1000 / buffer.sampleRate;
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const data = buffer.getChannelData(channel);
+    for (let i = 0; i < data.length; i += 1) {
+      const tMs = cueStartMs + i * msPerSample;
+      const gain = duckGainAt(tMs, speechRanges, duckDb, rampMs);
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
+      if (gain < 1) data[i] = (data[i] ?? 0) * gain;
+    }
+  }
+}
+
 /** Overrides the projection's watermark with the manifest's own decision (orchestrator addendum). */
 export function applyManifestWatermark(
   projection: EdgProjection,

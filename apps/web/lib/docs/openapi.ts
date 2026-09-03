@@ -61,11 +61,26 @@ function toParameter(parameter: OpenApiParameter): ApiParameter {
   };
 }
 
+// M07: this used to re-walk and re-sort the whole 298-operation OpenAPI
+// document (`packages/api-client/openapi.json`, ~760KB parsed) on every call.
+// `/docs/developers/**` static generation calls `loadApiGroups()` from
+// `generateStaticParams`, `generateMetadata` *and* the page component for
+// every version/tag combination, and `DocsLayout` (every `/docs/**` page,
+// transitively via `loadDocsSearchDocs`) called it again — dozens of full
+// re-derivations per build across ~117 static pages. The document is fixed
+// per process (it is not touched by this WP), so the derived groups are
+// memoised once per worker instead of rebuilt per page; this is the fix the
+// M07 brief calls for, not a heap-size workaround.
+let groupsCache: readonly ApiGroup[] | undefined;
+
 /** Parses `@montaj/api-client/openapi.json`'s `/v1/*` paths into per-resource
  * groups, at build time — this IS the generated OpenAPI document rendered,
  * never a second hand-typed endpoint list (same rule B14's original page
- * followed). */
+ * followed). Memoised per process (see comment above); the result is
+ * read-only data derived from a document that is static within a build. */
 export function loadApiGroups(): readonly ApiGroup[] {
+  if (groupsCache) return groupsCache;
+
   const doc = openapi as unknown as OpenApiDocument;
   const groups = new Map<string, ApiEndpoint[]>();
 
@@ -92,7 +107,7 @@ export function loadApiGroups(): readonly ApiGroup[] {
     }
   }
 
-  return Array.from(groups.entries())
+  groupsCache = Array.from(groups.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([tag, endpoints]) => ({
       tag,
@@ -101,6 +116,7 @@ export function loadApiGroups(): readonly ApiGroup[] {
         (a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method),
       ),
     }));
+  return groupsCache;
 }
 
 export function findApiGroup(tag: string): ApiGroup | undefined {

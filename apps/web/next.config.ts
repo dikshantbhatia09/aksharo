@@ -76,6 +76,20 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@montaj/ui", "@montaj/api-client"],
   experimental: {
     optimizePackageImports: ["lucide-react"],
+    // M07: documented safety net, not the fix. The real fix was an actual bug
+    // — `lib/docs/markdown.tsx`'s `toBlocks()` looped forever (never
+    // advancing its line cursor) on any paragraph starting with bold text
+    // (`**Status:** ...`, which every plugin README opens with), so
+    // `/docs/plugins/[slug]` allocated paragraph blocks in an infinite loop
+    // until the static-generation worker hit the JS heap ceiling. Fixed at
+    // the source (see that file). `lib/docs/openapi.ts` / `lib/docs/content.ts`
+    // also used to recompute the OpenAPI groups and the MiniSearch index on
+    // every `/docs/**` page instead of once per worker — real waste, memoised
+    // now, but not itself the crash. `cpus: 1` + `webpackMemoryOptimizations`
+    // are kept as a documented safety margin on this shared, memory-constrained
+    // build host, not as a substitute for the fix above.
+    cpus: 1,
+    webpackMemoryOptimizations: true,
   },
   /**
    * CanvasKit and HarfBuzz are emscripten builds that sniff their environment at
