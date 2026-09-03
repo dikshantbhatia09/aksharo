@@ -29,3 +29,14 @@ describe("next.config security headers", () => {
     expect(byKey["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
   });
 });
+
+/** X03: `/developers` (B14) is subsumed into the single `/docs` surface. */
+describe("next.config docs redirects", () => {
+  it("redirects /developers to /docs/developers permanently", async () => {
+    const rules = await nextConfig.redirects!();
+    const rule = rules.find((r) => r.source === "/developers");
+    expect(rule).toBeDefined();
+    expect(rule!.destination).toBe("/docs/developers");
+    expect(rule!.permanent).toBe(true);
+  });
+});

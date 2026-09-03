@@ -43,6 +43,21 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
+  /**
+   * X03: `/docs` is now the one docs surface (guides, plugin guides,
+   * developer API reference, legal) rather than a separate site. `/developers`
+   * (B14) is subsumed by `/docs/developers` — a permanent redirect keeps every
+   * inbound link and bookmark to the old URL working, per the brief's
+   * "redirects: ... /developers keep working (redirect or alias)", while the
+   * expanded reference (per-endpoint pages, generated from the OpenAPI
+   * document) lives at the new address. `(app)/help` is a separate,
+   * authenticated in-product surface (B12) and is unaffected — it keeps its
+   * own URLs; `/docs/guides` reuses the same MDX as a second, public entry
+   * point rather than replacing it.
+   */
+  async redirects() {
+    return [{ source: "/developers", destination: "/docs/developers", permanent: true }];
+  },
   reactStrictMode: true,
   // Lint runs as its own turbo task with the shared flat config, so the build
   // must not run a second, differently-configured pass.
