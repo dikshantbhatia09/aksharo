@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import nextConfig from "./next.config";
 
@@ -28,6 +28,27 @@ describe("next.config security headers", () => {
     expect(byKey["X-Frame-Options"]).toBe("DENY");
     expect(byKey["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
   });
+
+  /**
+   * M09: `connect-src`'s `https:` keyword never matched a plain-`http://` API
+   * origin, which every local dev server and Playwright run uses. That blocked
+   * the sign-up/login/etc. `fetch()` calls outright and made every
+   * authenticated e2e spec hang at the shared sign-up helper. `API_ORIGIN` must
+   * be listed explicitly so its scheme (http or https) does not matter.
+   */
+  it("allows fetches to API_ORIGIN even when it is a plain http:// origin", async () => {
+    vi.resetModules();
+    vi.stubEnv("API_ORIGIN", "http://127.0.0.1:3950");
+    const { default: freshConfig } = await import("./next.config");
+    const headerRules = await freshConfig.headers!();
+    const byKey = Object.fromEntries(headerRules[0]!.headers.map((h) => [h.key, h.value]));
+    expect(byKey["Content-Security-Policy"]).toContain("connect-src 'self' https: wss:");
+    expect(byKey["Content-Security-Policy"]).toContain("http://127.0.0.1:3950");
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 /** X03: `/developers` (B14) is subsumed into the single `/docs` surface. */
