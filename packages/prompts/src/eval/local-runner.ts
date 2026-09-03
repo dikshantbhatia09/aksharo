@@ -15,6 +15,7 @@ import {
   ollamaBaseUrl,
   ollamaModel,
 } from "./ollama-provider.js";
+import { normalizeEditPlanOutput, normalizeInsightOutput } from "./small-model-normalize.js";
 import { EDIT_PLAN_TEMPLATE_VERSION, editPlanTemplate } from "../templates/edit-plan.js";
 import { INSIGHT_KINDS, templateFor } from "../templates/registry.js";
 
@@ -87,6 +88,7 @@ export async function runLocal(
         const { output, latencyMs } = await generateWithOllama(template, parsedInput, {
           baseUrl,
           model,
+          normalize: (raw) => normalizeInsightOutput(kind, raw),
         });
         const checks = runChecks(kind, template.outputSchema, output, fixture.transcript);
         const ok = checks.every((c) => c.ok);
@@ -116,6 +118,7 @@ export async function runLocal(
       const { output, latencyMs } = await generateWithOllama(editPlanTemplate, fixture.input, {
         baseUrl,
         model,
+        normalize: (raw) => normalizeEditPlanOutput(raw, fixture.input.planTier),
       });
       const checks = runEditPlanChecks(fixture.input, output);
       const ok = checks.every((c) => c.ok);

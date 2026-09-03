@@ -8,6 +8,43 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M20 (increment 2b): small-model output normalisation for the Ollama
+  path.** `qwen2.5:3b`'s JSON replies are often _almost_ schema-valid
+  rather than exactly valid. Added `apps/worker-ai/worker_ai/llm/normalize.py`
+  (Python, applied in `service.py`'s `_parse_and_validate` only when
+  `provider.name == "ollama"`) and
+  `packages/prompts/src/eval/small-model-normalize.ts` (TypeScript, wired
+  into `OllamaPlannerClient` and `eval:local`'s `generateWithOllama`):
+  strip `null`-valued optional fields; truncate an over-cap string on a
+  word boundary (chapter titles, summary fields, hook/title/keyphrase
+  strings, edit-plan rationale entries); request a bigger token budget
+  (`num_predict`/`max_tokens` floored at 3,000) and, when a reply looks
+  truncated rather than merely mis-shaped, retry once with a stricter
+  "ONLY complete JSON, under 150 words" system line instead of the generic
+  repair message; for edit plans, clamp the pass count to the plan tier's
+  budget by dropping the LOWEST-priority passes
+  (`EDIT_PLAN_PASS_KINDS`'s own declared order) instead of failing the
+  whole plan, and trim a rationale list longer than the kept passes;
+  sanitise a hashtag to the schema's allowed character class instead of
+  rejecting it outright. Every repair removes something the model already
+  said or is a no-op -- nothing here invents content. 40 new unit tests
+  (Python: `tests/test_llm_normalize.py`, `tests/test_llm_ollama_normalize_e2e.py`;
+  TypeScript: `small-model-normalize.test.ts`, plus 3 new
+  `planner-client.test.ts` cases) -- worker-ai suite now 867 passed (was
+  852), `@montaj/prompts` now 76 passed (was 54), ruff/mypy --strict and
+  eslint/tsc both clean. Reran `pnpm --filter @montaj/prompts eval:local`
+  against the real `qwen2.5:3b`: **12-13/24** (was 7/24 in increment 2,
+  runs vary with model nondeterminism) -- `chapters` went from the worst
+  category (0/4, an unrecovered repair failure in increment 2's real run)
+  to a clean 4/4; edit-plan roughly doubled its pass rate. `hooks`
+  (45+ precisely-shaped strings across 3 platforms in one reply) and two
+  `summary`/`hooks` hallucination-guard fixtures remain below the ≥20/24
+  target -- both are real qwen2.5:3b capability limits, not harness gaps
+  (the hallucination guard is a working guardrail this change deliberately
+  does not suppress); documented in `docs/FREE-STACK.md` along with the
+  `qwen2.5:7b` upgrade path (~4.7 GB, ~8 GB RAM headroom, pull only after
+  freeing disk).
+
 - **M20 (increment 2): a real run of the Ollama provider against a live
   local model, plus `pnpm --filter @montaj/prompts eval:local`.** Installed
   Ollama (already present on this host) and pulled `qwen2.5:3b` (~1.9 GB).

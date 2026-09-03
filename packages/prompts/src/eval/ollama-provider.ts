@@ -52,6 +52,21 @@ interface OpenAiCompatibleChatResponse {
   readonly choices?: readonly { readonly message?: { readonly content?: string } }[];
 }
 
+// A qwen2.5:3b reply in JSON mode is more verbose than the template budgets
+// assume for a hosted model -- a request under this floor was truncating
+// mid-string on several eval fixtures (M20 increment 2b).
+const MIN_MAX_TOKENS = 3_000;
+
+/** Substrings a `JSON.parse` error message uses for a reply that ran out of
+ * tokens mid-value, as opposed to one that is simply the wrong shape. */
+function looksTruncated(reason: string): boolean {
+  const lower = reason.toLowerCase();
+  return (
+    lower.startsWith("invalid json") &&
+    (lower.includes("unexpected end of json") || lower.includes("unterminated"))
+  );
+}
+
 async function callOllama(
   baseUrl: string,
   model: string,
@@ -60,12 +75,14 @@ async function callOllama(
   maxTokens: number,
   temperature: number,
 ): Promise<string> {
+  const effectiveMaxTokens = Math.max(maxTokens, MIN_MAX_TOKENS);
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       model,
-      max_tokens: maxTokens,
+      max_tokens: effectiveMaxTokens,
+      options: { num_predict: effectiveMaxTokens },
       temperature,
       messages: [
         { role: "system", content: system },
@@ -90,13 +107,18 @@ export interface OllamaGenerateResult<Output> {
 /**
  * Build the template's messages, call Ollama, validate against
  * `template.outputSchema`; on failure, retry once with a repair message
- * (mirrors `apps/worker-ai/worker_ai/llm/service.py`'s one-repair path).
- * Throws (with both failure reasons) if the repair attempt is also invalid.
+ * (mirrors `apps/worker-ai/worker_ai/llm/service.py`'s one-repair path). A
+ * reply cut off mid-JSON gets a different, stricter repair message than one
+ * that is merely the wrong shape (M20 increment 2b) -- see `looksTruncated`.
+ * `options.normalize`, when given, runs on the parsed JSON before schema
+ * validation on both attempts (M20 increment 2b's small-model repairs —
+ * `normalizeInsightOutput`/`normalizeEditPlanOutput`). Throws (with both
+ * failure reasons) if the repair attempt is also invalid.
  */
 export async function generateWithOllama<Input, Output>(
   template: TemplateDefinition<Input, Output>,
   input: Input,
-  options: { baseUrl?: string; model?: string } = {},
+  options: { baseUrl?: string; model?: string; normalize?: (raw: unknown) => unknown } = {},
 ): Promise<OllamaGenerateResult<Output>> {
   const baseUrl = options.baseUrl ?? ollamaBaseUrl();
   const model = options.model ?? ollamaModel();
@@ -113,7 +135,8 @@ export async function generateWithOllama<Input, Output>(
         reason: `invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
-    const result = template.outputSchema.safeParse(parsed);
+    const normalized = options.normalize ? options.normalize(parsed) : parsed;
+    const result = template.outputSchema.safeParse(normalized);
     if (!result.success) {
       return { ok: false, reason: `schema validation failed: ${result.error.message}` };
     }
@@ -133,9 +156,13 @@ export async function generateWithOllama<Input, Output>(
   if (first.ok) {
     return { output: first.output, latencyMs: performance.now() - start };
   }
-  const repairUser =
-    `${messages.user}\n\n<repair>\nYour previous reply did not match the required JSON schema. ` +
-    `Errors: ${first.reason}. Reply again with corrected strict JSON only, same shape as requested.\n</repair>`;
+
+  const repairUser = looksTruncated(first.reason)
+    ? `${messages.user}\n\n<repair>\nYour previous reply was cut off before the JSON finished. ` +
+      "Reply again with ONLY complete, valid JSON, no prose, no markdown fences. Keep the entire " +
+      "reply under 150 words so it fits.\n</repair>"
+    : `${messages.user}\n\n<repair>\nYour previous reply did not match the required JSON schema. ` +
+      `Errors: ${first.reason}. Reply again with corrected strict JSON only, same shape as requested.\n</repair>`;
   const second = attempt(
     await callOllama(
       baseUrl,

@@ -118,6 +118,74 @@ describe("OllamaPlannerClient", () => {
     const client = new OllamaPlannerClient("http://127.0.0.1:11434/v1", "qwen2.5:3b");
     await expect(client.generate(INPUT)).rejects.toThrow(/Ollama planner call failed: 503/);
   });
+
+  it("requests a token budget floor well above the template default", async () => {
+    const fetchMock = vi.fn(async (): Promise<Response> =>
+      jsonResponse({ choices: [{ message: { content: JSON.stringify(VALID_PLAN) } }] }),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const client = new OllamaPlannerClient("http://127.0.0.1:11434/v1", "qwen2.5:3b");
+    await client.generate(INPUT);
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { max_tokens: number };
+    expect(body.max_tokens).toBeGreaterThanOrEqual(3_000);
+  });
+
+  it("strips a null style field and clamps an over-budget pass list before validating (M20 increment 2b)", async () => {
+    const overBudget = {
+      passes: [
+        { kind: "autocut", params: {} },
+        { kind: "zoom", params: {} },
+        { kind: "reframe", params: {} },
+        { kind: "sfx", params: {} },
+        { kind: "music", params: {} },
+      ],
+      style: null,
+      rationale: ["a", "z", "r", "s", "m"],
+    };
+    const fetchMock = vi.fn(async (): Promise<Response> =>
+      jsonResponse({ choices: [{ message: { content: JSON.stringify(overBudget) } }] }),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    // INPUT.planTier is "creator", capped at 4 passes.
+    const client = new OllamaPlannerClient("http://127.0.0.1:11434/v1", "qwen2.5:3b");
+    const result = await client.generate(INPUT);
+
+    expect(result.output.passes).toHaveLength(4);
+    expect(result.output.passes.map((p) => p.kind)).toEqual(["autocut", "zoom", "reframe", "sfx"]);
+    expect(result.output.style).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the stricter truncation repair message and a bigger budget when the first reply is cut off", async () => {
+    let call = 0;
+    const fetchMock = vi.fn(async (): Promise<Response> => {
+      call += 1;
+      if (call === 1) {
+        return jsonResponse({
+          choices: [{ message: { content: '{"passes": [{"kind": "autocut", "title": "Int' } }],
+        });
+      }
+      return jsonResponse({ choices: [{ message: { content: JSON.stringify(VALID_PLAN) } }] });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const client = new OllamaPlannerClient("http://127.0.0.1:11434/v1", "qwen2.5:3b");
+    const result = await client.generate(INPUT);
+
+    expect(result.output.passes[0]?.kind).toBe("autocut");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [, secondInit] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    const secondBody = JSON.parse(secondInit.body as string) as {
+      messages: { role: string; content: string }[];
+      max_tokens: number;
+    };
+    expect(secondBody.messages[1]?.content).toContain("cut off");
+    expect(secondBody.messages[1]?.content).toContain("under 150 words");
+    expect(secondBody.max_tokens).toBeGreaterThanOrEqual(3_000);
+  });
 });
 
 describe("AnthropicPlannerClient", () => {

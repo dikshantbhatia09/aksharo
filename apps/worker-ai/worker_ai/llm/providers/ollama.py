@@ -29,6 +29,13 @@ __all__ = ["OllamaLlmProvider"]
 _DEFAULT_BASE_URL = "http://127.0.0.1:11434/v1"
 _DEFAULT_MODEL = "qwen2.5:3b"
 
+#: A qwen2.5:3b reply in JSON mode is more verbose than the template budgets
+#: (`TEMPLATE_CONFIG`) assume for a hosted model -- a request under this
+#: floor was truncating mid-string on several eval fixtures (M20 increment
+#: 2b). Applied to every call this provider makes; a hosted provider is
+#: unaffected, it never reads this constant.
+_MIN_MAX_TOKENS = 3_000
+
 #: Ollama runs entirely on this host: no network egress, so every workspace
 #: jurisdiction is compliant with it (same rationale as the mock provider).
 _ALL_REGIONS = frozenset({"in", "eu", "us"})
@@ -64,10 +71,12 @@ class OllamaLlmProvider(LlmProvider):
         return f"{self._base_url}/chat/completions"
 
     async def generate(self, request: LlmRequest) -> LlmResponse:
+        effective_max_tokens = max(request.max_tokens, _MIN_MAX_TOKENS)
         endpoint = self._endpoint
         body: dict[str, Any] = {
             "model": self._model,
-            "max_tokens": request.max_tokens,
+            "max_tokens": effective_max_tokens,
+            "options": {"num_predict": effective_max_tokens},
             "temperature": request.temperature,
             "messages": [
                 {"role": "system", "content": request.system},

@@ -32,7 +32,7 @@
  */
 import { Injectable, Logger } from "@nestjs/common";
 
-import { editPlanTemplate, mockEditPlan } from "@montaj/prompts";
+import { editPlanTemplate, mockEditPlan, normalizeEditPlanOutput } from "@montaj/prompts";
 import type { EditPlanInput, EditPlanOutput } from "@montaj/prompts";
 
 export interface PlannerGenerateResult {
@@ -68,6 +68,7 @@ export class MockPlannerClient implements PlannerClient {
 async function parseEditPlanJsonWithRetry(
   text: string,
   retry: (reason: string) => Promise<string>,
+  normalize?: (raw: unknown) => unknown,
 ): Promise<EditPlanOutput> {
   const attempt = (
     candidate: string,
@@ -81,7 +82,8 @@ async function parseEditPlanJsonWithRetry(
         reason: `invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
-    const result = editPlanTemplate.outputSchema.safeParse(parsed);
+    const normalized = normalize ? normalize(parsed) : parsed;
+    const result = editPlanTemplate.outputSchema.safeParse(normalized);
     if (!result.success) {
       return { ok: false, reason: `schema validation failed: ${result.error.message}` };
     }
@@ -158,11 +160,43 @@ interface OpenAiCompatibleChatResponse {
 }
 
 /**
+ * A qwen2.5:3b reply in JSON mode is more verbose than `editPlanTemplate`'s
+ * budget assumes for a hosted model -- a request under this floor was
+ * truncating mid-JSON on some fixtures (M20 increment 2b).
+ */
+const OLLAMA_MIN_MAX_TOKENS = 3_000;
+
+/** Same truncation heuristic as `packages/prompts`'s `ollama-provider.ts` --
+ * kept as a private mirror rather than an import so this file's only
+ * dependency on `@montaj/prompts` stays its existing template/normaliser
+ * exports. */
+function looksTruncated(reason: string): boolean {
+  const lower = reason.toLowerCase();
+  return (
+    lower.startsWith("invalid json") &&
+    (lower.includes("unexpected end of json") || lower.includes("unterminated"))
+  );
+}
+
+function truncatedRepairUserMessage(user: string): string {
+  return (
+    `${user}\n\n<repair>\nYour previous reply was cut off before the JSON finished. ` +
+    "Reply again with ONLY complete, valid JSON, no prose, no markdown fences. Keep the entire " +
+    "reply under 150 words so it fits.\n</repair>"
+  );
+}
+
+/**
  * M20 free-stack mode: a local, OpenAI-compatible Ollama server. No key —
  * `LLM_BASE_URL`/`LLM_MODEL` (defaults `http://127.0.0.1:11434/v1` /
  * `qwen2.5:3b`) are enough. JSON mode via `response_format: json_object`
  * (Ollama's OpenAI-compat endpoint honours the same flag OpenAI's does), with
- * the same one-repair-attempt path as {@link AnthropicPlannerClient}.
+ * the same one-repair-attempt path as {@link AnthropicPlannerClient} — plus,
+ * only on this path, `normalizeEditPlanOutput` (nulls stripped, over-cap
+ * rationale truncated, passes clamped to the plan tier's budget instead of
+ * failing) before schema validation, and a stricter repair message + bigger
+ * token budget when a reply looks truncated rather than merely mis-shaped
+ * (M20 increment 2b).
  */
 @Injectable()
 export class OllamaPlannerClient implements PlannerClient {
@@ -177,12 +211,14 @@ export class OllamaPlannerClient implements PlannerClient {
   }
 
   private async call(system: string, user: string): Promise<string> {
+    const maxTokens = Math.max(editPlanTemplate.maxTokens, OLLAMA_MIN_MAX_TOKENS);
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         model: this.model,
-        max_tokens: editPlanTemplate.maxTokens,
+        max_tokens: maxTokens,
+        options: { num_predict: maxTokens },
         temperature: editPlanTemplate.temperature,
         messages: [
           { role: "system", content: system },
@@ -202,8 +238,16 @@ export class OllamaPlannerClient implements PlannerClient {
   async generate(input: EditPlanInput): Promise<PlannerGenerateResult> {
     const messages = editPlanTemplate.build(input);
     const text = await this.call(messages.system, messages.user);
-    const output = await parseEditPlanJsonWithRetry(text, (reason) =>
-      this.call(messages.system, repairUserMessage(messages.user, reason)),
+    const output = await parseEditPlanJsonWithRetry(
+      text,
+      (reason) =>
+        this.call(
+          messages.system,
+          looksTruncated(reason)
+            ? truncatedRepairUserMessage(messages.user)
+            : repairUserMessage(messages.user, reason),
+        ),
+      (raw) => normalizeEditPlanOutput(raw, input.planTier),
     );
     this.logger.log({ templateVersion: editPlanTemplate.version }, "real planner call completed");
     return { output, provider: "ollama", templateVersion: editPlanTemplate.version };

@@ -13,6 +13,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from worker_ai.llm.normalize import normalize_insight_output
 from worker_ai.llm.providers.base import LlmError, LlmProvider, LlmRequest
 from worker_ai.llm.providers.mock import MockLlmProvider
 from worker_ai.llm.region import select_region_compliant_provider
@@ -120,18 +121,33 @@ async def generate_insight(
     if response is None:
         raise AllProvidersFailedError(tuple(errors))
 
-    outcome = _parse_and_validate(kind, response.text)
+    outcome = _parse_and_validate(kind, response.text, provider.name)
     if not outcome.ok:
         # One repair attempt: ask the SAME provider to fix the specific errors.
-        repair_request = LlmRequest(
-            system=messages.system,
-            user=(
+        # A small local model (Ollama, M20 free-stack mode) that got cut off
+        # mid-JSON needs a different instruction than one that just missed a
+        # schema constraint, so the repair message and token budget both
+        # branch on that -- everything else about the retry is unchanged.
+        if provider.name == "ollama" and _looks_truncated(outcome.errors):
+            repair_user = (
+                f"{messages.user}\n\n<repair>\nYour previous reply was cut off before the "
+                "JSON finished. Reply again with ONLY complete, valid JSON, no prose, no "
+                "markdown fences. Keep the entire reply under 150 words so it fits."
+                "\n</repair>"
+            )
+            repair_max_tokens = max(int(config["maxTokens"]), _MIN_OLLAMA_REPAIR_TOKENS)
+        else:
+            repair_user = (
                 f"{messages.user}\n\n<repair>\nYour previous reply did not match the "
                 f"required JSON schema. Errors: {'; '.join(outcome.errors)}. "
                 "Reply again with corrected strict JSON only, same shape as requested."
                 "\n</repair>"
-            ),
-            max_tokens=int(config["maxTokens"]),
+            )
+            repair_max_tokens = int(config["maxTokens"])
+        repair_request = LlmRequest(
+            system=messages.system,
+            user=repair_user,
+            max_tokens=repair_max_tokens,
             temperature=float(config["temperature"]),
             region=region,
         )
@@ -142,7 +158,7 @@ async def generate_insight(
                 repaired = await _call_with_retry(provider, repair_request)
         except LlmError as error:
             raise InvalidOutputError((*outcome.errors, str(error))) from error
-        outcome = _parse_and_validate(kind, repaired.text)
+        outcome = _parse_and_validate(kind, repaired.text, provider.name)
         if not outcome.ok:
             raise InvalidOutputError(outcome.errors)
         response = repaired
@@ -167,11 +183,34 @@ async def generate_insight(
     )
 
 
-def _parse_and_validate(kind: str, text: str) -> ValidationOutcome:
+#: A repair prompt for a truncated Ollama reply asks for a short reply, but
+#: still needs headroom for the schema's largest fields (`summary.long` <=
+#: 1200 chars) plus JSON structure overhead.
+_MIN_OLLAMA_REPAIR_TOKENS = 2_048
+
+#: Substrings `json.JSONDecodeError` uses for a reply that ran out of tokens
+#: mid-value, as opposed to one that is simply the wrong shape.
+_TRUNCATION_MARKERS = ("unterminated", "expecting")
+
+
+def _looks_truncated(errors: tuple[str, ...]) -> bool:
+    return any(
+        error.lower().startswith("invalid json")
+        and any(marker in error.lower() for marker in _TRUNCATION_MARKERS)
+        for error in errors
+    )
+
+
+def _parse_and_validate(kind: str, text: str, provider_name: str = "") -> ValidationOutcome:
     try:
         raw = json.loads(text)
     except json.JSONDecodeError as error:
         return ValidationOutcome(ok=False, errors=(f"invalid JSON: {error}",), value=None)
     if not isinstance(raw, dict):
         return ValidationOutcome(ok=False, errors=("output is not a JSON object",), value=None)
+    if provider_name == "ollama":
+        # Small-model output normalisation (M20 increment 2b): a hosted
+        # provider's output is validated as-is, unchanged from before this
+        # existed.
+        raw = normalize_insight_output(kind, raw)
     return validate_output(kind, raw)  # type: ignore[arg-type]
