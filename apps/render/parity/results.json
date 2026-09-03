@@ -84,7 +84,7 @@
   },
   "sfx": {
     "generatedAt": "2026-09-03T03:19:58.442Z",
-    "maxDiffLinearTolerance": 1e-06,
+    "maxDiffLinearTolerance": 1e-6,
     "fixtures": {
       "default-duck": {
         "fixtureId": "default-duck",
