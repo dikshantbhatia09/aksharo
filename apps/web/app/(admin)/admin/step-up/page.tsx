@@ -33,6 +33,11 @@ export default function AdminStepUpPage(): React.JSX.Element {
         adminRoles: result.adminRoles,
         expiresIn: result.expiresIn,
       });
+      // The server-side routing gate (middleware.ts) needs its own signal —
+      // sessionStorage is invisible to it. Best-effort: a failed POST here
+      // just means the next `/admin/**` navigation 404s and the visitor
+      // steps up again, never a security gap (AdminGuard is unaffected).
+      await fetch("/api/admin-hint", { method: "POST" }).catch(() => undefined);
       router.push("/admin");
     } catch (err) {
       setError(isApiError(err) ? err.message : "Step-up failed.");

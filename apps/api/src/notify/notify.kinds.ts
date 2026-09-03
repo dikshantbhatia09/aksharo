@@ -26,6 +26,12 @@ export const NOTIFY_KINDS = [
   // bell to), never carries an unsubscribe link (it is not addressed to a
   // subscriber at all).
   "support-ticket-created",
+  // B13b: sent once an admin resolves a `share_reports` row — to the
+  // reporter (email if one was given; a report may be anonymous) and to the
+  // workspace owner of the reported share link.
+  "share-report-resolved",
+  // B13b: an admin's reply on `admin/support`, sent to the ticket's owner.
+  "support-ticket-reply",
 ] as const;
 
 export type NotifyKind = (typeof NOTIFY_KINDS)[number];
@@ -74,6 +80,8 @@ export const IN_APP_KINDS: readonly NotifyKind[] = [
   "share-comment",
   "streak-nudge",
   "retention-warning",
+  "share-report-resolved",
+  "support-ticket-reply",
 ];
 
 const IN_APP_SET: ReadonlySet<string> = new Set<string>(IN_APP_KINDS);

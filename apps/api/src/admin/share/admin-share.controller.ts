@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Logger,
   Param,
   Post,
   Req,
@@ -23,17 +24,26 @@ import { ResolveReportDto, ShareReportSummaryDto } from "./admin-share.dto.js";
 import { CommonAuditService } from "../../common/audit/audit.service.js";
 import { AppException, ERROR_CODES } from "../../common/errors/error-codes.js";
 import { PrismaService } from "../../common/prisma/prisma.service.js";
+import { NotifyService } from "../../notify/notify.service.js";
 import { ShareLinksService } from "../../share/share-links.service.js";
 import { AdminRoles } from "../admin-roles.decorator.js";
 import { AdminGuard, adminOf } from "../admin.guard.js";
 
 import type { AuthenticatedRequest } from "../../common/guards/principal.js";
 
+const RESOLUTION_LABEL: Record<string, string> = {
+  take_down: "taken down",
+  dismiss: "dismissed — no action needed",
+  warned: "resolved with a warning to the project owner",
+};
+
 /**
  * Share-link report review (B13 scope §2: "share-link reports (take down,
- * notify)"). "Notify" (emailing the reporter/workspace once resolved) is not
- * wired here — no NOTIFY_KINDS template exists for it yet; see this WP's
- * final report, "open questions". Take-down and resolution tracking are.
+ * notify)"). B13b wires "notify" up: `share-report-resolved` (added this WP)
+ * goes to the reporter, when they left contact details, and to the
+ * workspace owner of the reported link — both as a courtesy that the report
+ * was looked at, never a promise of what was done (the note is a short,
+ * human summary, not the admin's internal reasoning).
  */
 @ApiTags("admin")
 @ApiBearerAuth("access-token")
@@ -42,10 +52,13 @@ import type { AuthenticatedRequest } from "../../common/guards/principal.js";
 @UseGuards(AdminGuard)
 @Controller("admin/share-reports")
 export class AdminShareController {
+  private readonly logger = new Logger(AdminShareController.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly shareLinks: ShareLinksService,
     private readonly audit: CommonAuditService,
+    private readonly notify: NotifyService,
   ) {}
 
   @Get()
@@ -105,5 +118,60 @@ export class AdminShareController {
       ...(admin.ip === undefined ? {} : { ip: admin.ip }),
       data: { resolution: body.action, note: body.note, shareLinkId: report.shareLinkId },
     });
+
+    await this.notifyResolution(report, body);
+  }
+
+  /**
+   * Best-effort: a notification is a courtesy on top of an already-completed
+   * resolution, never a reason to fail the request (`NotifyService.enqueue`'s
+   * own contract — see its doc comment — never throws for a delivery reason,
+   * but a lookup here, e.g. a deleted workspace, still should not 500).
+   */
+  private async notifyResolution(
+    report: { readonly shareLinkId: string; readonly reporterContact: string | null },
+    body: ResolveReportDto,
+  ): Promise<void> {
+    const resolution = RESOLUTION_LABEL[body.action] ?? body.action;
+    const reportedAt = new Date().toISOString().slice(0, 10);
+    const data = { reportedAt, resolution, resolutionNote: body.note };
+
+    try {
+      if (report.reporterContact !== null && report.reporterContact.trim() !== "") {
+        await this.notify.enqueue({
+          kind: "share-report-resolved",
+          to: report.reporterContact,
+          data,
+          idempotencyKey: `share-report-resolved-reporter-${report.shareLinkId}-${body.action}`,
+        });
+      }
+
+      const link = await this.prisma.shareLink.findUnique({
+        where: { id: report.shareLinkId },
+        select: { project: { select: { workspace: { select: { id: true, ownerId: true } } } } },
+      });
+      const ownerId = link?.project.workspace.ownerId;
+      if (ownerId !== undefined) {
+        const owner = await this.prisma.user.findUnique({
+          where: { id: ownerId },
+          select: { email: true },
+        });
+        if (owner !== null) {
+          await this.notify.enqueue({
+            kind: "share-report-resolved",
+            to: owner.email,
+            userId: ownerId,
+            workspaceId: link?.project.workspace.id,
+            data,
+            idempotencyKey: `share-report-resolved-owner-${report.shareLinkId}-${body.action}`,
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        { err: error, shareLinkId: report.shareLinkId },
+        "share-report-resolved notification failed to enqueue",
+      );
+    }
   }
 }

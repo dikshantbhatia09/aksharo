@@ -208,10 +208,13 @@ def build_routing_table(settings: Settings) -> RoutingTable:
     """``routing.yaml`` with the admin weights of `09 §1` laid over it.
 
     Two sources, in order: ``ROUTING_OVERRIDES_JSON`` in the environment, then
-    the API's ``GET /internal/routing`` when ``WORKER_AI_ROUTING_OVERRIDES_FROM_API``
-    is on. The API endpoint belongs to the admin console (B13) and does not exist
-    on ``main`` yet, so the fetch is opt-in and a 404 is not an error — the worker
-    logs it once and runs the table as written.
+    the API's ``GET /internal/routing/overrides`` when
+    ``WORKER_AI_ROUTING_OVERRIDES_FROM_API`` is on (B13b; ``routing_overrides.py``
+    caches that fetch for 60s and revalidates by ETag). D08's routing-freeze
+    flag, when set, wins over both — see ``routing_overrides.fetch_overrides``,
+    which is where that precedence is actually enforced (it returns ``{}``
+    without a network call when frozen), so this function does not need to
+    know about it separately.
     """
     table = load_routing_table(settings.routing_file or None)
     overrides = load_overrides(settings.routing_overrides_json)
@@ -224,48 +227,17 @@ def build_routing_table(settings: Settings) -> RoutingTable:
 
 
 def fetch_routing_overrides(settings: Settings) -> dict[str, Any]:
-    """``GET {API_ORIGIN}/internal/routing``, signed like every internal call.
+    """``GET {API_ORIGIN}/internal/routing/overrides``, cached and ETag-revalidated.
 
-    Returns ``{}`` on any failure — a missing endpoint, a bad signature, an
-    unreachable API. Routing weights are a tuning knob; a worker that refuses to
-    boot without them would turn an admin-console outage into an ASR outage.
+    Thin wrapper kept for backward compatibility with call sites and tests
+    that import this name from ``worker_ai.runtime``; the real
+    implementation — the 60s cache, the ETag revalidation, and the
+    stale-if-error fallback — lives in ``routing_overrides.fetch_overrides``
+    so it can be unit-tested without booting the whole runtime.
     """
-    import hashlib
-    import hmac
-    import time
+    from worker_ai.routing_overrides import fetch_overrides
 
-    import httpx2
-
-    path = "/internal/routing"
-    timestamp = str(int(time.time()))
-    signature = hmac.new(
-        settings.internal_callback_secret.encode("utf-8"),
-        (timestamp + ".").encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-    try:
-        response = httpx2.get(
-            settings.api_origin + path,
-            headers={
-                "x-montaj-timestamp": timestamp,
-                "x-montaj-signature": signature,
-            },
-            timeout=5.0,
-        )
-    except httpx2.HTTPError as error:
-        _log.warning("routing overrides unavailable", extra={"reason": type(error).__name__})
-        return {}
-    if response.status_code == 404:
-        _log.info("the API exposes no /internal/routing yet; using routing.yaml as written")
-        return {}
-    if response.status_code >= 400:
-        _log.warning("routing overrides refused", extra={"status": response.status_code})
-        return {}
-    try:
-        parsed: Any = response.json()
-    except ValueError:
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
+    return fetch_overrides(settings)
 
 
 def build_cache(settings: Settings) -> ResultCache:

@@ -145,6 +145,13 @@ export const API_OPERATIONS = [
     summary: "Current routing-freeze state",
   },
   {
+    operationId: "adminGetSupportTicket",
+    method: "GET",
+    path: "/admin/support/tickets/{id}",
+    tags: ["admin"],
+    summary: "One ticket",
+  },
+  {
     operationId: "adminJobQueueStats",
     method: "GET",
     path: "/admin/jobs/stats",
@@ -185,6 +192,13 @@ export const API_OPERATIONS = [
     path: "/admin/styles",
     tags: ["admin"],
     summary: "The system style catalogue, with parity results",
+  },
+  {
+    operationId: "adminListSupportTickets",
+    method: "GET",
+    path: "/admin/support/tickets",
+    tags: ["admin"],
+    summary: "Support tickets, newest first, optionally filtered by status/category",
   },
   {
     operationId: "adminPendingAffiliates",
@@ -229,6 +243,13 @@ export const API_OPERATIONS = [
     summary: "Reject a held reward",
   },
   {
+    operationId: "adminReplyToSupportTicket",
+    method: "POST",
+    path: "/admin/support/tickets/{id}/reply",
+    tags: ["admin"],
+    summary: "Reply to a ticket via the notify interface",
+  },
+  {
     operationId: "adminResolveShareReport",
     method: "POST",
     path: "/admin/share-reports/{id}/resolve",
@@ -271,18 +292,18 @@ export const API_OPERATIONS = [
     summary: "Set (create or replace) one lane/provider's weight override",
   },
   {
+    operationId: "adminSetSupportTicketStatus",
+    method: "POST",
+    path: "/admin/support/tickets/{id}/status",
+    tags: ["admin"],
+    summary: "Move a ticket to open/in_progress/resolved/closed",
+  },
+  {
     operationId: "adminStepUp",
     method: "POST",
     path: "/admin/auth/step-up",
     tags: ["admin"],
     summary: "Exchange a normal session plus a TOTP code for a 30-minute admin token",
-  },
-  {
-    operationId: "adminSupportStatus",
-    method: "GET",
-    path: "/admin/support/status",
-    tags: ["admin"],
-    summary: "Whether the support-ticket panel has a real backend yet (B12)",
   },
   {
     operationId: "adminSuspendAffiliate",
