@@ -63,6 +63,23 @@ describe("next.config security headers", () => {
   });
 
   /**
+   * M10: the raw-media upload PUTs go straight from the browser to
+   * S3_ENDPOINT (CONTRACTS §6), bypassing the API entirely — connect-src
+   * never listed it, so every dev/e2e upload (a plain http://localhost:9000)
+   * was silently CSP-blocked and no media.probe job was ever created. Gate
+   * A's "sign-up through cloud render" journey failed at
+   * expect(probeJob).toBeDefined() for exactly this reason.
+   */
+  it("allows a raw-media upload PUT to S3_ENDPOINT's host", async () => {
+    vi.resetModules();
+    vi.stubEnv("S3_ENDPOINT", "http://localhost:9000");
+    const { default: freshConfig } = await import("./next.config");
+    const headerRules = await freshConfig.headers!();
+    const byKey = Object.fromEntries(headerRules[0]!.headers.map((h) => [h.key, h.value]));
+    expect(byKey["Content-Security-Policy"]).toContain("http://localhost:9000");
+  });
+
+  /**
    * M10: `script-src 'self' 'unsafe-inline'` alone blocks
    * `WebAssembly.instantiate` — Chrome reports it as a `script-src`
    * violation and aborts the compile — which meant CanvasKit (every editor

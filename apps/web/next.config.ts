@@ -43,9 +43,25 @@ import type { NextConfig } from "next";
  * problem, a CSP one. `'wasm-unsafe-eval'` (not the much broader
  * `'unsafe-eval'`, which would also permit plain JS `eval`/`Function()`) is
  * the CSP3 keyword scoped to exactly this.
+ *
+ * `connect-src` also never covered the raw-media object store: the browser
+ * upload (`GET /projects/{id}/media/init` then a direct presigned
+ * multipart `PUT` from the browser straight to S3/MinIO, CONTRACTS §6 — the
+ * upload never goes through the API) targets `S3_ENDPOINT` directly, and in
+ * dev/e2e that is a plain `http://localhost:9000`, which nothing in the
+ * source list matched. Every such `PUT` was silently blocked (CSP console
+ * error, no network entry — the same failure mode `API_ORIGIN`'s own gap
+ * above had), so zero bytes ever reached storage and no `media.probe` job
+ * was ever created — Gate A's "sign-up through cloud render" journey failed
+ * at `expect(probeJob).toBeDefined()` for exactly this reason, not a
+ * worker or throughput issue. Production's object store sits behind a real
+ * `https://` CDN/R2 origin, already covered by the `https:` keyword;
+ * `S3_ENDPOINT` is added the same way `API_ORIGIN` is, so only the
+ * dev/e2e `http://` case needs the explicit origin.
  */
 const API_ORIGIN = process.env["API_ORIGIN"]?.trim() ?? "";
 const API_WS_ORIGIN = API_ORIGIN.replace(/^http/, "ws");
+const S3_ENDPOINT = process.env["S3_ENDPOINT"]?.trim() ?? "";
 
 const SECURITY_HEADERS = [
   {
@@ -57,7 +73,9 @@ const SECURITY_HEADERS = [
       "img-src 'self' data: blob: https:",
       "media-src 'self' blob: https:",
       "font-src 'self' data:",
-      ["connect-src 'self' https: wss:", API_ORIGIN, API_WS_ORIGIN].filter(Boolean).join(" "),
+      ["connect-src 'self' https: wss:", API_ORIGIN, API_WS_ORIGIN, S3_ENDPOINT]
+        .filter(Boolean)
+        .join(" "),
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "object-src 'none'",

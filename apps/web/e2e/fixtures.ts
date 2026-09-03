@@ -117,6 +117,7 @@ export const test = base.extend<{ context: BrowserContext }, { sharedAccount: Ac
     });
     context.on("page", (page) => {
       void installWhatsNewAutoDismiss(page);
+      void installCoachMarkAutoDismiss(page);
     });
     await use(context);
     await context.close();
@@ -129,6 +130,7 @@ export const test = base.extend<{ context: BrowserContext }, { sharedAccount: Ac
       });
       context.on("page", (page) => {
         void installWhatsNewAutoDismiss(page);
+        void installCoachMarkAutoDismiss(page);
       });
       const page = await context.newPage();
       const account = await signUpAndVerify(page, `shared${String(workerInfo.workerIndex)}`);
@@ -166,6 +168,29 @@ async function installWhatsNewAutoDismiss(page: Page): Promise<void> {
   } catch {
     // The page can close before the handler is installed (e.g. a fixture's
     // scratch context); nothing to dismiss on a page nobody uses.
+  }
+}
+
+/**
+ * `FirstRunCoachMarks` (B17 §1): three sequential callouts (`data-testid
+ * "coach-mark"`) shown once for a fresh account reaching the editor —
+ * "transcript", then "style", then "export" — each positioned directly over
+ * the very panel the next step's click needs, so it intercepts pointer
+ * events (Playwright's own actionability check reports "<... data-coach-mark
+ * ...> intercepts pointer events") for whatever a spec clicks next. No spec
+ * dismisses it today, so a fresh-signup journey that reaches the editor is
+ * one coach mark away from a blocked click. `Skip` (present at every step)
+ * clears all three in one action, same auto-route pattern as
+ * `installWhatsNewAutoDismiss`.
+ */
+async function installCoachMarkAutoDismiss(page: Page): Promise<void> {
+  try {
+    await page.addLocatorHandler(page.getByTestId("coach-mark"), async (mark) => {
+      await mark.getByTestId("coach-mark-skip").click();
+    });
+  } catch {
+    // The page can close before the handler is installed; nothing to dismiss
+    // on a page nobody uses.
   }
 }
 

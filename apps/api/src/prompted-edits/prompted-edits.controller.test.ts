@@ -22,7 +22,7 @@ function principal(): AuthPrincipal {
     userId: USER_ID,
     workspaceId: WORKSPACE_ID,
     role: "editor",
-    kind: "user",
+    kind: "web",
     jti: "j",
   };
 }

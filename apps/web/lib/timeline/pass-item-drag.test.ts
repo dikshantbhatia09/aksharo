@@ -25,9 +25,9 @@ describe("clampPassItemEdge", () => {
     expect(
       clampPassItemEdge("end", 22_999.998_779_296_875, { startMs: 10_000, endMs: 20_000 }),
     ).toBe(23_000);
-    expect(Number.isInteger(clampPassItemEdge("start", 10_000.4, { startMs: 15_000, endMs: 20_000 }))).toBe(
-      true,
-    );
+    expect(
+      Number.isInteger(clampPassItemEdge("start", 10_000.4, { startMs: 15_000, endMs: 20_000 })),
+    ).toBe(true);
   });
 
   it("stops at a neighbouring accepted item on the same side", () => {

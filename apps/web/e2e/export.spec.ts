@@ -5,8 +5,6 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { expect, test } from "@playwright/test";
-
 import { API_ORIGIN, freshAccount, seedEditorProject } from "./editor-fixtures";
 import {
   accessTokenFromPage,
@@ -14,7 +12,7 @@ import {
   grantTestCredits,
   workspaceIdFromPage,
 } from "./export-test-helpers";
-import { gotoHydrated } from "./fixtures";
+import { expect, gotoHydrated, test } from "./fixtures";
 
 /**
  * Chromium: exports a 10-second synthetic clip end to end in the browser —
@@ -36,6 +34,22 @@ import { gotoHydrated } from "./fixtures";
  * a locally generated fixture MP4 served from this app's own `public/`
  * directory, standing in for the signed proxy URL `resolveSourceUrl` would
  * otherwise fetch. This is reported as a limitation in the final report.
+ *
+ * ## M10 fixes
+ *
+ * Both cases here used to fail. (1) `page.waitForFunction(() =>
+ * window.__exportHarness?.ready === true)` timed out at 60s regardless of
+ * host throughput — CSP's `script-src 'self' 'unsafe-inline'` (next.config.ts) has
+ * no `'wasm-unsafe-eval'`, which Chrome treats WebAssembly compilation as
+ * needing the same way it treats `eval`, so CanvasKit — every editor route's
+ * renderer, including this harness's — never instantiated and `ready` was
+ * never set; fixed in `next.config.ts`. (2) This file imported `test`/`expect`
+ * from `@playwright/test` directly rather than `./fixtures`, so it never got
+ * `fixtures.ts`'s `context` fixture, which auto-dismisses `WhatsNewModal` on
+ * every signed-in page (`installWhatsNewAutoDismiss`) — every fresh sign-up
+ * here hits that modal, and its overlay intercepted the click on the real
+ * dialog's Export button; fixed by importing `test`/`expect` from
+ * `./fixtures` like every other spec.
  */
 
 const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "e2e-fixtures");

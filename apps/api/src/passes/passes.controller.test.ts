@@ -28,12 +28,16 @@ function principal(): AuthPrincipal {
     userId: USER_ID,
     workspaceId: WORKSPACE_ID,
     role: "editor",
-    kind: "user",
+    kind: "web",
     jti: "j",
   };
 }
 
-const accepted = (passId: string) => ({ jobId: "01JJOB0000000000000000000A", passId, status: "queued" });
+const accepted = (passId: string) => ({
+  jobId: "01JJOB0000000000000000000A",
+  passId,
+  status: "queued",
+});
 
 describe("PassesController — every start route writes an audit row", () => {
   it("startAutocut", async () => {
@@ -62,7 +66,10 @@ describe("PassesController — every start route writes an audit row", () => {
     await h.controller.startZoom(principal(), PROJECT_ID, { preset: "standard" });
 
     expect(h.audit.record).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "pass.zoom.started", resourceId: "01JPASS000000000000000ZOM" }),
+      expect.objectContaining({
+        action: "pass.zoom.started",
+        resourceId: "01JPASS000000000000000ZOM",
+      }),
     );
   });
 
@@ -101,7 +108,10 @@ describe("PassesController — every start route writes an audit row", () => {
     await h.controller.startSfx(principal(), PROJECT_ID);
 
     expect(h.audit.record).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "pass.sfx.started", resourceId: "01JPASS000000000000000SFX" }),
+      expect.objectContaining({
+        action: "pass.sfx.started",
+        resourceId: "01JPASS000000000000000SFX",
+      }),
     );
   });
 

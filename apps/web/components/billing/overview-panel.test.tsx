@@ -2,9 +2,9 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { OverviewPanel } from "./overview-panel";
-
 import type { StreakView } from "@montaj/api-client";
+
+import { OverviewPanel } from "./overview-panel";
 
 import type { CreditsSummary, SubscriptionView } from "@/lib/billing/types";
 
