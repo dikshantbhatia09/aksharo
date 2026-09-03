@@ -173,5 +173,6 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | M07 | see brief | Sonnet | merged 91dcb80- + verified (full build incl. web green; web 917, render 238, api 2405/2406 with referrals-http load flake, worker 803) |
 | D06b | Text FX draw path + parity | Sonnet | merged + verified (a3933fc; render-core 526, render 245, web 921) |
 | D04c | SFX pass wiring (edg kinds, route, worker, card, lane, manifest) | Sonnet | merged + verified (edg 306, api 161); mix pipeline -> D04d |
-| D04d | Audio mix pipeline (browser+cloud), signed pack URLs, energy cues | Sonnet | running |
+| D04d | Audio mix pipeline (browser+cloud), signed pack URLs, energy cues | Sonnet | merged a0198ca + verified (signed URLs, preview, energy cues); mixer -> D04e |
 | M09 | Maintenance: signup-sent Playwright regression (Gate B blocker) | Sonnet | running |
+| D04e | Cue audio mixing into exports, browser + cloud, envelope parity (mix only) | Sonnet | running |
