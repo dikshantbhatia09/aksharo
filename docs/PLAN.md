@@ -180,3 +180,4 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | M10 | Maintenance: Docker image build (packages/config tsc), Gate B run-4 defects (timeline drag, streak /billing, export, gate-a) | Sonnet | briefed; launches after D07 (one-agent rule) |
 | M11 | Maintenance: auto beat-alignment, LLM sentiment via B11 seam, prompted-edit chain retry | Sonnet | merged (beat-align, LLM mood via B11 seam, chain retry e2e) |
 | M12 | Maintenance: one markdown block parser for docs + help content | Sonnet | merged + verified (web 964; shared parser + property tests) || D04b2 | Partner catalogue wiring behind flag: HTTP, pass wiring, usage emission, render grant check, admin table, badge | Sonnet | running |
+| M13 | Maintenance: autocut vs zero-width protected range (Hypothesis failure on main) | Sonnet | running |
