@@ -3467,7 +3467,7 @@
     },
     "/consents": {
       "get": {
-        "description": "`reconsentRequired` is true when a purpose was last answered against an older privacy notice — the choice has to be asked again (D61, Rule 3).",
+        "description": "`reconsentRequired` is true when a purpose was last answered against an older privacy notice — the choice has to be asked again (D61, Rule 3). `@AllowBridgeToken()` (M04): the local bridge process reads this on startup and on its periodic refresh to know whether the `telemetry` purpose is granted, the same read a browser session makes — it is a read of the caller's own consent state, not an action on anyone else's.",
         "operationId": "getConsents",
         "parameters": [],
         "responses": {

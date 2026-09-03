@@ -99,6 +99,23 @@ This is exactly what surfaced the CI-env tray hang above — the smoke test
 hung intermittently without the `CI`-env skip in `native-tray.ts`, which would
 have made the matrix job flaky (not merely slow) on Windows/macOS runners.
 
+## Telemetry consent sync (M04, C12 follow-up)
+
+`config.telemetryConsent` used to default to `false` with no way to learn the
+server actually granted it. `main.ts` now:
+
+1. Reads `GET /consents` with the bridge's own device token on every startup
+   (`consent-sync.ts`'s `fetchTelemetryConsent`) and persists whatever it
+   learns before deciding whether to construct the telemetry client.
+2. Polls the same endpoint every 5 minutes (`startConsentPolling`) and, on a
+   change, starts or stops the telemetry client live — no restart needed.
+
+`GET /consents` opted into `@AllowBridgeToken()` on the API side for this
+(`apps/api/src/consents/consents.controller.ts`). There is no push channel
+from the API to an unpaired bridge process today (`/bridge/relay` only pairs
+one bridge with one connected client), so this is a poll, not a subscription
+— see `consent-sync.ts`'s doc comment for the full reasoning.
+
 ## Intended stack
 
 | Piece              | Choice                                                                    | Why                                                 |

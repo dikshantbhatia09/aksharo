@@ -19,11 +19,11 @@ export const Public = (): MethodDecorator & ClassDecorator => SetMetadata(IS_PUB
  * B08b (CONTRACTS §5 amended 2026-09-03): a bridge token authenticates one
  * local bridge process, not a user sitting at a browser or plugin, so it must
  * not be usable against ordinary `/projects`, `/billing`, etc. routes just
- * because it carries a real `sub`/`ws`. The allowlist is empty today — no
- * route needs a bridge token through `JwtAuthGuard` yet, since `/bridge/relay`
- * verifies the token itself and `/devices/*` mints it from an ordinary user
- * token — so `@AllowBridgeToken()` exists for a future route to opt in
- * explicitly rather than for anything to use today.
+ * because it carries a real `sub`/`ws`. `/bridge/relay` verifies the token
+ * itself and `/devices/*` mints it from an ordinary user token, so neither
+ * needs this. `GET /consents` opts in (M04, C12 follow-up): the bridge reads
+ * its own `telemetry` consent on startup and refresh, which is a read of the
+ * caller's own state, the same as any user-facing client's `GET /consents`.
  */
 export const ALLOW_BRIDGE_TOKEN_KEY = "montaj:allow-bridge-token";
 

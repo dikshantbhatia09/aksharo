@@ -3,6 +3,7 @@ import { hostname, platform as osPlatform, release as osRelease, type as osType 
 import { BridgeCore } from "@montaj/bridge-core";
 
 import { loadConfig, saveConfig } from "./config.js";
+import { fetchTelemetryConsent, startConsentPolling } from "./consent-sync.js";
 import {
   bootstrapDeviceCredentials,
   DeviceAuthError,
@@ -12,9 +13,13 @@ import { createNativeTray } from "./native-tray.js";
 import { createTelemetryClient } from "./telemetry/client.js";
 
 import type { BridgeAppConfig } from "./config.js";
+import type { TelemetryClient } from "./telemetry/client.js";
 
 /** Read from `package.json` at build time by `scripts/build-sea.mjs`; a plain literal here otherwise. */
 const APP_VERSION = process.env["npm_package_version"] ?? "0.0.0";
+
+/** How often `main()` re-reads `GET /consents` after startup (M04, C12 follow-up). */
+const CONSENT_POLL_INTERVAL_MS = 5 * 60_000;
 
 /**
  * `apps/bridge` entry point: the Node SEA (brief §5). Everything the bridge
@@ -157,30 +162,71 @@ async function main(): Promise<void> {
   // C12: consent-gated telemetry. Best-effort, fire-and-forget (see
   // `telemetry/client.ts`'s doc comment) — never lets a telemetry failure
   // affect the bridge's own start/stop/pairing behaviour.
-  if (config.telemetryConsent === true && config.deviceToken !== undefined) {
-    const telemetry = createTelemetryClient({
-      apiOrigin: config.apiOrigin ?? relayUrlToApiOrigin(config.relayUrl ?? ""),
-      deviceToken: config.deviceToken,
-      appVersion: APP_VERSION,
-    });
-    process.on("uncaughtException", (error) => {
-      void telemetry.reportCrash(error, `${osType()} ${osRelease()}`);
-    });
-    process.on("unhandledRejection", (reason) => {
-      const error =
-        reason instanceof Error ? reason : { message: `Unhandled rejection: ${String(reason)}` };
-      void telemetry.reportCrash(error, `${osType()} ${osRelease()}`);
-    });
-    bridge.on("status", (event) => {
-      if (event.status === "running") void telemetry.reportEvent("bridge_connected");
-    });
+  //
+  // `telemetryRef.client` is set/cleared, not fixed at startup, so a consent
+  // change picked up later (`consent-sync.ts`'s poll) takes effect without a
+  // restart: the crash/rejection handlers below and the `bridge_connected`
+  // report both read `telemetryRef.client` at the moment they fire.
+  const apiOrigin = config.apiOrigin ?? relayUrlToApiOrigin(config.relayUrl ?? "");
+  const telemetryRef: { client?: TelemetryClient } = {};
+  function applyTelemetryConsent(granted: boolean): void {
+    if (granted && config.deviceToken !== undefined) {
+      telemetryRef.client = createTelemetryClient({
+        apiOrigin,
+        deviceToken: config.deviceToken,
+        appVersion: APP_VERSION,
+      });
+    } else {
+      telemetryRef.client = undefined;
+    }
   }
+
+  if (config.deviceToken !== undefined) {
+    // Refresh from the server before trusting the local mirror: consent
+    // withdrawn or granted from another device (or the web app) since the
+    // last run must not wait a full poll interval to take effect here.
+    const fresh = await fetchTelemetryConsent({ apiOrigin, deviceToken: config.deviceToken });
+    if (fresh !== undefined && fresh !== config.telemetryConsent) {
+      config = { ...config, telemetryConsent: fresh };
+      saveConfig(config);
+    }
+  }
+  applyTelemetryConsent(config.telemetryConsent === true);
+
+  process.on("uncaughtException", (error) => {
+    void telemetryRef.client?.reportCrash(error, `${osType()} ${osRelease()}`);
+  });
+  process.on("unhandledRejection", (reason) => {
+    const error =
+      reason instanceof Error ? reason : { message: `Unhandled rejection: ${String(reason)}` };
+    void telemetryRef.client?.reportCrash(error, `${osType()} ${osRelease()}`);
+  });
+  bridge.on("status", (event) => {
+    if (event.status === "running") void telemetryRef.client?.reportEvent("bridge_connected");
+  });
+
+  const consentPoll =
+    config.deviceToken !== undefined
+      ? startConsentPolling({
+          apiOrigin,
+          deviceToken: config.deviceToken,
+          intervalMs: CONSENT_POLL_INTERVAL_MS,
+          initialKnown: config.telemetryConsent === true,
+          onChange: (granted) => {
+            log({ evt: "bridge.telemetry_consent_changed", granted });
+            config = { ...config, telemetryConsent: granted };
+            saveConfig(config);
+            applyTelemetryConsent(granted);
+          },
+        })
+      : undefined;
 
   let shuttingDown = false;
   const shutdown = (signal: string): void => {
     if (shuttingDown) return;
     shuttingDown = true;
     log({ evt: "bridge.shutdown", signal });
+    consentPoll?.stop();
     void Promise.allSettled([bridge.stop(), tray?.close() ?? Promise.resolve()]).then(() =>
       process.exit(0),
     );

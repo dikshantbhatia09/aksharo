@@ -34,6 +34,46 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   - `apps/desktop/README.md`: manual Electron smoke steps updated for word edits, resegment
     and upload-to-cloud (Electron cannot launch in this sandbox).
 
+- **M04 — main hygiene: consent-purpose drift, worker env-var contract drift, bridge consent sync, audit-scan gap.**
+  - Consent purposes: `apps/api/test/users-workspaces.e2e-spec.ts` and
+    `apps/api/src/consents/consents.service.test.ts` still encoded C12's old
+    5-purpose list. Derived the e2e assertions from `CONSENT_PURPOSES` (one
+    source) and swapped the "outside the enum" sample from `telemetry`
+    (now valid) to `profiling`. `PRIVACY_NOTICE` (`apps/api/src/privacy/privacy-notice.ts`)
+    was also missing the `telemetry` purpose entry; added it (its test
+    already derives from the enum, so no drift is possible going forward).
+    `docs/06-data-model.md`'s consent-purpose enum note still lists only 5
+    purposes — doc row needed, not edited here (out of file boundaries).
+  - Worker env-var contract: `packages/config/src/env.ts`'s `CONTRACT_ENV_VARS`
+    gained `LICENSE_SIGNING_KID` but `apps/worker-ai/worker_ai/settings.py`
+    kept its own hand-copied tuple, so `test_contract_list_matches_typescript`
+    failed. `packages/config`'s build now emits `contract-env-vars.json`
+    (`packages/config/src/emit-contract-env.mjs`, wired into `build`/new
+    `gen:contract-env` script) and `settings.py` reads that JSON at import
+    time, falling back to a last-known-good tuple only when the JSON hasn't
+    been generated yet — the parity test still fails loudly if the fallback
+    ever goes stale, so the two lists cannot silently drift again.
+  - Bridge consent sync: `apps/bridge` read `GET /consents` nowhere and
+    defaulted `telemetryConsent` to `false` forever. `ConsentsController.list`
+    (`GET /consents`) now opts into `@AllowBridgeToken()`; the bridge
+    (`apps/bridge/src/consent-sync.ts`, wired into `main.ts`) reads it on
+    startup and polls it every 5 minutes, starting/stopping the telemetry
+    client live on a change. No push channel exists from the API to an
+    unpaired bridge process (`/bridge/relay` only pairs one bridge with one
+    connected client), so this is a poll rather than the
+    `consent.withdrawn`/`granted` event push the brief first asked for —
+    flagged for the orchestrator as a deviation, same as `memory/consent-events.ts`'s.
+  - Audit-scan gap: `apps/api/src/audit/audit-completeness.test.ts` flagged
+    D08's `evals/internal-evals.controller.ts` (`POST /internal/evals/runs`).
+    It's an HMAC-signed worker-to-API callback exactly like
+    `internal-jobs.controller.ts`, not a user/admin action, and its durable
+    trail is `EvalRun`/`EvalResult`, not `audit_log` — added the same
+    documented exemption to `EXEMPT_FILES`
+    (`apps/api/src/audit/audited-routes.scan.ts`).
+  - Lint hygiene: `packages/fonts/e2e/server.mjs`'s long-standing no-console
+    warning fixed with the same `eslint-disable-next-line` style already used
+    elsewhere in the repo; `pnpm -w lint` is clean.
+
 - C10: installers, plugins page and the real `/plugins/manifest`.
   - `GET /plugins/manifest` extends the C11 stub into a real channel manifest: fetches
     `tools/release`'s published `plugins-manifest.json` (5-minute Redis cache), reporting
@@ -85,6 +125,7 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   `plugins/after-effects-cep`.
 
 - C04: local mode (v1 = local-only) — `apps/desktop/src/local/**`: a SQLite (`sql.js`, WASM, MIT) store (`local_projects`/`local_media`/`local_edg_snapshots`/`local_exports`), a typed IPC surface (`window.aksharoDesktop.local`) delegating transcription/alignment/render to the local engine sidecar (C03a's `@montaj/engine-client`), the main-process network guard that blocks any upload to the hosted API while a local project is open, and the Starter+ `localMode` entitlement gate (`packages/config`'s `hasLocalMode`). `apps/web/lib/edg/store.ts` gained a local branch (`createLocalEditorStoreDeps`) so the hosted editor runs against the same IPC with no API calls for a local project; Home shows a desktop-only "Local projects" section. `POST /projects/{id}/edg/import` (new route) is the API side of "Upload to cloud" — writes a whole EDG v2 document as revision 1 of a fresh cloud project, never a merge.
+- C03b: local engine quality-gate harness (`apps/engine/bench/**`) — for each model (`turbo-q5_0`, `small`), calls `/transcribe`+`/align` through `@montaj/engine-client` against a committed Hinglish reference set (`apps/engine/fixtures/hinglish-reference.json`: A23's 90s sample + D08's `hinglish-mini` references vs. a committed cloud-aligner snapshot), scores WER/CER/median word-boundary error via a thin Python metrics bridge (`apps/worker-ai/worker_ai/evals/local_engine.py`, reusing D08's `worker_ai.evals.metrics`), checks tiered latency (A<=60s/B<=90s/C<=120s) and a harness-vs-`/health` tier cross-check, and writes a dated `docs/verification/local-engine-<profile>-<date>.md`+`.json` report; thresholds (`apps/engine/bench/thresholds.ts`) are pure and unit-tested. Runs end to end against C03a's `FakeBackend` here (`gate: skipped-fake-backend` — plumbing only) and CI (`.github/workflows/local-engine-bench.yml`) keeps it green on every push/PR touching the engine; the gate itself only passes from a real-backend run on a Gate C machine (`docs/GATE-C-CHECKLIST.md`'s new "Local engine quality gate" section). Deleted the A01 scaffold `engine/montaj-engine/**` (superseded by `apps/engine`, C03a) and fixed the one stale reference to it (root `README.md`'s layout table).
 - C09: DaVinci Resolve Studio Workflow Integration panel (`plugins/resolve-panel`) — docked React shell over `aksharo_core`'s loopback server (discover → bearer → JSON-RPC), `WorkflowIntegrationHost` adapter + mock, sign-in mirrored from the script, timeline picker, "Caption this timeline", passes review + "Apply in Resolve", version/update banner; C08 loopback server gains `session.status`, `transcribe.start`, `passes.list` (`plugins/resolve/aksharo_core_app/session.py|transcribe.py|passes.py`) plus a `?token=` query-param bearer path for browser `WebSocket` callers; `tools/release`'s `package-resolve` now also stages the panel bundle for Studio installs.
 
 ### Added
