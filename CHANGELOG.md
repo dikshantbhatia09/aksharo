@@ -8,6 +8,60 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M18: `gate-a.spec.ts` green deterministically on chromium — harness mode
+  confirmed, and the real tile blocker M14/M16 left open.**
+  - **Harness mode ruling:** mode A (no workers; `internal-callback.ts`'s
+    signed completion callback drives `media.probe`/`media.proxy`/
+    transcription/subtitle-render/video-render) was already the spec's own
+    design — `docs/PLAN.md`'s "one journey test" convention `upload.spec.ts` /
+    `editor-fixtures.ts` already use. The "assert queued, then complete"
+    tension GATE-B-CHECKLIST's run notes flagged was never a harness
+    ambiguity: `playwright.config.ts`'s `webServer` only starts `api`/`web`,
+    so nothing but this spec's own `completeJobForTest` calls ever consume
+    its jobs — running gate-a against a stack with `worker-media`/
+    `worker-ai`/`render` alive (as several earlier Gate B attempts did) is
+    what raced the `probeJob` assertion, not the spec. No harness change was
+    needed; only documenting the rule below.
+  - **Tile blocker root cause (not a coach mark, and not off-screen
+    virtualisation):** `style-picker-tile-punch-pop` really was "visible,
+    enabled and stable" by Playwright's own actionability checks, and still
+    unclickable — instrumenting the failing run (`getBoundingClientRect` +
+    `elementFromPoint` at the tile's own centre, dumped from a temporary
+    debug copy of the spec, deleted after use) showed the tile's box at
+    `{width: 144, height: 2}`, positioned over the **timeline canvas**, not
+    the style panel. The editor's timeline row
+    (`apps/web/app/(app)/p/[id]/editor-client.tsx`,
+    `data-testid="editor-timeline-row"`) had no height cap: `Timeline.tsx`
+    sizes its canvas to `laneTops.totalHeight` (more pass types / protected
+    ranges = taller), and that row sat in `editor-root`'s fixed
+    `h-[calc(100dvh-3.5rem)]` flex column with no `max-h`, so it took
+    whatever it wanted and the `flex min-h-0 flex-1` row above it — transcript,
+    canvas preview and the style picker — got only what was left. On a fresh
+    signup's journey (a split segment turns the reflow banner on, adding
+    another ~56px of header) that left ~228px for the whole row on a
+    1280x720 viewport, and `StylePicker.tsx`'s grid (`min-h-0 flex-1
+    overflow-y-auto`) collapsed to 0px: CSS Grid's automatic minimum size for
+    a track is 0 (not its content size) once a grid item sets
+    `overflow: hidden`, which every tile button does. Every tile rendered at
+    ~2px, occupying whatever the collapsed grid track gave it, well outside
+    the panel's own visible box. Real users on an ordinary laptop-height
+    viewport with a lane-heavy timeline (or mid-reflow-prompt, exactly gate-a's
+    own sequence) hit the identical collapse — this was a genuine
+    responsiveness defect in the editor layout, not a test artefact.
+  - **Fix:** `editor-timeline-row` gained `max-h-[38dvh] shrink-0
+    overflow-y-auto` (the row scrolls its own lanes past that budget instead
+    of shrinking its siblings to nothing), and the content row above it
+    (`flex min-h-[220px] flex-1`) gained an explicit floor so it can never be
+    squeezed to zero even on a shorter viewport. `apps/web/components/editor/
+    panels/StylePicker.tsx` and `RightPanel.tsx` were read end to end and are
+    correct as written — the defect was purely in the layout budget one level
+    up, in `editor-client.tsx`.
+  - **Verification:** `gate-a.spec.ts` chromium, `export.spec.ts`,
+    `timeline.spec.ts` — see this package's final report for the 3/3 gate-a
+    result lines (a shared-host Redis/Docker outage during this package's own
+    run interrupted the last verification pass; see the report for exactly
+    what ran clean and what is still outstanding).
+
 - **M16: first-run coach marks intercepted the editor's own click targets
   (gate-a blocker after M14).** Root cause: `FirstRunCoachMarks`
   (`apps/web/components/editor/coach-marks/FirstRunCoachMarks.tsx`) rendered
