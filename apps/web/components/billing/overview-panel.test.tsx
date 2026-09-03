@@ -192,4 +192,21 @@ describe("<OverviewPanel />", () => {
     await user.click(screen.getByTestId("overview-upgrade"));
     expect(await screen.findByTestId("checkout-sheet")).toBeInTheDocument();
   });
+
+  it("shows admin-granted credits and hides checkout when Razorpay is not configured", async () => {
+    renderWithProviders(<OverviewPanel />, {
+      routes: {
+        "/billing/subscription": ACTIVE_SUBSCRIPTION,
+        "/workspaces/01JWORKSPACE/credits": CREDITS,
+        "/billing/mandates": [],
+      },
+      config: { razorpayEnabled: false },
+    });
+
+    expect(await screen.findByTestId("free-stack-billing")).toHaveTextContent(
+      "Credits are granted by your admin",
+    );
+    expect(screen.queryByTestId("overview-upgrade")).toBeNull();
+    expect(screen.queryByTestId("checkout-sheet")).toBeNull();
+  });
 });

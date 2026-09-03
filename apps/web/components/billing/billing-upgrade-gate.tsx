@@ -2,12 +2,13 @@
 
 import * as React from "react";
 
-import { UpgradeGate } from "@montaj/ui";
+import { toast, UpgradeGate } from "@montaj/ui";
 
 import { CheckoutSheet } from "./checkout-sheet";
 
 import type { PlanKey } from "@/lib/billing/types";
 
+import { useRuntimeConfig } from "@/components/providers";
 import { usePlans } from "@/lib/billing/hooks";
 import { formatMoney } from "@/lib/billing/money";
 
@@ -41,6 +42,7 @@ export function BillingUpgradeGate({
   readonly children?: React.ReactNode;
   readonly className?: string;
 }): React.JSX.Element {
+  const { razorpayEnabled } = useRuntimeConfig();
   const plans = usePlans();
   const [open, setOpen] = React.useState(false);
 
@@ -58,11 +60,19 @@ export function BillingUpgradeGate({
       price={price}
       className={className}
       onUpgrade={() => {
+        // Payments unconfigured: keep the lock honest (the feature really is gated)
+        // but say who can unlock it instead of opening a sheet that cannot charge.
+        if (!razorpayEnabled) {
+          toast.info("Payments are not configured in this build", {
+            description: "Ask an administrator to grant credits or change your plan.",
+          });
+          return;
+        }
         setOpen(true);
       }}
     >
       {children}
-      {!open ? null : (
+      {!open || !razorpayEnabled ? null : (
         <CheckoutSheet
           open={open}
           onOpenChange={setOpen}

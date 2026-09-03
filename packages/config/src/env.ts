@@ -30,6 +30,7 @@ export const CONTRACT_ENV_VARS = [
   "INTERNAL_CALLBACK_SECRET_NEXT",
   "GOOGLE_OAUTH_CLIENT_ID",
   "GOOGLE_OAUTH_CLIENT_SECRET",
+  "AUTH_DEV_AUTO_VERIFY",
   "LICENSE_SIGNING_KID",
   "WEB_ORIGIN",
   "API_ORIGIN",
@@ -42,6 +43,8 @@ export const CONTRACT_ENV_VARS = [
   "LLM_PROVIDER",
   "ANTHROPIC_API_KEY",
   "OPENAI_API_KEY",
+  "LLM_BASE_URL",
+  "LLM_MODEL",
   "GPU_PROVIDER",
   "GPU_PROVIDER_URL",
   "GPU_PROVIDER_TOKEN",
@@ -115,7 +118,7 @@ const pemKey = (name: string) =>
 /** Unescape `\n` so a single-line PEM from a .env file becomes a real key. */
 const unescapeNewlines = (value: string): string => value.replace(/\\n/g, "\n");
 
-export const LLM_PROVIDERS = ["anthropic", "openai", "mock"] as const;
+export const LLM_PROVIDERS = ["anthropic", "openai", "ollama", "mock"] as const;
 export const MAIL_PROVIDERS = ["ses", "smtp", "dev"] as const;
 export type MailProviderName = (typeof MAIL_PROVIDERS)[number];
 
@@ -161,6 +164,10 @@ export const envSchema = z.object({
   ),
   GOOGLE_OAUTH_CLIENT_ID: optionalSecret(),
   GOOGLE_OAUTH_CLIENT_SECRET: optionalSecret(),
+  AUTH_DEV_AUTO_VERIFY: z
+    .enum(["0", "1"])
+    .default("0")
+    .transform((value) => value === "1"),
   // Identifies which key pair signed a licence-key offline payload (B08). Reuses
   // JWT_PRIVATE_KEY/JWT_PUBLIC_KEY rather than a third secret; bump this when the
   // key pair rotates so a cached offline snapshot can be told apart from a fresh one.
@@ -184,6 +191,24 @@ export const envSchema = z.object({
   LLM_PROVIDER: z.enum(LLM_PROVIDERS).default("mock"),
   ANTHROPIC_API_KEY: optionalSecret(),
   OPENAI_API_KEY: optionalSecret(),
+  // M20 free-stack mode: a local, OpenAI-compatible Ollama server. No key
+  // needed — `LLM_PROVIDER=ollama` is selectable without ANTHROPIC_API_KEY or
+  // OPENAI_API_KEY ever being set. Defaults match a stock local Ollama
+  // install (`ollama pull qwen2.5:3b`), so a bare `LLM_PROVIDER=ollama` with
+  // both of these left empty still works out of the box.
+  LLM_BASE_URL: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) =>
+      value === undefined || value === "" ? "http://127.0.0.1:11434/v1" : value,
+    )
+    .refine((value) => /^https?:\/\/[^\s]+$/.test(value), "LLM_BASE_URL must be an http(s) URL"),
+  LLM_MODEL: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value === undefined || value === "" ? "qwen2.5:3b" : value)),
 
   // --- GPU (A09; the endpoint the serverless pool is invoked at) ---
   GPU_PROVIDER: z.enum(GPU_PROVIDERS).default("none"),
@@ -272,17 +297,50 @@ export interface LoadEnvOptions {
  * the contract test walks to prove every CONTRACTS section 1 variable has a key —
  * would stop existing.
  *
- * Only one rule so far: a mail provider that talks to a real server needs an
- * envelope sender, and SMTP needs somewhere to send it. `dev` needs neither, which
- * is why a developer can boot with nothing configured.
+ * A mail provider that talks to a real server needs an envelope sender, and SMTP
+ * needs somewhere to send it. `dev` needs neither, which is why a developer can boot
+ * with nothing configured. The remaining rules keep the development sign-up bypass
+ * (`AUTH_DEV_AUTO_VERIFY`) fail-closed: it is refused outright unless the dev outbox
+ * was chosen deliberately, and refused always under NODE_ENV=production.
+ *
+ * `source` is the raw environment the values came from, so a rule can tell "set to
+ * the default" apart from "explicitly requested"; it defaults to `process.env` so a
+ * caller cannot skip a security rule by omitting it.
  */
-export function crossFieldProblems(env: Env): string[] {
+export function crossFieldProblems(
+  env: Env,
+  source: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+): string[] {
   const problems: string[] = [];
   if (env.MAIL_PROVIDER !== "dev" && env.MAIL_FROM === undefined) {
     problems.push(`MAIL_FROM is required when MAIL_PROVIDER is "${env.MAIL_PROVIDER}"`);
   }
   if (env.MAIL_PROVIDER === "smtp" && env.SMTP_URL === undefined) {
     problems.push('SMTP_URL is required when MAIL_PROVIDER is "smtp"');
+  }
+  if (env.AUTH_DEV_AUTO_VERIFY) {
+    // A sign-up that skips mailbox proof is not merely a convenience: `emailVerifiedAt`
+    // is what authorises claiming a pending workspace invitation, so an unverified
+    // address that counts as verified can collect another tenant's grant. Every unsafe
+    // combination therefore refuses to boot rather than being silently ignored — an
+    // ignored flag stays armed in a parameter store until an unrelated config change
+    // turns it live, with no code change and no review.
+    if (env.MAIL_PROVIDER !== "dev") {
+      problems.push(
+        'AUTH_DEV_AUTO_VERIFY=1 requires MAIL_PROVIDER="dev" ' +
+          `(it is "${env.MAIL_PROVIDER}"): a real mail transport means real sign-ups`,
+      );
+    } else if (source["MAIL_PROVIDER"] === undefined) {
+      // MAIL_PROVIDER defaults to "dev", so an unset value must never be read as
+      // permission to bypass verification; the dev outbox has to be chosen on purpose.
+      problems.push(
+        'AUTH_DEV_AUTO_VERIFY=1 requires MAIL_PROVIDER to be set explicitly to "dev" ' +
+          "(it is unset and only defaulting to dev)",
+      );
+    }
+    if (source["NODE_ENV"] === "production") {
+      problems.push("AUTH_DEV_AUTO_VERIFY=1 is never valid when NODE_ENV=production");
+    }
   }
   return problems;
 }
@@ -296,7 +354,7 @@ export function loadEnv(options: LoadEnvOptions = {}): Env {
   const result = envSchema.safeParse(source);
 
   if (result.success) {
-    const problems = crossFieldProblems(result.data);
+    const problems = crossFieldProblems(result.data, source);
     if (problems.length > 0) throw new EnvValidationError(problems);
     return result.data;
   }

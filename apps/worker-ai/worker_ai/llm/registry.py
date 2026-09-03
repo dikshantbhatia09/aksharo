@@ -11,6 +11,7 @@ from __future__ import annotations
 from worker_ai.llm.providers.anthropic import AnthropicLlmProvider
 from worker_ai.llm.providers.base import LlmProvider
 from worker_ai.llm.providers.mock import MockLlmProvider
+from worker_ai.llm.providers.ollama import OllamaLlmProvider
 from worker_ai.llm.providers.openai import OpenAiLlmProvider
 from worker_ai.settings import Settings
 
@@ -23,7 +24,13 @@ def build_llm_providers(settings: Settings) -> tuple[LlmProvider, ...]:
         return (MockLlmProvider(),)
 
     providers: list[LlmProvider] = []
-    if settings.llm_provider == "anthropic":
+    if settings.llm_provider == "ollama":
+        # No key required (M20 free-stack mode) — always constructible, so this
+        # branch never falls through to the mock-on-no-key path below.
+        providers.append(
+            OllamaLlmProvider(base_url=settings.llm_base_url, model=settings.llm_model)
+        )
+    elif settings.llm_provider == "anthropic":
         if settings.anthropic_api_key:
             providers.append(AnthropicLlmProvider(api_key=settings.anthropic_api_key))
         if settings.openai_api_key:

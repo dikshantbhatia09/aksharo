@@ -19,8 +19,10 @@ export function GoogleButton({
 }: {
   label?: string;
   loginHint?: string;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const config = useRuntimeConfig();
+
+  if (!config.googleOAuthEnabled) return null;
 
   const start = (): void => {
     const url = new URL("/auth/oauth/google/start", config.apiOrigin);
@@ -56,7 +58,10 @@ function GoogleMark(): React.JSX.Element {
 }
 
 /** The visual separator between Google and the email form. */
-export function AuthDivider(): React.JSX.Element {
+export function AuthDivider(): React.JSX.Element | null {
+  const config = useRuntimeConfig();
+  if (!config.googleOAuthEnabled) return null;
+
   return (
     <div className="flex items-center gap-3" aria-hidden="true">
       <span className="bg-border h-px flex-1" />

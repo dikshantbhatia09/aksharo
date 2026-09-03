@@ -32,6 +32,8 @@ import { useOffersEligibility, useTopupCheckout } from "@montaj/api-client";
 import { BRAND } from "@montaj/config";
 import { Button, Card, Skeleton, toast } from "@montaj/ui";
 
+import { FreeStackBillingNotice } from "@/components/billing/free-stack-notice";
+import { useRuntimeConfig } from "@/components/providers";
 import { openRazorpayCheckout } from "@/lib/billing/razorpay";
 import { messageForError } from "@/lib/errors";
 
@@ -47,9 +49,14 @@ function formatAmount(minor: number, currency: "INR" | "USD"): string {
 }
 
 export function TopupCard({ onDone, className }: TopupCardProps): React.JSX.Element {
+  const { razorpayEnabled } = useRuntimeConfig();
   const eligibility = useOffersEligibility();
   const topupCheckout = useTopupCheckout();
   const [buying, setBuying] = React.useState(false);
+
+  // Without Razorpay keys the checkout cannot complete, so the control must not be
+  // offered at all: a button that opens a widget with no key is a dead end.
+  if (!razorpayEnabled) return <FreeStackBillingNotice />;
 
   async function buy(): Promise<void> {
     const tier = eligibility.data?.topupFree149;

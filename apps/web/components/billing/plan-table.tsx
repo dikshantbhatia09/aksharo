@@ -5,10 +5,12 @@ import * as React from "react";
 import { Badge, Button, Card, toast } from "@montaj/ui";
 
 import { CheckoutSheet } from "./checkout-sheet";
+import { FreeStackBillingNotice } from "./free-stack-notice";
 
 import type { CheckoutSelection } from "@/lib/billing/checkout-state";
 import type { PlanKey, PlanView } from "@/lib/billing/types";
 
+import { useRuntimeConfig } from "@/components/providers";
 import {
   usePassCheckout,
   usePlans,
@@ -39,6 +41,11 @@ const PLAN_HIGHLIGHTS: Record<PlanKey, readonly string[]> = {
 const ONCE_ELIGIBLE: ReadonlySet<PlanKey> = new Set(["starter", "creator"]);
 
 export function PlanTable(): React.JSX.Element {
+  const config = useRuntimeConfig();
+  return config.razorpayEnabled ? <PurchasablePlanTable /> : <FreeStackBillingNotice />;
+}
+
+function PurchasablePlanTable(): React.JSX.Element {
   const plans = usePlans();
   const billing = useWorkspaceBilling();
   const subscription = useSubscription();

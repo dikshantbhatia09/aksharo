@@ -15,6 +15,7 @@ import { AgeConsentStep, EMPTY_AGE_CONSENT } from "@/components/auth/age-consent
 import { AuthCard } from "@/components/auth/auth-card";
 import { BlockedMinor } from "@/components/auth/blocked-minor";
 import { AuthDivider, GoogleButton } from "@/components/auth/google-button";
+import { useRuntimeConfig } from "@/components/providers";
 import { messageForError } from "@/lib/errors";
 import { evaluateAge } from "@/lib/privacy/age-gate";
 import { writePrivacy } from "@/lib/privacy/consent";
@@ -45,6 +46,7 @@ type Credentials = z.infer<typeof credentialsSchema>;
 type Stage = "credentials" | "age" | "blocked" | "sent";
 
 export function SignUpForm(): React.JSX.Element {
+  const config = useRuntimeConfig();
   const [stage, setStage] = React.useState<Stage>("credentials");
   const [credentials, setCredentials] = React.useState<Credentials>({
     name: "",
@@ -109,12 +111,20 @@ export function SignUpForm(): React.JSX.Element {
   if (stage === "sent") {
     return (
       <AuthCard
-        title="Check your inbox"
+        title={config.authDevAutoVerify ? "You can sign in now" : "Check your inbox"}
         subtitle={
-          <>
-            If <strong className="text-fg-1">{credentials.email}</strong> can have an account, a
-            confirmation link is on its way. It works once and lasts 24 hours.
-          </>
+          config.authDevAutoVerify ? (
+            <>
+              Development auto-verification is enabled for{" "}
+              <strong className="text-fg-1">{credentials.email}</strong>. No confirmation click is
+              needed in this local build.
+            </>
+          ) : (
+            <>
+              If <strong className="text-fg-1">{credentials.email}</strong> can have an account, a
+              confirmation link is on its way. It works once and lasts 24 hours.
+            </>
+          )
         }
         footer={
           <>
@@ -126,13 +136,17 @@ export function SignUpForm(): React.JSX.Element {
         }
       >
         <div className="flex flex-col gap-3" data-testid="signup-sent">
-          <p className="text-fg-2 text-sm">
-            Nothing in your inbox after a minute? Check spam, then ask for a{" "}
-            <Link href="/magic" className="text-lime-500 rounded-sm hover:underline">
-              sign-in link
-            </Link>{" "}
-            instead — that works whether or not this address already had an account.
-          </p>
+          {config.authDevAutoVerify ? (
+            <p className="text-fg-2 text-sm">Use the sign-in link below with your new password.</p>
+          ) : (
+            <p className="text-fg-2 text-sm">
+              Nothing in your inbox after a minute? Check spam, then ask for a{" "}
+              <Link href="/magic" className="text-lime-500 rounded-sm hover:underline">
+                sign-in link
+              </Link>{" "}
+              instead — that works whether or not this address already had an account.
+            </p>
+          )}
         </div>
       </AuthCard>
     );

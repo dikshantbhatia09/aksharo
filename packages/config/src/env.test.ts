@@ -144,6 +144,62 @@ describe("loadEnv", () => {
     expect(env.RAZORPAY_KEY_ID).toBeUndefined();
   });
 
+  it("parses AUTH_DEV_AUTO_VERIFY as an opt-in 0/1 switch", () => {
+    expect(loadEnv({ source: validEnv() }).AUTH_DEV_AUTO_VERIFY).toBe(false);
+    expect(
+      loadEnv({ source: validEnv({ AUTH_DEV_AUTO_VERIFY: "1", MAIL_PROVIDER: "dev" }) })
+        .AUTH_DEV_AUTO_VERIFY,
+    ).toBe(true);
+    expect(() => loadEnv({ source: validEnv({ AUTH_DEV_AUTO_VERIFY: "true" }) })).toThrow(
+      EnvValidationError,
+    );
+  });
+
+  // The sign-up bypass is an authorisation control, not a convenience: a verified
+  // address can claim workspace invitations sent to it. Every unsafe combination has
+  // to stop the process at boot, because a flag that is merely ignored stays armed in
+  // a parameter store until an unrelated config change makes it live.
+  describe("AUTH_DEV_AUTO_VERIFY refuses to boot when it could be unsafe", () => {
+    it("rejects a real mail transport instead of silently ignoring the flag", () => {
+      expect(() =>
+        loadEnv({
+          source: validEnv({
+            AUTH_DEV_AUTO_VERIFY: "1",
+            MAIL_PROVIDER: "ses",
+            MAIL_FROM: "hi@aksharo.ai",
+          }),
+        }),
+      ).toThrow(/AUTH_DEV_AUTO_VERIFY=1 requires MAIL_PROVIDER="dev"/);
+    });
+
+    it("rejects a MAIL_PROVIDER that is merely defaulting to dev", () => {
+      // MAIL_PROVIDER defaults to "dev", so a production deployment that simply never
+      // set it must not inherit permission to skip mailbox proof.
+      expect(() => loadEnv({ source: validEnv({ AUTH_DEV_AUTO_VERIFY: "1" }) })).toThrow(
+        /MAIL_PROVIDER to be set explicitly/,
+      );
+    });
+
+    it("rejects NODE_ENV=production even with the dev outbox selected", () => {
+      expect(() =>
+        loadEnv({
+          source: validEnv({
+            AUTH_DEV_AUTO_VERIFY: "1",
+            MAIL_PROVIDER: "dev",
+            NODE_ENV: "production",
+          }),
+        }),
+      ).toThrow(/never valid when NODE_ENV=production/);
+    });
+
+    it("leaves a boot with the flag off completely unaffected", () => {
+      expect(
+        loadEnv({ source: validEnv({ MAIL_PROVIDER: "ses", MAIL_FROM: "hi@aksharo.ai" }) })
+          .AUTH_DEV_AUTO_VERIFY,
+      ).toBe(false);
+    });
+  });
+
   it("parses FEATURE_FLAGS_JSON and rejects non-objects", () => {
     const env = loadEnv({ source: validEnv({ FEATURE_FLAGS_JSON: '{"newEditor":true}' }) });
     expect(env.FEATURE_FLAGS_JSON).toEqual({ newEditor: true });

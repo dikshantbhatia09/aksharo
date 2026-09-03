@@ -77,6 +77,18 @@ function baseRoutes(): Record<string, unknown> {
 }
 
 describe("<PlanTable />", () => {
+  it("replaces every purchase action with the admin-credit panel without Razorpay", () => {
+    const { fetchMock } = renderWithProviders(<PlanTable />, {
+      config: { razorpayEnabled: false },
+    });
+
+    expect(screen.getByTestId("free-stack-billing")).toHaveTextContent(
+      "no checkout or payment details are required",
+    );
+    expect(screen.queryByTestId("plan-card-creator-choose")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("shows the monthly price by default, INR for an Indian workspace", async () => {
     renderWithProviders(<PlanTable />, { routes: baseRoutes() });
     await waitFor(() => {

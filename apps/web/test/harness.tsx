@@ -26,6 +26,9 @@ export const TEST_CONFIG: RuntimeConfig = {
   sentryDsn: null,
   flags: {},
   environment: "test",
+  googleOAuthEnabled: true,
+  razorpayEnabled: true,
+  authDevAutoVerify: false,
 };
 
 export interface HarnessOptions {

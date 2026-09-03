@@ -8,6 +8,135 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M20 (review follow-up): the sign-up bypass now fails closed, and every
+  purchase surface is gated.** An adversarial review of increments 3-4 found
+  `AUTH_DEV_AUTO_VERIFY` was gated on `MAIL_PROVIDER` alone — and
+  `MAIL_PROVIDER` itself _defaults_ to `dev`, so a deployment that simply never
+  set it could run the bypass in production, where an unsafe combination was
+  silently ignored rather than refused. `crossFieldProblems` now rejects the
+  flag at boot when the transport is not `dev`, when `MAIL_PROVIDER` is merely
+  defaulting rather than explicitly chosen, or when `NODE_ENV=production`;
+  `devAutoVerifyEnabled` repeats the production term because the validated `Env`
+  is a mutable singleton, and `readRuntimeConfig` applies the same rule so the
+  web app cannot promise an instant account the API refused. Auto-verified
+  sign-ups now also emit the `auth.email.verified` audit action with
+  `reason: "dev_auto_verify"`, so one query answers how any address became
+  verified. The documented blast radius is explicit: `emailVerifiedAt` gates
+  claiming pending workspace invitations, so this is a single-developer local
+  convenience, never a staging setting. Separately, `razorpayEnabled` was
+  consulted on only two of five purchase surfaces: `TopupCard`,
+  `ExportUpsellPanel` (the ₹9 clean export and week pass, in the core export
+  journey) and `BillingUpgradeGate` — documented as the one way any locked
+  control shows a lock — all opened a checkout that cannot charge without keys.
+  All three are now gated, with tests for the no-key state of each. Corrected
+  two `docs/FREE-STACK.md` instructions that could not work as written
+  (`pnpm setup` shadows the package script; Next.js does not read the root
+  `.env`) and stated the local-Whisper accuracy trade-off plainly.
+
+- **M20 (increments 3-5): dev auto-verification and a complete no-key UI.**
+  Added strict `AUTH_DEV_AUTO_VERIFY=0|1` configuration. The opt-in is
+  honoured only with `MAIL_PROVIDER=dev`: sign-up still emits the would-be
+  verification message/link to the development outbox, marks the new account
+  verified, logs that local link and sends the web form directly to sign-in
+  guidance. SMTP and SES always retain ordinary mailbox verification. The web
+  runtime config now exposes provider-availability booleans without exposing
+  credentials: absent Google configuration removes the Google action and
+  divider; absent Razorpay configuration replaces billing purchases with an
+  admin-granted-credit explanation and never mounts checkout. The existing
+  audited, finance/superadmin-only `/admin/credits` adjustment action is reused
+  for grants. Added policy/config unit tests, real auth e2e cases for the switch
+  off/on, sign-up component tests for both completion states, and Google/billing
+  no-key component tests. Finished `docs/FREE-STACK.md` with the exact provider
+  block, local startup walkthrough, Whisper `small` trade-off and intentionally
+  unavailable vendor features.
+
+- **M20 (increment 2b): small-model output normalisation for the Ollama
+  path.** `qwen2.5:3b`'s JSON replies are often _almost_ schema-valid
+  rather than exactly valid. Added `apps/worker-ai/worker_ai/llm/normalize.py`
+  (Python, applied in `service.py`'s `_parse_and_validate` only when
+  `provider.name == "ollama"`) and
+  `packages/prompts/src/eval/small-model-normalize.ts` (TypeScript, wired
+  into `OllamaPlannerClient` and `eval:local`'s `generateWithOllama`):
+  strip `null`-valued optional fields; truncate an over-cap string on a
+  word boundary (chapter titles, summary fields, hook/title/keyphrase
+  strings, edit-plan rationale entries); request a bigger token budget
+  (`num_predict`/`max_tokens` floored at 3,000) and, when a reply looks
+  truncated rather than merely mis-shaped, retry once with a stricter
+  "ONLY complete JSON, under 150 words" system line instead of the generic
+  repair message; for edit plans, clamp the pass count to the plan tier's
+  budget by dropping the LOWEST-priority passes
+  (`EDIT_PLAN_PASS_KINDS`'s own declared order) instead of failing the
+  whole plan, and trim a rationale list longer than the kept passes;
+  sanitise a hashtag to the schema's allowed character class instead of
+  rejecting it outright. Every repair removes something the model already
+  said or is a no-op -- nothing here invents content. 40 new unit tests
+  (Python: `tests/test_llm_normalize.py`, `tests/test_llm_ollama_normalize_e2e.py`;
+  TypeScript: `small-model-normalize.test.ts`, plus 3 new
+  `planner-client.test.ts` cases) -- worker-ai suite now 867 passed (was
+  852), `@montaj/prompts` now 76 passed (was 54), ruff/mypy --strict and
+  eslint/tsc both clean. Reran `pnpm --filter @montaj/prompts eval:local`
+  against the real `qwen2.5:3b`: **12-13/24** (was 7/24 in increment 2,
+  runs vary with model nondeterminism) -- `chapters` went from the worst
+  category (0/4, an unrecovered repair failure in increment 2's real run)
+  to a clean 4/4; edit-plan roughly doubled its pass rate. `hooks`
+  (45+ precisely-shaped strings across 3 platforms in one reply) and two
+  `summary`/`hooks` hallucination-guard fixtures remain below the ≥20/24
+  target -- both are real qwen2.5:3b capability limits, not harness gaps
+  (the hallucination guard is a working guardrail this change deliberately
+  does not suppress); documented in `docs/FREE-STACK.md` along with the
+  `qwen2.5:7b` upgrade path (~4.7 GB, ~8 GB RAM headroom, pull only after
+  freeing disk).
+
+- **M20 (increment 2): a real run of the Ollama provider against a live
+  local model, plus `pnpm --filter @montaj/prompts eval:local`.** Installed
+  Ollama (already present on this host) and pulled `qwen2.5:3b` (~1.9 GB).
+  With `LLM_PROVIDER=ollama` proved the real call paths end to end against
+  `http://127.0.0.1:11434/v1`: `generate_insight` (chapters/summary/
+  music-mood) through the real `OllamaLlmProvider`, and `OllamaPlannerClient`
+  for a real prompted-edit plan — output valid against `editPlanTemplate
+.outputSchema` (zod). Latencies on this CPU-only host: summary 2.5 s,
+  music-mood 0.7 s, edit-plan 2.0 s; `chapters` failed even after the one
+  repair attempt (qwen2.5:3b would not hold every chapter title under the
+  60-char cap) — a genuine small-model limitation, not a bug in the
+  provider. Added `pnpm --filter @montaj/prompts eval:local`
+  (`packages/prompts/src/eval/{ollama-provider,local-runner,cli-local}.ts`):
+  the same fixtures/checks `eval` runs against the mock provider, run once
+  for real against Ollama with per-case latency, and a clean skip (exit 0)
+  when nothing is listening — deliberately separate from `runner.ts`/
+  `cli.ts` so the CI-critical mock `eval` never touches the network (still
+  24/24 after this change). One real run against `qwen2.5:3b`: **7/24
+  passed** — failures were schema-shape misses typical of a 3B model
+  (chapter/summary/rationale length caps, `style: null` instead of omitted,
+  an occasional truncated/unterminated JSON reply, and the edit-plan's own
+  pass-budget guardrail), not a defect in the harness. `eval-results/
+report-local.{json,md}` (gitignored) hold the full per-case detail.
+
+- **M20 (increment 1): a local, OpenAI-compatible Ollama LLM provider,
+  selectable with `LLM_PROVIDER=ollama` and no key.** Free-stack mode
+  (2026-09-03 user ruling: no paid keys) needs a local LLM alongside the
+  existing local Whisper (M15). Added `OllamaLlmProvider`
+  (`apps/worker-ai/worker_ai/llm/providers/ollama.py`): calls a local
+  Ollama server's OpenAI-compatible `/v1/chat/completions` endpoint
+  (`LLM_BASE_URL`, default `http://127.0.0.1:11434/v1`) with a model
+  (`LLM_MODEL`, default `qwen2.5:3b`) and `response_format:
+{"type":"json_object"}` for JSON mode; `registry.py` selects it for every
+  `ai.llm` call site (chapters/summary/hooks/keyphrases/music-mood) with no
+  credential required. `apps/worker-ai/worker_ai/llm/service.py`'s existing
+  one-repair-attempt-on-invalid-JSON path applies unchanged. On the
+  in-process planner seam (D07), added `OllamaPlannerClient`
+  (`apps/api/src/prompted-edits/planner-client.ts`), bound by
+  `prompted-edits.module.ts` when `LLM_PROVIDER=ollama`; both it and
+  `AnthropicPlannerClient` now share `parseEditPlanJsonWithRetry`, a new
+  one-retry-with-a-repair-message helper (previously `AnthropicPlannerClient`
+  had no retry at all). `LLM_PROVIDER` gained an `"ollama"` option and
+  `LLM_BASE_URL`/`LLM_MODEL` were added as new optional variables to
+  `packages/config/src/env.ts`'s `CONTRACT_ENV_VARS` (regenerated
+  `contract-env-vars.json`), `.env.example`, and the Python settings mirror
+  (`apps/worker-ai/worker_ai/settings.py`). Unit tests use an injected
+  `httpx2.MockTransport` (`apps/worker-ai/tests/test_llm_ollama.py`) and a
+  mocked `fetch` (`apps/api/src/prompted-edits/planner-client.test.ts`) — no
+  network in CI. A real run against a live Ollama server, prompts
+  `eval:local`, and the free-stack docs land in a follow-up increment.
 - **M18: `gate-a.spec.ts` green deterministically on chromium — harness mode
   confirmed, and the real tile blocker M14/M16 left open.**
   - **Harness mode ruling:** mode A (no workers; `internal-callback.ts`'s
@@ -75,7 +204,6 @@ hardwareEncoder`. `gate-a.spec.ts`'s capabilities payload for this step
     pre-existing per `GATE-B-CHECKLIST.md` run 5's own note, unrelated to
     this change) — see this package's final report for the exact result
     lines.
-
 - **M19: `scripts/local-ai-smoke.mjs` now derives its target database from
   `DATABASE_URL` instead of a hardcoded `montaj_m15`.** The script's `docker
 exec psql` calls used a literal `montaj_m15`, so a run from any other

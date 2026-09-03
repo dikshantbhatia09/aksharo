@@ -45,6 +45,7 @@ import {
 import { BRAND } from "@montaj/config";
 import { Badge, Button, Card, formatCredits, Skeleton, toast } from "@montaj/ui";
 
+import { useRuntimeConfig } from "@/components/providers";
 import { openRazorpayCheckout } from "@/lib/billing/razorpay";
 import { messageForError } from "@/lib/errors";
 
@@ -69,6 +70,7 @@ export function ExportUpsellPanel({
   className,
 }: ExportUpsellPanelProps): React.JSX.Element {
   const eligibility = useOffersEligibility();
+  const { razorpayEnabled } = useRuntimeConfig();
   const passCheckout = usePassCheckout();
   const [buying, setBuying] = React.useState<"first_export" | "week_pass" | null>(null);
   const readyNotified = React.useRef(false);
@@ -211,7 +213,7 @@ export function ExportUpsellPanel({
                 : `Remove for ${formatAmount(data.ninePass.priceMinor, data.ninePass.currency)} (first export)`}
             </span>
           </div>
-          {data.ninePass.available ? null : (
+          {data.ninePass.available || !razorpayEnabled ? null : (
             <Button
               type="button"
               variant="secondary"
@@ -244,7 +246,7 @@ export function ExportUpsellPanel({
                 )} days, ${formatCredits(data.weekPass.creditsGrantedTenths)} credits`}
           </span>
         </div>
-        {data.weekPass.active ? null : (
+        {data.weekPass.active || !razorpayEnabled ? null : (
           <Button
             type="button"
             variant="secondary"
@@ -256,6 +258,13 @@ export function ExportUpsellPanel({
           </Button>
         )}
       </div>
+
+      {razorpayEnabled ? null : (
+        <p className="text-fg-2 text-2xs" data-testid="export-upsell-free-stack">
+          Payments are not configured in this build. Ask an administrator to grant credits to remove
+          the watermark.
+        </p>
+      )}
 
       <a
         href="/pricing"

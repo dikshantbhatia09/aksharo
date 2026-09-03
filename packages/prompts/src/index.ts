@@ -67,6 +67,13 @@ export { FIXTURES } from "./eval/fixtures.js";
 export type { Fixture } from "./eval/fixtures.js";
 export { mockGenerate } from "./eval/mock-provider.js";
 
+export {
+  normalizeEditPlanOutput,
+  normalizeInsightOutput,
+  stripNulls,
+  truncateWordBoundary,
+} from "./eval/small-model-normalize.js";
+
 export { EDIT_PLAN_FIXTURES } from "./eval/edit-plan-fixtures.js";
 export type { EditPlanFixture } from "./eval/edit-plan-fixtures.js";
 export { mockEditPlan } from "./eval/edit-plan-mock.js";

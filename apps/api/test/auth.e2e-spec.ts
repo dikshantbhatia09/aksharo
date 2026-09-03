@@ -12,10 +12,13 @@ import request from "supertest";
 import { ulid } from "ulid";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import type { Env } from "@montaj/config";
+
 import { authSkipReason, createAuthTestContext } from "./auth-harness.js";
 import { isDatabaseAvailable, skipReason } from "./db-harness.js";
 import { redisKeys } from "../src/auth/auth.constants.js";
 import { sha256Hex } from "../src/auth/tokens.js";
+import { ENV } from "../src/config/config.module.js";
 
 import type { AuthTestContext } from "./auth-harness.js";
 import type { Server } from "node:http";
@@ -122,6 +125,37 @@ describe.skipIf(!available)("auth (e2e)", () => {
   // --- sign-up, verification, login ---------------------------------------
 
   describe("sign-up and verification", () => {
+    it("keeps normal email verification when AUTH_DEV_AUTO_VERIFY is off", async () => {
+      const email = address("auto-verify-off");
+      await signUp(email).expect(202);
+
+      const user = await ctx.prisma.user.findUniqueOrThrow({ where: { email } });
+      expect(ctx.app.get<Env>(ENV).AUTH_DEV_AUTO_VERIFY).toBe(false);
+      expect(user.emailVerifiedAt).toBeNull();
+    });
+
+    it("auto-verifies a new account when the dev-only switch is on", async () => {
+      const env = ctx.app.get<Env>(ENV) as Env & { AUTH_DEV_AUTO_VERIFY: boolean };
+      env.AUTH_DEV_AUTO_VERIFY = true;
+      const email = address("auto-verify-on");
+
+      try {
+        await signUp(email).expect(202);
+
+        const user = await ctx.prisma.user.findUniqueOrThrow({ where: { email } });
+        expect(user.emailVerifiedAt).not.toBeNull();
+
+        const verificationMessage = (await ctx.outbox()).find(
+          (entry) => entry.template === "email_verification",
+        );
+        expect(verificationMessage?.link).toContain("/auth/verify-email?token=");
+
+        await request(server).post("/auth/login").send({ email, password: PASSWORD }).expect(200);
+      } finally {
+        env.AUTH_DEV_AUTO_VERIFY = false;
+      }
+    });
+
     it("creates the user, a personal workspace, an owner membership and consent rows", async () => {
       const email = address("signup");
       const response = await signUp(email).expect(202);

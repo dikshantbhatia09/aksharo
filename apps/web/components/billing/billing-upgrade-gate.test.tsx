@@ -76,4 +76,31 @@ describe("<BillingUpgradeGate />", () => {
     const sheet = await screen.findByTestId("checkout-sheet");
     expect(sheet).toHaveTextContent("Creator");
   });
+
+  // BillingUpgradeGate is documented as the one way any locked control shows a lock,
+  // so an unconfigured checkout has to be handled here rather than at each call site.
+  it("never opens a checkout it cannot charge when Razorpay is absent", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<BillingUpgradeGate requiredPlan="creator" feature="4K export" />, {
+      config: { razorpayEnabled: false },
+      routes: {
+        "/billing/plans": PLANS,
+        "/workspaces/01JWORKSPACE": {
+          id: "01JWORKSPACE",
+          currency: "INR",
+          billingCountry: "IN",
+          billingCountryConfirmedAt: "2027-01-01T00:00:00.000Z",
+          billingStateCode: "27",
+          gstin: null,
+          legalName: null,
+          currencyLocked: false,
+          role: "owner",
+        },
+        "/billing/subscription": null,
+      },
+    });
+    await screen.findByTestId("upgrade-gate");
+    await user.click(screen.getByRole("button", { name: /Upgrade to Creator/ }));
+    expect(screen.queryByTestId("checkout-sheet")).toBeNull();
+  });
 });

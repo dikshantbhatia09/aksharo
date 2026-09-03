@@ -5,6 +5,7 @@ from __future__ import annotations
 from worker_ai.llm.providers.anthropic import AnthropicLlmProvider
 from worker_ai.llm.providers.base import LlmError, LlmProvider, LlmRequest, LlmResponse, LlmUsage
 from worker_ai.llm.providers.mock import MockLlmProvider
+from worker_ai.llm.providers.ollama import OllamaLlmProvider
 from worker_ai.llm.providers.openai import OpenAiLlmProvider
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "LlmResponse",
     "LlmUsage",
     "MockLlmProvider",
+    "OllamaLlmProvider",
     "OpenAiLlmProvider",
 ]

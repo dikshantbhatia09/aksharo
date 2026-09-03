@@ -18,6 +18,7 @@ import {
 } from "@montaj/ui";
 
 import { CheckoutSheet } from "./checkout-sheet";
+import { FreeStackBillingNotice } from "./free-stack-notice";
 
 import { useRuntimeConfig } from "@/components/providers";
 import { StreakWidget } from "@/components/streak/streak-widget";
@@ -89,6 +90,7 @@ export function OverviewPanel(): React.JSX.Element {
 
   return (
     <div className="flex flex-col gap-6" data-testid="billing-overview">
+      {config.razorpayEnabled ? null : <FreeStackBillingNotice />}
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <Card className="flex flex-col gap-4" data-testid="plan-card">
           {subscription.isPending ? (
@@ -99,9 +101,11 @@ export function OverviewPanel(): React.JSX.Element {
               <p className="text-fg-2 text-sm">
                 You are on the Free plan — 20 credits a month and one watermark-free export.
               </p>
-              <Button variant="primary" asChild className="self-start">
-                <Link href="/billing/plans">See plans</Link>
-              </Button>
+              {config.razorpayEnabled ? (
+                <Button variant="primary" asChild className="self-start">
+                  <Link href="/billing/plans">See plans</Link>
+                </Button>
+              ) : null}
             </>
           ) : (
             <PlanSummary
@@ -123,6 +127,7 @@ export function OverviewPanel(): React.JSX.Element {
                 runAction("resume");
               }}
               busy={cancel.isPending || pause.isPending || resume.isPending}
+              paymentsEnabled={config.razorpayEnabled}
             />
           )}
 
@@ -213,7 +218,7 @@ export function OverviewPanel(): React.JSX.Element {
         </DialogContent>
       </Dialog>
 
-      {!upgradeOpen ? null : (
+      {!config.razorpayEnabled || !upgradeOpen ? null : (
         <CheckoutSheet
           open={upgradeOpen}
           onOpenChange={setUpgradeOpen}
@@ -236,6 +241,7 @@ function PlanSummary({
   onPause,
   onResume,
   busy,
+  paymentsEnabled,
 }: {
   readonly subscription: NonNullable<ReturnType<typeof useSubscription>["data"]>;
   readonly mandateMethod: string | undefined;
@@ -244,6 +250,7 @@ function PlanSummary({
   readonly onPause: () => void;
   readonly onResume: () => void;
   readonly busy: boolean;
+  readonly paymentsEnabled: boolean;
 }): React.JSX.Element {
   const renewsVia =
     subscription.mandateId !== null
@@ -274,9 +281,11 @@ function PlanSummary({
       ) : null}
 
       <div className="flex flex-wrap gap-2 pt-2">
-        <Button variant="primary" size="sm" onClick={onUpgrade} data-testid="overview-upgrade">
-          Upgrade
-        </Button>
+        {paymentsEnabled ? (
+          <Button variant="primary" size="sm" onClick={onUpgrade} data-testid="overview-upgrade">
+            Upgrade
+          </Button>
+        ) : null}
         {subscription.status === "paused" ? (
           <Button variant="outline" size="sm" disabled={busy} onClick={onResume}>
             Resume
