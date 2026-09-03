@@ -183,3 +183,4 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | M13 | Maintenance: autocut vs zero-width protected range (Hypothesis failure on main) | Sonnet | merged (strategy fix + real autocut protection re-check after merge/bridge) || M15 | Local AI provisioning: faster-whisper, DeepFilterNet, YuNet, CLAP weights; real e2e clip; docs/models/LOCAL-MODELS.md | Sonnet | running |
 | M14 | Maintenance: realtime op self-echo raises bogus conflict dialog (gate-a) | Sonnet | merged + verified (web lib/edg green); gate-a coach-mark blocker -> M16 |
 | M16 | Maintenance: first-run coach marks intercept editor clicks (gate-a) | Sonnet | merged (callout pointer-events pass-through; fixture waits for Skip); gate-a e2e rerun pending on main |
+| M17 | Maintenance: e2e stack API image (no install at boot) + verify-wave --wave 7 green | Sonnet | running |
