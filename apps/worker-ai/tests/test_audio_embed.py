@@ -27,6 +27,28 @@ def _write_temp_wav(data: bytes) -> str:
         return handle.name
 
 
+def _write_temp_sine_wav() -> str:
+    """One second of real, decodable 16 kHz mono PCM (a quiet sine tone),
+    for the real-model test — `StubEmbedder` just hashes bytes, but
+    `ClapEmbedder` decodes the file as audio and rejects a fake WAV header."""
+    import math
+    import struct
+    import wave
+
+    sample_rate = 16_000
+    samples = [
+        int(3000 * math.sin(2 * math.pi * 440 * t / sample_rate)) for t in range(sample_rate)
+    ]
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as handle:
+        path = handle.name
+    with wave.open(path, "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(struct.pack(f"<{len(samples)}h", *samples))
+    return path
+
+
 def test_stub_embedder_is_512_dimensional() -> None:
     embedder = StubEmbedder()
     path = _write_temp_wav(b"some fixture audio bytes")
@@ -87,12 +109,22 @@ def test_clap_embedder_raises_without_model_path() -> None:
 
 
 @pytest.mark.slow
+# laion_clap's HTSAT backbone calls `torch.meshgrid` without `indexing=`, which
+# is a real, harmless UserWarning under the pinned torch — but the repo's
+# `filterwarnings = ["error"]` turns it into an exception, which a bare
+# `except:` inside laion_clap then re-raises as a misleading "model not
+# found" RuntimeError. Silencing just this third-party deprecation, only in
+# this test, keeps the repo-wide "warnings are errors" policy intact.
+@pytest.mark.filterwarnings("ignore:torch.meshgrid:UserWarning")
 def test_clap_embedder_real_model() -> None:
     model_path = os.environ.get("CLAP_MODEL_PATH", "")
     if not model_path:
         pytest.skip("CLAP_MODEL_PATH not set — no model weights on this machine (H-22)")
     embedder = ClapEmbedder(model_path)
-    path = _write_temp_wav(b"RIFF....WAVEfmt ")
+    # Unlike `StubEmbedder` (raw bytes hashed, content irrelevant), the real
+    # model decodes the file as audio — a fake WAV header with no PCM frames
+    # is not decodable, so this needs one second of real, valid (silent) PCM.
+    path = _write_temp_sine_wav()
     try:
         vector = embedder.embed_audio(path)
         assert len(vector) == EMBEDDING_DIMS

@@ -34,6 +34,13 @@ dependencies = [
 # CPU Docker image installs it, `LocalWhisperProvider` imports it lazily, and the
 # `slow` test skips when it is absent.
 local-asr = ["faster-whisper==1.2.1"]
+# LAION CLAP (D04a `audio_embed`): heavy (torch + transformers), so it is opt-in
+# the same way local-asr is — `ClapEmbedder` imports it lazily and the slow test
+# skips when CLAP_MODEL_PATH is unset (H-22).
+local-clap = ["laion-clap==1.1.6"]
+# YuNet face detector (`passes/tracking.py`): OpenCV's ONNX-backed FaceDetectorYN.
+# Headless build — this is a worker process, never a display.
+local-vision = ["opencv-python-headless==4.10.0.84"]
 dev = [
   "ruff==0.16.5",
   "mypy==2.3.1",
