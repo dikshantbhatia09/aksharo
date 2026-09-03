@@ -93,6 +93,8 @@ describe("channelUnavailable", () => {
         minHostVersion: null,
         maxHostVersion: null,
         downloadUrl: null,
+        channel: null,
+        notes: null,
       }),
     ).toBe(true);
     expect(
@@ -102,6 +104,8 @@ describe("channelUnavailable", () => {
         minHostVersion: "25.6",
         maxHostVersion: null,
         downloadUrl: "https://example.test/panel.ccx",
+        channel: "stable",
+        notes: null,
       }),
     ).toBe(false);
   });

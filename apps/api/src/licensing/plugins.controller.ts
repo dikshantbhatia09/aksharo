@@ -78,7 +78,7 @@ export class PluginsController {
     operationId: "pluginManifest",
   })
   @ApiOkResponse(zodResponse(pluginManifestSchema, "The current channel manifest."))
-  manifest(): PluginManifestResponse {
+  async manifest(): Promise<PluginManifestResponse> {
     return this.plugins.manifest();
   }
 }

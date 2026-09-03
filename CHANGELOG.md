@@ -8,6 +8,36 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- C10: installers, plugins page and the real `/plugins/manifest`.
+  - `GET /plugins/manifest` extends the C11 stub into a real channel manifest: fetches
+    `tools/release`'s published `plugins-manifest.json` (5-minute Redis cache), reporting
+    `available: false` per channel/host only until that channel is actually published.
+    Additive fields `channel`/`notes` plus a new `desktop` (per-OS download) entry;
+    `premiere-uxp`/`ae-cep`/`resolve-script`'s existing `available`/`version`/
+    `minHostVersion`/`maxHostVersion`/`downloadUrl` fields are unchanged.
+  - `tools/release`: `build-desktop` enforces the installer size budget
+    (Windows NSIS ≤ 150 MB, macOS DMG ≤ 180 MB, `03-architecture/05-system-architecture.md`
+    §6-7) and throws `InstallerBudgetExceededError` over budget; `publish` now accepts
+    `--ccx-artifact`/`--resolve-artifact` and writes `plugins-manifest.json` to the
+    published channel dir; `package-resolve` stages a `VERSION` file, an uninstaller
+    (`uninstall.sh`/`uninstall.ps1`) alongside the existing installers (works for both
+    Resolve Free and Studio — same per-user Fusion path), and copies any generated Fusion
+    macro (`plugins/resolve/installer/manifest.json`, C08b) into its own per-OS Macros path.
+  - `apps/desktop/electron-builder.yml`: real installer targets (Windows NSIS, macOS
+    dmg + pkg) with per-user install, a silent-install flag, a directory picker and
+    differential-update blockmaps; a custom NSIS uninstall hook
+    (`apps/desktop/build/installer.nsh`) removes the local bridge's discovery file
+    (`~/.aksharo/bridge.json`) on uninstall. `pnpm pack:dry`'s `--dir` output (C02b's
+    Playwright-Electron e2e) is unaffected — electron-builder's `--dir` CLI flag always
+    wins over the yml's declared targets.
+  - `marketplace/premiere-uxp/`: Adobe Exchange listing copy, a screenshot list (none
+    captured yet — no Premiere Pro on any build host), and an Adobe trademark-usage-form
+    checklist for the still-outstanding human action (H-24) — no submission made.
+  - Marketing `/plugins` and `/download` (`apps/web/app/(site)/(marketing)`) now read
+    `/plugins/manifest` live (server-side fetch with a static-copy fallback) for per-OS/
+    per-host download buttons and a checksum-verification note, alongside the existing
+    SmartScreen/Gatekeeper first-run copy and D65 non-affiliation line.
+
 - C09: DaVinci Resolve Studio Workflow Integration panel (`plugins/resolve-panel`) — docked React shell over `aksharo_core`'s loopback server (discover → bearer → JSON-RPC), `WorkflowIntegrationHost` adapter + mock, sign-in mirrored from the script, timeline picker, "Caption this timeline", passes review + "Apply in Resolve", version/update banner; C08 loopback server gains `session.status`, `transcribe.start`, `passes.list` (`plugins/resolve/aksharo_core_app/session.py|transcribe.py|passes.py`) plus a `?token=` query-param bearer path for browser `WebSocket` callers; `tools/release`'s `package-resolve` now also stages the panel bundle for Studio installs.
 
 ### Added
