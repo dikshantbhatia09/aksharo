@@ -8,6 +8,20 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M13: autocut — protection survives merge/bridge; zero-width protected
+  ranges are illegal.** `apps/worker-ai/worker_ai/passes/autocut.py`'s
+  `run_autocut` re-applies `_apply_protection` after `_merge_overlaps` and
+  again after `_bridge_short_kept_segments`: either step can combine two cut
+  candidates that individually cleared a protected range into one that newly
+  swallows it (found via `test_items_respect_protected_ranges`, a Hypothesis
+  property test, failing with a merged filler-run candidate straddling a
+  legal 1ms protected range). Separately, `packages/edg/src/ops/apply.ts`
+  already rejects `SetProtectedRanges` ranges with `s >= e` as
+  `invalid-range` — protected ranges are half-open `[s, e)` with `e > s`, so
+  a zero-width range can never reach the worker from the engine — so
+  `tests/test_autocut.py`'s `_random_transcript` strategy no longer generates
+  one; a regression `@example` and a `packages/edg` unit test cover the
+  smallest legal 1ms range.
 - **M11: pass follow-ups — auto beat-alignment for music beds, LLM sentiment
   through the B11 seam, prompted-edit chain retry-from-partial-failure.**
   - **Auto beat-alignment (D05 follow-up):** `apps/worker-ai/worker_ai/passes/
