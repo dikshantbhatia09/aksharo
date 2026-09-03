@@ -117,20 +117,6 @@ export const API_OPERATIONS = [
     summary: "Subscriptions past due, with mandate status and next actions",
   },
   {
-    operationId: "adminEvalsLeaderboard",
-    method: "GET",
-    path: "/admin/evals/leaderboard",
-    tags: ["admin"],
-    summary: "Eval leaderboard: latest metric per (dataset, language, provider, metric), with trend",
-  },
-  {
-    operationId: "adminFreezeRouting",
-    method: "POST",
-    path: "/admin/evals/freeze",
-    tags: ["admin"],
-    summary: "Freeze the routing chain to its last approved snapshot (reason mandatory, audited)",
-  },
-  {
     operationId: "adminGetFlag",
     method: "GET",
     path: "/admin/flags/{key}",
@@ -138,11 +124,11 @@ export const API_OPERATIONS = [
     summary: "One flag's current state",
   },
   {
-    operationId: "adminGetRoutingFreeze",
+    operationId: "adminGetSupportTicket",
     method: "GET",
-    path: "/admin/evals/freeze",
+    path: "/admin/support/tickets/{id}",
     tags: ["admin"],
-    summary: "Current routing-freeze state",
+    summary: "One ticket",
   },
   {
     operationId: "adminJobQueueStats",
@@ -187,6 +173,13 @@ export const API_OPERATIONS = [
     summary: "The system style catalogue, with parity results",
   },
   {
+    operationId: "adminListSupportTickets",
+    method: "GET",
+    path: "/admin/support/tickets",
+    tags: ["admin"],
+    summary: "Support tickets, newest first, optionally filtered by status/category",
+  },
+  {
     operationId: "adminPendingAffiliates",
     method: "GET",
     path: "/admin/affiliates/pending",
@@ -227,6 +220,13 @@ export const API_OPERATIONS = [
     path: "/admin/referrals/{id}/reject",
     tags: ["admin"],
     summary: "Reject a held reward",
+  },
+  {
+    operationId: "adminReplyToSupportTicket",
+    method: "POST",
+    path: "/admin/support/tickets/{id}/reply",
+    tags: ["admin"],
+    summary: "Reply to a ticket via the notify interface",
   },
   {
     operationId: "adminResolveShareReport",
@@ -271,18 +271,18 @@ export const API_OPERATIONS = [
     summary: "Set (create or replace) one lane/provider's weight override",
   },
   {
+    operationId: "adminSetSupportTicketStatus",
+    method: "POST",
+    path: "/admin/support/tickets/{id}/status",
+    tags: ["admin"],
+    summary: "Move a ticket to open/in_progress/resolved/closed",
+  },
+  {
     operationId: "adminStepUp",
     method: "POST",
     path: "/admin/auth/step-up",
     tags: ["admin"],
     summary: "Exchange a normal session plus a TOTP code for a 30-minute admin token",
-  },
-  {
-    operationId: "adminSupportStatus",
-    method: "GET",
-    path: "/admin/support/status",
-    tags: ["admin"],
-    summary: "Whether the support-ticket panel has a real backend yet (B12)",
   },
   {
     operationId: "adminSuspendAffiliate",
@@ -304,13 +304,6 @@ export const API_OPERATIONS = [
     path: "/admin/auth/totp/verify",
     tags: ["admin"],
     summary: "Confirm TOTP enrolment with the first valid code",
-  },
-  {
-    operationId: "adminUnfreezeRouting",
-    method: "POST",
-    path: "/admin/evals/unfreeze",
-    tags: ["admin"],
-    summary: "Unfreeze the routing chain (reason mandatory, audited)",
   },
   {
     operationId: "adminUpdateFlag",
