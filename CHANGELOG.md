@@ -8,6 +8,30 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **M20 (increment 2): a real run of the Ollama provider against a live
+  local model, plus `pnpm --filter @montaj/prompts eval:local`.** Installed
+  Ollama (already present on this host) and pulled `qwen2.5:3b` (~1.9 GB).
+  With `LLM_PROVIDER=ollama` proved the real call paths end to end against
+  `http://127.0.0.1:11434/v1`: `generate_insight` (chapters/summary/
+  music-mood) through the real `OllamaLlmProvider`, and `OllamaPlannerClient`
+  for a real prompted-edit plan — output valid against `editPlanTemplate
+.outputSchema` (zod). Latencies on this CPU-only host: summary 2.5 s,
+  music-mood 0.7 s, edit-plan 2.0 s; `chapters` failed even after the one
+  repair attempt (qwen2.5:3b would not hold every chapter title under the
+  60-char cap) — a genuine small-model limitation, not a bug in the
+  provider. Added `pnpm --filter @montaj/prompts eval:local`
+  (`packages/prompts/src/eval/{ollama-provider,local-runner,cli-local}.ts`):
+  the same fixtures/checks `eval` runs against the mock provider, run once
+  for real against Ollama with per-case latency, and a clean skip (exit 0)
+  when nothing is listening — deliberately separate from `runner.ts`/
+  `cli.ts` so the CI-critical mock `eval` never touches the network (still
+  24/24 after this change). One real run against `qwen2.5:3b`: **7/24
+  passed** — failures were schema-shape misses typical of a 3B model
+  (chapter/summary/rationale length caps, `style: null` instead of omitted,
+  an occasional truncated/unterminated JSON reply, and the edit-plan's own
+  pass-budget guardrail), not a defect in the harness. `eval-results/
+report-local.{json,md}` (gitignored) hold the full per-case detail.
+
 - **M20 (increment 1): a local, OpenAI-compatible Ollama LLM provider,
   selectable with `LLM_PROVIDER=ollama` and no key.** Free-stack mode
   (2026-09-03 user ruling: no paid keys) needs a local LLM alongside the

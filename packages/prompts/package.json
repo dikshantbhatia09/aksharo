@@ -24,6 +24,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "eval": "tsx src/eval/cli.ts",
+    "eval:local": "tsx src/eval/cli-local.ts",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {
