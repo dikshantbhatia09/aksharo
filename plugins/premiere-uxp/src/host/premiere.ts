@@ -184,6 +184,29 @@ export interface ReplaceAudioRangeRequest {
   readonly muteOriginalTrackIndex: number;
 }
 
+// ---------------------------------------------------------------------------------------
+// D09 apply-mode types (sfx/music audio clips, title MOGRT instances)
+// ---------------------------------------------------------------------------------------
+
+export type TrackKind = "video" | "audio";
+
+export interface EnsureTrackRequest {
+  readonly kind: TrackKind;
+  /** e.g. "Aksharo SFX" / "Aksharo Music" (`@montaj/shared-apply`'s `AudioClipOp.trackName`). */
+  readonly name: string;
+}
+
+export interface EnsureTrackResult {
+  readonly trackIndex: number;
+  /** True when a track with this exact name already existed and was reused (idempotent re-apply). */
+  readonly reused: boolean;
+}
+
+export interface GainKeyframeInput {
+  readonly atFrames: number;
+  readonly gainDb: number;
+}
+
 /** Marker-guid payload (brief: "host-id map in marker guids"). `rev` is the EDG revision the
  * item was last synced against, so a re-sync can tell a stale item from a current one. */
 export interface AksharoItemMetadata {
@@ -300,6 +323,23 @@ export interface PremiereHost {
 
   /** Removes a track item (re-sync: an item whose EDG source was deleted). */
   removeItem(trackItemId: string): Promise<void>;
+
+  // --- D09 apply modes (sfx/music, titles) -----------------------------------------------
+
+  /**
+   * Finds (by name) or creates a dedicated track for accepted sfx/music clips
+   * (brief §Scope 1: "dedicated audio tracks"). Idempotent: a second call with the same
+   * `name` returns the existing track's index (`reused: true`) rather than creating a
+   * duplicate — a re-apply must not pile up "Aksharo SFX 2", "Aksharo SFX 3", ... tracks.
+   */
+  ensureTrack(request: EnsureTrackRequest): Promise<EnsureTrackResult>;
+
+  /**
+   * Sets gain (volume) keyframes on an audio track item: sfx/music clip gain + fades
+   * (brief §Scope 1: "gain and fades as clip audio keyframes"), and ducking approximated as
+   * gain keyframes on the dialogue track item this same call targets.
+   */
+  setClipGainKeyframes(trackItemId: string, keyframes: readonly GainKeyframeInput[]): Promise<void>;
 }
 
 export interface MockPremiereHostOptions {
@@ -403,6 +443,9 @@ export class MockPremiereHost implements PremiereHost {
   private readonly itemMetadata = new Map<string, AksharoItemMetadata>();
   private readonly binItems = new Set<string>();
   private readonly motionKeyframesByItem = new Map<string, readonly MotionKeyframeInput[]>();
+  private readonly tracksByName = new Map<string, number>();
+  private trackCounter = 0;
+  private readonly gainKeyframesByItem = new Map<string, readonly GainKeyframeInput[]>();
   /** Every `transaction()` name run, in order — assertable by tests. */
   readonly transactionLog: { name: string; outcome: "committed" | "rolledBack" }[] = [];
   /** Every `rippleDelete()` call's ranges, in order. */
@@ -486,6 +529,9 @@ export class MockPremiereHost implements PremiereHost {
       itemMetadata: new Map(this.itemMetadata),
       binItems: new Set(this.binItems),
       motionKeyframesByItem: new Map(this.motionKeyframesByItem),
+      tracksByName: new Map(this.tracksByName),
+      trackCounter: this.trackCounter,
+      gainKeyframesByItem: new Map(this.gainKeyframesByItem),
       rippleDeleteCallCount: this.rippleDeleteCalls.length,
       replaceAudioRangeCallCount: this.replaceAudioRangeCalls.length,
     };
@@ -504,6 +550,11 @@ export class MockPremiereHost implements PremiereHost {
       for (const v of snapshot.binItems) this.binItems.add(v);
       this.motionKeyframesByItem.clear();
       for (const [k, v] of snapshot.motionKeyframesByItem) this.motionKeyframesByItem.set(k, v);
+      this.tracksByName.clear();
+      for (const [k, v] of snapshot.tracksByName) this.tracksByName.set(k, v);
+      this.trackCounter = snapshot.trackCounter;
+      this.gainKeyframesByItem.clear();
+      for (const [k, v] of snapshot.gainKeyframesByItem) this.gainKeyframesByItem.set(k, v);
       this.rippleDeleteCalls.length = snapshot.rippleDeleteCallCount;
       this.replaceAudioRangeCalls.length = snapshot.replaceAudioRangeCallCount;
       this.transactionLog.push({ name, outcome: "rolledBack" });
@@ -530,6 +581,29 @@ export class MockPremiereHost implements PremiereHost {
     this.itemMetadata.delete(trackItemId);
     this.mogrtParams.delete(trackItemId);
     this.binItems.delete(trackItemId);
+  }
+
+  async ensureTrack(request: EnsureTrackRequest): Promise<EnsureTrackResult> {
+    const key = `${request.kind}:${request.name}`;
+    const existing = this.tracksByName.get(key);
+    if (existing !== undefined) {
+      return { trackIndex: existing, reused: true };
+    }
+    this.trackCounter += 1;
+    this.tracksByName.set(key, this.trackCounter);
+    return { trackIndex: this.trackCounter, reused: false };
+  }
+
+  async setClipGainKeyframes(
+    trackItemId: string,
+    keyframes: readonly GainKeyframeInput[],
+  ): Promise<void> {
+    this.gainKeyframesByItem.set(trackItemId, keyframes);
+  }
+
+  /** Test helper: the keyframes last passed to `setClipGainKeyframes` for `trackItemId`. */
+  getGainKeyframesFor(trackItemId: string): readonly GainKeyframeInput[] | undefined {
+    return this.gainKeyframesByItem.get(trackItemId);
   }
 
   // --- test helpers (not part of PremiereHost) --------------------------------------------
@@ -751,6 +825,23 @@ export function createRealPremiereHost(): PremiereHost {
     async removeItem(): Promise<void> {
       // TrackItem#remove: https://developer.adobe.com/premiere-pro/uxp/reference/ppro/classes/trackitem/
       throw new Error("removeItem: unverified against a real Premiere install (Gate C)");
+    },
+
+    async ensureTrack(): Promise<EnsureTrackResult> {
+      // Sequence#addTrack / Sequence.videoTracks/audioTracks + Track#name (D09 sfx/music/title
+      // dedicated tracks): https://developer.adobe.com/premiere-pro/uxp/reference/ppro/classes/sequence/
+      // GATE-C: confirm a track-add call exists at all (some UXP builds only expose reading
+      // existing tracks, not adding new ones) and, if so, its exact name-matching semantics for
+      // this call's idempotent "find by name" contract.
+      throw new Error("ensureTrack: unverified against a real Premiere install (Gate C)");
+    },
+
+    async setClipGainKeyframes(): Promise<void> {
+      // Component "Volume"/"Gain" (Essential Sound or Audio Track Mixer) keyframes, same
+      // reference as setMotionKeyframes: https://developer.adobe.com/premiere-pro/uxp/reference/ppro/classes/component/
+      // GATE-C: confirm the exact component/property name for a clip's own gain (as opposed to
+      // track-level volume) and the keyframe API's unit (dB vs. linear amplitude).
+      throw new Error("setClipGainKeyframes: unverified against a real Premiere install (Gate C)");
     },
   };
 }

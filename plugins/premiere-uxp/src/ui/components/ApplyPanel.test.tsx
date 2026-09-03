@@ -15,6 +15,8 @@ const counts: ApplyPlanCounts = {
   cuts: 3,
   zooms: 2,
   audio: 1,
+  sfxMusic: 2,
+  titles: 1,
 };
 
 describe("ApplyPanel", () => {
