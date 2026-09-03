@@ -131,4 +131,24 @@ export class PublicViewerController {
   ): Promise<{ projectId: string; reviewStatus: string }> {
     return this.shareLinks.decide(token, body.decision);
   }
+
+  @Get(":token/preview")
+  @Public()
+  @UseGuards(RateLimitGuard)
+  @RateLimit(SHARE_RATE_LIMITS.resolveToken)
+  @ApiOperation({
+    summary: "Proxy URL + EDG projection for the CanvasKit preview",
+    operationId: "previewShareLink",
+  })
+  async preview(
+    @Param("token") token: string,
+    @Headers(SHARE_SESSION_HEADER) session: string | undefined,
+  ): Promise<{
+    proxyUrl: string;
+    durationMs: number | null;
+    aspect: string;
+    projection: unknown;
+  }> {
+    return this.shareLinks.preview(token, session);
+  }
 }

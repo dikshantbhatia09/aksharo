@@ -25,6 +25,8 @@ export interface UploadJobDeps {
   /** A stable id assigned before anything else — the IndexedDB resume key. */
   readonly localId: string;
   readonly onUpdate: (state: UploadItemState) => void;
+  /** Batch: skip `POST /projects` and upload straight into this project (B15). */
+  readonly existingProjectId?: string;
   /** Injected for tests; defaults to the real streaming hash + IndexedDB. */
   readonly hashFileFn?: typeof hashFile;
   readonly putRecord?: typeof putUploadRecord;
@@ -156,23 +158,28 @@ export class UploadJob {
   }
 
   private async createProjectAndUpload(contentHash: string): Promise<void> {
-    this.setStatus("creating-project");
-    const title = titleFromFilename(this.deps.file.name);
-
     let project: Project;
-    try {
-      project = await this.deps.client.call(endpoints.projects.create, {
-        body: {
-          title,
-          aspect: this.deps.quickPick.aspect,
-          sourceLanguage: this.deps.quickPick.language,
-        },
-      });
-    } catch (error) {
-      this.fail(error);
-      return;
+    if (this.deps.existingProjectId !== undefined) {
+      // Batch (B15): the project already exists — `BatchService.create`
+      // made it — so this job only has to attach an upload to it.
+      project = { id: this.deps.existingProjectId } as Project;
+    } else {
+      this.setStatus("creating-project");
+      const title = titleFromFilename(this.deps.file.name);
+      try {
+        project = await this.deps.client.call(endpoints.projects.create, {
+          body: {
+            title,
+            aspect: this.deps.quickPick.aspect,
+            sourceLanguage: this.deps.quickPick.language,
+          },
+        });
+      } catch (error) {
+        this.fail(error);
+        return;
+      }
+      if (this.cancelled) return;
     }
-    if (this.cancelled) return;
     this.projectId = project.id;
     await this.persist({ status: "uploading", contentHash, projectId: project.id });
 
@@ -194,13 +201,17 @@ export class UploadJob {
     if (this.cancelled) return;
 
     if (ticket.duplicate) {
-      // The bytes already exist elsewhere in the workspace. The project this
-      // job just created has nothing in it and would only confuse the Recent
-      // grid, so it is removed — the caller is pointed at the original.
+      // The bytes already exist elsewhere in the workspace. A job that
+      // created its own project removes it (it has nothing else in it and
+      // would only confuse the Recent grid); a batch job's project was
+      // created alongside its siblings and stays, empty, for the owner to
+      // deal with — removing it would leave a hole in `Batch.projects`.
       this.duplicateOfProjectId = ticket.media.projectId;
-      await this.deps.client
-        .call(endpoints.projects.remove, { params: { projectId: project.id } })
-        .catch(() => undefined);
+      if (this.deps.existingProjectId === undefined) {
+        await this.deps.client
+          .call(endpoints.projects.remove, { params: { projectId: project.id } })
+          .catch(() => undefined);
+      }
       await this.lastPersist;
       await this.deleteRecord(this.deps.localId);
       this.mediaId = ticket.mediaId;

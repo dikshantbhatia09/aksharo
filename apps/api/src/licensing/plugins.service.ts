@@ -7,8 +7,15 @@ import {
   LICENSING_AUDIT_ACTIONS,
   LICENSING_ERRORS,
   licensingRedisKeys,
+  PLUGIN_MANIFEST_CACHE_TTL_SEC,
+  PLUGIN_MANIFEST_CHANNEL,
   REVOCATION_SNAPSHOT_TTL_SEC,
 } from "./licensing.constants.js";
+import {
+  fetchPluginManifest,
+  toPluginManifestResponse,
+  unavailableManifest,
+} from "./plugin-manifest-source.js";
 import { SigningService } from "./signing.service.js";
 import { DeviceCodeService, TokenService } from "../auth/index.js";
 import { AppException, PrismaService, RedisService } from "../common/index.js";
@@ -371,29 +378,41 @@ export class PluginsService {
   /**
    * `GET /plugins/manifest` (07 §Plugins, D65 change note "07
    * /plugins/manifest"): the channel manifest the plugins page and the
-   * installer download links read. C10 (installer builds and hosting) has
-   * not landed, so every channel is reported `available: false` with no
-   * download URL rather than a channel that resolves to nothing — the same
-   * "unavailable until X" convention `client/not_implemented` uses on the
-   * web side, expressed in this route's own response shape instead of an
-   * error, since a plugin polling this route needs a manifest object back,
-   * not a failure.
+   * installer download links read. C10 extends the C11 stub into the real
+   * thing: fetches C00's published `plugins-manifest.json` for
+   * {@link PLUGIN_MANIFEST_CHANNEL} (`stable`), cached in Redis for
+   * {@link PLUGIN_MANIFEST_CACHE_TTL_SEC} (brief: "served from the API with a
+   * 5-minute cache"). Any channel/host the manifest doesn't mention yet (or
+   * the whole fetch failing -- no publish has happened, the release host is
+   * unreachable, dev/test with no real bucket) reports `available: false`
+   * with no download URL rather than a channel that resolves to nothing --
+   * the same "unavailable until published" convention the stub used,
+   * per-channel now instead of hardcoded for all three.
    */
-  manifest(): PluginManifestResponse {
-    const unavailable = {
-      available: false,
-      version: null,
-      minHostVersion: null,
-      maxHostVersion: null,
-      downloadUrl: null,
-    } as const;
-    return {
-      channels: {
-        "premiere-uxp": { ...unavailable },
-        "ae-cep": { ...unavailable },
-        "resolve-script": { ...unavailable },
-      },
-    };
+  async manifest(): Promise<PluginManifestResponse> {
+    const cacheKey = licensingRedisKeys.pluginManifest();
+    try {
+      const cached = await this.redis.client.get(cacheKey);
+      if (cached !== null) return JSON.parse(cached) as PluginManifestResponse;
+    } catch (error) {
+      this.logger.warn({ err: error }, "plugin manifest cache unavailable; refetching");
+    }
+
+    const raw = await fetchPluginManifest(PLUGIN_MANIFEST_CHANNEL);
+    const manifest = raw === undefined ? unavailableManifest() : toPluginManifestResponse(raw);
+
+    try {
+      await this.redis.client.set(
+        cacheKey,
+        JSON.stringify(manifest),
+        "EX",
+        PLUGIN_MANIFEST_CACHE_TTL_SEC,
+      );
+    } catch (error) {
+      this.logger.warn({ err: error }, "could not cache the plugin manifest");
+    }
+
+    return manifest;
   }
 
   private async snapshotFor(

@@ -7,14 +7,26 @@
  * for "/" here invisibly, because `(site)/page.tsx` already owns "/" for the
  * signed-out marketing page and Next.js refuses two page files that resolve
  * the same path.
+ *
+ * Dropping two or more files at once opens the "Apply to all" batch sheet
+ * (B15 brief §4) instead of uploading immediately: `BatchApplyToAllSheet`
+ * quotes credits, creates the batch (`POST /batch`) and hands back
+ * `{file, projectId}` pairs that `useUploadQueue().addFilesToProjects` feeds
+ * into the same upload pipeline a single file uses, just without letting each
+ * job create its own project. A single file dropped keeps the original path
+ * unchanged.
  */
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
 
 import { useCurrentUser, useProjects } from "@montaj/api-client";
 
+import { LocalProjectsSection } from "./local-projects-section";
+
 import type { UploadQuickPick } from "@/lib/upload/types";
 
+import { BatchApplyToAllSheet, type BatchConfirmed } from "@/components/batch/BatchApplyToAllSheet";
+import { BatchProgressView } from "@/components/batch/BatchProgressView";
 import { DropZone } from "@/components/projects/drop-zone";
 import { ProjectGrid, SampleProjectButton } from "@/components/projects/project-grid";
 import { defaultQuickPickLanguage, QuickPickRow } from "@/components/projects/quick-pick-row";
@@ -32,6 +44,10 @@ export function HomeView(): React.JSX.Element {
   const queue = useUploadQueue();
   const searchParams = useSearchParams();
   const dropZoneRef = React.useRef<HTMLDivElement>(null);
+  const [pendingBatchFiles, setPendingBatchFiles] = React.useState<readonly File[] | undefined>(
+    undefined,
+  );
+  const [activeBatchId, setActiveBatchId] = React.useState<string | undefined>(undefined);
 
   const [quickPick, setQuickPick] = React.useState<UploadQuickPick>(() => ({
     language: "hi-Latn",
@@ -70,6 +86,12 @@ export function HomeView(): React.JSX.Element {
   const projects = recent.data?.pages.flatMap((page) => page.items) ?? [];
   const name = firstName(user.data?.name ?? null);
 
+  const handleBatchConfirmed = (result: BatchConfirmed): void => {
+    queue.addFilesToProjects(result.pairs, quickPick);
+    setPendingBatchFiles(undefined);
+    setActiveBatchId(result.batchId);
+  };
+
   return (
     <div className="flex flex-col gap-8" data-testid="home-view">
       <div>
@@ -78,20 +100,35 @@ export function HomeView(): React.JSX.Element {
         </h1>
       </div>
 
-      <div className="flex flex-col gap-3" ref={dropZoneRef} tabIndex={-1}>
-        <DropZone
-          onFiles={(files) => {
-            queue.addFiles(files, quickPick);
-          }}
+      {pendingBatchFiles === undefined ? (
+        <div className="flex flex-col gap-3" ref={dropZoneRef} tabIndex={-1}>
+          <DropZone
+            onFiles={(files) => {
+              if (files.length >= 2) {
+                setPendingBatchFiles(files);
+                return;
+              }
+              queue.addFiles(files, quickPick);
+            }}
+          />
+          <QuickPickRow
+            value={quickPick}
+            onChange={(next) => {
+              setLanguageTouched(true);
+              setQuickPick(next);
+            }}
+          />
+        </div>
+      ) : (
+        <BatchApplyToAllSheet
+          files={pendingBatchFiles}
+          quickPick={quickPick}
+          onCancel={() => setPendingBatchFiles(undefined)}
+          onConfirmed={handleBatchConfirmed}
         />
-        <QuickPickRow
-          value={quickPick}
-          onChange={(next) => {
-            setLanguageTouched(true);
-            setQuickPick(next);
-          }}
-        />
-      </div>
+      )}
+
+      {activeBatchId === undefined ? null : <BatchProgressView batchId={activeBatchId} />}
 
       <UploadTray
         items={queue.items}
@@ -108,6 +145,8 @@ export function HomeView(): React.JSX.Element {
         </div>
         <ProjectGrid projects={projects} loading={recent.isPending} />
       </div>
+
+      <LocalProjectsSection />
     </div>
   );
 }

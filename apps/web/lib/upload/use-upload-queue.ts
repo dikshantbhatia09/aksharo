@@ -22,6 +22,11 @@ import type { UploadItemState, UploadQuickPick } from "./types";
 export function useUploadQueue(): {
   items: readonly UploadItemState[];
   addFiles: (files: readonly File[], quickPick: UploadQuickPick) => void;
+  /** Batch (B15): each file uploads straight into an already-created project. */
+  addFilesToProjects: (
+    pairs: readonly { readonly file: File; readonly projectId: string }[],
+    quickPick: UploadQuickPick,
+  ) => void;
   pause: (id: string) => void;
   resume: (id: string) => void;
   cancel: (id: string) => void;
@@ -43,6 +48,38 @@ export function useUploadQueue(): {
             ? crypto.randomUUID()
             : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
         const job = new UploadJob({ client, file, quickPick, localId, onUpdate: update });
+        jobs.current.set(localId, job);
+        update({
+          id: localId,
+          fileName: file.name,
+          fileSize: file.size,
+          status: "hashing",
+          progress: { uploadedBytes: 0, totalBytes: file.size, completedParts: 0, totalParts: 0 },
+        });
+        void job.run();
+      }
+    },
+    [client, update],
+  );
+
+  const addFilesToProjects = React.useCallback(
+    (
+      pairs: readonly { readonly file: File; readonly projectId: string }[],
+      quickPick: UploadQuickPick,
+    ) => {
+      for (const { file, projectId } of pairs) {
+        const localId =
+          typeof crypto.randomUUID === "function"
+            ? crypto.randomUUID()
+            : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+        const job = new UploadJob({
+          client,
+          file,
+          quickPick,
+          localId,
+          onUpdate: update,
+          existingProjectId: projectId,
+        });
         jobs.current.set(localId, job);
         update({
           id: localId,
@@ -114,5 +151,13 @@ export function useUploadQueue(): {
     });
   }, []);
 
-  return { items: Object.values(items), addFiles, pause, resume, cancel, dismiss };
+  return {
+    items: Object.values(items),
+    addFiles,
+    addFilesToProjects,
+    pause,
+    resume,
+    cancel,
+    dismiss,
+  };
 }

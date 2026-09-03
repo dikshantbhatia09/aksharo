@@ -117,11 +117,32 @@ export const API_OPERATIONS = [
     summary: "Subscriptions past due, with mandate status and next actions",
   },
   {
+    operationId: "adminEvalsLeaderboard",
+    method: "GET",
+    path: "/admin/evals/leaderboard",
+    tags: ["admin"],
+    summary: "Eval leaderboard: latest metric per (dataset, language, provider, metric), with trend",
+  },
+  {
+    operationId: "adminFreezeRouting",
+    method: "POST",
+    path: "/admin/evals/freeze",
+    tags: ["admin"],
+    summary: "Freeze the routing chain to its last approved snapshot (reason mandatory, audited)",
+  },
+  {
     operationId: "adminGetFlag",
     method: "GET",
     path: "/admin/flags/{key}",
     tags: ["admin"],
     summary: "One flag's current state",
+  },
+  {
+    operationId: "adminGetRoutingFreeze",
+    method: "GET",
+    path: "/admin/evals/freeze",
+    tags: ["admin"],
+    summary: "Current routing-freeze state",
   },
   {
     operationId: "adminGetSupportTicket",
@@ -304,6 +325,13 @@ export const API_OPERATIONS = [
     path: "/admin/auth/totp/verify",
     tags: ["admin"],
     summary: "Confirm TOTP enrolment with the first valid code",
+  },
+  {
+    operationId: "adminUnfreezeRouting",
+    method: "POST",
+    path: "/admin/evals/unfreeze",
+    tags: ["admin"],
+    summary: "Unfreeze the routing chain (reason mandatory, audited)",
   },
   {
     operationId: "adminUpdateFlag",
@@ -1090,6 +1118,13 @@ export const API_OPERATIONS = [
     summary: "Razorpay webhook (THREAT-MODEL T16)",
   },
   {
+    operationId: "importEdgDocument",
+    method: "POST",
+    path: "/projects/{projectId}/edg/import",
+    tags: ["edg"],
+    summary: "Write a whole EDG document as revision 1 of a fresh project",
+  },
+  {
     operationId: "importMemoryGlossary",
     method: "POST",
     path: "/memory/import",
@@ -1529,6 +1564,13 @@ export const API_OPERATIONS = [
     path: "/billing/subscription/change-preview",
     tags: ["billing"],
     summary: "Proration preview for a plan/interval/seat change",
+  },
+  {
+    operationId: "previewShareLink",
+    method: "GET",
+    path: "/s/{token}/preview",
+    tags: ["share-public"],
+    summary: "Proxy URL + EDG projection for the CanvasKit preview",
   },
   {
     operationId: "quoteBatch",

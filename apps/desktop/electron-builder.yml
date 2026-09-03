@@ -42,17 +42,37 @@ protocols:
   - name: Aksharo deep link
     schemes:
       - aksharo
+# C10: real installer targets (Windows NSIS, macOS pkg + dmg). `pnpm pack:dry` (C02b) still
+# forces `--dir` output via electron-builder's own CLI flag regardless of the targets listed
+# here (its `--dir` flag always wins over yml-declared targets), so this doesn't change that
+# path's speed or its Playwright-e2e "unpacked app dir" expectation — it only takes effect for
+# `tools/release`'s `build-desktop` once a real (non-placeholder) electron-builder invocation
+# is possible (see that command's `findRealElectronBuilderOutput` doc comment for the current
+# pnpm-workspace/asar blocker C00 owns).
 mac:
   category: public.app-category.video
-  target: [dir]
+  target: [dmg, pkg]
   hardenedRuntime: true
   gatekeeperAssess: false
 win:
-  target: [dir]
+  target: [nsis]
   # Unsigned dry-run builds only (C00's real signing pipeline lives in
   # tools/release, not here) — skips electron-builder's own rcedit/signtool
   # pass entirely, so it never needs to fetch the winCodeSign vendor tools.
   signAndEditExecutable: false
+# Per-user install (no admin elevation prompt), a silent-install flag (`/S`, electron-builder's
+# NSIS always supports this once `oneClick: false` turns on the assisted installer UI),
+# a directory picker, and differential updates via blockmaps (electron-builder's NSIS target
+# writes a `.blockmap` next to the installer automatically — no extra config needed). The
+# uninstaller additionally removes the local bridge's discovery file (`build/installer.nsh`'s
+# `customUnInstall` macro) so a stale `~/.aksharo/bridge.json` never points a plugin at a port
+# nothing is listening on anymore.
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  include: build/installer.nsh
 linux:
   target: [dir]
   category: AudioVideo

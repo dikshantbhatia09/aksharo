@@ -182,3 +182,75 @@ and a mock JSON-RPC transport only (`plugins/resolve-panel/README.md`
 Record the Resolve build number tested and file follow-up issues for any
 `host/resolve.py` assumption that turned out wrong — that file is the single
 place to fix.
+
+## 10. Local engine quality gate (C03b)
+
+Nothing below has been run against real whisper.cpp/Metal/Vulkan/CUDA/Silero/
+deep-filter binaries — this repo's CI (`.github/workflows/local-engine-bench.yml`)
+only runs `apps/engine/bench/**`'s harness against C03a's `FakeBackend`
+(plumbing, threshold math and report format; the report itself says so). A00-10
+spikes the real backends; **the quality gate only passes from the run below**,
+once a real `EngineBackend` implementation exists behind the same
+`apps/engine/src/backends/types.ts` seam `FakeBackend` implements today.
+
+### Prerequisites
+
+- [ ] A real `EngineBackend` (whisper.cpp/Silero/deep-filter, `metal-coreml` |
+      `vulkan` | `cuda` | `cpu`) is wired into `apps/engine/src/main.ts` for
+      this machine's detected backend (A00-10).
+- [ ] `pnpm --filter @montaj/config build && pnpm --filter @montaj/bridge-core
+build && pnpm --filter @montaj/engine-client build` (the harness talks to
+      the engine over the built `@montaj/engine-client`, same as `apps/desktop`).
+- [ ] `pnpm --filter @montaj/worker-ai setup` (the metrics-bridge venv;
+      `apps/engine/bench/metrics-bridge.ts` shells out to it for WER/CER via
+      D08's `worker_ai.evals.local_engine`).
+
+### Exact command, per machine profile
+
+Run from the repo's own checkout (not a work-package worktree), on the target
+machine:
+
+```bash
+pnpm --filter @montaj/engine bench
+```
+
+This is the **same command** for every profile — `apps/engine/bench/run.ts`
+detects the machine's tier/backend itself (`../src/detection.ts`, cores/RAM/
+GPU) and reports it in the output; it does not need a `--profile` flag. Expect:
+
+| Profile | Platform                          | What should be true                                               |
+| ------- | --------------------------------- | ----------------------------------------------------------------- |
+| A       | Apple Silicon, >=16GB RAM         | backend `metal-coreml`; 5-minute clip <=60s                       |
+| B       | Windows, >=8 cores/16GB RAM + GPU | backend `vulkan` (or `cuda` if the CUDA pack is installed); <=90s |
+| C       | 4-8 cores/8GB                     | backend `cpu` (small model); <=120s                               |
+| D       | <8GB RAM, or below the C floor    | local engine disabled — nothing to run here                       |
+
+### Paste results here
+
+- [ ] `docs/verification/local-engine-<profile>-<date>.md`/`.json` were
+      generated (the harness writes both; commit them alongside this checklist
+      update).
+- [ ] The report's "Gate status" line reads **PASS** (not "not evaluated" —
+      that means it ran against `FakeBackend` again by mistake; check
+      `apps/engine/src/main.ts`'s backend construction).
+- [ ] Median word-boundary error <= 80ms vs. the cloud aligner on the Hinglish
+      fixture (`apps/engine/fixtures/hinglish-reference.json`'s `hinglish-sample`
+      and `a23-90s` items — the first real audio pass over the real 90s A23
+      clip, once it exists, replaces the `a23-90s` item's "not wired into
+      FakeBackend" note with a real score).
+- [ ] WER within the fixture's recorded band (`apps/engine/bench/
+thresholds.ts`'s `defaultQualityGateConfig.werBand`, until A00-05's real
+      target replaces it).
+- [ ] Tier match: the report's "Server-reported tier" equals "Harness-detected
+      tier" — a mismatch means `detection.ts`'s real CUDA/Vulkan probing
+      (`main.ts`, still A00-10/C03b's open item per `apps/engine/README.md`)
+      disagrees with what this machine actually has.
+- [ ] Record the machine's exact spec (cores, RAM, GPU model/driver) next to
+      the report filename below, so a future regression can be traced to a
+      real hardware change rather than guessed at.
+
+| Profile | Machine spec | Report filename | Result |
+| ------- | ------------ | --------------- | ------ |
+| A       |              |                 |        |
+| B       |              |                 |        |
+| C       |              |                 |        |

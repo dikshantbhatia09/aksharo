@@ -48,6 +48,58 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
     warning fixed with the same `eslint-disable-next-line` style already used
     elsewhere in the repo; `pnpm -w lint` is clean.
 
+- C10: installers, plugins page and the real `/plugins/manifest`.
+  - `GET /plugins/manifest` extends the C11 stub into a real channel manifest: fetches
+    `tools/release`'s published `plugins-manifest.json` (5-minute Redis cache), reporting
+    `available: false` per channel/host only until that channel is actually published.
+    Additive fields `channel`/`notes` plus a new `desktop` (per-OS download) entry;
+    `premiere-uxp`/`ae-cep`/`resolve-script`'s existing `available`/`version`/
+    `minHostVersion`/`maxHostVersion`/`downloadUrl` fields are unchanged.
+  - `tools/release`: `build-desktop` enforces the installer size budget
+    (Windows NSIS ≤ 150 MB, macOS DMG ≤ 180 MB, `03-architecture/05-system-architecture.md`
+    §6-7) and throws `InstallerBudgetExceededError` over budget; `publish` now accepts
+    `--ccx-artifact`/`--resolve-artifact` and writes `plugins-manifest.json` to the
+    published channel dir; `package-resolve` stages a `VERSION` file, an uninstaller
+    (`uninstall.sh`/`uninstall.ps1`) alongside the existing installers (works for both
+    Resolve Free and Studio — same per-user Fusion path), and copies any generated Fusion
+    macro (`plugins/resolve/installer/manifest.json`, C08b) into its own per-OS Macros path.
+  - `apps/desktop/electron-builder.yml`: real installer targets (Windows NSIS, macOS
+    dmg + pkg) with per-user install, a silent-install flag, a directory picker and
+    differential-update blockmaps; a custom NSIS uninstall hook
+    (`apps/desktop/build/installer.nsh`) removes the local bridge's discovery file
+    (`~/.aksharo/bridge.json`) on uninstall. `pnpm pack:dry`'s `--dir` output (C02b's
+    Playwright-Electron e2e) is unaffected — electron-builder's `--dir` CLI flag always
+    wins over the yml's declared targets.
+  - `marketplace/premiere-uxp/`: Adobe Exchange listing copy, a screenshot list (none
+    captured yet — no Premiere Pro on any build host), and an Adobe trademark-usage-form
+    checklist for the still-outstanding human action (H-24) — no submission made.
+  - Marketing `/plugins` and `/download` (`apps/web/app/(site)/(marketing)`) now read
+    `/plugins/manifest` live (server-side fetch with a static-copy fallback) for per-OS/
+    per-host download buttons and a checksum-verification note, alongside the existing
+    SmartScreen/Gatekeeper first-run copy and D65 non-affiliation line.
+- **C05b — After Effects CEP 12 panel (minimal).** New `plugins/ae-cep` (`@montaj/ae-cep`):
+  CEP 12 manifest (`CSXS/manifest.xml`, bundle id `ai.aksharo.ae` from `@montaj/config`,
+  `AEFT` host min version `24.0`), bridge sign-in (device-code, same pattern as C05a's
+  Premiere panel), WAV mixdown via Adobe Media Encoder, styled text layers per segment
+  (mapped through a hand-copied mirror of C08b/C06b's shared style classification table —
+  19 supported / 6 approximate / 5 unsupported of 30 system styles, `docs/AE-STYLE-COVERAGE.md`),
+  alpha overlay import for unsupported/approximate styles, one `app.beginUndoGroup`/
+  `endUndoGroup` per apply, host-id map via a layer marker comment, and re-sync (a re-apply for
+  the same project replaces only its own previously tagged layers). Every host call is isolated
+  behind `AeHost` (`src/host/ae.ts`) with `MockAeHost`; ExtendScript (`src/jsx/aksharo.jsx`) is
+  a small ES3-compatible subset enforced by a dedicated lint config
+  (`eslint.extendscript.mjs`) — no real After Effects exists on the build host, so
+  `createRealAeHost()` throws until a human runs the new `docs/GATE-C-CHECKLIST.md`.
+  `tools/release/src/commands/signZxp.ts` now stages only the shippable subset (`CSXS`,
+  `index.html`, `dist`, `src/jsx`) from a real plugin tree before zipping, the same way
+  `packageCcx.ts` already staged the UXP plugin — `pnpm release sign-zxp --dry-run` now
+  packages the real panel instead of a placeholder. Deviation from the brief: the package
+  lives at `plugins/ae-cep` (the directory `docs/CONTRACTS.md`, `release.config.ts` and the
+  licensing plugin-channel schema already use), not the brief's literal
+  `plugins/after-effects-cep`.
+
+- C04: local mode (v1 = local-only) — `apps/desktop/src/local/**`: a SQLite (`sql.js`, WASM, MIT) store (`local_projects`/`local_media`/`local_edg_snapshots`/`local_exports`), a typed IPC surface (`window.aksharoDesktop.local`) delegating transcription/alignment/render to the local engine sidecar (C03a's `@montaj/engine-client`), the main-process network guard that blocks any upload to the hosted API while a local project is open, and the Starter+ `localMode` entitlement gate (`packages/config`'s `hasLocalMode`). `apps/web/lib/edg/store.ts` gained a local branch (`createLocalEditorStoreDeps`) so the hosted editor runs against the same IPC with no API calls for a local project; Home shows a desktop-only "Local projects" section. `POST /projects/{id}/edg/import` (new route) is the API side of "Upload to cloud" — writes a whole EDG v2 document as revision 1 of a fresh cloud project, never a merge.
+- C03b: local engine quality-gate harness (`apps/engine/bench/**`) — for each model (`turbo-q5_0`, `small`), calls `/transcribe`+`/align` through `@montaj/engine-client` against a committed Hinglish reference set (`apps/engine/fixtures/hinglish-reference.json`: A23's 90s sample + D08's `hinglish-mini` references vs. a committed cloud-aligner snapshot), scores WER/CER/median word-boundary error via a thin Python metrics bridge (`apps/worker-ai/worker_ai/evals/local_engine.py`, reusing D08's `worker_ai.evals.metrics`), checks tiered latency (A<=60s/B<=90s/C<=120s) and a harness-vs-`/health` tier cross-check, and writes a dated `docs/verification/local-engine-<profile>-<date>.md`+`.json` report; thresholds (`apps/engine/bench/thresholds.ts`) are pure and unit-tested. Runs end to end against C03a's `FakeBackend` here (`gate: skipped-fake-backend` — plumbing only) and CI (`.github/workflows/local-engine-bench.yml`) keeps it green on every push/PR touching the engine; the gate itself only passes from a real-backend run on a Gate C machine (`docs/GATE-C-CHECKLIST.md`'s new "Local engine quality gate" section). Deleted the A01 scaffold `engine/montaj-engine/**` (superseded by `apps/engine`, C03a) and fixed the one stale reference to it (root `README.md`'s layout table).
 - C09: DaVinci Resolve Studio Workflow Integration panel (`plugins/resolve-panel`) — docked React shell over `aksharo_core`'s loopback server (discover → bearer → JSON-RPC), `WorkflowIntegrationHost` adapter + mock, sign-in mirrored from the script, timeline picker, "Caption this timeline", passes review + "Apply in Resolve", version/update banner; C08 loopback server gains `session.status`, `transcribe.start`, `passes.list` (`plugins/resolve/aksharo_core_app/session.py|transcribe.py|passes.py`) plus a `?token=` query-param bearer path for browser `WebSocket` callers; `tools/release`'s `package-resolve` now also stages the panel bundle for Studio installs.
 
 ### Added
