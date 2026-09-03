@@ -292,6 +292,7 @@ export class ShareLinksService {
   /** Asserts the link's scope allows at least `required` (view < comment < approve). */
   assertScope(scope: $Enums.ShareLinkScope, required: ShareScope): void {
     const rank: Record<ShareScope, number> = { view: 0, comment: 1, approve: 2 };
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     if (rank[scope] < rank[required]) {
       throw new AppException(
         SHARE_ERRORS.scopeForbidden,

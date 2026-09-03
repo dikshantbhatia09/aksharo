@@ -39,6 +39,7 @@ export interface HeroCopy {
 /** ICU MessageFormat's simple-argument syntax only: `{name}` → `values.name`. */
 export function formatIcuLite(template: string, values: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (match, key: string) =>
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     Object.hasOwn(values, key) ? (values[key] ?? match) : match,
   );
 }
@@ -69,6 +70,7 @@ const HERO_TEMPLATES: Record<HeroLocale, HeroCopy> = {
 };
 
 export function heroCopy(locale: HeroLocale): HeroCopy {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const copy = HERO_TEMPLATES[locale];
   return { ...copy, kicker: formatIcuLite(copy.kicker, { brand: BRAND.name }) };
 }

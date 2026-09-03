@@ -65,6 +65,7 @@ describe.skipIf(!DB_READY)("invoices — B05 acceptance", () => {
     expect(numeric[numeric.length - 1]).toBe(200);
     // No gaps: consecutive integers 1..200.
     for (let i = 1; i < numeric.length; i += 1) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(numeric[i]).toBe((numeric[i - 1] ?? 0) + 1);
     }
   }, 60_000);

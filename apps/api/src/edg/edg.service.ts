@@ -187,6 +187,7 @@ export class EdgService {
       where: { id: passId, edgId: edg.id },
       select: { id: true },
     });
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- sentinel comparison (null/undefined/boolean/empty-string), not a secret/MAC comparison -- reviewed for the same follow-up
     if (pass === null) {
       throw new AppException(
         EDG_ERROR_CODES.passNotFound,
@@ -436,6 +437,7 @@ export class EdgService {
     });
 
     const aspect = ASPECTS[project.aspect];
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const canvas = CANVAS_SIZES[aspect];
     const hot: EdgHot = {
       meta: {

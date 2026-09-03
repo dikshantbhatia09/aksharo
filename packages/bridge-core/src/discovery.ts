@@ -47,8 +47,10 @@ export function generateBearerToken(): string {
 /** Writes the discovery file atomically with `0600` permissions. */
 export function writeDiscoveryFile(file: DiscoveryFile, path = discoveryFilePath()): void {
   const dir = aksharoDir();
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
   const tmp = `${path}.tmp-${process.pid}`;
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   writeFileSync(tmp, `${JSON.stringify(file, null, 2)}\n`, { mode: 0o600 });
   // Rename is atomic on POSIX; on Windows it replaces the destination as of
   // Node 22's `fs.renameSync`, which is what we need — no client ever observes
@@ -59,19 +61,24 @@ export function writeDiscoveryFile(file: DiscoveryFile, path = discoveryFilePath
 function renameOverwrite(from: string, to: string): void {
   try {
     // node:fs renameSync overwrites `to` on both POSIX and Windows.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     renameSync(from, to);
   } catch {
     // Fallback for filesystems that refuse cross-device or locked renames:
     // copy then remove the temp file.
     copyFileSync(from, to);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     chmodSync(to, 0o600);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     unlinkSync(from);
   }
 }
 
 export function readDiscoveryFile(path = discoveryFilePath()): DiscoveryFile | undefined {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   if (!existsSync(path)) return undefined;
   try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     const raw = readFileSync(path, "utf8");
     const parsed = DiscoveryFileSchema.safeParse(JSON.parse(raw));
     return parsed.success ? parsed.data : undefined;

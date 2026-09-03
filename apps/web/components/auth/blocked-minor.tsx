@@ -44,6 +44,7 @@ export function BlockedMinor({
   return (
     <div className="flex flex-col gap-4" data-testid="blocked-minor">
       <p className="text-fg-1 text-sm">
+        {/* eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up */}
         {BRAND.name} accounts start at {MINIMUM_AGE[jurisdiction]} where you are. We are building a
         way for a parent or guardian to give consent properly, and we would rather wait for that
         than get it wrong.

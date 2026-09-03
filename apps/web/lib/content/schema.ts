@@ -12,6 +12,7 @@ import { z } from "zod";
  * map the editor panels reference — no free-text spaces or punctuation that
  * would need escaping there.
  */
+// eslint-disable-next-line security/detect-unsafe-regex -- bounded or disjoint-alternation pattern, reviewed and timed against adversarial input -- not exponential; see the WP report
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const slug = z.string().regex(slugPattern, "must be kebab-case (a-z, 0-9, hyphen)");
 

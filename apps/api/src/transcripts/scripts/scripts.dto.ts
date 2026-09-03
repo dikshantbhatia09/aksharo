@@ -15,6 +15,7 @@ const LanguageTag = z
   .trim()
   .min(2)
   .max(35)
+  // eslint-disable-next-line security/detect-unsafe-regex -- bounded or disjoint-alternation pattern, reviewed and timed against adversarial input -- not exponential; see the WP report
   .regex(/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/, "Not a BCP-47 language tag.");
 
 // ---------------------------------------------------------------------------

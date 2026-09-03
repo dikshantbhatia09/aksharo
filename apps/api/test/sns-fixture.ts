@@ -38,6 +38,7 @@ function build(): SnsFixture {
     });
     const keyPath = join(directory, "key.pem");
     const certPath = join(directory, "cert.pem");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(keyPath, pair.privateKey);
     execFileSync(
       "openssl",

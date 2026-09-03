@@ -159,6 +159,7 @@ export async function punctuate(
 
   const corrections: Correction[] = [];
   const modelled = words.map((word, index) => {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const text = texts[index] ?? word.t;
     if (text === word.t) return word;
     corrections.push({

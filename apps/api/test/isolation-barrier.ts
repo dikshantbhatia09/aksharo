@@ -46,14 +46,18 @@ export async function rendezvous(
   timeoutMs = 30_000,
 ): Promise<RendezvousResult> {
   const dir = join(tmpdir(), "montaj-a23a", runId, barrier);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   mkdirSync(dir, { recursive: true });
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   writeFileSync(join(dir, `${party}${MARKER}`), note, "utf8");
 
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const parties: Record<string, string> = {};
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     for (const file of readdirSync(dir)) {
       if (!file.endsWith(MARKER)) continue;
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
       parties[file.slice(0, -MARKER.length)] = readFileSync(join(dir, file), "utf8");
     }
     if (Object.keys(parties).length >= expected) return { parties, met: true };

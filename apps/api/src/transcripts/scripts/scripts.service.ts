@@ -332,6 +332,7 @@ export class ScriptsService {
     );
     const has = (script: "roman" | "native" | "en"): boolean =>
       words.some(
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         (word) => typeof word.scripts?.[script] === "string" && word.scripts[script] !== "",
       );
 
@@ -409,6 +410,7 @@ export class ScriptsService {
     targets: readonly string[],
   ): Promise<void> {
     const plan = await resolveWorkspacePlan(this.prisma, workspaceId);
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     if (PLAN_TIER[plan] < PLAN_TIER.starter) {
       throw new AppException(
         SCRIPTS_ERROR_CODES.planRequired,
@@ -418,6 +420,7 @@ export class ScriptsService {
       );
     }
     const nonEnglish = targets.filter((target) => baseLanguage(target) !== "en");
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     if (nonEnglish.length > 0 && PLAN_TIER[plan] < PLAN_TIER.creator) {
       throw new AppException(
         SCRIPTS_ERROR_CODES.planRequired,
@@ -456,7 +459,9 @@ export class ScriptsService {
       if (data === null) continue;
       const script = data["script"];
       if (script === "roman" || script === "native") {
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         if (result[script].updatedAt !== undefined) continue; // newest already recorded
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         result[script] = {
           source: "transliteration",
           provider: typeof data["provider"] === "string" ? data["provider"] : null,

@@ -108,6 +108,7 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers, enabled = true)
       if (action === undefined) return;
       const isEditing = isTextEntryTarget(event.target);
       if (isEditing && action !== "find" && action !== "undo" && action !== "redo") return;
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const handler = handlersRef.current[action];
       if (handler === undefined) return;
       event.preventDefault();

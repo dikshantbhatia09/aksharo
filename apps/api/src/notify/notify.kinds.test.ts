@@ -45,7 +45,9 @@ describe("the kind list", () => {
 
   it("has an English and a Hindi entry for every kind", () => {
     for (const kind of NOTIFY_KINDS) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(EN_MESSAGES.kinds[kind], `en is missing ${kind}`).toBeDefined();
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(HI_MESSAGES.kinds[kind], `hi is missing ${kind}`).toBeDefined();
     }
     expect(Object.keys(EN_MESSAGES.kinds).sort()).toEqual([...NOTIFY_KINDS].sort());

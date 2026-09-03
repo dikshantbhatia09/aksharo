@@ -171,6 +171,7 @@ describe("A19b: engine.ts's raw readPixels path vs the cloud renderer (D33)", ()
   it.each(BASELINE_FRAMES.map((frame) => frame.name))(
     "%s matches @montaj/render-skia-node within decision D33's tolerance",
     (name) => {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const commands = baselines[name] ?? [];
       const expected = readbackPixels(
         commands,
@@ -184,6 +185,7 @@ describe("A19b: engine.ts's raw readPixels path vs the cloud renderer (D33)", ()
         background: BASELINE_BACKGROUND,
       });
       const diff = comparePixels(expected, actual);
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(diff.ratio).toBeLessThanOrEqual(KNOWN_TEXT_RESIDUALS[name] ?? PARITY_MAX_DIFF_RATIO);
     },
     30_000,

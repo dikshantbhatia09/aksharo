@@ -11,6 +11,7 @@ module.exports = async function afterPack(context) {
   const { flipFuses, FuseVersion, FuseV1Options } = await import("@electron/fuses");
 
   const { electronPlatformName, appOutDir, packager } = context;
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const ext = { darwin: ".app", win32: ".exe", linux: "" }[electronPlatformName] ?? "";
   const exeName = packager.appInfo.productFilename;
   const electronExecutable = path.join(

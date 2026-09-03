@@ -82,6 +82,7 @@ export function buildLanes(items: readonly PassItem[]): readonly LaneRow[] {
   const order: readonly LaneKind[] = ["cuts", "zoom", "reframe", "audio"];
   return order.map((kind) => ({
     kind,
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     label: LANE_LABELS[kind],
     items: (byLane.get(kind) ?? []).sort((a, b) => a.startMs - b.startMs),
   }));

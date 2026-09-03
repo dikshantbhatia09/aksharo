@@ -16,9 +16,12 @@ export type ConnectionState =
 export interface ConnectOptions {
   readonly host: WorkflowIntegrationHost;
   /** Builds the wire transport for a discovered port/bearer (the panel's own `WebSocket`
-   * in production, `MockRpcTransport` in tests). `?token=` is used, not an `Authorization`
-   * header, because a browser `WebSocket` cannot set request headers on the handshake —
-   * see `plugins/resolve/aksharo_core_app/server.py`'s `_query_token` (this WP's addition). */
+   * in production, `MockRpcTransport` in tests). The bearer never appears on the WebSocket
+   * URL: `createWebSocketTransport` (`src/rpc/wsTransport.ts`) first exchanges it, over a
+   * plain `fetch()` carrying an `Authorization` header, for a 30-second single-use ticket
+   * (`plugins/resolve/aksharo_core_app/server.py`'s `_issue_ws_ticket`), then opens the
+   * WebSocket with `?ticket=` — a browser `WebSocket` still cannot set request headers on
+   * the handshake, but `fetch` can, which is what makes the exchange possible at all. */
   readonly createTransport: (port: number, bearer: string) => RpcTransport;
 }
 

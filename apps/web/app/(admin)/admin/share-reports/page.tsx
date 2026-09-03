@@ -27,6 +27,7 @@ export default function AdminShareReportsPage(): React.JSX.Element {
   React.useEffect(load, [load]);
 
   async function resolve(id: string, action: "take_down" | "dismiss" | "warned"): Promise<void> {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const note = notes[id]?.trim() ?? "";
     if (note.length < 10) {
       setError("A note (min 10 characters) is required to resolve a report.");

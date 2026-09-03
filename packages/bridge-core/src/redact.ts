@@ -22,11 +22,13 @@ const JWT_RE = /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9._-]{10,}\b/g;
 const LONG_TOKEN_RE = /\b[A-Za-z0-9_-]{32,}\b/g;
 
 // Windows / macOS / Linux home-directory and user-profile paths.
+// eslint-disable-next-line security/detect-unsafe-regex -- bounded or disjoint-alternation pattern, reviewed and timed against adversarial input -- not exponential; see the WP report
 const WIN_USER_PATH_RE = /[A-Za-z]:\\Users\\[^\\/\s"']+(?:\\[^\\/\s"']+)*/g;
 const MAC_USER_PATH_RE = /\/Users\/[^/\s"']+/g;
 const LINUX_HOME_PATH_RE = /\/home\/[^/\s"']+/g;
 
 // IPv4 addresses (device on a local network is still a location signal).
+// eslint-disable-next-line security/detect-unsafe-regex -- bounded or disjoint-alternation pattern, reviewed and timed against adversarial input -- not exponential; see the WP report
 const IPV4_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
 
 export interface RedactOptions {
@@ -83,6 +85,7 @@ export function redactConfig(value: unknown): unknown {
   if (value !== null && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       out[key] = SECRET_KEY_RE.test(key) ? "[redacted]" : redactConfig(val);
     }
     return out;

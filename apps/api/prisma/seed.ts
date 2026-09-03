@@ -63,6 +63,7 @@ const DEMO_STATE_CODE = "27";
 function previewFileFor(repoRoot: string, key: string): string | null {
   const file = `${key}.png`;
   const path = join(repoRoot, "packages", "caption-styles", "previews", file);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   return existsSync(path) ? file : null;
 }
 

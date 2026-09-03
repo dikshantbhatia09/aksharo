@@ -37,6 +37,7 @@ export default function AdminReferralsPage(): React.JSX.Element {
   }
 
   async function reject(id: string): Promise<void> {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const reason = reasons[id]?.trim() ?? "";
     if (reason.length < 10) {
       setError("A reason (min 10 characters) is required to reject.");

@@ -113,6 +113,7 @@ function defaultsFor(makes: readonly string[]): {
   defaultStyleId?: string;
   defaultExportPreset?: string;
 } {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const first = makes.map((key) => MAKE_DEFAULTS[key]).find((entry) => entry !== undefined);
   if (first === undefined) return {};
   return {

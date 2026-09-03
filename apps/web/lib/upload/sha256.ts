@@ -113,12 +113,14 @@ export class IncrementalSha256 {
   private compress(data: Uint8Array, offset: number): void {
     const view = new DataView(data.buffer, data.byteOffset + offset, BLOCK_BYTES);
     const w = this.w;
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     for (let t = 0; t < WORDS_PER_BLOCK; t += 1) w[t] = view.getUint32(t * 4, false);
     for (let t = WORDS_PER_BLOCK; t < ROUNDS; t += 1) {
       const w15 = w[t - 15] ?? 0;
       const w2 = w[t - 2] ?? 0;
       const s0 = rotr(w15, 7) ^ rotr(w15, 18) ^ (w15 >>> 3);
       const s1 = rotr(w2, 17) ^ rotr(w2, 19) ^ (w2 >>> 10);
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       w[t] = add32(w[t - 16] ?? 0, s0, w[t - 7] ?? 0, s1);
     }
 
@@ -135,6 +137,7 @@ export class IncrementalSha256 {
     for (let t = 0; t < ROUNDS; t += 1) {
       const s1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
       const ch = (e & f) ^ (~e & g);
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const t1 = add32(hh, s1, ch, K[t] ?? 0, w[t] ?? 0);
       const s0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
       const maj = (a & b) ^ (a & c) ^ (b & c);

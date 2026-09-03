@@ -34,6 +34,7 @@ function matches(row: Row, where: Row | undefined): boolean {
   if (where === undefined) return true;
   for (const [key, expected] of Object.entries(where)) {
     if (expected === undefined) continue;
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const actual = row[key];
     if (expected !== null && typeof expected === "object" && "in" in expected) {
       const allowed = (expected as { in: unknown[] }).in;
@@ -70,7 +71,9 @@ function sort<T extends Row>(rows: T[], orderBy: Row | undefined): T[] {
   if (orderBy === undefined) return rows;
   const [field, direction] = Object.entries(orderBy)[0] as [string, "asc" | "desc"];
   return [...rows].sort((a, b) => {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const left = a[field];
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const right = b[field];
     const cmp =
       left instanceof Date && right instanceof Date

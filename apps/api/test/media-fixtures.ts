@@ -57,6 +57,7 @@ export async function buildFixtures(): Promise<FixtureSet> {
   const dir = await mkdtemp(join(tmpdir(), "montaj-media-fixtures-"));
 
   const video = join(dir, "clip.mp4");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   if (!existsSync(video)) {
     ffmpeg([
       "-y",
@@ -130,6 +131,7 @@ export async function buildFixtures(): Promise<FixtureSet> {
   const corrupt = join(dir, "broken.mp4");
   // Not a truncated MP4 — random bytes, so there is no moov atom to find and
   // ffprobe's answer is unambiguous.
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   await writeFile(corrupt, randomBytes(64 * 1024));
 
   return {

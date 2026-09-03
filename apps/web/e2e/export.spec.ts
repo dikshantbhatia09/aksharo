@@ -179,6 +179,7 @@ test.describe("browser export (chromium)", () => {
         });
         const bytes = new Uint8Array(await engineResult.blob!.arrayBuffer());
         let binary = "";
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]!);
         return {
           sizeBytes: engineResult.sizeBytes,
@@ -232,6 +233,7 @@ test.describe("browser export (chromium)", () => {
     // right length and a non-trivial burned-in frame, nothing more.
     const outDir = mkdtempSync(join(tmpdir(), "aksharo-export-e2e-"));
     const outPath = join(outDir, "output.mp4");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(outPath, Buffer.from(result.base64, "base64"));
 
     const probeJson = ffprobe([
@@ -256,6 +258,7 @@ test.describe("browser export (chromium)", () => {
 
     const framePath = join(outDir, "frame.png");
     execFileSync("ffmpeg", ["-y", "-ss", "2", "-i", outPath, "-frames:v", "1", framePath]);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     const frameHash = createHash("sha256").update(readFileSync(framePath)).digest("hex");
     expect(frameHash).toMatch(/^[0-9a-f]{64}$/);
     test.info().annotations.push({ type: "sampled-frame-sha256", description: frameHash });

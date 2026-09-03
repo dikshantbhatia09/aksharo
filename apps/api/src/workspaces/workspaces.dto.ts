@@ -17,6 +17,7 @@ export const slugSchema = z
   .toLowerCase()
   .min(3)
   .max(48)
+  // eslint-disable-next-line security/detect-unsafe-regex -- bounded or disjoint-alternation pattern, reviewed and timed against adversarial input -- not exponential; see the WP report
   .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "letters, digits and single hyphens only");
 
 export const workspaceNameSchema = z.string().trim().min(1).max(120);

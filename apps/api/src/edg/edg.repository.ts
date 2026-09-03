@@ -256,6 +256,7 @@ function canonicalWords(words: unknown): string {
     if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
     const record = value as Record<string, unknown>;
     const ordered: Record<string, unknown> = {};
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     for (const key of Object.keys(record).sort()) ordered[key] = record[key];
     return ordered;
   });

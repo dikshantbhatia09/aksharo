@@ -511,6 +511,7 @@ export class MediaService {
     const signed: Record<string, string> = {};
     for (const [name, key] of named) {
       if (key === null || key === "") continue;
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       signed[name] = await this.derived.presignGet(key, ttl);
     }
     const thumbs: string[] = [];
@@ -679,6 +680,7 @@ export function normaliseMime(value: string): string {
 export function extensionFor(filename: string, mime: string): string {
   const fromName = extensionOf(filename);
   if (fromName !== undefined && ALLOWED_MEDIA_EXTENSIONS.includes(fromName)) return fromName;
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const fromMime = MIME_FALLBACK_EXTENSIONS[mime];
   if (fromMime !== undefined) return fromMime;
   return normaliseExtension("bin");

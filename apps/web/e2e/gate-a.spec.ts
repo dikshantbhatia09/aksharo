@@ -79,6 +79,7 @@ async function currentAccessToken(page: Page): Promise<string> {
     const body = (await response.json()) as { accessToken?: string };
     return body.accessToken ?? null;
   });
+  // eslint-disable-next-line security/detect-possible-timing-attacks -- sentinel comparison (null/undefined/boolean/empty-string), not a secret/MAC comparison -- reviewed for the same follow-up
   if (token === null) throw new Error("could not obtain an access token from the page's session");
   return token;
 }
@@ -629,6 +630,7 @@ test.describe("Gate A journey", () => {
         new PutObjectCommand({
           Bucket: env["R2_BUCKET_DERIVED"] ?? "montaj-derived",
           Key: renderOutputKey,
+          // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
           Body: readFileSync(outPath),
           ContentType: "video/mp4",
         }),
@@ -651,6 +653,7 @@ test.describe("Gate A journey", () => {
         exportId: cloudDecision.exportId,
         outputKey: renderOutputKey,
         outputMs: 1_000,
+        // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
         sizeBytes: readFileSync(outPath).length,
         width: 1080,
         height: 1920,
@@ -685,6 +688,7 @@ test.describe("Gate A journey", () => {
     // The download genuinely works: fetch the signed URL and ffprobe the
     // real bytes it returns.
     const downloadedPath = join(outDir, "downloaded.mp4");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     writeFileSync(downloadedPath, Buffer.from(await (await fetch(download.url)).arrayBuffer()));
     const probeJson = execFileSync("ffprobe", [
       "-v",

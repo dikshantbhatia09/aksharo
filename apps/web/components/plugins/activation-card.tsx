@@ -80,7 +80,9 @@ export function ActivationCard({
             {activeCount} / {limit} device{limit === 1 ? "" : "s"} on this plan
           </p>
         </div>
+        {/* eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up */}
         <Badge tone={STATE_TONE[state]} data-testid={`${testId}-state`}>
+          {/* eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up */}
           {ACTIVATION_STATE_LABEL[state]}
         </Badge>
       </div>

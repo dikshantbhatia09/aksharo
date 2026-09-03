@@ -1,16 +1,40 @@
 from __future__ import annotations
 
+import asyncio
+import http.client
 import json
+import time
 from collections.abc import AsyncIterator
 
 import pytest
 import websockets
 
 from aksharo_core_app.host.resolve import FakeResolveHost, TimelineHandle
-from aksharo_core_app.server import LoopbackServer, LoopbackServerConfig, PanelDeps
+from aksharo_core_app.server import (
+    WS_TICKET_PATH,
+    LoopbackServer,
+    LoopbackServerConfig,
+    PanelDeps,
+)
 from aksharo_core_app.session import SessionState
 
 RunningServer = tuple[LoopbackServer, int]
+
+
+def _request_ticket(port: int, bearer: str | None) -> tuple[int, dict[str, object]]:
+    """Plain HTTP GET to the ticket endpoint — a stand-in for the panel's own
+    `fetch()`, which (unlike the browser `WebSocket` constructor) can set an
+    `Authorization` header. Synchronous/blocking is fine for a local loopback
+    call in a test."""
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        headers = {"Authorization": f"Bearer {bearer}"} if bearer is not None else {}
+        conn.request("GET", WS_TICKET_PATH, headers=headers)
+        response = conn.getresponse()
+        body = json.loads(response.read())
+        return response.status, body
+    finally:
+        conn.close()
 
 
 @pytest.fixture
@@ -63,21 +87,69 @@ async def test_unknown_method_returns_method_not_found_error(
         assert response["error"]["code"] == -32601
 
 
-async def test_host_info_accepts_bearer_as_query_token(running_server: RunningServer) -> None:
-    """C09: a browser `WebSocket` cannot set an `Authorization` header, so the panel
-    authenticates with `?token=` instead (`server.py`'s `_query_token`)."""
+async def test_ws_ticket_endpoint_requires_the_configured_bearer(
+    running_server: RunningServer,
+) -> None:
     _server, port = running_server
-    async with websockets.connect(f"ws://127.0.0.1:{port}?token=secret-token") as ws:
+    status, body = await asyncio.to_thread(_request_ticket, port, "wrong-token")
+    assert status == 401
+    assert "ticket" not in body
+
+    status, body = await asyncio.to_thread(_request_ticket, port, None)
+    assert status == 401
+
+
+async def test_ws_ticket_issued_over_http_then_redeemed_on_the_websocket(
+    running_server: RunningServer,
+) -> None:
+    """C02c: replaces C09's `?token=` bearer fallback (T11 audit follow-up).
+    The panel's `fetch()` (unlike the browser `WebSocket` constructor) can set
+    an `Authorization` header, so it mints a short-lived ticket over plain
+    HTTP first and only puts the one-time ticket, never the long-lived
+    bearer, in the WebSocket URL."""
+    _server, port = running_server
+    status, body = await asyncio.to_thread(_request_ticket, port, "secret-token")
+    assert status == 200
+    assert body["expiresInMs"] == 30_000
+    ticket = body["ticket"]
+    assert isinstance(ticket, str) and len(ticket) > 20
+
+    async with websockets.connect(f"ws://127.0.0.1:{port}?ticket={ticket}") as ws:
         await ws.send(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "host.info"}))
         response = json.loads(await ws.recv())
         assert response["result"] == {"hostApp": "resolve", "connected": True}
 
 
-async def test_query_token_must_match_the_configured_bearer(
-    running_server: RunningServer,
-) -> None:
+async def test_ws_ticket_is_single_use(running_server: RunningServer) -> None:
     _server, port = running_server
-    async with websockets.connect(f"ws://127.0.0.1:{port}?token=wrong-token") as ws:
+    _status, body = await asyncio.to_thread(_request_ticket, port, "secret-token")
+    ticket = body["ticket"]
+
+    async with websockets.connect(f"ws://127.0.0.1:{port}?ticket={ticket}") as ws:
+        await ws.send(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "host.info"}))
+        await ws.recv()
+
+    async with websockets.connect(f"ws://127.0.0.1:{port}?ticket={ticket}") as ws:
+        with pytest.raises(websockets.exceptions.ConnectionClosed):
+            await ws.recv()
+
+
+async def test_ws_ticket_expires_after_its_ttl(running_server: RunningServer) -> None:
+    server, port = running_server
+    _status, body = await asyncio.to_thread(_request_ticket, port, "secret-token")
+    ticket = body["ticket"]
+    assert isinstance(ticket, str)
+    # Force it stale rather than sleeping 30s: same effect, instant test.
+    server._tickets[ticket] = time.monotonic() - 1.0
+
+    async with websockets.connect(f"ws://127.0.0.1:{port}?ticket={ticket}") as ws:
+        with pytest.raises(websockets.exceptions.ConnectionClosed):
+            await ws.recv()
+
+
+async def test_unknown_ws_ticket_is_rejected(running_server: RunningServer) -> None:
+    _server, port = running_server
+    async with websockets.connect(f"ws://127.0.0.1:{port}?ticket=not-a-real-ticket") as ws:
         with pytest.raises(websockets.exceptions.ConnectionClosed):
             await ws.recv()
 

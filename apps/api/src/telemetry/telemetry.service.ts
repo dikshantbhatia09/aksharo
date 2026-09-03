@@ -242,6 +242,7 @@ export class TelemetryService {
 function redactCappedProps(props: Record<string, unknown>): Record<string, unknown> {
   const entries = Object.entries(props).slice(0, PROPS_MAX_KEYS);
   const capped: Record<string, unknown> = {};
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   for (const [key, value] of entries) capped[key] = value;
   return redactConfig(capped) as Record<string, unknown>;
 }

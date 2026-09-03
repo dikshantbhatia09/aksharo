@@ -21,6 +21,7 @@ import type { Options as PinoHttpOptions } from "pino-http";
  * user reporting a failure should be able to read it off the network tab.
  */
 export function requestContextMiddleware(req: Request, res: Response, next: NextFunction): void {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const incoming = (req as { id?: unknown }).id ?? req.headers[REQUEST_ID_HEADER];
   const requestId = normaliseRequestId(incoming);
 
@@ -41,6 +42,7 @@ export function pinoHttpOptions(nodeEnv: string | undefined): PinoHttpOptions {
     // The context middleware has already put the id on the request; agreeing with
     // it keeps `req.id`, the response header and the error envelope identical.
     genReqId: (req) =>
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       normaliseRequestId((req as { id?: unknown }).id ?? req.headers[REQUEST_ID_HEADER]),
     redact: { paths: [...REDACT_PATHS], censor: "[redacted]" },
     formatters: { log: redactLogObject },

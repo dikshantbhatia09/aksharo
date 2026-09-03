@@ -130,6 +130,7 @@ describe("property: dragging never produces overlapping or inverted bounds", () 
             cursor += duration;
           }
           const index = pickIndexSeed % segments.length;
+          // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
           const current = segments[index]!;
           const prev = segments[index - 1];
           const next = segments[index + 1];
@@ -167,6 +168,7 @@ describe("property: dragging a word edge never produces overlapping or inverted 
             cursor += duration;
           }
           const index = pickIndexSeed % words.length;
+          // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
           const current = words[index]!;
           const prev = words[index - 1];
           const next = words[index + 1];

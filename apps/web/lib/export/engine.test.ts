@@ -92,6 +92,7 @@ describe("applySpliceFades (A19c brief §4: 5ms splice fades at cut boundaries)"
     expect(data[samples - 1]).toBeCloseTo(1, 5);
     // Monotonically non-decreasing through the ramp.
     for (let i = 1; i < samples; i += 1) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(data[i]).toBeGreaterThanOrEqual(data[i - 1] ?? 0);
     }
   });

@@ -150,6 +150,7 @@ export function assertOwnKeys(
   const offending: string[] = [];
 
   for (const field of DERIVED_KEY_FIELDS) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const value = body[field];
     if (typeof value === "string" && !isInside(value, scope)) offending.push(field);
   }

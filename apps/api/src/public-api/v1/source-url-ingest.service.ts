@@ -178,6 +178,7 @@ const EXTENSION_BY_CONTENT_TYPE: Readonly<Record<string, string>> = {
 };
 
 function extensionForContentType(contentType: string): string {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return EXTENSION_BY_CONTENT_TYPE[contentType] ?? "bin";
 }
 

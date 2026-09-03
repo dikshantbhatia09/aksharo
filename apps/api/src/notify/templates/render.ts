@@ -119,6 +119,7 @@ export function resetTemplateCache(): void {
 function escapeValues(values: TemplateData): TemplateData {
   const escaped: Record<string, string | number | boolean> = {};
   for (const [name, value] of Object.entries(values)) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     escaped[name] = typeof value === "string" ? escapeHtml(value) : value;
   }
   return escaped;
@@ -142,6 +143,7 @@ export interface RenderInput {
  */
 export function renderNotification(input: RenderInput): RenderedMessage {
   const locale = normaliseLocale(input.locale);
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const catalogue = CATALOGUES[locale];
   const strings = catalogue.kinds[input.kind];
 

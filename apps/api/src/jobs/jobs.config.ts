@@ -251,7 +251,9 @@ export const QUEUE_POLICY_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy
 /** The policy for a queue: its family defaults, with any per-queue override. */
 export function queuePolicyFor(queueName: string): QueuePolicy {
   const family = queueName.split(".")[0] ?? queueName;
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const base = QUEUE_POLICY_BY_FAMILY[family] ?? DEFAULT_QUEUE_POLICY;
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const override = QUEUE_POLICY_OVERRIDES[queueName];
   return override === undefined ? base : Object.freeze({ ...base, ...override });
 }
@@ -299,9 +301,13 @@ export interface PlanLimits {
 export function planLimits(plan: PlanKey): PlanLimits {
   return {
     plan,
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     priority: PLAN_PRIORITY[plan],
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     maxQueueWaitMs: PLAN_MAX_QUEUE_WAIT_MS[plan],
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     enqueuedCapTenths: PLAN_ENQUEUED_CAP_TENTHS[plan],
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     concurrencyLane: PLAN_CONCURRENCY_LANE[plan],
   };
 }

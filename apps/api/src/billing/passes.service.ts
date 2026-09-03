@@ -220,6 +220,7 @@ export class PassesService {
       }
       case "week_pass":
         return {
+          // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
           amountMinor: WEEK_PASS.prices[currency],
           creditsGrantedTenths: WEEK_PASS.creditsTenths,
           durationDays: WEEK_PASS.days,
@@ -245,6 +246,7 @@ export class PassesService {
         const plan = await this.plans.require(planKey);
         const prices = parsePlanPrices(plan.prices);
         return {
+          // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
           amountMinor: prices[currency].month,
           creditsGrantedTenths: plan.creditsPerMonthTenths,
           durationDays: 30,

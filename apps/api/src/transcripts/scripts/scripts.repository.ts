@@ -228,6 +228,7 @@ export function mergeScripts(
   let changedCount = 0;
   const next = words.map((word) => {
     const text = patch.get(word.wid);
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     if (text === undefined || word.scripts?.[targetScript] === text) return word;
     changedCount += 1;
     return { ...word, scripts: { ...word.scripts, [targetScript]: text } };

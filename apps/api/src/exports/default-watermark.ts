@@ -37,6 +37,7 @@ function crcTable(): Uint32Array {
     for (let k = 0; k < 8; k += 1) {
       c = (c & 1) === 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
     }
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     table[n] = c >>> 0;
   }
   cachedCrcTable = table;
@@ -74,9 +75,11 @@ export function buildDefaultWatermarkPng(): Buffer {
   const raw = Buffer.alloc(HEIGHT * (1 + WIDTH * 4));
   for (let y = 0; y < HEIGHT; y += 1) {
     const rowStart = y * (1 + WIDTH * 4);
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     raw[rowStart] = 0; // filter: none
     for (let x = 0; x < WIDTH; x += 1) {
       const pixel = rowStart + 1 + x * 4;
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       raw[pixel] = r;
       raw[pixel + 1] = g;
       raw[pixel + 2] = b;

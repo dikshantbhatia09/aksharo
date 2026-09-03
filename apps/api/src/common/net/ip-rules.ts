@@ -78,6 +78,7 @@ export function parseIpv6(value: string): Uint8Array | null {
   const groups: string[] = [];
   const pushGroup = (list: string[], into: string[]): boolean => {
     for (let index = 0; index < list.length; index += 1) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const piece = list[index] ?? "";
       if (piece.includes(".")) {
         if (index !== list.length - 1) return false;
@@ -108,6 +109,7 @@ export function parseIpv6(value: string): Uint8Array | null {
 
   const bytes = new Uint8Array(16);
   for (let index = 0; index < 8; index += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const word = Number.parseInt(groups[index] ?? "0", 16);
     bytes[index * 2] = (word >> 8) & 0xff;
     bytes[index * 2 + 1] = word & 0xff;
@@ -132,16 +134,19 @@ function inIpv6Range(address: Uint8Array, cidr: string): boolean {
   if (base === null) return false;
   const fullBytes = Math.floor(prefix / 8);
   for (let index = 0; index < fullBytes; index += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     if (address[index] !== base[index]) return false;
   }
   const remainder = prefix % 8;
   if (remainder === 0) return true;
   const mask = (0xff << (8 - remainder)) & 0xff;
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return ((address[fullBytes] ?? 0) & mask) === ((base[fullBytes] ?? 0) & mask);
 }
 
 /** IPv4-mapped IPv6 (`::ffff:a.b.c.d`) as its IPv4 address, else `null`. */
 function mappedIpv4(bytes: Uint8Array): number | null {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   for (let index = 0; index < 10; index += 1) if (bytes[index] !== 0) return null;
   if (bytes[10] !== 0xff || bytes[11] !== 0xff) return null;
   return (

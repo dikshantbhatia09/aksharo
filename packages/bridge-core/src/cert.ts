@@ -115,7 +115,9 @@ export async function loadOrCreateCertificate(
   const store = keyStore ?? (await createDefaultKeyStore());
   const certFile = certPath(dir);
 
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   if (existsSync(certFile)) {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     const certPem = readFileSync(certFile, "utf8");
     const migrated = await migrateLegacyKeyIfPresent(store, dir);
     const privateKeyPem = migrated ?? (await store.load(PRIVATE_KEY_NAME));
@@ -127,7 +129,9 @@ export async function loadOrCreateCertificate(
   }
 
   const cert = generate();
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   writeFileSync(certFile, cert.certPem, { mode: 0o600 });
   await store.save(PRIVATE_KEY_NAME, cert.privateKeyPem);
   return cert;
@@ -139,8 +143,10 @@ async function migrateLegacyKeyIfPresent(
   dir: string,
 ): Promise<string | undefined> {
   const legacyFile = legacyKeyPath(dir);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   if (!existsSync(legacyFile)) return undefined;
   const existing = await keyStore.load(PRIVATE_KEY_NAME);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   const legacyKeyPem = readFileSync(legacyFile, "utf8");
   if (existing === undefined) {
     await keyStore.save(PRIVATE_KEY_NAME, legacyKeyPem);

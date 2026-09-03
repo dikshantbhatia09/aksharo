@@ -94,6 +94,7 @@ function collectOperations(document: Record<string, unknown>): Operation[] {
 
   for (const [path, item] of Object.entries(paths)) {
     for (const method of HTTP_METHODS) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       const operation = item[method] as
         { operationId?: string; tags?: string[]; summary?: string } | undefined;
       if (operation === undefined) continue;
@@ -183,6 +184,7 @@ async function main(): Promise<void> {
   }
 
   for (const [name, value] of Object.entries(PLACEHOLDER_ENV)) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     process.env[name] ??= value;
   }
 

@@ -317,7 +317,9 @@ describe.skipIf(!available)("B08: devices and licence keys", () => {
       channels: Record<string, { available: boolean; downloadUrl: string | null }>;
     };
     for (const channel of ["premiere-uxp", "ae-cep", "resolve-script"] as const) {
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(body.channels[channel]?.available).toBe(false);
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       expect(body.channels[channel]?.downloadUrl).toBeNull();
     }
   });

@@ -29,12 +29,14 @@ describe("bundle.mjs", () => {
 
   it("inlines a workspace-style local import and leaves `electron` as an external require", async () => {
     const helperPath = path.join(tmp, "helper.ts");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     await writeFile(
       helperPath,
       "export function helperValue(): string { return 'inlined-helper'; }\n",
       "utf8",
     );
     const entryPath = path.join(tmp, "entry.ts");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     await writeFile(
       entryPath,
       [
@@ -48,6 +50,7 @@ describe("bundle.mjs", () => {
 
     await bundleEntry({ in: entryPath, out: outPath });
 
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     const bundled = await readFile(outPath, "utf8");
     expect(bundled).toContain("inlined-helper");
     expect(bundled).not.toContain("./helper.js");
@@ -57,8 +60,11 @@ describe("bundle.mjs", () => {
   it("writes a dependency-free dist/package.json carrying only name/version/main", async () => {
     const appDir = path.join(tmp, "app");
     const distDir = path.join(tmp, "app", "dist");
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     await mkdir(appDir, { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     await mkdir(distDir, { recursive: true });
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     await writeFile(
       path.join(appDir, "package.json"),
       JSON.stringify({
@@ -79,6 +85,7 @@ describe("bundle.mjs", () => {
     });
     expect(distPkg.dependencies).toBeUndefined();
 
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     const written = JSON.parse(await readFile(path.join(distDir, "package.json"), "utf8"));
     expect(written).toEqual(distPkg);
   });

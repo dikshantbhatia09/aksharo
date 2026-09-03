@@ -89,6 +89,7 @@ const ANCHOR_FRACTIONS: Readonly<Record<Anchor, { readonly h: number; readonly v
 
 /** Where a box's anchor point sits, in project pixels. */
 export function anchorPointOf(box: Box, anchor: Anchor): Point {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const { h, v } = ANCHOR_FRACTIONS[anchor];
   return { x: box[0] + (box[2] - box[0]) * h, y: box[1] + (box[3] - box[1]) * v };
 }

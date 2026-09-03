@@ -56,8 +56,11 @@ export class InternalSignatureGuard implements CanActivate {
     const result = verifyInternalSignature({
       secret: this.env.INTERNAL_CALLBACK_SECRET,
       secretNext: this.env.INTERNAL_CALLBACK_SECRET_NEXT,
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       attempt: request.headers[ATTEMPT_HEADER],
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       timestamp: request.headers[TIMESTAMP_HEADER],
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
       signature: request.headers[SIGNATURE_HEADER],
       body: request.rawBody,
     });

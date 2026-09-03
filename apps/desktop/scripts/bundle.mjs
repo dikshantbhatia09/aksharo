@@ -72,6 +72,7 @@ export async function bundleEntry(entry) {
  * `productName`/`appId`/etc. come from `electron-builder.yml` + `extraMetadata`.
  */
 export async function writeDistPackageJson(appDir = root, distDir = dist) {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   const appPkg = JSON.parse(await readFile(join(appDir, "package.json"), "utf8"));
   const distPkg = {
     name: appPkg.name,
@@ -79,6 +80,7 @@ export async function writeDistPackageJson(appDir = root, distDir = dist) {
     private: true,
     main: "main/index.js",
   };
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
   await writeFile(join(distDir, "package.json"), `${JSON.stringify(distPkg, null, 2)}\n`, "utf8");
   return distPkg;
 }

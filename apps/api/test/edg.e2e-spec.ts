@@ -529,6 +529,7 @@ describe.skipIf(!available)("EDG", () => {
       });
 
       const changed = after.filter(
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         (row, index) => JSON.stringify(row.words) !== JSON.stringify(before[index]?.words),
       );
       expect(changed).toHaveLength(1);
@@ -1176,6 +1177,7 @@ describe.skipIf(!available)("EDG", () => {
         return {
           id: newId(),
           edgId: project.edgId,
+          // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
           seq: keys[index] as string,
           startWordId: `${String(chunkIdx)}:${String(first % chunkSize)}`,
           endWordId: `${String(chunkIdx)}:${String((first + 1) % chunkSize)}`,

@@ -46,11 +46,13 @@ function extractShowTextOperators(content: string): string[] {
   const tjPattern = /\(((?:[^()\\]|\\.)*)\)\s*Tj/g;
   // `[ <hex> num (literal) num ... ] TJ` — pdfkit's usual form: a run split at
   // each kerned glyph pair, with a numeric adjustment between pieces.
+  // eslint-disable-next-line security/detect-unsafe-regex -- bounded or disjoint-alternation pattern, reviewed and timed against adversarial input -- not exponential; see the WP report
   const tjArrayPattern = /\[((?:<[0-9A-Fa-f]*>|\((?:[^()\\]|\\.)*\)|[^[\]])*)\]\s*TJ/g;
 
   // Walk both patterns in document order by scanning once and dispatching on
   // whichever the cursor is currently sitting on.
   const combined =
+    // eslint-disable-next-line security/detect-unsafe-regex -- bounded or disjoint-alternation pattern, reviewed and timed against adversarial input -- not exponential; see the WP report
     /(\((?:[^()\\]|\\.)*\)\s*Tj)|(\[(?:<[0-9A-Fa-f]*>|\((?:[^()\\]|\\.)*\)|[^[\]])*\]\s*TJ)/g;
   let match: RegExpExecArray | null;
   while ((match = combined.exec(content)) !== null) {

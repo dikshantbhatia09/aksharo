@@ -35,6 +35,7 @@ async function currentAccessToken(page: Page): Promise<string> {
     const body = (await response.json()) as { accessToken?: string };
     return body.accessToken ?? null;
   });
+  // eslint-disable-next-line security/detect-possible-timing-attacks -- sentinel comparison (null/undefined/boolean/empty-string), not a secret/MAC comparison -- reviewed for the same follow-up
   if (token === null) throw new Error("could not obtain an access token from the page's session");
   return token;
 }

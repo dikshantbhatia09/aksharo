@@ -8,7 +8,28 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **C02c: Electron major bump, `eslint-plugin-security`, WS ticket exchange
+  (X01 follow-ups).** `apps/desktop`'s `electron` `^33.4.11` → `^44.1.1`
+  (past X01's `>=39.8.10` floor, fixing the named use-after-free/context-
+  isolation/cross-origin-protocol issues), with `electron-updater` → `^6.8.9`,
+  `electron-builder` → `^26.15.3`, `@electron/fuses` → `^2.1.3`; fuses
+  re-verified, `pnpm pack:dry` and the full desktop vitest suite green, the
+  Playwright-Electron smoke run once locally (pass). `eslint-plugin-security`'s
+  `recommended` ruleset added to `packages/config/eslint.config.base.mjs`
+  (`warn`, repo-wide); every finding in `apps/api`, `apps/web`,
+  `packages/bridge-core` and `apps/desktop` fixed or annotated (one real
+  ReDoS-shaped regex fixed in `apps/api/src/media/import/subtitle-parsers.ts`;
+  the rest reviewed as false positives), then promoted to `error` for those
+  four packages (`securityRulesStrict`). C09's `?token=` WebSocket
+  query-parameter bearer fallback replaced with a one-time ticket exchange
+  (T11 follow-up): `plugins/resolve/aksharo_core_app/server.py` answers a
+  bodyless `GET /session/ws-ticket` (bearer header) with a 30-second
+  single-use ticket before the WebSocket handshake begins, and
+  `plugins/resolve-panel/src/rpc/wsTransport.ts` fetches one and connects with
+  `?ticket=` instead of the raw bearer.
+
 - C09: DaVinci Resolve Studio Workflow Integration panel (`plugins/resolve-panel`) — docked React shell over `aksharo_core`'s loopback server (discover → bearer → JSON-RPC), `WorkflowIntegrationHost` adapter + mock, sign-in mirrored from the script, timeline picker, "Caption this timeline", passes review + "Apply in Resolve", version/update banner; C08 loopback server gains `session.status`, `transcribe.start`, `passes.list` (`plugins/resolve/aksharo_core_app/session.py|transcribe.py|passes.py`) plus a `?token=` query-param bearer path for browser `WebSocket` callers; `tools/release`'s `package-resolve` now also stages the panel bundle for Studio installs.
+
 ### Added
 
 - **X01 — security review before Gate C.** Threat-model audit re-verifying

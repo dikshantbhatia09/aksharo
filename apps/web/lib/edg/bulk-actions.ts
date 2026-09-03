@@ -34,6 +34,7 @@ export function planMergeShort(input: MergeShortInput): EdgOp[] {
   const ops: EdgOp[] = [];
   let index = 0;
   while (index < input.segments.length - 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const current = input.segments[index];
     const next = input.segments[index + 1];
     if (current === undefined || next === undefined) break;

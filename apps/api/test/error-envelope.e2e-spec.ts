@@ -137,6 +137,7 @@ describe("error envelope (e2e)", () => {
       .set(REQUEST_ID_HEADER, inbound)
       .expect(402);
 
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     expect(response.headers[REQUEST_ID_HEADER]).toBe(inbound);
     expect((response.body as Envelope).error.requestId).toBe(inbound);
   });

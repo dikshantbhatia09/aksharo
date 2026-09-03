@@ -85,3 +85,6 @@ apps/worker-ai/eval-results/
 
 # C00: release pipeline scratch output (build artifacts, notarization ledger, publish dirs)
 .release/
+
+# C02/C02c: electron-builder's own --dir output (pack:dry), never committed
+apps/desktop/release/
