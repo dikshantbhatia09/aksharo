@@ -1643,6 +1643,13 @@ export const API_OPERATIONS = [
     summary: "Proxy URL + EDG projection for the CanvasKit preview",
   },
   {
+    operationId: "projectTranscriptionState",
+    method: "GET",
+    path: "/projects/{projectId}/transcription-state",
+    tags: ["transcripts"],
+    summary: "Where this project's first transcription actually is",
+  },
+  {
     operationId: "quoteBatch",
     method: "POST",
     path: "/batch/quote",

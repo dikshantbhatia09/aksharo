@@ -7945,6 +7945,49 @@
         ]
       }
     },
+    "/projects/{projectId}/transcription-state": {
+      "get": {
+        "description": "Derived, never stored: ready | queued | running | failed | not_started | awaiting_language | processing_media | no_media. The upload tray, the editor's waiting screen and the shell all render exactly this.",
+        "operationId": "projectTranscriptionState",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptionStateDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `transcript/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Where this project's first transcription actually is",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
     "/projects/{projectId}/transcribe": {
       "post": {
         "description": "Quotes the job from the probed media duration (1 credit a minute, rounded up to 0.1 of a minute), holds the credits and enqueues `ai.transcribe`. The transcript and the editing document are written when the worker's completion arrives; watch `job.completed` on the project's realtime room, or poll `GET /jobs/{id}`. Diarisation is free — the transcription rate includes it.",
@@ -24140,6 +24183,35 @@
         "required": [
           "revision",
           "segments"
+        ]
+      },
+      "TranscriptionStateDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "queued",
+              "running",
+              "failed",
+              "not_started",
+              "awaiting_language",
+              "processing_media",
+              "no_media"
+            ]
+          },
+          "jobId": {
+            "type": "string",
+            "description": "The live ai.transcribe job, when one exists."
+          },
+          "error": {
+            "type": "string",
+            "description": "Failure detail for status=failed."
+          }
+        },
+        "required": [
+          "status"
         ]
       },
       "TranscribeRequestDto": {

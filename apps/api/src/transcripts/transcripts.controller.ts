@@ -29,6 +29,7 @@ import {
   TranscribeAcceptedDto,
   TranscribeRequestDto,
   TranscriptChunkPageDto,
+  TranscriptionStateDto,
   TranscriptQueryDto,
 } from "./transcripts.dto.js";
 import { TranscriptsService } from "./transcripts.service.js";
@@ -62,6 +63,24 @@ import type { Response } from "express";
 @Controller("projects/:projectId")
 export class TranscriptsController {
   constructor(private readonly transcripts: TranscriptsService) {}
+
+  @Get("transcription-state")
+  @Roles("viewer")
+  @ApiOperation({
+    summary: "Where this project's first transcription actually is",
+    description:
+      "Derived, never stored: ready | queued | running | failed | not_started | " +
+      "awaiting_language | processing_media | no_media. The upload tray, the editor's " +
+      "waiting screen and the shell all render exactly this.",
+    operationId: "projectTranscriptionState",
+  })
+  @ApiOkResponse({ type: TranscriptionStateDto })
+  async transcriptionState(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("projectId") projectId: string,
+  ): Promise<TranscriptionStateDto> {
+    return this.transcripts.transcriptionState(projectId, principal.workspaceId);
+  }
 
   @Post("transcribe")
   @Roles("editor")
