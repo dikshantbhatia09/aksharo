@@ -89,6 +89,46 @@ describe("<ProjectCard />", () => {
     });
   });
 
+  // --- FIX-05: the card frames and labels the project from its own data ------
+
+  it("frames a portrait project in the document's aspect, not 16:9", async () => {
+    const { container } = renderWithProviders(
+      <ProjectCard project={project({ aspect: "9:16" })} />,
+      { routes: EMPTY_JOBS },
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("project-card")).toBeInTheDocument();
+    });
+    // `getElementsByClassName` takes a raw class name — a CSS selector would have
+    // to escape both brackets and the slash in Tailwind's arbitrary-value class.
+    expect(container.getElementsByClassName("aspect-[9/16]")).toHaveLength(1);
+    expect(container.getElementsByClassName("aspect-video")).toHaveLength(0);
+  });
+
+  it("renders the presigned thumbnail when the project has one", async () => {
+    const url = "https://derived.example/thumb-0.jpg?sig=abc";
+    const { container } = renderWithProviders(
+      <ProjectCard project={project({ thumbnailUrl: url })} />,
+      { routes: EMPTY_JOBS },
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("project-card")).toBeInTheDocument();
+    });
+    // A plain <img> by design (the guide's own note): assert the src directly.
+    const image = container.querySelector("img");
+    expect(image).not.toBeNull();
+    expect(image?.getAttribute("src")).toBe(url);
+  });
+
+  it("shows a m:ss duration chip from durationMs", async () => {
+    renderWithProviders(<ProjectCard project={project({ durationMs: 20_200 })} />, {
+      routes: EMPTY_JOBS,
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("project-card-duration")).toHaveTextContent("0:20");
+    });
+  });
+
   it("opens the kebab menu without navigating", async () => {
     const user = userEvent.setup();
     renderWithProviders(<ProjectCard project={project()} />, { routes: EMPTY_JOBS });

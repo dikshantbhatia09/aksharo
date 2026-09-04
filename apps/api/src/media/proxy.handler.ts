@@ -2,8 +2,8 @@ import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 
 import { MEDIA_FAILURE_REASONS } from "./media.constants.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
-import { AutoTranscribeTrigger } from "../transcripts/auto-transcribe.trigger.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
+import { AutoTranscribeTrigger } from "../transcripts/auto-transcribe.trigger.js";
 
 import type { MediaFailureReason } from "./media.constants.js";
 import type {
@@ -63,6 +63,24 @@ export class MediaProxyCompletionHandler implements JobCompletionHandler, OnModu
     const mediaId = mediaIdOf(context);
     if (mediaId === undefined) return undefined;
     const applied = await this.resolve(context.job.id, mediaId, "ready", null);
+
+    // FIX-05: the projects grid renders from the project row alone; copy the
+    // presentation facts across once the derived assets exist. Idempotent — a
+    // replayed completion writes the same values.
+    const presented = await this.prisma.mediaAsset.findUnique({
+      where: { id: mediaId },
+      select: { projectId: true, role: true, durationMs: true, thumbKeys: true },
+    });
+    if (presented !== null && presented.role === "primary") {
+      await this.prisma.project.update({
+        where: { id: presented.projectId },
+        data: {
+          ...(presented.durationMs === null ? {} : { durationMs: presented.durationMs }),
+          ...(presented.thumbKeys[0] === undefined ? {} : { thumbnailKey: presented.thumbKeys[0] }),
+        },
+      });
+    }
+
     // The media is only now genuinely usable, which is the first moment
     // `POST /projects/{id}/transcribe` can succeed. Starting it here rather than
     // in the browser is what stops an upload from stalling forever with no

@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import { ulid } from "ulid";
 
 import { addDays, mediaLimitsFor } from "./plan-limits.js";
@@ -8,10 +8,11 @@ import {
   PROJECTS_MAX_PAGE_SIZE,
   PROJECTS_PAGE_SIZE,
 } from "./projects.constants.js";
-import { AppException, PrismaService } from "../common/index.js";
+import { AppException, DERIVED_STORE, PrismaService } from "../common/index.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
 import type { PROJECT_ASPECTS, PROJECT_STATUSES } from "./projects.dto.js";
+import type { ObjectStore } from "../common/index.js";
 import type { $Enums, Prisma, Project } from "@prisma/client";
 
 export type ProjectAspect = (typeof PROJECT_ASPECTS)[number];
@@ -28,6 +29,8 @@ export interface ProjectView {
   readonly aspect: ProjectAspect;
   readonly status: ProjectStatus;
   readonly thumbnailKey: string | null;
+  /** FIX-05: short-lived presigned GET for the thumbnail; absent when there is none. */
+  readonly thumbnailUrl?: string;
   readonly durationMs: number | null;
   readonly mediaCount: number;
   readonly lastActivityAt: string;
@@ -108,7 +111,20 @@ export class ProjectsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly entitlements: EntitlementService,
+    @Inject(DERIVED_STORE) private readonly derived: ObjectStore,
   ) {}
+
+  /**
+   * FIX-05: the grid renders a real thumbnail, and the object it names is
+   * private. 300 s is deliberately short rather than generous — presigned URLs
+   * end up in screenshots, logs and bug reports (the audit proved exactly that),
+   * and the grid refetches on focus, so a short TTL costs nothing here. At CDN
+   * scale this becomes a plain public URL and only this method changes.
+   */
+  private async thumbnailUrlFor(project: Project): Promise<string | undefined> {
+    if (project.thumbnailKey === null || project.thumbnailKey === "") return undefined;
+    return this.derived.presignGet(project.thumbnailKey, 300);
+  }
 
   async create(
     workspaceId: string,
@@ -207,7 +223,11 @@ export class ProjectsService {
     const items = rows.slice(0, take);
     const nextCursor = rows.length > take ? (items[items.length - 1]?.id ?? null) : null;
     return {
-      items: items.map((row) => toProjectView(row, row._count.mediaAssets)),
+      items: await Promise.all(
+        items.map(async (row) =>
+          toProjectView(row, row._count.mediaAssets, await this.thumbnailUrlFor(row)),
+        ),
+      ),
       nextCursor,
     };
   }
@@ -231,7 +251,7 @@ export class ProjectsService {
       where: { id: projectId, workspaceId, deletedAt: null },
       include: { _count: { select: { mediaAssets: true } } },
     });
-    return toProjectView(project, project._count.mediaAssets);
+    return toProjectView(project, project._count.mediaAssets, await this.thumbnailUrlFor(project));
   }
 
   async update(
@@ -323,7 +343,17 @@ export class ProjectsService {
   }
 }
 
-export function toProjectView(project: Project, mediaCount: number): ProjectView {
+/**
+ * FIX-05 note: this stays SYNCHRONOUS and takes the already-presigned URL as an
+ * argument rather than presigning itself. It is a free function (no `this`, so
+ * no injected store) and is unit-tested synchronously; the two call sites that
+ * have a store — list and detail — do the presigning and pass the result in.
+ */
+export function toProjectView(
+  project: Project,
+  mediaCount: number,
+  thumbnailUrl?: string,
+): ProjectView {
   return {
     id: project.id,
     workspaceId: project.workspaceId,
@@ -335,6 +365,7 @@ export function toProjectView(project: Project, mediaCount: number): ProjectView
     aspect: ENUM_TO_ASPECT[project.aspect],
     status: project.status,
     thumbnailKey: project.thumbnailKey,
+    ...(thumbnailUrl === undefined ? {} : { thumbnailUrl }),
     durationMs: project.durationMs,
     mediaCount,
     lastActivityAt: project.lastActivityAt.toISOString(),

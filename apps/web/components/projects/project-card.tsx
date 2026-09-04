@@ -23,6 +23,8 @@ import { Checkbox, LangChip, StatusChip } from "@montaj/ui";
 import { ProjectKebabMenu } from "./project-kebab-menu";
 import { activeJobFor, projectCardStatus } from "./project-status";
 
+import { cn } from "@/lib/utils";
+
 function formatDuration(ms: number | null): string | undefined {
   if (ms === null || !Number.isFinite(ms) || ms <= 0) return undefined;
   const totalSeconds = Math.round(ms / 1000);
@@ -66,7 +68,16 @@ export function ProjectCard({
       data-status={status}
       data-selected={selected}
     >
-      <div className="bg-bg-2 relative flex aspect-video items-center justify-center">
+      {/* FIX-05: the frame is the project's own aspect, and the thumbnail the
+          pipeline already produced is finally shown. A portrait project drawn in
+          a 16:9 box was the grid's half of the audit's "chrome ignores correct
+          data" finding. */}
+      <div
+        className={cn(
+          "bg-bg-2 relative flex items-center justify-center overflow-hidden",
+          project.aspect === "9:16" ? "aspect-[9/16] max-h-56 mx-auto" : "aspect-video",
+        )}
+      >
         {selectable ? (
           <Checkbox
             checked={selected}
@@ -81,9 +92,18 @@ export function ProjectCard({
             data-testid="project-card-select"
           />
         ) : null}
-        <Film className="text-fg-2 size-8" aria-hidden="true" />
+        {project.thumbnailUrl === undefined ? (
+          <Film className="text-fg-2 size-8" aria-hidden="true" />
+        ) : (
+          // A plain <img>, as elsewhere in this folder: the src is a short-lived
+          // presigned URL on an external origin, which next/image cannot optimise.
+          <img src={project.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+        )}
         {duration === undefined ? null : (
-          <span className="bg-overlay absolute right-2 bottom-2 rounded-sm px-1.5 py-0.5 font-mono text-2xs text-white">
+          <span
+            className="bg-overlay absolute right-2 bottom-2 rounded-sm px-1.5 py-0.5 font-mono text-2xs text-white"
+            data-testid="project-card-duration"
+          >
             {duration}
           </span>
         )}

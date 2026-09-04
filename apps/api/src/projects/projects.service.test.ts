@@ -5,7 +5,7 @@ import { PROJECT_BATCH_MAX, RAW_RETENTION_DAYS } from "./projects.constants.js";
 import { ProjectsService, toProjectView } from "./projects.service.js";
 import { callArg } from "../../test/mock-args.js";
 
-import type { PrismaService } from "../common/index.js";
+import type { ObjectStore, PrismaService } from "../common/index.js";
 import type { EntitlementService, EntitlementView } from "../workspaces/entitlement.service.js";
 import type { Project } from "@prisma/client";
 
@@ -73,11 +73,14 @@ function makeService() {
     ),
   };
   const entitlements = { forWorkspace: vi.fn(async () => entitlement()) };
+  // FIX-05: the service presigns project thumbnails through DERIVED_STORE.
+  const derived = { presignGet: vi.fn(async () => "https://derived.test/thumb.jpg?sig=x") };
   const service = new ProjectsService(
     prisma as unknown as PrismaService,
     entitlements as unknown as EntitlementService,
+    derived as unknown as ObjectStore,
   );
-  return { service, prisma, entitlements };
+  return { service, prisma, entitlements, derived };
 }
 
 describe("plan limits", () => {
