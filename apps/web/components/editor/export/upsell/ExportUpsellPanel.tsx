@@ -180,6 +180,23 @@ export function ExportUpsellPanel({
 
   const data = eligibility.data;
 
+  // With no payment rail the buy buttons are already hidden — but the rows kept
+  // printing their prices, which is a broken offer rather than an offer (F07-B1).
+  // The "already available" copy stays: a clean export that is paid for or gifted
+  // is true regardless of whether new purchases can be made.
+  const ninePassCopy = data.ninePass.available
+    ? "Clean export ready, waiting on the next render."
+    : razorpayEnabled
+      ? `Remove for ${formatAmount(data.ninePass.priceMinor, data.ninePass.currency)} (first export)`
+      : "Clean export — ask an administrator for credits";
+  const weekPassCopy = data.weekPass.active
+    ? "Week pass active, no watermark while it lasts."
+    : razorpayEnabled
+      ? `${formatAmount(data.weekPass.priceMinor, data.weekPass.currency)} for ${String(
+          data.weekPass.days,
+        )} days, ${formatCredits(data.weekPass.creditsGrantedTenths)} credits`
+      : "Week pass — not available in this build";
+
   return (
     <Card
       className={["flex flex-col gap-3", className].filter(Boolean).join(" ")}
@@ -207,11 +224,7 @@ export function ExportUpsellPanel({
         >
           <div className="flex items-center gap-2">
             <Sparkles className="size-4" aria-hidden="true" />
-            <span className="text-sm">
-              {data.ninePass.available
-                ? "Clean export ready, waiting on the next render."
-                : `Remove for ${formatAmount(data.ninePass.priceMinor, data.ninePass.currency)} (first export)`}
-            </span>
+            <span className="text-sm">{ninePassCopy}</span>
           </div>
           {data.ninePass.available || !razorpayEnabled ? null : (
             <Button
@@ -238,13 +251,7 @@ export function ExportUpsellPanel({
       >
         <div className="flex items-center gap-2">
           <Zap className="size-4" aria-hidden="true" />
-          <span className="text-sm">
-            {data.weekPass.active
-              ? "Week pass active, no watermark while it lasts."
-              : `${formatAmount(data.weekPass.priceMinor, data.weekPass.currency)} for ${String(
-                  data.weekPass.days,
-                )} days, ${formatCredits(data.weekPass.creditsGrantedTenths)} credits`}
-          </span>
+          <span className="text-sm">{weekPassCopy}</span>
         </div>
         {data.weekPass.active || !razorpayEnabled ? null : (
           <Button
@@ -266,14 +273,21 @@ export function ExportUpsellPanel({
         </p>
       )}
 
-      <a
-        href="/pricing"
-        className="text-lime-500 flex items-center gap-1 self-start text-sm hover:underline"
-        data-testid="export-upsell-see-plans"
-      >
-        <CreditCard className="size-4" aria-hidden="true" />
-        See plans
-      </a>
+      {/*
+        From inside the core journey the marketing price list is a dead end when
+        nothing can be bought, so it goes with the rail rather than pointing at
+        prices that do not apply to this build (F07-B2).
+      */}
+      {razorpayEnabled ? (
+        <a
+          href="/pricing"
+          className="text-lime-500 flex items-center gap-1 self-start text-sm hover:underline"
+          data-testid="export-upsell-see-plans"
+        >
+          <CreditCard className="size-4" aria-hidden="true" />
+          See plans
+        </a>
+      ) : null}
     </Card>
   );
 }

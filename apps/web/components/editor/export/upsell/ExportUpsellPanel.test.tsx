@@ -50,4 +50,28 @@ describe("<ExportUpsellPanel />", () => {
     expect(screen.queryByTestId("export-upsell-buy-nine-pass")).toBeNull();
     expect(screen.queryByTestId("export-upsell-buy-week-pass")).toBeNull();
   });
+
+  // A price with no button is a broken offer, not a softer one: the panel must
+  // quote nothing it cannot charge, and must not send the user to a price list.
+  it("prints no price at all and drops See plans without Razorpay", async () => {
+    renderWithProviders(<ExportUpsellPanel />, {
+      config: { razorpayEnabled: false },
+      routes: { "/offers/eligibility": ELIGIBILITY },
+    });
+    const panel = await screen.findByTestId("export-upsell-panel");
+    expect(panel.textContent).not.toContain("₹");
+    expect(screen.queryByTestId("export-upsell-see-plans")).toBeNull();
+    expect(panel).toHaveTextContent("Clean export — ask an administrator for credits");
+    expect(panel).toHaveTextContent("Week pass — not available in this build");
+  });
+
+  it("still quotes both prices and links the plans when Razorpay is configured", async () => {
+    renderWithProviders(<ExportUpsellPanel />, {
+      routes: { "/offers/eligibility": ELIGIBILITY },
+    });
+    const panel = await screen.findByTestId("export-upsell-panel");
+    expect(panel).toHaveTextContent("Remove for ₹9 (first export)");
+    expect(panel).toHaveTextContent("₹149 for 7 days");
+    expect(screen.getByTestId("export-upsell-see-plans")).toHaveAttribute("href", "/pricing");
+  });
 });
