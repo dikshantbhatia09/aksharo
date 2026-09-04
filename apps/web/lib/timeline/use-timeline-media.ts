@@ -34,6 +34,7 @@ export interface TimelineMedia {
   readonly waveform: WaveformLike | undefined;
   readonly loading: boolean;
   readonly error: string | undefined;
+  readonly refresh: () => void;
 }
 
 /**
@@ -48,6 +49,8 @@ export function useTimelineMedia(projectId: string, mediaId: string | undefined)
   const [loading, setLoading] = useState(mediaId !== undefined);
   const [error, setError] = useState<string | undefined>(undefined);
 
+  const [nonce, setNonce] = useState(0);
+
   useEffect(() => {
     if (mediaId === undefined) {
       setProxyUrl(undefined);
@@ -56,6 +59,7 @@ export function useTimelineMedia(projectId: string, mediaId: string | undefined)
       return;
     }
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     setLoading(true);
     setError(undefined);
     void (async () => {
@@ -71,6 +75,20 @@ export function useTimelineMedia(projectId: string, mediaId: string | undefined)
         } else if (!cancelled) {
           setWaveform(undefined);
         }
+        // Signed URLs are short-lived on purpose (they leak into logs and bug
+        // reports). Re-sign at 80% of the TTL so the <video> never holds an
+        // expired src; a hidden tab skips the timer and refreshes on return.
+        const ttlMs = new Date(urls.expiresAt).getTime() - Date.now();
+        if (Number.isFinite(ttlMs) && ttlMs > 0) {
+          timer = setTimeout(
+            () => {
+              if (!cancelled && document.visibilityState === "visible") {
+                setNonce((n) => n + 1);
+              }
+            },
+            Math.max(15_000, ttlMs * 0.8),
+          );
+        }
       } catch (cause) {
         if (!cancelled) {
           setError(
@@ -81,10 +99,16 @@ export function useTimelineMedia(projectId: string, mediaId: string | undefined)
         if (!cancelled) setLoading(false);
       }
     })();
+    const onVisible = (): void => {
+      if (document.visibilityState === "visible") setNonce((n) => n + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
+      if (timer !== undefined) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [client, projectId, mediaId]);
+  }, [client, projectId, mediaId, nonce]);
 
-  return { proxyUrl, waveform, loading, error };
+  return { proxyUrl, waveform, loading, error, refresh: () => setNonce((n) => n + 1) };
 }
