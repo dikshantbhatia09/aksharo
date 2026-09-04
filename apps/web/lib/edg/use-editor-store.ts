@@ -35,6 +35,7 @@ import {
 } from "./client";
 import { EdgConflictError, EdgTooStaleError, EdgTransientError } from "./queue";
 import { EditorStore, type EditorSnapshot } from "./store";
+import { onTranscriptReady } from "./transcription-state";
 
 const SEGMENT_PAGE_LIMIT = 1000;
 const CHUNK_PAGE_LIMIT = 20; // MAX_TRANSCRIPT_CHUNK_PAGE_SIZE (apps/api/src/transcripts/transcripts.errors.ts)
@@ -126,6 +127,7 @@ function translateError(error: unknown): never {
 export function useEditorStore(projectId: string): EditorLoadState {
   const { client } = useApiContext();
   const [state, setState] = useState<EditorLoadState>({ status: "loading" });
+  const [reloadSeq, setReloadSeq] = useState(0);
   const storeRef = useRef<EditorStore | undefined>(undefined);
 
   useEffect(() => {
@@ -185,7 +187,12 @@ export function useEditorStore(projectId: string): EditorLoadState {
     return () => {
       cancelled = true;
     };
-  }, [client, projectId]);
+  }, [client, projectId, reloadSeq]);
+
+  // FIX-03: when the shell (push) or the waiting screen (poll fallback) announces
+  // the transcript, reload in place — this is what makes "the editor opens by
+  // itself" true instead of copy.
+  useEffect(() => onTranscriptReady(projectId, () => setReloadSeq((s) => s + 1)), [projectId]);
 
   // Re-render on every store change, once the store exists.
   const snapshot = useSyncExternalStore(
