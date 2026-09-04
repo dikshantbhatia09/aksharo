@@ -187,3 +187,20 @@ Fresh clone → `pnpm i` → `docker compose up -d` → `pnpm db:migrate && pnpm
 | M18 | Maintenance: gate-a harness mode ruling + style-picker tile blocker; 3/3 green | Sonnet | merged (gate-a 3/3; timeline row max-height + content-row floor fixed a real layout defect; export 2/2, timeline 10/10) |
 | M19 | Maintenance: local-ai-smoke derives DB from DATABASE_URL | Sonnet | merged |
 | M20 | Free-stack MVP mode: Ollama local LLM, dev auto-verify, no-key UI, docs/FREE-STACK.md | Sonnet | merged: Ollama provider + normaliser, dev auto-verify (fail-closed after review), no-key UI on all 5 purchase surfaces, FREE-STACK.md |
+
+## F-wave — post-audit fix program (planned 2026-09-05)
+
+Source: the 2026-09-04 editor audit (45 findings, 3 root causes). Implementation
+briefs, written to be executable by a junior developer or a coding agent without
+improvisation, live OUTSIDE the repo at `..\..\_orchestrationixes\` (README.md
+is the master guide: setup, golden rules, ports table, scale contract).
+
+| WP | Title | Depends on | Status |
+|---|---|---|---|
+| F01 | Media delivery: R2_PUBLIC_ENDPOINT, CSP, URL refresh | — | planned |
+| F02 | Playback transport: playhead ↔ video wiring | F01 | planned |
+| F03 | Transcription lifecycle: read model, push+poll hand-off, honest tray | — | planned |
+| F04 | Language choice + truthful script tabs | F03 | planned |
+| F05 | Aspect-aware chrome: preview, gallery, cards, share | — | planned |
+| F06 | Export completion: follow cloud job to download | F01, F03 | planned |
+| F07 | Payments-off coherence sweep | — | planned |
