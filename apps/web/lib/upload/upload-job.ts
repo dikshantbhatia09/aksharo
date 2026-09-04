@@ -320,7 +320,11 @@ export class UploadJob {
       this.jobId = result.jobId;
       this.setStatus("transcribing");
     } catch {
-      this.setStatus("ready");
+      // The expected 409 (media still probing) — and any other refusal — means the
+      // SERVER pipeline owns what happens next (auto-transcribe on proxy
+      // completion, FIX-M20). Claiming "ready" here was the audit's decorative
+      // green tick; "processing" is the truth this tray can stand behind.
+      this.setStatus("processing");
     }
   }
 

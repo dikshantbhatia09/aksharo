@@ -12,10 +12,13 @@
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
+import { useRawApiClient } from "@montaj/api-client";
 import { Button, Card, JobProgress } from "@montaj/ui";
 import type { JobStage } from "@montaj/ui";
 
 import type { UploadItemState, UploadStatus } from "@/lib/upload/types";
+
+import { getTranscriptionState, type TranscriptionStateView } from "@/lib/edg/transcription-state";
 
 function stageFor(status: UploadStatus): JobStage {
   switch (status) {
@@ -24,6 +27,12 @@ function stageFor(status: UploadStatus): JobStage {
     case "uploading":
     case "paused":
     case "completing":
+    case "processing":
+      // FIX-03: on `processing` the bytes are up but the server is still
+      // probing/proxying and transcription has NOT begun. There is no chip for
+      // that stage, and lighting "Transcribing" was exactly the lie this package
+      // removes — so the intake chip stays active and the row's own status line
+      // below carries the precise truth.
       return "uploading";
     case "transcribing":
       return "transcribing";
@@ -33,6 +42,91 @@ function stageFor(status: UploadStatus): JobStage {
     case "error":
       return "ready";
   }
+}
+
+/** 4 s -> 8 s -> 15 s: a per-visible-row poll, bounded by what is on screen. */
+const ROW_BACKOFF_MS = [4_000, 8_000, 15_000] as const;
+
+/** Still moving — the only answers worth another request. */
+const ROW_POLLING: ReadonlySet<TranscriptionStateView["status"]> = new Set([
+  "queued",
+  "running",
+  "processing_media",
+]);
+
+/** The rows whose truth lives in the server pipeline rather than in the upload. */
+function serverOwned(status: UploadStatus): boolean {
+  return status === "processing" || status === "transcribing";
+}
+
+function labelFor(state: TranscriptionStateView): string {
+  switch (state.status) {
+    case "queued":
+    case "running":
+      return "Transcribing…";
+    case "ready":
+      return "Ready — open the editor";
+    case "failed":
+      return state.error ?? "The transcription failed.";
+    case "awaiting_language":
+    case "not_started":
+      return "Needs attention — open the project";
+    case "processing_media":
+    case "no_media":
+      return "Processing on the server…";
+  }
+}
+
+/**
+ * One row's live word on what the server is doing, polled from FIX-03's read
+ * model. Mounted only for a row the server owns, so the request rate is bounded
+ * by the rows a user can actually see — and it stops the moment the answer
+ * settles or the row unmounts.
+ */
+function RowPipelineStatus({
+  projectId,
+  fallback,
+}: {
+  projectId: string | undefined;
+  fallback: string;
+}): React.JSX.Element {
+  const client = useRawApiClient();
+  const [label, setLabel] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (projectId === undefined) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0;
+
+    async function tick(): Promise<void> {
+      try {
+        const state = await client.call(getTranscriptionState, {
+          params: { projectId: projectId ?? "" },
+        });
+        if (cancelled) return;
+        setLabel(labelFor(state));
+        if (!ROW_POLLING.has(state.status)) return;
+      } catch {
+        if (cancelled) return;
+      }
+      const delay = ROW_BACKOFF_MS[Math.min(attempt, ROW_BACKOFF_MS.length - 1)] ?? 15_000;
+      attempt += 1;
+      timer = setTimeout(() => void tick(), delay);
+    }
+
+    void tick();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) clearTimeout(timer);
+    };
+  }, [client, projectId]);
+
+  return (
+    <p className="text-fg-2 text-xs" data-testid="upload-tray-pipeline-status">
+      {label ?? fallback}
+    </p>
+  );
 }
 
 export function UploadTray({
@@ -88,7 +182,11 @@ export function UploadTray({
                     Resume
                   </Button>
                 ) : null}
-                {item.status === "ready" && item.projectId !== undefined ? (
+                {/* FIX-03: the project is openable as soon as the server owns the
+                    work — waiting for a "ready" this row can no longer honestly
+                    claim would leave the user with no way in. */}
+                {item.projectId !== undefined &&
+                (item.status === "ready" || serverOwned(item.status)) ? (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -96,7 +194,7 @@ export function UploadTray({
                       router.push(`/p/${item.projectId}`);
                     }}
                   >
-                    Open
+                    Open project
                   </Button>
                 ) : null}
                 {item.status === "ready" ||
@@ -142,18 +240,28 @@ export function UploadTray({
                 )}
               </p>
             ) : (
-              <JobProgress
-                stage={stageFor(item.status)}
-                progress={item.status === "uploading" ? percent : undefined}
-                {...(item.error === undefined ? {} : { error: item.error })}
-                {...(item.error === undefined
-                  ? {}
-                  : {
-                      onRetry: () => {
-                        resume(item.id);
-                      },
-                    })}
-              />
+              <>
+                <JobProgress
+                  stage={stageFor(item.status)}
+                  progress={item.status === "uploading" ? percent : undefined}
+                  {...(item.error === undefined ? {} : { error: item.error })}
+                  {...(item.error === undefined
+                    ? {}
+                    : {
+                        onRetry: () => {
+                          resume(item.id);
+                        },
+                      })}
+                />
+                {serverOwned(item.status) ? (
+                  <RowPipelineStatus
+                    projectId={item.projectId}
+                    fallback={
+                      item.status === "processing" ? "Processing on the server…" : "Transcribing…"
+                    }
+                  />
+                ) : null}
+              </>
             )}
           </Card>
         );

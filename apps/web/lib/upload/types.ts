@@ -7,6 +7,10 @@ export type UploadStatus =
   | "uploading"
   | "paused"
   | "completing"
+  // The server pipeline owns what happens after the upload: probe, proxy and
+  // the auto-started transcription. The tray reports that instead of claiming
+  // a "ready" it cannot know (FIX-03).
+  | "processing"
   | "transcribing"
   | "ready"
   | "duplicate"

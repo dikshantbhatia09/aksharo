@@ -125,7 +125,7 @@ describe("titleFromFilename", () => {
 });
 
 describe("UploadJob.run — happy path", () => {
-  it("creates a project, uploads the one part, completes, and lands on ready", async () => {
+  it("creates a project, uploads the one part, completes, and hands over to the server", async () => {
     const calls: string[] = [];
     const fetchMock = async (input: string | URL, init?: RequestInit): Promise<Response> => {
       const url = new URL(String(input));
@@ -194,7 +194,9 @@ describe("UploadJob.run — happy path", () => {
     await job.run();
 
     const finalState = updates.at(-1);
-    expect(finalState?.status).toBe("ready"); // transcribe answers media_not_ready -> ready
+    // FIX-03: the expected 409 means the SERVER pipeline owns what happens next.
+    // This used to assert "ready" — the audit's decorative green tick.
+    expect(finalState?.status).toBe("processing");
     expect(finalState?.projectId).toBe("01JPROJECT0000000000000AA");
     expect(finalState?.mediaId).toBe("01JMEDIA00000000000000000");
     expect(calls).toEqual([
@@ -344,7 +346,7 @@ describe("UploadJob.resumeFromRecord", () => {
       "POST /projects/01JPROJECT0000000000000AA/media/01JMEDIA00000000000000000/complete",
       "POST /projects/01JPROJECT0000000000000AA/transcribe",
     ]);
-    expect(updates.at(-1)?.status).toBe("ready");
+    expect(updates.at(-1)?.status).toBe("processing"); // FIX-03: was the fake "ready"
   });
 });
 
@@ -419,7 +421,7 @@ describe("UploadJob.run — batch (existingProjectId)", () => {
       "POST /projects/01JBATCHPROJECT0000000AA/transcribe",
     ]);
     expect(updates.at(-1)?.projectId).toBe("01JBATCHPROJECT0000000AA");
-    expect(updates.at(-1)?.status).toBe("ready");
+    expect(updates.at(-1)?.status).toBe("processing"); // FIX-03: was the fake "ready"
   });
 
   it("does not remove a batch project on a duplicate — only its own would be", async () => {
