@@ -4,8 +4,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-import { RealtimeClient, rooms, useApiContext, useProjects, useSession } from "@montaj/api-client";
+import {
+  endpoints,
+  RealtimeClient,
+  rooms,
+  useApiContext,
+  useProjects,
+  useSession,
+} from "@montaj/api-client";
 import type { RealtimeEvent } from "@montaj/api-client";
+import { toast } from "@montaj/ui";
 
 import { CommandPalette, useCommandPalette } from "./command-palette";
 import { Sidebar } from "./sidebar";
@@ -14,6 +22,7 @@ import { TopBar } from "./top-bar";
 import { WhatsNewModal } from "@/components/academy/whats-new-modal";
 import { useRuntimeConfig } from "@/components/providers";
 import { ReferralPromptSheet } from "@/components/referrals/referral-prompt-sheet";
+import { announceTranscriptReady } from "@/lib/edg/transcription-state";
 import { refreshSession } from "@/lib/session/client";
 
 /**
@@ -51,7 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
   // The store object itself, not a subscription: `useSession()` above already
   // re-renders on a token change, and subscribing here as well would restart the
   // WebSocket on every rotation.
-  const { session: sessionStore } = useApiContext();
+  const { client: apiClient, session: sessionStore } = useApiContext();
 
   // One rotation on mount turns the httpOnly cookie into an in-memory access
   // token. Everything else in the shell waits for it.
@@ -112,6 +121,53 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
         if (event.event === "job.completed" || event.event === "job.progress") {
           void queryClient.invalidateQueries({ queryKey: ["ws", session.workspaceId, "jobs"] });
         }
+
+        // FIX-03: a finished transcription is the one completion that changes
+        // which screen the user should be on, so it gets its own narrow branch.
+        //
+        // The payload is `{jobId, status, type?, error?}` and carries NO
+        // `projectId` (`realtime.protocol.ts` → `JobCompletedEvent`), and this
+        // shell is subscribed to the *workspace* room, so `event.room` is
+        // `workspace:{id}` and cannot supply one either. The job is therefore
+        // read back for it — one GET per transcription completion, not per user.
+        if (event.event === "job.completed") {
+          const data = event.data as { jobId?: string; status?: string; type?: string };
+          const jobId = data.jobId;
+          if (data.type === "ai.transcribe" && data.status === "succeeded" && jobId !== undefined) {
+            void (async () => {
+              let projectId: string | null = null;
+              try {
+                projectId = (await apiClient.call(endpoints.jobs.get, { params: { id: jobId } }))
+                  .projectId;
+              } catch {
+                // The read model is the fallback: a waiting screen polls itself
+                // to `ready` anyway. Never let a courtesy channel throw.
+                return;
+              }
+              if (projectId === null) return;
+
+              announceTranscriptReady(projectId);
+              void queryClient.invalidateQueries({
+                queryKey: ["ws", session.workspaceId, "projects"],
+              });
+
+              // Already on the project: the editor reloads itself off the event
+              // above, and a toast over it would be noise.
+              if (!window.location.pathname.startsWith(`/p/${projectId}`)) {
+                const target = projectId;
+                toast.success("Transcript ready", {
+                  description: "Captions are built — open the editor.",
+                  action: {
+                    label: "Open editor",
+                    onClick: () => {
+                      router.push(`/p/${target}`);
+                    },
+                  },
+                });
+              }
+            })();
+          }
+        }
       },
     });
 
@@ -120,7 +176,16 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
     return () => {
       client.disconnect();
     };
-  }, [bootstrapped, config.apiOrigin, queryClient, realtimeEnabled, session, sessionStore]);
+  }, [
+    apiClient,
+    bootstrapped,
+    config.apiOrigin,
+    queryClient,
+    realtimeEnabled,
+    router,
+    session,
+    sessionStore,
+  ]);
 
   return (
     <div className="min-h-dvh">
