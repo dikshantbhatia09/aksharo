@@ -8,6 +8,26 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **F03: the app hands you the editor.** One derived read model,
+  `GET /projects/{id}/transcription-state`, answers where a project's first
+  transcription actually is — `ready | queued | running | failed | not_started |
+awaiting_language | processing_media | no_media` — computed on demand from the
+  transcript, media and job rows that already exist, with no new column to drift
+  and no migration. Delivery is push first and poll second: on `job.completed`
+  for `ai.transcribe` the shell invalidates the project queries, fires one
+  `montaj:transcript-ready` DOM event and offers "Open editor", while the
+  editor's document loader reloads in place on that event and the waiting screen
+  falls back to a 4 s -> 8 s -> 15 s poll that runs only while it is genuinely
+  waiting — so the audit's transcript-at-8.6 s / editor-still-stale-at-25 s gap
+  closes itself instead of needing a reload. The upload tray stops ticking four
+  decorative green stages: the expected `transcript/media_not_ready` 409 now
+  means `processing` ("Processing on the server…") rather than a fake "ready",
+  and each waiting row reads its label from the same read model. A workspace
+  with no credits is told so in place — the explicit start's 402
+  `credits/insufficient` renders a blocked-credits panel with a "Try again"
+  that works the moment credits are granted, instead of a project silently
+  marked Ready that was never transcribed.
+
 - **M20 (post-merge): `LLM_PROVIDER=ollama` took the whole AI worker down.**
   Found by running the merged build rather than by any test: `runtime.py` builds
   the translation chain eagerly at startup, and `LLMTranslateProvider` knew only
