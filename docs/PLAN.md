@@ -225,3 +225,17 @@ radix menubar, radix context-menu). Study, architecture decision and fresher gui
 Deferred pending source: engine-level adoption (tick-based MediaTime, ripple diff
 engine, wgpu compositor) requires the `opencut-classic` repository — request it as a
 zip to extend the study.
+
+## S-wave — designed-but-unpackaged architecture items (planned 2026-09-05)
+
+Closes the gap between the audit/OpenCut designs and packaged work: items previously
+left as "deferred notes" inside F/OC guides, now fresher guides in
+`..\..\_orchestrationixes\` (S-01..S-03). Verified first against source: waveform
+virtualisation and export history/download routes ALREADY exist (no package needed);
+export create already jobKey-deduped per manifest.
+
+| WP | Title | Depends on | Status |
+|---|---|---|---|
+| S-01 | Geometry truth: one probe-aware canvas decision (persisted) + short-side safe margins | F05 | planned |
+| S-02 | Durability & delivery: storage.persist() + Exports history UI over existing routes | F01, F06 | planned |
+| S-03 | Transcript import UI over the existing caller-less POST /projects/:id/import (ai.align) | F03, F04, F07 | planned |
