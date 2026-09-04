@@ -146,8 +146,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
 
 /** The "Upgrade" call to action, hidden on the top plan (08 §3). */
 export function UpgradeButton(): React.JSX.Element | null {
+  const { razorpayEnabled } = useRuntimeConfig();
   const entitlement = useEntitlement();
   const plan = entitlement.data?.planKey;
+  // No payment rail, no purchase CTA: /billing would only say "payments are not
+  // configured". Credits arrive through the admin grant in this build.
+  if (!razorpayEnabled) return null;
   if (plan === undefined || plan === "studio" || plan === "agency") return null;
   return (
     <Button variant="primary" size="sm" asChild data-testid="upgrade-cta">
