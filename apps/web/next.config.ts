@@ -62,6 +62,11 @@ import type { NextConfig } from "next";
 const API_ORIGIN = process.env["API_ORIGIN"]?.trim() ?? "";
 const API_WS_ORIGIN = API_ORIGIN.replace(/^http/, "ws");
 const S3_ENDPOINT = process.env["S3_ENDPOINT"]?.trim() ?? "";
+// Browser-facing derived-store origin (FIX-01). Falls back to R2_ENDPOINT so an
+// all-http local dev setup keeps working; the config package refuses the truly
+// broken combination (https page + http store) at API boot.
+const R2_PUBLIC_ENDPOINT =
+  process.env["R2_PUBLIC_ENDPOINT"]?.trim() || (process.env["R2_ENDPOINT"]?.trim() ?? "");
 
 const SECURITY_HEADERS = [
   {
@@ -70,10 +75,10 @@ const SECURITY_HEADERS = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https:",
-      "media-src 'self' blob: https:",
+      ["img-src 'self' data: blob: https:", R2_PUBLIC_ENDPOINT].filter(Boolean).join(" "),
+      ["media-src 'self' blob: https:", R2_PUBLIC_ENDPOINT].filter(Boolean).join(" "),
       "font-src 'self' data:",
-      ["connect-src 'self' https: wss:", API_ORIGIN, API_WS_ORIGIN, S3_ENDPOINT]
+      ["connect-src 'self' https: wss:", API_ORIGIN, API_WS_ORIGIN, S3_ENDPOINT, R2_PUBLIC_ENDPOINT]
         .filter(Boolean)
         .join(" "),
       "frame-ancestors 'none'",
