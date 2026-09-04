@@ -10,6 +10,7 @@
  * pages (`StyleGallery`, `/studio/styles`) use.
  */
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { ApiError, useRecordSpellingFixMemory } from "@montaj/api-client";
@@ -212,6 +213,9 @@ interface EditorReadyProps {
 }
 
 function EditorReady(props: EditorReadyProps): React.JSX.Element {
+  // The projects "⋯" menu's Export lands here with `?export=1` so it opens the
+  // dialog rather than dropping the user in the editor to hunt for it (F07-E5).
+  const openExportOnMount = useSearchParams().get("export") === "1";
   const {
     projectId,
     store,
@@ -549,7 +553,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col" data-testid="editor-root">
       <header className="flex items-center gap-3 border-b border-white/10 px-4 py-2">
         <Link
-          href="/studio"
+          href="/projects"
           className="text-fg-3 text-sm hover:underline"
           data-testid="editor-back"
         >
@@ -577,6 +581,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         <div className="ml-auto flex items-center gap-2">
           <span data-coach-mark="export" className="inline-flex">
             <ExportButton
+              defaultOpen={openExportOnMount}
               projectId={projectId}
               primaryMediaId={state.hot.media.find((media) => media.role === "primary")?.mediaId}
               projection={toRenderProjection(state)}

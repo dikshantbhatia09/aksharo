@@ -7,6 +7,7 @@ import type { Project } from "@montaj/api-client";
 import { ProjectKebabMenu } from "./project-kebab-menu";
 
 import { renderWithProviders } from "@/test/harness";
+import { routerMock } from "@/test/next-router";
 
 function project(overrides: Partial<Project> = {}): Project {
   return {
@@ -88,12 +89,20 @@ describe("<ProjectKebabMenu />", () => {
     });
   });
 
-  it("export and share are disabled with a reason, not hidden", async () => {
+  // F07-E5: Export shipped, so it is a real item now; Share is still disabled
+  // because nothing in the app mounts an owner-side share screen (see REPORT.md).
+  it("navigates to the editor's export dialog, and keeps Share disabled with a reason", async () => {
     const user = userEvent.setup();
     renderWithProviders(<ProjectKebabMenu project={project()} />, { routes: {} });
     await user.click(screen.getByTestId("project-kebab-01JPROJECT0000000000000AA"));
-    expect(await screen.findByTestId("kebab-export")).toHaveAttribute("data-disabled");
+
+    const exportItem = await screen.findByTestId("kebab-export");
+    expect(exportItem).not.toHaveAttribute("data-disabled");
+    // Assert Share before the click: selecting Export closes the menu.
     expect(screen.getByTestId("kebab-share")).toHaveAttribute("data-disabled");
+
+    await user.click(exportItem);
+    expect(routerMock.push).toHaveBeenCalledWith("/p/01JPROJECT0000000000000AA?export=1");
   });
 
   it("offers a Details item only when the caller wants one", async () => {

@@ -43,6 +43,9 @@ describe("<FolderSidebar />", () => {
     expect(names.findIndex((t) => t?.includes("Alpha"))).toBeLessThan(
       names.findIndex((t) => t?.includes("Beta")),
     );
+    // F07-E2: the count is separated from the name — "Alpha1" read as one word.
+    expect(screen.getByTestId("folder-01JFOLDERA0000000000000A")).toHaveTextContent("Alpha · 1");
+    expect(screen.getByTestId("folder-01JFOLDERB0000000000000A")).toHaveTextContent("Beta · 3");
   });
 
   it("selects All projects and No folder", async () => {
@@ -63,6 +66,8 @@ describe("<FolderSidebar />", () => {
     );
     await user.click(screen.getByTestId("folder-create"));
     const input = await screen.findByTestId("folder-create-input");
+    // F07-E2: the placeholder says how to commit the name.
+    expect(input).toHaveAttribute("placeholder", "Name, then press Enter");
     await user.type(input, "Gamma{Enter}");
     await waitFor(() => {
       expect(fetchMock.mock.calls.some((call) => (call[0] as string).endsWith("/folders"))).toBe(

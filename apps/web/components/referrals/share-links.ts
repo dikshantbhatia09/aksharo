@@ -10,26 +10,34 @@ import { BRAND } from "@montaj/config";
  * distinction the brief draws by naming it "copy" rather than "share".
  */
 
-export function referralSignupUrl(code: string): string {
-  return `https://${BRAND.domain}/signup?ref=${encodeURIComponent(code)}`;
+/**
+ * Every link here builds from `origin` — the runtime config's `webOrigin`, i.e.
+ * the deployment the sharer is actually using. Hard-coding the production
+ * domain meant a local or staging build handed out links to a site the tester
+ * has no account on (F07-E8).
+ */
+export function referralSignupUrl(code: string, origin: string): string {
+  return `${origin.replace(/\/+$/, "")}/signup?ref=${encodeURIComponent(code)}`;
 }
 
-export function referralShareMessage(code: string): string {
+export function referralShareMessage(code: string, origin: string): string {
   return (
     `Edit vertical video 10x faster with ${BRAND.name} — captions, cuts and zooms in minutes. ` +
-    `Use my code ${code} and we both get 30 free credits: ${referralSignupUrl(code)}`
+    `Use my code ${code} and we both get 30 free credits: ${referralSignupUrl(code, origin)}`
   );
 }
 
-export function whatsappShareUrl(code: string): string {
-  return `https://wa.me/?text=${encodeURIComponent(referralShareMessage(code))}`;
+export function whatsappShareUrl(code: string, origin: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(referralShareMessage(code, origin))}`;
 }
 
-export function xShareUrl(code: string): string {
-  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(referralShareMessage(code))}`;
+export function xShareUrl(code: string, origin: string): string {
+  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+    referralShareMessage(code, origin),
+  )}`;
 }
 
 /** Instagram has no web share-intent — this is the caption text a bio-link/story copy-paste needs. */
-export function instagramCaption(code: string): string {
-  return referralShareMessage(code);
+export function instagramCaption(code: string, origin: string): string {
+  return referralShareMessage(code, origin);
 }

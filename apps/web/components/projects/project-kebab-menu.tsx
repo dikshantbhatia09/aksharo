@@ -4,16 +4,21 @@
  * The kebab menu every project card and row carries (08 §Home): open,
  * duplicate, export, share, archive, delete with confirm.
  *
- * Export and share are another work package's endpoints (A19's cloud render,
- * A06's `/projects/{id}/share` — neither exists on `main` yet), so those two
- * items are disabled with a tooltip rather than hidden: a menu that quietly
- * drops items as work packages land is worse than one that is honest about
- * what is not wired up yet, matching how `nav.ts` handles an unbuilt route.
+ * Export shipped (A19/A21b): this item navigates to the project's editor with
+ * `?export=1`, which opens the same export dialog the editor's own toolbar
+ * button opens (F07-E5).
+ *
+ * Share is still disabled. B15 built the share-link API and
+ * `components/review/ShareLinksPanel.tsx`, but nothing in the app mounts that
+ * panel, so there is no owner-side share screen to send anyone to. A disabled
+ * item with an honest tooltip beats a menu entry that navigates nowhere,
+ * matching how `nav.ts` handles an unbuilt route.
  */
 import {
   Archive,
   ArchiveRestore,
   Copy,
+  Download,
   ExternalLink,
   Info,
   MoreHorizontal,
@@ -140,8 +145,24 @@ export function ProjectKebabMenu({
             <Copy aria-hidden="true" />
             Duplicate
           </DropdownMenuItem>
-          <DisabledMenuItem label="Export" reason="Export lands with cloud rendering." />
-          <DisabledMenuItem label="Share" reason="Review links land with sharing." />
+          <DropdownMenuItem
+            onSelect={() => {
+              router.push(`/p/${project.id}?export=1`);
+            }}
+            data-testid="kebab-export"
+          >
+            <Download aria-hidden="true" />
+            Export
+          </DropdownMenuItem>
+          {/*
+            Share stays disabled, and the tooltip now says why: B15 built the
+            share-link API and `components/review/ShareLinksPanel.tsx`, but that
+            panel was never given an entry point anywhere in the app (its own
+            header says so), so there is no share surface to navigate to. See
+            REPORT.md, F07-E5 — the second half of that item is reported, not
+            improvised into a new screen.
+          */}
+          <DisabledMenuItem label="Share" reason="Share links have no owner-side screen yet." />
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={toggleArchive} data-testid="kebab-archive">
             {archived ? <ArchiveRestore aria-hidden="true" /> : <Archive aria-hidden="true" />}

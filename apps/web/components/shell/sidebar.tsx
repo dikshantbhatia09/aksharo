@@ -37,6 +37,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
   const entitlement = useEntitlement();
   const credits = useWorkspaceCredits();
   const included = entitlement.data?.creditsPerMonthTenths ?? 0;
+  const isProductionOrigin = isBrandOrigin(config.webOrigin);
 
   return (
     <div className="flex h-full flex-col gap-4 p-3">
@@ -126,22 +127,40 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
 
         <StreakChip />
 
-        <a
-          href={`https://${BRAND.domain}/download`}
-          className="text-fg-1 hover:bg-bg-2 hover:text-fg-0 mx-1 flex items-center gap-2.5 rounded-sm px-2 py-2 text-xs"
-          data-testid="desktop-download"
-        >
-          <Monitor className="size-4 shrink-0" aria-hidden="true" />
-          <span>
-            Get the desktop app
-            <span className="text-fg-2 block">Local mode, watch folders, offline queue</span>
-          </span>
-        </a>
+        {/*
+          aksharo.ai/download only exists for the production deployment. Offering
+          it from a local or staging build sends people to a download that has
+          nothing to do with the app they are using (F07-E8). `webOrigin` comes
+          from the server on the same render, so this gates without a flash.
+        */}
+        {isProductionOrigin ? (
+          <a
+            href={`https://${BRAND.domain}/download`}
+            className="text-fg-1 hover:bg-bg-2 hover:text-fg-0 mx-1 flex items-center gap-2.5 rounded-sm px-2 py-2 text-xs"
+            data-testid="desktop-download"
+          >
+            <Monitor className="size-4 shrink-0" aria-hidden="true" />
+            <span>
+              Get the desktop app
+              <span className="text-fg-2 block">Local mode, watch folders, offline queue</span>
+            </span>
+          </a>
+        ) : null}
 
         <ProfileMenu onNavigate={onNavigate} />
       </div>
     </div>
   );
+}
+
+/** True when `origin` is the brand's own production host (`aksharo.ai`). */
+function isBrandOrigin(origin: string): boolean {
+  try {
+    const host = new URL(origin).hostname;
+    return host === BRAND.domain || host.endsWith(`.${BRAND.domain}`);
+  } catch {
+    return false;
+  }
 }
 
 /** The "Upgrade" call to action, hidden on the top plan (08 §3). */

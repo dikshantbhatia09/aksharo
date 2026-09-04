@@ -44,6 +44,21 @@ export function ProjectsView(): React.JSX.Element {
       : loaded.filter((project) => project.sourceLanguage === filters.sourceLanguage);
   const projects = sortProjects(filtered, filters.sort);
 
+  // Every filter counts, not just search and status: a language or client-tag
+  // filter that matches nothing used to fall through to the cold-start copy and
+  // offer a sample project, which is not the way out of a filter (F07-E3).
+  const filtersActive =
+    filters.q.trim() !== "" ||
+    filters.status !== undefined ||
+    filters.sourceLanguage !== undefined ||
+    filters.clientTag !== undefined ||
+    folderId !== undefined;
+
+  const clearFilters = (): void => {
+    setFilters(EMPTY_FILTERS);
+    setFolderId(undefined);
+  };
+
   // Infinite scroll: fetch the next page once the sentinel below the grid
   // enters the viewport. The "Load more" button is the same action, kept for
   // anyone whose input device does not scroll (and for the e2e suite, where
@@ -102,16 +117,26 @@ export function ProjectsView(): React.JSX.Element {
           <ProjectGrid
             projects={projects}
             loading={query.isPending}
-            emptyTitle={
-              filters.q !== "" || filters.status !== undefined
-                ? "No projects match that"
-                : "Nothing here yet"
-            }
+            emptyTitle={filtersActive ? "No projects match these filters" : "Nothing here yet"}
             emptyDescription={
-              filters.q !== "" || filters.status !== undefined
-                ? "Try a different search or clear the filters."
+              filtersActive
+                ? "Nothing in this workspace matches what you have selected."
                 : "Drop a video or audio file on Home, or start from a ready-made sample."
             }
+            {...(filtersActive
+              ? {
+                  emptyAction: (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={clearFilters}
+                      data-testid="clear-filters"
+                    >
+                      Clear filters
+                    </Button>
+                  ),
+                }
+              : {})}
             selectable={selecting}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelect}

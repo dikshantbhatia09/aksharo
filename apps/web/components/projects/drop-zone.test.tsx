@@ -76,7 +76,10 @@ describe("<DropZone />", () => {
 
   it("shows the transcription-time badge and the accepted formats", () => {
     renderWithProviders(<DropZone onFiles={vi.fn()} />, { routes: {} });
-    expect(screen.getByTestId("drop-zone-eta-badge")).toHaveTextContent("Transcription in ~60 s");
+    // F07-E1: the badge no longer quotes a number the pipeline cannot keep.
+    const badge = screen.getByTestId("drop-zone-eta-badge");
+    expect(badge).toHaveTextContent("Transcription usually takes a few minutes");
+    expect(badge.textContent).not.toMatch(/[0-9]/);
     expect(screen.getByTestId("drop-zone-limits")).toHaveTextContent("MP4");
   });
 

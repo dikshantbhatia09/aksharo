@@ -15,6 +15,12 @@ export interface ExportButtonProps {
   readonly catalogue: ReadonlyMap<string, StyleDoc>;
   readonly registry: FontRegistry | undefined;
   readonly shaper: Shaper | undefined;
+  /**
+   * Opens the dialog on mount. The projects "⋯" menu's Export navigates here
+   * with `?export=1` rather than dropping the user in the editor and leaving
+   * them to find the button again (F07-E5).
+   */
+  readonly defaultOpen?: boolean;
 }
 
 /**
@@ -31,7 +37,7 @@ export interface ExportButtonProps {
  * proxy-only workaround is gone).
  */
 export function ExportButton(props: ExportButtonProps): React.JSX.Element {
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(props.defaultOpen ?? false);
 
   return (
     <>

@@ -29,6 +29,7 @@ export const TEST_CONFIG: RuntimeConfig = {
   googleOAuthEnabled: true,
   razorpayEnabled: true,
   authDevAutoVerify: false,
+  webOrigin: "https://aksharo.ai",
 };
 
 export interface HarnessOptions {

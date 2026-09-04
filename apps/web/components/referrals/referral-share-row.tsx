@@ -7,13 +7,18 @@ import { Button, Input, toast } from "@montaj/ui";
 
 import { instagramCaption, referralSignupUrl, whatsappShareUrl, xShareUrl } from "./share-links";
 
+import { useRuntimeConfig } from "@/components/providers";
+
 /**
  * The copy-link/code row and share buttons (brief §3: "copy link/code and
  * share buttons — WhatsApp, X, Instagram copy"). Shared between the give-get
  * sheet and the Invite-friends tab so both surfaces behave identically.
  */
 export function ReferralShareRow({ code }: { code: string }): React.JSX.Element {
-  const link = referralSignupUrl(code);
+  // The link must point at the deployment the sharer is on, not a hard-coded
+  // production domain (F07-E8).
+  const { webOrigin } = useRuntimeConfig();
+  const link = referralSignupUrl(code, webOrigin);
 
   const copy = React.useCallback(
     (value: string, label: string) => () => {
@@ -59,16 +64,19 @@ export function ReferralShareRow({ code }: { code: string }): React.JSX.Element 
 
       <div className="flex flex-wrap gap-2">
         <Button asChild variant="primary">
-          <a href={whatsappShareUrl(code)} target="_blank" rel="noopener noreferrer">
+          <a href={whatsappShareUrl(code, webOrigin)} target="_blank" rel="noopener noreferrer">
             Share on WhatsApp
           </a>
         </Button>
         <Button asChild variant="secondary">
-          <a href={xShareUrl(code)} target="_blank" rel="noopener noreferrer">
+          <a href={xShareUrl(code, webOrigin)} target="_blank" rel="noopener noreferrer">
             Share on X
           </a>
         </Button>
-        <Button variant="secondary" onClick={copy(instagramCaption(code), "Instagram caption")}>
+        <Button
+          variant="secondary"
+          onClick={copy(instagramCaption(code, webOrigin), "Instagram caption")}
+        >
           Copy for Instagram
         </Button>
       </div>

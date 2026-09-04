@@ -53,6 +53,12 @@ describe("<Sidebar />", () => {
     expect(download.getAttribute("href")).not.toContain("montaj");
   });
 
+  // F07-E8: aksharo.ai/download only exists for the production deployment.
+  it("does not offer that download from a build served somewhere else", () => {
+    renderWithProviders(<Sidebar />, { config: { webOrigin: "http://127.0.0.1:3934" } });
+    expect(screen.queryByTestId("desktop-download")).toBeNull();
+  });
+
   it("shows the credit meter with what the entitlement says", async () => {
     renderWithProviders(<Sidebar />, { routes: ENTITLEMENT });
     // `/entitlement` is A05's and is not in the API yet, so the meter renders

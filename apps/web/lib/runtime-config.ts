@@ -28,7 +28,16 @@ export interface RuntimeConfig {
   razorpayEnabled: boolean;
   /** Development-only sign-up shortcut, effective only with the dev mail outbox. */
   authDevAutoVerify: boolean;
+  /**
+   * Origin this app is served from (`WEB_ORIGIN`, already in the env contract).
+   * Links that must point at *this* deployment — referral sign-up links, the
+   * desktop-app offer — build from it instead of hard-coding the production
+   * domain, which in a local build sends people somewhere they cannot use (F07-E8).
+   */
+  webOrigin: string;
 }
+
+import { BRAND } from "@montaj/config";
 
 import { parseFlags } from "./flags";
 
@@ -64,5 +73,6 @@ export function readRuntimeConfig(): RuntimeConfig {
       mailProvider === "dev" &&
       optional("NODE_ENV") !== "production" &&
       optional("AUTH_DEV_AUTO_VERIFY") === "1",
+    webOrigin: optional("WEB_ORIGIN") ?? `https://${BRAND.domain}`,
   };
 }

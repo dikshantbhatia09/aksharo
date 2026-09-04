@@ -17,7 +17,12 @@ import {
   toast,
 } from "@montaj/ui";
 
+import { useRuntimeConfig } from "@/components/providers";
 import { messageForError } from "@/lib/errors";
+
+/** Shown wherever the programme would otherwise ask for, or quote, money (F07-E9). */
+const NO_PAYOUTS_NOTICE =
+  "Payouts are not configured in this build; your referral stats still count.";
 
 /** The ASCI disclosure clause, verbatim (04 §Affiliate). Never paraphrase this text. */
 export const ASCI_DISCLOSURE_CLAUSE =
@@ -56,6 +61,7 @@ function StatusBadge({ status }: { status: string }): React.JSX.Element {
  * FY-to-date gross/TDS/net.
  */
 export function AffiliateView(): React.JSX.Element {
+  const { razorpayEnabled } = useRuntimeConfig();
   const affiliate = useMyAffiliate();
   const isApproved = affiliate.data?.status === "approved";
   const stats = useMyAffiliateStats(isApproved);
@@ -149,9 +155,18 @@ export function AffiliateView(): React.JSX.Element {
                 <Stat label="Sign-ups" value={stats.data.signups.toString()} />
                 <Stat label="Paid referrals" value={stats.data.paidReferrals.toString()} />
                 <Stat label="Active referrals" value={stats.data.activeReferrals.toString()} />
-                <Stat label="Pending" value={formatRupees(stats.data.pendingCommissionMinor)} />
-                <Stat label="Available" value={formatRupees(stats.data.availableCommissionMinor)} />
-                <Stat label="Paid out" value={formatRupees(stats.data.paidOutMinor)} />
+                {/* The counts are real in any build; the commission columns are
+                    only meaningful with a payout rail behind them (F07-E9). */}
+                {razorpayEnabled ? (
+                  <>
+                    <Stat label="Pending" value={formatRupees(stats.data.pendingCommissionMinor)} />
+                    <Stat
+                      label="Available"
+                      value={formatRupees(stats.data.availableCommissionMinor)}
+                    />
+                    <Stat label="Paid out" value={formatRupees(stats.data.paidOutMinor)} />
+                  </>
+                ) : null}
                 <Stat
                   label="Tier"
                   value={stats.data.tier === "while_subscribed_30" ? "30% (top tier)" : "Standard"}
@@ -179,29 +194,41 @@ export function AffiliateView(): React.JSX.Element {
                 </Card>
               ) : null}
 
-              <Card className="flex flex-col gap-2 p-4" data-testid="affiliate-fy-tds">
-                <h2 className="text-fg-0 text-base font-medium">FY {stats.data.fyLabel} to date</h2>
-                <dl className="grid grid-cols-3 gap-2 text-sm">
-                  <div>
-                    <dt className="text-fg-2">Gross</dt>
-                    <dd className="text-fg-0 font-medium">
-                      {formatRupees(stats.data.fyGrossMinor)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-fg-2">TDS (194H)</dt>
-                    <dd className="text-fg-0 font-medium">{formatRupees(stats.data.fyTdsMinor)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-fg-2">Net</dt>
-                    <dd className="text-fg-0 font-medium">{formatRupees(stats.data.fyNetMinor)}</dd>
-                  </div>
-                </dl>
-                <p className="text-fg-2 text-xs">
-                  TDS applies once your FY-to-date gross crosses ₹20,000 — 2% with a verified PAN,
-                  20% without one.
-                </p>
-              </Card>
+              {razorpayEnabled ? (
+                <Card className="flex flex-col gap-2 p-4" data-testid="affiliate-fy-tds">
+                  <h2 className="text-fg-0 text-base font-medium">
+                    FY {stats.data.fyLabel} to date
+                  </h2>
+                  <dl className="grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <dt className="text-fg-2">Gross</dt>
+                      <dd className="text-fg-0 font-medium">
+                        {formatRupees(stats.data.fyGrossMinor)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-fg-2">TDS (194H)</dt>
+                      <dd className="text-fg-0 font-medium">
+                        {formatRupees(stats.data.fyTdsMinor)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-fg-2">Net</dt>
+                      <dd className="text-fg-0 font-medium">
+                        {formatRupees(stats.data.fyNetMinor)}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="text-fg-2 text-xs">
+                    TDS applies once your FY-to-date gross crosses ₹20,000 — 2% with a verified PAN,
+                    20% without one.
+                  </p>
+                </Card>
+              ) : (
+                <Card className="flex flex-col gap-2 p-4" data-testid="affiliate-no-payouts">
+                  <p className="text-fg-2 text-sm">{NO_PAYOUTS_NOTICE}</p>
+                </Card>
+              )}
             </>
           )}
 
@@ -232,6 +259,7 @@ function Stat({ label, value }: { label: string; value: string }): React.JSX.Ele
 const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 
 function ApplyForm(): React.JSX.Element {
+  const { razorpayEnabled } = useRuntimeConfig();
   const apply = useApplyAffiliate();
   const [legalName, setLegalName] = React.useState("");
   const [pan, setPan] = React.useState("");
@@ -248,6 +276,23 @@ function ApplyForm(): React.JSX.Element {
     accountHolderName.trim().length > 0 &&
     accepted &&
     !apply.isPending;
+
+  // PAN, GSTIN, UPI VPA and an account-holder name are payout details. Asking a
+  // free build for them collects sensitive identity data for a payment that
+  // cannot be made, and the Apply button behind them could never be satisfied
+  // anyway — so the whole form gives way to the notice (F07-E9).
+  if (!razorpayEnabled) {
+    return (
+      <div className="flex max-w-xl flex-col gap-6" data-testid="affiliate-apply-form">
+        <div>
+          <h1 className="font-display text-xl font-semibold tracking-tight">Refer &amp; earn</h1>
+        </div>
+        <Card className="flex flex-col gap-2 p-4" data-testid="affiliate-no-payouts">
+          <p className="text-fg-2 text-sm">{NO_PAYOUTS_NOTICE}</p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex max-w-xl flex-col gap-6" data-testid="affiliate-apply-form">
