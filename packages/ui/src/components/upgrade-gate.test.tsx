@@ -46,4 +46,19 @@ describe("<UpgradeGate />", () => {
     render(<UpgradeGate requiredPlan="pro" feature="4K export" />);
     expect(screen.queryByRole("button")).toBeNull();
   });
+
+  // A build with no payment rail still gates the feature, but cannot offer to
+  // sell the upgrade — it names who can lift the lock instead (F07-C3).
+  it("lets the caller retitle the button instead of promising an upgrade", () => {
+    render(
+      <UpgradeGate
+        requiredPlan="pro"
+        feature="4K export"
+        ctaLabel="Ask an admin about pro"
+        onUpgrade={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Ask an admin about pro" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Upgrade to Pro" })).toBeNull();
+  });
 });

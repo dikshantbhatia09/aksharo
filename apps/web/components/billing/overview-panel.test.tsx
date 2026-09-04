@@ -208,5 +208,21 @@ describe("<OverviewPanel />", () => {
     );
     expect(screen.queryByTestId("overview-upgrade")).toBeNull();
     expect(screen.queryByTestId("checkout-sheet")).toBeNull();
+    // The Invoices tab is hidden in this build (F07-C1), so its shortcut goes too.
+    expect(screen.queryByTestId("billing-history-shortcut")).toBeNull();
+  });
+
+  it("keeps the billing-history shortcut when Razorpay is configured", async () => {
+    renderWithProviders(<OverviewPanel />, {
+      routes: {
+        "/billing/subscription": ACTIVE_SUBSCRIPTION,
+        "/workspaces/01JWORKSPACE/credits": CREDITS,
+        "/billing/mandates": [],
+      },
+    });
+    expect(await screen.findByTestId("billing-history-shortcut")).toHaveAttribute(
+      "href",
+      "/billing/invoices",
+    );
   });
 });

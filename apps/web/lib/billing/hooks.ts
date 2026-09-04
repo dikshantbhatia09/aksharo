@@ -151,12 +151,22 @@ export function usePauseSubscription(): UseMutationResult<SubscriptionView, Erro
   });
 }
 
-export function useMandates(): UseQueryResult<MandateView[]> {
+/**
+ * Caller-side gate for the two payment-rail queries. A build with no rail has
+ * nothing to fetch and should not spend a request finding that out (F07-C2);
+ * it composes with the workspace gate the same way `useSubscriptionStatusPolling`
+ * already composes its own.
+ */
+export interface BillingQueryOptions {
+  enabled?: boolean;
+}
+
+export function useMandates(options: BillingQueryOptions = {}): UseQueryResult<MandateView[]> {
   const client = useApiClient();
   const workspaceId = useWorkspaceId();
   return useQuery({
     queryKey: billingQueryKeys.mandates(workspaceId ?? "none"),
-    enabled: workspaceId !== null,
+    enabled: (options.enabled ?? true) && workspaceId !== null,
     retry: retryPolicy,
     queryFn: () => client.call(billingEndpoints.mandates),
   });
@@ -177,12 +187,14 @@ export function useRevokeMandate(): UseMutationResult<MandateView, Error, string
   });
 }
 
-export function usePaymentMethods(): UseQueryResult<PaymentMethodView[]> {
+export function usePaymentMethods(
+  options: BillingQueryOptions = {},
+): UseQueryResult<PaymentMethodView[]> {
   const client = useApiClient();
   const workspaceId = useWorkspaceId();
   return useQuery({
     queryKey: billingQueryKeys.paymentMethods(workspaceId ?? "none"),
-    enabled: workspaceId !== null,
+    enabled: (options.enabled ?? true) && workspaceId !== null,
     retry: retryPolicy,
     queryFn: () => client.call(billingEndpoints.paymentMethods),
   });

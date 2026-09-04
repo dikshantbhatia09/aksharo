@@ -7,7 +7,15 @@ import { cn } from "@montaj/ui";
 
 import type { ReactNode } from "react";
 
+import { useRuntimeConfig } from "@/components/providers";
 import { BILLING_NAV } from "@/lib/nav";
+
+/**
+ * Tabs that only mean something with a payment rail behind them (F07-C1).
+ * `nav.ts` is a plain data module and cannot read the runtime config, so the
+ * filter lives here, where the tabs are actually rendered.
+ */
+const RAIL_ONLY_TABS: readonly string[] = ["plans", "methods", "invoices"];
 
 /**
  * `/billing/*` — Overview, Plans, Payment methods, Invoices, Usage (08
@@ -24,6 +32,10 @@ import { BILLING_NAV } from "@/lib/nav";
  */
 export default function BillingLayout({ children }: { children: ReactNode }): React.JSX.Element {
   const pathname = usePathname();
+  const { razorpayEnabled } = useRuntimeConfig();
+  const sections = BILLING_NAV.filter(
+    (tab) => razorpayEnabled || !RAIL_ONLY_TABS.includes(tab.key),
+  );
 
   const isActive = (href: string): boolean =>
     href === "/billing" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
@@ -32,7 +44,7 @@ export default function BillingLayout({ children }: { children: ReactNode }): Re
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 lg:flex-row lg:gap-10">
       <nav aria-label="Subscription" className="lg:w-56 lg:shrink-0">
         <ul className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
-          {BILLING_NAV.map((section) => {
+          {sections.map((section) => {
             const active = isActive(section.href);
             return (
               <li key={section.key}>

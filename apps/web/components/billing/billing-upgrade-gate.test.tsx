@@ -100,7 +100,26 @@ describe("<BillingUpgradeGate />", () => {
       },
     });
     await screen.findByTestId("upgrade-gate");
-    await user.click(screen.getByRole("button", { name: /Upgrade to Creator/ }));
+    // F07-C3 renamed this button: with no rail the gate says who lifts the lock
+    // instead of promising an upgrade it cannot sell.
+    await user.click(screen.getByRole("button", { name: /Ask an admin about creator/ }));
     expect(screen.queryByTestId("checkout-sheet")).toBeNull();
+  });
+
+  // A lock may be honest about the requirement; it may not quote a price the
+  // build cannot charge, nor promise that "upgrading takes about a minute".
+  it("prices nothing and asks for an admin when Razorpay is absent", async () => {
+    renderWithProviders(<BillingUpgradeGate requiredPlan="creator" feature="4K export" />, {
+      config: { razorpayEnabled: false },
+      routes: { "/billing/plans": PLANS },
+    });
+    const gate = await screen.findByTestId("upgrade-gate");
+    // The plan list resolves either way, so this is the gate refusing to quote
+    // rather than a price that simply has not arrived yet.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Ask an admin about creator/ })).toBeVisible();
+    });
+    expect(gate.textContent).not.toContain("₹");
+    expect(gate).toHaveTextContent("4K export is on Creator");
   });
 });
