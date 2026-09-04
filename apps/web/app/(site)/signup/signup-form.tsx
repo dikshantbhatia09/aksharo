@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { z } from "zod";
 
-import { hasErrorCode, useSignUp } from "@montaj/api-client";
-import type { Jurisdiction } from "@montaj/api-client";
+import { hasErrorCode, useLogin, useSignUp } from "@montaj/api-client";
+import type { Jurisdiction, TokenResponse } from "@montaj/api-client";
 import { BRAND } from "@montaj/config";
 import { Button, Field, Input } from "@montaj/ui";
 
@@ -19,6 +20,7 @@ import { useRuntimeConfig } from "@/components/providers";
 import { messageForError } from "@/lib/errors";
 import { evaluateAge } from "@/lib/privacy/age-gate";
 import { writePrivacy } from "@/lib/privacy/consent";
+import { persistSession } from "@/lib/session/client";
 
 /**
  * Sign-up in two steps: who you are, then step 0 of onboarding (age + consents).
@@ -47,6 +49,7 @@ type Stage = "credentials" | "age" | "blocked" | "sent";
 
 export function SignUpForm(): React.JSX.Element {
   const config = useRuntimeConfig();
+  const router = useRouter();
   const [stage, setStage] = React.useState<Stage>("credentials");
   const [credentials, setCredentials] = React.useState<Credentials>({
     name: "",
@@ -58,6 +61,12 @@ export function SignUpForm(): React.JSX.Element {
   const [blockedIn, setBlockedIn] = React.useState<Jurisdiction>("IN");
 
   const signUp = useSignUp();
+  // Mirrors login-form.tsx exactly — it is the canonical caller of `useLogin`,
+  // and the session has to be stored the same way whichever screen creates it.
+  const onTokens = React.useCallback(async (tokens: TokenResponse) => {
+    await persistSession(tokens);
+  }, []);
+  const login = useLogin(onTokens);
 
   const submitCredentials = (event: React.FormEvent): void => {
     event.preventDefault();
@@ -96,6 +105,26 @@ export function SignUpForm(): React.JSX.Element {
             marketing: false,
             minor: decision.minor,
           });
+          // Dev auto-verify means the account is already usable, so showing a
+          // "confirm your email" screen asks for a click that does not exist.
+          // Sign them in with the credentials they just typed instead (F07-D1).
+          if (config.authDevAutoVerify) {
+            login.mutate(
+              { email: credentials.email, password: credentials.password },
+              {
+                onSuccess: () => {
+                  router.replace("/home");
+                  router.refresh();
+                },
+                // If the server did not in fact auto-verify, fall back to the
+                // confirmation screen rather than stranding them on the form.
+                onError: () => {
+                  setStage("sent");
+                },
+              },
+            );
+            return;
+          }
           setStage("sent");
         },
         onError: (error) => {
@@ -174,7 +203,7 @@ export function SignUpForm(): React.JSX.Element {
             setBlockedIn(jurisdiction);
             setStage("blocked");
           }}
-          pending={signUp.isPending}
+          pending={signUp.isPending || login.isPending}
           {...(signUp.isError && !hasErrorCode(signUp.error, "auth/age_restricted")
             ? { error: messageForError(signUp.error) }
             : {})}
