@@ -149,7 +149,14 @@ export const envSchema = z.object({
   // video, waveform, thumbs). Falls back to R2_ENDPOINT when unset. In dev behind
   // an HTTPS tunnel this must be the tunnel; in production it is the CDN domain in
   // front of the derived bucket. Internal writers keep using R2_ENDPOINT.
-  R2_PUBLIC_ENDPOINT: z.string().trim().url().optional(),
+  // `optionalSecret()` (not a bare `.optional()`) because `.env.example` ships this
+  // key BLANK — an empty value is how "unset, fall back to R2_ENDPOINT" is spelled,
+  // and a bare optional would reject `R2_PUBLIC_ENDPOINT=` outright, so every copy
+  // of `.env.example` would refuse to boot. Same shape as `GPU_PROVIDER_URL`.
+  R2_PUBLIC_ENDPOINT: optionalSecret().refine(
+    (value) => value === undefined || /^https?:\/\/[^\s]+$/.test(value),
+    "R2_PUBLIC_ENDPOINT must be an http(s) URL, for example https://media.example.com",
+  ),
   R2_BUCKET_DERIVED: nonEmpty("R2_BUCKET_DERIVED"),
   R2_ACCESS_KEY: nonEmpty("R2_ACCESS_KEY"),
   R2_SECRET_KEY: nonEmpty("R2_SECRET_KEY"),

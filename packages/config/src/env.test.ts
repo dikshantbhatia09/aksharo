@@ -226,6 +226,22 @@ describe("loadEnv", () => {
     it("stays quiet for an all-http local dev setup", () => {
       expect(loadEnv({ source: validEnv() }).R2_PUBLIC_ENDPOINT).toBeUndefined();
     });
+
+    // `.env.example` ships `R2_PUBLIC_ENDPOINT=` blank, so the empty string — not
+    // just an absent key — has to mean "unset, fall back to R2_ENDPOINT". Boot
+    // failed on exactly this: every service copying `.env.example` died with
+    // "R2_PUBLIC_ENDPOINT is empty".
+    it("treats the blank value .env.example ships as unset", () => {
+      expect(loadEnv({ source: validEnv({ R2_PUBLIC_ENDPOINT: "" }) }).R2_PUBLIC_ENDPOINT).toBe(
+        undefined,
+      );
+    });
+
+    it("still rejects a value that is not an http(s) origin", () => {
+      expect(() =>
+        loadEnv({ source: validEnv({ R2_PUBLIC_ENDPOINT: "media.example.com" }) }),
+      ).toThrow(/R2_PUBLIC_ENDPOINT must be an http\(s\) URL/);
+    });
   });
 
   it("parses FEATURE_FLAGS_JSON and rejects non-objects", () => {
