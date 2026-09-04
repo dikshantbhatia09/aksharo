@@ -47,6 +47,9 @@ import { ENV } from "../../config/config.module.js";
           kind: "r2",
           bucket: env.R2_BUCKET_DERIVED,
           endpoint: env.R2_ENDPOINT,
+          ...(env.R2_PUBLIC_ENDPOINT === undefined
+            ? {}
+            : { publicEndpoint: env.R2_PUBLIC_ENDPOINT }),
           // R2 has one region and calls it `auto`; MinIO takes whatever it is
           // given. Reusing `S3_REGION` keeps SigV4 happy against both.
           region: env.S3_REGION,

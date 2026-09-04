@@ -226,3 +226,31 @@ describe("get / put / delete", () => {
     expect(command.input.Tagging.TagSet).toEqual([{ Key: "montaj", Value: "raw" }]);
   });
 });
+
+const BASE = {
+  kind: "r2" as const,
+  bucket: "derived-test",
+  region: "auto",
+  accessKeyId: "test-access",
+  secretAccessKey: "test-secret",
+};
+
+describe("S3ObjectStore presign origins (FIX-01)", () => {
+  it("signs browser GETs against the public endpoint when one is configured", async () => {
+    const store = new S3ObjectStore({
+      ...BASE,
+      endpoint: "http://localhost:9000",
+      publicEndpoint: "https://media.example.com",
+    });
+    const url = await store.presignGet("ws/p/m/proxy540.mp4", 300);
+    expect(new URL(url).origin).toBe("https://media.example.com");
+    // The signature must be bound to the public host, or the store rejects it.
+    expect(url).toContain("X-Amz-Signature=");
+  });
+
+  it("falls back to the internal endpoint when no public one is set", async () => {
+    const store = new S3ObjectStore({ ...BASE, endpoint: "http://localhost:9000" });
+    const url = await store.presignGet("ws/p/m/proxy540.mp4", 300);
+    expect(new URL(url).origin).toBe("http://localhost:9000");
+  });
+});

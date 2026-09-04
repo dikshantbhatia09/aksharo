@@ -30,11 +30,18 @@ import type {
   PresignedPart,
   PutObjectInput,
 } from "./object-store.js";
+import type { S3ClientConfig } from "@aws-sdk/client-s3";
 
 export interface S3ObjectStoreConfig {
   readonly kind: "s3" | "r2";
   readonly bucket: string;
   readonly endpoint: string;
+  /**
+   * Origin used ONLY for presigned GET URLs handed to browsers. Internal reads
+   * and writes keep using `endpoint`. SigV4 binds the signature to the host, so
+   * this must be the exact origin (scheme, host, port) the browser will hit.
+   */
+  readonly publicEndpoint?: string;
   readonly region: string;
   readonly accessKeyId: string;
   readonly secretAccessKey: string;
@@ -73,6 +80,7 @@ export class ObjectStoreError extends Error {
 export class S3ObjectStore implements ObjectStore {
   private readonly logger = new Logger(S3ObjectStore.name);
   private readonly client: S3Client;
+  private readonly presignClient: S3Client;
   private readonly partSizeBytes: number;
 
   readonly bucket: string;
@@ -82,19 +90,22 @@ export class S3ObjectStore implements ObjectStore {
     this.bucket = config.bucket;
     this.kind = config.kind;
     this.partSizeBytes = config.partSizeBytes ?? MULTIPART_PART_SIZE_BYTES;
-    this.client =
-      client ??
-      new S3Client({
-        endpoint: config.endpoint,
-        region: config.region,
-        credentials: {
-          accessKeyId: config.accessKeyId,
-          secretAccessKey: config.secretAccessKey,
-        },
-        forcePathStyle: true,
-        requestChecksumCalculation: "WHEN_REQUIRED",
-        responseChecksumValidation: "WHEN_REQUIRED",
-      });
+    const clientOptions: S3ClientConfig = {
+      endpoint: config.endpoint,
+      region: config.region,
+      credentials: {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+      },
+      forcePathStyle: true,
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
+    };
+    this.client = client ?? new S3Client(clientOptions);
+    this.presignClient =
+      config.publicEndpoint === undefined || config.publicEndpoint === config.endpoint
+        ? this.client
+        : new S3Client({ ...clientOptions, endpoint: config.publicEndpoint });
   }
 
   async createMultipartUpload(input: CreateMultipartInput): Promise<MultipartUpload> {
@@ -186,7 +197,7 @@ export class S3ObjectStore implements ObjectStore {
         ? undefined
         : `attachment; filename="${sanitiseFilename(options.downloadFilename)}"`;
     return getSignedUrl(
-      this.client,
+      this.presignClient,
       new GetObjectCommand({
         Bucket: this.bucket,
         Key: key,
