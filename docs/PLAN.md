@@ -204,3 +204,24 @@ is the master guide: setup, golden rules, ports table, scale contract).
 | F05 | Aspect-aware chrome: preview, gallery, cards, share | — | planned |
 | F06 | Export completion: follow cloud job to download | F01, F03 | planned |
 | F07 | Payments-off coherence sweep | — | planned |
+
+## OC-wave — OpenCut adoption (planned 2026-09-05)
+
+Source: full code study of OpenCut-main.zip (the 2026 rewrite scaffold; every one of
+its 80 source files read). Verdict: no editor engine exists in that archive — the
+usable classic editor lives in `opencut-app/opencut-classic` (their README). What IS
+portable: four editor-chrome patterns, adopted onto our stack (React 19 + Tailwind v4
++ radix + cmdk already in place; dependency delta is exactly react-resizable-panels,
+radix menubar, radix context-menu). Study, architecture decision and fresher guides:
+`..\..\_orchestration\opencut\` (STUDY.md, ARCHITECTURE.md, OC-01..04).
+
+| WP | Title | Depends on | Status |
+|---|---|---|---|
+| OC-01 | Resizable editor workspace (panels, persisted, double-click reset) | F05 | planned |
+| OC-02 | Editor menubar + single action registry | OC-01, F02, F04, F06 | planned |
+| OC-03 | Context menus (transcript cards + timeline selection) | OC-01 | planned |
+| OC-04 | Command palette (Ctrl+K) + Kbd | OC-02 | planned |
+
+Deferred pending source: engine-level adoption (tick-based MediaTime, ripple diff
+engine, wgpu compositor) requires the `opencut-classic` repository — request it as a
+zip to extend the study.
