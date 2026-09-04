@@ -21,6 +21,7 @@ import { Badge, Button, Textarea } from "@montaj/ui";
 import type { ShareReportCategory } from "@/lib/share/types";
 
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
+import { aspectRatioOf } from "@/components/editor/canvas/stage-fit";
 import { SYSTEM_STYLE_MAP } from "@/components/editor/panels/system-styles";
 import { ATTRIBUTION_LINE, GRIEVANCE_OFFICER } from "@/content/site/legal";
 import {
@@ -349,6 +350,13 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
     return <PasswordGate token={token} />;
   }
 
+  // FIX-05: the frame follows the document, exactly as the editor's does. The
+  // literal 9:16 it replaced was the same "chrome ignores correct data" bug
+  // mirrored on the share page — a 16:9 project was letterboxed into a portrait
+  // box for every viewer. The empty-projection fallback keeps today's portrait
+  // default for a project whose EDG document has not initialised yet.
+  const projection = (preview.data?.projection ?? emptyProjection()) as EdgProjection;
+
   return (
     <main className="mx-auto flex min-h-dvh max-w-4xl flex-col gap-6 px-6 py-10">
       <header className="flex items-center justify-between">
@@ -360,7 +368,8 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
 
       <div
         ref={stageRef}
-        className="aspect-[9/16] max-h-[70dvh] self-center overflow-hidden rounded-lg"
+        className="max-h-[70dvh] max-w-full self-center overflow-hidden rounded-lg"
+        style={{ aspectRatio: aspectRatioOf(projection.canvas) }}
       >
         {preview.isPending ? (
           <div className="bg-bg-1 flex h-full w-full items-center justify-center">
@@ -377,7 +386,7 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
         ) : (
           <CaptionStage
             src={preview.data.proxyUrl}
-            projection={(preview.data.projection ?? emptyProjection()) as EdgProjection}
+            projection={projection}
             catalogue={SYSTEM_STYLE_MAP}
             showSafeZones={false}
           />
