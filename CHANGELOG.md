@@ -8,6 +8,23 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **F01: derived media reaches the browser.** The API presigned every derived
+  object — the proxy video, the waveform, thumbnails — against `R2_ENDPOINT`,
+  which is a plain `http://localhost:9000` while the page is served over HTTPS,
+  so the browser's CSP (`media-src 'self' blob: https:`) blocked each request
+  before it was ever dispatched and no video, waveform or thumbnail loaded on any
+  project, leaving only a console line and no failed network entry. Added
+  `R2_PUBLIC_ENDPOINT` — the one browser-facing origin for the derived store,
+  a tunnel in dev and the CDN domain in production — presigned browser GETs
+  against it (internal readers and writers keep using `R2_ENDPOINT`), extended
+  the web CSP allowlist to cover that origin in `img-src`, `media-src` and
+  `connect-src`, and made the mixed-content combination that caused this refuse
+  to boot instead of failing silently, naming the variable to fix. Signed URLs
+  are now re-signed at 80% of their five-minute TTL and on every return to the
+  tab, so a long session never holds an expired `src` — the short TTL is the
+  leak-safe choice and the refresh is what makes it compatible with long
+  sessions.
+
 - **M20 (post-merge): `LLM_PROVIDER=ollama` took the whole AI worker down.**
   Found by running the merged build rather than by any test: `runtime.py` builds
   the translation chain eagerly at startup, and `LLMTranslateProvider` knew only
