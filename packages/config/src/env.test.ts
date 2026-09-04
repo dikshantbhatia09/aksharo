@@ -200,6 +200,34 @@ describe("loadEnv", () => {
     });
   });
 
+  describe("mixed-content object stores refuse to boot (FIX-01)", () => {
+    const HTTPS_WEB = {
+      WEB_ORIGIN: "https://app.example.com",
+      API_ORIGIN: "https://api.example.com",
+    };
+
+    it("rejects a plain-http derived store behind an https web origin", () => {
+      expect(() => loadEnv({ source: validEnv({ ...HTTPS_WEB }) })).toThrow(/derived media object/);
+    });
+
+    it("accepts it once R2_PUBLIC_ENDPOINT is https", () => {
+      const env = loadEnv({
+        source: validEnv({
+          ...HTTPS_WEB,
+          // The sibling rule above covers the upload store; an https origin here
+          // isolates this case to the derived-store rule it is about.
+          S3_ENDPOINT: "https://uploads.example.com",
+          R2_PUBLIC_ENDPOINT: "https://media.example.com",
+        }),
+      });
+      expect(env.R2_PUBLIC_ENDPOINT).toBe("https://media.example.com");
+    });
+
+    it("stays quiet for an all-http local dev setup", () => {
+      expect(loadEnv({ source: validEnv() }).R2_PUBLIC_ENDPOINT).toBeUndefined();
+    });
+  });
+
   it("parses FEATURE_FLAGS_JSON and rejects non-objects", () => {
     const env = loadEnv({ source: validEnv({ FEATURE_FLAGS_JSON: '{"newEditor":true}' }) });
     expect(env.FEATURE_FLAGS_JSON).toEqual({ newEditor: true });

@@ -24,6 +24,7 @@ export const CONTRACT_ENV_VARS = [
   "R2_BUCKET_DERIVED",
   "R2_ACCESS_KEY",
   "R2_SECRET_KEY",
+  "R2_PUBLIC_ENDPOINT",
   "JWT_PRIVATE_KEY",
   "JWT_PUBLIC_KEY",
   "INTERNAL_CALLBACK_SECRET",
@@ -144,6 +145,11 @@ export const envSchema = z.object({
 
   // --- Derived object storage (Cloudflare R2 in production, MinIO locally) ---
   R2_ENDPOINT: httpOrigin("R2_ENDPOINT"),
+  // The origin BROWSERS fetch derived media from (presigned GETs for the proxy
+  // video, waveform, thumbs). Falls back to R2_ENDPOINT when unset. In dev behind
+  // an HTTPS tunnel this must be the tunnel; in production it is the CDN domain in
+  // front of the derived bucket. Internal writers keep using R2_ENDPOINT.
+  R2_PUBLIC_ENDPOINT: z.string().trim().url().optional(),
   R2_BUCKET_DERIVED: nonEmpty("R2_BUCKET_DERIVED"),
   R2_ACCESS_KEY: nonEmpty("R2_ACCESS_KEY"),
   R2_SECRET_KEY: nonEmpty("R2_SECRET_KEY"),
@@ -340,6 +346,26 @@ export function crossFieldProblems(
     }
     if (source["NODE_ENV"] === "production") {
       problems.push("AUTH_DEV_AUTO_VERIFY=1 is never valid when NODE_ENV=production");
+    }
+  }
+  // A mixed-content object store can never work: the page is HTTPS, the browser
+  // refuses plain-HTTP media/uploads before dispatch, and the only symptom is a
+  // console CSP line. Refuse to boot instead — this exact drift shipped a build
+  // where no video ever played (FIX-01, audit 2026-09-04).
+  if (env.WEB_ORIGIN.startsWith("https://")) {
+    const derivedPublic = env.R2_PUBLIC_ENDPOINT ?? env.R2_ENDPOINT;
+    if (derivedPublic.startsWith("http://")) {
+      problems.push(
+        "R2_PUBLIC_ENDPOINT (or R2_ENDPOINT as its fallback) is plain http " +
+          `("${derivedPublic}") while WEB_ORIGIN is https — browsers will block ` +
+          "every derived media object. Point R2_PUBLIC_ENDPOINT at an https origin.",
+      );
+    }
+    if (env.S3_ENDPOINT.startsWith("http://")) {
+      problems.push(
+        `S3_ENDPOINT is plain http ("${env.S3_ENDPOINT}") while WEB_ORIGIN is https ` +
+          "— browser uploads will be blocked. Use an https origin.",
+      );
     }
   }
   return problems;
