@@ -723,7 +723,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         </div>
 
         <div
-          className="flex w-80 min-h-0 shrink-0 flex-col gap-2 border-l border-white/10 p-3"
+          className="flex w-80 min-h-0 shrink-0 flex-col gap-2 overflow-y-auto border-l border-white/10 p-3"
           data-coach-mark="style"
         >
           {reflow?.current.belowComfortableMinimum === true ? (
@@ -738,6 +738,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
             styles={SYSTEM_STYLES}
             style={effectiveStyle}
             scope={scope}
+            canvas={projection.canvas}
             onOp={submitPanelOp}
             audio={{
               projectId,

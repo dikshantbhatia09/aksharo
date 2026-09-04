@@ -14,9 +14,18 @@ import { useMemo, useState } from "react";
 import type { StyleCategory, StyleDoc } from "@montaj/caption-styles";
 
 import { type PanelScope, setStyleRef, type SetStyleOp } from "./ops";
+import { type CanvasSize, fitPreview } from "../canvas/stage-fit";
 import { StylePreviewCanvas } from "../canvas/StylePreviewCanvas";
 
 import { cn } from "@/lib/utils";
+
+/**
+ * FIX-05: the fallback document shape for the two call sites that have no project
+ * in scope (`StyleGallery`'s dev harness and `style-quick-pick`'s sheet). 9:16 is
+ * the product's dominant format and matches the portrait tile these previews drew
+ * before, so nothing regresses where a real canvas cannot be known.
+ */
+export const DEFAULT_PREVIEW_CANVAS: CanvasSize = { width: 1080, height: 1920 };
 
 export interface StylePickerProps {
   readonly styles: readonly StyleDoc[];
@@ -25,6 +34,8 @@ export interface StylePickerProps {
   readonly onOp: (op: SetStyleOp) => void;
   /** "Save as template" — the panel builds the draft, A14's client posts it. */
   readonly onSaveTemplate?: () => void;
+  /** The document's canvas, so each tile previews in the project's real aspect. */
+  readonly canvas?: CanvasSize;
   readonly className?: string;
 }
 
@@ -48,11 +59,18 @@ export function StylePicker({
   scope,
   onOp,
   onSaveTemplate,
+  canvas = DEFAULT_PREVIEW_CANVAS,
   className,
 }: StylePickerProps): React.JSX.Element {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<StyleCategory | "all">("all");
   const [hovered, setHovered] = useState<string | undefined>(undefined);
+
+  // FIX-05: a definite, aspect-correct tile size. `auto-rows-max` on the grid
+  // stops Chromium squeezing every row to fit a definite-height flex child (the
+  // ~7px slivers the audit found); this gives the row something real to size to.
+  // 132×168 keeps two columns inside the 320px panel for 16:9 and 9:16 alike.
+  const preview = useMemo(() => fitPreview(canvas, 132, 168), [canvas]);
 
   const categories = useMemo(() => categoriesOf(styles), [styles]);
   const visible = useMemo(
@@ -100,7 +118,7 @@ export function StylePicker({
       </div>
 
       <div
-        className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto content-start"
+        className="grid min-h-0 flex-1 auto-rows-max grid-cols-2 gap-2 overflow-y-auto content-start"
         data-testid="style-picker-grid"
       >
         {visible.map((style) => (
@@ -125,10 +143,9 @@ export function StylePicker({
           >
             <StylePreviewCanvas
               style={style}
-              width={132}
-              height={234}
+              {...preview}
               playing={hovered === style.id}
-              className="w-full"
+              className="mx-auto"
             />
             <span className="block truncate px-2 py-1 text-xs">{style.name}</span>
           </button>
