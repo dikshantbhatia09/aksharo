@@ -21,7 +21,7 @@ import { Badge, Button, Textarea } from "@montaj/ui";
 import type { ShareReportCategory } from "@/lib/share/types";
 
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
-import { aspectRatioOf } from "@/components/editor/canvas/stage-fit";
+import { aspectRatioOf, containWidth } from "@/components/editor/canvas/stage-fit";
 import { SYSTEM_STYLE_MAP } from "@/components/editor/panels/system-styles";
 import { ATTRIBUTION_LINE, GRIEVANCE_OFFICER } from "@/content/site/legal";
 import {
@@ -369,7 +369,15 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
       <div
         ref={stageRef}
         className="max-h-[70dvh] max-w-full self-center overflow-hidden rounded-lg"
-        style={{ aspectRatio: aspectRatioOf(projection.canvas) }}
+        style={{
+          aspectRatio: aspectRatioOf(projection.canvas),
+          // A `self-center` box with only `aspect-ratio` has no size basis at
+          // all: it measured 0x0 here, and — A/B-checked against main — did so
+          // with the old `aspect-[9/16]` too, so the share preview was invisible
+          // before this package as well. `containWidth` gives it the one basis
+          // it needs, letterboxed inside the same 70dvh cap in either aspect.
+          width: containWidth(projection.canvas, "100%", "70dvh"),
+        }}
       >
         {preview.isPending ? (
           <div className="bg-bg-1 flex h-full w-full items-center justify-center">

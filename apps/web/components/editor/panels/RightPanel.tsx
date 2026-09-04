@@ -145,7 +145,14 @@ export function RightPanel({
         )
       ) : (
         <>
-          <StylePreviewCanvas style={style} {...fitPreview(canvas, 288, 220)} className="w-full" />
+          {/* shrink-0: a flex column item shrinks below its own height by default,
+              which squeezed this preview to 62px and broke the aspect it was
+              just given. The explicit size from `fitPreview` is the contract. */}
+          <StylePreviewCanvas
+            style={style}
+            {...fitPreview(canvas, 288, 220)}
+            className="shrink-0"
+          />
           {tab === "colors" ? <ColorsPanel style={style} scope={scope} onOp={onOp} /> : null}
           {tab === "look" ? (
             <LookPanel

@@ -27,7 +27,7 @@ import type { EditorSnapshot, EditorStore } from "@/lib/edg/store";
 
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
 import { CropWindowOverlay } from "@/components/editor/canvas/CropWindowOverlay";
-import { aspectRatioOf } from "@/components/editor/canvas/stage-fit";
+import { aspectRatioOf, containWidth } from "@/components/editor/canvas/stage-fit";
 import { useRenderer } from "@/components/editor/canvas/use-canvaskit";
 import { FirstRunCoachMarks } from "@/components/editor/coach-marks/FirstRunCoachMarks";
 import { ExportButton } from "@/components/editor/export/ExportButton";
@@ -691,14 +691,20 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           />
         </div>
 
-        <div className="min-w-0 flex-1 bg-black/40 p-4 flex items-center justify-center">
+        <div
+          className="min-w-0 flex-1 bg-black/40 p-4 flex items-center justify-center"
+          style={{ containerType: "size" }}
+        >
           {/* FIX-05: the stage box takes the DOCUMENT's aspect, so a 9:16 project
               is a tall frame in a centered column, not a strip lost in a
               landscape void. CaptionStage still letterboxes internally, so a
               mid-migration mismatch degrades gracefully instead of cropping. */}
           <div
             className="relative max-h-full max-w-full"
-            style={{ aspectRatio: aspectRatioOf(projection.canvas), height: "100%" }}
+            style={{
+              aspectRatio: aspectRatioOf(projection.canvas),
+              width: containWidth(projection.canvas, "100cqw", "100cqh"),
+            }}
             data-testid="editor-stage-box"
           >
             <CaptionStage
