@@ -12,6 +12,7 @@ import {
 } from "@montaj/api-client";
 import { Button, toast } from "@montaj/ui";
 
+import { ImportSubtitles } from "@/components/editor/ImportSubtitles";
 import { LanguagePicker, rememberLanguage } from "@/components/projects/language-picker";
 import {
   announceTranscriptReady,
@@ -44,6 +45,16 @@ import { messageForError } from "@/lib/errors";
  * escape: one gesture records the language *and* starts the work, because
  * choosing the language after being told what it costs IS the consent. Asking
  * for a second click would only be ceremony.
+ *
+ * **S-03 adds the one path that spends no credits at all.** A creator with an
+ * SRT/VTT/ASS can import it instead: the route parses it, stores the cues and
+ * enqueues `ai.align`, whose completion initialises the editing document the
+ * same way a transcription's does. The offer sits under the primary action in
+ * every panel where starting work is the question — including the
+ * out-of-credits panel, where it is the only thing on screen that still works.
+ * The wait it leads to is the local `aligning` phase below, because the
+ * server's read model is derived from `ai.transcribe` jobs and an alignment is
+ * invisible to it.
  */
 
 /** 4 s -> 8 s -> 15 s, then 15 s for as long as the screen is genuinely waiting. */
@@ -64,6 +75,16 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
   const [view, setView] = React.useState<TranscriptionStateView | null>(null);
   const [blocked, setBlocked] = React.useState(false);
   const [pollSeq, setPollSeq] = React.useState(0);
+  /**
+   * S-03: the screen's one local phase, and the only state here the server's
+   * read model cannot supply. An import enqueues `ai.align`, and
+   * `transcriptionState` (`apps/api/src/transcripts/transcripts.service.ts:142`)
+   * looks only at `ai.transcribe` jobs — so for the whole alignment the server
+   * keeps answering `not_started`, then flips straight to `ready` when the align
+   * completion writes the transcript. Nothing new server-side; the screen just
+   * has to remember that it asked.
+   */
+  const [phase, setPhase] = React.useState<"live" | "aligning">("live");
   const [chosenLanguage, setChosenLanguage] = React.useState<string | undefined>(undefined);
   const [choosing, setChoosing] = React.useState(false);
   const announced = React.useRef(false);
@@ -82,7 +103,10 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
         if (cancelled) return;
         setView(next);
         // Settled: stop asking. `ready` unmounts this screen a moment later.
-        if (!WAITING.has(next.status)) return;
+        // S-03: an alignment is invisible to the read model, so while one is in
+        // flight `ready` is the only answer that settles — same helper, same
+        // 4 s -> 8 s -> 15 s bound, still only while a screen is really waiting.
+        if (phase === "aligning" ? next.status === "ready" : !WAITING.has(next.status)) return;
       } catch {
         // A transient failure must not strand the screen on a stale answer —
         // keep the rhythm and try again on the next tick.
@@ -98,7 +122,7 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
       cancelled = true;
       if (timer !== undefined) clearTimeout(timer);
     };
-  }, [client, projectId, pollSeq]);
+  }, [client, projectId, pollSeq, phase]);
 
   // The poll won the race with the websocket (or the websocket is gone): tell the
   // editor's store, once, and it reloads the document under this screen.
@@ -180,9 +204,41 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
     </Button>
   );
 
+  /**
+   * S-03: the credit-free path, offered *under* the primary action and never
+   * instead of it. Taking it clears `blocked` for the same reason `start()`
+   * does — a fresh gesture is not still waiting on the last one's 402, and a
+   * user who is importing is no longer blocked on credits at all.
+   */
+  const importOffer = (note: string): React.JSX.Element => (
+    <>
+      <p className="text-fg-3 text-xs">{note}</p>
+      <ImportSubtitles
+        projectId={projectId}
+        onQueued={() => {
+          setBlocked(false);
+          setPhase("aligning");
+        }}
+      />
+    </>
+  );
+
+  const CREDIT_FREE_NOTE =
+    "Already have captions? Importing an SRT/VTT costs no transcription credits.";
+
   let content: React.JSX.Element;
 
-  if (blocked) {
+  if (phase === "aligning" && status !== "ready") {
+    content = (
+      <>
+        {spinner}
+        <h2 className="text-fg-0 text-lg font-semibold">Aligning your subtitles…</h2>
+        <p className="text-fg-2 max-w-md text-sm">
+          Your cues are being timed to the audio. This page updates by itself.
+        </p>
+      </>
+    );
+  } else if (blocked) {
     content = (
       <div className="flex flex-col items-center gap-3" data-testid="transcription-blocked-credits">
         <h2 className="text-fg-0 text-lg font-semibold">This workspace is out of credits</h2>
@@ -191,6 +247,10 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
           screen will pick it up.
         </p>
         {startButton("Try again", false)}
+        {importOffer(
+          "You do not have to wait for credits: importing an SRT/VTT you already " +
+            "have costs none at all.",
+        )}
       </div>
     );
   } else if (status === undefined) {
@@ -253,6 +313,7 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
             Starting transcription…
           </p>
         ) : null}
+        {importOffer(CREDIT_FREE_NOTE)}
       </>
     );
   } else if (status === "no_media") {
@@ -273,6 +334,7 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
           first.
         </p>
         {startButton("Start transcription", false)}
+        {importOffer(CREDIT_FREE_NOTE)}
       </>
     );
   }

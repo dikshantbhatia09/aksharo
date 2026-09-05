@@ -136,10 +136,17 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
           // FIX-04: transliteration finishing changes the words the editor is
           // rendering too (the new script lands on `word.scripts`), and the
           // announcement path is identical — the editor reload refetches the
-          // chunks that carry them. Both strings are the queue names declared
-          // in `apps/api/src/jobs/contracts/queue-names.ts` (lines 17 and 21).
+          // chunks that carry them. S-03 adds the third: an import's alignment
+          // completion is what initialises the editing document for a project
+          // that never ran a transcription at all. Every string is a queue name
+          // declared in `apps/api/src/jobs/contracts/queue-names.ts` (lines 17,
+          // 21 and 18).
           if (
-            ["ai.transcribe", "ai.transliterate"].includes(data.type ?? "") &&
+            [
+              "ai.transcribe",
+              "ai.transliterate",
+              "ai.align", // S-03: imported subtitles arrive via ai.align
+            ].includes(data.type ?? "") &&
             data.status === "succeeded" &&
             jobId !== undefined
           ) {
@@ -165,17 +172,31 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
               if (!window.location.pathname.startsWith(`/p/${projectId}`)) {
                 const target = projectId;
                 const transliterated = data.type === "ai.transliterate";
-                toast.success(transliterated ? "Script ready" : "Transcript ready", {
-                  description: transliterated
-                    ? "The new script is on the transcript — open the editor."
-                    : "Captions are built — open the editor.",
-                  action: {
-                    label: "Open editor",
-                    onClick: () => {
-                      router.push(`/p/${target}`);
+                // S-03: an alignment finishing means an *import* landed, and
+                // announcing that as "Transcript ready" would credit work the
+                // user deliberately did not pay for. Same screen change, its
+                // own sentence.
+                const imported = data.type === "ai.align";
+                toast.success(
+                  imported
+                    ? "Captions imported"
+                    : transliterated
+                      ? "Script ready"
+                      : "Transcript ready",
+                  {
+                    description: imported
+                      ? "Your subtitles are aligned to the audio — open the editor."
+                      : transliterated
+                        ? "The new script is on the transcript — open the editor."
+                        : "Captions are built — open the editor.",
+                    action: {
+                      label: "Open editor",
+                      onClick: () => {
+                        router.push(`/p/${target}`);
+                      },
                     },
                   },
-                });
+                );
               }
             })();
           }

@@ -250,6 +250,16 @@ describe("<AppShell /> announces finished AI work", () => {
     expect(await deliver("ai.transliterate")).toEqual(["01JPROJECT"]);
   });
 
+  /**
+   * S-03: an import's `ai.align` completion is what writes the editing document
+   * for a project that never ran a transcription (`align-completion.handler.ts`
+   * → `edgService.initialise`), so it changes which screen the user should be on
+   * for exactly the same reason. `"ai.align"` is `queue-names.ts` line 18.
+   */
+  it("announces a finished subtitle alignment", async () => {
+    expect(await deliver("ai.align")).toEqual(["01JPROJECT"]);
+  });
+
   it("stays quiet for any other completed job", async () => {
     expect(await deliver("render.video")).toEqual([]);
   });
