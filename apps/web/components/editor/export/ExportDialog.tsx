@@ -29,6 +29,7 @@ import {
   TabsTrigger,
 } from "@montaj/ui";
 
+import { ExportHistory } from "./ExportHistory";
 import { resolveOnboardingExportPreset } from "./onboarding-preset";
 import { SubtitlesTab, type SubtitlesTabValue } from "./SubtitlesTab";
 import { ToEditorTab } from "./ToEditorTab";
@@ -96,6 +97,13 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
     registry: props.registry,
     shaper: props.shaper,
   });
+
+  // S-02 (addendum 3): a render this dialog is NOT following can still be
+  // running - close it mid-render and the phase state is reset. The history
+  // below knows, because it polls the project's render jobs; without this the
+  // reopened dialog offers a fresh Export button over a render already in
+  // flight, which is a second credit hold for a file the reader is waiting for.
+  const [renderInFlight, setRenderInFlight] = React.useState(false);
 
   const busy =
     state.phase === "probing" ||
@@ -336,6 +344,14 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
           </p>
         ) : null}
 
+        <ExportHistory projectId={props.projectId} onActiveChange={setRenderInFlight} />
+
+        {renderInFlight && state.phase !== "cloud-rendering" ? (
+          <p className="text-fg-3 mt-3 text-xs" data-testid="export-render-in-flight">
+            A render is already running — see Previous exports.
+          </p>
+        ) : null}
+
         <DialogFooter>
           {state.phase === "rendering" || state.phase === "cloud-rendering" ? (
             <Button variant="secondary" onClick={cancel} data-testid="export-cancel">
@@ -346,6 +362,7 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
               onClick={tab === "video" ? onExportVideo : onExportSubtitles}
               disabled={
                 busy ||
+                renderInFlight ||
                 tab === "to-editor" ||
                 (props.isLocalProject === true && state.phase === "cloud-offered")
               }
