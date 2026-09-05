@@ -5,7 +5,13 @@ import { AutoTranscribeTrigger } from "./auto-transcribe.trigger.js";
 import type { TranscriptsService } from "./transcripts.service.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 
-const READY_PRIMARY = {
+const READY_PRIMARY: {
+  id: string;
+  projectId: string;
+  role: string;
+  status: string;
+  durationMs: number | null;
+} = {
   id: "01MEDIA",
   projectId: "01PROJECT",
   role: "primary",
@@ -13,7 +19,13 @@ const READY_PRIMARY = {
   durationMs: 20_200,
 };
 
-const FRESH_PROJECT = {
+const FRESH_PROJECT: {
+  id: string;
+  workspaceId: string;
+  createdBy: string | null;
+  sourceLanguage: string | null;
+  edgDocument: { id: string } | null;
+} = {
   id: "01PROJECT",
   workspaceId: "01WORKSPACE",
   createdBy: "01USER",

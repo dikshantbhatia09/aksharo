@@ -32,6 +32,7 @@ import {
   toast,
 } from "@montaj/ui";
 
+import { useRuntimeConfig } from "@/components/providers";
 import { messageForError } from "@/lib/errors";
 
 const ROLES: WorkspaceRole[] = ["viewer", "editor", "admin"];
@@ -53,6 +54,9 @@ const ROLE_LABEL: Record<WorkspaceRole, string> = {
  * (`useEntitlement`), never computes a price client-side.
  */
 export function TeamView(): React.JSX.Element {
+  // F07 follow-up (orchestrator): a payments-off build must not print a seat
+  // price it cannot charge — same razorpayEnabled gate as every billing surface.
+  const { razorpayEnabled } = useRuntimeConfig();
   const session = useSession();
   const members = useMembers();
   const entitlement = useEntitlement();
@@ -207,7 +211,7 @@ export function TeamView(): React.JSX.Element {
             {entitlement.data?.planName ?? "Free"} plan · {seatsUsed} active member
             {seatsUsed === 1 ? "" : "s"}
             {perSeat ? ` · billed for ${billedSeats} seat${billedSeats === 1 ? "" : "s"}` : ""}
-            {extraSeatPrice?.["INR"] !== undefined
+            {razorpayEnabled && extraSeatPrice?.["INR"] !== undefined
               ? ` · ₹${(extraSeatPrice["INR"] / 100).toFixed(0)} per extra seat / month`
               : ""}
           </p>

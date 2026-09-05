@@ -8,6 +8,15 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **Stage-1 integration (orchestrator).** Merged F01 + F03 + F05 + F07 and fixed
+  the two pre-existing main failures the wave A/B-proved: the auto-transcribe
+  trigger test's fixture types were too narrow for the null-override cases the
+  tests legitimately pass (3 type errors), and proxy.handler.ts's import order
+  landed with F05's sanctioned fix. Also gated the team page's per-extra-seat
+  price behind `razorpayEnabled` — the one ungated `₹` F07's acceptance grep
+  found outside its file list — and gave `R2_PUBLIC_ENDPOINT`'s https-tunnel
+  requirement its missing home in `docs/FREE-STACK.md` §6.
+
 - **F01: derived media reaches the browser.** The API presigned every derived
   object — the proxy video, the waveform, thumbnails — against `R2_ENDPOINT`,
   which is a plain `http://localhost:9000` while the page is served over HTTPS,

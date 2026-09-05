@@ -197,13 +197,13 @@ is the master guide: setup, golden rules, ports table, scale contract).
 
 | WP | Title | Depends on | Status |
 |---|---|---|---|
-| F01 | Media delivery: R2_PUBLIC_ENDPOINT, CSP, URL refresh | — | planned |
+| F01 | Media delivery: R2_PUBLIC_ENDPOINT, CSP, URL refresh | — | merged 2026-09-05 (stage 1) |
 | F02 | Playback transport: playhead ↔ video wiring | F01 | planned |
-| F03 | Transcription lifecycle: read model, push+poll hand-off, honest tray | — | planned |
+| F03 | Transcription lifecycle: read model, push+poll hand-off, honest tray | — | merged 2026-09-05 (stage 1) |
 | F04 | Language choice + truthful script tabs | F03 | planned |
-| F05 | Aspect-aware chrome: preview, gallery, cards, share | — | planned |
+| F05 | Aspect-aware chrome: preview, gallery, cards, share | — | merged 2026-09-05 (stage 1) |
 | F06 | Export completion: follow cloud job to download | F01, F03 | planned |
-| F07 | Payments-off coherence sweep | — | planned |
+| F07 | Payments-off coherence sweep | — | merged 2026-09-05 (stage 1) |
 
 ## OC-wave — OpenCut adoption (planned 2026-09-05)
 

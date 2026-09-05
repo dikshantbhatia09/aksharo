@@ -338,6 +338,16 @@ an email click. `node scripts/local-ai-smoke.mjs` exercises the local media/ASR
 path; `pnpm --filter @montaj/prompts eval:local` exercises Ollama and skips with
 exit 0 when Ollama is not reachable.
 
+### Serving over an HTTPS tunnel (cloudflared, ngrok and friends)
+
+Plain-http local dev needs nothing here: leave `R2_PUBLIC_ENDPOINT` empty and
+derived media is presigned against `R2_ENDPOINT` (`http://localhost:9000`). But
+when the web app is served over an HTTPS tunnel, derived media (the preview
+video, waveform, thumbnails) must also be HTTPS: set `R2_PUBLIC_ENDPOINT` to a
+tunnel that forwards to the MinIO port (the same tunnel used for `S3_ENDPOINT`
+works — both stores are the same local MinIO), then rebuild the web app. The API
+refuses to boot if you forget, and tells you which variable to fix. (F01)
+
 ## 7. Intentionally unavailable in free-stack mode
 
 - Google OAuth. Email/password and magic-link mechanics remain, but a magic link
