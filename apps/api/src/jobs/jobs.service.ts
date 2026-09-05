@@ -23,7 +23,13 @@ import { NotifyService } from "../notify/notify.service.js";
 
 import type { JobCompletionOutcome } from "./completion-handlers.js";
 import type { CreditsFacade, SettleResult } from "../credits/credits.facade.js";
-import type { CallbackAck, JobCompletion, JobProgress, JobUsage } from "./contracts/completion.js";
+import type {
+  CallbackAck,
+  JobCompletion,
+  JobError,
+  JobProgress,
+  JobUsage,
+} from "./contracts/completion.js";
 import type { JobEnvelope } from "./contracts/job-envelope.js";
 import type { Job, JobStatus, Prisma } from "@prisma/client";
 
@@ -356,6 +362,11 @@ export class JobsService {
       );
     }
 
+    await this.notifyFailureHandler(job, {
+      code: "jobs/cancelled",
+      message: "Cancelled by the workspace.",
+      retryable: false,
+    });
     await this.removeFromQueue(job);
     if (job.creditHoldId !== null) await this.credits.release({ holdId: job.creditHoldId });
 
@@ -582,6 +593,11 @@ export class JobsService {
     });
     if (count === 0) return false;
 
+    await this.notifyFailureHandler(job, {
+      code: JOB_ERROR_CODES.queueTimeout,
+      message: "The job waited too long for a worker.",
+      retryable: true,
+    });
     await this.removeFromQueue(job);
     if (job.creditHoldId !== null) await this.credits.release({ holdId: job.creditHoldId });
 
@@ -711,6 +727,31 @@ export class JobsService {
         })
         .catch(() => undefined);
       throw error;
+    }
+  }
+
+  /**
+   * Cancel and queue-timeout are terminal failures too (S-06). The worker never
+   * reports them, so the domain owner would otherwise never hear — a cancelled
+   * cloud render left its `exports` row `rendering` forever (S-05 §3c). Same
+   * at-least-once contract as a worker-reported failure; handlers are idempotent.
+   *
+   * Unlike a worker callback there is nobody to answer 5xx and retry here, so a
+   * throwing handler is logged and dropped rather than rejecting the cancel;
+   * {@link runFailureHandler} keeps its rethrow contract for `complete()`.
+   */
+  private async notifyFailureHandler(job: Job, error: JobError): Promise<void> {
+    try {
+      await this.runFailureHandler(job, job.attemptId ?? job.id, {
+        status: "failed",
+        error,
+        finalAttempt: true,
+      });
+    } catch (handlerError) {
+      this.logger.error(
+        { jobId: job.id, queue: job.type, err: describe(handlerError) },
+        "failure handler failed for a cancelled or timed-out job; the job row stands",
+      );
     }
   }
 

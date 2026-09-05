@@ -24,6 +24,24 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   in `@montaj/ui` render the keycaps at the same size and colour as the
   menubar's shortcut text. No new dependency: `cmdk` was already ours.
 
+- **S06: every ending reaches the screen.** A job can end three ways and only
+  one of them was being told to anybody. `cancel()` and `timeOut()` flipped the
+  `jobs` row themselves and never called the queue owner's `handleFailure`, so a
+  cancelled cloud render left its `exports` row `rendering` forever — history
+  polled for a result that was never coming and Export stayed disabled (S05's
+  own finding). Both now route through the same hook a worker-reported failure
+  does, via a synthesised `{status: "failed", error, finalAttempt: true}`
+  completion, so every future queue owner writes ONE `handleFailure` and gets all
+  three endings for free. The second silence was an alignment's: the
+  transcription read model consulted `ai.transcribe` jobs only, so an imported
+  subtitle file whose `ai.align` failed (S03's path) answered `not_started`
+  while the editor sat on "Aligning your subtitles…" polling forever. The read
+  model now takes the newest of either queue — one query, newest wins, no new
+  column — the waiting screen settles on that failure with the alignment's own
+  message and a way back to the offer, and the shell, which announced successes
+  only, now toasts a failed transcription or import with an Open-project action
+  from anywhere in the app.
+
 - **Stage-4 integration (orchestrator).** Merged OC-02 + OC-03 + S-05. "Insert
   word after" never succeeded on real speech: the editor asked for a fixed 200 ms
   word and `apply.ts` rightly refused any that overran its follower (OC-03's

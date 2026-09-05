@@ -13,6 +13,7 @@ import { JobEventsService } from "./job-events.service.js";
 import { PLAN_MAX_QUEUE_WAIT_MS, PLAN_PRIORITY } from "./jobs.config.js";
 import { JobsService } from "./jobs.service.js";
 
+import type { JobCompletionContext } from "./completion-handlers.js";
 import type { QueueRegistry } from "./queue.registry.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { CreditsFacade } from "../credits/credits.facade.js";
@@ -654,6 +655,58 @@ describe("cancel", () => {
       code: "jobs/not_found",
     });
   });
+
+  // S-06: a cancel is a terminal failure, so the queue's owner hears about it the
+  // same way it hears about a worker-reported one — otherwise a cancelled cloud
+  // render leaves its `exports` row `rendering` forever (S-05 §3c).
+  it("runs the job type's handleFailure with a synthesised failed completion", async () => {
+    let seen: JobCompletionContext | undefined;
+    const handleFailure = vi.fn(async (context: JobCompletionContext) => {
+      seen = context;
+    });
+    h.completionHandlers.register({
+      jobType: "ai.transcribe",
+      handle: async () => undefined,
+      handleFailure,
+    });
+    const { job } = await h.jobs.enqueue(ENQUEUE);
+
+    const cancelled = await h.jobs.cancel(job.id, WS);
+
+    expect(cancelled.status).toBe("cancelled");
+    expect(handleFailure).toHaveBeenCalledTimes(1);
+    expect(seen?.completion.status).toBe("failed");
+    expect(seen?.completion.error?.code).toBe("jobs/cancelled");
+    expect(seen?.completion.error?.retryable).toBe(false);
+    expect(seen?.completion.finalAttempt).toBe(true);
+    expect(seen?.attemptId).toBe(job.attemptId);
+    // Unlike a worker failure, the row has ALREADY flipped by the time the handler
+    // runs (cancel's own conditional UPDATE is what proves the job was cancellable).
+    // The context still carries the pre-flip snapshot the cancel started from.
+    expect(seen?.job.id).toBe(job.id);
+    expect(seen?.job.status).toBe("queued");
+    expect(h.db.jobs.get(job.id)?.status).toBe("cancelled");
+  });
+
+  it("survives a handleFailure that throws — the job still ends cancelled", async () => {
+    h.completionHandlers.register({
+      jobType: "ai.transcribe",
+      handle: async () => undefined,
+      handleFailure: async () => {
+        throw new Error("the domain write blew up");
+      },
+    });
+    const { job } = await h.jobs.enqueue(ENQUEUE);
+
+    // No worker is waiting on a 5xx here, so the throw is logged and dropped
+    // rather than rejecting the caller's cancel.
+    const cancelled = await h.jobs.cancel(job.id, WS);
+
+    expect(cancelled.status).toBe("cancelled");
+    expect(h.db.jobs.get(job.id)?.status).toBe("cancelled");
+    expect(h.credits.release).toHaveBeenCalledWith({ holdId: "hold-1" });
+    expect(h.queues.removed).toEqual([`${job.id}-${String(job.attemptId)}`]);
+  });
 });
 
 describe("timeOut", () => {
@@ -677,6 +730,33 @@ describe("timeOut", () => {
 
     await expect(h.jobs.timeOut(snapshot)).resolves.toBe(false);
     expect(h.db.jobs.get(job.id)?.status).toBe("running");
+  });
+
+  // S-06: a queue timeout is a terminal failure too, and the only one nobody was
+  // ever told about — no worker ran, so no callback could report it.
+  it("runs the job type's handleFailure with the queue-timeout error", async () => {
+    let seen: JobCompletionContext | undefined;
+    const handleFailure = vi.fn(async (context: JobCompletionContext) => {
+      seen = context;
+    });
+    h.completionHandlers.register({
+      jobType: "ai.transcribe",
+      handle: async () => undefined,
+      handleFailure,
+    });
+    const { job } = await h.jobs.enqueue(ENQUEUE);
+
+    await expect(h.jobs.timeOut(h.db.jobs.get(job.id) as never)).resolves.toBe(true);
+
+    expect(handleFailure).toHaveBeenCalledTimes(1);
+    expect(seen?.completion.status).toBe("failed");
+    expect(seen?.completion.error?.code).toBe("jobs/queue_timeout");
+    expect(seen?.completion.error?.retryable).toBe(true);
+    expect(seen?.completion.finalAttempt).toBe(true);
+    // Same pre-flip snapshot / already-flipped row split as cancel above.
+    expect(seen?.job.id).toBe(job.id);
+    expect(seen?.job.status).toBe("queued");
+    expect(h.db.jobs.get(job.id)?.status).toBe("failed");
   });
 });
 

@@ -186,6 +186,175 @@ describe("<NeedsTranscription />", () => {
     expect(screen.queryByTestId("editor-start-transcription")).toBeNull();
   });
 
+  // S-06: the ending that used to fall through the floor. The read model looked
+  // only at `ai.transcribe`, so a failed `ai.align` answered `not_started` and
+  // this phase — which settled on `ready` alone — span forever.
+  it("settles the aligning wait on a failed alignment, with a way back to the offer", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderWithProviders(<NeedsTranscription projectId="01PROJECT" />, {
+      routes: {
+        "/projects/01PROJECT": PROJECT,
+        [STATE_ROUTE]: { status: "not_started" },
+      },
+    });
+
+    expect(await screen.findByTestId("import-subtitles")).toBeEnabled();
+
+    // `not_started` settled the offer's poll, so nothing is in flight. From here
+    // the read model answers the way the server now would with the align job
+    // failed — which is the whole of S-06 step 2, seen from the browser.
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const { pathname } = new URL(typeof input === "string" ? input : input.toString());
+      if (pathname === IMPORT_ROUTE) {
+        return Promise.resolve(
+          json(
+            {
+              mediaId: "01MEDIA",
+              kind: "srt",
+              key: "derived/01PROJECT/subtitles.json",
+              cueCount: 3,
+              timed: true,
+              warnings: [],
+              jobId: "01JALIGN",
+            },
+            201,
+          ),
+        );
+      }
+      if (pathname === STATE_ROUTE) {
+        return Promise.resolve(
+          json({
+            status: "failed",
+            jobId: "01JALIGN",
+            error: "Could not match the subtitles to the audio.",
+          }),
+        );
+      }
+      return Promise.resolve(json(PROJECT));
+    });
+
+    fireEvent.change(screen.getByTestId("import-subtitles-input"), {
+      target: {
+        files: [
+          new File(["1\n00:00:00,000 --> 00:00:01,000\nHello\n"], "qa.srt", { type: "text/plain" }),
+        ],
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent(
+        "Aligning your subtitles failed",
+      );
+    });
+    // The failure's own sentence, not a generic one.
+    expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent(
+      "Could not match the subtitles to the audio.",
+    );
+    // Transcription is still on offer as the primary way forward.
+    expect(screen.getByTestId("editor-start-transcription")).toBeEnabled();
+
+    await user.click(screen.getByTestId("aligning-try-another-file"));
+
+    // Back at the offer, with the import control — even though the server is
+    // still reporting the failed align job it has no newer one to replace.
+    expect(await screen.findByTestId("import-subtitles")).toBeEnabled();
+    expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent(
+      "has not been transcribed yet",
+    );
+    expect(screen.getByTestId("editor-start-transcription")).toBeEnabled();
+  });
+
+  // S-06 follow-up: the second import must not wear the first one's verdict.
+  // `onQueued` moves the phase back to `aligning` synchronously, so a `view`
+  // still holding the previous `failed` answer would render one frame of the OLD
+  // failure before the restarted poll's first tick could correct it.
+  it("does not show the previous failure when a second file is imported", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderWithProviders(<NeedsTranscription projectId="01PROJECT" />, {
+      routes: {
+        "/projects/01PROJECT": PROJECT,
+        [STATE_ROUTE]: { status: "not_started" },
+      },
+    });
+
+    expect(await screen.findByTestId("import-subtitles")).toBeEnabled();
+
+    const importBody = {
+      mediaId: "01MEDIA",
+      kind: "srt",
+      key: "derived/01PROJECT/subtitles.json",
+      cueCount: 3,
+      timed: true,
+      warnings: [],
+      jobId: "01JALIGN",
+    };
+    // The read model's answer, swapped when the second alignment is queued.
+    const stateAnswer: Record<string, unknown> = {
+      status: "failed",
+      jobId: "01JALIGN",
+      error: "Could not match the subtitles to the audio.",
+    };
+    // After the second import the answer is held open, so the frame under test is
+    // the one the screen renders from its OWN state, before any new answer — which
+    // is exactly where a stale `view` would show through.
+    let holdState = false;
+    let releaseState: (() => void) | undefined;
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const { pathname } = new URL(typeof input === "string" ? input : input.toString());
+      if (pathname === IMPORT_ROUTE) return Promise.resolve(json(importBody, 201));
+      if (pathname === STATE_ROUTE) {
+        if (!holdState) return Promise.resolve(json(stateAnswer));
+        return new Promise<Response>((resolve) => {
+          releaseState = () => {
+            resolve(json({ status: "queued", jobId: "01JALIGN2" }));
+          };
+        });
+      }
+      return Promise.resolve(json(PROJECT));
+    });
+
+    const pick = (name: string): void => {
+      fireEvent.change(screen.getByTestId("import-subtitles-input"), {
+        target: {
+          files: [
+            new File(["1\n00:00:00,000 --> 00:00:01,000\nHello\n"], name, { type: "text/plain" }),
+          ],
+        },
+      });
+    };
+
+    pick("first.srt");
+    await waitFor(() => {
+      expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent(
+        "Aligning your subtitles failed",
+      );
+    });
+
+    await user.click(screen.getByTestId("aligning-try-another-file"));
+    expect(await screen.findByTestId("import-subtitles")).toBeEnabled();
+
+    // The second import. The screen must wait on the NEW alignment, never
+    // re-announce the first one's verdict.
+    holdState = true;
+    pick("second.srt");
+    await waitFor(() => {
+      expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent(
+        "Aligning your subtitles…",
+      );
+    });
+    expect(screen.getByTestId("editor-needs-transcription")).not.toHaveTextContent(
+      "Aligning your subtitles failed",
+    );
+
+    // Let the new alignment's own answer land; the wait carries on as a wait.
+    releaseState?.();
+    await waitFor(() => {
+      expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent(
+        "Aligning your subtitles…",
+      );
+    });
+  });
+
   // FIX-04: the one state on this screen that holds a question. A project with
   // no recorded language used to be a dead end — Home was the only writer of
   // the field and it always wrote `hi-Latn`.

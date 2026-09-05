@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as ApiClientModule from "@montaj/api-client";
+import { toast } from "@montaj/ui";
 
 import type * as AppShellModule from "./app-shell";
 
@@ -206,7 +207,14 @@ describe("<AppShell /> announces finished AI work", () => {
     vi.unstubAllGlobals();
   });
 
-  async function deliver(type: string): Promise<string[]> {
+  /**
+   * Deliver one `job.completed` frame and collect whatever the shell announced.
+   * `frame` overrides the default succeeded body — S-06 uses it to fail a job.
+   */
+  async function deliver(
+    type: string,
+    frame: { status?: string; error?: { message?: string } } = {},
+  ): Promise<string[]> {
     refreshSession.mockResolvedValue({
       accessToken: SESSION_TOKEN,
       expiresIn: 900,
@@ -227,7 +235,7 @@ describe("<AppShell /> announces finished AI work", () => {
       });
       realtime.onEvent?.({
         event: "job.completed",
-        data: { jobId: "01JOB", status: "succeeded", type },
+        data: { jobId: "01JOB", status: "succeeded", type, ...frame },
       });
       // The handler reads the job back before it announces, so give the whole
       // round trip room to happen (or to correctly not happen).
@@ -262,5 +270,40 @@ describe("<AppShell /> announces finished AI work", () => {
 
   it("stays quiet for any other completed job", async () => {
     expect(await deliver("render.video")).toEqual([]);
+  });
+
+  /**
+   * S-06. The shell announced successes only (`data.status === "succeeded"`), so
+   * a failed transcription or import was silent everywhere except the waiting
+   * screen the user had to already be sitting on. The job row said `failed` and
+   * nobody was told.
+   */
+  it("toasts a failed transcription with the failure's own message", async () => {
+    const error = vi.spyOn(toast, "error");
+    const success = vi.spyOn(toast, "success");
+    try {
+      const announced = await deliver("ai.transcribe", {
+        status: "failed",
+        error: { message: "The ASR provider timed out." },
+      });
+
+      // Nothing is ready, so nothing is announced to the editor's store.
+      expect(announced).toEqual([]);
+      await waitFor(() => {
+        expect(error).toHaveBeenCalledTimes(1);
+      });
+      expect(error).toHaveBeenCalledWith(
+        "Transcription failed",
+        expect.objectContaining({
+          description: "The ASR provider timed out.",
+          action: expect.objectContaining({ label: "Open project" }),
+        }),
+      );
+      // One completion, one toast — never both branches.
+      expect(success).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      success.mockRestore();
+    }
   });
 });

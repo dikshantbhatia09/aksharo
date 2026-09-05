@@ -52,9 +52,12 @@ import { messageForError } from "@/lib/errors";
  * same way a transcription's does. The offer sits under the primary action in
  * every panel where starting work is the question — including the
  * out-of-credits panel, where it is the only thing on screen that still works.
- * The wait it leads to is the local `aligning` phase below, because the
- * server's read model is derived from `ai.transcribe` jobs and an alignment is
- * invisible to it.
+ * The wait it leads to is the local `aligning` phase below.
+ *
+ * **S-06 gives that wait an ending.** The read model now reports the newest of
+ * `ai.transcribe`/`ai.align`, so an alignment that fails answers `failed` here
+ * instead of staying invisible: the poll settles on it and the phase renders the
+ * failure with a way back to the offer, rather than spinning forever.
  */
 
 /** 4 s -> 8 s -> 15 s, then 15 s for as long as the screen is genuinely waiting. */
@@ -76,15 +79,20 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
   const [blocked, setBlocked] = React.useState(false);
   const [pollSeq, setPollSeq] = React.useState(0);
   /**
-   * S-03: the screen's one local phase, and the only state here the server's
-   * read model cannot supply. An import enqueues `ai.align`, and
-   * `transcriptionState` (`apps/api/src/transcripts/transcripts.service.ts:142`)
-   * looks only at `ai.transcribe` jobs — so for the whole alignment the server
-   * keeps answering `not_started`, then flips straight to `ready` when the align
-   * completion writes the transcript. Nothing new server-side; the screen just
-   * has to remember that it asked.
+   * S-03: the screen's one local phase — which of the two waits this is. The
+   * server's `transcriptionState` reports the newest `ai.transcribe`-or-`ai.align`
+   * job (S-06), so the *status* comes from the server either way; what it cannot
+   * know is that this particular screen asked for an alignment, and so should say
+   * "Aligning…" rather than "Transcribing…" while it runs.
    */
   const [phase, setPhase] = React.useState<"live" | "aligning">("live");
+  /**
+   * S-06: the user has read the alignment failure and asked for the offer back.
+   * The read model cannot help with that — it goes on answering `failed` until a
+   * newer job exists — so the dismissal lives here, and any new work (an import
+   * or a transcription) clears it.
+   */
+  const [dismissedAlignment, setDismissedAlignment] = React.useState(false);
   const [chosenLanguage, setChosenLanguage] = React.useState<string | undefined>(undefined);
   const [choosing, setChoosing] = React.useState(false);
   const announced = React.useRef(false);
@@ -103,10 +111,16 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
         if (cancelled) return;
         setView(next);
         // Settled: stop asking. `ready` unmounts this screen a moment later.
-        // S-03: an alignment is invisible to the read model, so while one is in
-        // flight `ready` is the only answer that settles — same helper, same
-        // 4 s -> 8 s -> 15 s bound, still only while a screen is really waiting.
-        if (phase === "aligning" ? next.status === "ready" : !WAITING.has(next.status)) return;
+        // S-06: a failed alignment settles the wait too — the read model now sees
+        // ai.align, so `failed` here is the alignment's own verdict. Before that
+        // it could only ever mean an older transcription, which is why this
+        // phase used to wait for `ready` alone (S-03) and spun forever.
+        if (
+          phase === "aligning"
+            ? next.status === "ready" || next.status === "failed"
+            : !WAITING.has(next.status)
+        )
+          return;
       } catch {
         // A transient failure must not strand the screen on a stale answer —
         // keep the rhythm and try again on the next tick.
@@ -135,6 +149,8 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
 
   async function start(chosen?: string): Promise<void> {
     setBlocked(false);
+    setDismissedAlignment(false);
+    setPhase("live");
     const tag = chosen ?? language;
     try {
       const accepted = await transcribe.mutateAsync({
@@ -217,6 +233,12 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
         projectId={projectId}
         onQueued={() => {
           setBlocked(false);
+          setDismissedAlignment(false);
+          // The previous alignment's verdict is not this one's. Without this, a
+          // second import after a failure renders one frame of the OLD failure
+          // (phase `aligning` + a stale `failed`) before the poll's first tick
+          // corrects it — `start()` clears the view for the same reason.
+          setView(null);
           setPhase("aligning");
         }}
       />
@@ -226,9 +248,63 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
   const CREDIT_FREE_NOTE =
     "Already have captions? Importing an SRT/VTT costs no transcription credits.";
 
+  /**
+   * S-06: both terminal failures read the same — a heading, the failure's own
+   * sentence from the read model, and the primary way forward. The alignment's
+   * adds a second action, because its input (the sidecar file) is the thing a
+   * user can actually change.
+   */
+  const failedPanel = (
+    title: string,
+    message: string,
+    primaryLabel: string,
+    extra?: React.JSX.Element,
+  ): React.JSX.Element => (
+    <>
+      <h2 className="text-fg-0 text-lg font-semibold">{title}</h2>
+      <p className="text-fg-2 max-w-md text-sm">{message}</p>
+      {startButton(primaryLabel, false)}
+      {extra}
+    </>
+  );
+
+  /** The default offer, also where "Try another file" lands. */
+  const offerPanel = (
+    <>
+      <h2 className="text-fg-0 text-lg font-semibold">This project has not been transcribed yet</h2>
+      <p className="text-fg-2 max-w-md text-sm">
+        Captions, the timeline and every edit are built from the transcript, so that has to run
+        first.
+      </p>
+      {startButton("Start transcription", false)}
+      {importOffer(CREDIT_FREE_NOTE)}
+    </>
+  );
+
   let content: React.JSX.Element;
 
-  if (phase === "aligning" && status !== "ready") {
+  if (phase === "aligning" && status === "failed") {
+    content = failedPanel(
+      "Aligning your subtitles failed",
+      view?.error ?? "The alignment failed.",
+      "Start transcription",
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={() => {
+          // Leaving the alignment behind is a local decision: the server goes on
+          // reporting that failed job until a newer one exists, so the screen
+          // remembers the dismissal rather than polling straight back into the
+          // panel it just left.
+          setPhase("live");
+          setDismissedAlignment(true);
+        }}
+        data-testid="aligning-try-another-file"
+      >
+        Try another file
+      </Button>,
+    );
+  } else if (phase === "aligning" && status !== "ready") {
     content = (
       <>
         {spinner}
@@ -238,6 +314,8 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
         </p>
       </>
     );
+  } else if (dismissedAlignment) {
+    content = offerPanel;
   } else if (blocked) {
     content = (
       <div className="flex flex-col items-center gap-3" data-testid="transcription-blocked-credits">
@@ -286,12 +364,10 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
       </>
     );
   } else if (status === "failed") {
-    content = (
-      <>
-        <h2 className="text-fg-0 text-lg font-semibold">The transcription did not finish</h2>
-        <p className="text-fg-2 max-w-md text-sm">{view?.error ?? "The transcription failed."}</p>
-        {startButton("Try again", false)}
-      </>
+    content = failedPanel(
+      "The transcription did not finish",
+      view?.error ?? "The transcription failed.",
+      "Try again",
     );
   } else if (status === "awaiting_language") {
     content = (
@@ -324,19 +400,7 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
       </>
     );
   } else {
-    content = (
-      <>
-        <h2 className="text-fg-0 text-lg font-semibold">
-          This project has not been transcribed yet
-        </h2>
-        <p className="text-fg-2 max-w-md text-sm">
-          Captions, the timeline and every edit are built from the transcript, so that has to run
-          first.
-        </p>
-        {startButton("Start transcription", false)}
-        {importOffer(CREDIT_FREE_NOTE)}
-      </>
-    );
+    content = offerPanel;
   }
 
   return (
