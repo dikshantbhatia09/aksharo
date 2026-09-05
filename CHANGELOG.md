@@ -34,6 +34,23 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   leak-safe choice and the refresh is what makes it compatible with long
   sessions.
 
+- **F02: Play, Space, seeks and the caption overlay now drive the real video.**
+  The transport was wired end to end except the last hop: `PlayheadStore` was an
+  admitted scaffold whose own doc comment said it did not drive a `<video>`, there
+  were zero `play()`/`pause()`/`currentTime =` calls anywhere in `apps/web`, and so
+  Play, Space, J/K/L, clicking a word and dragging the ruler all updated state that
+  reached nothing while the caption overlay sat frozen at t=0. The fix keeps one
+  clock and splits the roles around it: the `<video>` element remains the only
+  clock, `PlayheadStore` becomes a commander holding intent (`playing`, plus a seek
+  carrying a monotonic `seekSeq`), `CaptionStage` becomes the executor that
+  reconciles the element to that intent and reports `onTimeUpdate`/`onEnded`/
+  `onPlayBlocked`/`onMediaError` back out, and the store mirrors the element's real
+  time through `syncFromMedia()` — which never bumps `seekSeq`, so mirroring can
+  never re-seek the element it just read. A project with no playable proxy now
+  renders an honest "Preview is preparing…" placeholder instead of handing the
+  element `src=""`, which per spec resolves to the page URL and made the editor
+  "load" its own HTML as media.
+
 - **F03: the app hands you the editor.** One derived read model,
   `GET /projects/{id}/transcription-state`, answers where a project's first
   transcription actually is — `ready | queued | running | failed | not_started |
