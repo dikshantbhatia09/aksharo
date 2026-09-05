@@ -4,7 +4,7 @@
 // included, the same way a reloaded tab would read them back.
 import "fake-indexeddb/auto";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   blobFromRecord,
@@ -134,5 +134,56 @@ describe("deleteUploadRecord", () => {
 
   it("deleting something absent is not an error", async () => {
     await expect(deleteUploadRecord("never-existed")).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * The persistence request is module-level state ("once per session"), so each
+ * case here resets the module registry and re-imports `store.ts` fresh — the
+ * static import at the top of this file has already run its `openDb` path.
+ * jsdom ships no `StorageManager`, so `navigator.storage` is defined as an own
+ * property for the duration of the case and removed afterwards.
+ */
+async function withStubbedPersist<T>(
+  persist: () => Promise<boolean>,
+  run: (store: typeof import("./store")) => Promise<T>,
+): Promise<T> {
+  vi.resetModules();
+  Object.defineProperty(navigator, "storage", {
+    value: { persist },
+    configurable: true,
+    writable: true,
+  });
+  try {
+    return await run(await import("./store"));
+  } finally {
+    Reflect.deleteProperty(navigator as object, "storage");
+  }
+}
+
+describe("storage persistence", () => {
+  it("asks the browser to protect the upload store exactly once per session", async () => {
+    const persist = vi.fn(async () => true);
+
+    await withStubbedPersist(persist, async (store) => {
+      await store.listUploadRecords();
+      await store.listUploadRecords();
+    });
+
+    expect(persist).toHaveBeenCalledTimes(1);
+  });
+
+  it("a denial changes nothing — the store still opens and reads", async () => {
+    const persist = vi.fn(async () => {
+      throw new Error("denied");
+    });
+
+    const records = await withStubbedPersist(persist, async (store) => {
+      await store.putUploadRecord(record({ id: "after-denial", status: "paused" }));
+      return store.listUploadRecords();
+    });
+
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(records.map((r) => r.id)).toEqual(["after-denial"]);
   });
 });
