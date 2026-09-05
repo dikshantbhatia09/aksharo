@@ -168,6 +168,13 @@ export class RenderVideoCompletionHandler implements JobCompletionHandler, OnMod
         watermarked: result.watermarked,
         resolution: `${String(result.width)}x${String(result.height)}`,
         durationMs: result.outputMs,
+        // Retention starts when the FILE exists, so it is stamped here rather
+        // than at POST. Before S05 only `create` ran and only `create` set it;
+        // now that the row is always there, `update` is the branch that runs
+        // and an unstamped row is one `ExportRetentionTask` can never sweep
+        // (`scheduler/tasks/export-retention.task.ts:70` selects on
+        // `expiresAt`), i.e. a D47 seven-day export that lives for ever.
+        expiresAt: new Date(Date.now() + EXPORT_RETENTION_DAYS * 24 * 60 * 60_000),
       },
     });
 

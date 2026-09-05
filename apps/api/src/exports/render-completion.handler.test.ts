@@ -213,6 +213,27 @@ describe("RenderVideoCompletionHandler", () => {
     expect(args.update).toMatchObject({ status: "succeeded", jobId: "01JOB" });
   });
 
+  /**
+   * Retention is stamped by whichever branch actually runs. Since S05 that is
+   * always `update` (the row exists from the POST), and a row with no
+   * `expiresAt` is one `ExportRetentionTask` never sweeps — the file would
+   * outlive its seven days for ever (D47).
+   */
+  it("stamps the retention deadline on the update branch, not only on create", async () => {
+    const { handler, context, upsert } = videoHarness();
+    const before = Date.now();
+    await handler.handle(context);
+    const args = (
+      upsert.mock.calls[0] as unknown as [
+        { create: { expiresAt: Date }; update: { expiresAt?: Date } },
+      ]
+    )[0];
+    const week = 7 * 24 * 60 * 60_000;
+    expect(args.update.expiresAt).toBeInstanceOf(Date);
+    expect(args.update.expiresAt?.getTime()).toBeGreaterThanOrEqual(before + week - 5_000);
+    expect(args.create.expiresAt.getTime()).toBeGreaterThanOrEqual(before + week - 5_000);
+  });
+
   describe("handleFailure", () => {
     it("flips only a still-rendering row to failed", async () => {
       const { handler, updateMany } = videoHarness();
