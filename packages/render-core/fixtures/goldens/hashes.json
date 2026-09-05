@@ -198,7 +198,7 @@
    "fixture": "hinglish",
    "tMs": 80,
    "commands": 9,
-   "hash": "807cb26d63d3cb6c583db58abd1fbe7e3df96a17d8e6076a90528d377a9e9d0e"
+   "hash": "4a51f5afda4792768276fafe5473230322e1fa77d82c724ed6dd63305348c8c8"
   },
   {
    "style": "hype-bold",
@@ -282,21 +282,21 @@
    "fixture": "hinglish",
    "tMs": 80,
    "commands": 12,
-   "hash": "b97706700b9607934ef64549a8937bcfa685e76bfa11419305f703be4ead1cab"
+   "hash": "b45eddcea2b6468c145c765eb547d80c278e248c74817267b86ce19fc43d6f83"
   },
   {
    "style": "minimal-lower-third",
    "fixture": "hinglish",
    "tMs": 1500,
    "commands": 11,
-   "hash": "5e2173c7eb0a7a6a2e19423e01a0fa52d5910d1d3091a1c5aca2c16261195fb3"
+   "hash": "d05b5cce7a4fc3a5b5a55a1f236be2f6ef193c09f55dbd95ed704ca67dcce5ab"
   },
   {
    "style": "minimal-lower-third",
    "fixture": "hinglish",
    "tMs": 2940,
    "commands": 11,
-   "hash": "3c6c0d03d90df434f06c29e672a3ec9df500644fedf3f2d31ba4f00e291db8ee"
+   "hash": "fa0c1f984e4eb8876ef43e89ddd29d4781da53cc187c216f6ece490d94088e2e"
   },
   {
    "style": "neon-glow",
@@ -366,21 +366,21 @@
    "fixture": "hinglish",
    "tMs": 80,
    "commands": 15,
-   "hash": "dc0acc7adf2ac65198c688661eac3538c18cb74b6bc14eaec772880ef39b7a68"
+   "hash": "58b240fde454e6daa96eefa59a403f387892b106db741617c7340842dd123ece"
   },
   {
    "style": "podcast-duo",
    "fixture": "hinglish",
    "tMs": 1500,
    "commands": 14,
-   "hash": "27dac6b4cf08df4c5af2fd671709dec407ded5298265d92ca203f3285f586685"
+   "hash": "9215ba934f8b8662b8addb9f99dcaa3f6190d8ad0e3ae1fd65e1c444611f7998"
   },
   {
    "style": "podcast-duo",
    "fixture": "hinglish",
    "tMs": 2940,
    "commands": 14,
-   "hash": "e1d776e67bc4185a902a084bac0ce8b314e2a4d9363e7bfe32e53172bd72afd8"
+   "hash": "0e89e50a0658992e95f58ba795a7fb39952682187b2f69fa3dffc89fd75d3bd8"
   },
   {
    "style": "prism-split",
@@ -415,7 +415,7 @@
    "fixture": "hinglish",
    "tMs": 1500,
    "commands": 11,
-   "hash": "3a999a596613e9a0d5522eda891eecda76a2b593fbb4926477d0c7d47ed6a0ba"
+   "hash": "2495eb14d35827b52c17e897bbccb366fd257d632fa316c6e8cce89bcde47d70"
   },
   {
    "style": "punch-pop",
@@ -429,21 +429,21 @@
    "fixture": "hinglish",
    "tMs": 80,
    "commands": 13,
-   "hash": "e4ec88b59be211c02aed4fad524e633631db625a6a0e1bfe800b5004ee0d9744"
+   "hash": "455274f93191d4c209fb190816351a2986584dc08eedfd5a63203a55fa6ead15"
   },
   {
    "style": "quote-frame",
    "fixture": "hinglish",
    "tMs": 1500,
    "commands": 12,
-   "hash": "c032877f0bfebceb32863a015c5ba2c525ff8912dd6d3ffd408826c6cf4dd70f"
+   "hash": "a5f6793782978b4b2037f04a5a379baa18c5045459a497706802ef3b5eb7da98"
   },
   {
    "style": "quote-frame",
    "fixture": "hinglish",
    "tMs": 2940,
    "commands": 12,
-   "hash": "c44f2c712ab736c0c2b2b0db333fae771ef3372d63c7af5d2803ba7dea6a1197"
+   "hash": "37c17b0dbaf8b647124b8421161bd21114fca8ad267b07fc2d1265cd00c1df1b"
   },
   {
    "style": "soft-serif",
@@ -513,21 +513,21 @@
    "fixture": "hinglish",
    "tMs": 80,
    "commands": 20,
-   "hash": "ae5e83698b2894e19097c2390260aeecf3b881e32f0e6b29eb4e394ac77ee29b"
+   "hash": "103ba8be0fae874a5d6bc7c2150a0ab559479a9eae454227ad8063ca67d81a59"
   },
   {
    "style": "subtitle-classic",
    "fixture": "hinglish",
    "tMs": 1500,
    "commands": 20,
-   "hash": "ae5e83698b2894e19097c2390260aeecf3b881e32f0e6b29eb4e394ac77ee29b"
+   "hash": "103ba8be0fae874a5d6bc7c2150a0ab559479a9eae454227ad8063ca67d81a59"
   },
   {
    "style": "subtitle-classic",
    "fixture": "hinglish",
    "tMs": 2940,
    "commands": 20,
-   "hash": "ae5e83698b2894e19097c2390260aeecf3b881e32f0e6b29eb4e394ac77ee29b"
+   "hash": "103ba8be0fae874a5d6bc7c2150a0ab559479a9eae454227ad8063ca67d81a59"
   },
   {
    "style": "tape-retro",
@@ -639,21 +639,21 @@
    "fixture": "hindi",
    "tMs": 80,
    "commands": 19,
-   "hash": "d4a9ff45fb482642737d3ec326c9812958294ed59d918282766d3b5f2c638b88"
+   "hash": "031ddaaa1c576217b104fe018491998f213477bde19663d8f9a59b30769c0aaa"
   },
   {
    "style": "arcade-pixel",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 19,
-   "hash": "9ceeb9fad928abcddd7c4053ea345df31c1ab484d558c144bdfbb9c2794a989a"
+   "hash": "1e21609e6fe46dc9879cf13c3ad1260b6351808af15e9fd84ad969facd2b343f"
   },
   {
    "style": "arcade-pixel",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 19,
-   "hash": "c89281da01bea66aa5880283cb1e91d52b1f698d338c7dcb54df4a630f158f70"
+   "hash": "2b6d0b32312cec8fec55b608894c33a33948f05d07d0fc6c50ea074b571d1726"
   },
   {
    "style": "bold-drop",
@@ -681,84 +681,84 @@
    "fixture": "hindi",
    "tMs": 80,
    "commands": 11,
-   "hash": "c6b23b2c8d37f533ddd5ec5e0f3ebb78ec6ab0858e506054a11919dd38f70eb5"
+   "hash": "5a90f95884f1c82418b4d80032dfa1d100e4007283945cd07e408225e0befcef"
   },
   {
    "style": "box-block",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 11,
-   "hash": "9a5c289adead2ca0619c8ed26da5c9479a58956bfc9ce9648ffba681276330a9"
+   "hash": "79dc6c4789cbc5c26c9f14b0d709c6420566f2b07d22d1e9b235f45709337897"
   },
   {
    "style": "box-block",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 11,
-   "hash": "05ff158639455a69c16bafbc2624071fa1c931c322ab1a7499a7b558cc032552"
+   "hash": "f7ea8abf2fa394ea2dc86c6e9bc242bb995d73fe119edc46921d218ced6d214e"
   },
   {
    "style": "bubble-soft",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 14,
-   "hash": "fa0a7d571e573fcb552a1a8944204329032fee671cfc8234a24b9c22c866e72f"
+   "hash": "cfc1a10dd0ead9f8f52a019a4ce9388c8a0b909f413e38d95f9d27d8c0430a82"
   },
   {
    "style": "bubble-soft",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 13,
-   "hash": "cf429f594fc8ec31426b6dde38c371aff09e6084e9413b2dd5e634aa81bf40e7"
+   "hash": "f2a5b705f2e1465b3664c67f1896978c3fcf494c0f0ab49a1197d846389ab579"
   },
   {
    "style": "bubble-soft",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 13,
-   "hash": "3b6f2b7fa240c723fb9e8ce558f735d7d8691a830e1638465bf3076b522687a4"
+   "hash": "cd7852d8f6babbe0e576c83e36b40c52f08c4650608eb8a1def53f4c96c9b3c9"
   },
   {
    "style": "caption-card",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 13,
-   "hash": "7ca90e1139543b44a1c2777a7ccadb8a8618ba891216bace3da78283a283ded2"
+   "hash": "3a665377ff80ef1e47f30acab71aceee4c525dc5e447f7c953ff0ff6519f3028"
   },
   {
    "style": "caption-card",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 12,
-   "hash": "312ebd54603d52819add380992fc3b4f549db747842d03adce8348b5ba0cfb72"
+   "hash": "ae729cbaef172825d8101a44dc0e50f3172a3cb19e01e18bbae3961aaf05048c"
   },
   {
    "style": "caption-card",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 12,
-   "hash": "5098fb09cd1ef4bec9a7b3cfc2e61fba361c01016c0c043957045fc4720b51c7"
+   "hash": "01254b5aa04023276d8179e097d5cc58927f134edfdb33670134883bd56a7383"
   },
   {
    "style": "duo-tone",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 19,
-   "hash": "dc62ebf9a7f9052ebf5ac984bffdd8c81e335ab65cfe0ef4f22703a6747be8e5"
+   "hash": "d20452359dd1c027ba733099653bdd557a85da77ccbf3d2bda77f723989dc7b8"
   },
   {
    "style": "duo-tone",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 18,
-   "hash": "24a5f3cb32c5eabaa47736b917a9b78ebd4671f461020ec983f63b38bd030c2e"
+   "hash": "25dd50dfd9b807b20dd04565800c3443a63e05ed4f81c2d70d039c04e6b0b171"
   },
   {
    "style": "duo-tone",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 18,
-   "hash": "53eecff05ce368c03691f1344dbb78e351a83b614f77a5799bcd76f3884307a8"
+   "hash": "cf33d2554018237f1e51a76a319e6b3c98dcb0a046859a0db5433528052ee872"
   },
   {
    "style": "glitch-shift",
@@ -786,42 +786,42 @@
    "fixture": "hindi",
    "tMs": 80,
    "commands": 14,
-   "hash": "eb2603b8b64df84ba8ebf5748534f639e1d0bb180de6643ac97b3eef14a327f1"
+   "hash": "e995d2e1f8e5aecd2bbf7b13f1db6dc303dee43ad0e52ece6dd04caab8a14ff8"
   },
   {
    "style": "gradient-sweep",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 12,
-   "hash": "2803160d5fb0ad837bcd6d3e98735e5a96d64df8159504013ab4a60b31f58bd7"
+   "hash": "6212f6f68452c79a6481f676cdc019dddd27094d0f807574109e59bba0c6d864"
   },
   {
    "style": "gradient-sweep",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 13,
-   "hash": "34883e5354d3b6d2dd92c456a7ad06d9af0f5f4f17f04db2b9a193aa1f111985"
+   "hash": "c9d747490509674bb93672cd7bf437f39ee58985c564e57dc1873de4322474b4"
   },
   {
    "style": "highlight-marker",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 11,
-   "hash": "4d6674e8ab6c8ddb8559cdb5118e463d410b20cfe37ff76958d6501e747492c3"
+   "hash": "0eb80b559eabbed84a881805713287239be0cfd23a76cba2e40ae6621cc3553c"
   },
   {
    "style": "highlight-marker",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 11,
-   "hash": "3a359665763c46f7f8e3ea0727b5a4b84371b307a8a5030065b4c3b03f202cc2"
+   "hash": "2e94e633115ffec342459dcc57510e2c578737fa27b84682b72db2b86caa2d14"
   },
   {
    "style": "highlight-marker",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 11,
-   "hash": "a961e4e29bb182da984bd5b3874903858f3daed57b33659abba464cced6d6d6e"
+   "hash": "2ccacc5cd59921046d3542aa4ec9a319cdbe652619b722b538a0f79f3ee4afe6"
   },
   {
    "style": "hype-bold",
@@ -870,168 +870,168 @@
    "fixture": "hindi",
    "tMs": 80,
    "commands": 13,
-   "hash": "e872267b632e97fcfbe225ad2c543841dd4dc6a2e775b5ba4d4cf6cfc49f681c"
+   "hash": "8bb0a6d19fcb276e5448ccb669698f426c28fe7af0501e279010d28d3ac6ce3f"
   },
   {
    "style": "karaoke-fill",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 10,
-   "hash": "e42999904765fadcee4b564f85f1f295c08bec7b88545fd6850f0161c3c7f402"
+   "hash": "d62d083dd926830f60139e0af80266043025cc5f1d124eed709b0a13e7d418a2"
   },
   {
    "style": "karaoke-fill",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 12,
-   "hash": "b7bf6de8eb891f8ed64464921f36fa50fa0b80cc5c565d15028ce6a37c75208c"
+   "hash": "1fe35064c33b3487d4510149f1700f131c050ec9cc8d6ac8dfca39f634931cd0"
   },
   {
    "style": "liquid-glass",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 13,
-   "hash": "7d70772a0ddd2f3c69c35bb3b6b883742a25180ad1c0d5d545281777eee390cf"
+   "hash": "e8c5c3d0fcc48332069d5c19413756802ee321155ec466c8d47175ddf25f672b"
   },
   {
    "style": "liquid-glass",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 12,
-   "hash": "9aea5fe73b29cb7c983de58fd843213611146f3a1731af83b76b0bcbe65453aa"
+   "hash": "b3f61fb9f74fb61498dae2264ce193c07ba650634c14a95fbb5c6b3b77091658"
   },
   {
    "style": "liquid-glass",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 12,
-   "hash": "2e4dac674ab1e8ac4d4fc237b0eda5377843c375b9007d07d34869e5ac9508d7"
+   "hash": "665eb4a258e1a483444fc2dda5814336a3f89b936ffca3a18a2f8568db5afd5e"
   },
   {
    "style": "minimal-lower-third",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 11,
-   "hash": "328283ea3cba09825e7cd182844b419ddfa038202db3dbfbd002fa2f2de1a6e4"
+   "hash": "fcc21c00c3f9a9df2cfc214099a78267cb691d9ae9d42f957868a134f9df9895"
   },
   {
    "style": "minimal-lower-third",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 10,
-   "hash": "dc8dcee6cd03ece489f5f6bea18e66a99d5cfc42b5ffe773e54976105ed01e0b"
+   "hash": "93d7bb2434405facf31a27d2d241fd783ad5f27955cdc07678eee5d143ad9141"
   },
   {
    "style": "minimal-lower-third",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 10,
-   "hash": "3ed482500138f78571b3e683190d8a014201d63098080ec12885fed9f3b8764c"
+   "hash": "57f3904b22513b12e6e4a14766df17cd7b4a942c824eba15afe53ce8c1f2f26a"
   },
   {
    "style": "neon-glow",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 20,
-   "hash": "9b91aa271d6e25a791fe35bd1f9797a6b2d99e9a08d937a23769e341f57d6e14"
+   "hash": "ff1725a6a0c30fec69ed276c5fd7ef081af9f7b998edebc588832f9547533a56"
   },
   {
    "style": "neon-glow",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 18,
-   "hash": "cf6389258b775ef43bf7fc37059f59ee76523cc4f863e300d88bbfedc4f6c764"
+   "hash": "766ddc4b7d5598c0ada4c53cde2430d2025fe1455c71f2c5ff9836843a5b776a"
   },
   {
    "style": "neon-glow",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 20,
-   "hash": "cf457925212f40372e18c9826dea0ebb671cd803ffd389e3a48ea047feb85866"
+   "hash": "79272c6246e29334a53eba97601e88edf69533894e3d61637c4e2ecfd45f726b"
   },
   {
    "style": "news-ticker",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 11,
-   "hash": "d9a673ce08377304d414a76f5158006b9b14267bf050446c3eff6c97b1fe13a4"
+   "hash": "3798380b881e63859f46113ecf1c855c6036c8cad7a226559d5397233fdd59c2"
   },
   {
    "style": "news-ticker",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 10,
-   "hash": "dee39a78b5ecff1d07c774a37810e563f53d4f309056b6269ca7fb1f246a60ea"
+   "hash": "51ef6f9da7acaa8e13a7450b0bdfd1480e8a4a5f0d72e592f0ad42c399968431"
   },
   {
    "style": "news-ticker",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 10,
-   "hash": "36c6d4d00f910f2548b4b7a603e28de8af1ecfb5e8b2b392c0f7545ae0d7873d"
+   "hash": "6bbadb1e9930341928db5bb2f60b21e2bd54a509a9f086a8dff692fbeb7ce41f"
   },
   {
    "style": "outline-only",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 18,
-   "hash": "39f7b3b19084523f285803b427c4113a0df47a2a884351805e5164c402bc0488"
+   "hash": "c3fad488ed26ec858458877f6981794f72d946fe75fee93b70b06a23a181239d"
   },
   {
    "style": "outline-only",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 18,
-   "hash": "448083984c173ddbe2bbaf5a80e4512e0be5233829c01b4c6ed774eee49b18e2"
+   "hash": "c37842236ee48e73b0d9246fe69845766fd6267edcc11c6742a4b03dc56e0db7"
   },
   {
    "style": "outline-only",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 18,
-   "hash": "b6c5650e9e1fac47d4945aad7e70649bcaccc18a830adb66b7ef071ea33e36a4"
+   "hash": "614b035c68546138a1f1a64556f6baa3fb6e008211f036ebfa2c6474ba856513"
   },
   {
    "style": "podcast-duo",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 14,
-   "hash": "128c6ccb640d3ff301401c89dd52657089f8390c804c13051445d46ed147e63c"
+   "hash": "d57ee7018fd7950c45827744740d68e92d42c4de2ce39457cfe8300837d1977a"
   },
   {
    "style": "podcast-duo",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 13,
-   "hash": "fb5bd54e287b653cf66b11edfd1c1f4c7ee222400870b9f041b8c5c5ccd82724"
+   "hash": "51f7b22bc4eb2888dd5e259db7bd03930d3988e83c2db11f5a21c54886fe8f92"
   },
   {
    "style": "podcast-duo",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 13,
-   "hash": "9a36ddc610b07a7e48a5ffe38aef6b0e87a425bdea42eda65427fa8be83752d8"
+   "hash": "c53d0cb09fb8df62e56fde9eb28427b4594bd18af73afedee8b9325639d589c6"
   },
   {
    "style": "prism-split",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 20,
-   "hash": "cf84fa4988bbb0e57359f21cd1e01b786b10bb9c775cebda257c96ee4d30a083"
+   "hash": "ea0ec3e833b24b3e0dfd835a37660ec40a6c065c109a3008c40106e6bf1d6797"
   },
   {
    "style": "prism-split",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 18,
-   "hash": "4b0feaaa6e8850443292ef9f1646130b4073af415afc0a978163acce801e6b25"
+   "hash": "e804b355fda8388e085e69f7da62609e86f6eb3cebfa12f4e2e1c2e408ae7b65"
   },
   {
    "style": "prism-split",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 19,
-   "hash": "f8f49a8fa91cc20c71ca901102ded77b515a4481a44db28f5a40001bd7c39aeb"
+   "hash": "5188858e7b2a80f600d62e47897611fed785e03a42bde4ea96cd3da02cfaad09"
   },
   {
    "style": "punch-pop",
@@ -1045,203 +1045,203 @@
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 10,
-   "hash": "1a25e3832865a866b04fab33bd2dc95001ed88add20d7471a813521a4635b457"
+   "hash": "5e20c555bc2f2ec2d9241a57192331cfa85da9f44488d5dfd2b7429bc5ee0012"
   },
   {
    "style": "punch-pop",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 11,
-   "hash": "5ca82495550d91670f30efb1c5341108492e4aa8f27565a7df7c4b6cedbb9ebf"
+   "hash": "d85807f43b6a4ac3e7800196d1e1a2cec9362ea0bd4895bdf97339773403209b"
   },
   {
    "style": "quote-frame",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 12,
-   "hash": "d3b091c87c4580c35b651562fd74e95337659b724adeb15298f501f4fac3b977"
+   "hash": "223a0efd15127d6c4b8b6981c270250371801f9bb4d2d4ebdf28e746d640037a"
   },
   {
    "style": "quote-frame",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 11,
-   "hash": "b566da85938eeba275b710b93251da1d215621323879efe48c9eef2402aec046"
+   "hash": "fe00e33e462eb55deaeb38041dfb6b39c85d66a3448edd98e2b10b3bbdd67624"
   },
   {
    "style": "quote-frame",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 11,
-   "hash": "4b50bdfad99ce0e069594749f5b060ea1ce2958bf5cafd958de1c8a010abf100"
+   "hash": "dc3c1eceec463e747a9c0cb4d98bb062c7e081a6fe25b4f47b7fbc50ad471978"
   },
   {
    "style": "soft-serif",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 10,
-   "hash": "7333bb541e7533b07db6397342957c7b0b657bd3987e281f6b24001a5fe799c3"
+   "hash": "10765c7de93e2c89cd133645c35d75e025ccf95fa44d2f2dc9d7d01a7d4452ab"
   },
   {
    "style": "soft-serif",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 10,
-   "hash": "6a7dbcd3fae68bdcadc44316e6e90e47eaad0fcda77c26acf3fe782f87f4b818"
+   "hash": "9ac856f573c38408edccabe91ac1e09d5af77b95261f54992eac3c8667aaf968"
   },
   {
    "style": "soft-serif",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 10,
-   "hash": "7ca0d1259f76a5259ca9c64dd193605020944a96fc60e2985b4553cf673841af"
+   "hash": "1ca58c56143a2388cac26b450b5ea02d904cee823bcd6944574980967a53be06"
   },
   {
    "style": "spotlight-word",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 19,
-   "hash": "f8a6a418ac2273be24bb811b3a937b6ab416300475c7da909287386b95b03a08"
+   "hash": "599dc97f283d6d1da199c0f7b6ded0da975458c994f52c46d3e457cc365fff74"
   },
   {
    "style": "spotlight-word",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 18,
-   "hash": "51709ef27fe60216ddce4e300b96f8a97ae31706923b02f7e1c4a9f42a65a9f0"
+   "hash": "1a29505ebf12dd74e096e14a87fbc6e22f0ba1627b940a8eaba6e6d03e724d57"
   },
   {
    "style": "spotlight-word",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 19,
-   "hash": "73dcc5eabc8d1cc9f13cc7dd97a4c0790eabbdad13bc18807b47a35ec75ae8d1"
+   "hash": "1e308783e46f1b7e4f05a902cf838fdbaab36f75870fb6f6bd6d7aa9593ecb85"
   },
   {
    "style": "stroke-heavy",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 18,
-   "hash": "4a0839f84c70fe0054b17fb84982e7a125f7b70a755043f1ab530445fc3cd6fe"
+   "hash": "ef16545ea4096ad04469eeb943f19aa106c011a2cbccb0ebb1bd912b1fb198b6"
   },
   {
    "style": "stroke-heavy",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 17,
-   "hash": "b1c46aa2d725de7d9cdb4365e420f8336622a181d7217fd7397a8b05c6d81d09"
+   "hash": "d63fe104323feaf3c899b5c8053cab3e516bf924eda8607d3d282f7da716afdc"
   },
   {
    "style": "stroke-heavy",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 17,
-   "hash": "d9fef2c5ecfd8e00d7c758f39eb5c3e7cb786c893fcfba8a62208ed73eb6876c"
+   "hash": "b5f48865cfdb2e75a493078fe7426bfd74721589c998dfeb78fe84bcd688458d"
   },
   {
    "style": "subtitle-classic",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 18,
-   "hash": "1c27c4467749936e88db45debbb288d032d5a34a6a6f40b47545a053e829b478"
+   "hash": "6bd1aae272b1e79276c1965a9f6d6fd4d7a5a2a1e8b36e3757d747aed6071a79"
   },
   {
    "style": "subtitle-classic",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 18,
-   "hash": "1c27c4467749936e88db45debbb288d032d5a34a6a6f40b47545a053e829b478"
+   "hash": "6bd1aae272b1e79276c1965a9f6d6fd4d7a5a2a1e8b36e3757d747aed6071a79"
   },
   {
    "style": "subtitle-classic",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 18,
-   "hash": "1c27c4467749936e88db45debbb288d032d5a34a6a6f40b47545a053e829b478"
+   "hash": "6bd1aae272b1e79276c1965a9f6d6fd4d7a5a2a1e8b36e3757d747aed6071a79"
   },
   {
    "style": "tape-retro",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 36,
-   "hash": "c644cff3e5ca6b46c915a9794a1ce3f92e8a01860c99570a44f958d2951eb2b1"
+   "hash": "9566da6d28f73db0e83300850d05619a28c55c5afd385720be662f8ba875fa3c"
   },
   {
    "style": "tape-retro",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 36,
-   "hash": "cd8d5aff159814b52125e829deb28b8046238535c0c3f6f1a133d5f8a5429ccf"
+   "hash": "d0247bd8637595fe36b789398acfba1d69a15a11591ea76b806ee105f80d7fa5"
   },
   {
    "style": "tape-retro",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 36,
-   "hash": "e4f3a2b197c8e7fdf5a6a4623af5e16b04fdc4dd6f56bb3ae3ebddf93e14972c"
+   "hash": "48614698f985d15164c0986121e6f039c6eb941c3bb8f4fd058be132182fa660"
   },
   {
    "style": "typewriter-mono",
    "fixture": "hindi",
    "tMs": 80,
-   "commands": 6,
-   "hash": "dfbed57c32723e490bd72b1d62501800657f399b0b7337aa771c2bc506cb6517"
+   "commands": 8,
+   "hash": "99c020b0862fc716e0aa0c5b958a15a9529ce187c3073ee4e41d6d7ede61ad43"
   },
   {
    "style": "typewriter-mono",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 11,
-   "hash": "8fe5a040d49d9e4bc0064aa94f86a2c687fe3e72ce2944110a3bc7937ab9168c"
+   "hash": "52eb38b125d3b9593a488ec7b0c219ea57b6d8ecaf30a8151590eb4570504685"
   },
   {
    "style": "typewriter-mono",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 11,
-   "hash": "218b8ab87388831cd9d212b9d1202f7c6a554c64044b77d257993b510e9ea0c5"
+   "hash": "e36a17cba00b86c4e08a1543a2d61c05dbea85a71c18ddee820bac57ceb6ab35"
   },
   {
    "style": "vertical-clean",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 10,
-   "hash": "62853ba306920ac1de4f42781c88b6618baa6782b11a7a7b714af3580afd7a8e"
+   "hash": "a67f21d651a41f5f62124173a27ca46be4900e5dd7035c9806dd237934c3f3b1"
   },
   {
    "style": "vertical-clean",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 10,
-   "hash": "003dc92b89c7d85a750be0e7576aff043a197530d0f727d1cb5e294c9fc00a85"
+   "hash": "4929e87f40b436fb0d6391147d775e4fa89402c7c3627c00112b74b820dfe3a2"
   },
   {
    "style": "vertical-clean",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 10,
-   "hash": "a0104c452250fd7bddb4b971a45dbbcfa6b3c3b023a180b7baa1a97b610edc04"
+   "hash": "0a94a4bb4b8617bcfa16261f4eed2b7b750b3cda3d704b97347f6c9a942fd404"
   },
   {
    "style": "whisper-thin",
    "fixture": "hindi",
    "tMs": 80,
    "commands": 10,
-   "hash": "624c861892635b6c82d3eaa981bb8f5885a6615c4ccf8d1a721f49fbad680454"
+   "hash": "99ac74c50c13ccac92a3f7518f08e7570e1ad1dab550eab82daaf8c5d9ba9b3d"
   },
   {
    "style": "whisper-thin",
    "fixture": "hindi",
    "tMs": 1500,
    "commands": 10,
-   "hash": "b7884ce8b4149d717b55c59cd8f36fa79c180862c50cbfab4776395cb35d7514"
+   "hash": "840a4a4cbd6215f126f85d81cda2c7f6850dad67f207ca9d670fcddd0c8de44a"
   },
   {
    "style": "whisper-thin",
    "fixture": "hindi",
    "tMs": 2940,
    "commands": 10,
-   "hash": "89ad427191a5297be4cb05823b49b06cea8e42faffa94634df6339840310d900"
+   "hash": "faa9c28456bf1d1fd1ae10eff70a55638a28348a67638e8b36cf8032329bccd5"
   },
   {
    "style": "word-pop",
@@ -1269,28 +1269,28 @@
    "fixture": "tamil",
    "tMs": 80,
    "commands": 15,
-   "hash": "a5304a1d5fbd2e1cb24933352c37b3b64a830e960656118243792455c2469586"
+   "hash": "5884dc4e7ca46c436379f580071e3a0b7fd4976050c24d79c65508c405b3ff7c"
   },
   {
    "style": "arcade-pixel",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 15,
-   "hash": "772e8fe1ea10cfa7d6d9c35fe665aa781182705f07689fb770272dc7e3b96951"
+   "hash": "acefa10327ce75db534753473fb920d2a91874453313cfd1a5246f2de7fc0463"
   },
   {
    "style": "arcade-pixel",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 15,
-   "hash": "a92d63a1a6b81c99167b1dcb917e1be4ba11db64d18e0bc6c1689429841239cb"
+   "hash": "a991d343bf9929d6a9456ed6f8522cd9857dc0d173fbabcc42602453102cd705"
   },
   {
    "style": "bold-drop",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 9,
-   "hash": "8972ef156e19e10efc30553216a4f7018b2a412fa4af1591a4358792437acfa3"
+   "hash": "cb1fca870396a847d90ff87a780e16fc17d27904a91354e85dcb3c717f9bc4be"
   },
   {
    "style": "bold-drop",
@@ -1311,91 +1311,91 @@
    "fixture": "tamil",
    "tMs": 80,
    "commands": 9,
-   "hash": "0b192d7b8564ead0fe029fa047c1b6f6f862b3e5a3727898bf55220c466f1d2e"
+   "hash": "259ff76cb380f5fc3da2fb22c0bfc5b0bbfe6ffd66237a2738614b7eacb0b4bd"
   },
   {
    "style": "box-block",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 9,
-   "hash": "de5e1217ed91b39648d12779a82b2926fed6958f19d581e58a62ccc620991554"
+   "hash": "f5fa31aa85c2a4e555c4de9664d7425fa4517cfc2d43e8cc049f488518332c55"
   },
   {
    "style": "box-block",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 9,
-   "hash": "4c4eb49b1e90d142cfc4f399cb2a8ba4d424233cd67ff6ea4186525194b074ac"
+   "hash": "33a91ae876265a9e3f74234143b260e040bec05392296f938e859335f91326db"
   },
   {
    "style": "bubble-soft",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 12,
-   "hash": "de4fdf9c5392517d5773e60815fa8db6d8a57bf6fb731044305c5aca6832c8ab"
+   "hash": "5fdaa015e0f3bb1c2d479f993976758e24fdba24ae3746cb8bcd364c70cb0b19"
   },
   {
    "style": "bubble-soft",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 11,
-   "hash": "6f5998f9d8bdf6d367b7c68730b3a8312cff5dbd998c6afbadf2aea816c68183"
+   "hash": "bb41ed147ff8e27af96ee32cc00083eb7b2fe2c031ad60fec1045fb87f518731"
   },
   {
    "style": "bubble-soft",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 11,
-   "hash": "2abe099f1748f68ff2de0a798b7e32e9413d30a345b1aed8c9aad979ede8e01a"
+   "hash": "a9bc68152c8305c56733a1c1633e3874a0037af5f3fb6bc2ac9110ffa3d4d4b9"
   },
   {
    "style": "caption-card",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 11,
-   "hash": "ff26ef52c71bede5069d726096c29d2c4aa01bb0a7db317e87beba272a3b794b"
+   "hash": "c7218d7933b776c51105376a76f14439c34b1e5e838d04421e6aab9df53e9daa"
   },
   {
    "style": "caption-card",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 10,
-   "hash": "915bbe8bc795c115fb89529a80694839bd2d2735fe97671658db0198e8012a14"
+   "hash": "053c4633048e28725a60dbe757633744e357af3197fc56b3307109edf9c0d1ea"
   },
   {
    "style": "caption-card",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 10,
-   "hash": "9cd3d335f8281a004a0ea1c84f8f2aafddcb711209e9645bf2f4b023f634874b"
+   "hash": "f6bec5826862759b294cc6e28d06f6edee86b4ebf2196d25d8fa799e81df93ba"
   },
   {
    "style": "duo-tone",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 15,
-   "hash": "92e48bd446e8e2846dac9c2341037f866268807bf0207dfffa54e452e93d4faa"
+   "hash": "667d2657fde213a4dc62991c35728161bac24225eda53d9c91ccdf3166625e91"
   },
   {
    "style": "duo-tone",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 14,
-   "hash": "d42dc24a9f9326a8c0da7e1ed17494f94999d872beee69f94c72120e4976ce89"
+   "hash": "23ae58c6d79f68aadf90463cd01d0bebc2865ca34204506cd780657ac420bf88"
   },
   {
    "style": "duo-tone",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 14,
-   "hash": "866b99f46b5e56a6ffcc1aa8b8b376be3b751c85185d64f098108351cc61cee9"
+   "hash": "3a96b91bc7ef7d2e190734e8af11f39f1104d7c51b8f4ff37a4d9c5da3996634"
   },
   {
    "style": "glitch-shift",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 25,
-   "hash": "f699ffe45f0e318530c23edb4fa0bc87de2a92cc58fa49ffe50e06c48757989a"
+   "hash": "cd333b8e19db3634cf045d870d3ace2b96285a3052a6de085c3e5d539b8c80a7"
   },
   {
    "style": "glitch-shift",
@@ -1416,49 +1416,49 @@
    "fixture": "tamil",
    "tMs": 80,
    "commands": 12,
-   "hash": "b99b770c77e89cc58c50316959c227a2b92a6e9a8673ca977b510877ccb51dfa"
+   "hash": "c489290d01f6a6038860ca7904f44bfa667af056db6968230a269a5c63e5415a"
   },
   {
    "style": "gradient-sweep",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 10,
-   "hash": "4be1517f161cef1f88d79ac327ecee1f04a1a7bef14cbef9f59f9bd371f32405"
+   "hash": "90e3311d02a73d34d58ca7e6e7ba169790463755841fae31ae0ee023b544b492"
   },
   {
    "style": "gradient-sweep",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 11,
-   "hash": "1b71f4c01b1491b498d2124b7a627644273e933083b7d1ec5ca9cee8a145eea1"
+   "hash": "85ef97aca266847f6665789da4c9e39010cb75df0d1f5722d0e8587db7ad2b4f"
   },
   {
    "style": "highlight-marker",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 9,
-   "hash": "c16947690d905cd1ee0d57feba26bd9a779f22a0c224161cb8c675b7bc38ff70"
+   "hash": "fc4eff4857083f0b8f157701f57b5916d640cb2f68b5f91609718ba3ffae7635"
   },
   {
    "style": "highlight-marker",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 9,
-   "hash": "a65eecb05e6c499edce0735fa0d22a53ad82b85501828277c0f84977a2adb928"
+   "hash": "0862d453619f21ccd847f09a0251b8990e9736e69e3b891f47add7e9bf36b363"
   },
   {
    "style": "highlight-marker",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 9,
-   "hash": "ff3221591c4b1226e7eea10b3a9ae8f3962ca25eaa8455246a7b6eb088b055df"
+   "hash": "9b56327a71b7a78930d3b3f7ad5805b526c3ae81a6e8a4a04c1de8b52ea9f79a"
   },
   {
    "style": "hype-bold",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 9,
-   "hash": "02d0b9e4321681179524a51d3e99db47d91e639547430baa9dc0b3873b3875f9"
+   "hash": "355bedebe98c2760d00db8c90808c6cabae7df9470e55b83a290389ec887ba6c"
   },
   {
    "style": "hype-bold",
@@ -1500,168 +1500,168 @@
    "fixture": "tamil",
    "tMs": 80,
    "commands": 11,
-   "hash": "38c0bdd601dd15506268144b80b83495de9996646d015506802c2168475d529b"
+   "hash": "b0430f72419f7cefae02999fbad082ad9f0569e2b127279b79b5d402764ebed4"
   },
   {
    "style": "karaoke-fill",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 8,
-   "hash": "95a7ac1d314f215c6bccb938d62262824a1bf583bc62c6bbd2f5b79878009d62"
+   "hash": "f4abf6eec6fa49276d56ac4974a3f8cd5c8de6396b5b3edd2f5bd17a182f7c16"
   },
   {
    "style": "karaoke-fill",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 10,
-   "hash": "3376b9dccd6ae14a9ce062ce1af2329716a93cc82d6de3c9f556bf33b7378766"
+   "hash": "cc2ddf0f0ea5c7f05de47593d96ba431ee5976876de1a486f70a9d2201587767"
   },
   {
    "style": "liquid-glass",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 11,
-   "hash": "1c0cf0c22479ad1ce0dd17358bb269d758ab0924872cb459254538fd94620a4d"
+   "hash": "083408388b8af52aeef9e4e74514bf7ea6001ab6d865e9f5c14f8b5ffb3705fd"
   },
   {
    "style": "liquid-glass",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 10,
-   "hash": "d9d0f853b99ea1d39a3efc74cc5d323024a88d2b5fd37049ef692e30f50c5bdd"
+   "hash": "622d0a66456993c911894647d48bc3b05ac916dd7ac37f18c1fc5377a45e4656"
   },
   {
    "style": "liquid-glass",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 10,
-   "hash": "09f467ed727b1fe58b2265293935f76f405a8fd1057de7206c36af016294d91b"
+   "hash": "e0b20d16ad41b9289d078e496f3f4302649fe97fbc03752c9a616e3e1bd5b9b4"
   },
   {
    "style": "minimal-lower-third",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 9,
-   "hash": "62a2f4558630c151d86531fe5aa72c810a44b4b05b4c6432eeb6481493eb9aeb"
+   "hash": "f2f632f6027d8cfc4426204e8238ebef3defb01364b70340084e7386b4333a56"
   },
   {
    "style": "minimal-lower-third",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 8,
-   "hash": "b94d4dc298404c511a615126945cc96d75f20ff7010c7b874844d52f28101fdd"
+   "hash": "a52e35ba00bfd9638300fcf69b6fc5fcbf29bfd438a50c9b8a28fb336e0c3e74"
   },
   {
    "style": "minimal-lower-third",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 8,
-   "hash": "56746886e6adb39c2f03fc845cccd82cdb95671b106fa9ed4a3ed7a8fccdec83"
+   "hash": "dad966430efbb1e08de33bbf1f2ab7d5b82bc266be9f396c99a826c88045f279"
   },
   {
    "style": "neon-glow",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 16,
-   "hash": "8234eaca6770c09223844aca4159c1434ea25e117f2b1d9acaa460949604d0d4"
+   "hash": "d9c06cf5e3851c05d5697dfb7f5d7b851dcaca4962c408dce2e185298081bbc0"
   },
   {
    "style": "neon-glow",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 14,
-   "hash": "9ddc4c72b352d61f3b511dbfa23c03a8acc3a3de53a77fb7b35af23880a7a62d"
+   "hash": "6dc283fb59225eeedaf4e31eac7fe9b297a79c692bee7f6266db8d32ade80c5e"
   },
   {
    "style": "neon-glow",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 16,
-   "hash": "a75cc71af1bbc7d8c12eefedfe6006ad9c5d85ed05716db579390fa94b1ce8e5"
+   "hash": "4d9504522d7c9ec3d25711f09dbb0f84c8998777460593602d118e58c9c51a3b"
   },
   {
    "style": "news-ticker",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 9,
-   "hash": "ab1b65715fa84de88bf3e7b9af11f45907c075f2a7a632efcf5da72c6aaf9168"
+   "hash": "aad6df6722b3f910592caf448dd65c59e7a8ac34bc68bcf816b98c4bf49a755d"
   },
   {
    "style": "news-ticker",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 8,
-   "hash": "51dd45b6583f336ecee8081134a99aefee5d969a1db09b65c71a4b2fb1b88e0a"
+   "hash": "4265d85dec5272ca516ba4927c9d458414d05fa5eefd52d5fd580221eee7c65e"
   },
   {
    "style": "news-ticker",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 8,
-   "hash": "63a8d8a643b45d1339852641445eb6f4141a7c93e7239fcf97c9d8c1bb8f65d0"
+   "hash": "f4e6465c1114f0a396c193e6f9955f590cf8e4254db3e52902cc9464363d0fc3"
   },
   {
    "style": "outline-only",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 14,
-   "hash": "8603c7ad4cb3505ebc40c027392f1ae67c20f90bc0fb40951274a5efa0c7b32f"
+   "hash": "96b2d5e57d153cc9e68d03e4bf71b08c9ecd31b9248210bef9b3095ea64bf98d"
   },
   {
    "style": "outline-only",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 14,
-   "hash": "d2895eb5c8abaf7b7592289fa075be03eb82c8806fd6860046e9e0fe862c99e5"
+   "hash": "7fd0bef52da0067d4bee8cb6f9377c7f067a871c25e5337f0b8d8a7e698e89b4"
   },
   {
    "style": "outline-only",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 14,
-   "hash": "a6fb909656f41e1bd8707c9866257e3a83427327b4b1a6fd9580761504a9fde1"
+   "hash": "ea72b20c03c40f4000f3088c8a089f5c24caa19d726ddbcc97e6ec3372ce1a0d"
   },
   {
    "style": "podcast-duo",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 12,
-   "hash": "382525ddfa89e90b2c0c1621938e2421d131bc32c0cedd908ed1136dd4616a96"
+   "hash": "c69e5a0aec456bae5e600311d464ec14e850f4e390f49ec35a20062019175a99"
   },
   {
    "style": "podcast-duo",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 11,
-   "hash": "0fc0c4eacb8a1709bfeac66fbde677989183d8b322baece1f95a444ca3fe5726"
+   "hash": "26ac7fa7314860832829fb0618092e0c54b85d01b7d0150da5c6c57e46ecdd1d"
   },
   {
    "style": "podcast-duo",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 11,
-   "hash": "dbc0e62eff00598de4a043efa038aa1bed538c9f5e7623b6777af036c4b87ed9"
+   "hash": "e63d4474a71d61a98f6c04da5a9eecb18830599c8e4463bf4703d3c07d1412ed"
   },
   {
    "style": "prism-split",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 16,
-   "hash": "49969c6eecc00c1c6f5bf0c82365e4407db3bdf088c42d7a8a303deb6ff526dc"
+   "hash": "86ddc3c36d754e9feca4bafe8abccaa11371dcccc29e3cd5281325eb7eff601e"
   },
   {
    "style": "prism-split",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 14,
-   "hash": "dc0dec3e961b14d450214eb61a2dad3ab92096085a7c669c99826c7218cb9ac4"
+   "hash": "7421fe2175a2b10d35e4c172162acdc51d4a0cd3a02fd27e4b9162f14cfb6681"
   },
   {
    "style": "prism-split",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 15,
-   "hash": "d5ab3f1017e92a52d28bcc68302bd8e9e7fa95e873201d2fb07e683c12f1e779"
+   "hash": "3d25e3dbd0deb66d514759a244cd6b65c8a857a86206e8de9d26464bd6d3b61f"
   },
   {
    "style": "punch-pop",
@@ -1689,189 +1689,189 @@
    "fixture": "tamil",
    "tMs": 80,
    "commands": 10,
-   "hash": "56d1f8e078cf91ed01d46b8ece9f5c79a046014864faf02e4321206fc199d08d"
+   "hash": "a4a86dec310e45464546a3c98539aa1fecb13690cfa597a46fb5b06797149669"
   },
   {
    "style": "quote-frame",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 9,
-   "hash": "e3ac4653dd6332daca8ff320281d1269580ded8e8e11b8cedde9d45cb5250a9c"
+   "hash": "13644f93d8532778b777fd9405fc25b25fc412bbbb15d331a7ff6fa8ca31f3dc"
   },
   {
    "style": "quote-frame",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 9,
-   "hash": "6463d750b5b91a117252a394cf75fbd393cba34999c58eb607a60dbe5702b12f"
+   "hash": "ba7aa18a34e4558bd4e98de5b327943e8c0818001066fd1671542a2b19173d54"
   },
   {
    "style": "soft-serif",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 8,
-   "hash": "66b4ad7cddec8aee0c1cd1311cbe1f6a7f9cdfb14c006a244110f44837fff6f6"
+   "hash": "535517f6835a8b6bb095758fba732cfbcdf1102c49e463b0eb1c928819ffe51a"
   },
   {
    "style": "soft-serif",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 8,
-   "hash": "8a5719a61b5206a9a58ce1c914efcca19b5ff0300f9e5d1565b046e72352966a"
+   "hash": "0f9700890895f6434eb8c061fed398af6895a547fff6595e676fba4360c581b7"
   },
   {
    "style": "soft-serif",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 8,
-   "hash": "c4f0ba37d5dfe823daf04c8603530dc786f296c4b5df8a72c60ad28e44aa66c7"
+   "hash": "37aa01b116b3f087d48e2d0a2fa28ada0a12327f511e358c6d6bb55c6611265d"
   },
   {
    "style": "spotlight-word",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 15,
-   "hash": "9617b30ae5979f53c0eb3ff24e4b345ba33063d168cf4cdc84531acff572f875"
+   "hash": "b2ec899605401f2842e0e3e4006797926a0e404b4e86acdc1011a5efc8573ad4"
   },
   {
    "style": "spotlight-word",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 14,
-   "hash": "8fe9642a52179be5c7eccb92b6a2c176b00e5577525f1eefb9af38b55fa72ae0"
+   "hash": "5beb79ee32d614db8a00042298616af7d3c8b569e39b72396cd2ceb10614ffa0"
   },
   {
    "style": "spotlight-word",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 15,
-   "hash": "873f81cf9b1397135faecbd7bda144c6726ea535b8426ec7219151968575611b"
+   "hash": "06fe5fd51959bbedab8560170b6bc0bb8b369c1812909ade485ae9404c78850c"
   },
   {
    "style": "stroke-heavy",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 14,
-   "hash": "4a586ba4e6d2465e1ffd801a256e71a8658425592034feece1e77bea51f91160"
+   "hash": "c829bcf45e05bcec1647ece9afa71807893de61667441857a4f3a277be096786"
   },
   {
    "style": "stroke-heavy",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 13,
-   "hash": "1e3e3f7568126e784fc3878cdb665c6137f2b8f43eda1b42a30de95a4c2df305"
+   "hash": "d1a1e4d34e59dc8d4367e6acadcb2630395aa7d518b120f7710fe4f050277379"
   },
   {
    "style": "stroke-heavy",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 13,
-   "hash": "1bec7acdfb9ce5df46aac091f1fef1f59e85c118da63e54961b665b68e96c765"
+   "hash": "dae09c40ea0d6f7bb1ccd8abe0a970390261f5b14cbb7da3c2d3225e721ddfc8"
   },
   {
    "style": "subtitle-classic",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 14,
-   "hash": "73ff4144ce639300fd8e75dc5e20a888d7d1d4c3cd0c0d060e6604bada2e242a"
+   "hash": "0e37e481611c3f81cebb19ff04116bcb0b441e78e1df34cbb1ec3b4dc1e30498"
   },
   {
    "style": "subtitle-classic",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 14,
-   "hash": "73ff4144ce639300fd8e75dc5e20a888d7d1d4c3cd0c0d060e6604bada2e242a"
+   "hash": "0e37e481611c3f81cebb19ff04116bcb0b441e78e1df34cbb1ec3b4dc1e30498"
   },
   {
    "style": "subtitle-classic",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 14,
-   "hash": "73ff4144ce639300fd8e75dc5e20a888d7d1d4c3cd0c0d060e6604bada2e242a"
+   "hash": "0e37e481611c3f81cebb19ff04116bcb0b441e78e1df34cbb1ec3b4dc1e30498"
   },
   {
    "style": "tape-retro",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 30,
-   "hash": "4b2f3f8329a8c96f24b4fea946937557b185e2dfbfdf182aa6b7f54c35b56bf2"
+   "hash": "bec7689381b005f6b3447394cddd8f76e3c1cda7340cadb00062c70db6be0a0a"
   },
   {
    "style": "tape-retro",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 30,
-   "hash": "b8e4a5d1406e5708c9de4fc57dc5a00320bc1d64bb6344cd83c39804bbd848c7"
+   "hash": "c387291a4efcb5e4e0c7e527d709c07a6b2bd79177e2b89315e5d877caf54394"
   },
   {
    "style": "tape-retro",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 30,
-   "hash": "083cedf3e3b38a7574d93d3690ea71fa0f9511ad10df9092d7fed44cabc7fef0"
+   "hash": "1d02a95600de6f51cdd36a01f89c3bc0aea5b73569f126a5dee2f90a6bf68c2f"
   },
   {
    "style": "typewriter-mono",
    "fixture": "tamil",
    "tMs": 80,
-   "commands": 7,
-   "hash": "091f4ad91c592c432ce57c5340c3ee717ad1ecb7acd89031603b053e65a4ded6"
+   "commands": 8,
+   "hash": "c8122be87e874b2ce722435e20872cf772a677c9d88ae746423ce516db9f6875"
   },
   {
    "style": "typewriter-mono",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 9,
-   "hash": "ee1c6a85cca03c8503545c1042261262c22da22a6def06631b6eef671748b7ee"
+   "hash": "4734051e3012d75e949dd127dbbe3a8d7b7ec92aff0b3b0ccdf70fc3651c8202"
   },
   {
    "style": "typewriter-mono",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 9,
-   "hash": "d1871ab979c5e7d9f29f79109dec6301111051da472668c3dc8e26cc1168c50e"
+   "hash": "86ef98669f32c2c04d975904976fbd3b429e6a2aad37074cf92eeb103398ddcc"
   },
   {
    "style": "vertical-clean",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 8,
-   "hash": "9a633dd33f415ddaa07e896ab27ddc6bee2f9123cfcb5704a44224d0a60203ee"
+   "hash": "d4cf413b4493d8387950c499fc6953a9240372968c3c5b424a228223afd869b7"
   },
   {
    "style": "vertical-clean",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 8,
-   "hash": "e45b72d0166696156aa2588f37dc984ffa183265ddc0f6379dd85e20323164cc"
+   "hash": "98f2eb639cedd5893d658a1b28db54641eb807eb59e2c2313c4e317bace1ff0e"
   },
   {
    "style": "vertical-clean",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 8,
-   "hash": "949506acdf3bbaa44ba5b4a9be3adf0f8ad8923cb73096b2ded00c8c057a22c1"
+   "hash": "404d9abcb080cc456cb8d8c4612757a23b5df5e2a40594afc8c3e3a130790929"
   },
   {
    "style": "whisper-thin",
    "fixture": "tamil",
    "tMs": 80,
    "commands": 8,
-   "hash": "332239742af54e194958a8c1e8c503697ac4c79ab51c79cd02d15d0992bd43db"
+   "hash": "f2289a3ad01a00d7c0a0e79057f5065a443a69953228d787e4f6658fa905a96c"
   },
   {
    "style": "whisper-thin",
    "fixture": "tamil",
    "tMs": 1500,
    "commands": 8,
-   "hash": "ea621973b071c1f4e370e0030d83a790a83035b1b302e0990314206fcb0946fe"
+   "hash": "61271393ccedc9782efdf37e450fc56e86dbded9271927a193d16c1fe7f81c64"
   },
   {
    "style": "whisper-thin",
    "fixture": "tamil",
    "tMs": 2940,
    "commands": 8,
-   "hash": "d2b7abbc30dacf3caed2e9cce7ee3ef3a80bb404f111e1169fe280285553ab28"
+   "hash": "8104ccf9b262989dabaa6a5b43b7574af4135bdca20d1e8d96b628b68f1da60d"
   },
   {
    "style": "word-pop",
@@ -1927,7 +1927,7 @@
    "fixture": "english",
    "tMs": 1500,
    "commands": 8,
-   "hash": "509c7504d3de836a65f89f687ac5c59fb96e2dbb86c3bbe1ff15e23752112b60"
+   "hash": "b775cd71da580decddb36c58f3f7cb7134425d2ea5c9c4bcedb41debeb418747"
   },
   {
    "style": "bold-drop",
@@ -2032,7 +2032,7 @@
    "fixture": "english",
    "tMs": 1500,
    "commands": 24,
-   "hash": "3c60dc681ea8e0212e51b43ab9f0e1c690c719412ec8665fd2f987a6767821d5"
+   "hash": "de31b0b7eafc4c75ba8e85bec627c673632673a396bda232ff7ecf2fe3e9026a"
   },
   {
    "style": "glitch-shift",
@@ -2172,21 +2172,21 @@
    "fixture": "english",
    "tMs": 80,
    "commands": 13,
-   "hash": "26e73a91a93222620e0a78b9b01940b430202f38180e2b333512848268a59e27"
+   "hash": "0b97aedd347bbef5dbf2b7b7a92ae3bc25a5dc9fdd5957e492c0b54d6548b1cd"
   },
   {
    "style": "minimal-lower-third",
    "fixture": "english",
    "tMs": 1500,
    "commands": 12,
-   "hash": "7b9688271ad5e2701032c06ee8610ee4c8788244cddee38e4ad8e40809f1dfa1"
+   "hash": "2ca4a02db115eebd3bb96557272d82e514585ae289d90b01fa7199073eb7e379"
   },
   {
    "style": "minimal-lower-third",
    "fixture": "english",
    "tMs": 2940,
    "commands": 12,
-   "hash": "8fda1788ac7b07495bd4d6aec0e5bc9071d058a1c85f73201f345eb7ef2b9ad5"
+   "hash": "bca7b78bcca51f13dc19a9560646c0555b2ae756e994913ee62328d6bc9b514b"
   },
   {
    "style": "neon-glow",
@@ -2256,21 +2256,21 @@
    "fixture": "english",
    "tMs": 80,
    "commands": 16,
-   "hash": "4f848f8fce2a5187259cf0e5c75b6ee0ed6c2d64838ac7bd0a79eba9fea70917"
+   "hash": "81b5a14318044bf847ae9be4b22d6f4e050a2463f22c1f04ee457bb76a3d8ab8"
   },
   {
    "style": "podcast-duo",
    "fixture": "english",
    "tMs": 1500,
    "commands": 15,
-   "hash": "bef3e781916961ba3baa4216c00171624946217e8fbbf75ffec0b867e2b69305"
+   "hash": "b763fc49b825a542510b8617e6674a8cf1033c75e0d166987cac332ac4508710"
   },
   {
    "style": "podcast-duo",
    "fixture": "english",
    "tMs": 2940,
    "commands": 15,
-   "hash": "44b15c2c286b4d391c312c117f44b4f8cc06bf641dc0ee2f8af2282347957db6"
+   "hash": "b243bad9c4880ed522d2e135047b3bd7cd0af3b3ea1f31569d67c8d50a899a5b"
   },
   {
    "style": "prism-split",
@@ -2444,22 +2444,22 @@
    "style": "typewriter-mono",
    "fixture": "english",
    "tMs": 80,
-   "commands": 6,
-   "hash": "73ba368b4b31bc21e1e86aba77889f9b5c5e9b23cf00e6c206f65099c526b6e7"
+   "commands": 7,
+   "hash": "cd6811a8d6cdadb5773539008f84db56cb064111c2b374d4cdf71cd5775ab9cc"
   },
   {
    "style": "typewriter-mono",
    "fixture": "english",
    "tMs": 1500,
    "commands": 13,
-   "hash": "b405984c18408a1430d1ad0dbfc3404b58c377f599108961c76f787eb2eafbe6"
+   "hash": "8d6b3022e04cea41e80c9053a5f19ec8c436ef41fce0c08eeb896ef5f2dc9a54"
   },
   {
    "style": "typewriter-mono",
    "fixture": "english",
    "tMs": 2940,
    "commands": 13,
-   "hash": "666da6cbdd879d31bc7ab61cb92487cc6297c355306680f2b94c2d07e635568f"
+   "hash": "506958ae0bf204ca366842ea8a3cd2e0ef503c6b3ed07956aa858cb2ecc25f91"
   },
   {
    "style": "vertical-clean",

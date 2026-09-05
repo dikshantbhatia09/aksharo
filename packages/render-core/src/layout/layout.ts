@@ -34,6 +34,7 @@ import {
   type CanvasSize,
   clamp,
   ofCanvasHeight,
+  ofCanvasShortSide,
   ofCanvasWidth,
   ofFontSize,
   q,
@@ -361,7 +362,7 @@ export function layoutSegment(options: LayoutOptions): Layout {
     ofCanvasHeight(style.typography.sizePct, canvas) *
     scriptScaleFor(style.typography.scriptScale, script);
   const maxWidthPx = ofCanvasWidth(style.layout.maxWidthPct, canvas);
-  const safeMarginPx = ofCanvasHeight(style.layout.safeAreaPct ?? 0, canvas);
+  const safeMarginPx = ofCanvasShortSide(style.layout.safeAreaPct ?? 0, canvas);
 
   const primary = resolveFontOrThrow(registry, {
     family: style.typography.fontFamily,

@@ -275,6 +275,7 @@ export {
   clamp01,
   COORDINATE_DECIMALS,
   ofCanvasHeight,
+  ofCanvasShortSide,
   ofCanvasWidth,
   ofFontSize,
   q,

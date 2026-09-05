@@ -1,12 +1,12 @@
 /**
  * Relative sizing (StyleDoc v2, `@montaj/caption-styles/schema`).
  *
- * A style document carries no pixels. Type size, the position of the caption
- * box and the safe-area margin are percentages of the **canvas height**; stroke
- * width, shadow offset and blur, box padding and corner radius are percentages
- * of the **font size**. One document therefore renders identically at 1080×1920
- * and at the 540×960 proxy, which is the whole point of the preview being
- * trustworthy.
+ * A style document carries no pixels. Type size and the position of the caption
+ * box are percentages of the **canvas height**; the safe-area margin is a
+ * percentage of the **canvas's short side**; stroke width, shadow offset and blur,
+ * box padding and corner radius are percentages of the **font size**. One document
+ * therefore renders identically at 1080×1920 and at the 540×960 proxy, which is the
+ * whole point of the preview being trustworthy.
  *
  * Every conversion in the layout engine goes through this module so that "which
  * base is this a percentage of?" is answered in one place.
@@ -35,6 +35,16 @@ export function assertCanvas(canvas: CanvasSize): CanvasSize {
 /** A percentage of the canvas height in pixels. */
 export function ofCanvasHeight(percent: number, canvas: CanvasSize): number {
   return (percent / 100) * canvas.height;
+}
+
+/**
+ * A percentage of the canvas's SHORT side in pixels — the safe-area rule.
+ * Height-based margins on a 9:16 canvas made the horizontal clamp nearly twice
+ * the intended zone; S-01 moved the editor's guides to the short side, and this
+ * is the render half, so what the editor shows is what the export clamps to.
+ */
+export function ofCanvasShortSide(percent: number, canvas: CanvasSize): number {
+  return (percent / 100) * Math.min(canvas.width, canvas.height);
 }
 
 /** A percentage of the canvas width in pixels. */
