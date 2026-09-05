@@ -8,6 +8,22 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **OC4: every action, three surfaces.** Ctrl+K in the editor now opens a
+  command palette listing every action the registry knows, grouped by menu,
+  searchable, keyboard-driven, each shortcut drawn as keycaps — and running one
+  closes the palette and performs it. Not one action was defined for it: the
+  palette is `lib/editor/actions.ts`'s second renderer after OC-02's menubar, so
+  Share, Re-transcribe and the rest arrived in it for free, and a future action
+  will too. Where the menubar shows a disabled row to teach that the feature
+  exists, the palette lists only what can actually run right now. Its listener
+  takes Ctrl+K in the capture phase and stops it, so inside the editor the
+  shell's global project search no longer answers the same key. The registry
+  gained exactly one entry — `help.palette`, display-only, its empty `run`
+  pinned by a test — which is also why Ctrl+K now appears in Help → Keyboard
+  shortcuts without that dialog being touched. New `Kbd`/`KbdGroup` primitives
+  in `@montaj/ui` render the keycaps at the same size and colour as the
+  menubar's shortcut text. No new dependency: `cmdk` was already ours.
+
 - **Stage-4 integration (orchestrator).** Merged OC-02 + OC-03 + S-05. "Insert
   word after" never succeeded on real speech: the editor asked for a fixed 200 ms
   word and `apply.ts` rightly refused any that overran its follower (OC-03's
