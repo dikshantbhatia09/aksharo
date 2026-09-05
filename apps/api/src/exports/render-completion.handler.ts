@@ -158,6 +158,11 @@ export class RenderVideoCompletionHandler implements JobCompletionHandler, OnMod
       },
       update: {
         status: "succeeded",
+        // S05: the row already exists (`exports.service.ts` writes it
+        // `rendering` at POST time) and already names this job. `jobId` is set
+        // here anyway so a pre-S05 row — created only by this handler, with no
+        // job on it — heals the first time its render completes.
+        jobId: job.id,
         storageKey: result.outputKey,
         sizeBytes: BigInt(result.sizeBytes),
         watermarked: result.watermarked,
@@ -197,6 +202,25 @@ export class RenderVideoCompletionHandler implements JobCompletionHandler, OnMod
       },
     };
   }
+
+  // S05: a terminal render failure is the export's failure. Idempotent and
+  // at-least-once by contract (completion-handlers.ts); the status guard keeps a
+  // replay from ever flipping a row that has since succeeded — and it is what
+  // makes this safe to run for a job whose row was never `rendering` in the
+  // first place (a pre-S05 export, or a browser one).
+  //
+  // `safeParse`, not `parse`: `handle`'s throw is a useful signal (the worker
+  // retries), but throwing out of the failure path would leave a job that has
+  // ALREADY failed stuck open on malformed params. There is nothing to retry
+  // for, so a params blob this handler cannot read is simply not its export.
+  async handleFailure(context: JobCompletionContext): Promise<void> {
+    const params = JobParamsSchema.safeParse(context.job.params ?? {});
+    if (!params.success) return;
+    await this.prisma.export.updateMany({
+      where: { id: params.data.manifest.exportId, status: "rendering" },
+      data: { status: "failed" },
+    });
+  }
 }
 
 @Injectable()
@@ -229,11 +253,14 @@ export class RenderSubtitleCompletionHandler implements JobCompletionHandler, On
       return { actualTenths: 0, data: { exportId: manifest.exportId, replayed: true } };
     }
 
-    // The first sidecar IS the export the client was handed at POST time. The
-    // cloud path writes no `exports` row up front (only the manifest), so unless
-    // `manifest.exportId` becomes a succeeded row here, the dialog's and the
-    // history's download for that id 404 forever — F06's QA found exactly that.
-    // Extra sidecars keep their own ids, as before.
+    // The first sidecar IS the export the client was handed at POST time, and
+    // since S05 that row already exists — `exports.service.ts` writes it
+    // `rendering` from the POST. So the first sidecar FINISHES that row
+    // (`upsert`, which also still covers a manifest written before S05, or a
+    // row an operator removed) while the extras keep their own fresh ids and
+    // are created as before. A plain `createMany` here would collide with the
+    // row the POST wrote, and before S05 it left the dialog's id naming
+    // nothing at all — F06's QA found exactly that.
     const rows = result.sidecars.map((sidecar, index) => ({
       id: index === 0 ? manifest.exportId : ulid(),
       workspaceId: manifest.workspaceId,
@@ -252,8 +279,24 @@ export class RenderSubtitleCompletionHandler implements JobCompletionHandler, On
       expiresAt: new Date(Date.now() + EXPORT_RETENTION_DAYS * 24 * 60 * 60_000),
     }));
 
-    if (rows.length > 0) {
-      await this.prisma.export.createMany({ data: rows });
+    const [first, ...extras] = rows;
+    if (first !== undefined) {
+      await this.prisma.export.upsert({
+        where: { id: manifest.exportId },
+        create: first,
+        update: {
+          status: "succeeded",
+          jobId: job.id,
+          kind: first.kind,
+          storageKey: first.storageKey,
+          sizeBytes: first.sizeBytes,
+          durationMs: first.durationMs,
+          expiresAt: first.expiresAt,
+        },
+      });
+    }
+    if (extras.length > 0) {
+      await this.prisma.export.createMany({ data: extras });
     }
     await recordPublishEvent(
       this.prisma,
@@ -272,5 +315,24 @@ export class RenderSubtitleCompletionHandler implements JobCompletionHandler, On
       actualTenths: 0,
       data: { exportId: manifest.exportId, sidecars: rows.length },
     };
+  }
+
+  // S05: a terminal render failure is the export's failure. Idempotent and
+  // at-least-once by contract (completion-handlers.ts); the status guard keeps a
+  // replay from ever flipping a row that has since succeeded — and it is what
+  // makes this safe to run for a job whose row was never `rendering` in the
+  // first place (a pre-S05 export, or a browser one).
+  //
+  // `safeParse`, not `parse`: `handle`'s throw is a useful signal (the worker
+  // retries), but throwing out of the failure path would leave a job that has
+  // ALREADY failed stuck open on malformed params. There is nothing to retry
+  // for, so a params blob this handler cannot read is simply not its export.
+  async handleFailure(context: JobCompletionContext): Promise<void> {
+    const params = JobParamsSchema.safeParse(context.job.params ?? {});
+    if (!params.success) return;
+    await this.prisma.export.updateMany({
+      where: { id: params.data.manifest.exportId, status: "rendering" },
+      data: { status: "failed" },
+    });
   }
 }
