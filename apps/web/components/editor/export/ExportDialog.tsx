@@ -173,10 +173,22 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
 
           <TabsContent value="video">
             <VideoTab value={video} onChange={onVideoChange} disabled={busy} />
+            {/*
+              FIX-06: this notice reacts to results; it must never CAUSE an
+              export. One user click => one startExport call, from the submit
+              handler only — the audit found this callback double-firing the
+              action (two renders, two credit holds, still watermarked). The
+              effect that fired it is the upsell panel's eligibility notifier
+              (`upsell/ExportUpsellPanel.tsx`, the `useEffect` on
+              `eligibility.data` calling `onCleanManifestReady`); it stays,
+              because refreshing offer data is its legitimate job — it simply
+              no longer reaches `startExport`. A clean path becoming available
+              is now something the reader acts on with the Export button, not
+              something that spends their credits for them.
+            */}
             <WatermarkNotice
               watermarked={state.response?.watermarked}
               reasons={state.response?.reasons}
-              onCleanManifestReady={onExportVideo}
             />
             {state.response?.quote !== undefined ? (
               <p className="text-fg-3 mt-2 text-xs" data-testid="export-quote">

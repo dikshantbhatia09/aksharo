@@ -140,6 +140,7 @@ export function useExportDialog(deps: ExportDialogDeps): {
   const client = useApiClient();
   const [state, setState] = React.useState<ExportDialogState>(INITIAL_STATE);
   const controllerRef = React.useRef<AbortController | null>(null);
+  const inFlightRef = React.useRef(false);
 
   const reset = React.useCallback(() => setState(INITIAL_STATE), []);
 
@@ -149,135 +150,144 @@ export function useExportDialog(deps: ExportDialogDeps): {
 
   const startExport = React.useCallback(
     async (request: CreateExportRequest): Promise<void> => {
-      setState((s) => ({ ...s, phase: "probing", error: null }));
-      const probe = await probeExportCapabilities({
-        width: request.customWidth,
-        height: request.customHeight,
-      });
-      setState((s) => ({ ...s, probe, phase: "requesting" }));
-
-      const eligible = isBrowserExportEligible(probe);
-      const capabilities = toCapabilitiesRequest(probe);
-
-      const { response, manifest } = await requestExportManifest(client, deps.projectId, {
-        ...request,
-        mode: request.mode ?? (eligible ? "auto" : "cloud"),
-        capabilities,
-      });
-      setState((s) => ({ ...s, response, manifest }));
-
-      if (manifest === null) {
-        // Cloud path (or subtitle-only, or an ineligible browser — A21b's
-        // decision.ts now itself refuses "auto" for a browser lacking H.264
-        // decode+encode or a usable audio path, and for an HDR source):
-        // nothing more for the engine to do. The dialog shows
-        // `response.reasons` and, for a cloud video export, `response.job`.
-        setState((s) => ({ ...s, phase: "cloud-offered" }));
-        return;
-      }
-
-      const outputDurationMs = outputDurationMsFor(manifest);
-      const sanity = sanityCheckManifest(manifest, outputDurationMs);
-      if (!sanity.ok) {
-        setState((s) => ({
-          ...s,
-          phase: "error",
-          error: sanity.expired
-            ? "This export link expired before rendering started — try again."
-            : sanity.notYetValid
-              ? "This export link is not valid yet (clock skew) — try again."
-              : `This render exceeds the workspace's plan: ${sanity.capViolations
-                  .map((v) => v.cap)
-                  .join(", ")}.`,
-        }));
-        return;
-      }
-
-      if (deps.registry === undefined || deps.shaper === undefined) {
-        setState((s) => ({
-          ...s,
-          phase: "error",
-          error: "The renderer has not finished loading yet.",
-        }));
-        return;
-      }
-
-      if (response.sources === undefined) {
-        setState((s) => ({
-          ...s,
-          phase: "error",
-          error: "The API did not return source URLs for this browser export (A21b `sources`).",
-        }));
-        return;
-      }
-      const sources = response.sources;
-
-      const audioDecision = decideAudioStrategy({
-        manifest,
-        aacEncodable: probe.audio.aac,
-        aacPolyfillAvailable: true,
-      });
-      if (audioDecision.kind === "cloud-required") {
-        setState((s) => ({ ...s, phase: "cloud-offered", error: audioDecision.reason }));
-        return;
-      }
-
-      const controller = new AbortController();
-      setState((s) => ({ ...s, phase: "rendering" }));
-      controllerRef.current = controller;
-
+      // Re-entrancy guard: a second call while one export is in flight is always
+      // a bug upstream (double-click, an effect misfiring) — refuse it instead
+      // of double-spending credits.
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
       try {
-        // A21b's `rawUrl` is the ORIGINAL media (S3) — a 540p proxy cannot
-        // produce a clean ≥1080p export, so the engine always decodes it,
-        // falling back to `proxyUrl` only if `rawUrl` is somehow absent.
-        const sourceUrl = sources.rawUrl ?? sources.proxyUrl;
-        if (sourceUrl === undefined) {
-          throw new Error("no source URL was returned for this export");
-        }
-        const watermarkUrl = sources.watermarkUrl;
-        // B10: present whenever the manifest asked for the cleaned track
-        // (`audio.strategy === "replace"`); the engine refuses to proceed on
-        // "replace" without it.
-        const cleanAudioSource = sources.cleanedAudioUrl;
-        // An E2E run's flag wins over whatever the caller passed: a synthetic
-        // click can never satisfy `showSaveFilePicker`'s activation check, so
-        // there is no scenario where automation wants the picker anyway.
-        const preferFileSystemAccess = e2eNoFilePicker()
-          ? false
-          : (deps.preferFileSystemAccess ?? true);
-        const result = await runExport({
-          manifest,
-          source: sourceUrl,
-          ...(cleanAudioSource === undefined ? {} : { cleanAudioSource }),
-          projection: deps.projection,
-          catalogue: deps.catalogue,
-          registry: deps.registry,
-          shaper: deps.shaper,
-          signal: controller.signal,
-          preferFileSystemAccess,
-          aacEncodable: probe.audio.aac,
-          aacPolyfillAvailable: true,
-          fetchWatermarkAsset:
-            watermarkUrl === undefined ? undefined : () => fetchWatermarkBytes(watermarkUrl),
-          onProgress: (progress) => setState((s) => ({ ...s, progress })),
+        setState((s) => ({ ...s, phase: "probing", error: null }));
+        const probe = await probeExportCapabilities({
+          width: request.customWidth,
+          height: request.customHeight,
         });
-        setState((s) => ({ ...s, phase: "completing", result }));
-        await completeExportManifest(client, manifest.manifestId, {
-          sizeBytes: result.sizeBytes,
-          durationMs: result.durationMs,
-          checksum: result.checksum,
+        setState((s) => ({ ...s, probe, phase: "requesting" }));
+
+        const eligible = isBrowserExportEligible(probe);
+        const capabilities = toCapabilitiesRequest(probe);
+
+        const { response, manifest } = await requestExportManifest(client, deps.projectId, {
+          ...request,
+          mode: request.mode ?? (eligible ? "auto" : "cloud"),
+          capabilities,
         });
-        setState((s) => ({ ...s, phase: "done" }));
-      } catch (error) {
-        if (error instanceof Error && error.name === "ExportCancelledError") {
-          setState((s) => ({ ...s, phase: "cancelled" }));
+        setState((s) => ({ ...s, response, manifest }));
+
+        if (manifest === null) {
+          // Cloud path (or subtitle-only, or an ineligible browser — A21b's
+          // decision.ts now itself refuses "auto" for a browser lacking H.264
+          // decode+encode or a usable audio path, and for an HDR source):
+          // nothing more for the engine to do. The dialog shows
+          // `response.reasons` and, for a cloud video export, `response.job`.
+          setState((s) => ({ ...s, phase: "cloud-offered" }));
           return;
         }
-        setState((s) => ({
-          ...s,
-          phase: "error",
-          error: error instanceof Error ? error.message : String(error),
-        }));
+
+        const outputDurationMs = outputDurationMsFor(manifest);
+        const sanity = sanityCheckManifest(manifest, outputDurationMs);
+        if (!sanity.ok) {
+          setState((s) => ({
+            ...s,
+            phase: "error",
+            error: sanity.expired
+              ? "This export link expired before rendering started — try again."
+              : sanity.notYetValid
+                ? "This export link is not valid yet (clock skew) — try again."
+                : `This render exceeds the workspace's plan: ${sanity.capViolations
+                    .map((v) => v.cap)
+                    .join(", ")}.`,
+          }));
+          return;
+        }
+
+        if (deps.registry === undefined || deps.shaper === undefined) {
+          setState((s) => ({
+            ...s,
+            phase: "error",
+            error: "The renderer has not finished loading yet.",
+          }));
+          return;
+        }
+
+        if (response.sources === undefined) {
+          setState((s) => ({
+            ...s,
+            phase: "error",
+            error: "The API did not return source URLs for this browser export (A21b `sources`).",
+          }));
+          return;
+        }
+        const sources = response.sources;
+
+        const audioDecision = decideAudioStrategy({
+          manifest,
+          aacEncodable: probe.audio.aac,
+          aacPolyfillAvailable: true,
+        });
+        if (audioDecision.kind === "cloud-required") {
+          setState((s) => ({ ...s, phase: "cloud-offered", error: audioDecision.reason }));
+          return;
+        }
+
+        const controller = new AbortController();
+        setState((s) => ({ ...s, phase: "rendering" }));
+        controllerRef.current = controller;
+
+        try {
+          // A21b's `rawUrl` is the ORIGINAL media (S3) — a 540p proxy cannot
+          // produce a clean ≥1080p export, so the engine always decodes it,
+          // falling back to `proxyUrl` only if `rawUrl` is somehow absent.
+          const sourceUrl = sources.rawUrl ?? sources.proxyUrl;
+          if (sourceUrl === undefined) {
+            throw new Error("no source URL was returned for this export");
+          }
+          const watermarkUrl = sources.watermarkUrl;
+          // B10: present whenever the manifest asked for the cleaned track
+          // (`audio.strategy === "replace"`); the engine refuses to proceed on
+          // "replace" without it.
+          const cleanAudioSource = sources.cleanedAudioUrl;
+          // An E2E run's flag wins over whatever the caller passed: a synthetic
+          // click can never satisfy `showSaveFilePicker`'s activation check, so
+          // there is no scenario where automation wants the picker anyway.
+          const preferFileSystemAccess = e2eNoFilePicker()
+            ? false
+            : (deps.preferFileSystemAccess ?? true);
+          const result = await runExport({
+            manifest,
+            source: sourceUrl,
+            ...(cleanAudioSource === undefined ? {} : { cleanAudioSource }),
+            projection: deps.projection,
+            catalogue: deps.catalogue,
+            registry: deps.registry,
+            shaper: deps.shaper,
+            signal: controller.signal,
+            preferFileSystemAccess,
+            aacEncodable: probe.audio.aac,
+            aacPolyfillAvailable: true,
+            fetchWatermarkAsset:
+              watermarkUrl === undefined ? undefined : () => fetchWatermarkBytes(watermarkUrl),
+            onProgress: (progress) => setState((s) => ({ ...s, progress })),
+          });
+          setState((s) => ({ ...s, phase: "completing", result }));
+          await completeExportManifest(client, manifest.manifestId, {
+            sizeBytes: result.sizeBytes,
+            durationMs: result.durationMs,
+            checksum: result.checksum,
+          });
+          setState((s) => ({ ...s, phase: "done" }));
+        } catch (error) {
+          if (error instanceof Error && error.name === "ExportCancelledError") {
+            setState((s) => ({ ...s, phase: "cancelled" }));
+            return;
+          }
+          setState((s) => ({
+            ...s,
+            phase: "error",
+            error: error instanceof Error ? error.message : String(error),
+          }));
+        }
+      } finally {
+        inFlightRef.current = false;
       }
     },
     [client, deps],
