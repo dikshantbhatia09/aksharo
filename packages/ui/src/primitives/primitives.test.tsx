@@ -15,6 +15,15 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "./dialog";
 import { Input } from "./input";
 import { Field } from "./label";
+import {
+  Menubar,
+  MenubarCheckboxItem,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarShortcut,
+  MenubarTrigger,
+} from "./menubar";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "./sheet";
 import { ProgressBar } from "./surface";
 import { Checkbox, Switch } from "./toggles";
@@ -182,5 +191,61 @@ describe("<CommandDialog />", () => {
     await user.type(screen.getByPlaceholderText("Search"), "sett");
     expect(screen.queryByText("New project")).toBeNull();
     expect(screen.getByText("Open settings")).toBeInTheDocument();
+  });
+});
+
+describe("<Menubar />", () => {
+  it("opens a menu on click and renders its rows, shortcut and checkmark", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(
+      <Menubar>
+        <MenubarMenu>
+          <MenubarTrigger>Edit</MenubarTrigger>
+          <MenubarContent>
+            <MenubarItem onSelect={onSelect}>
+              Split segment
+              <MenubarShortcut>S</MenubarShortcut>
+            </MenubarItem>
+            <MenubarItem disabled>Merge with next</MenubarItem>
+            <MenubarCheckboxItem checked>Hide fillers</MenubarCheckboxItem>
+          </MenubarContent>
+        </MenubarMenu>
+      </Menubar>,
+    );
+
+    await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+
+    const split = await screen.findByRole("menuitem", { name: /split segment/i });
+    expect(split).toBeInTheDocument();
+    expect(screen.getByText("S")).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Merge with next" })).toHaveAttribute(
+      "data-disabled",
+    );
+    expect(screen.getByRole("menuitemcheckbox", { name: "Hide fillers" })).toHaveAttribute(
+      "data-state",
+      "checked",
+    );
+
+    await user.click(split);
+    expect(onSelect).toHaveBeenCalled();
+  });
+
+  it("paints a destructive row red, the way the dropdown paints its own", async () => {
+    // The open menu is addressed through Root's `value`, not a per-menu
+    // `defaultOpen` — radix's Menubar keeps "which menu is open" on the root.
+    render(
+      <Menubar defaultValue="edit">
+        <MenubarMenu value="edit">
+          <MenubarTrigger>Edit</MenubarTrigger>
+          <MenubarContent>
+            <MenubarItem variant="destructive">Delete word</MenubarItem>
+          </MenubarContent>
+        </MenubarMenu>
+      </Menubar>,
+    );
+    const item = await screen.findByRole("menuitem", { name: "Delete word" });
+    expect(item.className).toContain("text-red-400");
+    expect(item).toHaveAttribute("data-variant", "destructive");
   });
 });

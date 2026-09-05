@@ -55,6 +55,22 @@ export {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./primitives/dropdown-menu";
+// OC-02 menubar
+export {
+  Menubar,
+  MenubarCheckboxItem,
+  MenubarContent,
+  MenubarGroup,
+  MenubarItem,
+  MenubarLabel,
+  MenubarMenu,
+  MenubarSeparator,
+  MenubarShortcut,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
+  MenubarTrigger,
+} from "./primitives/menubar";
 export { Toaster, toast } from "./primitives/toast";
 export {
   Command,
