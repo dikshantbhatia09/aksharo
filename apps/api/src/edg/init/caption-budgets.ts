@@ -1,4 +1,5 @@
 import { Logger } from "@nestjs/common";
+import { type $Enums } from "@prisma/client";
 
 import { loadSystemStyleMap, type StyleDoc } from "@montaj/caption-styles";
 import type { Aspect } from "@montaj/edg/schemas";
@@ -90,6 +91,17 @@ const ASPECTS: Readonly<Record<string, Aspect>> = {
 export function aspectOf(stored: string | null | undefined): Aspect {
   // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   return (stored === null || stored === undefined ? undefined : ASPECTS[stored]) ?? "9:16";
+}
+
+/** {@link ASPECTS} inverted, so the one table stays the only place the spellings live. */
+const STORED_ASPECTS = Object.fromEntries(
+  Object.entries(ASPECTS).map(([stored, aspect]) => [aspect, stored]),
+) as Readonly<Record<Aspect, $Enums.Aspect>>;
+
+/** The `projects.aspect` value for a resolved aspect — the reverse of {@link aspectOf}. */
+export function aspectToStored(aspect: Aspect): $Enums.Aspect {
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
+  return STORED_ASPECTS[aspect];
 }
 
 /**

@@ -107,19 +107,21 @@ describe("positionFromDrag", () => {
       { x: 0, y: 10_000 },
       { box, canvas: CANVAS, anchor: "bottom-center", safeAreaPct: 12 },
     );
-    const margin = (12 / 100) * CANVAS.height;
+    const margin = (12 / 100) * Math.min(CANVAS.width, CANVAS.height);
     // The box's bottom edge stops at the safe margin, so its anchor does too.
     expect(position.y * CANVAS.height).toBeCloseTo(CANVAS.height - margin, 3);
   });
 
-  it("clamps horizontally as well", () => {
+  it("clamps horizontally to the short side, not the height", () => {
     const narrow: Box = [400, 1300, 600, 1400];
     const left = positionFromDrag(
       { x: -10_000, y: 0 },
       { box: narrow, canvas: CANVAS, anchor: "bottom-left", safeAreaPct: 10 },
     );
+    // Was `(10 / 100) * CANVAS.height` = 192px on a 1080-wide frame — an 18%
+    // horizontal margin for a 10% setting. The short side gives the 108 intended.
     // The position is rounded to four decimals, so a fifth of a pixel of slack.
-    expect(left.x * CANVAS.width).toBeCloseTo((10 / 100) * CANVAS.height, 1);
+    expect(left.x * CANVAS.width).toBeCloseTo((10 / 100) * CANVAS.width, 1);
   });
 
   it("never produces a position outside 0…1", () => {
@@ -154,6 +156,17 @@ describe("positionFromDrag", () => {
     expect(samePosition(a, b)).toBe(true);
   });
 
+  it("lets a wide caption reach the new left margin on a portrait canvas", () => {
+    // 900 wide at 5%: the box's left edge may now rest at 54, where the
+    // height-derived margin blocked it at 96.
+    const wide: Box = [100, 1300, 1000, 1450];
+    const position = positionFromDrag(
+      { x: -10_000, y: 0 },
+      { box: wide, canvas: CANVAS, anchor: "bottom-left", safeAreaPct: 5 },
+    );
+    expect(position.x * CANVAS.width).toBeCloseTo(54, 1);
+  });
+
   it("treats a NaN delta as no movement rather than crashing", () => {
     const position = positionFromDrag(
       { x: Number.NaN, y: 0 },
@@ -174,9 +187,9 @@ describe("samePosition", () => {
 });
 
 describe("safe zones", () => {
-  it("derives every guide from the canvas height", () => {
+  it("derives every guide from the canvas's short side", () => {
     const zones = safeZonesFor(CANVAS, 12);
-    const margin = (12 / 100) * CANVAS.height;
+    const margin = (12 / 100) * Math.min(CANVAS.width, CANVAS.height);
     expect(zones.safe).toEqual([margin, margin, CANVAS.width - margin, CANVAS.height - margin]);
     expect(zones.top).toEqual([0, 0, CANVAS.width, margin]);
     expect(zones.bottom).toEqual([0, CANVAS.height - margin, CANVAS.width, CANVAS.height]);
@@ -184,6 +197,17 @@ describe("safe zones", () => {
 
   it("collapses to nothing when the style has no safe area", () => {
     expect(safeZonesFor(CANVAS, 0).top).toEqual([0, 0, CANVAS.width, 0]);
+  });
+
+  // The audited defect: 5% of a 1920-tall canvas is 96px, which on a 1080-wide
+  // frame is ~9% of the width — "far too aggressive" horizontally. 5% of the
+  // short side is 54px, and the same 5% reads the same on either orientation.
+  it("gives a portrait canvas a 54px margin at 5%", () => {
+    expect(safeZonesFor({ width: 1080, height: 1920 }, 5).safe).toEqual([54, 54, 1026, 1866]);
+  });
+
+  it("gives the landscape canvas the mirrored zone — the symmetry proof", () => {
+    expect(safeZonesFor({ width: 1920, height: 1080 }, 5).safe).toEqual([54, 54, 1866, 1026]);
   });
 });
 

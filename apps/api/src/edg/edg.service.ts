@@ -3,7 +3,6 @@ import { type $Enums } from "@prisma/client";
 
 import { newId } from "@montaj/edg";
 import {
-  type Aspect,
   type EdgHot,
   type EdgOp,
   type EdgSource,
@@ -32,6 +31,7 @@ import {
   RestoreInvalidError,
   SnapshotNotFoundError,
 } from "./edg.repository.js";
+import { aspectToStored, CANVAS_SIZES, canvasAspectFor } from "./init/caption-budgets.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { RealtimePublisher } from "../realtime/realtime.publisher.js";
@@ -107,21 +107,6 @@ export interface EdgDocumentView {
   readonly passes: Pass[];
   readonly updatedAt: string;
 }
-
-/** Canvas sizes per aspect: the render resolutions of `05 §4`. */
-const CANVAS_SIZES: Record<Aspect, { width: number; height: number }> = {
-  "9:16": { width: 1080, height: 1920 },
-  "16:9": { width: 1920, height: 1080 },
-  "1:1": { width: 1080, height: 1080 },
-  "4:5": { width: 1080, height: 1350 },
-};
-
-const ASPECTS: Record<$Enums.Aspect, Aspect> = {
-  r9x16: "9:16",
-  r16x9: "16:9",
-  r1x1: "1:1",
-  r4x5: "4:5",
-};
 
 /** Media roles the EDG references; `font` and `image` are assets, not timeline media. */
 const MEDIA_ROLES = new Set<$Enums.MediaRole>(["primary", "broll", "audio"]);
@@ -436,9 +421,23 @@ export class EdgService {
       ...(transcript.styleRef === undefined ? {} : { styleRef: transcript.styleRef }),
     });
 
-    const aspect = ASPECTS[project.aspect];
+    // The primary the budget half measures against: `TranscribeHandler.budgetsFor`
+    // takes `role: "primary"` newest-first, so the newest of the rows already
+    // loaded above (they come back oldest-first) is the same footage. Reading it
+    // from that select rather than re-querying keeps both halves on one snapshot.
+    const primary = project.mediaAssets.filter((asset) => asset.role === "primary").at(-1);
+    const aspect = canvasAspectFor(project.aspect, primary);
     // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     const canvas = CANVAS_SIZES[aspect];
+    // The probe overrode an untouched 9:16 default (landscape media). Persist the
+    // resolution so the project row, the document canvas and every aspect-derived
+    // surface tell one story — the audited mismatch was exactly this split.
+    if (aspectToStored(aspect) !== project.aspect) {
+      await this.prisma.project.update({
+        where: { id: project.id },
+        data: { aspect: aspectToStored(aspect) },
+      });
+    }
     const hot: EdgHot = {
       meta: {
         edgId,

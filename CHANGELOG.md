@@ -8,6 +8,24 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **S01: geometry tells one story.** Two halves derived a project's canvas
+  independently: `TranscribeHandler` measured caption budgets through
+  `canvasAspectFor`, which lets landscape media override an _untouched_ 9:16
+  default, while `EdgService.initialise` kept its own duplicate `CANVAS_SIZES`
+  and `ASPECTS` maps and read the stored aspect straight, with no probe. So a
+  1920×1080 clip could have its budgets measured on a 16:9 canvas and its
+  document created 1080×1920. The service's duplicates are gone; it now imports
+  the single source, makes the probe-aware call the one decision, and — when the
+  probe overrides the default — **persists the resolved aspect back to the
+  project row**, so the cards, the editor stage box and the share page all tell
+  the same story from first paint. An aspect the user chose is still never
+  second-guessed. Separately, safe-area margins were a percentage of the canvas
+  _height_ on both axes, which on a 1080×1920 frame turned a 5% setting into a
+  96px horizontal inset (~9% of the width) and stopped a dragged caption well
+  short of where it was allowed to go; both `safeZonesFor` and `positionFromDrag`
+  now take the percentage of the canvas's **short side**, so 5% reads as 54px and
+  means the same thing in portrait and landscape.
+
 - **Stage-1 integration (orchestrator).** Merged F01 + F03 + F05 + F07 and fixed
   the two pre-existing main failures the wave A/B-proved: the auto-transcribe
   trigger test's fixture types were too narrow for the null-override cases the
