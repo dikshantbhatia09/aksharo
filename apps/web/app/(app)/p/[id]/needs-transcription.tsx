@@ -3,9 +3,16 @@
 import { Loader2 } from "lucide-react";
 import * as React from "react";
 
-import { ApiError, useProject, useRawApiClient, useTranscribe } from "@montaj/api-client";
+import {
+  ApiError,
+  endpoints,
+  useProject,
+  useRawApiClient,
+  useTranscribe,
+} from "@montaj/api-client";
 import { Button, toast } from "@montaj/ui";
 
+import { LanguagePicker, rememberLanguage } from "@/components/projects/language-picker";
 import {
   announceTranscriptReady,
   getTranscriptionState,
@@ -29,6 +36,14 @@ import { messageForError } from "@/lib/errors";
  * moving (`queued`, `running`, `processing_media`), backs off 4 s -> 8 s -> 15 s,
  * and stops on any settled state. Bounded by the screens actually waiting, never
  * by how many users are registered.
+ *
+ * **`awaiting_language` is the one state with a question in it** (FIX-04). A
+ * project reaches it when nothing ever recorded a spoken language — which used
+ * to be impossible to escape from the UI, because Home stamped `hi-Latn` on
+ * everything and nothing else could write the field. The picker below is that
+ * escape: one gesture records the language *and* starts the work, because
+ * choosing the language after being told what it costs IS the consent. Asking
+ * for a second click would only be ceremony.
  */
 
 /** 4 s -> 8 s -> 15 s, then 15 s for as long as the screen is genuinely waiting. */
@@ -49,6 +64,8 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
   const [view, setView] = React.useState<TranscriptionStateView | null>(null);
   const [blocked, setBlocked] = React.useState(false);
   const [pollSeq, setPollSeq] = React.useState(0);
+  const [chosenLanguage, setChosenLanguage] = React.useState<string | undefined>(undefined);
+  const [choosing, setChoosing] = React.useState(false);
   const announced = React.useRef(false);
 
   const language = project.data?.sourceLanguage ?? null;
@@ -92,14 +109,15 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
     }
   }, [status, projectId]);
 
-  async function start(): Promise<void> {
+  async function start(chosen?: string): Promise<void> {
     setBlocked(false);
+    const tag = chosen ?? language;
     try {
       const accepted = await transcribe.mutateAsync({
         projectId,
         // No recorded language means auto-detect rather than a guess that would
         // route the wrong lane for code-mixed speech.
-        ...(language === null ? {} : { languages: [language] }),
+        ...(tag === null || tag === undefined ? {} : { languages: [tag] }),
         hints: [],
       });
       // `transcript/media_not_ready`: the server pipeline owns what happens next
@@ -119,6 +137,35 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
       }
       toast.error("Could not start transcription", { description: messageForError(error) });
     }
+  }
+
+  /**
+   * FIX-04 step 2: record the language on the project, then start the work.
+   *
+   * The PATCH comes first and its failure is fatal to the gesture — starting a
+   * transcription whose language the project does not carry is exactly the
+   * split-brain the audit found (the transcript said one thing, the project
+   * another). `sourceLanguage` is already on `updateProjectSchema`
+   * (`apps/api/src/projects/projects.dto.ts:46`), so no DTO change and no
+   * `gen:client` are needed here.
+   */
+  async function chooseLanguage(tag: string): Promise<void> {
+    setChosenLanguage(tag);
+    setChoosing(true);
+    try {
+      await client.call(endpoints.projects.update, {
+        params: { projectId },
+        body: { sourceLanguage: tag },
+      });
+    } catch (error) {
+      setChoosing(false);
+      toast.error("Could not save the language", { description: messageForError(error) });
+      return;
+    }
+    rememberLanguage(tag);
+    void project.refetch();
+    await start(tag);
+    setChoosing(false);
   }
 
   const spinner = <Loader2 className="text-fg-2 size-6 animate-spin" aria-hidden="true" />;
@@ -196,8 +243,16 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
           Transcription is not started without one — a wrong guess routes the wrong lane for
           code-mixed speech.
         </p>
-        {/* FIX-04 mounts LanguagePicker here */}
-        {startButton("Start transcription", true)}
+        <LanguagePicker
+          value={chosenLanguage}
+          onChange={(tag) => void chooseLanguage(tag)}
+          className="justify-center"
+        />
+        {choosing || transcribe.isPending ? (
+          <p className="text-fg-2 text-sm" data-testid="awaiting-language-starting">
+            Starting transcription…
+          </p>
+        ) : null}
       </>
     );
   } else if (status === "no_media") {

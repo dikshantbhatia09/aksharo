@@ -171,7 +171,13 @@ export class UploadJob {
           body: {
             title,
             aspect: this.deps.quickPick.aspect,
-            sourceLanguage: this.deps.quickPick.language,
+            // FIX-04: omitted rather than guessed. A project created without a
+            // language is the server's `awaiting_language` state, which the
+            // editor's waiting screen offers a picker for — that is a question,
+            // where a wrong tag would have been a charge.
+            ...(this.deps.quickPick.language === undefined
+              ? {}
+              : { sourceLanguage: this.deps.quickPick.language }),
           },
         });
       } catch (error) {
@@ -298,19 +304,24 @@ export class UploadJob {
    * yet and nothing here needs to retry it.
    */
   private async tryStartTranscription(projectId: string): Promise<void> {
+    const language = this.deps.quickPick.language;
+    if (language === undefined) {
+      // FIX-04: no language, no spend. The server's `awaiting_language` read
+      // model owns the story from here and the waiting screen asks.
+      this.setStatus("processing");
+      return;
+    }
     this.setStatus("transcribing");
     try {
       // The primary pick leads; any other languages the onboarding wizard
       // recorded (F-002 "Languages you speak on camera") ride along as
       // routing hints — naming more than one is what tells the router this
       // is code-mixed speech (`transcripts.dto.ts`'s `languages` doc-comment).
-      const secondary = (this.deps.quickPick.languages ?? []).filter(
-        (tag) => tag !== this.deps.quickPick.language,
-      );
+      const secondary = (this.deps.quickPick.languages ?? []).filter((tag) => tag !== language);
       const result = await this.deps.client.call(endpoints.transcripts.transcribe, {
         params: { projectId },
         body: {
-          languages: [this.deps.quickPick.language, ...secondary],
+          languages: [language, ...secondary],
           hints: [],
           ...(this.deps.quickPick.styleId === undefined
             ? {}

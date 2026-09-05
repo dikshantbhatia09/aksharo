@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ScriptTabs } from "./ScriptTabs";
 
@@ -137,5 +137,95 @@ describe("<ScriptTabs />", () => {
     await user.selectOptions(screen.getByLabelText("Translate to"), "en");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/does not include this translation/);
+  });
+});
+/**
+ * FIX-04: the strip is built from the response, not from three hard-coded
+ * triggers. `onAvailable` is what stops the editor selecting a script the
+ * transcript does not have — the Devanagari-under-"Roman" repro.
+ */
+describe("<ScriptTabs /> is availability-driven (FIX-04)", () => {
+  it("renders a tab only for the scripts the response lists", async () => {
+    renderWithProviders(<Harness />, {
+      routes: {
+        [`/projects/${PROJECT}/transcript/scripts`]: {
+          scripts: [{ script: "native", available: true, source: "transcription" }],
+        },
+      },
+    });
+
+    expect(await screen.findByRole("tab", { name: "Native" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Roman" })).toBeNull();
+    // The translation affordance is unchanged and always offered.
+    expect(screen.getByRole("tab", { name: "+ Add translation…" })).toBeInTheDocument();
+  });
+
+  it("reports the available scripts — and only those — through onAvailable", async () => {
+    const onAvailable = vi.fn();
+    renderWithProviders(
+      <ScriptTabs
+        projectId={PROJECT}
+        activeScript="native"
+        onScriptChange={vi.fn()}
+        onAvailable={onAvailable}
+      />,
+      {
+        routes: {
+          [`/projects/${PROJECT}/transcript/scripts`]: scriptsBody([
+            { script: "roman", available: false },
+            { script: "native", available: true },
+          ]),
+        },
+      },
+    );
+
+    await waitFor(() => {
+      expect(onAvailable).toHaveBeenCalledWith(["native"]);
+    });
+  });
+
+  it("does not let a second click spend the same transliteration twice", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderWithProviders(<Harness />, {
+      routes: {
+        [`/projects/${PROJECT}/transcript/scripts`]: scriptsBody(),
+        [`/projects/${PROJECT}/transcript/transliterate`]: {
+          jobId: "01JJOB0000000000000000000A",
+          targetScript: "native",
+          status: "queued",
+          deduplicated: false,
+        },
+      },
+    });
+    const tab = await screen.findByRole("tab", { name: "Native" });
+    await user.click(tab);
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.filter(([url]) => String(url).includes("/transliterate")),
+      ).toHaveLength(1);
+    });
+  });
+});
+
+/**
+ * Step 4b's contract, as a unit: the editor keeps a script it still has, and
+ * moves to the first one it does have otherwise. This is the exact logic in
+ * `editor-client.tsx`'s `onScriptsAvailable`.
+ */
+describe("the editor's default-tab correction", () => {
+  const correct = (available: readonly string[], current: string): string =>
+    available.includes(current) ? current : (available[0] ?? current);
+
+  it("moves off a script the transcript does not have", () => {
+    expect(correct(["native"], "roman")).toBe("native");
+  });
+
+  it("keeps a script that is really there", () => {
+    expect(correct(["roman", "native"], "native")).toBe("native");
+  });
+
+  it("changes nothing while the transcript has no scripts at all", () => {
+    expect(correct([], "roman")).toBe("roman");
   });
 });

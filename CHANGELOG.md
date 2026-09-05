@@ -17,6 +17,29 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   found outside its file list — and gave `R2_PUBLIC_ENDPOINT`'s https-tunnel
   requirement its missing home in `docs/FREE-STACK.md` §6.
 
+- **F04: your language, your choice — and tabs that match the transcript.** Home
+  stamped `language: "hi-Latn"` on every project, because the only screen that
+  asks is reachable from the email-verify redirect that dev auto-verification
+  skips. That guess then routed the pure-Hindi lane, Whisper returned
+  Devanagari, and the credits were spent on an answer nobody had given. The
+  silent default is gone: the quick-pick starts empty, the spoken language is a
+  segmented control that shows nothing selected until it is chosen, and dropping
+  a file without one is refused at the top of the funnel with a toast that says
+  why and puts the picker back on screen. An explicit pick is remembered per
+  browser; the onboarding answer fills only a still-empty one, so the precedence
+  is explicit pick > server default > empty in both directions. A project that
+  reached `awaiting_language` anyway is no longer stuck — the waiting screen
+  mounts the same picker, and choosing a language records it on the project and
+  starts the transcription on that one gesture. From the editor, Re-transcribe
+  offers the picker with the server's own warning quoted ("every word id is
+  replaced"), and the documented `transcript/has_edits` 409 asks a second,
+  differently-worded question before resending with `force`. Finally the script
+  tabs are built from `GET /projects/{id}/transcript/scripts` instead of three
+  hard-coded triggers, the editor follows what that route reports rather than
+  defaulting to `roman`, and a finished `ai.transliterate` announces itself over
+  the same realtime branch a finished `ai.transcribe` does — so Devanagari under
+  a tab labelled Roman is no longer reachable.
+
 - **F01: derived media reaches the browser.** The API presigned every derived
   object — the proxy video, the waveform, thumbnails — against `R2_ENDPOINT`,
   which is a plain `http://localhost:9000` while the page is served over HTTPS,

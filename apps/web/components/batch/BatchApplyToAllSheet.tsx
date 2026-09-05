@@ -68,10 +68,15 @@ export function BatchApplyToAllSheet({
         projects: files.map((file) => ({
           title: titleFromFilename(file.name),
           aspect: quickPick.aspect,
-          sourceLanguage: quickPick.language,
+          // FIX-04: `language` is optional now, and an absent one is left
+          // absent rather than sent as `undefined` — Home gates the drop on a
+          // real pick, so reaching here without one means the server should
+          // own the `awaiting_language` story, not guess a lane.
+          ...(quickPick.language === undefined ? {} : { sourceLanguage: quickPick.language }),
         })),
         settings: {
-          languages: quickPick.languages ?? [quickPick.language],
+          languages:
+            quickPick.languages ?? (quickPick.language === undefined ? [] : [quickPick.language]),
           ...(quickPick.styleId === undefined ? {} : { stylePresetId: quickPick.styleId }),
         },
         durationsMs,

@@ -107,7 +107,11 @@ export function useUploadQueue(): {
         const job = new UploadJob({
           client,
           file,
-          quickPick: { language: "hi-Latn", aspect: "9:16" },
+          // FIX-04: a resumed upload has no picker behind it and the project
+          // it belongs to already carries its own `sourceLanguage`, so there is
+          // nothing here to choose — and the removed `"hi-Latn"` was the same
+          // silent guess the audit found on Home.
+          quickPick: { aspect: "9:16" },
           localId: record.id,
           onUpdate: update,
         });

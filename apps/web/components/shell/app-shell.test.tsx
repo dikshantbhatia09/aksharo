@@ -8,10 +8,15 @@ import type * as AppShellModule from "./app-shell";
 import { AuthCard } from "@/components/auth/auth-card";
 import { Providers } from "@/components/providers";
 import { SettingsRow, SettingsSection } from "@/components/settings/section";
+import { TRANSCRIPT_READY_EVENT } from "@/lib/edg/transcription-state";
 import { TEST_CONFIG } from "@/test/harness";
 import { routerMock } from "@/test/next-router";
 
 const refreshSession = vi.hoisted(() => vi.fn());
+/** The realtime `onEvent` the shell installed, so a test can deliver a frame. */
+const realtime = vi.hoisted(() => ({
+  onEvent: undefined as ((event: { event: string; data: unknown }) => void) | undefined,
+}));
 
 vi.mock("@/lib/session/client", () => ({
   refreshSession,
@@ -26,6 +31,9 @@ vi.mock("@montaj/api-client", async () => {
   return {
     ...actual,
     RealtimeClient: class {
+      constructor(options: { onEvent?: (event: { event: string; data: unknown }) => void }) {
+        realtime.onEvent = options.onEvent;
+      }
       subscribe(): void {}
       connect(): void {}
       disconnect(): void {}
@@ -35,9 +43,13 @@ vi.mock("@montaj/api-client", async () => {
 
 let AppShell: (typeof AppShellModule)["AppShell"];
 
+const SESSION_TOKEN =
+  "header.eyJzdWIiOiIwMUpVIiwid3MiOiIwMUpXIiwicm9sZSI6Im93bmVyIiwia2luZCI6IndlYiIsImp0aSI6IjAxSlMiLCJleHAiOjQxMDI0NDQ4MDB9.sig";
+
 beforeEach(async () => {
   ({ AppShell } = await import("./app-shell"));
   refreshSession.mockReset();
+  realtime.onEvent = undefined;
 });
 
 afterEach(() => {
@@ -149,5 +161,96 @@ describe("<SettingsSection />", () => {
       </SettingsSection>,
     );
     expect(screen.getByText("Digest")).toBeInTheDocument();
+  });
+});
+/**
+ * FIX-04 step 4c: the shell's one narrow branch that changes which screen the
+ * user should be on now covers transliteration too. Both strings come from
+ * `apps/api/src/jobs/contracts/queue-names.ts` (`"ai.transcribe"` line 17,
+ * `"ai.transliterate"` line 21) — the announcement path is identical, because
+ * the editor reload refetches the chunks that carry the word scripts.
+ */
+describe("<AppShell /> announces finished AI work", () => {
+  const json = (body: unknown, status = 200): Response =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+  // Route-aware on purpose: the shell also asks for its workspaces and its
+  // recent projects, and answering those with the job body renders a broken
+  // tree whose errors would drown the assertion below.
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        // A base is required: the shell also fetches relative paths of its own
+        // (`WhatsNewModal` asks for `/api/changelog/latest`), and `new URL`
+        // throws on those without one.
+        const { pathname } = new URL(
+          typeof input === "string" ? input : input.toString(),
+          "https://api.test",
+        );
+        if (pathname.startsWith("/jobs/")) {
+          return Promise.resolve(
+            json({ id: "01JOB", projectId: "01JPROJECT", status: "succeeded" }),
+          );
+        }
+        if (pathname === "/workspaces") return Promise.resolve(json([]));
+        if (pathname === "/projects") return Promise.resolve(json({ items: [], nextCursor: null }));
+        return Promise.resolve(
+          json({ error: { code: "common/not_found", message: "Not found." } }, 404),
+        );
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function deliver(type: string): Promise<string[]> {
+    refreshSession.mockResolvedValue({
+      accessToken: SESSION_TOKEN,
+      expiresIn: 900,
+      workspaceId: "01JW",
+      role: "owner",
+    });
+
+    const announced: string[] = [];
+    const listener = (event: Event): void => {
+      const detail = (event as CustomEvent<{ projectId?: string }>).detail;
+      if (detail?.projectId !== undefined) announced.push(detail.projectId);
+    };
+    window.addEventListener(TRANSCRIPT_READY_EVENT, listener);
+    try {
+      renderShell();
+      await waitFor(() => {
+        expect(realtime.onEvent).toBeDefined();
+      });
+      realtime.onEvent?.({
+        event: "job.completed",
+        data: { jobId: "01JOB", status: "succeeded", type },
+      });
+      // The handler reads the job back before it announces, so give the whole
+      // round trip room to happen (or to correctly not happen).
+      await waitFor(() => {
+        expect(announced.length).toBeGreaterThan(0);
+      }).catch(() => undefined);
+      return announced;
+    } finally {
+      window.removeEventListener(TRANSCRIPT_READY_EVENT, listener);
+    }
+  }
+
+  it("announces a finished transcription", async () => {
+    expect(await deliver("ai.transcribe")).toEqual(["01JPROJECT"]);
+  });
+
+  // The membership change: a script job finishing is the same story for the
+  // editor, because the new script rides on the same words.
+  it("announces a finished transliteration too", async () => {
+    expect(await deliver("ai.transliterate")).toEqual(["01JPROJECT"]);
+  });
+
+  it("stays quiet for any other completed job", async () => {
+    expect(await deliver("render.video")).toEqual([]);
   });
 });
