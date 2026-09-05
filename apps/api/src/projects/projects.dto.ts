@@ -115,6 +115,8 @@ export const projectSchema = z.object({
   aspect: z.enum(PROJECT_ASPECTS),
   status: z.enum(PROJECT_STATUSES),
   thumbnailKey: z.string().nullable(),
+  /** FIX-05: a short-lived presigned GET for `thumbnailKey`; absent when there is none. */
+  thumbnailUrl: z.string().optional(),
   durationMs: z.number().int().nullable(),
   mediaCount: z.number().int(),
   lastActivityAt: z.string(),

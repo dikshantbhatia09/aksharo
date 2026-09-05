@@ -318,6 +318,8 @@ export interface Project {
   aspect: ProjectAspect;
   status: ProjectStatus;
   thumbnailKey: string | null;
+  /** FIX-05: short-lived presigned GET for the thumbnail; absent when there is none. */
+  thumbnailUrl?: string;
   durationMs: number | null;
   mediaCount: number;
   lastActivityAt: string;

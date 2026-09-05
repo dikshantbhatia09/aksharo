@@ -4207,6 +4207,9 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "thumbnailUrl": {
+                            "type": "string"
+                          },
                           "durationMs": {
                             "nullable": true,
                             "type": "integer",
@@ -4386,6 +4389,9 @@
                     },
                     "thumbnailKey": {
                       "nullable": true,
+                      "type": "string"
+                    },
+                    "thumbnailUrl": {
                       "type": "string"
                     },
                     "durationMs": {
@@ -4592,6 +4598,9 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "thumbnailUrl": {
+                            "type": "string"
+                          },
                           "durationMs": {
                             "nullable": true,
                             "type": "integer",
@@ -4731,6 +4740,9 @@
                     },
                     "thumbnailKey": {
                       "nullable": true,
+                      "type": "string"
+                    },
+                    "thumbnailUrl": {
                       "type": "string"
                     },
                     "durationMs": {
@@ -4921,6 +4933,9 @@
                     },
                     "thumbnailKey": {
                       "nullable": true,
+                      "type": "string"
+                    },
+                    "thumbnailUrl": {
                       "type": "string"
                     },
                     "durationMs": {
@@ -7386,6 +7401,9 @@
                     },
                     "thumbnailKey": {
                       "nullable": true,
+                      "type": "string"
+                    },
+                    "thumbnailUrl": {
                       "type": "string"
                     },
                     "durationMs": {

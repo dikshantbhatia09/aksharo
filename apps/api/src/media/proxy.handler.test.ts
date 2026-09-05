@@ -57,16 +57,31 @@ interface Harness {
   handler: MediaProxyCompletionHandler;
   findUnique: ReturnType<typeof vi.fn>;
   updateMany: ReturnType<typeof vi.fn>;
+  projectUpdate: ReturnType<typeof vi.fn>;
   registry: JobCompletionRegistry;
   autoTranscribe: ReturnType<typeof vi.fn>;
 }
 
-function harness(status: MediaAsset["status"] | null = "probing"): Harness {
+/**
+ * FIX-05 copies the media's presentation facts onto the project row. The handler
+ * reads the asset twice with two different `select`s — the status it resolves,
+ * then the facts it copies — so the mock answers on the shape asked for.
+ */
+type PresentedFacts = Pick<MediaAsset, "projectId" | "role" | "durationMs" | "thumbKeys">;
+
+function harness(
+  status: MediaAsset["status"] | null = "probing",
+  presented: PresentedFacts | null = null,
+): Harness {
   const asset = status === null ? null : ({ status } as MediaAsset);
-  const findUnique = vi.fn(async () => asset);
+  const findUnique = vi.fn(async (args: { select?: Record<string, boolean> }) =>
+    args.select?.["role"] === true ? presented : asset,
+  );
   const updateMany = vi.fn(async () => ({ count: 1 }));
+  const projectUpdate = vi.fn(async () => ({}));
   const prisma = {
     mediaAsset: { findUnique, updateMany },
+    project: { update: projectUpdate },
   } as unknown as PrismaService;
 
   const registry = new JobCompletionRegistry();
@@ -74,7 +89,7 @@ function harness(status: MediaAsset["status"] | null = "probing"): Harness {
   const handler = new MediaProxyCompletionHandler(prisma, registry, {
     maybeEnqueue: autoTranscribe,
   } as unknown as AutoTranscribeTrigger);
-  return { handler, findUnique, updateMany, registry, autoTranscribe };
+  return { handler, findUnique, updateMany, projectUpdate, registry, autoTranscribe };
 }
 
 let h: Harness;
@@ -200,6 +215,36 @@ describe("MediaProxyCompletionHandler", () => {
       failureContext({ code: "media/corrupt", message: "bad", retryable: false }, {}),
     );
     expect(h.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+describe("project presentation facts (FIX-05)", () => {
+  // The grid renders from the project row alone — no join onto media_assets —
+  // so the duration and the first thumbnail have to land on the row itself the
+  // moment the derived assets exist.
+  it("copies durationMs and the first thumb key onto the project for a primary asset", async () => {
+    const primary = harness("probing", {
+      projectId: PROJECT,
+      role: "primary",
+      durationMs: 20_200,
+      thumbKeys: ["derived/thumb-0.jpg", "derived/thumb-1.jpg"],
+    });
+    await primary.handler.handle(successContext());
+    expect(primary.projectUpdate).toHaveBeenCalledWith({
+      where: { id: PROJECT },
+      data: { durationMs: 20_200, thumbnailKey: "derived/thumb-0.jpg" },
+    });
+  });
+
+  it("leaves the project alone for a non-primary asset", async () => {
+    const broll = harness("probing", {
+      projectId: PROJECT,
+      role: "broll",
+      durationMs: 20_200,
+      thumbKeys: ["derived/thumb-0.jpg"],
+    });
+    await broll.handler.handle(successContext());
+    expect(broll.projectUpdate).not.toHaveBeenCalled();
   });
 });
 

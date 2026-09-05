@@ -15,8 +15,9 @@ import type { StyleDoc } from "@montaj/caption-styles";
 
 import { ColourField, SelectField, SliderField, ToggleField } from "./controls";
 import { type PanelScope, type SetStyleOp } from "./ops";
-import { StylePicker } from "./StylePicker";
+import { DEFAULT_PREVIEW_CANVAS, StylePicker } from "./StylePicker";
 import { AudioPanel, type AudioPanelProps } from "../audio/AudioPanel";
+import { type CanvasSize, fitPreview } from "../canvas/stage-fit";
 import { StylePreviewCanvas } from "../canvas/StylePreviewCanvas";
 
 import { helpUrlFor, type HelpSlug } from "@/components/help/help-slug-map";
@@ -78,6 +79,8 @@ export interface RightPanelProps {
   readonly onUploadFont?: () => void;
   /** Props for the Audio tab (B10b); omitted while no project/media context is available. */
   readonly audio?: AudioPanelProps;
+  /** The document's canvas, so every preview in the panel uses the project's aspect. */
+  readonly canvas?: CanvasSize;
   readonly className?: string;
 }
 
@@ -89,6 +92,7 @@ export function RightPanel({
   onSaveTemplate,
   onUploadFont,
   audio,
+  canvas = DEFAULT_PREVIEW_CANVAS,
   className,
 }: RightPanelProps): React.JSX.Element {
   const [tab, setTab] = useState<PanelTab>("style");
@@ -129,6 +133,7 @@ export function RightPanel({
           selectedStyleId={style.id}
           scope={scope}
           onOp={onOp}
+          canvas={canvas}
           className="min-h-0 flex-1"
           {...(onSaveTemplate === undefined ? {} : { onSaveTemplate })}
         />
@@ -140,7 +145,14 @@ export function RightPanel({
         )
       ) : (
         <>
-          <StylePreviewCanvas style={style} width={288} height={162} className="w-full" />
+          {/* shrink-0: a flex column item shrinks below its own height by default,
+              which squeezed this preview to 62px and broke the aspect it was
+              just given. The explicit size from `fitPreview` is the contract. */}
+          <StylePreviewCanvas
+            style={style}
+            {...fitPreview(canvas, 288, 220)}
+            className="shrink-0"
+          />
           {tab === "colors" ? <ColorsPanel style={style} scope={scope} onOp={onOp} /> : null}
           {tab === "look" ? (
             <LookPanel

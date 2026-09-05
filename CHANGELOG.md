@@ -45,6 +45,28 @@ awaiting_language | processing_media | no_media` — computed on demand from the
   that works the moment credits are granted, instead of a project silently
   marked Ready that was never transcribed.
 
+- **F05: the chrome finally believes the project.** The data was right all
+  along — `projects.aspect` is `9:16`, the EDG canvas is 1080×1920, exports are
+  portrait — and every frame around it hard-coded an aspect anyway. One shared
+  helper (`stage-fit.ts`: `fitPreview` and `aspectRatioOf`) now sizes every
+  preview, and each surface derives its geometry from the document instead of a
+  literal. The editor stage is a box with the document's own `aspect-ratio`, so
+  a 9:16 project is a tall centred frame rather than a strip lost in a landscape
+  void, and a 16:9 project is wide — the fix is symmetric, not a new hard-code.
+  The style gallery gets `auto-rows-max` and aspect-correct tile sizes: rows can
+  no longer be squeezed to fit a definite-height flex child, which is what
+  collapsed thirty tiles to ~7px slivers. The right column scrolls inside
+  itself, so Colors and Look controls stop rendering over the timeline
+  transport. Project rows now carry the presentation facts the grid needs:
+  `media.proxy` completion copies `durationMs` and the first thumbnail key onto
+  the project (idempotent, primary media only), the DTO exposes a short-lived
+  presigned `thumbnailUrl` beside the existing `durationMs`, and cards render in
+  the project's real aspect with a real thumbnail and an `m:ss` duration chip.
+  The share page follows the same projection instead of forcing 9:16 on every
+  viewer. Deliberately untouched, and still open: the caption-budget-vs-canvas
+  server mismatch (`edg/init/caption-budgets.ts`) and the safe-area horizontal
+  clamp — both are layout math, not chrome.
+
 - **M20 (post-merge): `LLM_PROVIDER=ollama` took the whole AI worker down.**
   Found by running the merged build rather than by any test: `runtime.py` builds
   the translation chain eagerly at startup, and `LLMTranslateProvider` knew only

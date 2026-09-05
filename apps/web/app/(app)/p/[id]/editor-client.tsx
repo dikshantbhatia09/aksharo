@@ -27,6 +27,7 @@ import type { EditorSnapshot, EditorStore } from "@/lib/edg/store";
 
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
 import { CropWindowOverlay } from "@/components/editor/canvas/CropWindowOverlay";
+import { aspectRatioOf, containWidth } from "@/components/editor/canvas/stage-fit";
 import { useRenderer } from "@/components/editor/canvas/use-canvaskit";
 import { FirstRunCoachMarks } from "@/components/editor/coach-marks/FirstRunCoachMarks";
 import { ExportButton } from "@/components/editor/export/ExportButton";
@@ -690,29 +691,45 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           />
         </div>
 
-        <div className="min-w-0 flex-1 bg-black/40 p-4">
-          <CaptionStage
-            src={timelineMedia.proxyUrl ?? ""}
-            projection={projection}
-            catalogue={SYSTEM_STYLE_MAP}
-            {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
-            onOp={(op) => {
-              store.submitOp({
-                type: "SetSegmentPosition",
-                opId: op.opId,
-                segmentId: op.segmentId,
-                position: op.position,
-              });
+        <div
+          className="min-w-0 flex-1 bg-black/40 p-4 flex items-center justify-center"
+          style={{ containerType: "size" }}
+        >
+          {/* FIX-05: the stage box takes the DOCUMENT's aspect, so a 9:16 project
+              is a tall frame in a centered column, not a strip lost in a
+              landscape void. CaptionStage still letterboxes internally, so a
+              mid-migration mismatch degrades gracefully instead of cropping. */}
+          <div
+            className="relative max-h-full max-w-full"
+            style={{
+              aspectRatio: aspectRatioOf(projection.canvas),
+              width: containWidth(projection.canvas, "100cqw", "100cqh"),
             }}
+            data-testid="editor-stage-box"
           >
-            {({ fit, canvas }) => (
-              <CropWindowOverlay cropRect={currentCrop} canvas={canvas} fit={fit} />
-            )}
-          </CaptionStage>
+            <CaptionStage
+              src={timelineMedia.proxyUrl ?? ""}
+              projection={projection}
+              catalogue={SYSTEM_STYLE_MAP}
+              {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
+              onOp={(op) => {
+                store.submitOp({
+                  type: "SetSegmentPosition",
+                  opId: op.opId,
+                  segmentId: op.segmentId,
+                  position: op.position,
+                });
+              }}
+            >
+              {({ fit, canvas }) => (
+                <CropWindowOverlay cropRect={currentCrop} canvas={canvas} fit={fit} />
+              )}
+            </CaptionStage>
+          </div>
         </div>
 
         <div
-          className="flex w-80 min-h-0 shrink-0 flex-col gap-2 border-l border-white/10 p-3"
+          className="flex w-80 min-h-0 shrink-0 flex-col gap-2 overflow-y-auto border-l border-white/10 p-3"
           data-coach-mark="style"
         >
           {reflow?.current.belowComfortableMinimum === true ? (
@@ -727,6 +744,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
             styles={SYSTEM_STYLES}
             style={effectiveStyle}
             scope={scope}
+            canvas={projection.canvas}
             onOp={submitPanelOp}
             audio={{
               projectId,
