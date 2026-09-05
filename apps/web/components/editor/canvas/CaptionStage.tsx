@@ -55,8 +55,10 @@ interface MaybeFrameCallbackVideo {
 }
 
 export interface CaptionStageProps {
-  /** Proxy URL from R2 (`proxy540.mp4`, CONTRACTS §6). */
-  readonly src: string;
+  /** Proxy URL from the derived store; `undefined` while none exists (audio-only,
+   * still transcoding, or the media request failed). Never pass `""` — an empty
+   * src resolves to the page URL and the element "loads" the editor's own HTML. */
+  readonly src: string | undefined;
   readonly projection: EdgProjection;
   readonly catalogue: ReadonlyMap<string, StyleDoc>;
   /** The surface the overlay is drawn at; the proxy's own size by default. */
@@ -65,6 +67,17 @@ export interface CaptionStageProps {
   readonly onOp?: (op: SetSegmentPositionOp) => void;
   /** The segment the user is editing; only that one can be dragged. */
   readonly selectedSegmentId?: string;
+  /** Transport intent in (FIX-02): the store commands, this component executes. */
+  readonly playing?: boolean;
+  readonly seekMs?: number;
+  readonly seekSeq?: number;
+  /** The element's actual clock, out — mirror it with `PlayheadStore.syncFromMedia`. */
+  readonly onTimeUpdate?: (ms: number) => void;
+  readonly onEnded?: () => void;
+  /** `video.play()` rejected (autoplay policy, no audio route, transient decode). */
+  readonly onPlayBlocked?: (reason: string) => void;
+  /** The element errored after load (expired URL mid-session, network drop). */
+  readonly onMediaError?: () => void;
   readonly showSafeZones?: boolean;
   readonly className?: string;
   /**
@@ -99,6 +112,13 @@ export function CaptionStage({
   canvas,
   onOp,
   selectedSegmentId,
+  playing,
+  seekMs,
+  seekSeq,
+  onTimeUpdate,
+  onEnded,
+  onPlayBlocked,
+  onMediaError,
   showSafeZones = true,
   className,
   children,
@@ -143,7 +163,9 @@ export function CaptionStage({
     if (request !== undefined) {
       const step: FrameCallback = (_now, metadata) => {
         if (cancelled) return;
-        setOutputMs(Math.round(metadata.mediaTime * 1000));
+        const ms = Math.round(metadata.mediaTime * 1000);
+        setOutputMs(ms);
+        onTimeUpdate?.(ms);
         handle = request(step);
       };
       handle = request(step);
@@ -157,7 +179,9 @@ export function CaptionStage({
     // still far tighter than `timeupdate`.
     const tick = (): void => {
       if (cancelled) return;
-      setOutputMs(Math.round(video.currentTime * 1000));
+      const ms = Math.round(video.currentTime * 1000);
+      setOutputMs(ms);
+      onTimeUpdate?.(ms);
       handle = requestAnimationFrame(tick);
     };
     handle = requestAnimationFrame(tick);
@@ -165,7 +189,46 @@ export function CaptionStage({
       cancelled = true;
       cancelAnimationFrame(handle);
     };
-  }, []);
+  }, [onTimeUpdate]);
+
+  // Execute play/pause intent. The element is the clock; this is the ONE place
+  // that calls play()/pause() (grep before adding another — two writers fight).
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video === null || playing === undefined) return;
+    if (playing) {
+      video.play().catch((cause: unknown) => {
+        onPlayBlocked?.(cause instanceof Error ? cause.message : "playback was blocked");
+      });
+    } else {
+      video.pause();
+    }
+  }, [playing, src, onPlayBlocked]);
+
+  // Execute exactly one seek per seekSeq bump. Mirrored time updates never
+  // arrive here — that is the whole point of the sequence number.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video === null || seekSeq === undefined || seekMs === undefined) return;
+    if (seekSeq === 0) return; // initial mount, no command yet
+    video.currentTime = seekMs / 1000;
+    setOutputMs(seekMs); // repaint the overlay immediately, even while paused
+  }, [seekSeq]); // eslint-disable-line react-hooks/exhaustive-deps -- seekMs rides with its seq
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video === null) return;
+    const ended = (): void => onEnded?.();
+    const errored = (): void => {
+      if (video.error !== null) onMediaError?.();
+    };
+    video.addEventListener("ended", ended);
+    video.addEventListener("error", errored);
+    return () => {
+      video.removeEventListener("ended", ended);
+      video.removeEventListener("error", errored);
+    };
+  }, [onEnded, onMediaError, src]);
 
   // Draw the overlay for the current output instant.
   useEffect(() => {
@@ -303,15 +366,25 @@ export function CaptionStage({
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      <video
-        ref={videoRef}
-        src={src}
-        playsInline
-        preload="auto"
-        className="absolute"
-        style={{ left: fit.left, top: fit.top, width: fit.width, height: fit.height }}
-        data-testid="caption-stage-video"
-      />
+      {src === undefined ? (
+        <div
+          className="absolute flex items-center justify-center text-xs text-white/50"
+          style={{ left: fit.left, top: fit.top, width: fit.width, height: fit.height }}
+          data-testid="caption-stage-no-media"
+        >
+          Preview is preparing…
+        </div>
+      ) : (
+        <video
+          ref={videoRef}
+          src={src}
+          playsInline
+          preload="auto"
+          className="absolute"
+          style={{ left: fit.left, top: fit.top, width: fit.width, height: fit.height }}
+          data-testid="caption-stage-video"
+        />
+      )}
       <canvas
         ref={overlayRef}
         className="pointer-events-none absolute"
