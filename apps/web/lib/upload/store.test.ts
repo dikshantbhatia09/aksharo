@@ -137,6 +137,12 @@ describe("deleteUploadRecord", () => {
   });
 });
 
+/** The re-imported copy of `store.ts`, typed off the statically imported one. */
+interface FreshStore {
+  readonly listUploadRecords: typeof listUploadRecords;
+  readonly putUploadRecord: typeof putUploadRecord;
+}
+
 /**
  * The persistence request is module-level state ("once per session"), so each
  * case here resets the module registry and re-imports `store.ts` fresh — the
@@ -146,7 +152,7 @@ describe("deleteUploadRecord", () => {
  */
 async function withStubbedPersist<T>(
   persist: () => Promise<boolean>,
-  run: (store: typeof import("./store")) => Promise<T>,
+  run: (store: FreshStore) => Promise<T>,
 ): Promise<T> {
   vi.resetModules();
   Object.defineProperty(navigator, "storage", {
