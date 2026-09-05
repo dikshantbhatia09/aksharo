@@ -234,6 +234,11 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
         onQueued={() => {
           setBlocked(false);
           setDismissedAlignment(false);
+          // The previous alignment's verdict is not this one's. Without this, a
+          // second import after a failure renders one frame of the OLD failure
+          // (phase `aligning` + a stale `failed`) before the poll's first tick
+          // corrects it — `start()` clears the view for the same reason.
+          setView(null);
           setPhase("aligning");
         }}
       />
