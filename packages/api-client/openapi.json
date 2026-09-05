@@ -26290,6 +26290,7 @@
             "type": "string",
             "enum": [
               "pending_browser",
+              "rendering",
               "succeeded",
               "failed"
             ]

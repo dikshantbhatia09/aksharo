@@ -9,7 +9,7 @@ import { ExportHistory } from "./ExportHistory";
 import { renderWithProviders } from "@/test/harness";
 
 /**
- * The exports history (S-02 step 2).
+ * The exports history (S-02 step 2, rewritten for S05).
  *
  * F-06's QA 7: close the dialog mid-render and the render finishes unobserved —
  * reopening shows no progress, no download, and an Export button inviting a
@@ -17,12 +17,16 @@ import { renderWithProviders } from "@/test/harness";
  * answers: the rows and their chips, a download presigned at click time and
  * never before, the poll that follows a live render, and — the part that costs
  * money — the poll actually stopping once nothing can change.
+ *
+ * S05 changed what "a live render" IS on this screen. S-02 had to read the jobs
+ * list beside the exports list, because a cloud export had no row until it
+ * finished; the row now exists from the POST as `rendering`, so every fixture
+ * here is an `exports` row and the jobs endpoint is not called at all.
  */
 
 const PROJECT_ID = "01JSPR0JECT000000000000000";
 const MP4_ID = "01JSEXP0RTMP4000000000000A";
 const SRT_ID = "01JSEXP0RTSRT000000000000B";
-const JOB_ID = "01JSJ0B0000000000000000001";
 const DOWNLOAD_URL = "https://derived.test/exports/output.mp4?sig=abc";
 
 const EXPORTS_PATH = "/projects/" + PROJECT_ID + "/exports";
@@ -64,35 +68,18 @@ function exportRow(overrides: Record<string, unknown> = {}): Record<string, unkn
   };
 }
 
-/** `JobSummary` — `packages/api-client/src/types.ts:478-497`. */
-function renderJob(
-  status: string,
-  progress: number,
-  type = "render.video",
-): Record<string, unknown> {
-  return {
-    id: JOB_ID,
-    type,
-    status,
-    priority: 100,
-    progress,
-    etaMs: null,
-    projectId: PROJECT_ID,
-    jobKey: type + ":" + PROJECT_ID + ":m1",
-    attemptId: null,
-    creditsChargedTenths: 0,
-    maxQueueWaitMs: null,
-    result: null,
-    error: null,
-    provider: null,
-    model: null,
-    queuedAt: new Date(Date.now() - 30_000).toISOString(),
-    startedAt: null,
-    finishedAt: null,
-  };
+/** The S05 row a cloud export is from the moment it is requested. */
+function renderingRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return exportRow({
+    status: "rendering",
+    sizeBytes: null,
+    durationMs: null,
+    createdAt: new Date(Date.now() - 30_000).toISOString(),
+    ...overrides,
+  });
 }
 
-function jobPage(...items: readonly Record<string, unknown>[]): Record<string, unknown> {
+function exportPage(...items: readonly Record<string, unknown>[]): Record<string, unknown> {
   return { items, nextCursor: null };
 }
 
@@ -111,24 +98,20 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("<ExportHistory /> — the exports a project already has (S02-2)", () => {
+describe("<ExportHistory /> — the exports a project already has (S02-2, S05-5)", () => {
   it("lists each export with its kind and a status chip", async () => {
     renderWithProviders(<ExportHistory projectId={PROJECT_ID} />, {
       routes: {
-        [EXPORTS_PATH]: {
-          items: [
-            exportRow({ watermarked: true }),
-            exportRow({
-              id: SRT_ID,
-              status: "failed",
-              kind: "srt",
-              preset: null,
-              createdAt: new Date(Date.now() - 600_000).toISOString(),
-            }),
-          ],
-          nextCursor: null,
-        },
-        [JOBS_PATH]: jobPage(),
+        [EXPORTS_PATH]: exportPage(
+          exportRow({ watermarked: true }),
+          exportRow({
+            id: SRT_ID,
+            status: "failed",
+            kind: "srt",
+            preset: null,
+            createdAt: new Date(Date.now() - 600_000).toISOString(),
+          }),
+        ),
       },
     });
 
@@ -145,15 +128,58 @@ describe("<ExportHistory /> — the exports a project already has (S02-2)", () =
 
     // A subtitle export is labelled by its kind, not as a video (QA 4).
     expect(rows[1]).toHaveTextContent("SRT");
-    expect(rows[1]).toHaveTextContent("Failed");
+    expect(rows[1]).toHaveTextContent("Render failed");
     expect(rows[1]).not.toHaveTextContent("Watermarked");
     // Nothing to fetch for a failed export.
     expect(within(rows[1] as HTMLElement).queryByTestId("export-history-download")).toBeNull();
   });
 
+  /**
+   * S05's headline: a render that fails is a row that says so. Before it, the
+   * failure wrote nothing at all and the export simply vanished from the list.
+   */
+  it("shows a failed row in red, and offers nothing to download", async () => {
+    renderWithProviders(<ExportHistory projectId={PROJECT_ID} />, {
+      routes: { [EXPORTS_PATH]: exportPage(exportRow({ status: "failed" })) },
+    });
+
+    const row = await screen.findByTestId("export-history-row");
+    expect(row).toHaveTextContent("Render failed");
+    expect(within(row).queryByTestId("export-history-download")).toBeNull();
+    // The rejected tone, not merely "not green" (`badgeVariants`, packages/ui).
+    const chip = within(row).getByText("Render failed");
+    expect(chip.className).toContain("text-rejected");
+  });
+
+  /** A cloud render in flight is amber; a browser export is its own neutral state. */
+  it("distinguishes a cloud render in flight from a browser export", async () => {
+    renderWithProviders(<ExportHistory projectId={PROJECT_ID} />, {
+      routes: {
+        [EXPORTS_PATH]: exportPage(
+          renderingRow(),
+          exportRow({
+            id: SRT_ID,
+            status: "pending_browser",
+            createdAt: new Date(Date.now() - 600_000).toISOString(),
+          }),
+        ),
+      },
+    });
+
+    const rows = await screen.findAllByTestId("export-history-row");
+    expect(rows[0]).toHaveTextContent("Rendering…");
+    expect(within(rows[0] as HTMLElement).getByText("Rendering…").className).toContain(
+      "text-warning",
+    );
+    expect(within(rows[0] as HTMLElement).queryByTestId("export-history-download")).toBeNull();
+
+    expect(rows[1]).toHaveTextContent("In browser");
+    expect(within(rows[1] as HTMLElement).queryByTestId("export-history-download")).toBeNull();
+  });
+
   it("says so plainly when the project has never exported anything", async () => {
     renderWithProviders(<ExportHistory projectId={PROJECT_ID} />, {
-      routes: { [EXPORTS_PATH]: { items: [], nextCursor: null }, [JOBS_PATH]: jobPage() },
+      routes: { [EXPORTS_PATH]: exportPage() },
     });
 
     expect(await screen.findByText("No exports yet.")).toBeInTheDocument();
@@ -171,8 +197,7 @@ describe("<ExportHistory /> — the exports a project already has (S02-2)", () =
 
     const { fetchMock } = renderWithProviders(<ExportHistory projectId={PROJECT_ID} />, {
       routes: {
-        [EXPORTS_PATH]: { items: [exportRow()], nextCursor: null },
-        [JOBS_PATH]: jobPage(),
+        [EXPORTS_PATH]: exportPage(exportRow()),
         ["/exports/" + MP4_ID + "/download"]: {
           url: DOWNLOAD_URL,
           expiresAt: new Date(Date.now() + 300_000).toISOString(),
@@ -194,11 +219,10 @@ describe("<ExportHistory /> — the exports a project already has (S02-2)", () =
   });
 
   /**
-   * The reattach itself, and its off switch. A cloud export has no `exports`
-   * row until it finishes (`schema.prisma:1913-1916`), so the running render
-   * comes from the job it is made of; once that job is terminal there is
-   * nothing left that can change without a click, and the timer must not be
-   * armed again (QA 5: no traffic on an idle dialog).
+   * The reattach itself, and its off switch. Since S05 the running render IS a
+   * row (`rendering`), so one endpoint carries the whole lifecycle; once every
+   * row is terminal there is nothing left that can change without a click, and
+   * the timer must not be armed again (QA 5: no traffic on an idle dialog).
    */
   it("follows a running render, then stops polling once nothing can change", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -206,14 +230,9 @@ describe("<ExportHistory /> — the exports a project already has (S02-2)", () =
     const { fetchMock } = renderWithProviders(<ExportHistory projectId={PROJECT_ID} />, {
       routes: {
         [EXPORTS_PATH]: respondsInTurn(
-          { items: [], nextCursor: null },
-          { items: [], nextCursor: null },
-          { items: [exportRow()], nextCursor: null },
-        ),
-        [JOBS_PATH]: respondsInTurn(
-          jobPage(renderJob("running", 42)),
-          jobPage(renderJob("running", 80)),
-          jobPage(renderJob("succeeded", 100)),
+          exportPage(renderingRow()),
+          exportPage(renderingRow()),
+          exportPage(exportRow()),
         ),
       },
     });
@@ -227,18 +246,17 @@ describe("<ExportHistory /> — the exports a project already has (S02-2)", () =
     });
     expect(callsTo(fetchMock, EXPORTS_PATH)).toBe(1);
     const running = screen.getByTestId("export-history-row");
-    expect(running).toHaveTextContent("Video · cloud render");
-    expect(running).toHaveTextContent("Running — 42%");
+    expect(running).toHaveTextContent("MP4 · reels");
+    expect(running).toHaveTextContent("Rendering…");
 
-    // Tick 2, after the first 5 s backoff step: the list is read again.
+    // Tick 2, after the first 5 s backoff step: still rendering, read again.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });
     expect(callsTo(fetchMock, EXPORTS_PATH)).toBe(2);
-    expect(screen.getByTestId("export-history-row")).toHaveTextContent("Running — 80%");
+    expect(screen.getByTestId("export-history-row")).toHaveTextContent("Rendering…");
 
-    // Tick 3, after the 10 s step: the job is terminal and the export row has
-    // landed, so this is the last read.
+    // Tick 3, after the 10 s step: the row is terminal, so this is the last read.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000);
     });
@@ -250,7 +268,30 @@ describe("<ExportHistory /> — the exports a project already has (S02-2)", () =
       await vi.advanceTimersByTimeAsync(60_000);
     });
     expect(callsTo(fetchMock, EXPORTS_PATH)).toBe(3);
-    expect(callsTo(fetchMock, JOBS_PATH)).toBe(3);
+    // And the jobs list this panel used to poll is gone for good (S05-5).
+    expect(callsTo(fetchMock, JOBS_PATH)).toBe(0);
+  });
+
+  /** An all-terminal list must arm no timer at all — one tick and done. */
+  it("never polls a second time when every row is already terminal", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+
+    const { fetchMock } = renderWithProviders(<ExportHistory projectId={PROJECT_ID} />, {
+      routes: {
+        [EXPORTS_PATH]: exportPage(exportRow(), exportRow({ id: SRT_ID, status: "failed" })),
+      },
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(callsTo(fetchMock, EXPORTS_PATH)).toBe(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(callsTo(fetchMock, EXPORTS_PATH)).toBe(1);
+    expect(callsTo(fetchMock, JOBS_PATH)).toBe(0);
   });
 });
 
@@ -277,25 +318,21 @@ function dialog(): React.JSX.Element {
 describe("<ExportDialog /> — a render already in flight (S02-2, addendum 3)", () => {
   it("disables Export and says why while the project has a running render", async () => {
     renderWithProviders(dialog(), {
-      routes: {
-        [EXPORTS_PATH]: { items: [], nextCursor: null },
-        [JOBS_PATH]: jobPage(renderJob("running", 42)),
-      },
+      routes: { [EXPORTS_PATH]: exportPage(renderingRow()) },
     });
 
     await screen.findByTestId("export-history-row");
-    expect(screen.getByTestId("export-start")).toBeDisabled();
-    expect(screen.getByTestId("export-render-in-flight")).toHaveTextContent(
+    // `findBy`, not `getBy`: the row reaches the screen one commit before the
+    // dialog above learns from it (`onActiveChange` is a passive effect).
+    expect(await screen.findByTestId("export-render-in-flight")).toHaveTextContent(
       "A render is already running — see Previous exports.",
     );
+    expect(screen.getByTestId("export-start")).toBeDisabled();
   });
 
   it("leaves Export enabled when every render has settled", async () => {
     renderWithProviders(dialog(), {
-      routes: {
-        [EXPORTS_PATH]: { items: [exportRow()], nextCursor: null },
-        [JOBS_PATH]: jobPage(renderJob("succeeded", 100)),
-      },
+      routes: { [EXPORTS_PATH]: exportPage(exportRow()) },
     });
 
     await screen.findByTestId("export-history-row");

@@ -15,7 +15,11 @@ import { BrandAssetsService } from "./brand-assets.service.js";
 import { BrowserManifestDailyCap } from "./daily-cap.js";
 import { decideExport, type ExportDecisionInput, type SubtitleFormat } from "./decision.js";
 import { DefaultWatermarkService } from "./default-watermark.service.js";
-import { EXPORT_RETENTION_DAYS, SOURCE_URL_TTL_SECONDS } from "./exports.constants.js";
+import {
+  EXPORT_RETENTION_DAYS,
+  exportKindFor,
+  SOURCE_URL_TTL_SECONDS,
+} from "./exports.constants.js";
 import { EXPORT_ERROR_CODES } from "./exports.errors.js";
 import { buildRenderManifest, RENDER_CORE_VERSION } from "./manifest-builder.js";
 import { NINE_PASS_LEDGER, type NinePassLedger } from "./nine-pass-ledger.js";
@@ -394,6 +398,40 @@ export class ExportsService {
         path: "skia",
         script: input.script,
         dropFillers: input.dropFillers,
+      },
+    });
+
+    // S05: the export is a row from this moment — the id the client is handed
+    // below, the row the completion handler will finish, the row the history
+    // lists while it renders, and the row that turns `failed` if it never
+    // finishes. Before this, a cloud export had no row until completion (and a
+    // failed one never got one at all).
+    //
+    // `kind` for a subtitle job is the FIRST requested format: `subtitle.formats`
+    // is a non-empty array (`SubtitleOptionsRequest`, exports.dto.ts:38, `.min(1)`,
+    // and `ExportRequest`'s check makes `subtitle` required when `kind` is
+    // "subtitle"), and the completion handler writes that same first format under
+    // this id — `render-completion.handler.ts`'s `index === 0` sidecar. The
+    // remaining formats become their own rows there, as they already did.
+    const firstSubtitleFormat = input.subtitle?.formats[0];
+    await this.prisma.export.create({
+      data: {
+        id: exportId,
+        workspaceId: input.workspaceId,
+        projectId: input.projectId,
+        manifestId: manifest.manifestId,
+        jobId: enqueued.job.id,
+        status: "rendering",
+        kind:
+          input.kind === "subtitle" && firstSubtitleFormat !== undefined
+            ? exportKindFor(firstSubtitleFormat)
+            : manifest.output.container === "mov"
+              ? "mov"
+              : "mp4",
+        preset: input.preset,
+        bucket: "r2",
+        watermarked: decision.watermark,
+        resolution: `${String(manifest.output.width)}x${String(manifest.output.height)}`,
       },
     });
 

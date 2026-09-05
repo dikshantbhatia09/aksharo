@@ -199,7 +199,7 @@ export class ManifestCompleteResponseDto {
 export class ExportDto {
   @ApiProperty() id!: string;
   @ApiProperty() projectId!: string;
-  @ApiProperty({ enum: ["pending_browser", "succeeded", "failed"] }) status!: string;
+  @ApiProperty({ enum: ["pending_browser", "rendering", "succeeded", "failed"] }) status!: string;
   @ApiProperty() kind!: string;
   @ApiPropertyOptional({ nullable: true }) preset?: string | null;
   @ApiProperty() watermarked!: boolean;

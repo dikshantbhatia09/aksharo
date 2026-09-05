@@ -45,6 +45,21 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   checkbox items, submenus — restyled with our own `dropdown-menu.tsx` classes,
   over one new dependency: `@radix-ui/react-context-menu@^2`.
 
+- **S05: an export is a row from the first click.** A cloud export used to have
+  no `exports` row until its completion handler wrote one — so the id the dialog
+  handed you named nothing while the render ran, the history had to poll the jobs
+  list beside the exports list to show anything in flight, and a render that
+  failed left nothing behind at all. `POST /projects/{id}/exports` now writes the
+  row itself, `rendering` (a new `ExportStatus` value, one migration), under the
+  id it returns and against the job it enqueued. Both completion handlers finish
+  that row rather than inventing one — the subtitle handler's first sidecar is an
+  upsert now, and the video handler's update heals a pre-S05 row's missing
+  `job_id` — and both implement `JobCompletionHandler.handleFailure`, so a
+  terminal failure marks the row `failed` (status-guarded, so a replay can never
+  flip a row that has since succeeded). The history panel reads row status only:
+  the jobs-list poll is deleted, a failed export is a red "Render failed" row
+  with nothing to download, and the poll stops once every row is terminal.
+
 - **Stage-3 integration (orchestrator).** Merged OC-01 + S-02 + S-03 + S-04.
   Fixed what their QA surfaced outside their file lists: caption drags never
   persisted because the stage's `SetSegmentPosition` op kept the panel module's
