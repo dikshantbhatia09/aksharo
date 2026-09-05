@@ -605,11 +605,34 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     setSelectedWordId(undefined);
   }
 
+  /** The word after `wordId` in document order, across segment boundaries. */
+  function wordFollowing(wordId: string): { readonly s: number } | undefined {
+    for (const [index, segment] of segments.entries()) {
+      const words = wordsOf(segment);
+      const at = words.findIndex((word) => word.wid === wordId);
+      if (at === -1) continue;
+      const next = words.at(at + 1);
+      if (next !== undefined) return next;
+      const following = segments.at(index + 1);
+      return following === undefined ? undefined : wordsOf(following).at(0);
+    }
+    return undefined;
+  }
+
   function onInsertWordAfter(afterWordId: string, text: string): void {
     const anchor = state.words.get(afterWordId as never);
     if (anchor === undefined) return;
     const newWordId = nextWordIdInChunk(state.words, afterWordId);
-    store.submitOp(insertWordAfter(afterWordId, newWordId, text, anchor.e, anchor.e + 200, newId), {
+    // A fixed 200 ms word overran its follower on any transcript denser than
+    // 200 ms/word, and `apply.ts` refuses that (`invalid-range`) — so "Insert
+    // word after" never succeeded on real speech (OC-03 finding). Clamp the new
+    // word to the gap; a zero gap yields a zero-length word, which the op allows.
+    const follower = wordFollowing(afterWordId);
+    const end =
+      follower === undefined
+        ? anchor.e + 200
+        : Math.max(anchor.e, Math.min(anchor.e + 200, follower.s));
+    store.submitOp(insertWordAfter(afterWordId, newWordId, text, anchor.e, end, newId), {
       label: "Insert word",
     });
   }

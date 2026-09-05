@@ -8,6 +8,14 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **Stage-4 integration (orchestrator).** Merged OC-02 + OC-03 + S-05. "Insert
+  word after" never succeeded on real speech: the editor asked for a fixed 200 ms
+  word and `apply.ts` rightly refused any that overran its follower (OC-03's
+  finding) — the new word is now clamped to the gap. The export-history
+  in-flight test sampled its assertion one commit early (~1 run in 6, OC-02's
+  finding) and now waits for it. S-05's `ExportStatus.rendering` migration is
+  applied to the live database with this merge.
+
 - **OC2: a real menubar, one action registry.** The editor header carried a
   back-link, two loose checkboxes and a Re-transcribe button, and its keyboard
   map was the only place that knew what `S` or `Ctrl+Z` did. Every editor action

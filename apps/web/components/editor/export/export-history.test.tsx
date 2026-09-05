@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { EdgProjection, FontRegistry, Shaper } from "@montaj/render-core";
@@ -327,7 +327,9 @@ describe("<ExportDialog /> — a render already in flight (S02-2, addendum 3)", 
     expect(await screen.findByTestId("export-render-in-flight")).toHaveTextContent(
       "A render is already running — see Previous exports.",
     );
-    expect(screen.getByTestId("export-start")).toBeDisabled();
+    // OC-02 found this sampling one commit early (~1 run in 6): `renderInFlight`
+    // is set by a passive effect after the row paints, so wait for it.
+    await waitFor(() => expect(screen.getByTestId("export-start")).toBeDisabled());
   });
 
   it("leaves Export enabled when every render has settled", async () => {
