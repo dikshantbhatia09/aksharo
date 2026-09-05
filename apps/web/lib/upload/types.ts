@@ -18,7 +18,13 @@ export type UploadStatus =
   | "cancelled";
 
 export interface UploadQuickPick {
-  readonly language: string;
+  /**
+   * The spoken language, BCP-47. Optional on purpose (FIX-04): the Home
+   * picker starts empty and only an explicit gesture fills it, so every
+   * consumer has to decide what it does with "not chosen" rather than
+   * inheriting a default that spends credits on the wrong lane.
+   */
+  readonly language?: string;
   /**
    * Every language the onboarding wizard recorded (F-002 "Languages you
    * speak on camera"), primary first — carried into the transcribe request

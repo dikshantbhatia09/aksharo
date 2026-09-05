@@ -20,6 +20,7 @@ import { useSearchParams } from "next/navigation";
 import * as React from "react";
 
 import { useCurrentUser, useProjects } from "@montaj/api-client";
+import { toast } from "@montaj/ui";
 
 import { LocalProjectsSection } from "./local-projects-section";
 
@@ -28,6 +29,7 @@ import type { UploadQuickPick } from "@/lib/upload/types";
 import { BatchApplyToAllSheet, type BatchConfirmed } from "@/components/batch/BatchApplyToAllSheet";
 import { BatchProgressView } from "@/components/batch/BatchProgressView";
 import { DropZone } from "@/components/projects/drop-zone";
+import { rememberedLanguage, rememberLanguage } from "@/components/projects/language-picker";
 import { ProjectGrid, SampleProjectButton } from "@/components/projects/project-grid";
 import { defaultQuickPickLanguage, QuickPickRow } from "@/components/projects/quick-pick-row";
 import { UploadTray } from "@/components/projects/upload-tray";
@@ -49,10 +51,18 @@ export function HomeView(): React.JSX.Element {
   );
   const [activeBatchId, setActiveBatchId] = React.useState<string | undefined>(undefined);
 
-  const [quickPick, setQuickPick] = React.useState<UploadQuickPick>(() => ({
-    language: "hi-Latn",
-    aspect: "9:16",
-  }));
+  // FIX-04 precedence: an explicit pick (this session, or one this browser
+  // remembers) beats the server's onboarding default, which beats empty. The
+  // language therefore starts ABSENT unless this browser has been told once —
+  // it is never inferred, because the tag decides which lane the credits are
+  // spent in.
+  const [quickPick, setQuickPick] = React.useState<UploadQuickPick>(() => {
+    const remembered = rememberedLanguage();
+    return {
+      aspect: "9:16",
+      ...(remembered === undefined ? {} : { language: remembered }),
+    };
+  });
 
   // Once the user's own onboarding answers load, adopt them as the starting
   // point — but only before anyone has touched the picker, so this never
@@ -65,7 +75,16 @@ export function HomeView(): React.JSX.Element {
     if (onboarding === undefined) return;
     setQuickPick((current) => ({
       ...current,
-      language: defaultQuickPickLanguage(onboarding.languages),
+      // FIX-04: adoption fills the *empty* language, it never overwrites one.
+      // A remembered pick loaded above is already an explicit answer, and
+      // `defaultQuickPickLanguage` now returns undefined rather than Hinglish
+      // when the account never answered the onboarding step either.
+      ...(current.language !== undefined
+        ? {}
+        : (() => {
+            const adopted = defaultQuickPickLanguage(onboarding.languages);
+            return adopted === undefined ? {} : { language: adopted };
+          })()),
       ...(onboarding.languages === undefined ? {} : { languages: onboarding.languages }),
       ...(onboarding.defaultAspect === undefined ? {} : { aspect: onboarding.defaultAspect }),
       ...(current.styleId === undefined && onboarding.defaultStyleId !== undefined
@@ -83,10 +102,27 @@ export function HomeView(): React.JSX.Element {
     if (searchParams.get("new") === "1") dropZoneRef.current?.focus();
   }, [searchParams]);
 
+  /**
+   * FIX-04's cost-control invariant: nothing enters the upload funnel without a
+   * language, because the funnel ends in a paid transcription. Returns true when
+   * the drop may proceed; otherwise it says why and puts the picker on screen.
+   */
+  const requireLanguage = React.useCallback((): boolean => {
+    if (quickPick.language !== undefined) return true;
+    toast.info("Choose the spoken language first", {
+      description: "It decides which transcription lane your credits are spent on.",
+    });
+    const picker = document.querySelector('[data-testid="quickpick-language"]');
+    picker?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (picker instanceof HTMLElement) picker.focus();
+    return false;
+  }, [quickPick.language]);
+
   const projects = recent.data?.pages.flatMap((page) => page.items) ?? [];
   const name = firstName(user.data?.name ?? null);
 
   const handleBatchConfirmed = (result: BatchConfirmed): void => {
+    if (!requireLanguage()) return;
     queue.addFilesToProjects(result.pairs, quickPick);
     setPendingBatchFiles(undefined);
     setActiveBatchId(result.batchId);
@@ -104,6 +140,7 @@ export function HomeView(): React.JSX.Element {
         <div className="flex flex-col gap-3" ref={dropZoneRef} tabIndex={-1}>
           <DropZone
             onFiles={(files) => {
+              if (!requireLanguage()) return;
               if (files.length >= 2) {
                 setPendingBatchFiles(files);
                 return;
@@ -115,6 +152,12 @@ export function HomeView(): React.JSX.Element {
             value={quickPick}
             onChange={(next) => {
               setLanguageTouched(true);
+              // FIX-04: an explicit pick is remembered per browser, so the next
+              // visit opens on the answer this user already gave (scale note:
+              // per-device, no migration, cannot leak between workspace members).
+              if (next.language !== undefined && next.language !== quickPick.language) {
+                rememberLanguage(next.language);
+              }
               setQuickPick(next);
             }}
           />
