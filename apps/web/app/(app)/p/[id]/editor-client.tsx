@@ -25,6 +25,7 @@ import { toast } from "@montaj/ui";
 import { NeedsTranscription } from "./needs-transcription";
 
 import type { SetAudioCleanOp } from "@/components/editor/audio/use-audio-clean";
+import type { SegmentCardAction } from "@/components/editor/transcript/SegmentCard";
 import type { EditorSnapshot, EditorStore } from "@/lib/edg/store";
 
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
@@ -506,16 +507,47 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     store.submitOp(mergeSegments([id, next.id], newId(), newId), { label: "Merge segments" });
   }
 
-  function onEmphasize(): void {
-    if (selectedSegmentId === undefined || selectedWordId === undefined) return;
-    const segment = segments.find((entry) => entry.id === selectedSegmentId);
-    const current = segment?.emphasis?.find((entry) => entry.wordId === selectedWordId)?.presetId;
+  // OC3: an explicit target, defaulting to the selection — the same shape
+  // `onDeleteWord(wordId?)` and `onMergeWithNext(segmentId?)` already have.
+  // The context menu cannot rely on the default: it sets the selection and
+  // dispatches in one go, and React has not applied that `setState` yet.
+  function onEmphasize(segmentId?: string, wordId?: string): void {
+    const targetSegmentId = segmentId ?? selectedSegmentId;
+    const targetWordId = wordId ?? selectedWordId;
+    if (targetSegmentId === undefined || targetWordId === undefined) return;
+    const segment = segments.find((entry) => entry.id === targetSegmentId);
+    const current = segment?.emphasis?.find((entry) => entry.wordId === targetWordId)?.presetId;
     const defaultPreset = effectiveStyle.emphasisPresets[0]?.id;
     if (defaultPreset === undefined) return;
     const next = current === undefined ? defaultPreset : null;
-    store.submitOp(setEmphasis(selectedSegmentId, selectedWordId, next, newId), {
+    store.submitOp(setEmphasis(targetSegmentId, targetWordId, next, newId), {
       label: "Emphasise word",
     });
+  }
+
+  /**
+   * OC3: the transcript card's context menu asking for one of the three ops
+   * the editor owns rather than the card. It moves the selection to what the
+   * menu was opened on — exactly what a click on that word would have done —
+   * and then calls the very handler the keyboard map calls, so a right-click
+   * and a shortcut can never mean two different things.
+   */
+  function onSegmentCardAction(
+    action: SegmentCardAction,
+    segmentId: string,
+    wordId?: string,
+  ): void {
+    setSelectedSegmentId(segmentId);
+    if (wordId !== undefined) setSelectedWordId(wordId);
+    if (action === "split") {
+      if (wordId !== undefined) onSplitAt(segmentId, wordId);
+      return;
+    }
+    if (action === "emphasize") {
+      onEmphasize(segmentId, wordId);
+      return;
+    }
+    onDeleteWord(wordId);
   }
 
   function onDeleteWord(wordId?: string): void {
@@ -798,6 +830,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                   onMergeWithNext={(segmentId) => onMergeWithNext(segmentId)}
                   onHideToggle={onHideToggle}
                   onInsertWordAfter={onInsertWordAfter}
+                  onRequestAction={onSegmentCardAction}
                 />
               </div>
             </ResizablePanel>

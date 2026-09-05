@@ -3,24 +3,39 @@
 /**
  * One caption's row in the transcript list: the speaker chip, its word chips,
  * and the segment-level actions — hide and merge-with-next as buttons on the
- * card itself, and "insert word after" on a word's right-click. Split (`S`),
- * merge (`M`), emphasise (`E`) and delete word (`Del`) are the document-wide
- * keyboard map (`useKeyboardShortcuts.ts`) acting on whichever word or
- * segment `onSelect`/`onSelectWord` last reported — one shortcut, one place
- * it fires, regardless of which chip has DOM focus.
+ * card itself, and everything else on the card's right-click menu (OC3):
+ * split, merge, emphasise, hide/show, insert word after, fix spelling
+ * everywhere and delete word. Split (`S`), merge (`M`), emphasise (`E`) and
+ * delete word (`Del`) are also the document-wide keyboard map
+ * (`useKeyboardShortcuts.ts`) acting on whichever word or segment
+ * `onSelect`/`onSelectWord` last reported — one shortcut, one place it fires,
+ * regardless of which chip has DOM focus.
  *
  * Every action is a callback, not an op: the editor page is what turns "the
  * user pressed M" into `EditorStore.submitOp`, which is what keeps this
- * component testable without a store.
+ * component testable without a store. The context menu holds to that rule
+ * too — it calls the very callbacks the buttons and the keyboard map call, so
+ * click, shortcut and right-click can never drift apart.
  */
 import { memo, useCallback, useState } from "react";
 
 import type { Segment, Word } from "@montaj/edg";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from "@montaj/ui";
 
 import { SpeakerChip } from "./SpeakerChip";
 import { WordChip, isWordDisplayScript } from "./WordChip";
 
 import { cn } from "@/lib/utils";
+
+/** What the card asks the editor to do on its behalf — see `onRequestAction`. */
+export type SegmentCardAction = "split" | "emphasize" | "deleteWord";
 
 export interface SegmentCardProps {
   readonly segment: Segment;
@@ -49,6 +64,18 @@ export interface SegmentCardProps {
   readonly onHideToggle?: (segmentId: string, hidden: boolean) => void;
   readonly onInsertWordAfter: (afterWordId: string, text: string) => void;
   readonly onRenameSpeakerRequested?: (speakerId: string) => void;
+  /**
+   * OC3: split, emphasise and delete-word are owned by the editor page, not by
+   * this card — they are `EditorStore` ops that need the whole document — so
+   * the menu asks for them by name instead of inventing a local
+   * implementation. The editor selects the reported segment/word and then runs
+   * the same handler its keyboard map runs.
+   */
+  readonly onRequestAction?: (
+    action: SegmentCardAction,
+    segmentId: string,
+    wordId?: string,
+  ) => void;
 }
 
 function formatTimestamp(ms: number): string {
@@ -56,6 +83,20 @@ function formatTimestamp(ms: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+/**
+ * The text a chip is currently showing — `WordChip`'s own
+ * `word.scripts[script] ?? word.t` rule, spelled out per script so this needs
+ * no bracket access on a variable key. "Fix spelling everywhere" propagates
+ * exactly what the user can see, which is what a double-click on the chip
+ * already sends.
+ */
+function displayText(word: Word, script: string): string {
+  if (script === "roman") return word.scripts?.roman ?? word.t;
+  if (script === "native") return word.scripts?.native ?? word.t;
+  if (script === "en") return word.scripts?.en ?? word.t;
+  return word.t;
 }
 
 /**
@@ -91,9 +132,19 @@ function SegmentCardImpl({
   onHideToggle,
   onInsertWordAfter,
   onRenameSpeakerRequested,
+  onRequestAction,
 }: SegmentCardProps): React.JSX.Element {
-  const [menuFor, setMenuFor] = useState<string | undefined>(undefined);
+  // Which word the pointer was over when the menu was summoned. Set on the
+  // right button's `pointerdown` — dispatched before the `contextmenu` radix
+  // listens for — and cleared when the menu closes, so a keyboard-summoned
+  // menu (Shift+F10) never inherits a stale target.
+  const [contextWordId, setContextWordId] = useState<string | undefined>(undefined);
   const speakerId = words[0]?.sp ?? segment.id;
+  // Looked up in *this card's* words on purpose: `selectedWordId` is handed to
+  // every card in the list, so falling back to it without the lookup would let
+  // one card offer word actions for a word belonging to another segment.
+  const menuWord = words.find((word) => word.wid === (contextWordId ?? selectedWordId));
+  const noWord = menuWord === undefined;
   // Stable per segment (recreated only when `SegmentCardImpl` itself
   // re-renders, which memoisation above already limits) so `WordChip`'s own
   // `React.memo` is not defeated by a fresh closure on every word every time.
@@ -105,137 +156,193 @@ function SegmentCardImpl({
   );
 
   return (
-    <div
-      data-testid={`segment-card-${segment.id}`}
-      data-segment-id={segment.id}
-      role="group"
-      aria-label={`Caption starting at ${formatTimestamp(segment.startMs)}`}
-      className={cn(
-        "flex flex-col gap-1 rounded-lg border px-3 py-2",
-        selected ? "border-lime-400/60 bg-white/[0.06]" : "border-white/5 hover:bg-white/[0.03]",
-        segment.hidden === true && "opacity-40",
-      )}
-      onClick={() => onSelect?.(segment.id)}
+    <ContextMenu
+      onOpenChange={(open) => {
+        if (!open) {
+          setContextWordId(undefined);
+          return;
+        }
+        // The side-effect the replaced handler had was "act on what was
+        // right-clicked": its word half is `contextWordId` above, and its
+        // segment half is the same selection a left-click on the card makes.
+        onSelect?.(segment.id);
+      }}
     >
-      <div className="flex items-center gap-2">
-        <SpeakerChip
-          speakerId={speakerId}
-          name={speakerName}
-          color={speakerColor}
-          {...(onRenameSpeakerRequested === undefined
-            ? {}
-            : { onRenameRequested: onRenameSpeakerRequested })}
-        />
-        <button
-          type="button"
-          data-testid={`segment-timestamp-${segment.id}`}
-          className="text-fg-3 shrink-0 font-mono text-xs hover:underline"
-          onClick={(event) => {
-            event.stopPropagation();
-            onSeek?.(segment.startMs);
-          }}
+      <ContextMenuTrigger asChild>
+        <div
+          data-testid={`segment-card-${segment.id}`}
+          data-segment-id={segment.id}
+          role="group"
+          aria-label={`Caption starting at ${formatTimestamp(segment.startMs)}`}
+          className={cn(
+            "flex flex-col gap-1 rounded-lg border px-3 py-2",
+            selected
+              ? "border-lime-400/60 bg-white/[0.06]"
+              : "border-white/5 hover:bg-white/[0.03]",
+            segment.hidden === true && "opacity-40",
+          )}
+          onClick={() => onSelect?.(segment.id)}
         >
-          {formatTimestamp(segment.startMs)}
-        </button>
-        <div className="ml-auto flex gap-1">
-          <button
-            type="button"
-            data-testid={`segment-hide-${segment.id}`}
-            title={segment.hidden === true ? "Show caption" : "Hide caption"}
-            className="text-fg-3 rounded px-1.5 py-0.5 text-xs hover:bg-white/10"
-            onClick={(event) => {
-              event.stopPropagation();
-              onHideToggle?.(segment.id, segment.hidden !== true);
-            }}
-          >
-            {segment.hidden === true ? "Show" : "Hide"}
-          </button>
-          {isLast ? null : (
+          <div className="flex items-center gap-2">
+            <SpeakerChip
+              speakerId={speakerId}
+              name={speakerName}
+              color={speakerColor}
+              {...(onRenameSpeakerRequested === undefined
+                ? {}
+                : { onRenameRequested: onRenameSpeakerRequested })}
+            />
             <button
               type="button"
-              data-testid={`segment-merge-next-${segment.id}`}
-              title="Merge with next (M)"
-              className="text-fg-3 rounded px-1.5 py-0.5 text-xs hover:bg-white/10"
+              data-testid={`segment-timestamp-${segment.id}`}
+              className="text-fg-3 shrink-0 font-mono text-xs hover:underline"
               onClick={(event) => {
                 event.stopPropagation();
-                onMergeWithNext?.(segment.id);
+                onSeek?.(segment.startMs);
               }}
             >
-              Merge ↓
+              {formatTimestamp(segment.startMs)}
             </button>
+            <div className="ml-auto flex gap-1">
+              <button
+                type="button"
+                data-testid={`segment-hide-${segment.id}`}
+                title={segment.hidden === true ? "Show caption" : "Hide caption"}
+                className="text-fg-3 rounded px-1.5 py-0.5 text-xs hover:bg-white/10"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onHideToggle?.(segment.id, segment.hidden !== true);
+                }}
+              >
+                {segment.hidden === true ? "Show" : "Hide"}
+              </button>
+              {isLast ? null : (
+                <button
+                  type="button"
+                  data-testid={`segment-merge-next-${segment.id}`}
+                  title="Merge with next (M)"
+                  className="text-fg-3 rounded px-1.5 py-0.5 text-xs hover:bg-white/10"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onMergeWithNext?.(segment.id);
+                  }}
+                >
+                  Merge ↓
+                </button>
+              )}
+            </div>
+          </div>
+
+          {isWordDisplayScript(script) ? (
+            <div
+              className="flex flex-wrap gap-x-1 gap-y-0.5 text-sm leading-relaxed"
+              data-testid={`segment-words-${segment.id}`}
+            >
+              {words.map((word) => (
+                <span
+                  key={word.wid}
+                  onPointerDown={(event) => {
+                    if (event.button === 2) setContextWordId(word.wid);
+                  }}
+                >
+                  <WordChip
+                    word={word}
+                    script={script}
+                    active={word.wid === activeWordId}
+                    selected={word.wid === selectedWordId}
+                    hideFillers={hideFillers}
+                    onCommit={onEditWord}
+                    {...(onSeek === undefined ? {} : { onSeek })}
+                    {...(onFixSpellingEverywhere === undefined ? {} : { onFixSpellingEverywhere })}
+                    onSelect={handleWordSelect}
+                  />
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p
+              className="text-fg-2 text-sm italic"
+              data-testid={`segment-translated-${segment.id}`}
+            >
+              {segment.textOverrides?.["translated"] ??
+                "(no translation yet — use +Add translation above)"}
+            </p>
           )}
         </div>
-      </div>
+      </ContextMenuTrigger>
 
-      {isWordDisplayScript(script) ? (
-        <div
-          className="flex flex-wrap gap-x-1 gap-y-0.5 text-sm leading-relaxed"
-          data-testid={`segment-words-${segment.id}`}
+      <ContextMenuContent data-testid="segment-context-menu">
+        <ContextMenuItem
+          data-testid="segment-menu-split"
+          disabled={noWord || onRequestAction === undefined}
+          onSelect={() => {
+            if (menuWord !== undefined) onRequestAction?.("split", segment.id, menuWord.wid);
+          }}
         >
-          {words.map((word) => (
-            <span
-              key={word.wid}
-              className="relative"
-              onContextMenu={(event) => {
-                event.preventDefault();
-                setMenuFor(word.wid);
-              }}
-            >
-              <WordChip
-                word={word}
-                script={script}
-                active={word.wid === activeWordId}
-                selected={word.wid === selectedWordId}
-                hideFillers={hideFillers}
-                onCommit={onEditWord}
-                {...(onSeek === undefined ? {} : { onSeek })}
-                {...(onFixSpellingEverywhere === undefined ? {} : { onFixSpellingEverywhere })}
-                onSelect={handleWordSelect}
-              />
-              {menuFor === word.wid ? (
-                <span
-                  role="menu"
-                  data-testid={`word-insert-menu-${word.wid}`}
-                  className="absolute top-full left-0 z-10 mt-1 flex gap-1 rounded-md border border-white/10 bg-black p-1 text-xs shadow-lg"
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    data-testid={`word-insert-after-${word.wid}`}
-                    className="rounded px-2 py-1 hover:bg-white/10"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      const text = window.prompt("Insert word after this one:", "");
-                      setMenuFor(undefined);
-                      if (text !== null && text.trim() !== "")
-                        onInsertWordAfter(word.wid, text.trim());
-                    }}
-                  >
-                    Insert word after
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="rounded px-2 py-1 hover:bg-white/10"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setMenuFor(undefined);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </span>
-              ) : null}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <p className="text-fg-2 text-sm italic" data-testid={`segment-translated-${segment.id}`}>
-          {segment.textOverrides?.["translated"] ??
-            "(no translation yet — use +Add translation above)"}
-        </p>
-      )}
-    </div>
+          Split here <ContextMenuShortcut>S</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem
+          data-testid="segment-menu-merge"
+          disabled={isLast || onMergeWithNext === undefined}
+          onSelect={() => onMergeWithNext?.(segment.id)}
+        >
+          Merge with next <ContextMenuShortcut>M</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem
+          data-testid="segment-menu-emphasise"
+          disabled={noWord || onRequestAction === undefined}
+          onSelect={() => {
+            if (menuWord !== undefined) onRequestAction?.("emphasize", segment.id, menuWord.wid);
+          }}
+        >
+          Emphasise word <ContextMenuShortcut>E</ContextMenuShortcut>
+        </ContextMenuItem>
+
+        <ContextMenuSeparator />
+
+        <ContextMenuItem
+          data-testid="segment-menu-hide"
+          disabled={onHideToggle === undefined}
+          onSelect={() => onHideToggle?.(segment.id, segment.hidden !== true)}
+        >
+          {segment.hidden === true ? "Show segment" : "Hide segment"}
+        </ContextMenuItem>
+        <ContextMenuItem
+          data-testid="segment-menu-insert-word"
+          disabled={noWord}
+          onSelect={() => {
+            if (menuWord === undefined) return;
+            const text = window.prompt("Insert word after this one:", "");
+            if (text !== null && text.trim() !== "") onInsertWordAfter(menuWord.wid, text.trim());
+          }}
+        >
+          Insert word after…
+        </ContextMenuItem>
+        <ContextMenuItem
+          data-testid="segment-menu-fix-spelling"
+          disabled={noWord || onFixSpellingEverywhere === undefined}
+          onSelect={() => {
+            if (menuWord !== undefined)
+              onFixSpellingEverywhere?.(menuWord.wid, displayText(menuWord, script));
+          }}
+        >
+          Fix spelling everywhere…
+        </ContextMenuItem>
+
+        <ContextMenuSeparator />
+
+        <ContextMenuItem
+          variant="destructive"
+          data-testid="segment-menu-delete-word"
+          disabled={noWord || onRequestAction === undefined}
+          onSelect={() => {
+            if (menuWord !== undefined) onRequestAction?.("deleteWord", segment.id, menuWord.wid);
+          }}
+        >
+          Delete word <ContextMenuShortcut>Del</ContextMenuShortcut>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
