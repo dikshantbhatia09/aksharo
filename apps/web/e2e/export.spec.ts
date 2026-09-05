@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { API_ORIGIN, freshAccount, seedEditorProject } from "./editor-fixtures";
+import { loadRepoEnv } from "./env";
 import {
   accessTokenFromPage,
   correctFixtureMediaDuration,
@@ -13,6 +14,7 @@ import {
   workspaceIdFromPage,
 } from "./export-test-helpers";
 import { expect, gotoHydrated, test } from "./fixtures";
+import { completeJobForTest } from "./internal-callback";
 
 /**
  * Chromium: exports a 10-second synthetic clip end to end in the browser —
@@ -55,6 +57,13 @@ import { expect, gotoHydrated, test } from "./fixtures";
 const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "e2e-fixtures");
 const FIXTURE_PATH = join(FIXTURE_DIR, "export-sample.mp4");
 const FIXTURE_SECONDS = 10;
+
+/** `ExportDecisionResponseDto` — the fields this spec follows a job with. */
+interface CloudDecision {
+  readonly exportId?: string;
+  readonly path?: string;
+  readonly job?: { jobId: string; status: string; deduplicated: boolean };
+}
 
 function ensureFixtureVideo(): void {
   if (existsSync(FIXTURE_PATH)) return;
@@ -351,13 +360,23 @@ test.describe("browser export (chromium)", () => {
       };
     });
 
+    // Every decision this dialog is handed, in order. The cloud branch below
+    // needs the `exportId` and `job.jobId` the server answered with, and they
+    // are nowhere in the DOM — this handler is already reading the body, so it
+    // keeps it. An array rather than a reassigned `let`: TypeScript cannot see a
+    // closure's writes, and would narrow the variable to its initial value.
+    const decisions: CloudDecision[] = [];
+
     await page.route(`${API_ORIGIN}/projects/${projectId}/exports`, async (route) => {
       if (route.request().method() !== "POST") {
         await route.fallback();
         return;
       }
       const response = await route.fetch();
-      const body = (await response.json()) as { sources?: Record<string, unknown> };
+      const body = (await response.json()) as CloudDecision & {
+        sources?: Record<string, unknown>;
+      };
+      decisions.push(body);
       if (body.sources !== undefined) {
         body.sources = { ...body.sources, rawUrl: "/e2e-fixtures/export-sample.mp4" };
       }
@@ -372,21 +391,92 @@ test.describe("browser export (chromium)", () => {
     await page.getByTestId("export-tab-video").click();
     await page.getByTestId("export-start").click();
 
-    // A19c's software-encoder default (this file's other test) can still
-    // route a fresh `auto` request to the cloud offer on a headless
-    // chromium with no hardware encoder; the dialog's own override is
-    // exactly what a real user would click in that case.
-    const cloudOffer = page.getByTestId("export-cloud-offer");
-    const wentToCloud = await cloudOffer
-      .waitFor({ state: "visible", timeout: 10_000 })
+    // A19c's software-encoder default (this file's other test) can still route
+    // a fresh `auto` request to the cloud on a headless chromium with no
+    // hardware encoder.
+    //
+    // What that looks like changed under F06. `export-cloud-offer` used to be
+    // where a cloud-routed export parked — a yellow dead end, with an "export
+    // in this browser anyway" button to escape it. F06 made the dialog FOLLOW
+    // the job it was handed, so the same request now shows
+    // `export-cloud-progress`, and the offer panel is left for the case where
+    // the server returned no job at all. The old branch here could therefore
+    // never run again, and the `export-done` wait below it — a browser-path
+    // testid — would simply have timed out.
+    //
+    // So this branch settles the cloud job the way `gate-a.spec.ts` does (the
+    // signed internal completion callback, CONTRACTS §3, standing in for a
+    // render worker this suite does not boot) and then holds the dialog to its
+    // own promise: the download panel, over a real `exports` row.
+    const wentToCloud = await page
+      .getByTestId("export-cloud-progress")
+      .waitFor({ state: "visible", timeout: 15_000 })
       .then(() => true)
       .catch(() => false);
-    if (wentToCloud) {
-      await page.getByTestId("export-browser-anyway").click();
-    }
 
-    await expect(page.getByTestId("export-error")).toHaveCount(0);
-    await expect(page.getByTestId("export-done")).toBeVisible({ timeout: 120_000 });
+    if (wentToCloud) {
+      const decision = decisions.at(-1);
+      expect(decision, "POST /exports was never seen by the route handler").toBeDefined();
+      expect(decision?.path).toBe("cloud");
+      const jobId = decision?.job?.jobId;
+      expect(
+        jobId,
+        `a cloud decision must carry a job to follow: ${JSON.stringify(decision)}`,
+      ).toBeTruthy();
+
+      // A real MP4 — this file's own fixture — at the key the completion
+      // callback will name, so the download below is a signed URL over bytes
+      // that are really there.
+      const outputBytes = readFileSync(FIXTURE_PATH);
+      const outputKey = `ws/export-dialog-e2e/p/${projectId}/exports/cloud-render.mp4`;
+      const env = loadRepoEnv();
+      const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+      const s3 = new S3Client({
+        endpoint: env["S3_ENDPOINT"] ?? "http://localhost:9000",
+        region: env["S3_REGION"] ?? "ap-south-1",
+        credentials: {
+          accessKeyId: env["S3_ACCESS_KEY"] ?? "montaj-local",
+          secretAccessKey: env["S3_SECRET_KEY"] ?? "montaj-local-secret",
+        },
+        forcePathStyle: true,
+      });
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: env["R2_BUCKET_DERIVED"] ?? "montaj-derived",
+          Key: outputKey,
+          Body: outputBytes,
+          ContentType: "video/mp4",
+        }),
+      );
+
+      const authHeaders = { Authorization: `Bearer ${await accessTokenFromPage(page)}` };
+      const jobResponse = await page.request.get(`${API_ORIGIN}/jobs/${String(jobId)}`, {
+        headers: authHeaders,
+      });
+      const job = (await jobResponse.json()) as { attemptId: string | null };
+      // `RenderVideoResultSchema` (render-completion.handler.ts): every field
+      // below is required, not only size and duration.
+      await completeJobForTest(String(jobId), job.attemptId ?? "", {
+        status: "succeeded",
+        result: {
+          exportId: decision?.exportId,
+          outputKey,
+          outputMs: FIXTURE_SECONDS * 1_000,
+          sizeBytes: outputBytes.length,
+          width: 1080,
+          height: 1920,
+          watermarked: false,
+        },
+      });
+
+      // The dialog was following that job: it has to arrive somewhere real.
+      await expect(page.getByTestId("export-error")).toHaveCount(0);
+      await expect(page.getByTestId("export-cloud-download")).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId("export-download")).toBeVisible();
+    } else {
+      await expect(page.getByTestId("export-error")).toHaveCount(0);
+      await expect(page.getByTestId("export-done")).toBeVisible({ timeout: 120_000 });
+    }
 
     const exportsResponse = await page.request.get(`${API_ORIGIN}/projects/${projectId}/exports`, {
       headers: { Authorization: `Bearer ${await accessTokenFromPage(page)}` },
