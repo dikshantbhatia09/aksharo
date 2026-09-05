@@ -37,6 +37,7 @@ import {
   type CanvasSize,
   clamp,
   ofCanvasHeight,
+  ofCanvasShortSide,
   ofCanvasWidth,
   ofFontSize,
 } from "../units.js";
@@ -152,7 +153,7 @@ export function fitBudget(options: FitBudgetOptions): LineBudget {
     scriptScaleFor(style.typography.scriptScale, script);
   const avgAdvanceEm = averageAdvanceEm(options);
 
-  const safeMarginPx = ofCanvasHeight(style.layout.safeAreaPct ?? 0, canvas);
+  const safeMarginPx = ofCanvasShortSide(style.layout.safeAreaPct ?? 0, canvas);
   const paddingPx = style.box.enabled ? ofFontSize(style.box.paddingPct, fontSizePx) : 0;
 
   // The narrower of the style's own box and the safe area, less the box padding

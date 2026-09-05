@@ -233,14 +233,17 @@ describe("layoutSegment", () => {
 
   it("keeps the segmenter's split when the metrics fit", () => {
     // The wrap is at the budget `fitBudget` measured for this style and canvas
-    // (D78), not at the readability cap — so 17 characters take two lines here,
-    // and neither line has to shrink.
+    // (D78), not at the readability cap — so 23 characters take two lines here,
+    // and neither line has to shrink. The budget is 18 characters on this canvas
+    // (S04: 14% of the 1080 short side leaves 777.6 px, not 14% of 1920 leaving
+    // 542.4); the readability cap is 32, so a 23-character caption proves the
+    // split comes from the measured budget and not from the cap.
     const doc = style("vertical-clean");
-    const list = words(["Bhai", "aaj", "hum", "baat"]);
+    const list = words(["Bhai", "aaj", "hum", "baat", "karte"]);
     const layout = lay(doc, list);
     expect(layout.shrink).toBe(1);
     expect(layout.lines).toHaveLength(2);
-    expect(layout.lines.map((line) => line.text).join(" ")).toBe("Bhai aaj hum baat");
+    expect(layout.lines.map((line) => line.text).join(" ")).toBe("Bhai aaj hum baat karte");
   });
 
   it("shrinks rather than re-wrapping when the metrics overflow", () => {
@@ -343,8 +346,39 @@ describe("layoutSegment", () => {
       tMs: 0,
     });
     expect(layout.clampedToSafeArea).toBe(true);
-    const margin = ((style("vertical-clean").layout.safeAreaPct ?? 0) / 100) * GOLDEN_CANVAS.height;
+    const margin =
+      ((style("vertical-clean").layout.safeAreaPct ?? 0) / 100) *
+      Math.min(GOLDEN_CANVAS.width, GOLDEN_CANVAS.height);
     expect(layout.box[3]).toBeLessThanOrEqual(GOLDEN_CANVAS.height - margin + 0.5);
+  });
+
+  // The old rule took the margin off the height: 5% of 1920 = 96 px, so a caption
+  // dragged hard left stopped 96 px in while the editor drew its guide at 5% of the
+  // short side = 54. Same percentage, same canvas, one number now.
+  it("clamps the left edge to the short-side margin, not the height one", () => {
+    const base = style("vertical-clean");
+    const layout = layoutSegment({
+      style: { ...base, layout: { ...base.layout, safeAreaPct: 5 } },
+      segment: {
+        id: "seg",
+        startMs: 0,
+        endMs: 3000,
+        position: { x: 0, y: 0.5, anchor: "middle-left" },
+      },
+      words: words(["captions", "sit", "here"]),
+      canvas: GOLDEN_CANVAS,
+      registry,
+      shaper,
+      tMs: 0,
+    });
+    const shortSideMargin = 0.05 * Math.min(GOLDEN_CANVAS.width, GOLDEN_CANVAS.height);
+    const heightMargin = 0.05 * GOLDEN_CANVAS.height;
+    expect(shortSideMargin).toBe(54);
+    expect(heightMargin).toBe(96);
+    expect(layout.lines).toHaveLength(1);
+    expect(layout.clampedToSafeArea).toBe(true);
+    expect(layout.box[0]).toBeGreaterThanOrEqual(shortSideMargin - 0.5);
+    expect(layout.box[0]).toBeLessThan(heightMargin);
   });
 
   it("aligns lines left, centre and right inside the block", () => {
