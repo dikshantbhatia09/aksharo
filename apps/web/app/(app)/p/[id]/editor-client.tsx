@@ -20,6 +20,7 @@ import { resolveStyle } from "@montaj/render-core";
 import type { FontRegistry, Shaper } from "@montaj/render-core";
 import { fromAcceptedItems } from "@montaj/timemap";
 import type { TimeMap } from "@montaj/timemap";
+import { toast } from "@montaj/ui";
 
 import { NeedsTranscription } from "./needs-transcription";
 
@@ -713,7 +714,17 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
             data-testid="editor-stage-box"
           >
             <CaptionStage
-              src={timelineMedia.proxyUrl ?? ""}
+              src={timelineMedia.proxyUrl}
+              playing={playheadSnapshot.playing}
+              seekMs={playheadSnapshot.ms}
+              seekSeq={playheadSnapshot.seekSeq}
+              onTimeUpdate={(ms) => playhead.syncFromMedia(ms)}
+              onEnded={() => playhead.setPlaying(false)}
+              onPlayBlocked={(reason) => {
+                playhead.setPlaying(false);
+                toast.error("Could not start playback", { description: reason });
+              }}
+              onMediaError={() => timelineMedia.refresh()}
               projection={projection}
               catalogue={SYSTEM_STYLE_MAP}
               {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}

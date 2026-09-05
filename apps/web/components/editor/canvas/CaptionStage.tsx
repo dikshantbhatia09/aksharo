@@ -213,7 +213,9 @@ export function CaptionStage({
     if (seekSeq === 0) return; // initial mount, no command yet
     video.currentTime = seekMs / 1000;
     setOutputMs(seekMs); // repaint the overlay immediately, even while paused
-  }, [seekSeq]); // eslint-disable-line react-hooks/exhaustive-deps -- seekMs rides with its seq
+    // Deliberately keyed on `seekSeq` alone — `seekMs` rides with its seq, and
+    // depending on it too would re-seek on every mirrored time update.
+  }, [seekSeq]);
 
   useEffect(() => {
     const video = videoRef.current;
