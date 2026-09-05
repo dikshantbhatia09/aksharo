@@ -8,6 +8,23 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **OC3: right-click is real.** A transcript card had one hand-rolled
+  `onContextMenu` that opened a two-button popover for a single word; every
+  other operation was reachable only by a shortcut you had to know. Both
+  surfaces now carry a real menu. On a segment card: split here, merge with
+  next, emphasise word, hide/show, insert word after, fix spelling everywhere
+  and a red delete word, each acting on the word the pointer was over (or the
+  selected one, when it belongs to that card) and disabled when there is none.
+  On the timeline row — canvas-drawn, so there is no per-clip DOM to hang a
+  menu on — the same operations for the selected segment, with a label
+  pointing back at the transcript when nothing is selected. No operation is
+  reimplemented: every row calls the handler the button, the shortcut and (in
+  OC-02) the menubar call, so the four surfaces cannot drift apart. The
+  primitive (`packages/ui/src/primitives/context-menu.tsx`) is a pattern port
+  of OpenCut's `context-menu.tsx` — destructive variant, inset, shortcut slot,
+  checkbox items, submenus — restyled with our own `dropdown-menu.tsx` classes,
+  over one new dependency: `@radix-ui/react-context-menu@^2`.
+
 - **Stage-3 integration (orchestrator).** Merged OC-01 + S-02 + S-03 + S-04.
   Fixed what their QA surfaced outside their file lists: caption drags never
   persisted because the stage's `SetSegmentPosition` op kept the panel module's
