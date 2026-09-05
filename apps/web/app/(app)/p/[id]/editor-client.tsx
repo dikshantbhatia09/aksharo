@@ -46,6 +46,7 @@ import { CropWindowOverlay } from "@/components/editor/canvas/CropWindowOverlay"
 import { aspectRatioOf, containWidth } from "@/components/editor/canvas/stage-fit";
 import { useRenderer } from "@/components/editor/canvas/use-canvaskit";
 import { FirstRunCoachMarks } from "@/components/editor/coach-marks/FirstRunCoachMarks";
+import { EditorCommandPalette } from "@/components/editor/EditorCommandPalette";
 import { EditorMenubar } from "@/components/editor/EditorMenubar";
 import { ExportButton } from "@/components/editor/export/ExportButton";
 import { type PanelOp, type PanelScope } from "@/components/editor/panels/ops";
@@ -788,6 +789,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
             is the same navigation, and two ways out of the editor side by side
             is the duplicate chrome the menubar exists to replace. */}
         <EditorMenubar ctx={editorActionContext} />
+        <EditorCommandPalette ctx={editorActionContext} />
         <ScriptTabs
           projectId={projectId}
           activeScript={script}

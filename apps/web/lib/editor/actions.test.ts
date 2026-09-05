@@ -76,6 +76,14 @@ const EXPECTED_EFFECT: Record<string, keyof Spies> = {
   "help.shortcuts": "openShortcuts",
 };
 
+/**
+ * Actions that deliberately call nothing: their key is bound by the component
+ * that owns the surface, and the registry entry exists only so the palette and
+ * the shortcuts dialog advertise it. `help.palette` (OC-04) is bound in
+ * `components/editor/EditorCommandPalette.tsx`.
+ */
+const DISPLAY_ONLY = new Set(["help.palette"]);
+
 function actionById(id: string): EditorAction {
   const action = EDITOR_ACTIONS.find((entry) => entry.id === id);
   if (action === undefined) throw new Error(`no action ${id}`);
@@ -105,9 +113,18 @@ describe("EDITOR_ACTIONS", () => {
     for (const action of EDITOR_ACTIONS) {
       const { ctx, spies } = spyContext({ canSplit: true, canWordEdit: true });
       const expected = EXPECTED_EFFECT[action.id];
-      expect(expected, `${action.id} is not in EXPECTED_EFFECT`).toBeDefined();
+      if (!DISPLAY_ONLY.has(action.id)) {
+        expect(expected, `${action.id} is not in EXPECTED_EFFECT`).toBeDefined();
+      }
 
       action.run(ctx);
+
+      if (DISPLAY_ONLY.has(action.id)) {
+        for (const [name, spy] of Object.entries(spies)) {
+          expect(spy, `${action.id} is display-only but called ${name}`).not.toHaveBeenCalled();
+        }
+        continue;
+      }
 
       for (const [name, spy] of Object.entries(spies)) {
         if (name === expected) {
@@ -171,6 +188,25 @@ describe("EDITOR_ACTIONS", () => {
     spies.jog.mockClear();
     actionById("playback.fwd").run(ctx);
     expect(spies.jog).toHaveBeenCalledWith(1000);
+  });
+
+  it("carries the palette as a display-only Help entry whose run is a no-op", () => {
+    const palette = actionById("help.palette");
+    expect(palette.menu).toBe("help");
+    expect(palette.label).toBe("Command palette");
+    // The one shortcut in the registry that `classify()` does not bind:
+    // `EditorCommandPalette` owns Ctrl+K, in the capture phase, so that the
+    // shell's global palette does not also answer it inside the editor.
+    expect(palette.shortcut).toBe("Ctrl+K");
+    expect(palette.destructive).toBeUndefined();
+    expect(palette.checked).toBeUndefined();
+
+    const { ctx, spies } = spyContext({ canSplit: true, canWordEdit: true });
+    expect(palette.enabled(ctx)).toBe(true);
+    palette.run(ctx);
+    for (const [name, spy] of Object.entries(spies)) {
+      expect(spy, `help.palette must not call ${name}`).not.toHaveBeenCalled();
+    }
   });
 
   it("marks exactly the delete as destructive", () => {

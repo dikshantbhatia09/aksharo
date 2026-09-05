@@ -167,6 +167,21 @@ export const EDITOR_ACTIONS: readonly EditorAction[] = [
     enabled: always,
     run: (c) => c.openShortcuts(),
   },
+  {
+    // Display-only (OC-04). The binding lives in
+    // `components/editor/EditorCommandPalette.tsx`, which owns the Ctrl+K
+    // listener; the entry exists so the palette and the shortcuts dialog —
+    // both of which render this array — advertise the key like every other
+    // action instead of hard-coding it. The empty `run` is deliberate:
+    // choosing it from the palette that is already open should do nothing,
+    // and `actions.test.ts` pins that it calls no context function at all.
+    id: "help.palette",
+    label: "Command palette",
+    menu: "help",
+    shortcut: "Ctrl+K",
+    enabled: always,
+    run: () => {},
+  },
 ];
 
 export const EDITOR_MENUS: readonly { id: EditorMenuId; label: string }[] = [
