@@ -53,6 +53,12 @@ describe("<Sidebar />", () => {
     expect(download.getAttribute("href")).not.toContain("montaj");
   });
 
+  // F07-E8: aksharo.ai/download only exists for the production deployment.
+  it("does not offer that download from a build served somewhere else", () => {
+    renderWithProviders(<Sidebar />, { config: { webOrigin: "http://127.0.0.1:3934" } });
+    expect(screen.queryByTestId("desktop-download")).toBeNull();
+  });
+
   it("shows the credit meter with what the entitlement says", async () => {
     renderWithProviders(<Sidebar />, { routes: ENTITLEMENT });
     // `/entitlement` is A05's and is not in the API yet, so the meter renders
@@ -69,10 +75,45 @@ describe("<Sidebar />", () => {
   });
 });
 
+/** A free-plan entitlement, so the CTA's plan guard is satisfied (F07-A1). */
+const FREE_ENTITLEMENT = {
+  "/workspaces/01JWORKSPACE/entitlement": {
+    workspaceId: "01JWORKSPACE",
+    planKey: "free",
+    planName: "Free",
+    creditsPerMonthTenths: 0,
+    seatsIncluded: 1,
+    seatsUsed: 1,
+    entitlements: {},
+    computedAt: "2026-09-05T00:00:00.000Z",
+  },
+};
+
 describe("<UpgradeButton />", () => {
   it("renders nothing until the plan is known", () => {
     const { container } = renderWithProviders(<UpgradeButton />);
     expect(container.querySelector("[data-testid=upgrade-cta]")).toBeNull();
+  });
+
+  it("offers the upgrade when the payment rail is on and the plan can be upgraded", async () => {
+    renderWithProviders(<UpgradeButton />, {
+      routes: FREE_ENTITLEMENT,
+      config: { razorpayEnabled: true },
+    });
+    expect(await screen.findByTestId("upgrade-cta")).toHaveAttribute("href", "/billing");
+  });
+
+  it("hides the upgrade entirely when there is no payment rail to buy through", async () => {
+    const { container } = renderWithProviders(<UpgradeButton />, {
+      routes: FREE_ENTITLEMENT,
+      config: { razorpayEnabled: false },
+    });
+    // The entitlement resolves, so the only thing keeping the CTA away is the
+    // rail gate — not a still-loading plan.
+    await waitFor(() => {
+      expect(container.querySelector("[data-testid=upgrade-cta]")).toBeNull();
+    });
+    expect(screen.queryByRole("link", { name: "Upgrade" })).toBeNull();
   });
 });
 
@@ -81,7 +122,8 @@ describe("<TopBar />", () => {
     renderWithProviders(<TopBar onOpenPalette={vi.fn()} />);
     expect(screen.getByTestId("open-palette")).toHaveTextContent("Search projects and actions");
     expect(screen.getByTestId("new-project")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "What's new" })).toBeInTheDocument();
+    // The changelog lives at /updates; /help/changelog has no article behind it.
+    expect(screen.getByRole("link", { name: "What's new" })).toHaveAttribute("href", "/updates");
   });
 
   it("marks the what's-new dot in the accessible name, not only as a colour", () => {

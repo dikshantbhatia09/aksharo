@@ -62,4 +62,24 @@ describe("<PaymentMethodsPanel />", () => {
       expect(screen.queryByTestId("confirm-revoke-mandate")).toBeNull();
     });
   });
+
+  // The audit found this panel painting an empty state over a server error. With
+  // no rail there is nothing to fetch, so it says who grants credits instead —
+  // and, crucially, never asks (F07-C2).
+  it("shows the admin-credits notice and fires no query without Razorpay", async () => {
+    const { fetchMock } = renderWithProviders(<PaymentMethodsPanel />, {
+      config: { razorpayEnabled: false },
+      routes: { "/billing/payment-methods": METHODS, "/billing/mandates": [MANDATE] },
+    });
+
+    expect(await screen.findByTestId("free-stack-billing")).toHaveTextContent(
+      "Credits are granted by your admin",
+    );
+    expect(screen.queryByTestId("payment-methods-panel")).toBeNull();
+    expect(screen.queryByText("Loading…")).toBeNull();
+    // The routes above would have answered; the queries are gated, so nothing asked.
+    const asked = fetchMock.mock.calls.map(([input]) => String(input));
+    expect(asked.some((url) => url.includes("/billing/payment-methods"))).toBe(false);
+    expect(asked.some((url) => url.includes("/billing/mandates"))).toBe(false);
+  });
 });

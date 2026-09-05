@@ -57,7 +57,11 @@ export function BillingUpgradeGate({
     <UpgradeGate
       requiredPlan={requiredPlan}
       feature={feature}
-      price={price}
+      // A lock is honest; a *priced* lock in a build that cannot take the money
+      // is not. With no rail the gate states the requirement and who lifts it,
+      // and quotes nothing (F07-C3).
+      price={razorpayEnabled ? price : undefined}
+      {...(razorpayEnabled ? {} : { ctaLabel: `Ask an admin about ${requiredPlan}` })}
       className={className}
       onUpgrade={() => {
         // Payments unconfigured: keep the lock honest (the feature really is gated)

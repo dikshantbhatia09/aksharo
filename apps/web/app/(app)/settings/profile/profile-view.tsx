@@ -6,6 +6,7 @@ import * as React from "react";
 import { useCurrentUser, useSession, useUpdateMe } from "@montaj/api-client";
 import { Badge, Button, Card, Field, Input, Skeleton, toast } from "@montaj/ui";
 
+import { useRuntimeConfig } from "@/components/providers";
 import { SettingsSection } from "@/components/settings/section";
 import { messageForError } from "@/lib/errors";
 
@@ -14,6 +15,7 @@ export function ProfileView(): React.JSX.Element {
   const me = useCurrentUser();
   const session = useSession();
   const updateMe = useUpdateMe();
+  const { googleOAuthEnabled } = useRuntimeConfig();
   const [name, setName] = React.useState("");
   const [loaded, setLoaded] = React.useState(false);
 
@@ -93,7 +95,10 @@ export function ProfileView(): React.JSX.Element {
       <Card className="flex flex-col gap-2">
         <h2 className="text-fg-0 text-base font-medium">How you sign in</h2>
         <p className="text-fg-2 text-sm">
-          Password, Google, or a one-time link. Manage the devices that are signed in under{" "}
+          {googleOAuthEnabled
+            ? "Password, Google, or a one-time link"
+            : "Password or a one-time link"}
+          . Manage the devices that are signed in under{" "}
           <Link href="/settings/devices" className="text-lime-500 rounded-sm hover:underline">
             Devices &amp; sessions
           </Link>

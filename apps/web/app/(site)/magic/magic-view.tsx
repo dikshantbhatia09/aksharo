@@ -9,6 +9,7 @@ import type { TokenResponse } from "@montaj/api-client";
 import { Button, Field, Input } from "@montaj/ui";
 
 import { AuthCard } from "@/components/auth/auth-card";
+import { useRuntimeConfig } from "@/components/providers";
 import { messageForError } from "@/lib/errors";
 import { persistSession } from "@/lib/session/client";
 
@@ -29,6 +30,10 @@ export function MagicView(): React.JSX.Element {
 function RequestLink(): React.JSX.Element {
   const [email, setEmail] = React.useState("");
   const request = useRequestMagicLink();
+  // `RuntimeConfig` carries no mail mode, and `authDevAutoVerify` is only ever
+  // true when `MAIL_PROVIDER=dev` (the API refuses to boot otherwise, see
+  // `lib/runtime-config.ts`), so it is an honest proxy for a dev outbox (F07-D2).
+  const { authDevAutoVerify } = useRuntimeConfig();
 
   if (request.isSuccess) {
     return (
@@ -36,6 +41,9 @@ function RequestLink(): React.JSX.Element {
         <p className="text-fg-2 text-sm" data-testid="magic-sent">
           If <strong className="text-fg-1">{email}</strong> has an account, a sign-in link is on its
           way. It works once and lasts 15 minutes.
+          {authDevAutoVerify
+            ? " (dev build: the link lands in the developer outbox, not an inbox)"
+            : ""}
         </p>
       </AuthCard>
     );

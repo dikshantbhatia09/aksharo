@@ -30,8 +30,17 @@ interface LatestChangelog {
  * once, near the root of the signed-in shell
  * (`apps/web/components/shell/app-shell.tsx`), so it can open regardless of
  * which page loaded first.
+ *
+ * **Never on a first run.** A brand-new account has no news to catch up on, and
+ * the modal lands on top of Home's quick-pick — the one control that account
+ * needs (F07-D3). It returns `null` instead, *without* dismissing the version,
+ * so the first launch after their first project still gets the news.
  */
-export function WhatsNewModal(): React.JSX.Element | null {
+export function WhatsNewModal({
+  hasProjects = true,
+}: {
+  readonly hasProjects?: boolean;
+} = {}): React.JSX.Element | null {
   const dismissed = useDismissedChangelogVersion();
   const dismiss = useDismissChangelogVersion();
   const [latest, setLatest] = React.useState<LatestChangelog | null>(null);
@@ -55,13 +64,15 @@ export function WhatsNewModal(): React.JSX.Element | null {
 
   React.useEffect(() => {
     if (openedRef.current) return;
+    if (!hasProjects) return;
     if (latest === null || latest.version === null) return;
     if (dismissed.data === undefined) return;
     if (dismissed.data.dismissedVersion === latest.version) return;
     openedRef.current = true;
     setOpen(true);
-  }, [latest, dismissed.data]);
+  }, [latest, dismissed.data, hasProjects]);
 
+  if (!hasProjects) return null;
   if (latest === null || latest.version === null) return null;
 
   function handleClose(): void {

@@ -82,7 +82,7 @@ export function TopBar({
           aria-label={hasWhatsNew ? "What's new (unread)" : "What's new"}
           data-testid="whats-new"
         >
-          <Link href="/help/changelog" className="relative">
+          <Link href="/updates" className="relative">
             <Sparkles aria-hidden="true" />
             {hasWhatsNew ? (
               <span

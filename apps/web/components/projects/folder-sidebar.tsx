@@ -113,7 +113,9 @@ export function FolderSidebar({
               data-testid={`folder-${folder.id}`}
             >
               {folder.name}
-              <span className="text-fg-2 ml-1.5 text-2xs">{folder.projectCount}</span>
+              {/* A real separator, not just a margin: without it the accessible
+                  name reads "Client work0" (F07-E2). */}
+              <span className="text-fg-2 text-2xs">{` · ${String(folder.projectCount)}`}</span>
             </button>
             <button
               type="button"
@@ -156,7 +158,7 @@ export function FolderSidebar({
         >
           <Input
             autoFocus
-            placeholder="Folder name"
+            placeholder="Name, then press Enter"
             value={draftName}
             onChange={(event) => {
               setDraftName(event.target.value);

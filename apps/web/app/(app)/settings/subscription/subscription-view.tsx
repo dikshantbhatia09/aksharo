@@ -20,6 +20,7 @@ import { Badge, Card, Skeleton } from "@montaj/ui";
 
 import { PassStatusChips } from "@/components/billing/passes/PassStatusChips";
 import { TopupCard } from "@/components/billing/passes/TopupCard";
+import { useRuntimeConfig } from "@/components/providers";
 import { SettingsSection } from "@/components/settings/section";
 
 const PLAN_LABEL: Record<string, string> = {
@@ -42,6 +43,7 @@ function formatDate(iso: string): string {
 
 export function SubscriptionView(): React.JSX.Element {
   const subscription = useSubscription();
+  const { razorpayEnabled } = useRuntimeConfig();
 
   return (
     <SettingsSection
@@ -86,7 +88,11 @@ export function SubscriptionView(): React.JSX.Element {
       </div>
 
       <div className="flex flex-col gap-2">
-        <h2 className="text-fg-0 text-base font-medium">Top up</h2>
+        {/* With no payment rail `TopupCard` renders the admin-credits notice, so
+            a "Top up" heading would title a section that cannot top anything up. */}
+        <h2 className="text-fg-0 text-base font-medium">
+          {razorpayEnabled ? "Top up" : "Credits"}
+        </h2>
         <TopupCard />
       </div>
     </SettingsSection>

@@ -71,7 +71,9 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     label: "Refer & Earn",
     href: "/affiliate",
     icon: Gift,
-    ready: false,
+    // B07 shipped: `/affiliate` renders stats and the programme rules, so the
+    // row no longer says "Soon" over a page that works (F07-E9).
+    ready: true,
     owner: "B07",
   },
   { key: "help", label: "Help", href: "/help", icon: LifeBuoy, ready: true },

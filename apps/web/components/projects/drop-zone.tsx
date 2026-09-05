@@ -2,8 +2,11 @@
 
 /**
  * The Home drop zone (08 §Home): "Drop videos or audio here · up to 4 GB / 3 h
- * on Creator · MP4 MOV MKV WEBM MP3 WAV" plus the "Transcription in ~60 s"
- * badge. Drag-drop and a keyboard-reachable file picker both land on the same
+ * on Creator · MP4 MOV MKV WEBM MP3 WAV" plus the transcription-time badge.
+ *
+ * The badge quotes no number: the free-stack pipeline (local Whisper on CPU)
+ * cannot hold a 60-second promise, and UI never quotes a number the pipeline
+ * does not enforce (F07-E1). Drag-drop and a keyboard-reachable file picker both land on the same
  * `onFiles`, so a screen-reader or keyboard-only user has the identical path a
  * mouse gives everyone else — `tabIndex`, `role="button"` and an Enter/Space
  * handler, not a bare `<input>` hidden behind a decoration.
@@ -116,7 +119,7 @@ export function DropZone({
           className="border-lime-500/40 bg-lime-500/10 text-lime-500 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium"
           data-testid="drop-zone-eta-badge"
         >
-          Transcription in ~60 s
+          Transcription usually takes a few minutes
         </span>
       </button>
 

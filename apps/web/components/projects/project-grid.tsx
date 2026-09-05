@@ -55,6 +55,7 @@ export function ProjectGrid({
   loading = false,
   emptyTitle = "Nothing here yet",
   emptyDescription = "Drop a video or audio file above, or start from a ready-made sample.",
+  emptyAction,
   selectable = false,
   selectedIds,
   onToggleSelect,
@@ -64,6 +65,11 @@ export function ProjectGrid({
   loading?: boolean;
   emptyTitle?: string;
   emptyDescription?: string;
+  /**
+   * Replaces the "Try with a sample" button. A list emptied by filters is not a
+   * cold start, and offering a new sample project there is the wrong exit (F07-E3).
+   */
+  emptyAction?: React.ReactNode;
   selectable?: boolean;
   selectedIds?: ReadonlySet<string>;
   onToggleSelect?: (projectId: string) => void;
@@ -75,7 +81,7 @@ export function ProjectGrid({
         icon={<FolderOpen aria-hidden="true" />}
         title={emptyTitle}
         description={emptyDescription}
-        action={selectable ? undefined : <SampleProjectButton />}
+        action={emptyAction ?? (selectable ? undefined : <SampleProjectButton />)}
       />
     );
   }

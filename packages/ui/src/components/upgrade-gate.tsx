@@ -29,6 +29,11 @@ export interface UpgradeGateProps {
    * a gate is never a dead end.
    */
   onUpgrade?: () => void;
+  /**
+   * Overrides the button text. A build with no payment rail cannot promise an
+   * upgrade, so it says who to ask instead — defaults to "Upgrade to {plan}".
+   */
+  ctaLabel?: string;
   /** Rendered inside the gate, below the copy — B03 mounts its sheet here. */
   children?: React.ReactNode;
   className?: string;
@@ -39,6 +44,7 @@ export function UpgradeGate({
   feature,
   price,
   onUpgrade,
+  ctaLabel,
   children,
   className,
 }: UpgradeGateProps): React.JSX.Element {
@@ -64,7 +70,7 @@ export function UpgradeGate({
       </p>
       {onUpgrade === undefined ? null : (
         <Button variant="primary" size="sm" className="self-start" onClick={onUpgrade}>
-          Upgrade to {planName}
+          {ctaLabel ?? `Upgrade to ${planName}`}
         </Button>
       )}
       {children}

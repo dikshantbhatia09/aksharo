@@ -224,7 +224,9 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
       {/* B12: the What's-new modal, same "global, not scoped to one screen"
           shape as the give-get sheet above — see `components/academy/
           whats-new-modal.tsx`'s "Mount point". */}
-      {bootstrapped && session !== null ? <WhatsNewModal /> : null}
+      {bootstrapped && session !== null ? (
+        <WhatsNewModal hasProjects={(recentProjectsQuery.data?.pages[0]?.items.length ?? 0) > 0} />
+      ) : null}
     </div>
   );
 }

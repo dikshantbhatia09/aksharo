@@ -15,14 +15,21 @@ import {
   toast,
 } from "@montaj/ui";
 
+import { FreeStackBillingNotice } from "./free-stack-notice";
+
+import { useRuntimeConfig } from "@/components/providers";
 import { useMandates, usePaymentMethods, useRevokeMandate } from "@/lib/billing/hooks";
 import { formatDate, formatDateTime, formatMoney, MANDATE_METHOD_LABEL } from "@/lib/billing/money";
 import { messageForError } from "@/lib/errors";
 
 /** `/billing/methods` (08 §Subscription: "Payment methods"). */
 export function PaymentMethodsPanel(): React.JSX.Element {
-  const methods = usePaymentMethods();
-  const mandates = useMandates();
+  const { razorpayEnabled } = useRuntimeConfig();
+  // Both queries stay behind the rail: with no Razorpay there are no methods and
+  // no mandates to have, so fetching only produces the empty state that used to
+  // sit on top of a server error and hide it (F07-C2).
+  const methods = usePaymentMethods({ enabled: razorpayEnabled });
+  const mandates = useMandates({ enabled: razorpayEnabled });
   const revoke = useRevokeMandate();
   const [revokeTarget, setRevokeTarget] = React.useState<string | null>(null);
 
@@ -40,6 +47,10 @@ export function PaymentMethodsPanel(): React.JSX.Element {
       },
     });
   };
+
+  // After the hooks, never before them: the rules of hooks are why the queries
+  // are gated above rather than simply skipped here.
+  if (!razorpayEnabled) return <FreeStackBillingNotice />;
 
   return (
     <div className="flex flex-col gap-6" data-testid="payment-methods-panel">

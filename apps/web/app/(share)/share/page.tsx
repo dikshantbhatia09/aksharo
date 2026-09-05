@@ -1,17 +1,10 @@
+import { redirect } from "next/navigation";
+
 /**
- * Public review/share surface — placeholder. B15 builds review links, comments
- * and approvals. Pages in this group are reachable without a session, so they
- * must never render workspace-scoped data beyond the shared project.
+ * The `(share)` group serves real review links at `/share/{token}`. Its bare
+ * root only ever rendered an engineering note about the route group, which is
+ * not a page anyone should land on (F07-E7).
  */
-export default function SharePage(): React.JSX.Element {
-  return (
-    <main className="mx-auto flex min-h-dvh max-w-2xl flex-col justify-center gap-4 px-6">
-      <h1 className="text-2xl font-semibold tracking-tight" data-testid="share-heading">
-        Shared review
-      </h1>
-      <p className="text-fg-2 text-sm">
-        Public review link surface — route group <code>(share)</code>. Built in B15.
-      </p>
-    </main>
-  );
+export default function SharePage(): never {
+  redirect("/");
 }

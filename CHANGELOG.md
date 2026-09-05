@@ -67,6 +67,39 @@ awaiting_language | processing_media | no_media` — computed on demand from the
   server mismatch (`edg/init/caption-budgets.ts`) and the safe-area horizontal
   clamp — both are layout math, not chrome.
 
+- **F07: a free build with no dead controls.** With `razorpayEnabled: false` and
+  `googleOAuthEnabled: false`, roughly twenty surfaces still sold what could not
+  be sold. **(A)** The lime Upgrade button now gates on the payment rail as well
+  as the plan, and the top bar's Sparkles button points at `/updates`, the page
+  the changelog actually moved to, instead of a `/help/changelog` that had no
+  article behind it. **(B)** The export upsell no longer prints "Remove for ₹9"
+  and "₹149 for 7 days" beside hidden buy buttons — payments off gets
+  "ask an administrator for credits" and "not available in this build" — and its
+  "See plans" link out to the marketing price list goes with the rail. **(C)** The
+  `/billing` sub-nav drops Plans, Payment methods and Invoices when there is no
+  rail; the methods panel returns the admin-credits notice and, more to the
+  point, no longer fires the query whose error it used to paint an empty state
+  over; the upgrade lock stops pricing itself ("Upgrade to Creator — ₹699/mo"
+  becomes "Ask an admin about creator", via a new `ctaLabel` prop on
+  `packages/ui`'s `UpgradeGate`); the Billing-history shortcut and the "Top up"
+  heading follow suit. **(D)** Sign-up with dev auto-verification now signs the
+  new account in and lands on Home rather than showing a confirm-your-email
+  screen for a click that does not exist; the magic-link confirmation admits the
+  link lands in the developer outbox; the What's-new modal never covers a
+  brand-new account's quick-pick (and does not burn the version doing so); the
+  profile page stops offering Google when Google is off. **(E)** The sweep: the
+  drop zone quotes no "~60 s" the pipeline cannot keep; the folder rail reads
+  "Client work · 0" instead of "Client work0"; a filter that matches nothing
+  gets its own empty state with a Clear-filters button rather than the cold-start
+  copy and a sample-project offer; the projects "⋯" menu's Export navigates to
+  the editor's export dialog; `/studio` and the bare `/share` redirect instead of
+  rendering scaffold copy; the editor's back link points at `/projects`; the
+  desktop-app offer and referral links build from `WEB_ORIGIN` rather than
+  hard-coding `aksharo.ai`; and Refer & Earn leaves "Soon" behind while no longer
+  asking a free build for PAN, GSTIN and UPI details for a payout it cannot make.
+  One boolean from one runtime config now governs every commercial surface, which
+  the QA flip check proves by turning it back on.
+
 - **M20 (post-merge): `LLM_PROVIDER=ollama` took the whole AI worker down.**
   Found by running the merged build rather than by any test: `runtime.py` builds
   the translation chain eagerly at startup, and `LLMTranslateProvider` knew only

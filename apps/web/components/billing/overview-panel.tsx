@@ -132,9 +132,13 @@ export function OverviewPanel(): React.JSX.Element {
           )}
 
           <div className="flex gap-3 pt-2">
-            <Button variant="outline" size="sm" asChild data-testid="billing-history-shortcut">
-              <Link href="/billing/invoices">Billing history</Link>
-            </Button>
+            {/* Invoices is one of the tabs the rail gate hides (F07-C1); its
+                shortcut has to go with it or it is a link to nothing. */}
+            {config.razorpayEnabled ? (
+              <Button variant="outline" size="sm" asChild data-testid="billing-history-shortcut">
+                <Link href="/billing/invoices">Billing history</Link>
+              </Button>
+            ) : null}
             <Button variant="outline" size="sm" asChild>
               <Link href="/billing/usage">Usage</Link>
             </Button>
