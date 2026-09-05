@@ -8,6 +8,18 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **OC1: a real workspace.** The editor's three columns and its timeline row
+  were fixed boxes — `w-[420px]`, `w-80`, `max-h-[38dvh]` — so a long caption and
+  a wide style grid competed for space nobody could give them. They are now
+  resizable panels: a vertical group (main row / timeline, 62/38) holding a
+  horizontal one (transcript / stage / panel, 26/52/22), each pane's inner markup
+  untouched, with drag handles, per-device persistence in `localStorage`, and
+  double-click-to-reset on any handle. Min/max sizes replace the M18 `38dvh` cap
+  as the timeline's height budget, so its own scroll still protects the style
+  grid. The wrapper (`components/editor/workspace/resizable.tsx`) is a pattern
+  port of OpenCut's `resizable.tsx` on our tokens, with the reset affordance from
+  its GPUI desktop twin, over one new dependency: `react-resizable-panels@^4`.
+
 - **Stage-2 integration (orchestrator).** Merged F02 + F04 + F06 + S01. Fixed
   the subtitle-export hand-off F06's QA found: the cloud path writes no `exports`
   row at POST time and the `render.subtitle` completion handler minted fresh ids,
