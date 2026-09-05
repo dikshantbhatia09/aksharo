@@ -187,7 +187,10 @@ describe("<ExportDialog /> — the cloud render is followed to a file (F06-4)", 
       routes: {
         [`/projects/${PROJECT_ID}/exports`]: cloudExportResponse(true),
         [`/jobs/${JOB_ID}`]: job("succeeded", 100),
-        [`/exports/${EXPORT_ID}/download`]: { url: DOWNLOAD_URL, expiresAt: "2026-01-01T00:00:00Z" },
+        [`/exports/${EXPORT_ID}/download`]: {
+          url: DOWNLOAD_URL,
+          expiresAt: "2026-01-01T00:00:00Z",
+        },
         // The eligibility answer that fired the second export.
         "/offers/eligibility": {
           signupGift: { available: true },

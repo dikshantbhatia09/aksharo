@@ -17,6 +17,20 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   found outside its file list — and gave `R2_PUBLIC_ENDPOINT`'s https-tunnel
   requirement its missing home in `docs/FREE-STACK.md` §6.
 
+- **F06: exports finish.** One Export click created two exports, two renders and
+  two credit holds — the watermark upsell's eligibility effect reached the same
+  action as the submit button — and the second copy still came back watermarked.
+  `startExport` is now callable from the submit handler alone, with a
+  re-entrancy guard in the hook behind it, so one click is one export. The cloud
+  path also stopped at a yellow `cloud-offered` panel while the server rendered
+  the file unobserved (the audit found four finished MP4s with `downloads = 0`):
+  a cloud export is now followed to its end by polling `GET /jobs/{id}` on a
+  2s → 3s → 5s backoff, showing live progress, then resolving the file's
+  short-lived link through the existing download route and offering it as a
+  Download button. Cancel reaches the server (`POST /jobs/{id}/cancel`) rather
+  than only closing the dialog's eyes, and the offered panel's explanatory
+  lines, which were printed twice, are printed once.
+
 - **F01: derived media reaches the browser.** The API presigned every derived
   object — the proxy video, the waveform, thumbnails — against `R2_ENDPOINT`,
   which is a plain `http://localhost:9000` while the page is served over HTTPS,
