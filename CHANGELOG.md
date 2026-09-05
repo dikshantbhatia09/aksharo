@@ -8,6 +8,26 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **OC2: a real menubar, one action registry.** The editor header carried a
+  back-link, two loose checkboxes and a Re-transcribe button, and its keyboard
+  map was the only place that knew what `S` or `Ctrl+Z` did. Every editor action
+  is now declared once in `lib/editor/actions.ts` — label, menu, shortcut,
+  enablement, effect — and rendered from there by a File / Edit / View /
+  Playback / Language / Help menubar, by Help → Keyboard shortcuts, and (next)
+  by OC-04's command palette, so the three surfaces cannot drift apart. Split
+  and Merge grey out with nothing selected, Hide fillers and Follow playhead
+  carry live checkmarks, Delete word is red, and every item calls the same
+  handler its shortcut does. The `← Projects` link is gone: File → Back to
+  projects replaces it. Share is the one item that is new rather than moved —
+  B15's `ShareLinksPanel` has sat unmounted since it was built for want of an
+  owner-side screen, and the menubar is that screen: File → Share… opens it,
+  `/p/{id}?share=1` opens it on load, and the projects "⋯" menu's Share item is
+  no longer disabled. The primitive
+  (`packages/ui/src/primitives/menubar.tsx`) is a pattern port of OpenCut's
+  menubar — its "reuse the dropdown part set" composition — rebuilt on radix
+  with our `dropdown-menu.tsx`'s own classes, over one new dependency:
+  `@radix-ui/react-menubar@^1`.
+
 - **Stage-3 integration (orchestrator).** Merged OC-01 + S-02 + S-03 + S-04.
   Fixed what their QA surfaced outside their file lists: caption drags never
   persisted because the stage's `SetSegmentPosition` op kept the panel module's
