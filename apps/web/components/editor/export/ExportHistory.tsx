@@ -10,26 +10,23 @@
  * audit's orphans: finished MP4s that were never downloaded because nothing
  * ever linked to them.
  *
- * **Why two sources.** The obvious implementation — poll
- * `GET /projects/{id}/exports` and read each row's `status` — cannot show a
- * running render, because a cloud export has no row until it finishes. The
- * database says so in its own words (`schema.prisma:1913-1916`, the
- * `ExportStatus` doc comment: *"a cloud export's row is written once, by the
- * job completion handler, already `succeeded` or `failed`"*), the enum has no
- * `queued`/`running` member to hold, and both write sites confirm it
- * (`render-completion.handler.ts:147` and `:263`). So the in-flight half comes
- * from the render jobs an export is made of, and the durable half — the thing
- * you can download — from the exports list.
+ * **One source.** S-02 shipped this panel reading two endpoints, because a
+ * cloud export had no `exports` row until its completion handler wrote one —
+ * so the in-flight half had to come from the render jobs an export is made of.
+ * S05 made the row exist from the POST (`rendering`) and gave both completion
+ * handlers a `handleFailure` that marks it `failed`, which retires the jobs
+ * list entirely: every state this panel can show is now a row's own `status`,
+ * and a failed render is a row here instead of a disappearance.
  *
- * It is still **one poller**: a single backoff timer that reads both endpoints
- * on the same tick, started on mount and stopped the moment no render job is in
- * flight, because nothing else on this screen can change without one.
+ * It is **one poller**: a single backoff timer over the exports list, started
+ * on mount and re-armed only while some row is still non-terminal, because
+ * nothing else on this screen can change without a click.
  */
 
 import * as React from "react";
 
-import { defineEndpoint, endpoints, useApiClient } from "@montaj/api-client";
-import type { ApiClient, JobSummary } from "@montaj/api-client";
+import { defineEndpoint, useApiClient } from "@montaj/api-client";
+import type { ApiClient } from "@montaj/api-client";
 import { Badge, Button } from "@montaj/ui";
 
 /**
@@ -66,7 +63,7 @@ const exportDownloadEndpoint = defineEndpoint<void, { url: string; expiresAt: st
 export interface ExportListItem {
   readonly id: string;
   readonly projectId: string;
-  /** `pending_browser | succeeded | failed` (`schema.prisma:1917-1921`). */
+  /** `pending_browser | rendering | succeeded | failed` (`schema.prisma:1919-1924`). */
   readonly status: string;
   /** `ExportKind`: `mp4 mov srt vtt ass txt docx md` (`schema.prisma:307-316`). */
   readonly kind: string;
@@ -100,45 +97,30 @@ export interface ExportHistoryProps {
 /** Gentle first, then settled — the guide's 5 s → 10 s. */
 const POLL_DELAYS_MS = [5_000, 10_000] as const;
 
-/** Newest-first, and only ever a handful are in flight. */
-const JOB_PAGE_SIZE = 20;
-
-/** The render queues an export is made of (`exports.service.ts:124-125`). */
-const RENDER_JOB_TYPES = new Set(["render.video", "render.subtitle"]);
-
-/** A job that can still change on its own. `JobStatus`, `types.ts:476`. */
-function isJobInFlight(job: JobSummary): boolean {
-  return job.status === "queued" || job.status === "running";
+/**
+ * A row that can still change on its own: a cloud render in flight, or a
+ * browser export whose `POST /exports/manifests/{id}/complete` has not landed.
+ * Everything else is terminal and only a click can change the screen.
+ */
+function isRowInFlight(item: ExportListItem): boolean {
+  return item.status === "rendering" || item.status === "pending_browser";
 }
 
 interface HistorySnapshot {
   readonly loaded: boolean;
   readonly exports: readonly ExportListItem[];
-  readonly activeJobs: readonly JobSummary[];
 }
 
-const EMPTY: HistorySnapshot = { loaded: false, exports: [], activeJobs: [] };
+const EMPTY: HistorySnapshot = { loaded: false, exports: [] };
 
 /**
- * One tick: both halves, in parallel, each degrading to "nothing" on its own.
- * A jobs page that fails must not blank the downloads, and vice versa — this
- * panel sits under a dialog that has its own job to do.
+ * One tick, degrading to "nothing" on its own: a list that fails must not blank
+ * the downloads already on screen — this panel sits under a dialog that has its
+ * own job to do.
  */
 async function readHistory(client: ApiClient, projectId: string): Promise<HistorySnapshot> {
-  const [list, jobs] = await Promise.all([
-    client.call(exportListEndpoint, { params: { projectId } }).catch(() => null),
-    client
-      .call(endpoints.jobs.list, { query: { projectId, limit: JOB_PAGE_SIZE } })
-      .catch(() => null),
-  ]);
-
-  return {
-    loaded: true,
-    exports: list?.items ?? [],
-    activeJobs: (jobs?.items ?? []).filter(
-      (job) => RENDER_JOB_TYPES.has(job.type) && isJobInFlight(job),
-    ),
-  };
+  const list = await client.call(exportListEndpoint, { params: { projectId } }).catch(() => null);
+  return { loaded: true, exports: list?.items ?? [] };
 }
 
 const RELATIVE = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
@@ -159,7 +141,23 @@ function relativeTime(iso: string, now: number): string {
   return RELATIVE.format(-Math.round(elapsed / step.inMs), step.unit);
 }
 
-type ChipTone = "warning" | "accent" | "rejected";
+type ChipTone = "neutral" | "warning" | "accent" | "rejected";
+
+/**
+ * Every `ExportStatus` the list can hand back, and nothing else — the row IS
+ * the state now (S05). A status this map does not know is treated as in-flight
+ * rather than as a finished file: the one thing that must never happen is
+ * offering a Download for bytes that are not there.
+ */
+const CHIPS: Record<string, { readonly chip: string; readonly tone: ChipTone }> = {
+  pending_browser: { chip: "In browser", tone: "neutral" },
+  rendering: { chip: "Rendering…", tone: "warning" },
+  succeeded: { chip: "Succeeded", tone: "accent" },
+  // The row carries no error text, so this says what happened and no more.
+  failed: { chip: "Render failed", tone: "rejected" },
+};
+
+const UNKNOWN_CHIP = { chip: "Rendering…", tone: "warning" } as const;
 
 interface Row {
   readonly key: string;
@@ -181,28 +179,15 @@ function describeExport(item: ExportListItem): string {
 
 function exportRow(item: ExportListItem): Row {
   const succeeded = item.status === "succeeded";
-  const failed = item.status === "failed";
+  const { chip, tone } = CHIPS[item.status] ?? UNKNOWN_CHIP;
   return {
     key: "export:" + item.id,
     at: item.createdAt,
     label: describeExport(item),
-    chip: succeeded ? "Succeeded" : failed ? "Failed" : "Rendering in this browser",
-    tone: succeeded ? "accent" : failed ? "rejected" : "warning",
+    chip,
+    tone,
     watermarked: item.watermarked,
     downloadId: succeeded ? item.id : null,
-  };
-}
-
-function jobRow(job: JobSummary): Row {
-  const what = job.type === "render.subtitle" ? "Subtitles" : "Video";
-  return {
-    key: "job:" + job.id,
-    at: job.queuedAt,
-    label: what + " · cloud render",
-    chip: job.status === "running" ? "Running — " + String(job.progress) + "%" : "Queued",
-    tone: "warning",
-    watermarked: false,
-    downloadId: null,
   };
 }
 
@@ -215,8 +200,8 @@ export function ExportHistory({
   const [failedDownload, setFailedDownload] = React.useState<string | null>(null);
   const [busyDownload, setBusyDownload] = React.useState<string | null>(null);
 
-  // One poller. It starts on mount and only re-arms while a render job is still
-  // in flight — with every row settled there is nothing left that can change
+  // One poller. It starts on mount and only re-arms while some row is still
+  // non-terminal — with every row settled there is nothing left that can change
   // without a click, so the timer is simply not scheduled again.
   React.useEffect(() => {
     let stopped = false;
@@ -227,7 +212,7 @@ export function ExportHistory({
       const next = await readHistory(client, projectId);
       if (stopped) return;
       setSnapshot(next);
-      if (next.activeJobs.length === 0) return;
+      if (!next.exports.some(isRowInFlight)) return;
       const delay = POLL_DELAYS_MS[Math.min(attempt, POLL_DELAYS_MS.length - 1)] ?? 10_000;
       attempt += 1;
       timer = setTimeout(() => {
@@ -243,7 +228,10 @@ export function ExportHistory({
     };
   }, [client, projectId]);
 
-  const active = snapshot.activeJobs.length > 0;
+  // "A render is in flight" is a CLOUD render specifically — a `pending_browser`
+  // row is this tab's own export, which the dialog is already busy with and
+  // which must not disable the control the way someone else's render does.
+  const active = snapshot.exports.some((item) => item.status === "rendering");
   // Through a ref, so an inline arrow prop from the dialog above cannot restart
   // the notification effect on every one of its renders.
   const notify = React.useRef(onActiveChange);
@@ -272,10 +260,9 @@ export function ExportHistory({
   );
 
   const now = Date.now();
-  const rows: readonly Row[] = [
-    ...snapshot.activeJobs.map(jobRow),
-    ...snapshot.exports.map(exportRow),
-  ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  const rows: readonly Row[] = snapshot.exports
+    .map(exportRow)
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 
   return (
     <section className="mt-6" data-testid="export-history">
