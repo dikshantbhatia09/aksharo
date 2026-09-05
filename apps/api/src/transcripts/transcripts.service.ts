@@ -19,6 +19,7 @@ import { MemoryService } from "../memory/memory.service.js";
 
 import type { Correction, DetectedLanguage } from "./postprocess/index.js";
 import type { TranscriptExportFormat } from "./transcript-export.js";
+import type { TranscriptionState } from "./transcripts.dto.js";
 import type { CaptionPreferences } from "../edg/init/index.js";
 import type { MediaAsset, Project, Transcript } from "@prisma/client";
 
@@ -131,6 +132,54 @@ export class TranscriptsService {
   /** `POST /projects/{id}/transcribe` — the first transcription of a project. */
   async transcribe(request: TranscribeRequest): Promise<TranscribeAccepted> {
     return this.enqueueTranscription(request, { retranscribe: false });
+  }
+
+  /**
+   * FIX-03's read model: the single truth the upload tray, the editor's waiting
+   * screen and the shell all render. Derived on demand from rows that already
+   * exist — deliberately no stored status column, so there is nothing to drift.
+   */
+  async transcriptionState(
+    projectId: string,
+    workspaceId: string,
+  ): Promise<{ status: TranscriptionState; jobId?: string; error?: string }> {
+    const project = await this.project(projectId, workspaceId); // 404s across tenants
+    const transcript = await this.repository.latest(project.id);
+    if (transcript !== null) return { status: "ready" };
+
+    const media = await this.prisma.mediaAsset.findFirst({
+      where: { projectId: project.id, role: "primary" },
+      orderBy: { createdAt: "desc" },
+      select: { status: true, durationMs: true },
+    });
+    if (media === null) return { status: "no_media" };
+    if (media.status !== "ready" || media.durationMs === null || media.durationMs <= 0) {
+      return { status: "processing_media" };
+    }
+
+    const job = await this.prisma.job.findFirst({
+      where: { projectId: project.id, type: "ai.transcribe" },
+      orderBy: { queuedAt: "desc" },
+      select: { id: true, status: true, error: true },
+    });
+    if (job !== null) {
+      if (job.status === "queued") return { status: "queued", jobId: job.id };
+      if (job.status === "running") return { status: "running", jobId: job.id };
+      if (job.status === "failed" || job.status === "cancelled") {
+        return { status: "failed", jobId: job.id, error: jobErrorMessage(job.error) };
+      }
+      // succeeded but no transcript row yet: the completion handler is mid-write —
+      // report running so the caller keeps waiting instead of flashing an error.
+      return { status: "running", jobId: job.id };
+    }
+
+    if (project.sourceLanguage === null || project.sourceLanguage.trim() === "") {
+      return { status: "awaiting_language" };
+    }
+    // Media ready, language chosen, no job: the auto-start never ran or was
+    // refused (a zero-credit workspace lands here). The waiting screen offers the
+    // explicit start, whose 402 carries the credit story.
+    return { status: "not_started" };
   }
 
   /**
@@ -512,4 +561,22 @@ function transcriptIdOf(params: unknown): string | undefined {
   if (typeof params !== "object" || params === null) return undefined;
   const value = (params as Record<string, unknown>)["transcriptId"];
   return typeof value === "string" && value !== "" ? value : undefined;
+}
+
+/**
+ * The reason a failed transcription can show a user.
+ *
+ * `jobs.error` is JSONB shaped `{code, message, retryable}` (`JobErrorSchema` in
+ * `jobs/contracts/completion.ts`), not a string — so the sentence the waiting
+ * screen renders comes out of `message`. A row that ever stored a bare string
+ * still reads correctly, and an unusable value falls back to a plain sentence
+ * rather than leaking a code at the user.
+ */
+function jobErrorMessage(error: unknown): string {
+  if (typeof error === "string" && error.trim() !== "") return error;
+  if (typeof error === "object" && error !== null) {
+    const message = (error as Record<string, unknown>)["message"];
+    if (typeof message === "string" && message.trim() !== "") return message;
+  }
+  return "The transcription failed.";
 }

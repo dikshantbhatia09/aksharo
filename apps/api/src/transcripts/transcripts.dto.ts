@@ -219,3 +219,36 @@ export class TranscriptChunkPageDto {
   })
   nextCursor!: number | null;
 }
+
+// ---------------------------------------------------------------------------
+// The transcription read model (F03)
+// ---------------------------------------------------------------------------
+
+/**
+ * Where a project's first transcription actually is. Derived on every request
+ * from rows that already exist — no stored status column, so there is nothing
+ * to drift and nothing to migrate.
+ */
+export const TRANSCRIPTION_STATES = [
+  "ready", // a transcript exists — the editor can open
+  "queued", // an ai.transcribe job is waiting
+  "running", // an ai.transcribe job is executing
+  "failed", // the last attempt failed; error carries the reason
+  "not_started", // media is ready + language chosen, but no job exists
+  "awaiting_language", // media ready, but the project has no source language
+  "processing_media", // probe/proxy still running — transcription cannot start yet
+  "no_media", // nothing uploaded
+] as const;
+
+export type TranscriptionState = (typeof TRANSCRIPTION_STATES)[number];
+
+export class TranscriptionStateDto {
+  @ApiProperty({ enum: TRANSCRIPTION_STATES })
+  status!: TranscriptionState;
+
+  @ApiPropertyOptional({ description: "The live ai.transcribe job, when one exists." })
+  jobId?: string;
+
+  @ApiPropertyOptional({ description: "Failure detail for status=failed." })
+  error?: string;
+}
