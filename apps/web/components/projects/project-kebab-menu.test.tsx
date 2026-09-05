@@ -89,20 +89,31 @@ describe("<ProjectKebabMenu />", () => {
     });
   });
 
-  // F07-E5: Export shipped, so it is a real item now; Share is still disabled
-  // because nothing in the app mounts an owner-side share screen (see REPORT.md).
-  it("navigates to the editor's export dialog, and keeps Share disabled with a reason", async () => {
+  // F07-E5: Export shipped, so it is a real item now. OC-02: so did Share —
+  // the editor's menubar gave `ShareLinksPanel` the screen it was waiting for,
+  // so the item that used to be disabled with a tooltip now navigates.
+  it("navigates to the editor's export dialog", async () => {
     const user = userEvent.setup();
     renderWithProviders(<ProjectKebabMenu project={project()} />, { routes: {} });
     await user.click(screen.getByTestId("project-kebab-01JPROJECT0000000000000AA"));
 
     const exportItem = await screen.findByTestId("kebab-export");
     expect(exportItem).not.toHaveAttribute("data-disabled");
-    // Assert Share before the click: selecting Export closes the menu.
-    expect(screen.getByTestId("kebab-share")).toHaveAttribute("data-disabled");
 
     await user.click(exportItem);
     expect(routerMock.push).toHaveBeenCalledWith("/p/01JPROJECT0000000000000AA?export=1");
+  });
+
+  it("navigates to the editor's share dialog with ?share=1", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProjectKebabMenu project={project()} />, { routes: {} });
+    await user.click(screen.getByTestId("project-kebab-01JPROJECT0000000000000AA"));
+
+    const shareItem = await screen.findByTestId("kebab-share");
+    expect(shareItem).not.toHaveAttribute("data-disabled");
+
+    await user.click(shareItem);
+    expect(routerMock.push).toHaveBeenCalledWith("/p/01JPROJECT0000000000000AA?share=1");
   });
 
   /**

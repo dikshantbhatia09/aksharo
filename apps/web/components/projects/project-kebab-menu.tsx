@@ -8,11 +8,11 @@
  * `?export=1`, which opens the same export dialog the editor's own toolbar
  * button opens (F07-E5).
  *
- * Share is still disabled. B15 built the share-link API and
- * `components/review/ShareLinksPanel.tsx`, but nothing in the app mounts that
- * panel, so there is no owner-side share screen to send anyone to. A disabled
- * item with an honest tooltip beats a menu entry that navigates nowhere,
- * matching how `nav.ts` handles an unbuilt route.
+ * Share shipped too (OC-02): B15's `components/review/ShareLinksPanel.tsx` sat
+ * unmounted for want of an owner-side screen, and the editor's menubar gave it
+ * one — so this item navigates with `?share=1`, exactly as Export navigates
+ * with `?export=1`, and is no longer the disabled entry with an honest tooltip
+ * it had to be while there was nowhere to go.
  */
 import {
   Archive,
@@ -42,9 +42,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   toast,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
 } from "@montaj/ui";
 
 import { ImportSubtitles } from "@/components/editor/ImportSubtitles";
@@ -165,14 +162,20 @@ export function ProjectKebabMenu({
           */}
           <ImportSubtitles projectId={project.id} variant="menu-item" />
           {/*
-            Share stays disabled, and the tooltip now says why: B15 built the
-            share-link API and `components/review/ShareLinksPanel.tsx`, but that
-            panel was never given an entry point anywhere in the app (its own
-            header says so), so there is no share surface to navigate to. See
-            REPORT.md, F07-E5 — the second half of that item is reported, not
-            improvised into a new screen.
+            OC-02: Share is a real item at last. The panel B15 built now has a
+            screen to be on — the editor's `ShareDialog`, opened by the new
+            menubar's File → Share… — so this navigates there the same way
+            Export does, with `?share=1`.
           */}
-          <DisabledMenuItem label="Share" reason="Share links have no owner-side screen yet." />
+          <DropdownMenuItem
+            onSelect={() => {
+              router.push(`/p/${project.id}?share=1`);
+            }}
+            data-testid="kebab-share"
+          >
+            <Share2 aria-hidden="true" />
+            Share
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={toggleArchive} data-testid="kebab-archive">
             {archived ? <ArchiveRestore aria-hidden="true" /> : <Archive aria-hidden="true" />}
@@ -222,19 +225,5 @@ export function ProjectKebabMenu({
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-function DisabledMenuItem({ label, reason }: { label: string; reason: string }): React.JSX.Element {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <DropdownMenuItem disabled data-testid={`kebab-${label.toLowerCase()}`}>
-          <Share2 aria-hidden="true" />
-          {label}
-        </DropdownMenuItem>
-      </TooltipTrigger>
-      <TooltipContent side="left">{reason}</TooltipContent>
-    </Tooltip>
   );
 }
