@@ -8,6 +8,20 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **S07: the e2e upload journey is green again.** `upload.spec.ts` and
+  `gate-a.spec.ts` had been red since F03 — not because the product broke, but
+  because they still asserted the contract it replaced. F03-5 stopped the
+  upload tray claiming "ready" when the bytes are up (the server pipeline owns
+  the row from there), so the row's Cancel button never disappears and both
+  specs waited 30 s for it to. They now wait for the server-owned status line
+  the tray renders instead, which is a stronger signal: it cannot appear while
+  the file is still uploading. gate-a's segment split was also silently doing
+  nothing — it split at a word that is now the first of its segment, which the
+  EDG engine refuses because the head half would be empty. No product code
+  changed; the suite's own README now records the three preconditions a journey
+  has to meet (language, credits, and not waiting for a "ready" that no longer
+  comes).
+
 - **Stage-4 integration (orchestrator).** Merged OC-02 + OC-03 + S-05. "Insert
   word after" never succeeded on real speech: the editor asked for a fixed 200 ms
   word and `apply.ts` rightly refused any that overran its follower (OC-03's
