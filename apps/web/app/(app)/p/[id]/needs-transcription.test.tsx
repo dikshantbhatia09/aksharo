@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -16,6 +16,7 @@ const PROJECT = {
 
 const STATE_ROUTE = "/projects/01PROJECT/transcription-state";
 const TRANSCRIBE_ROUTE = "/projects/01PROJECT/transcribe";
+const IMPORT_ROUTE = "/projects/01PROJECT/import";
 
 const json = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -134,6 +135,57 @@ describe("<NeedsTranscription />", () => {
     // Still recoverable in place — QA6 grants credits and presses this.
     expect(screen.getByTestId("editor-start-transcription")).toHaveTextContent("Try again");
   });
+  /**
+   * S-03: the credit-free path. The offer belongs on the same screen as the
+   * paid one — a creator who already has captions should never have to spend a
+   * transcription to see them — and taking it must visibly become a wait, not
+   * leave the screen still offering the work it just commissioned.
+   */
+  it("offers a credit-free import and turns into the aligning wait", async () => {
+    const { fetchMock } = renderWithProviders(<NeedsTranscription projectId="01PROJECT" />, {
+      routes: {
+        "/projects/01PROJECT": PROJECT,
+        [STATE_ROUTE]: { status: "not_started" },
+        [IMPORT_ROUTE]: json(
+          {
+            mediaId: "01MEDIA",
+            kind: "srt",
+            key: "derived/01PROJECT/subtitles.json",
+            cueCount: 3,
+            timed: true,
+            warnings: [],
+            jobId: "01JALIGN",
+          },
+          201,
+        ),
+      },
+    });
+
+    // The offer sits under the primary action, never instead of it.
+    expect(await screen.findByTestId("import-subtitles")).toBeEnabled();
+    expect(screen.getByTestId("editor-start-transcription")).toBeEnabled();
+    expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent(
+      "costs no transcription credits",
+    );
+
+    fireEvent.change(screen.getByTestId("import-subtitles-input"), {
+      target: {
+        files: [
+          new File(["1\n00:00:00,000 --> 00:00:01,000\nHello\n"], "qa.srt", { type: "text/plain" }),
+        ],
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent(
+        "Aligning your subtitles",
+      );
+    });
+    // No transcription was commissioned on the way — that is the whole point.
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/transcribe"))).toBe(false);
+    expect(screen.queryByTestId("editor-start-transcription")).toBeNull();
+  });
+
   // FIX-04: the one state on this screen that holds a question. A project with
   // no recorded language used to be a dead end — Home was the only writer of
   // the field and it always wrote `hi-Latn`.

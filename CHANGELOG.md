@@ -38,6 +38,22 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   reopening it used to invite a second render, and a second credit hold, for a
   file already being made.
 
+- **S03: bring your own captions.** A creator who already has an SRT, VTT, ASS
+  or plain-text transcript can now import it instead of paying for a
+  transcription. The route did all of this already — parse to one normalised cue
+  list, store it as a sidecar, enqueue `ai.align`, whose completion initialises
+  the editing document exactly as a transcription's does — and had **no caller
+  anywhere in the app**. It has one now: an **Import subtitles** control under
+  the primary action on the editor's waiting screen (in the not-started and
+  choose-a-language panels, and in the out-of-credits panel, where it is the one
+  thing on screen that still works), and an item in every project's ⋯ menu. The
+  waiting screen grew an `aligning` phase for the wait, because the server's
+  transcription read model is derived from `ai.transcribe` jobs and an alignment
+  is invisible to it; the shell's push branch now covers `ai.align` too, and
+  announces it as "Captions imported" rather than crediting a transcription that
+  never ran. Nothing is gated client-side: whatever the route answers for a
+  project that already has a transcript is what the toast says.
+
 - **Stage-2 integration (orchestrator).** Merged F02 + F04 + F06 + S01. Fixed
   the subtitle-export hand-off F06's QA found: the cloud path writes no `exports`
   row at POST time and the `render.subtitle` completion handler minted fresh ids,

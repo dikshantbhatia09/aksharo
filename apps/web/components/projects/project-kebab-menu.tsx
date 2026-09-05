@@ -2,7 +2,7 @@
 
 /**
  * The kebab menu every project card and row carries (08 §Home): open,
- * duplicate, export, share, archive, delete with confirm.
+ * duplicate, export, import subtitles, share, archive, delete with confirm.
  *
  * Export shipped (A19/A21b): this item navigates to the project's editor with
  * `?export=1`, which opens the same export dialog the editor's own toolbar
@@ -47,6 +47,7 @@ import {
   TooltipTrigger,
 } from "@montaj/ui";
 
+import { ImportSubtitles } from "@/components/editor/ImportSubtitles";
 import { messageForError } from "@/lib/errors";
 
 export function ProjectKebabMenu({
@@ -154,6 +155,15 @@ export function ProjectKebabMenu({
             <Download aria-hidden="true" />
             Export
           </DropdownMenuItem>
+          {/*
+            S-03: bring your own captions, from the grid as well as from the
+            editor's waiting screen. Offered for every project, with no
+            client-side gating: whether a project that already has a transcript
+            gets a refusal or a re-align is the route's answer to give, and the
+            control's toast repeats it. Inventing a rule here that the server
+            does not have is exactly how the two drift apart.
+          */}
+          <ImportSubtitles projectId={project.id} variant="menu-item" />
           {/*
             Share stays disabled, and the tooltip now says why: B15 built the
             share-link API and `components/review/ShareLinksPanel.tsx`, but that

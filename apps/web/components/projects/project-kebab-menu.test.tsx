@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { Project } from "@montaj/api-client";
 
@@ -103,6 +103,31 @@ describe("<ProjectKebabMenu />", () => {
 
     await user.click(exportItem);
     expect(routerMock.push).toHaveBeenCalledWith("/p/01JPROJECT0000000000000AA?export=1");
+  });
+
+  /**
+   * S-03: the grid's half of "bring your own captions". Offered for every
+   * project — no client-side gating the route does not have — and, unlike every
+   * other item here, selecting it must NOT close the menu: the file picker is
+   * still open at that point and closing would unmount the input it reports to.
+   */
+  it("offers Import subtitles and keeps the menu open while the picker is up", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProjectKebabMenu project={project()} />, { routes: {} });
+    await user.click(screen.getByTestId("project-kebab-01JPROJECT0000000000000AA"));
+
+    const item = await screen.findByTestId("import-subtitles");
+    expect(item).toHaveTextContent("Import subtitles");
+    expect(item).not.toHaveAttribute("data-disabled");
+
+    const input = screen.getByTestId("import-subtitles-input") as HTMLInputElement;
+    expect(input).toHaveAttribute("accept", ".srt,.vtt,.ass,.txt");
+    // jsdom has no OS picker, so this is what proves the item reached the input.
+    const clickSpy = vi.spyOn(input, "click");
+
+    await user.click(item);
+    expect(clickSpy).toHaveBeenCalled();
+    expect(screen.getByTestId("import-subtitles")).toBeInTheDocument();
   });
 
   it("offers a Details item only when the caller wants one", async () => {
