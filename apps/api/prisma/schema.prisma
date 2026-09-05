@@ -1912,10 +1912,13 @@ model ExportManifest {
 
 /// Not enumerated in 06 (`exports.status`); A21's export lifecycle. A browser
 /// export's row exists from manifest issuance (`pending_browser`) until the
-/// completion callback; a cloud export's row is written once, by the job
-/// completion handler, already `succeeded` or `failed`.
+/// completion callback; a cloud export's row exists from POST time as
+/// `rendering` (S05 — queued and running are the job's distinction, not the
+/// row's) and the job's completion handler finishes it `succeeded`, or its
+/// `handleFailure` marks it `failed`.
 enum ExportStatus {
   pending_browser
+  rendering
   succeeded
   failed
 }
