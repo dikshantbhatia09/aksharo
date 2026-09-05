@@ -53,16 +53,27 @@ export function HomeView(): React.JSX.Element {
 
   // FIX-04 precedence: an explicit pick (this session, or one this browser
   // remembers) beats the server's onboarding default, which beats empty. The
-  // language therefore starts ABSENT unless this browser has been told once —
-  // it is never inferred, because the tag decides which lane the credits are
-  // spent in.
-  const [quickPick, setQuickPick] = React.useState<UploadQuickPick>(() => {
+  // language therefore starts ABSENT — it is never inferred, because the tag
+  // decides which lane the credits are spent in.
+  const [quickPick, setQuickPick] = React.useState<UploadQuickPick>(() => ({
+    aspect: "9:16",
+  }));
+
+  // The remembered pick is adopted in an effect, not in the initializer above,
+  // because this page is server-rendered first: `localStorage` does not exist
+  // there, and React keeps the *server's* initial state through hydration
+  // rather than re-running the initializer on the client. Reading it here is
+  // what makes "Home remembers what I chose last time" actually true in the
+  // browser. It runs before the onboarding answer arrives (that one waits on a
+  // fetch), and both fill only a still-empty language, so the precedence holds
+  // whichever order they land in.
+  React.useEffect(() => {
     const remembered = rememberedLanguage();
-    return {
-      aspect: "9:16",
-      ...(remembered === undefined ? {} : { language: remembered }),
-    };
-  });
+    if (remembered === undefined) return;
+    setQuickPick((current) =>
+      current.language === undefined ? { ...current, language: remembered } : current,
+    );
+  }, []);
 
   // Once the user's own onboarding answers load, adopt them as the starting
   // point — but only before anyone has touched the picker, so this never
