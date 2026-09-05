@@ -266,9 +266,7 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
   /** The default offer, also where "Try another file" lands. */
   const offerPanel = (
     <>
-      <h2 className="text-fg-0 text-lg font-semibold">
-        This project has not been transcribed yet
-      </h2>
+      <h2 className="text-fg-0 text-lg font-semibold">This project has not been transcribed yet</h2>
       <p className="text-fg-2 max-w-md text-sm">
         Captions, the timeline and every edit are built from the transcript, so that has to run
         first.
