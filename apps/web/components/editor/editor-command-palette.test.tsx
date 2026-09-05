@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { EditorCommandPalette } from "./EditorCommandPalette";
 
+import { useCommandPalette } from "@/components/shell/command-palette";
 import { type EditorActionContext } from "@/lib/editor/actions";
 
 /**
@@ -99,6 +100,54 @@ describe("<EditorCommandPalette />", () => {
     } finally {
       window.removeEventListener("keydown", bubbled);
     }
+  });
+
+  /**
+   * The shell's OWN hook, not a copy of it: `AppShell` mounts
+   * `useCommandPalette()` on every `(app)` route, `/p/[id]` included, so on the
+   * editor screen both listeners are live. "One Ctrl+K, one palette" has to
+   * hold for every target the chord can be pressed on — including the text
+   * surfaces, where the editor palette declines to open but the shell's
+   * unguarded listener would happily answer instead.
+   */
+  it("swallows Ctrl+K on every target, so the shell's palette never answers it in the editor", async () => {
+    function Both({ ctx }: { readonly ctx: EditorActionContext }): React.JSX.Element {
+      const shell = useCommandPalette();
+      return (
+        <>
+          <span data-testid="shell-state">{shell.open ? "open" : "closed"}</span>
+          <span data-testid="a-word" contentEditable suppressContentEditableWarning>
+            word
+          </span>
+          <EditorCommandPalette ctx={ctx} />
+        </>
+      );
+    }
+
+    const { ctx } = spyContext();
+    render(<Both ctx={ctx} />);
+    const shellState = () => screen.getByTestId("shell-state").textContent;
+
+    // 1. Opening it: the shell must not see the chord.
+    pressCtrlK(window);
+    expect(await screen.findByTestId("editor-palette-list")).toBeInTheDocument();
+    expect(shellState()).toBe("closed");
+
+    // 2. Palette open: cmdk's input has focus, so the chord is a text-entry
+    //    target. The editor palette declines it — and the shell must not get it.
+    pressCtrlK(screen.getByTestId("editor-palette-input"));
+    expect(shellState()).toBe("closed");
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByTestId("editor-palette-list")).toBeNull();
+    });
+
+    // 3. Mid-word-edit in a contenteditable chip: typing wins, so no palette
+    //    opens — neither ours nor, crucially, the shell's.
+    pressCtrlK(screen.getByTestId("a-word"));
+    expect(screen.queryByTestId("editor-palette-list")).toBeNull();
+    expect(shellState()).toBe("closed");
   });
 
   it("runs the action the search found, exactly once, and closes", async () => {

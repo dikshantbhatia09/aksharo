@@ -10,11 +10,14 @@
  * the feature exists and what it needs), a palette executes, so an action that
  * cannot run is not offered at all.
  *
- * Ctrl+K is bound in the **capture** phase and stops propagation. The shell's
- * global palette (`components/shell/command-palette.tsx` line 56) listens on
- * `window` in the bubble phase with no capture option, so while `/p/[id]` is
- * mounted this listener runs first and the shell's never sees the key — one
- * Ctrl+K, one palette, no race and no timers.
+ * Ctrl+K is bound in the **capture** phase and stops propagation on every
+ * target. The shell's global palette (`components/shell/command-palette.tsx`
+ * line 56) listens on `window` in the bubble phase with no capture option, so
+ * while `/p/[id]` is mounted this listener runs first and the shell's never
+ * sees the key — one Ctrl+K, one palette, no race and no timers. Note the
+ * order inside the handler: the chord is swallowed *before* the text-entry
+ * guard, so "typing wins" means "no palette opens", not "the other palette
+ * opens".
  */
 
 import * as React from "react";
@@ -43,9 +46,17 @@ export function EditorCommandPalette({ ctx }: EditorCommandPaletteProps): React.
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        if (isTextEntryTarget(event.target)) return; // typing wins, as everywhere else
+        // Swallow the chord FIRST, on every target. While `/p/[id]` is mounted
+        // Ctrl+K belongs to the editor, and returning early on the text-entry
+        // branch would leave the event to finish its journey and reach the
+        // shell's own bubble-phase listener — which has no text-entry guard of
+        // its own (`components/shell/command-palette.tsx:50-55`) and would open
+        // the project search instead. That is the guide's "Both palettes open
+        // on Ctrl+K" row, reachable two ways: a second Ctrl+K while our dialog
+        // holds focus in its search input, and Ctrl+K during a word edit.
         event.preventDefault();
-        event.stopPropagation(); // capture phase: the shell's global palette must not also open
+        event.stopPropagation();
+        if (isTextEntryTarget(event.target)) return; // typing wins, as everywhere else
         setOpen((value) => !value);
       }
     };
