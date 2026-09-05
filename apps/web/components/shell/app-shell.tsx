@@ -131,7 +131,12 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
         // `workspace:{id}` and cannot supply one either. The job is therefore
         // read back for it — one GET per transcription completion, not per user.
         if (event.event === "job.completed") {
-          const data = event.data as { jobId?: string; status?: string; type?: string };
+          const data = event.data as {
+            jobId?: string;
+            status?: string;
+            type?: string;
+            error?: { message?: string };
+          };
           const jobId = data.jobId;
           // FIX-04: transliteration finishing changes the words the editor is
           // rendering too (the new script lands on `word.scripts`), and the
@@ -141,15 +146,13 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
           // that never ran a transcription at all. Every string is a queue name
           // declared in `apps/api/src/jobs/contracts/queue-names.ts` (lines 17,
           // 21 and 18).
-          if (
-            [
-              "ai.transcribe",
-              "ai.transliterate",
-              "ai.align", // S-03: imported subtitles arrive via ai.align
-            ].includes(data.type ?? "") &&
-            data.status === "succeeded" &&
-            jobId !== undefined
-          ) {
+          const announceable = [
+            "ai.transcribe",
+            "ai.transliterate",
+            "ai.align", // S-03: imported subtitles arrive via ai.align
+          ].includes(data.type ?? "");
+
+          if (announceable && data.status === "succeeded" && jobId !== undefined) {
             void (async () => {
               let projectId: string | null = null;
               try {
@@ -198,6 +201,46 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
                   },
                 );
               }
+            })();
+          } else if (announceable && data.status === "failed" && jobId !== undefined) {
+            // S-06: the other half of the same story. A failed transcription or
+            // import used to be silent unless the user happened to be sitting on
+            // the waiting screen — the job row said `failed`, the card said
+            // nothing, and nobody was told. An `else if` on `data.status`, never
+            // a second `if`: one completion must never raise two toasts.
+            void (async () => {
+              let projectId: string | null = null;
+              try {
+                projectId = (await apiClient.call(endpoints.jobs.get, { params: { id: jobId } }))
+                  .projectId;
+              } catch {
+                // Same courtesy-channel rule as the success path: never throw.
+                return;
+              }
+              if (projectId === null) return;
+
+              // A failed row changes the card's label too.
+              void queryClient.invalidateQueries({
+                queryKey: ["ws", session.workspaceId, "projects"],
+              });
+
+              // Already on the project: the waiting screen renders the failure
+              // itself (S06-3), and a toast over it would be noise.
+              if (window.location.pathname.startsWith(`/p/${projectId}`)) return;
+
+              const target = projectId;
+              toast.error(
+                data.type === "ai.align" ? "Captions import failed" : "Transcription failed",
+                {
+                  description: data.error?.message ?? "Open the project to retry.",
+                  action: {
+                    label: "Open project",
+                    onClick: () => {
+                      router.push(`/p/${target}`);
+                    },
+                  },
+                },
+              );
             })();
           }
         }
