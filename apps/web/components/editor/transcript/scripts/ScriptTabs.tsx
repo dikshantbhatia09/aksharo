@@ -13,6 +13,15 @@
  * `GET .../transcript/scripts` state. See `apps/web/components/editor/
  * transcript/scripts/README.md` for the integration note this leaves behind.
  *
+ * **FIX-04 made the strip availability-driven.** It used to hard-code three
+ * triggers — Roman, Native, Translated — regardless of what the transcript
+ * held, and the editor's own state defaulted to `"roman"`; on a transcript
+ * that only has `native`, a `?? word.t` fallback then rendered Devanagari
+ * under a tab labelled Roman. Now the strip is built from
+ * `GET /projects/{id}/transcript/scripts` in the order that route returns, and
+ * `onAvailable` hands the *available* script keys back to the editor so its
+ * selected tab can never name a script the transcript does not have.
+ *
  * Rules from the brief, encoded here:
  * - A script tab for `roman`/`native` that is not yet available triggers
  *   transliteration on click, once — a second click while it is available
@@ -68,13 +77,27 @@ export interface ScriptTabsProps {
   /** The script currently shown in the caption preview and the word editor. */
   readonly activeScript: string;
   readonly onScriptChange: (script: string) => void;
+  /**
+   * The scripts this transcript actually has, reported once per resolution of
+   * the scripts query. The editor uses it to correct a selected tab that names
+   * a script which is not there (`editor-client.tsx`'s `onScriptsAvailable`).
+   */
+  readonly onAvailable?: (scripts: readonly string[]) => void;
   readonly className?: string;
 }
+
+/** How each script key is labelled in the strip. Anything else shows its key. */
+const SCRIPT_LABELS: Readonly<Record<string, string>> = {
+  roman: "Roman",
+  native: "Native",
+  en: "EN",
+};
 
 export function ScriptTabs({
   projectId,
   activeScript,
   onScriptChange,
+  onAvailable,
   className,
 }: ScriptTabsProps): React.JSX.Element {
   const { data, isPending, error } = useTranscriptScripts(projectId);
@@ -84,19 +107,33 @@ export function ScriptTabs({
   const [addingTranslation, setAddingTranslation] = React.useState(false);
 
   const scripts = data?.scripts ?? [];
-  const romanAvailable = scripts.find((row) => row.script === "roman")?.available ?? false;
-  const nativeAvailable = scripts.find((row) => row.script === "native")?.available ?? false;
   const translated = scripts.find((row) => row.script === "translated");
+  /** Every row except `translated`, which has its own affordance below. */
+  const scriptRows = scripts.filter((row) => row.script !== "translated");
+
+  const available = scripts.filter((row) => row.available).map((row) => row.script);
+  // One call per *answer*, not per render and not per refetch: the ref holds
+  // the last list actually reported, so a refetch that says the same thing is
+  // silent and the editor's `setScript` correction does not churn.
+  const reported = React.useRef<string | null>(null);
+  const availableKey = available.join(",");
+  React.useEffect(() => {
+    if (data === undefined || reported.current === availableKey) return;
+    reported.current = availableKey;
+    onAvailable?.(available);
+  });
 
   const requestScript = React.useCallback(
-    (script: "roman" | "native") => {
-      const available = script === "roman" ? romanAvailable : nativeAvailable;
+    (script: string) => {
+      const isAvailable = scripts.find((row) => row.script === script)?.available ?? false;
       onScriptChange(script);
-      if (!available && !transliterate.isPending) {
+      // Only `roman`/`native` are producible here; anything else the server
+      // lists is transcription output and cannot be asked for.
+      if (!isAvailable && !transliterate.isPending && (script === "roman" || script === "native")) {
         transliterate.mutate({ script });
       }
     },
-    [romanAvailable, nativeAvailable, onScriptChange, transliterate],
+    [scripts, onScriptChange, transliterate],
   );
 
   const requestTranslation = React.useCallback(
@@ -123,30 +160,26 @@ export function ScriptTabs({
     <div className={cn("flex flex-col gap-2", className)}>
       <Tabs value={activeScript} onValueChange={onScriptChange}>
         <TabsList>
-          <TabsTrigger
-            value="roman"
-            onClick={() => requestScript("roman")}
-            data-testid="script-tab-roman"
-          >
-            Roman
-            {!romanAvailable &&
-            transliterate.isPending &&
-            transliterate.variables?.script === "roman" ? (
-              <span className="text-fg-3 ml-1 text-xs">…</span>
-            ) : null}
-          </TabsTrigger>
-          <TabsTrigger
-            value="native"
-            onClick={() => requestScript("native")}
-            data-testid="script-tab-native"
-          >
-            Native
-            {!nativeAvailable &&
-            transliterate.isPending &&
-            transliterate.variables?.script === "native" ? (
-              <span className="text-fg-3 ml-1 text-xs">…</span>
-            ) : null}
-          </TabsTrigger>
+          {scriptRows.map((row) => {
+            const inFlight =
+              transliterate.isPending && transliterate.variables?.script === row.script;
+            return (
+              <TabsTrigger
+                key={row.script}
+                value={row.script}
+                onClick={() => requestScript(row.script)}
+                // Never spend the same job twice: while this script's
+                // transliteration is in flight the tab does nothing.
+                disabled={inFlight}
+                data-testid={`script-tab-${row.script}`}
+              >
+                {SCRIPT_LABELS[row.script] ?? row.script}
+                {!row.available && inFlight ? (
+                  <span className="text-fg-3 ml-1 text-xs">…</span>
+                ) : null}
+              </TabsTrigger>
+            );
+          })}
           <TabsTrigger
             value="translated"
             onClick={handleTranslatedClick}
@@ -167,8 +200,9 @@ export function ScriptTabs({
          * panels are intentionally empty; the transcript editor / caption
          * preview render the actual content elsewhere in the page.
          */}
-        <TabsContent value="roman" />
-        <TabsContent value="native" />
+        {scriptRows.map((row) => (
+          <TabsContent key={row.script} value={row.script} />
+        ))}
         <TabsContent value="translated" />
       </Tabs>
 

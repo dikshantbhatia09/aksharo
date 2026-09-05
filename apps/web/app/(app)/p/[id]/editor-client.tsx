@@ -124,6 +124,12 @@ export function EditorClient({
   );
 
   const [script, setScript] = useState<string>("roman");
+  // FIX-04: "roman" was a hard-coded default rendered even when no roman script
+  // exists (the tab said Roman over Devanagari text). The tabs report what the
+  // transcript actually has; follow them.
+  const onScriptsAvailable = useCallback((available: readonly string[]) => {
+    setScript((current) => (available.includes(current) ? current : (available[0] ?? current)));
+  }, []);
   const [hideFillers, setHideFillers] = useState(false);
   const [follow, setFollow] = useState(true);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | undefined>(undefined);
@@ -165,6 +171,7 @@ export function EditorClient({
       playheadSnapshot={playheadSnapshot}
       script={script}
       setScript={setScript}
+      onScriptsAvailable={onScriptsAvailable}
       hideFillers={hideFillers}
       setHideFillers={setHideFillers}
       follow={follow}
@@ -195,6 +202,8 @@ interface EditorReadyProps {
   /** A22's ScriptTabs also offers "translated" (a segment-level caption); SegmentCard branches on it. */
   readonly script: string;
   readonly setScript: (script: string) => void;
+  /** FIX-04: corrects `script` when the transcript does not have it. */
+  readonly onScriptsAvailable: (available: readonly string[]) => void;
   readonly hideFillers: boolean;
   readonly setHideFillers: (value: boolean) => void;
   readonly follow: boolean;
@@ -226,6 +235,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     playheadSnapshot,
     script,
     setScript,
+    onScriptsAvailable,
     hideFillers,
     setHideFillers,
     follow,
@@ -565,7 +575,12 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         >
           ← Projects
         </Link>
-        <ScriptTabs projectId={projectId} activeScript={script} onScriptChange={setScript} />
+        <ScriptTabs
+          projectId={projectId}
+          activeScript={script}
+          onScriptChange={setScript}
+          onAvailable={onScriptsAvailable}
+        />
         <RetranscribeDialog
           projectId={projectId}
           sourceLanguage={project?.sourceLanguage ?? null}

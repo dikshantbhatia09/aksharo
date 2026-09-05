@@ -133,7 +133,16 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
         if (event.event === "job.completed") {
           const data = event.data as { jobId?: string; status?: string; type?: string };
           const jobId = data.jobId;
-          if (data.type === "ai.transcribe" && data.status === "succeeded" && jobId !== undefined) {
+          // FIX-04: transliteration finishing changes the words the editor is
+          // rendering too (the new script lands on `word.scripts`), and the
+          // announcement path is identical — the editor reload refetches the
+          // chunks that carry them. Both strings are the queue names declared
+          // in `apps/api/src/jobs/contracts/queue-names.ts` (lines 17 and 21).
+          if (
+            ["ai.transcribe", "ai.transliterate"].includes(data.type ?? "") &&
+            data.status === "succeeded" &&
+            jobId !== undefined
+          ) {
             void (async () => {
               let projectId: string | null = null;
               try {
@@ -155,8 +164,11 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
               // above, and a toast over it would be noise.
               if (!window.location.pathname.startsWith(`/p/${projectId}`)) {
                 const target = projectId;
-                toast.success("Transcript ready", {
-                  description: "Captions are built — open the editor.",
+                const transliterated = data.type === "ai.transliterate";
+                toast.success(transliterated ? "Script ready" : "Transcript ready", {
+                  description: transliterated
+                    ? "The new script is on the transcript — open the editor."
+                    : "Captions are built — open the editor.",
                   action: {
                     label: "Open editor",
                     onClick: () => {
