@@ -20,7 +20,16 @@ import { resolveStyle } from "@montaj/render-core";
 import type { FontRegistry, Shaper } from "@montaj/render-core";
 import { fromAcceptedItems } from "@montaj/timemap";
 import type { TimeMap } from "@montaj/timemap";
-import { toast } from "@montaj/ui";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+  toast,
+} from "@montaj/ui";
 
 import { NeedsTranscription } from "./needs-transcription";
 
@@ -110,6 +119,24 @@ export function shouldRecordSpellingFix(
   right: string,
 ): wrong is string {
   return memoryConsent && wrong !== undefined && wrong.trim() !== "" && wrong !== right;
+}
+
+/**
+ * OC3: what the timeline row's right-click menu may offer. The timeline is a
+ * canvas with no per-clip DOM, so its menu acts on the *selected* segment —
+ * and when there is none it says where the word-level actions live instead of
+ * offering rows that would do nothing. Exported as a pure rule for the same
+ * reason `shouldRecordSpellingFix` above is: this component's tree is
+ * canvas-heavy and belongs to the Playwright lane, and this is the whole of
+ * the menu's enabled/disabled logic.
+ */
+export function timelineMenuState(selectedSegmentId: string | undefined): {
+  readonly disabled: boolean;
+  readonly hint?: string;
+} {
+  return selectedSegmentId === undefined
+    ? { disabled: true, hint: "Right-click a transcript card for word-level actions" }
+    : { disabled: false };
 }
 
 const DEFAULT_RESEGMENT_PARAMS: ResegmentParams = {
@@ -348,6 +375,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
       ? { kind: "doc" }
       : { kind: "segment", segmentId: selectedSegmentId };
   const selectedSegment = segments.find((segment) => segment.id === selectedSegmentId);
+  const timelineMenu = timelineMenuState(selectedSegmentId);
   const catalogueSource = {
     catalogue: SYSTEM_STYLE_MAP,
     defaultStyleId: state.hot.styles.defaultStyleId,
@@ -965,42 +993,98 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           minSize={percent(18)}
           maxSize={percent(55)}
         >
-          <div
-            className="h-full overflow-y-auto border-t border-white/10 bg-black/30 p-2"
-            data-testid="editor-timeline-row"
-          >
-            <Timeline
-              words={allLiveWords}
-              segments={segments}
-              passItems={passItems}
-              protectedRanges={state.hot.protected ?? []}
-              onToggleProtection={onToggleProtection}
-              {...(timelineMedia.waveform === undefined
-                ? {}
-                : { waveform: timelineMedia.waveform })}
-              durationMs={primaryMedia?.durationMs ?? 0}
-              playheadMs={playheadSnapshot.ms}
-              playing={playheadSnapshot.playing}
-              onSeek={(ms) => playhead.seek(ms)}
-              onTogglePlay={() => playhead.togglePlaying()}
-              {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
-              {...(selectedWordId === undefined ? {} : { selectedWordId })}
-              onSelectSegment={setSelectedSegmentId}
-              onSelectWord={(segmentId, wordId) => {
-                setSelectedSegmentId(segmentId);
-                setSelectedWordId(wordId);
-              }}
-              onSetSegmentBounds={onTimelineSetSegmentBounds}
-              onSetWordTiming={onTimelineSetWordTiming}
-              onEditPassItem={onTimelineEditPassItem}
-              onSplitSegment={onSplitAt}
-              onMergeSegments={([a]) => onMergeWithNext(a)}
-              {...(timeMap === undefined ? {} : { timeMap })}
-              displayMode={timelineDisplayMode}
-              onDisplayModeChange={setTimelineDisplayMode}
-              nudgeSink={noopNudgeSink}
-            />
-          </div>
+          <ContextMenu>
+            <ContextMenuTrigger asChild>
+              <div
+                className="h-full overflow-y-auto border-t border-white/10 bg-black/30 p-2"
+                data-testid="editor-timeline-row"
+              >
+                <Timeline
+                  words={allLiveWords}
+                  segments={segments}
+                  passItems={passItems}
+                  protectedRanges={state.hot.protected ?? []}
+                  onToggleProtection={onToggleProtection}
+                  {...(timelineMedia.waveform === undefined
+                    ? {}
+                    : { waveform: timelineMedia.waveform })}
+                  durationMs={primaryMedia?.durationMs ?? 0}
+                  playheadMs={playheadSnapshot.ms}
+                  playing={playheadSnapshot.playing}
+                  onSeek={(ms) => playhead.seek(ms)}
+                  onTogglePlay={() => playhead.togglePlaying()}
+                  {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
+                  {...(selectedWordId === undefined ? {} : { selectedWordId })}
+                  onSelectSegment={setSelectedSegmentId}
+                  onSelectWord={(segmentId, wordId) => {
+                    setSelectedSegmentId(segmentId);
+                    setSelectedWordId(wordId);
+                  }}
+                  onSetSegmentBounds={onTimelineSetSegmentBounds}
+                  onSetWordTiming={onTimelineSetWordTiming}
+                  onEditPassItem={onTimelineEditPassItem}
+                  onSplitSegment={onSplitAt}
+                  onMergeSegments={([a]) => onMergeWithNext(a)}
+                  {...(timeMap === undefined ? {} : { timeMap })}
+                  displayMode={timelineDisplayMode}
+                  onDisplayModeChange={setTimelineDisplayMode}
+                  nudgeSink={noopNudgeSink}
+                />
+              </div>
+            </ContextMenuTrigger>
+
+            {/*
+             * OC3: the timeline canvas has no per-clip DOM to hang a menu on,
+             * so the row offers the same operations for whatever segment is
+             * selected. Every item calls a handler that already exists above —
+             * nothing here is a second implementation.
+             */}
+            <ContextMenuContent data-testid="timeline-context-menu">
+              <ContextMenuItem
+                data-testid="timeline-menu-split"
+                disabled={timelineMenu.disabled}
+                onSelect={onSplit}
+              >
+                Split segment <ContextMenuShortcut>S</ContextMenuShortcut>
+              </ContextMenuItem>
+              <ContextMenuItem
+                data-testid="timeline-menu-merge"
+                disabled={timelineMenu.disabled}
+                onSelect={() => onMergeWithNext(selectedSegmentId)}
+              >
+                Merge with next <ContextMenuShortcut>M</ContextMenuShortcut>
+              </ContextMenuItem>
+
+              <ContextMenuSeparator />
+
+              <ContextMenuItem
+                data-testid="timeline-menu-protect"
+                disabled={timelineMenu.disabled}
+                onSelect={() => {
+                  if (selectedSegment !== undefined)
+                    onToggleProtection(selectedSegment.startMs, selectedSegment.endMs);
+                }}
+              >
+                Toggle protection <ContextMenuShortcut>P</ContextMenuShortcut>
+              </ContextMenuItem>
+              <ContextMenuItem
+                data-testid="timeline-menu-hide"
+                disabled={timelineMenu.disabled}
+                onSelect={() => {
+                  if (selectedSegment !== undefined)
+                    onHideToggle(selectedSegment.id, selectedSegment.hidden !== true);
+                }}
+              >
+                {selectedSegment?.hidden === true ? "Show segment" : "Hide segment"}
+              </ContextMenuItem>
+
+              {timelineMenu.hint === undefined ? null : (
+                <ContextMenuLabel data-testid="timeline-menu-hint">
+                  {timelineMenu.hint}
+                </ContextMenuLabel>
+              )}
+            </ContextMenuContent>
+          </ContextMenu>
         </ResizablePanel>
       </ResizablePanelGroup>
 
