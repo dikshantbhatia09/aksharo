@@ -1,6 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type * as ApiClientModule from "@montaj/api-client";
+
 import { useExportDialog } from "./use-export-dialog";
 
 import type { ExportDialogDeps } from "./use-export-dialog";
@@ -26,7 +28,13 @@ const runExport = vi.fn(async (_options: unknown) => ({
 
 vi.mock("@/lib/export/engine", () => ({ runExport: (options: unknown) => runExport(options) }));
 
-vi.mock("@montaj/api-client", () => ({ useApiClient: () => ({}) }));
+// Only `useApiClient` is stubbed: the module also carries the real endpoint
+// descriptors (`defineEndpoint`, `endpoints.jobs.*`) that the hook builds its
+// job poll and download call from, and replacing those would test the mock.
+vi.mock("@montaj/api-client", async (importOriginal) => ({
+  ...(await importOriginal<typeof ApiClientModule>()),
+  useApiClient: () => ({}),
+}));
 
 /**
  * `requestExportManifest` is the single call that issues `POST /projects/{id}/
