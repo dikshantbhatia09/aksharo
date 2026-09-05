@@ -995,9 +995,23 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         >
           <ContextMenu>
             <ContextMenuTrigger asChild>
+              {/*
+               * OC3: the timeline canvas treats *any* pointerdown as a
+               * selection gesture (`Timeline.tsx`'s `onPointerDown` filters no
+               * button), so a right-click on empty canvas ran
+               * `onSelectSegment(undefined)` — clearing the very selection this
+               * menu acts on, before it could open — and scrubbed the playhead
+               * when the press landed on the ruler. Swallowing non-primary
+               * buttons in the capture phase leaves that handler to real clicks
+               * and drags; the `contextmenu` event radix listens for is a
+               * different event and is untouched.
+               */}
               <div
                 className="h-full overflow-y-auto border-t border-white/10 bg-black/30 p-2"
                 data-testid="editor-timeline-row"
+                onPointerDownCapture={(event) => {
+                  if (event.button !== 0) event.stopPropagation();
+                }}
               >
                 <Timeline
                   words={allLiveWords}
@@ -1079,7 +1093,10 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
               </ContextMenuItem>
 
               {timelineMenu.hint === undefined ? null : (
-                <ContextMenuLabel data-testid="timeline-menu-hint">
+                <ContextMenuLabel
+                  data-testid="timeline-menu-hint"
+                  className="text-fg-3 text-xs font-normal tracking-normal normal-case"
+                >
                   {timelineMenu.hint}
                 </ContextMenuLabel>
               )}
