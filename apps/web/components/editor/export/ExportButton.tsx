@@ -21,6 +21,16 @@ export interface ExportButtonProps {
    * them to find the button again (F07-E5).
    */
   readonly defaultOpen?: boolean;
+  /**
+   * OC-02: File → Export… opens the same dialog from the menubar, so the open
+   * state can be driven from outside. Standard controlled/uncontrolled pair —
+   * omit both and the button keeps its own state (and `defaultOpen` its
+   * meaning). The button itself stays either way: it is what `export.spec.ts`
+   * and `gate-a.spec.ts` click, and a toolbar Export is not duplicate chrome
+   * the way a second Re-transcribe button was.
+   */
+  readonly open?: boolean;
+  readonly onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -37,7 +47,17 @@ export interface ExportButtonProps {
  * proxy-only workaround is gone).
  */
 export function ExportButton(props: ExportButtonProps): React.JSX.Element {
-  const [open, setOpen] = React.useState(props.defaultOpen ?? false);
+  const [selfOpen, setSelfOpen] = React.useState(props.defaultOpen ?? false);
+  const controlled = props.open !== undefined;
+  const open = props.open ?? selfOpen;
+  const onOpenChange = props.onOpenChange;
+  const setOpen = React.useCallback(
+    (next: boolean): void => {
+      if (!controlled) setSelfOpen(next);
+      onOpenChange?.(next);
+    },
+    [controlled, onOpenChange],
+  );
 
   return (
     <>

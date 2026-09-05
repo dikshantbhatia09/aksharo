@@ -74,14 +74,36 @@ export interface RetranscribeDialogProps {
   readonly projectId: string;
   /** The project's current `sourceLanguage`, or `null` when it never had one. */
   readonly sourceLanguage: string | null;
+  /**
+   * OC-02: Language → Re-transcribe… opens this from the menubar, so the
+   * dialog can be driven from outside. Standard controlled/uncontrolled pair —
+   * omit both and the component keeps its own state and its own button, which
+   * is what every existing mount and this file's own tests still do. A
+   * *controlled* mount renders no trigger: the menu item is the trigger, and a
+   * second button beside it in the header is the duplicate chrome OC-02 exists
+   * to remove.
+   */
+  readonly open?: boolean;
+  readonly onOpenChange?: (open: boolean) => void;
 }
 
 export function RetranscribeDialog({
   projectId,
   sourceLanguage,
+  open: openProp,
+  onOpenChange,
 }: RetranscribeDialogProps): React.JSX.Element {
   const client = useRawApiClient();
-  const [open, setOpen] = React.useState(false);
+  const [selfOpen, setSelfOpen] = React.useState(false);
+  const controlled = openProp !== undefined;
+  const open = openProp ?? selfOpen;
+  const setOpen = React.useCallback(
+    (next: boolean): void => {
+      if (!controlled) setSelfOpen(next);
+      onOpenChange?.(next);
+    },
+    [controlled, onOpenChange],
+  );
   const [language, setLanguage] = React.useState<string | undefined>(sourceLanguage ?? undefined);
   const [confirmingEdits, setConfirmingEdits] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -122,16 +144,18 @@ export function RetranscribeDialog({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="text-fg-3 text-xs"
-        onClick={() => setOpen(true)}
-        data-testid="retranscribe-open"
-      >
-        Re-transcribe
-      </Button>
+      {controlled ? null : (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="text-fg-3 text-xs"
+          onClick={() => setOpen(true)}
+          data-testid="retranscribe-open"
+        >
+          Re-transcribe
+        </Button>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent data-testid="retranscribe-dialog">
           <DialogHeader>

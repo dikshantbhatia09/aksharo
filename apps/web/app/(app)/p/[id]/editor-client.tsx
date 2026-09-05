@@ -9,8 +9,7 @@
  * components to real ops instead of the local-only op log their own harness
  * pages (`StyleGallery`, `/studio/styles`) use.
  */
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { ApiError, useProject, useRecordSpellingFixMemory } from "@montaj/api-client";
@@ -20,7 +19,14 @@ import { resolveStyle } from "@montaj/render-core";
 import type { FontRegistry, Shaper } from "@montaj/render-core";
 import { fromAcceptedItems } from "@montaj/timemap";
 import type { TimeMap } from "@montaj/timemap";
-import { toast } from "@montaj/ui";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  toast,
+} from "@montaj/ui";
 
 import { NeedsTranscription } from "./needs-transcription";
 
@@ -32,11 +38,13 @@ import { CropWindowOverlay } from "@/components/editor/canvas/CropWindowOverlay"
 import { aspectRatioOf, containWidth } from "@/components/editor/canvas/stage-fit";
 import { useRenderer } from "@/components/editor/canvas/use-canvaskit";
 import { FirstRunCoachMarks } from "@/components/editor/coach-marks/FirstRunCoachMarks";
+import { EditorMenubar } from "@/components/editor/EditorMenubar";
 import { ExportButton } from "@/components/editor/export/ExportButton";
 import { type PanelOp, type PanelScope } from "@/components/editor/panels/ops";
 import { RightPanel } from "@/components/editor/panels/RightPanel";
 import { SYSTEM_STYLE_MAP, SYSTEM_STYLES } from "@/components/editor/panels/system-styles";
 import { RetranscribeDialog } from "@/components/editor/RetranscribeDialog";
+import { ShareDialog } from "@/components/editor/ShareDialog";
 import {
   Timeline,
   type PassItemBoundsOp,
@@ -83,6 +91,7 @@ import {
 import { PlayheadStore } from "@/lib/edg/playhead";
 import { toRenderProjection } from "@/lib/edg/render-projection";
 import { useEdgRealtime, useEditorStore } from "@/lib/edg/use-editor-store";
+import { EDITOR_ACTIONS, EDITOR_MENUS, type EditorActionContext } from "@/lib/editor/actions";
 import { readPrivacy, subscribePrivacy } from "@/lib/privacy/consent";
 import { currentCropRect } from "@/lib/timeline/current-crop-rect";
 import { noopNudgeSink } from "@/lib/timeline/nudge";
@@ -263,7 +272,11 @@ interface EditorReadyProps {
 function EditorReady(props: EditorReadyProps): React.JSX.Element {
   // The projects "⋯" menu's Export lands here with `?export=1` so it opens the
   // dialog rather than dropping the user in the editor to hunt for it (F07-E5).
-  const openExportOnMount = useSearchParams().get("export") === "1";
+  // OC-02 gives Share the same door: the kebab's Share now navigates with
+  // `?share=1`, read here exactly the same way.
+  const searchParams = useSearchParams();
+  const openExportOnMount = searchParams.get("export") === "1";
+  const openShareOnMount = searchParams.get("share") === "1";
   const {
     projectId,
     store,
@@ -298,6 +311,15 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   // key and restores from another remembers nothing.
   const workspaceRef = useRef<WorkspaceLayoutHandle>(null);
   const columnsRef = useRef<WorkspaceLayoutHandle>(null);
+
+  // OC-02: what the menubar opens. Each dialog was already controlled from
+  // somewhere — the export dialog by its own button, the re-transcribe dialog
+  // by its own — so this is where "the menu opens it" now lives.
+  const router = useRouter();
+  const [exportOpen, setExportOpen] = useState(openExportOnMount);
+  const [shareOpen, setShareOpen] = useState(openShareOnMount);
+  const [retranscribeOpen, setRetranscribeOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const workspaceLayout = usePersistedLayout("montaj-editor-workspace-v1");
   const columnsLayout = usePersistedLayout("montaj-editor-columns-v1");
   const resetWorkspace = useCallback(() => {
@@ -611,6 +633,61 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     true,
   );
 
+  // OC-02: the menubar's half of the same handlers the keyboard map above
+  // binds. Deliberately the *same* functions and not re-implementations —
+  // "shortcuts shown match behaviour" is only true by construction, and the
+  // registry (`lib/editor/actions.ts`) owns which key each item advertises.
+  const editorActionContext: EditorActionContext = {
+    canSplit: selectedSegmentId !== undefined,
+    canWordEdit: selectedWordId !== undefined,
+    hideFillers,
+    follow,
+    playing: playheadSnapshot.playing,
+    togglePlay: () => {
+      playhead.togglePlaying();
+    },
+    jog: (deltaMs) => {
+      playhead.seek(playheadSnapshot.ms + deltaMs);
+    },
+    undo: () => {
+      store.undo();
+    },
+    redo: () => {
+      store.redo();
+    },
+    // `onSplit()`, not `onSplitAt()`: the selection-based split is what S does,
+    // and a menu item that splits somewhere else than the shortcut would be a
+    // second behaviour wearing the same label.
+    split: onSplit,
+    mergeWithNext: () => {
+      onMergeWithNext();
+    },
+    emphasize: onEmphasize,
+    deleteWord: () => {
+      onDeleteWord();
+    },
+    openFind: () => {
+      setFindOpen(true);
+    },
+    setHideFillers,
+    setFollow,
+    openExport: () => {
+      setExportOpen(true);
+    },
+    openShare: () => {
+      setShareOpen(true);
+    },
+    openRetranscribe: () => {
+      setRetranscribeOpen(true);
+    },
+    openShortcuts: () => {
+      setShortcutsOpen(true);
+    },
+    goToProjects: () => {
+      router.push("/projects");
+    },
+  };
+
   const activeSegment = segments.find(
     (segment) => playheadSnapshot.ms >= segment.startMs && playheadSnapshot.ms < segment.endMs,
   );
@@ -626,13 +703,10 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col" data-testid="editor-root">
       <header className="flex items-center gap-3 border-b border-white/10 px-4 py-2">
-        <Link
-          href="/projects"
-          className="text-fg-3 text-sm hover:underline"
-          data-testid="editor-back"
-        >
-          ← Projects
-        </Link>
+        {/* The header's own "← Projects" link is gone: File → Back to projects
+            is the same navigation, and two ways out of the editor side by side
+            is the duplicate chrome the menubar exists to replace. */}
+        <EditorMenubar ctx={editorActionContext} />
         <ScriptTabs
           projectId={projectId}
           activeScript={script}
@@ -642,6 +716,8 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         <RetranscribeDialog
           projectId={projectId}
           sourceLanguage={project?.sourceLanguage ?? null}
+          open={retranscribeOpen}
+          onOpenChange={setRetranscribeOpen}
         />
         <label className="text-fg-3 ml-4 flex items-center gap-1.5 text-xs">
           <input
@@ -664,7 +740,8 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         <div className="ml-auto flex items-center gap-2">
           <span data-coach-mark="export" className="inline-flex">
             <ExportButton
-              defaultOpen={openExportOnMount}
+              open={exportOpen}
+              onOpenChange={setExportOpen}
               projectId={projectId}
               primaryMediaId={state.hot.media.find((media) => media.role === "primary")?.mediaId}
               projection={toRenderProjection(state)}
@@ -990,7 +1067,54 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         onDismiss={(opId) => store.dismissConflict(opId)}
       />
 
+      <ShareDialog projectId={projectId} open={shareOpen} onOpenChange={setShareOpen} />
+
+      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+
       <FirstRunCoachMarks />
     </div>
+  );
+}
+
+/**
+ * Help → Keyboard shortcuts: the registry, read back to the user. It lists
+ * `EDITOR_ACTIONS` rather than a hand-written table precisely so it cannot
+ * fall out of date — an action added to the registry appears here on its own.
+ */
+function ShortcutsDialog({
+  open,
+  onOpenChange,
+}: {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+}): React.JSX.Element {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent data-testid="shortcuts-dialog">
+        <DialogHeader>
+          <DialogTitle>Keyboard shortcuts</DialogTitle>
+          <DialogDescription>
+            Every editor action, and the key it answers to. Actions with no key are menu-only.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
+          {EDITOR_MENUS.map((menu) => (
+            <section key={menu.id}>
+              <h3 className="text-fg-3 text-2xs mb-1 font-medium tracking-wide uppercase">
+                {menu.label}
+              </h3>
+              <dl className="flex flex-col gap-1">
+                {EDITOR_ACTIONS.filter((action) => action.menu === menu.id).map((action) => (
+                  <div key={action.id} className="flex items-baseline justify-between gap-4">
+                    <dt className="text-fg-1 text-sm">{action.label}</dt>
+                    <dd className="text-fg-3 text-2xs tracking-widest">{action.shortcut ?? "—"}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
