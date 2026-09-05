@@ -220,7 +220,7 @@ radix menubar, radix context-menu). Study, architecture decision and fresher gui
 | OC-01 | Resizable editor workspace (panels, persisted, double-click reset) | F05 | merged 2026-09-05 (stage 3) |
 | OC-02 | Editor menubar + single action registry | OC-01, F02, F04, F06 | merged 2026-09-05 (stage 4) |
 | OC-03 | Context menus (transcript cards + timeline selection) | OC-01 | merged 2026-09-05 (stage 4) |
-| OC-04 | Command palette (Ctrl+K) + Kbd | OC-02 | planned |
+| OC-04 | Command palette (Ctrl+K) + Kbd | OC-02 | merged 2026-09-05 (stage 5) |
 
 Deferred pending source: engine-level adoption (tick-based MediaTime, ripple diff
 engine, wgpu compositor) requires the `opencut-classic` repository — request it as a
@@ -241,5 +241,5 @@ export create already jobKey-deduped per manifest.
 | S-03 | Transcript import UI over the existing caller-less POST /projects/:id/import (ai.align) | F03, F04, F07 | merged 2026-09-05 (stage 3) |
 | S-04 | Render-core safe margins from the short side (the render/export half of S-01's geometry truth; goldens regenerated) | S-01 | merged 2026-09-05 (stage 3) |
 | S-05 | Export rows exist from POST: `rendering` status, failure marking, history without the jobs crutch | F06, S-02 | merged 2026-09-05 (stage 4) |
-| S-06 | Terminal outcomes reach the surface: cancel/timeout run handleFailure; read model sees ai.align; aligning settles on failure; shell announces failures | S-03, S-05 | planned |
-| S-07 | The e2e upload journey green again (upload.spec + gate-a): credits for e2e workspaces, spec contract drift | stage 4 | planned |
+| S-06 | Terminal outcomes reach the surface: cancel/timeout run handleFailure; read model sees ai.align; aligning settles on failure; shell announces failures | S-03, S-05 | merged 2026-09-05 (stage 5) |
+| S-07 | The e2e upload journey green again (upload.spec + gate-a): credits for e2e workspaces, spec contract drift | stage 4 | merged 2026-09-05 (stage 5) |

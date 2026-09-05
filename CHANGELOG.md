@@ -8,6 +8,14 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **Stage-5 integration (orchestrator) — the audit-repair and OpenCut-port
+  program is complete.** Merged OC-04 + S-06 + S-07. Undo after "Delete word"
+  crashed the editor on every project (`not a word id: <ULID>`, OC-04's finding,
+  pre-existing): the DeleteWord inverse handed the segment-id minter's ULID to
+  InsertWordAfter as the restored word's id; it now allocates the chunk's next
+  `chunk:n` id the way the editor's own insert path does, and the unit test that
+  had pinned the defect pins the fix.
+
 - **OC4: every action, three surfaces.** Ctrl+K in the editor now opens a
   command palette listing every action the registry knows, grouped by menu,
   searchable, keyboard-driven, each shortcut drawn as keycaps — and running one

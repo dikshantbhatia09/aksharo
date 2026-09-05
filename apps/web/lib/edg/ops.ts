@@ -418,7 +418,12 @@ export function computeInverseOps(
       if (word === undefined) return [];
       const anchor = previousLiveWordId(state, op.wordId);
       if (anchor === undefined) return [];
-      return [insertWordAfter(anchor, newId(), word.t, word.s, word.e, newOpId)];
+      // The restored word needs a `chunk:n` word id allocated past the chunk's
+      // highest — exactly what the editor's own insert path mints. `newId()` is
+      // the ULID minter for segments; handing that to InsertWordAfter made every
+      // undo-after-delete throw `not a word id` (OC-04 finding, pre-existing).
+      const restoredId = nextWordIdInChunk(state.words, anchor);
+      return [insertWordAfter(anchor, restoredId, word.t, word.s, word.e, newOpId)];
     }
 
     case "InsertWordAfter":

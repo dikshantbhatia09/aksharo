@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { parseWordId } from "@montaj/edg";
 import type { EdgOp, EdgState, PassItem, Segment, Word } from "@montaj/edg";
 
 import {
@@ -321,7 +322,7 @@ describe("computeInverseOps", () => {
     expect(inverse).toMatchObject({ type: "EditWord", script: "roman", text: "namaste" });
   });
 
-  it("DeleteWord inverts to InsertWordAfter the previous live word, under a fresh id", () => {
+  it("DeleteWord inverts to InsertWordAfter the previous live word, under the chunk's next word id", () => {
     const s = state({
       words: new Map([
         ["0:0", word({ wid: "0:0", t: "one" })],
@@ -329,13 +330,25 @@ describe("computeInverseOps", () => {
       ]),
     });
     const op: EdgOp = deleteWord("0:1", id);
-    const [inverse] = computeInverseOps(op, s, id, () => "fresh-word");
+    // The previous version of this test pinned the DEFECT: it accepted whatever the
+    // segment-id minter returned as the restored word's id, and every undo after a
+    // delete then threw `not a word id: <ULID>` in the editor (OC-04 finding). A word
+    // id is `chunk:n`, allocated past the chunk's highest — never a minted ULID.
+    const [inverse] = computeInverseOps(
+      op,
+      s,
+      () => "01SEGMENTULID",
+      () => "op-2",
+    );
     expect(inverse).toMatchObject({
       type: "InsertWordAfter",
       wordId: "0:0",
-      newWordId: "fresh-word",
+      newWordId: "0:2",
       text: "two",
+      s: 100,
+      e: 200,
     });
+    expect(() => parseWordId((inverse as { newWordId: string }).newWordId)).not.toThrow();
   });
 
   it("DeleteWord on the first word has no inverse (no anchor to insert after)", () => {
