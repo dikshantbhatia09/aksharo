@@ -86,6 +86,23 @@ export { Checkbox, Separator, Switch } from "./primitives/toggles";
 export { Badge, badgeVariants, Card, ProgressBar, Skeleton } from "./primitives/surface";
 export type { BadgeProps } from "./primitives/surface";
 
+// OC-03 context menu
+export {
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "./primitives/context-menu";
+export type { ContextMenuItemProps, ContextMenuLabelProps } from "./primitives/context-menu";
+
 // --- Product components -----------------------------------------------------
 export {
   CreditMeter,

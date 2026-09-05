@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -12,6 +12,14 @@ import {
   CommandItem,
   CommandList,
 } from "./command";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from "./context-menu";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "./dialog";
 import { Input } from "./input";
 import { Field } from "./label";
@@ -247,5 +255,48 @@ describe("<Menubar />", () => {
     const item = await screen.findByRole("menuitem", { name: "Delete word" });
     expect(item.className).toContain("text-red-400");
     expect(item).toHaveAttribute("data-variant", "destructive");
+  });
+});
+
+describe("<ContextMenu />", () => {
+  function Fixture({ onSelect }: { readonly onSelect: () => void }): React.JSX.Element {
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div data-testid="cm-trigger">Right-click me</div>
+        </ContextMenuTrigger>
+        <ContextMenuContent data-testid="cm-content">
+          <ContextMenuItem onSelect={onSelect}>
+            Split here <ContextMenuShortcut>S</ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem variant="destructive" disabled>
+            Delete word
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    );
+  }
+
+  it("opens on the contextmenu gesture and runs the item that was chosen", async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    render(<Fixture onSelect={onSelect} />);
+
+    expect(screen.queryByTestId("cm-content")).toBeNull();
+    fireEvent.contextMenu(screen.getByTestId("cm-trigger"), { clientX: 12, clientY: 20 });
+    expect(await screen.findByTestId("cm-content")).toBeInTheDocument();
+
+    await user.click(screen.getByText("Split here"));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it("paints the destructive row red and refuses a disabled row", () => {
+    render(<Fixture onSelect={vi.fn()} />);
+    fireEvent.contextMenu(screen.getByTestId("cm-trigger"), { clientX: 12, clientY: 20 });
+
+    const destructive = screen.getByText("Delete word");
+    expect(destructive.className).toContain("text-red-400");
+    expect(destructive).toHaveAttribute("data-disabled");
   });
 });

@@ -14,7 +14,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { Segment, Word } from "@montaj/edg";
 
-import { SegmentCard } from "./SegmentCard";
+import { SegmentCard, type SegmentCardAction } from "./SegmentCard";
 
 import { estimateSegmentHeight, VirtualList } from "@/lib/edg/virtual-list";
 import { cn } from "@/lib/utils";
@@ -45,6 +45,12 @@ export interface TranscriptListProps {
   readonly onHideToggle?: (segmentId: string, hidden: boolean) => void;
   readonly onInsertWordAfter: (afterWordId: string, text: string) => void;
   readonly onRenameSpeakerRequested?: (speakerId: string) => void;
+  /** OC3: the segment card's right-click menu asking the editor for a document-level op. */
+  readonly onRequestAction?: (
+    action: SegmentCardAction,
+    segmentId: string,
+    wordId?: string,
+  ) => void;
   readonly className?: string;
 }
 
@@ -74,6 +80,7 @@ export function TranscriptList({
   onHideToggle,
   onInsertWordAfter,
   onRenameSpeakerRequested,
+  onRequestAction,
   className,
 }: TranscriptListProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -207,6 +214,7 @@ export function TranscriptList({
                   {...(onHideToggle === undefined ? {} : { onHideToggle })}
                   onInsertWordAfter={onInsertWordAfter}
                   {...(onRenameSpeakerRequested === undefined ? {} : { onRenameSpeakerRequested })}
+                  {...(onRequestAction === undefined ? {} : { onRequestAction })}
                 />
               </MeasuredRow>
             );

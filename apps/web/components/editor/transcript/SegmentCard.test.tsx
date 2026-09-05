@@ -88,20 +88,6 @@ describe("SegmentCard", () => {
     expect(onSelectWord).toHaveBeenCalledWith("s1", "0:0");
   });
 
-  it("right-clicking a word opens the insert-after menu, and confirming calls onInsertWordAfter", async () => {
-    const onInsertWordAfter = vi.fn();
-    const user = userEvent.setup();
-    vi.spyOn(window, "prompt").mockReturnValue("brand");
-    render(<SegmentCard {...baseProps()} onInsertWordAfter={onInsertWordAfter} />);
-
-    const chip = screen.getByTestId("word-chip-0:0");
-    await user.pointer({ keys: "[MouseRight]", target: chip });
-    expect(screen.getByTestId("word-insert-menu-0:0")).toBeInTheDocument();
-
-    await user.click(screen.getByTestId("word-insert-after-0:0"));
-    expect(onInsertWordAfter).toHaveBeenCalledWith("0:0", "brand");
-  });
-
   it("a hidden segment is visually de-emphasised", () => {
     render(<SegmentCard {...baseProps()} segment={segment({ hidden: true })} />);
     expect(screen.getByTestId("segment-card-s1").className).toMatch(/opacity-40/);
