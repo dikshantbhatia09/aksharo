@@ -23,22 +23,59 @@ const READY_MEDIA: { status: string; durationMs: number | null } = {
   durationMs: 20_200,
 };
 
+interface JobRow {
+  id: string;
+  status: string;
+  error?: unknown;
+}
+
+/** A row for the `jobs` override, which stands in for a real multi-row table. */
+interface TypedJobRow extends JobRow {
+  type: string;
+  queuedAt: Date;
+}
+
 interface Overrides {
   project?: Partial<typeof PROJECT>;
   transcript?: { id: string } | null;
   media?: Partial<typeof READY_MEDIA> | null;
-  job?: { id: string; status: string; error?: unknown } | null;
+  job?: JobRow | null;
+  /**
+   * S-06: several job rows, selected the way Postgres would — the `where.type`
+   * filter, then newest `queuedAt` first. Use this instead of `job` when the
+   * point of the case is WHICH row the read model picks.
+   */
+  jobs?: readonly TypedJobRow[];
 }
 
 function harness(overrides: Overrides = {}) {
   const project = { ...PROJECT, ...overrides.project };
   const media = overrides.media === null ? null : { ...READY_MEDIA, ...overrides.media };
   const job = overrides.job ?? null;
+  const jobs = overrides.jobs;
+
+  const findFirstJob = vi.fn(
+    async (args: {
+      where: { type?: string | { in?: readonly string[] } };
+      orderBy?: { queuedAt?: string };
+    }) => {
+      if (jobs === undefined) return job;
+      const filter = args.where.type;
+      const types = typeof filter === "string" ? [filter] : (filter?.in ?? []);
+      const matching = jobs.filter((row) => types.includes(row.type));
+      const ordered = [...matching].sort((a, b) =>
+        args.orderBy?.queuedAt === "asc"
+          ? a.queuedAt.getTime() - b.queuedAt.getTime()
+          : b.queuedAt.getTime() - a.queuedAt.getTime(),
+      );
+      return ordered[0] ?? null;
+    },
+  );
 
   const prisma = {
     project: { findFirst: vi.fn(async () => project) },
     mediaAsset: { findFirst: vi.fn(async () => media) },
-    job: { findFirst: vi.fn(async () => job) },
+    job: { findFirst: findFirstJob },
   } as unknown as PrismaService;
 
   const repository = {
@@ -93,9 +130,12 @@ describe("TranscriptsService.transcriptionState", () => {
       jobId: "01JOB",
     });
     // Scoped to this project's transcription jobs — a render or export job of the
-    // same project must never be read as the transcript's progress.
+    // same project must never be read as the transcript's progress. S-06 widened
+    // the filter to the align queue, and to nothing else.
     expect(h.prisma.job.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { projectId: "01PROJECT", type: "ai.transcribe" } }),
+      expect.objectContaining({
+        where: { projectId: "01PROJECT", type: { in: ["ai.transcribe", "ai.align"] } },
+      }),
     );
   });
 
@@ -165,5 +205,78 @@ describe("TranscriptsService.transcriptionState", () => {
   // offers the explicit start, and its 402 tells the credit story.
   it("reports not_started when media is ready, a language is chosen and no job exists", async () => {
     await expect(state()).resolves.toEqual({ status: "not_started" });
+  });
+
+  // S-06. An imported-subtitles project (S-03) never enqueues `ai.transcribe` at
+  // all — its work is an `ai.align`. While the read model looked only at the
+  // transcribe queue it answered `not_started` for a live alignment, and the
+  // waiting screen polled "Aligning your subtitles…" forever.
+  describe("alignment jobs (S-06)", () => {
+    const ALIGN: TypedJobRow = {
+      id: "01ALIGN",
+      status: "queued",
+      type: "ai.align",
+      queuedAt: new Date("2026-09-05T10:00:00Z"),
+    };
+
+    it("reports queued while an ai.align job waits", async () => {
+      await expect(state({ jobs: [ALIGN] })).resolves.toEqual({
+        status: "queued",
+        jobId: "01ALIGN",
+      });
+    });
+
+    it("reports failed, with the alignment's own message, when the align job failed", async () => {
+      await expect(
+        state({
+          jobs: [
+            {
+              ...ALIGN,
+              status: "failed",
+              error: {
+                code: "align/no_speech",
+                message: "Could not match the subtitles to the audio.",
+                retryable: false,
+              },
+            },
+          ],
+        }),
+      ).resolves.toEqual({
+        status: "failed",
+        jobId: "01ALIGN",
+        error: "Could not match the subtitles to the audio.",
+      });
+    });
+
+    // The regression pin: widening the filter is only safe because the newest row
+    // still wins. A project that failed a transcription in the morning and
+    // imported subtitles in the afternoon must read as the import, not the
+    // morning's failure.
+    it("lets the newest of the two queues win", async () => {
+      const h = harness({
+        jobs: [
+          {
+            id: "01TRANSCRIBE",
+            status: "failed",
+            type: "ai.transcribe",
+            queuedAt: new Date("2026-09-05T09:00:00Z"),
+            error: { code: "asr/provider_error", message: "Old news.", retryable: true },
+          },
+          { ...ALIGN, status: "succeeded", queuedAt: new Date("2026-09-05T15:00:00Z") },
+        ],
+      });
+
+      // Succeeded-but-no-transcript-row is the handler mid-write: keep waiting.
+      await expect(h.service.transcriptionState("01PROJECT", "01WORKSPACE")).resolves.toEqual({
+        status: "running",
+        jobId: "01ALIGN",
+      });
+      expect(h.prisma.job.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { projectId: "01PROJECT", type: { in: ["ai.transcribe", "ai.align"] } },
+          orderBy: { queuedAt: "desc" },
+        }),
+      );
+    });
   });
 });

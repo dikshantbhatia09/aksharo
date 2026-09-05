@@ -158,7 +158,9 @@ export class TranscriptsService {
     }
 
     const job = await this.prisma.job.findFirst({
-      where: { projectId: project.id, type: "ai.transcribe" },
+      // S-06: an imported-subtitles project waits on `ai.align`, not
+      // `ai.transcribe`; the newest of either is the one the screen is waiting on.
+      where: { projectId: project.id, type: { in: ["ai.transcribe", "ai.align"] } },
       orderBy: { queuedAt: "desc" },
       select: { id: true, status: true, error: true },
     });
