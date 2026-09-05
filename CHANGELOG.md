@@ -20,6 +20,24 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   port of OpenCut's `resizable.tsx` on our tokens, with the reset affordance from
   its GPUI desktop twin, over one new dependency: `react-resizable-panels@^4`.
 
+- **S02: nothing valuable is evictable or orphaned.** The resumable-upload
+  IndexedDB now asks the browser to protect it (`navigator.storage.persist()`,
+  once per session, best-effort) — under disk pressure an unpersisted origin
+  can lose exactly the in-flight bytes that store exists to save. And a closed
+  export dialog is no longer a dead end: a **Previous exports** list inside the
+  dialog shows every export with a status chip and downloads the finished ones,
+  so F06's QA 7 gap — close mid-render and the render finishes unobserved — is
+  closed, and the audit's orphaned MP4s (finished, `downloads = 0`, nothing
+  linking to them) are reachable again. A cloud export has no `exports` row
+  while it renders (the row is written at completion, already succeeded), so
+  the in-flight rows come from the project's render jobs and the downloadable
+  ones from `GET /projects/{id}/exports` — one backoff poll over both, which
+  stops the moment no render is in flight. Download URLs are presigned on the
+  click and never prefetched into the list. Because the history knows a render
+  is already running, the dialog's Export button is now disabled while one is —
+  reopening it used to invite a second render, and a second credit hold, for a
+  file already being made.
+
 - **Stage-2 integration (orchestrator).** Merged F02 + F04 + F06 + S01. Fixed
   the subtitle-export hand-off F06's QA found: the cloud path writes no `exports`
   row at POST time and the `render.subtitle` completion handler minted fresh ids,

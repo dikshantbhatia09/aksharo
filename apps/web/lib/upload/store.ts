@@ -56,7 +56,23 @@ export interface PersistedUploadRecord {
   updatedAt: number;
 }
 
+let persistRequested = false;
+
+/**
+ * Best-effort, once per session: ask the browser to exempt our origin's storage
+ * from eviction. Under disk pressure an unpersisted origin can lose exactly the
+ * IndexedDB this module exists for — the resumable-upload bytes. Denials are
+ * fine (Chromium grants by heuristics; Firefox may prompt); failure changes
+ * nothing about how the store behaves.
+ */
+function requestPersistence(): void {
+  if (persistRequested || typeof navigator === "undefined") return;
+  persistRequested = true;
+  void navigator.storage?.persist?.().catch(() => undefined);
+}
+
 function openDb(): Promise<IDBDatabase> {
+  requestPersistence();
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
