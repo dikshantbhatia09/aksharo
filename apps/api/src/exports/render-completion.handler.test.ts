@@ -2,9 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { RenderSubtitleCompletionHandler } from "./render-completion.handler.js";
 
-import type { JobCompletionContext } from "../jobs/completion-handlers.js";
-import type { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
+import type { JobCompletionContext, JobCompletionRegistry } from "../jobs/completion-handlers.js";
 import type { EventEmitter2 } from "@nestjs/event-emitter";
 
 const MANIFEST = {

@@ -72,6 +72,9 @@ export interface ReflowCheck {
 }
 
 /** Compares the budget recorded at init against what the current style now measures. */
+/** Shaper drift budget: a maxChars difference this small is not a different fit. */
+const MAX_CHARS_TOLERANCE = 1;
+
 export function checkReflow(input: ReflowCheckInput): ReflowCheck {
   const current = fitBudget({
     style: input.style,
@@ -81,8 +84,14 @@ export function checkReflow(input: ReflowCheckInput): ReflowCheck {
     shaper: input.shaper,
   });
   if (input.stored === undefined) return { needed: false, current, stored: undefined };
+  // The api's server-side shaper and the browser's CanvasKit shaper disagree by
+  // ~1.4% on glyph advances, which rounds to a one-character difference in
+  // maxChars on portrait canvases (surfaced by S04's tighter budgets). One
+  // character re-cuts nothing a creator would notice, so it must not nag every
+  // fresh project with the banner; a line-count change always does.
   const needed =
-    current.maxChars !== input.stored.maxChars || current.maxLines !== input.stored.maxLines;
+    Math.abs(current.maxChars - input.stored.maxChars) > MAX_CHARS_TOLERANCE ||
+    current.maxLines !== input.stored.maxLines;
   return { needed, current, stored: input.stored };
 }
 

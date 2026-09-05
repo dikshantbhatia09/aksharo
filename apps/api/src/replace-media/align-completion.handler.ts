@@ -358,7 +358,9 @@ export class AlignCompletionHandler implements JobCompletionHandler, OnModuleIni
 
     this.logger.log(
       { jobId: context.job.id, projectId, outcome },
-      "import-and-align created a new EDG document",
+      initialised.created
+        ? "import-and-align created a new EDG document"
+        : "import-and-align reused the project's existing EDG document",
     );
 
     return { data: { outcome } };

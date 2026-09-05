@@ -46,6 +46,7 @@ test("uploading a small real clip creates a project and completes the multipart 
   await signUpAndSkipOnboarding(page, "upload");
 
   const clipPath = generateWavFile({ filename: "hinglish-clip.wav", seconds: 3 });
+  await page.getByTestId("quick-pick-language-hi-Latn").click(); // F04: uploads are gated on an explicit language
   await dropFile(page, clipPath);
 
   await expect(page.getByTestId("upload-tray-item")).toBeVisible();
@@ -70,12 +71,14 @@ test("a duplicate upload (same content hash) is detected and not re-uploaded", a
   await signUpAndSkipOnboarding(page, "dup");
   const clipPath = generateWavFile({ filename: "same-clip.wav", seconds: 2 });
 
+  await page.getByTestId("quick-pick-language-hi-Latn").click(); // F04: uploads are gated on an explicit language
   await dropFile(page, clipPath);
   await expect
     .poll(async () => page.getByTestId("upload-cancel").count(), { timeout: 30_000 })
     .toBe(0);
   await page.getByTestId("upload-dismiss").click();
 
+  await page.getByTestId("quick-pick-language-hi-Latn").click(); // F04: uploads are gated on an explicit language
   await dropFile(page, clipPath);
   await expect(page.getByText("Already in your workspace.")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("duplicate-open-original")).toBeVisible();
@@ -183,6 +186,7 @@ test("a project card's status updates when its job completes through the interna
 test("the upload flow is axe-clean while a file is in flight", async ({ page }) => {
   await signUpAndSkipOnboarding(page, "uploadaxe");
   const clipPath = generateWavFile({ filename: "axe-clip.wav", seconds: 2 });
+  await page.getByTestId("quick-pick-language-hi-Latn").click(); // F04: uploads are gated on an explicit language
   await dropFile(page, clipPath);
   await expect(page.getByTestId("upload-tray-item")).toBeVisible();
   await expectNoSeriousA11yViolations(page, "Home (upload in progress)");

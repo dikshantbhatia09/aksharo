@@ -95,6 +95,40 @@ describe("checkReflow", () => {
     expect(result.needed).toBe(false);
   });
 
+  it("tolerates a one-character maxChars drift between the server and browser shapers", () => {
+    const measured = checkReflow({
+      stored: undefined,
+      style: style("vertical-clean"),
+      script: "latin",
+      canvas: { width: 1080, height: 1920 },
+      ...context,
+    }).current;
+    const stored = (maxChars: number, maxLines: number): StoredCaptionBudgets => ({
+      maxChars,
+      maxLines,
+      script: "latin",
+      aspect: "9:16",
+      styleRef: "vertical-clean",
+      source: measured.limitedByFit ? "fit" : "readability",
+      readabilityChars: measured.readabilityMaxChars,
+    });
+    const check = (budgets: StoredCaptionBudgets) =>
+      checkReflow({
+        stored: budgets,
+        style: style("vertical-clean"),
+        script: "latin",
+        canvas: { width: 1080, height: 1920 },
+        ...context,
+      }).needed;
+
+    // ±1 character is shaper noise (S04 follow-up), not a different fit.
+    expect(check(stored(measured.maxChars - 1, measured.maxLines))).toBe(false);
+    expect(check(stored(measured.maxChars + 1, measured.maxLines))).toBe(false);
+    // Two characters, or any line-count change, is.
+    expect(check(stored(measured.maxChars - 2, measured.maxLines))).toBe(true);
+    expect(check(stored(measured.maxChars, measured.maxLines + 1))).toBe(true);
+  });
+
   it("reports reflow needed when a stale stored budget disagrees with the current measurement", () => {
     const stored: StoredCaptionBudgets = {
       maxChars: 1,

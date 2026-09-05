@@ -8,6 +8,19 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **Stage-3 integration (orchestrator).** Merged OC-01 + S-02 + S-03 + S-04.
+  Fixed what their QA surfaced outside their file lists: caption drags never
+  persisted because the stage's `SetSegmentPosition` op kept the panel module's
+  placeholder id (every drag 400'd — S04 finding; the editor now mints the ULID
+  exactly as `submitPanelOp` does); the Style column regained its 20 rem floor
+  under the resizable workspace (OC-01 finding); the reflow banner tolerates the
+  one-character `maxChars` drift between the server and browser shapers (S04
+  finding — it would otherwise nag every fresh portrait project); the upload
+  e2e journeys pick a language before dropping a file (F04's gate made them red
+  at base — S-02 finding); the align completion log no longer claims it created a
+  document it reused; and the orchestrator's own handler test now passes
+  `import/no-duplicates` and `import/order`.
+
 - **OC1: a real workspace.** The editor's three columns and its timeline row
   were fixed boxes — `w-[420px]`, `w-80`, `max-h-[38dvh]` — so a long caption and
   a wide style grid competed for space nobody could give them. They are now

@@ -841,9 +841,14 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                     catalogue={SYSTEM_STYLE_MAP}
                     {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
                     onOp={(op) => {
+                      // The stage's drag op arrives with the panel module's
+                      // `panel-${n}` placeholder id (see `submitPanelOp`); the
+                      // server rejects it, so every drag 400'd and no caption
+                      // position was ever saved (S04 finding). Mint the real id
+                      // here exactly as `submitPanelOp` does.
                       store.submitOp({
                         type: "SetSegmentPosition",
-                        opId: op.opId,
+                        opId: newId(),
                         segmentId: op.segmentId,
                         position: op.position,
                       });
@@ -862,7 +867,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
             <ResizablePanel
               id={COLUMN_PANEL_STYLE}
               defaultSize={percent(COLUMNS_DEFAULT.style)}
-              minSize={percent(16)}
+              minSize="20rem"
               maxSize={percent(32)}
             >
               <div

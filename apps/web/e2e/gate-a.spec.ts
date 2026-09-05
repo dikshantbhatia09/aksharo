@@ -203,6 +203,7 @@ test.describe("Gate A journey", () => {
 
     // --- Upload the sample media (real multipart PUT to MinIO) -------------
     const clipPath = generateSampleClip();
+    await page.getByTestId("quick-pick-language-hi-Latn").click(); // F04: uploads are gated on an explicit language
     await dropFile(page, clipPath);
     await expect(page.getByTestId("upload-tray-item")).toBeVisible();
     await expect

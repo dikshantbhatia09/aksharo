@@ -217,7 +217,7 @@ radix menubar, radix context-menu). Study, architecture decision and fresher gui
 
 | WP | Title | Depends on | Status |
 |---|---|---|---|
-| OC-01 | Resizable editor workspace (panels, persisted, double-click reset) | F05 | planned |
+| OC-01 | Resizable editor workspace (panels, persisted, double-click reset) | F05 | merged 2026-09-05 (stage 3) |
 | OC-02 | Editor menubar + single action registry | OC-01, F02, F04, F06 | planned |
 | OC-03 | Context menus (transcript cards + timeline selection) | OC-01 | planned |
 | OC-04 | Command palette (Ctrl+K) + Kbd | OC-02 | planned |
@@ -237,6 +237,7 @@ export create already jobKey-deduped per manifest.
 | WP | Title | Depends on | Status |
 |---|---|---|---|
 | S-01 | Geometry truth: one probe-aware canvas decision (persisted) + short-side safe margins | F05 | merged 2026-09-05 (stage 2) |
-| S-02 | Durability & delivery: storage.persist() + Exports history UI over existing routes | F01, F06 | planned |
-| S-03 | Transcript import UI over the existing caller-less POST /projects/:id/import (ai.align) | F03, F04, F07 | planned |
-| S-04 | Render-core safe margins from the short side (the render/export half of S-01's geometry truth; goldens regenerated) | S-01 | planned |
+| S-02 | Durability & delivery: storage.persist() + Exports history UI over existing routes | F01, F06 | merged 2026-09-05 (stage 3) |
+| S-03 | Transcript import UI over the existing caller-less POST /projects/:id/import (ai.align) | F03, F04, F07 | merged 2026-09-05 (stage 3) |
+| S-04 | Render-core safe margins from the short side (the render/export half of S-01's geometry truth; goldens regenerated) | S-01 | merged 2026-09-05 (stage 3) |
+| S-05 | Export rows exist from POST: `rendering` status, failure marking, history without the jobs crutch | F06, S-02 | planned |
