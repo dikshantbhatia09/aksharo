@@ -565,6 +565,14 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   const activeSegment = segments.find(
     (segment) => playheadSnapshot.ms >= segment.startMs && playheadSnapshot.ms < segment.endMs,
   );
+  // The per-word highlight follows the played frame (F02 follow-up): the cards
+  // already accept `activeWordId`; nothing ever passed it.
+  const activeWordId =
+    activeSegment === undefined
+      ? undefined
+      : wordsOf(activeSegment).find(
+          (word) => playheadSnapshot.ms >= word.s && playheadSnapshot.ms < word.e,
+        )?.wid;
 
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col" data-testid="editor-root">
@@ -707,6 +715,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
             {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
             {...(selectedWordId === undefined ? {} : { selectedWordId })}
             {...(activeSegment === undefined ? {} : { activeSegmentId: activeSegment.id })}
+            {...(activeWordId === undefined ? {} : { activeWordId })}
             onSelectSegment={setSelectedSegmentId}
             onSelectWord={(segmentId, wordId) => {
               setSelectedSegmentId(segmentId);

@@ -198,11 +198,11 @@ is the master guide: setup, golden rules, ports table, scale contract).
 | WP | Title | Depends on | Status |
 |---|---|---|---|
 | F01 | Media delivery: R2_PUBLIC_ENDPOINT, CSP, URL refresh | — | merged 2026-09-05 (stage 1) |
-| F02 | Playback transport: playhead ↔ video wiring | F01 | planned |
+| F02 | Playback transport: playhead ↔ video wiring | F01 | merged 2026-09-05 (stage 2) |
 | F03 | Transcription lifecycle: read model, push+poll hand-off, honest tray | — | merged 2026-09-05 (stage 1) |
-| F04 | Language choice + truthful script tabs | F03 | planned |
+| F04 | Language choice + truthful script tabs | F03 | merged 2026-09-05 (stage 2) |
 | F05 | Aspect-aware chrome: preview, gallery, cards, share | — | merged 2026-09-05 (stage 1) |
-| F06 | Export completion: follow cloud job to download | F01, F03 | planned |
+| F06 | Export completion: follow cloud job to download | F01, F03 | merged 2026-09-05 (stage 2) |
 | F07 | Payments-off coherence sweep | — | merged 2026-09-05 (stage 1) |
 
 ## OC-wave — OpenCut adoption (planned 2026-09-05)
@@ -236,6 +236,7 @@ export create already jobKey-deduped per manifest.
 
 | WP | Title | Depends on | Status |
 |---|---|---|---|
-| S-01 | Geometry truth: one probe-aware canvas decision (persisted) + short-side safe margins | F05 | planned |
+| S-01 | Geometry truth: one probe-aware canvas decision (persisted) + short-side safe margins | F05 | merged 2026-09-05 (stage 2) |
 | S-02 | Durability & delivery: storage.persist() + Exports history UI over existing routes | F01, F06 | planned |
 | S-03 | Transcript import UI over the existing caller-less POST /projects/:id/import (ai.align) | F03, F04, F07 | planned |
+| S-04 | Render-core safe margins from the short side (the render/export half of S-01's geometry truth; goldens regenerated) | S-01 | planned |

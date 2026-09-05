@@ -409,7 +409,7 @@ test.describe("Gate A journey", () => {
     // Default is already `srt` (`ExportDialog.tsx`'s `DEFAULT_SUBTITLES`).
     await expect(page.getByTestId("export-subtitle-format-srt")).toBeChecked();
     await page.getByTestId("export-start").click();
-    await expect(page.getByTestId("export-cloud-offer")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("export-cloud-progress")).toBeVisible({ timeout: 15_000 });
     await page.keyboard.press("Escape");
 
     const srtManifestResponse = await page.request.post(`${API_ORIGIN}/projects/${id}/exports`, {
@@ -521,7 +521,7 @@ test.describe("Gate A journey", () => {
       // (and fail) a browser render.
       await page.getByTestId("export-tab-video").click();
       await page.getByTestId("export-start").click();
-      await expect(page.getByTestId("export-cloud-offer")).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId("export-cloud-progress")).toBeVisible({ timeout: 30_000 });
       await page.keyboard.press("Escape");
     } else {
       // ## A reported gap

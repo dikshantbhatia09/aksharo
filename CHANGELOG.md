@@ -8,6 +8,16 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **Stage-2 integration (orchestrator).** Merged F02 + F04 + F06 + S01. Fixed
+  the subtitle-export hand-off F06's QA found: the cloud path writes no `exports`
+  row at POST time and the `render.subtitle` completion handler minted fresh ids,
+  so the id the dialog was handed never became a downloadable row (404 on every
+  subtitle download); the first sidecar now lands under `manifest.exportId`,
+  exactly as the video handler already did. Wired the transcript's per-word
+  highlight to the playhead — the cards accepted `activeWordId` and nothing ever
+  passed it (F02 finding). Re-pointed the two `gate-a` e2e assertions from the
+  retired `export-cloud-offer` dead end to F06's `export-cloud-progress` panel.
+
 - **S01: geometry tells one story.** Two halves derived a project's canvas
   independently: `TranscribeHandler` measured caption budgets through
   `canvasAspectFor`, which lets landscape media override an _untouched_ 9:16

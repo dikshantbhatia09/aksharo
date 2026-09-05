@@ -236,8 +236,13 @@ export class RenderSubtitleCompletionHandler implements JobCompletionHandler, On
       return { actualTenths: 0, data: { exportId: manifest.exportId, replayed: true } };
     }
 
-    const rows = result.sidecars.map((sidecar) => ({
-      id: ulid(),
+    // The first sidecar IS the export the client was handed at POST time. The
+    // cloud path writes no `exports` row up front (only the manifest), so unless
+    // `manifest.exportId` becomes a succeeded row here, the dialog's and the
+    // history's download for that id 404 forever — F06's QA found exactly that.
+    // Extra sidecars keep their own ids, as before.
+    const rows = result.sidecars.map((sidecar, index) => ({
+      id: index === 0 ? manifest.exportId : ulid(),
       workspaceId: manifest.workspaceId,
       projectId: manifest.projectId,
       manifestId: manifest.manifestId,
