@@ -33,6 +33,7 @@ import {
   msToPx,
   pxToMs,
   ruleTicks,
+  tickStepMs,
   visibleRange,
   zoomAround,
   type Viewport,
@@ -323,7 +324,15 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     ctx.strokeStyle = "rgba(255,255,255,0.15)";
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     ctx.font = "10px sans-serif";
-    for (const tickSourceMs of ruleTicks(startMs, endMs, msPerPx)) {
+    // The ruler is drawn across the whole canvas, whose span is `widthPx *
+    // msPerPx` and owes nothing to the media: a 20.2 s clip at the default
+    // 30 ms/px on a ~1170 px timeline labelled ticks out to 00:35 (FIX-02 step
+    // 6, audit 2026-09-04). `clampScroll` already treats `durationMs` as the
+    // content extent; the ruler now agrees, stopping one major tick past the
+    // end so the last label is still reachable. `durationMs === 0` (no media
+    // loaded yet) keeps the old full-width ruler rather than drawing none.
+    const rulerEndMs = durationMs > 0 ? Math.min(endMs, durationMs + tickStepMs(msPerPx)) : endMs;
+    for (const tickSourceMs of ruleTicks(startMs, rulerEndMs, msPerPx)) {
       const tickMs = toDisplayMs(tickSourceMs, displayMode, timeMap);
       const px = msToPx(tickSourceMs, viewport);
       ctx.beginPath();
