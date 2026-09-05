@@ -73,6 +73,26 @@ function dropFile(page: Page, path: string): Promise<void> {
   })();
 }
 
+/**
+ * The upload has left the client's hands and the server pipeline owns the row
+ * — the same contract `upload.spec.ts` waits on, and for the same reason.
+ *
+ * F03-5 (`37d081c`) replaced `setStatus("ready")` with `setStatus("processing")`
+ * in `upload-job.ts`, so the client status machine has no `ready` transition
+ * left: `upload-cancel` never disappears and `upload-dismiss` never appears
+ * (`upload-tray.tsx:200-225`). `upload-tray-pipeline-status` is mounted only
+ * for a `serverOwned()` row (`upload-tray.tsx:256-263`), so its appearance is
+ * the honest settle signal — it cannot render while the file is still
+ * hashing, uploading or completing.
+ */
+async function expectUploadSettled(page: Page): Promise<void> {
+  const pipelineStatus = page.getByTestId("upload-tray-pipeline-status");
+  await expect(pipelineStatus).toBeVisible({ timeout: 30_000 });
+  await expect(pipelineStatus).toHaveText(/Processing on the server…|Transcribing…/, {
+    timeout: 30_000,
+  });
+}
+
 async function currentAccessToken(page: Page): Promise<string> {
   const token = await page.evaluate(async () => {
     const response = await fetch("/api/session/refresh", { method: "POST" });
@@ -206,9 +226,7 @@ test.describe("Gate A journey", () => {
     await page.getByTestId("quick-pick-language-hi-Latn").click(); // F04: uploads are gated on an explicit language
     await dropFile(page, clipPath);
     await expect(page.getByTestId("upload-tray-item")).toBeVisible();
-    await expect
-      .poll(async () => page.getByTestId("upload-cancel").count(), { timeout: 30_000 })
-      .toBe(0);
+    await expectUploadSettled(page);
 
     await gotoHydrated(page, "/projects");
     const card = page.getByTestId("project-card").first();
@@ -372,7 +390,16 @@ test.describe("Gate A journey", () => {
     // --- Split a segment ---------------------------------------------------
     const segments = page.locator('[data-testid^="segment-card-"]');
     const before = await segments.count();
-    await page.getByTestId("word-chip-0:4").click();
+    // The split point has to be a word genuinely *inside* a segment:
+    // `applySplitSegment` refuses `atPosition <= startPosition` with
+    // `invalid-range`, because splitting at the segment's own first word would
+    // leave the head half empty (`packages/edg/src/ops/apply.ts:218-227`).
+    // `word-chip-0:4` was that first word — this fixture segments as
+    // 0:0-0:2 / 0:3 / 0:4-0:5 / 0:6-0:8 — so the shortcut was a silent no-op.
+    // 0:5 ("dekhenge") is the second word of the 0:4-0:5 segment, so the split
+    // always leaves "editor"(0:4) live in the head; the same reasoning
+    // `editor.spec.ts`'s split case spells out for its own fixture.
+    await page.getByTestId("word-chip-0:5").click();
     await page.keyboard.press("s");
     await expect(segments).toHaveCount(before + 1, { timeout: 10_000 });
 

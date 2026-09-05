@@ -61,6 +61,45 @@ header for why).
   cloud-render export, and reload persistence. Its own header lists the
   same test-environment simplifications as the rest of the suite.
 
+### What a journey has to do before it can upload or transcribe (S-07)
+
+Three preconditions the product now enforces. A spec that skips one does not
+fail with a helpful message — it hangs on a tray row that never moves, which
+is exactly how `upload.spec.ts` and `gate-a.spec.ts` came to be red at base.
+
+- **Pick a language before `dropFile` (F04).** The funnel ends in a paid
+  transcription, so Home refuses a drop that has no explicit language: it
+  raises the toast "Choose the spoken language first" and focuses the picker
+  instead of uploading anything (`home-view.tsx:118-130`). Every journey
+  clicks `quick-pick-language-hi-Latn` first. A project that does reach the
+  server without one is what the read model calls `awaiting_language`, and its
+  tray row reads "Needs attention — open the project".
+- **Grant credits before anything that transcribes or renders (B01).** A
+  freshly signed-up workspace has a real, enforced **zero** balance: its first
+  monthly grant comes from a scheduled job that `playwright.config.ts` turns
+  off (`MONTAJ_SCHEDULER_DISABLED=1`), so `POST /transcribe` answers 402
+  `credits/insufficient`. `export-test-helpers.ts`'s `grantTestCredits(workspaceId)`
+  is the one way to fix that: 200 tenths (the same 20 credits `prisma/seed.ts`
+  gives the demo workspace) written as `credit_accounts` + `credit_lots` +
+  `credit_ledger` **together** by SQL through `pg`, because the ledger's drift
+  check refuses a hold when those three disagree — the same three statements
+  `scripts/local-ai-smoke.mjs`'s `grantCredits()` uses for manual QA.
+  `gate-a.spec.ts`, `export.spec.ts` and `export-fallback.spec.ts` all call it
+  right after sign-up; `workspaceIdFromPage(page)` resolves the id from the
+  page's own `POST /api/session/refresh`. `upload.spec.ts` deliberately does
+  **not**: nothing in it reaches a paid operation, because with no worker
+  running the media never leaves `uploaded` and `/transcribe` stops earlier, at
+  409 `transcript/media_not_ready`.
+- **Do not wait for the upload row to say "ready" (F03).** Since F03-5
+  (`37d081c`) `upload-job.ts` never sets `ready`: when the bytes are up it sets
+  `processing` (or `transcribing`) and the server pipeline owns the row from
+  there. So `upload-cancel` never disappears and `upload-dismiss` never
+  appears (`upload-tray.tsx:200-225` renders Cancel for every status that is
+  not `ready | error | cancelled | duplicate`). The settle signal is
+  `upload-tray-pipeline-status`, which the tray mounts only for a
+  `serverOwned()` row — see `expectUploadSettled()` in `upload.spec.ts` and
+  `gate-a.spec.ts`.
+
 ### Running `gate-a.spec.ts` (M18)
 
 Run it exactly like any other spec — `pnpm exec playwright test
