@@ -106,7 +106,7 @@ export interface DragOptions {
   readonly canvas: Size;
   /** The style's anchor; a drag never changes which corner is addressed. */
   readonly anchor: Anchor;
-  /** Safe-area margin as a percentage of the canvas **height**. */
+  /** Safe-area margin as a percentage of the canvas's **short side**. */
   readonly safeAreaPct?: number;
 }
 
@@ -119,7 +119,10 @@ export interface DragOptions {
  */
 export function positionFromDrag(delta: Point, options: DragOptions): SegmentPosition {
   const { box, canvas, anchor } = options;
-  const margin = ((options.safeAreaPct ?? 0) / 100) * canvas.height;
+  // Percent of the SHORT side, both axes: height-based margins on a 9:16 canvas
+  // made the horizontal clamp nearly 2× the intended zone (1920-derived margin on
+  // a 1080-wide frame) — the audit's "far too aggressive horizontally".
+  const margin = ((options.safeAreaPct ?? 0) / 100) * Math.min(canvas.width, canvas.height);
   const width = box[2] - box[0];
   const height = box[3] - box[1];
 
@@ -168,9 +171,9 @@ export interface SafeZones {
   readonly bottom: Box;
 }
 
-/** The guides the overlay draws; `safeAreaPct` is a percentage of the height. */
+/** The guides the overlay draws; `safeAreaPct` is a percentage of the short side. */
 export function safeZonesFor(canvas: Size, safeAreaPct: number): SafeZones {
-  const margin = (safeAreaPct / 100) * canvas.height;
+  const margin = (safeAreaPct / 100) * Math.min(canvas.width, canvas.height);
   return {
     safe: [margin, margin, canvas.width - margin, canvas.height - margin],
     top: [0, 0, canvas.width, margin],
