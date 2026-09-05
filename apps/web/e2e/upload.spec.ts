@@ -22,6 +22,36 @@ async function dropFile(page: Page, path: string): Promise<void> {
 }
 
 /**
+ * The row has left the client's hands: the bytes are up, `complete` has been
+ * called and the server pipeline owns what happens next.
+ *
+ * The product contract this follows is F03-5's (`37d081c`, "upload tray
+ * reports the pipeline's real state"), which replaced `setStatus("ready")`
+ * with `setStatus("processing")` in `upload-job.ts` — "ready" at the end of
+ * the upload was the decorative green tick the audit removed, so the client
+ * status machine no longer has a `ready` transition at all. Under that
+ * contract `upload-cancel` never disappears and `upload-dismiss` never
+ * appears: the tray renders Cancel for every status that is not
+ * `ready | error | cancelled | duplicate` (`upload-tray.tsx:200-225`).
+ *
+ * The settle signal is `upload-tray-pipeline-status` instead. The tray mounts
+ * that line ONLY for a `serverOwned()` row (`upload-tray.tsx:256-263`,
+ * `serverOwned()` at :58-60), so it cannot render while the file is still
+ * hashing, uploading or completing, and it carries FIX-03's honest read-model
+ * label rather than a stage chip.
+ */
+async function expectUploadSettled(page: Page): Promise<void> {
+  const pipelineStatus = page.getByTestId("upload-tray-pipeline-status");
+  await expect(pipelineStatus).toBeVisible({ timeout: 30_000 });
+  // The two labels a server-owned row can honestly carry (`labelFor`,
+  // `upload-tray.tsx:62-78`): the probe is still queued here, so the read
+  // model answers `processing_media`.
+  await expect(pipelineStatus).toHaveText(/Processing on the server…|Transcribing…/, {
+    timeout: 30_000,
+  });
+}
+
+/**
  * The access token the page itself is holding, read the way the browser
  * would refresh it: `POST /api/session/refresh` reads the httpOnly cookie
  * Playwright's browser context already carries and hands back a fresh
@@ -53,14 +83,13 @@ test("uploading a small real clip creates a project and completes the multipart 
   await expect(page.getByTestId("upload-tray-item")).toContainText("hinglish-clip.wav");
 
   // The upload settles (uploaded, `media.probe` enqueued, `complete` called)
-  // without a live worker: `client/not_implemented` from the not-yet-merged
-  // A11 `/transcribe` route is treated as "uploaded, not transcribing yet",
-  // not a failure — see `upload-job.ts`. Real network to MinIO, so this gets
-  // real time rather than the suite's default expect timeout.
+  // without a live worker: with the probe still queued, `POST /transcribe`
+  // answers 409 `transcript/media_not_ready`, which `upload-job.ts`'s
+  // `tryStartTranscription` treats as "uploaded, the server owns the rest"
+  // rather than a failure. Real network to MinIO, so this gets real time
+  // rather than the suite's default expect timeout.
   await expect(page.getByTestId("job-progress")).toBeVisible({ timeout: 30_000 });
-  await expect
-    .poll(async () => page.getByTestId("upload-cancel").count(), { timeout: 30_000 })
-    .toBe(0); // "Cancel" only shows while still in flight; gone once settled.
+  await expectUploadSettled(page);
 
   // The project is real and shows up in the Recent grid.
   await gotoHydrated(page, "/projects");
@@ -73,10 +102,15 @@ test("a duplicate upload (same content hash) is detected and not re-uploaded", a
 
   await page.getByTestId("quick-pick-language-hi-Latn").click(); // F04: uploads are gated on an explicit language
   await dropFile(page, clipPath);
-  await expect
-    .poll(async () => page.getByTestId("upload-cancel").count(), { timeout: 30_000 })
-    .toBe(0);
-  await page.getByTestId("upload-dismiss").click();
+  await expectUploadSettled(page);
+  // The first row is not dismissed: since F03-5 a settled row stays
+  // server-owned, so the tray offers Cancel rather than Dismiss
+  // (`upload-tray.tsx:200-225`) and there is nothing to dismiss it with. It
+  // does not get in the way — `useUploadQueue.addFiles` gives every dropped
+  // file its own local id and never dedupes client-side
+  // (`use-upload-queue.ts:43-63`), so the second drop opens its own row and
+  // the "already in your workspace" answer below is the server's, which is
+  // what this case is about.
 
   await page.getByTestId("quick-pick-language-hi-Latn").click(); // F04: uploads are gated on an explicit language
   await dropFile(page, clipPath);
