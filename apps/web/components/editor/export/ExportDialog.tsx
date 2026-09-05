@@ -101,7 +101,21 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
     state.phase === "probing" ||
     state.phase === "requesting" ||
     state.phase === "rendering" ||
+    // A cloud render is as busy as a local one — the preset that produced it
+    // must not change under the reader while the file is being made (F06-4).
+    state.phase === "cloud-rendering" ||
     state.phase === "completing";
+
+  /**
+   * FIX-06: `response.reasons` is one list with one meaning, and the offered
+   * state printed it twice — the watermark notice above and the cloud panel
+   * below both map the same array (the audit's "three explanatory lines,
+   * twice"). One owner: the cloud panel while it is on screen, because there
+   * the reasons answer the question that panel asks; the notice otherwise.
+   * De-duplication only — the wording is untouched, FIX-07 owns the copy.
+   */
+  const cloudOfferShown = state.phase === "cloud-offered" && props.isLocalProject !== true;
+  const reasons = state.response?.reasons;
 
   const onExportVideo = React.useCallback(() => {
     void startExport({
@@ -188,7 +202,7 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
             */}
             <WatermarkNotice
               watermarked={state.response?.watermarked}
-              reasons={state.response?.reasons}
+              reasons={cloudOfferShown ? undefined : reasons}
             />
             {state.response?.quote !== undefined ? (
               <p className="text-fg-3 mt-2 text-xs" data-testid="export-quote">
@@ -233,7 +247,44 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
           </div>
         ) : null}
 
-        {state.phase === "cloud-offered" && props.isLocalProject !== true ? (
+        {state.phase === "cloud-rendering" ? (
+          <div className="mt-4 flex flex-col gap-2" data-testid="export-cloud-progress">
+            <p className="text-fg-1 text-sm font-medium">Rendering in the cloud…</p>
+            {state.cloudJob?.status === "running" ? (
+              <>
+                <ProgressBar value={state.cloudJob.progress ?? 0} label="Cloud render progress" />
+                <p className="text-fg-3 text-xs">
+                  {state.cloudJob.progress === null
+                    ? "In progress"
+                    : `In progress — ${String(state.cloudJob.progress)}%`}
+                </p>
+              </>
+            ) : (
+              <p className="text-fg-3 text-xs">Waiting for a render worker…</p>
+            )}
+            <p className="text-fg-3 text-xs">You can close this dialog — the render continues.</p>
+          </div>
+        ) : null}
+
+        {state.phase === "cloud-done" ? (
+          <div className="mt-4 flex flex-col gap-2" data-testid="export-cloud-download">
+            <p className="text-fg-1 text-sm font-medium">Your export is ready.</p>
+            {state.downloadUrl === null ? (
+              <p className="text-fg-3 text-xs">
+                The file rendered, but no download link came back — find it under the project&apos;s
+                exports.
+              </p>
+            ) : (
+              <Button asChild data-testid="export-download">
+                <a href={state.downloadUrl} target="_blank" rel="noreferrer">
+                  Download file
+                </a>
+              </Button>
+            )}
+          </div>
+        ) : null}
+
+        {cloudOfferShown ? (
           <div
             className="mt-4 flex items-start gap-2 rounded-md bg-amber-400/10 p-3 text-xs text-amber-200"
             data-testid="export-cloud-offer"
@@ -241,7 +292,7 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
             <AlertTriangle className="mt-0.5 size-4 shrink-0" />
             <div>
               <p className="font-medium">This export renders in the cloud.</p>
-              {state.response?.reasons.map((reason, index) => (
+              {reasons?.map((reason, index) => (
                 <p key={index}>{reason}</p>
               ))}
               {state.error !== null ? <p>{state.error}</p> : null}
@@ -280,7 +331,7 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
         ) : null}
 
         <DialogFooter>
-          {state.phase === "rendering" ? (
+          {state.phase === "rendering" || state.phase === "cloud-rendering" ? (
             <Button variant="secondary" onClick={cancel} data-testid="export-cancel">
               Cancel
             </Button>
