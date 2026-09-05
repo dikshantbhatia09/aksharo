@@ -8,6 +8,7 @@ import {
   clamp01,
   COORDINATE_DECIMALS,
   ofCanvasHeight,
+  ofCanvasShortSide,
   ofCanvasWidth,
   ofFontSize,
   q,
@@ -18,6 +19,21 @@ describe("relative sizing", () => {
   it("reads type size off the canvas height, never the width", () => {
     expect(ofCanvasHeight(6.4, { width: 1080, height: 1920 })).toBeCloseTo(122.88, 5);
     expect(ofCanvasHeight(6.4, { width: 1920, height: 1080 })).toBeCloseTo(69.12, 5);
+  });
+
+  // The safe-area margin is the one percentage that is NOT off the height: a 5%
+  // height margin on 1080×1920 clamps the caption 96 px from the left edge while
+  // the editor draws its guide at 54 (S-01). The short side answers 54 whichever
+  // way the canvas is turned, and 54 on a square.
+  it("reads the safe-area margin off the short side, whichever side that is", () => {
+    expect(ofCanvasShortSide(5, { width: 1080, height: 1920 })).toBeCloseTo(54, 5);
+    expect(ofCanvasShortSide(5, { width: 1920, height: 1080 })).toBeCloseTo(54, 5);
+    expect(ofCanvasShortSide(5, { width: 1080, height: 1080 })).toBeCloseTo(54, 5);
+  });
+
+  it("leaves type size on the height rule — 5% of 1080×1920 is still 96 px", () => {
+    expect(ofCanvasHeight(5, { width: 1080, height: 1920 })).toBeCloseTo(96, 5);
+    expect(ofCanvasShortSide(5, { width: 1080, height: 1920 })).not.toBeCloseTo(96, 5);
   });
 
   it("reads the caption's own width off the canvas width", () => {
