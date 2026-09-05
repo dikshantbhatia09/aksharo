@@ -13,7 +13,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
-import { ApiError, useRecordSpellingFixMemory } from "@montaj/api-client";
+import { ApiError, useProject, useRecordSpellingFixMemory } from "@montaj/api-client";
 import { newId, orderedSegments, wordsBetween } from "@montaj/edg";
 import type { Segment } from "@montaj/edg";
 import { resolveStyle } from "@montaj/render-core";
@@ -35,6 +35,7 @@ import { ExportButton } from "@/components/editor/export/ExportButton";
 import { type PanelOp, type PanelScope } from "@/components/editor/panels/ops";
 import { RightPanel } from "@/components/editor/panels/RightPanel";
 import { SYSTEM_STYLE_MAP, SYSTEM_STYLES } from "@/components/editor/panels/system-styles";
+import { RetranscribeDialog } from "@/components/editor/RetranscribeDialog";
 import {
   Timeline,
   type PassItemBoundsOp,
@@ -259,6 +260,10 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     return subscribePrivacy(setPrivacy);
   }, []);
   const recordSpellingFix = useRecordSpellingFixMemory();
+
+  // FIX-04: the header's Re-transcribe dialog opens on the project's own
+  // language, so the user changes it from what it *is* rather than from blank.
+  const project = useProject(projectId).data;
 
   const { state } = snapshot;
   const segments = useMemo(() => orderedSegments(state), [state]);
@@ -561,6 +566,10 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           ← Projects
         </Link>
         <ScriptTabs projectId={projectId} activeScript={script} onScriptChange={setScript} />
+        <RetranscribeDialog
+          projectId={projectId}
+          sourceLanguage={project?.sourceLanguage ?? null}
+        />
         <label className="text-fg-3 ml-4 flex items-center gap-1.5 text-xs">
           <input
             type="checkbox"
