@@ -1,5 +1,7 @@
 /** Deployment-tunable numbers for the exports module (not CONTRACTS §1 secrets). */
 
+import type { $Enums } from "@prisma/client";
+
 /**
  * Browser export manifests a Free workspace may have issued in a rolling 24
  * hours (brief scope item 5: bound abuse of the free, uncosted browser path).
@@ -28,3 +30,15 @@ export const PNG_MAGIC_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 
  * reissues a fresh set when these expire mid-export.
  */
 export const SOURCE_URL_TTL_SECONDS = 15 * 60;
+
+/**
+ * The subtitle formats that are also `ExportKind` members. S05 moved this here
+ * from `render-completion.handler.ts`: the row is now written twice — once at
+ * POST time by `exports.service.ts` and once when the sidecars land — and both
+ * writers have to name the same kind for the same requested format.
+ */
+export const SUBTITLE_KINDS = new Set(["srt", "vtt", "txt", "md", "ass"]);
+
+export function exportKindFor(format: string): $Enums.ExportKind {
+  return (SUBTITLE_KINDS.has(format) ? format : "txt") as $Enums.ExportKind;
+}

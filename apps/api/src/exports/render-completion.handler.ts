@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { quote } from "@montaj/config";
 
-import { EXPORT_RETENTION_DAYS } from "./exports.constants.js";
+import { EXPORT_RETENTION_DAYS, exportKindFor } from "./exports.constants.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 import { PartnerCatalogueService } from "../partner-catalogue/partner-catalogue.service.js";
@@ -18,7 +18,6 @@ import type {
   JobCompletionOutcome,
 } from "../jobs/completion-handlers.js";
 import type { QueueName } from "../jobs/contracts/queue-names.js";
-import type { $Enums } from "@prisma/client";
 
 /**
  * What a `render.video`/`render.subtitle` completion means (A21).
@@ -77,12 +76,6 @@ const RenderSubtitleResultSchema = z.object({
     )
     .default([]),
 });
-
-const SUBTITLE_KINDS = new Set(["srt", "vtt", "txt", "md", "ass"]);
-
-function exportKindFor(format: string): $Enums.ExportKind {
-  return (SUBTITLE_KINDS.has(format) ? format : "txt") as $Enums.ExportKind;
-}
 
 /** Claim the manifest's nonce; `false` means this call is a retry that already claimed it. */
 async function claimManifest(prisma: PrismaService, manifestId: string): Promise<boolean> {
