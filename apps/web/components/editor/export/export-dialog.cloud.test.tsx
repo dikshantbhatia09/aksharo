@@ -175,6 +175,49 @@ describe("<ExportDialog /> — the cloud render is followed to a file (F06-4)", 
   });
 
   /**
+   * A cloud render is server-owned: closing the dialog's eyes is not cancelling
+   * it. Cancel has to reach `POST /jobs/{id}/cancel`, and the dialog has to say
+   * so — the browser path gets `cancelled` from the engine's own throw, this
+   * path has no throw to catch.
+   */
+  it("cancels the server job and says so, instead of sitting on the progress panel", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+
+    const { fetchMock } = renderWithProviders(dialog(), {
+      routes: {
+        [`/projects/${PROJECT_ID}/exports`]: cloudExportResponse(),
+        // Never settles on its own: only Cancel can end this render.
+        [`/jobs/${JOB_ID}`]: job("running", 10),
+        [`/jobs/${JOB_ID}/cancel`]: job("cancelled", 10),
+      },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("export-start"));
+    });
+    expect(screen.getByTestId("export-cloud-progress")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("export-cancel"));
+    });
+
+    expect(screen.getByTestId("export-cancelled")).toHaveTextContent("Export cancelled.");
+    expect(screen.queryByTestId("export-cloud-progress")).toBeNull();
+    const cancelCalls = fetchMock.mock.calls.filter((call) => {
+      const [url, init] = call as [unknown, RequestInit | undefined];
+      return String(url).endsWith(`/jobs/${JOB_ID}/cancel`) && init?.method === "POST";
+    });
+    expect(cancelCalls).toHaveLength(1);
+
+    // The poll in flight when Cancel landed must not resurrect the render.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(screen.getByTestId("export-cancelled")).toBeInTheDocument();
+    expect(screen.queryByTestId("export-cloud-download")).toBeNull();
+  });
+
+  /**
    * The audit's most expensive finding, end to end through the real tree: the
    * upsell panel's eligibility effect used to reach the same action as the
    * submit handler, so one click bought two renders and two credit holds — and

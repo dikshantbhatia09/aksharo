@@ -165,6 +165,18 @@ const exportDownloadEndpoint = defineEndpoint<void, { url: string; expiresAt: st
   operationId: "getExportDownloadUrl",
 });
 
+/**
+ * Has `cancel()` been pressed?
+ *
+ * Read through the ref on every call, and deliberately a function rather than
+ * an inline expression: `abort()` mutates the signal from outside this control
+ * flow, which TypeScript cannot see — an inline second check gets narrowed away
+ * as unreachable.
+ */
+function isAborted(ref: React.RefObject<AbortController | null>): boolean {
+  return ref.current?.signal.aborted === true;
+}
+
 /** Poll backoff for a cloud render: gentle at first, then settled at 5 s. */
 const POLL_DELAYS_MS = [2_000, 3_000, 5_000] as const;
 
@@ -225,6 +237,11 @@ export function useExportDialog(deps: ExportDialogDeps): {
     // A cloud render is server-owned: aborting the poll only stops watching it,
     // so the job itself has to be told, or it renders (and bills) to the end.
     if (jobId !== undefined && stateRef.current.phase === "cloud-rendering") {
+      // The browser path reaches `cancelled` through the engine's own
+      // `ExportCancelledError`; a followed cloud job has no such throw, so the
+      // phase is set here or the dialog sits on "Rendering in the cloud…"
+      // forever after the reader has already asked it to stop.
+      setState((s) => ({ ...s, phase: "cancelled" }));
       void client.call(endpoints.jobs.cancel, { params: { id: jobId } }).catch(() => undefined);
     }
   }, [client]);
@@ -240,11 +257,15 @@ export function useExportDialog(deps: ExportDialogDeps): {
   const followCloudJob = React.useCallback(
     async (jobId: string, response: CreateExportResponse): Promise<void> => {
       for (let attempt = 0; ; attempt += 1) {
-        if (controllerRef.current?.signal.aborted === true) return; // cancel() closes the loop
+        if (isAborted(controllerRef)) return; // cancel() closes the loop
         const delay = POLL_DELAYS_MS[Math.min(attempt, POLL_DELAYS_MS.length - 1)] ?? 5_000;
         let job: JobSummary;
         try {
           job = await client.call(endpoints.jobs.get, { params: { id: jobId } });
+          // A cancel that lands while this poll is in flight must win: without
+          // this, a render that succeeded in the same instant would overwrite
+          // `cancelled` with a Download button the reader never asked for.
+          if (isAborted(controllerRef)) return;
         } catch {
           // A transient poll failure is not a failed render - the job is
           // server-side and unaffected by it. Keep following.

@@ -317,6 +317,12 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
           </div>
         ) : null}
 
+        {state.phase === "cancelled" ? (
+          <p className="text-fg-3 mt-4 text-xs" data-testid="export-cancelled">
+            Export cancelled.
+          </p>
+        ) : null}
+
         {state.phase === "error" ? (
           <p className="mt-4 text-xs text-red-400" data-testid="export-error">
             {state.error}
