@@ -1,26 +1,29 @@
 /**
- * A minimal, local playhead store.
+ * The editor's transport commander.
  *
- * The brief's "Playback link" (§4) reads the current time from "a shared
- * `PlayheadStore`" that A17 (the timeline) drives — A17 has not landed, so
- * there is no shared store to read yet. This is a scaffold, not a
- * substitute: the shape (`getMs`, `seek`, `subscribe`) is what A17's own
- * store is expected to expose, so wiring the real one later is a constructor
- * swap in the editor page, not a rewrite of `TranscriptList` or the keyboard
- * map. Until then it only tracks "where the user last clicked/sought" — it
- * does not drive an actual `<video>` element, because `CaptionStage` (A16)
- * owns its own `<video>` internally and does not expose playback control to
- * a parent (out of this work package's file boundary to add).
+ * One clock rule: the `<video>` element is the only clock (it is the only thing
+ * that can be frame-accurate, and the caption overlay is already slaved to its
+ * `requestVideoFrameCallback`). This store never ticks. It holds *intent* —
+ * `playing`, and a seek command — and mirrors the element's actual time back so
+ * the timeline marker and the active-segment lookup follow the played frame.
+ *
+ * `seekSeq` is how the executor (`CaptionStage`) tells a new user seek apart
+ * from a mirrored update: `seek()` bumps it, `syncFromMedia()` never does. That
+ * one integer is what prevents the mirror path from re-seeking the element it
+ * just read (audit FIX-02, 2026-09-04 — the previous version of this file was a
+ * scaffold that drove nothing, and Play/Space were dead switches).
  */
 export interface PlayheadSnapshot {
   readonly ms: number;
   readonly playing: boolean;
+  /** Bumped only by an explicit `seek()`; the executor applies exactly one seek per bump. */
+  readonly seekSeq: number;
 }
 
 export type PlayheadListener = () => void;
 
 export class PlayheadStore {
-  private snapshot: PlayheadSnapshot = { ms: 0, playing: false };
+  private snapshot: PlayheadSnapshot = { ms: 0, playing: false, seekSeq: 0 };
   private readonly listeners = new Set<PlayheadListener>();
 
   getSnapshot = (): PlayheadSnapshot => this.snapshot;
@@ -32,12 +35,24 @@ export class PlayheadStore {
     };
   };
 
+  /** A user intent: move the playhead. The executor seeks the media element. */
   seek(ms: number): void {
-    this.set({ ms: Math.max(0, ms), playing: this.snapshot.playing });
+    this.set({
+      ms: Math.max(0, ms),
+      playing: this.snapshot.playing,
+      seekSeq: this.snapshot.seekSeq + 1,
+    });
+  }
+
+  /** Mirror of the element's actual clock. Never triggers a seek. */
+  syncFromMedia(ms: number): void {
+    if (ms === this.snapshot.ms) return;
+    this.set({ ...this.snapshot, ms });
   }
 
   setPlaying(playing: boolean): void {
-    this.set({ ms: this.snapshot.ms, playing });
+    if (playing === this.snapshot.playing) return;
+    this.set({ ...this.snapshot, playing });
   }
 
   togglePlaying(): void {
@@ -45,7 +60,6 @@ export class PlayheadStore {
   }
 
   private set(next: PlayheadSnapshot): void {
-    if (next.ms === this.snapshot.ms && next.playing === this.snapshot.playing) return;
     this.snapshot = next;
     for (const listener of this.listeners) listener();
   }
