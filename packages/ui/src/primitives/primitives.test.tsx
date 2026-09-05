@@ -22,6 +22,7 @@ import {
 } from "./context-menu";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "./dialog";
 import { Input } from "./input";
+import { Kbd, KbdGroup } from "./kbd";
 import { Field } from "./label";
 import {
   Menubar,
@@ -298,5 +299,27 @@ describe("<ContextMenu />", () => {
     const destructive = screen.getByText("Delete word");
     expect(destructive.className).toContain("text-red-400");
     expect(destructive).toHaveAttribute("data-disabled");
+  });
+});
+
+// OC-04 kbd
+describe("<Kbd />", () => {
+  it("renders a kbd element carrying the key it names", () => {
+    render(<Kbd>S</Kbd>);
+    const cap = screen.getByText("S");
+    expect(cap.tagName).toBe("KBD");
+    expect(cap).toHaveAttribute("data-slot", "kbd");
+  });
+
+  it("groups one cap per key of a chord", () => {
+    render(
+      <KbdGroup data-testid="chord">
+        <Kbd>Ctrl</Kbd>
+        <Kbd>Z</Kbd>
+      </KbdGroup>,
+    );
+    const group = screen.getByTestId("chord");
+    expect(group).toHaveAttribute("data-slot", "kbd-group");
+    expect(group.querySelectorAll("kbd")).toHaveLength(2);
   });
 });

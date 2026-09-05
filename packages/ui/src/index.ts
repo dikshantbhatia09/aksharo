@@ -103,6 +103,9 @@ export {
 } from "./primitives/context-menu";
 export type { ContextMenuItemProps, ContextMenuLabelProps } from "./primitives/context-menu";
 
+// OC-04 kbd
+export { Kbd, KbdGroup } from "./primitives/kbd";
+
 // --- Product components -----------------------------------------------------
 export {
   CreditMeter,
