@@ -44,6 +44,7 @@ import { testRedisUrl } from "./redis-harness.js";
 import { PLAN_SEEDS } from "../prisma/seed-data.js";
 import { S3ObjectStore } from "../src/common/storage/index.js";
 import { resolveEnv } from "../src/config/config.module.js";
+import { DEFAULT_STYLE_REF } from "../src/edg/init/transcript-init.js";
 
 import type { ObjectStore } from "../src/common/storage/index.js";
 
@@ -132,24 +133,26 @@ describe.skipIf(!CAN_RUN)("exports — cloud render path (real apps/render worke
     // its own `test/credits-ledger.e2e-spec.ts`.
     await fundWorkspaceCredits(ctx.app, ctx.workspaceId, AMPLE_TEST_CREDIT_TENTHS);
 
-    // `EdgService.initialise` defaults an uncaptioned document's style to
-    // "clean-bold" (its own internal default) rather than the segmenter's
-    // "vertical-clean" default, which only applies through `edgInitInputFor`;
-    // `edg-harness.ts`'s `seed()` calls `initialise` directly.
+    // `edg-harness.ts`'s `seed()` calls `initialise` directly, so the document
+    // carries `initialise`'s own default style and this suite database — unlike a
+    // seeded deployment — holds no system presets. This fixture used to create a
+    // "clean-bold" row because that was the default; that id ships in no package,
+    // which is exactly why it was replaced by `DEFAULT_STYLE_REF`. The row now
+    // matches the real default so the manifest snapshot carries a real StyleDoc.
     const existingStyle = await ctx.prisma.stylePreset.findFirst({
-      where: { workspaceId: null, key: "clean-bold" },
+      where: { workspaceId: null, key: DEFAULT_STYLE_REF },
     });
     if (existingStyle === null) {
-      const doc = loadSystemStyleMap().get("vertical-clean");
-      if (doc === undefined) throw new Error("vertical-clean system style missing");
+      const doc = loadSystemStyleMap().get(DEFAULT_STYLE_REF);
+      if (doc === undefined) throw new Error(`${DEFAULT_STYLE_REF} system style missing`);
       await ctx.prisma.stylePreset.create({
         data: {
           id: "01JEXPSTYLEVCLEAN00000001",
           workspaceId: null,
-          key: "clean-bold",
-          name: "Clean Bold",
+          key: DEFAULT_STYLE_REF,
+          name: "Vertical Clean",
           category: "general",
-          doc: { ...doc, id: "clean-bold" },
+          doc: { ...doc, id: DEFAULT_STYLE_REF },
         },
       });
     }

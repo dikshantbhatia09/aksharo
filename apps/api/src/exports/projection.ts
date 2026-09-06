@@ -14,6 +14,8 @@ import { createHash } from "node:crypto";
 
 import type { EdgProjection, Speaker, TranscriptChunk } from "@montaj/edg/schemas";
 
+import { systemStyle } from "../edg/init/caption-budgets.js";
+
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 
 /** `apps/render/src/queues.ts` `RenderProjectionSchema`, restated for the API side. */
@@ -151,11 +153,17 @@ export async function resolveStyleSnapshot(
   const catalogueSnapshotIds: string[] = [];
   for (const ref of refs) {
     const resolved = byKey.get(ref);
-    // A style the document names but the catalogue no longer has (a deleted
-    // custom preset) still needs a stable content id — hashing the bare ref
-    // keeps the manifest well-formed rather than aborting the export over a
-    // presentation detail.
-    const doc = resolved?.doc ?? { styleRef: ref };
+    // A system style that has no `style_presets` row — an unseeded deployment,
+    // or a suite database — is still a real style: take it from the same
+    // catalogue the editor renders from. Without this the manifest carried a
+    // bare `{ styleRef }` placeholder and the render worker rejected the whole
+    // export with `render/bad-style`, so a cloud render failed for a document
+    // whose captions the browser had been drawing perfectly all along.
+    //
+    // Only a style that is neither a preset nor a system style falls through to
+    // the placeholder: a deleted custom preset still needs a stable content id,
+    // and a well-formed manifest beats aborting over a presentation detail.
+    const doc = resolved?.doc ?? systemStyle(ref) ?? { styleRef: ref };
     // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
     styles[ref] = doc;
     catalogueSnapshotIds.push(`${ref}@${contentHash(doc)}`);
