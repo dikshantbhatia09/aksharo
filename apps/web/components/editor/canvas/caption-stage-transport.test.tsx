@@ -1,7 +1,7 @@
 import { render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CaptionStage } from "./CaptionStage";
+import { CaptionStage, displayScriptOf } from "./CaptionStage";
 
 // EXACT specifier copied from CaptionStage.tsx's own import of useRenderer
 // (`import { useRenderer } from "./use-canvaskit";`, CaptionStage.tsx:40).
@@ -55,5 +55,23 @@ describe("CaptionStage transport (FIX-02)", () => {
     const view = render(stage({ src: undefined }));
     expect(view.queryByTestId("caption-stage-video")).toBeNull();
     expect(view.getByTestId("caption-stage-no-media")).toBeInTheDocument();
+  });
+});
+
+/**
+ * The script strip drove the transcript list only: `CaptionStage` had no
+ * `script` prop at all, so `renderFrame` fell back to "roman" and the captions
+ * ON THE VIDEO never changed when the user switched Roman/Native/EN.
+ */
+describe("displayScriptOf (the strip's selection, narrowed for the renderer)", () => {
+  it("passes through the scripts a word can actually carry", () => {
+    expect(displayScriptOf("native")).toBe("native");
+    expect(displayScriptOf("en")).toBe("en");
+    expect(displayScriptOf("roman")).toBe("roman");
+  });
+
+  it("draws the transcript's own text for anything else", () => {
+    expect(displayScriptOf(undefined)).toBe("roman");
+    expect(displayScriptOf("translated")).toBe("roman");
   });
 });

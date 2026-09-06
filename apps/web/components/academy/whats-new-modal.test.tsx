@@ -62,4 +62,34 @@ describe("<WhatsNewModal />", () => {
     );
     expect(dismissPost).toBeUndefined();
   });
+
+  // 2026-09-05: this dialog is modal, so its overlay covered the editor, `body`
+  // took pointer-events:none and the app root went aria-hidden — every control
+  // on /p/{id} (style gallery, script tabs, timeline) was dead until it was
+  // dismissed. It can even open mid-edit, because `hasProjects` flips when the
+  // projects query resolves.
+  it("never covers an open document, and does not burn the version doing so", async () => {
+    stubChangelogRoute();
+    const original = window.location.pathname;
+    window.history.replaceState({}, "", "/p/01PROJECT");
+    try {
+      const { fetchMock } = renderWithProviders(<WhatsNewModal hasProjects />, {
+        routes: { "/academy/changelog/dismissed": { dismissedVersion: null } },
+      });
+
+      await waitFor(() => {
+        expect(
+          fetchMock.mock.calls.some(([input]) => String(input).includes("/academy/changelog")),
+        ).toBe(true);
+      });
+      expect(screen.queryByTestId("whats-new-modal")).toBeNull();
+
+      const dismissPost = fetchMock.mock.calls.find(
+        ([, init]) => (init as RequestInit | undefined)?.method === "POST",
+      );
+      expect(dismissPost).toBeUndefined();
+    } finally {
+      window.history.replaceState({}, "", original);
+    }
+  });
 });

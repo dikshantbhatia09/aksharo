@@ -32,6 +32,7 @@ import {
   SnapshotNotFoundError,
 } from "./edg.repository.js";
 import { aspectToStored, CANVAS_SIZES, canvasAspectFor } from "./init/caption-budgets.js";
+import { DEFAULT_STYLE_REF } from "./init/transcript-init.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { RealtimePublisher } from "../realtime/realtime.publisher.js";
@@ -415,10 +416,16 @@ export class EdgService {
 
     const edgId = newId();
     const words: Word[] = transcript.chunks.flatMap((chunk) => chunk.words);
+    // Deliberately NOT stamping `styleRef` on each segment: the chosen style is
+    // the document default below, and `resolveStyle` reads
+    // `segment.styleRef ?? styles.defaultStyleId`. Stamping every segment with
+    // the same id made that fallback unreachable, so changing the document's
+    // style never reached the preview or the export — the caption style simply
+    // could not be changed. A segment carries a styleRef only once the user
+    // gives that one caption its own style.
     const segments = segmentWords(words, transcript.segmenter ?? {}, {
       newId,
       dropFillers: transcript.dropFillers === true,
-      ...(transcript.styleRef === undefined ? {} : { styleRef: transcript.styleRef }),
     });
 
     // The primary the budget half measures against: `TranscribeHandler.budgetsFor`
@@ -466,7 +473,7 @@ export class EdgService {
         ...(transcript.speakers === undefined ? {} : { speakers: [...transcript.speakers] }),
       },
       canvas: { aspect, width: canvas.width, height: canvas.height },
-      styles: { defaultStyleId: transcript.styleRef ?? "clean-bold" },
+      styles: { defaultStyleId: transcript.styleRef ?? DEFAULT_STYLE_REF },
     };
 
     const created = await this.repository.createDocument({

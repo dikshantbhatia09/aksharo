@@ -65,6 +65,16 @@ export function WhatsNewModal({
   React.useEffect(() => {
     if (openedRef.current) return;
     if (!hasProjects) return;
+    // Never over an open document. This dialog is modal: its overlay covers the
+    // viewport, `body` gets pointer-events:none and the app root goes
+    // aria-hidden, so every editor control - the style gallery, the script
+    // tabs, the timeline - is dead until it is dismissed. It can also open
+    // mid-session, because `hasProjects` flips when the projects query
+    // resolves. Same rule the shell already applies to toasts over
+    // `/p/{projectId}`, and the same "hold it back without spending the
+    // version" shape as the first-run guard above: `openedRef` stays false and
+    // nothing is dismissed, so the news still arrives on the next screen.
+    if (typeof window !== "undefined" && window.location.pathname.startsWith("/p/")) return;
     if (latest === null || latest.version === null) return;
     if (dismissed.data === undefined) return;
     if (dismissed.data.dismissedVersion === latest.version) return;

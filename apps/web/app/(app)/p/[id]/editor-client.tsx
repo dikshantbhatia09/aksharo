@@ -1000,6 +1000,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                     onMediaError={() => timelineMedia.refresh()}
                     projection={projection}
                     catalogue={SYSTEM_STYLE_MAP}
+                    script={script}
                     {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
                     onOp={(op) => {
                       // The stage's drag op arrives with the panel module's

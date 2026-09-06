@@ -23,7 +23,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 
 import type { StyleDoc } from "@montaj/caption-styles";
 import { layoutFrame, renderFrame } from "@montaj/render-core";
-import type { EdgProjection } from "@montaj/render-core";
+import type { DisplayScript, EdgProjection } from "@montaj/render-core";
 
 import {
   type Anchor,
@@ -54,6 +54,18 @@ interface MaybeFrameCallbackVideo {
   cancelVideoFrameCallback?: (handle: number) => void;
 }
 
+/**
+ * The script strip's selection, narrowed to what a word actually carries.
+ *
+ * The strip can offer a translation tab that has no word slot; those draw the
+ * transcript's own text, which is what `renderFrame` calls "roman". Exported so
+ * the narrowing is pinned by a test rather than living inline in a component
+ * whose renderer a unit test cannot drive.
+ */
+export function displayScriptOf(script: string | undefined): DisplayScript {
+  return script === "native" || script === "en" ? script : "roman";
+}
+
 export interface CaptionStageProps {
   /** Proxy URL from the derived store; `undefined` while none exists (audio-only,
    * still transcoding, or the media request failed). Never pass `""` — an empty
@@ -78,6 +90,13 @@ export interface CaptionStageProps {
   readonly onPlayBlocked?: (reason: string) => void;
   /** The element errored after load (expired URL mid-session, network drop). */
   readonly onMediaError?: () => void;
+  /**
+   * Which of a word's scripts the overlay draws — the script strip's own
+   * selection. Without it `renderFrame` falls back to "roman", so switching
+   * Roman/Native/EN changed the transcript list and left the video's captions
+   * in Roman for ever (the audit's "changing the language does nothing").
+   */
+  readonly script?: string;
   readonly showSafeZones?: boolean;
   readonly className?: string;
   /**
@@ -119,10 +138,13 @@ export function CaptionStage({
   onEnded,
   onPlayBlocked,
   onMediaError,
+  script,
   showSafeZones = true,
   className,
   children,
 }: CaptionStageProps): React.JSX.Element {
+  const displayScript = displayScriptOf(script);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
@@ -250,6 +272,7 @@ export function CaptionStage({
       shaper: engine.shaper,
       canvas: surfaceCanvas,
       outputMs,
+      script: displayScript,
     } as const;
 
     backend.drawFrame(surface.getCanvas(), renderFrame(options), { background: "#00000000" });
@@ -275,6 +298,7 @@ export function CaptionStage({
     outputMs,
     selectedSegmentId,
     dragPreview,
+    displayScript,
   ]);
 
   const styleOf = useCallback(
