@@ -17,9 +17,15 @@
  *    `force: true`. The warning quotes the server's own rule so the two can
  *    never drift apart.
  * 2. **No `announceTranscriptReady` on 202.** The job has been *accepted*, not
- *    finished. FIX-03's pipeline (the shell's push, or the waiting screen's
- *    poll) announces the new document when it actually exists; until then the
- *    editor keeps showing the old one, which is the only document there is.
+ *    finished. FIX-03's pipeline announces the new document when it actually
+ *    exists — but its fallback poll (`pollTranscriptionState`) used to live
+ *    only in `needs-transcription.tsx`, which never mounts here: the project
+ *    already has a document, so the editor stays up and push (`AppShell`'s
+ *    realtime listener) was the only thing watching. A dropped socket or a
+ *    backgrounded tab during the job's 10-60 s then meant the editor never
+ *    heard the job finish — silently, forever. This dialog now runs that same
+ *    poll itself once the 202 lands, and shows the badge below for as long as
+ *    it's waiting, so a missed push degrades to "a bit slower", not "nothing".
  *
  * `defineEndpoint` is `@montaj/api-client`'s documented escape hatch for a
  * route the curated hooks do not cover — the same pattern
@@ -29,6 +35,7 @@
  * `TranscribeAcceptedDto`.
  */
 
+import { Loader2 } from "lucide-react";
 import * as React from "react";
 
 import { ApiError, defineEndpoint, useRawApiClient } from "@montaj/api-client";
@@ -44,6 +51,11 @@ import {
 } from "@montaj/ui";
 
 import { LanguagePicker, rememberLanguage } from "@/components/projects/language-picker";
+import {
+  announceTranscriptReady,
+  onTranscriptReady,
+  pollTranscriptionState,
+} from "@/lib/edg/transcription-state";
 import { messageForError } from "@/lib/errors";
 
 interface RetranscribeRequest {
@@ -107,6 +119,11 @@ export function RetranscribeDialog({
   const [language, setLanguage] = React.useState<string | undefined>(sourceLanguage ?? undefined);
   const [confirmingEdits, setConfirmingEdits] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  // Whether the 202's fallback poll (below) is still waiting on the job. Kept
+  // alive across the dialog's own open/close — the badge it drives is the
+  // point, and it has nothing to do with whether the dialog is on screen.
+  const [retranscribing, setRetranscribing] = React.useState(false);
+  const stopPollRef = React.useRef<() => void>(() => undefined);
 
   // Reopening the dialog starts from the project's language again, not from
   // whatever was half-chosen and abandoned last time.
@@ -115,6 +132,21 @@ export function RetranscribeDialog({
     setLanguage(sourceLanguage ?? undefined);
     setConfirmingEdits(false);
   }, [open, sourceLanguage]);
+
+  // The push path (`AppShell`'s realtime listener) usually wins this race —
+  // when it does, stop polling immediately rather than riding out the backoff
+  // to the same answer a second time.
+  React.useEffect(
+    () =>
+      onTranscriptReady(projectId, () => {
+        stopPollRef.current();
+        setRetranscribing(false);
+      }),
+    [projectId],
+  );
+
+  // Never leave a request running past this component's own lifetime.
+  React.useEffect(() => () => stopPollRef.current(), []);
 
   async function submit(force: boolean): Promise<void> {
     if (language === undefined) return;
@@ -127,9 +159,26 @@ export function RetranscribeDialog({
       rememberLanguage(language);
       setOpen(false);
       setConfirmingEdits(false);
-      // Deliberately no `announceTranscriptReady` — see the file comment.
       toast.success("Transcribing again…", {
         description: "The editor updates itself when the new transcript is ready.",
+      });
+
+      // No `announceTranscriptReady` here — the job has been *accepted*, not
+      // finished. `AppShell`'s realtime listener announces it when it actually
+      // completes; this poll is the fallback for when that push is missed —
+      // see the file comment for why this dialog needs one of its own.
+      stopPollRef.current();
+      setRetranscribing(true);
+      stopPollRef.current = pollTranscriptionState(client, projectId, (view) => {
+        if (view.status === "ready") {
+          setRetranscribing(false);
+          announceTranscriptReady(projectId);
+        } else if (view.status === "failed") {
+          setRetranscribing(false);
+          toast.error("The re-transcription did not finish", {
+            description: view.error ?? "The transcription failed.",
+          });
+        }
       });
     } catch (error) {
       if (error instanceof ApiError && error.code === "transcript/has_edits") {
@@ -156,6 +205,16 @@ export function RetranscribeDialog({
           Re-transcribe
         </Button>
       )}
+      {retranscribing ? (
+        <span
+          className="text-fg-3 flex items-center gap-1.5 text-xs"
+          role="status"
+          data-testid="retranscribing-indicator"
+        >
+          <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+          Re-transcribing…
+        </span>
+      ) : null}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent data-testid="retranscribe-dialog">
           <DialogHeader>

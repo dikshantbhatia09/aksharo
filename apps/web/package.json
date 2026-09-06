@@ -6,8 +6,8 @@
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
-    "build": "next build",
-    "dev": "next dev --port 3000",
+    "build": "node scripts/copy-render-assets.mjs && next build",
+    "dev": "node scripts/copy-render-assets.mjs && next dev --port 3000",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

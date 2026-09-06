@@ -17,6 +17,8 @@ import { LanguagePicker, rememberLanguage } from "@/components/projects/language
 import {
   announceTranscriptReady,
   getTranscriptionState,
+  TRANSCRIPTION_POLL_BACKOFF_MS,
+  TRANSCRIPTION_WAITING_STATUSES,
   type TranscriptionStateView,
 } from "@/lib/edg/transcription-state";
 import { messageForError } from "@/lib/errors";
@@ -59,16 +61,6 @@ import { messageForError } from "@/lib/errors";
  * instead of staying invisible: the poll settles on it and the phase renders the
  * failure with a way back to the offer, rather than spinning forever.
  */
-
-/** 4 s -> 8 s -> 15 s, then 15 s for as long as the screen is genuinely waiting. */
-const POLL_BACKOFF_MS = [4_000, 8_000, 15_000] as const;
-
-/** The states that are still moving — the only ones worth another request. */
-const WAITING: ReadonlySet<TranscriptionStateView["status"]> = new Set([
-  "queued",
-  "running",
-  "processing_media",
-]);
 
 export function NeedsTranscription({ projectId }: { projectId: string }): React.JSX.Element {
   const client = useRawApiClient();
@@ -118,7 +110,7 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
         if (
           phase === "aligning"
             ? next.status === "ready" || next.status === "failed"
-            : !WAITING.has(next.status)
+            : !TRANSCRIPTION_WAITING_STATUSES.has(next.status)
         )
           return;
       } catch {
@@ -126,7 +118,9 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
         // keep the rhythm and try again on the next tick.
         if (cancelled) return;
       }
-      const delay = POLL_BACKOFF_MS[Math.min(attempt, POLL_BACKOFF_MS.length - 1)] ?? 15_000;
+      const delay =
+        TRANSCRIPTION_POLL_BACKOFF_MS[Math.min(attempt, TRANSCRIPTION_POLL_BACKOFF_MS.length - 1)] ??
+        15_000;
       attempt += 1;
       timer = setTimeout(() => void tick(), delay);
     }

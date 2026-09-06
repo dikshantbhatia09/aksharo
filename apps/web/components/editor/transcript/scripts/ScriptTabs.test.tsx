@@ -95,7 +95,8 @@ describe("<ScriptTabs />", () => {
       },
     });
     await user.click(await screen.findByRole("tab", { name: "+ Add translation…" }));
-    await user.selectOptions(screen.getByLabelText("Translate to"), "en");
+    await user.click(screen.getByLabelText("Translate to"));
+    await user.click(await screen.findByRole("menuitem", { name: "English" }));
 
     await waitFor(() => {
       expect(calledPath(fetchMock, "/translate")).toBe(true);
@@ -134,7 +135,8 @@ describe("<ScriptTabs />", () => {
       },
     });
     await user.click(await screen.findByRole("tab", { name: "+ Add translation…" }));
-    await user.selectOptions(screen.getByLabelText("Translate to"), "en");
+    await user.click(screen.getByLabelText("Translate to"));
+    await user.click(await screen.findByRole("menuitem", { name: "English" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/does not include this translation/);
   });

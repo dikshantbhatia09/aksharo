@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { reduceWaveform, type WaveformLike } from "./waveform-view";
+import { reduceWaveform, waveformDrawWindow, type WaveformLike } from "./waveform-view";
 
 function makeWaveform(): WaveformLike {
   // 10s of audio: peaks at 100/s (1000 samples), rms at 10/s (100 samples).
@@ -51,5 +51,50 @@ describe("reduceWaveform", () => {
     };
     const buckets = reduceWaveform(waveform, 0, waveform.durationMs, 1920);
     expect(buckets).toHaveLength(1920);
+  });
+});
+
+describe("waveformDrawWindow", () => {
+  // A 20s clip at the default 30 ms/px zoom on a 2000px canvas shows up to
+  // 60s of ruler — exactly the "viewport wider than the media" case issue #4
+  // reported (waveform drawn well past the 20s mark).
+  const viewport = { scrollMs: 0, msPerPx: 30, widthPx: 2_000 };
+
+  it("bounds the drawn width to the media's duration, not the full canvas", () => {
+    const window = waveformDrawWindow(viewport, 20_000, { startMs: 0, endMs: 60_000 });
+    expect(window).toBeDefined();
+    // 20_000ms / 30ms-per-px = 666.67px, rounded up to cover the last partial pixel.
+    expect(window?.pxStart).toBe(0);
+    expect(window?.widthPx).toBe(667);
+    expect(window?.widthPx).toBeLessThan(viewport.widthPx);
+  });
+
+  it("draws full width when the visible range already sits inside the duration", () => {
+    // A long video, scrolled into the middle (scrollMs matches the visible
+    // window's own start, as `visibleRange` always produces): nothing here
+    // should clamp.
+    const scrolledIn = { scrollMs: 10_000, msPerPx: 30, widthPx: 2_000 };
+    const window = waveformDrawWindow(scrolledIn, 3_600_000, { startMs: 10_000, endMs: 70_000 });
+    expect(window?.pxStart).toBe(0);
+    expect(window?.widthPx).toBe(2_000);
+    expect(window?.startMs).toBe(10_000);
+    expect(window?.endMs).toBe(70_000);
+  });
+
+  it("offsets pxStart when scrolled so the visible range starts after 0", () => {
+    const scrolled = { scrollMs: 6_000, msPerPx: 30, widthPx: 2_000 };
+    const window = waveformDrawWindow(scrolled, 20_000, { startMs: 6_000, endMs: 66_000 });
+    expect(window?.pxStart).toBe(0);
+    // Remaining duration from 6s to 20s = 14_000ms / 30ms-per-px.
+    expect(window?.widthPx).toBe(Math.ceil(14_000 / 30));
+  });
+
+  it("returns undefined once the visible range has scrolled entirely past the duration", () => {
+    const window = waveformDrawWindow(viewport, 20_000, { startMs: 25_000, endMs: 85_000 });
+    expect(window).toBeUndefined();
+  });
+
+  it("returns undefined for a zero or negative duration (no media loaded yet)", () => {
+    expect(waveformDrawWindow(viewport, 0, { startMs: 0, endMs: 60_000 })).toBeUndefined();
   });
 });

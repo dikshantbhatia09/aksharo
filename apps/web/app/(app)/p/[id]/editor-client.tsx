@@ -1144,6 +1144,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                   displayMode={timelineDisplayMode}
                   onDisplayModeChange={setTimelineDisplayMode}
                   nudgeSink={noopNudgeSink}
+                  script={wordScript}
                 />
               </div>
             </ContextMenuTrigger>
