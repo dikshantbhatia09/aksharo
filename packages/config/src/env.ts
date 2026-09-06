@@ -20,6 +20,7 @@ export const CONTRACT_ENV_VARS = [
   "S3_BUCKET_RAW",
   "S3_ACCESS_KEY",
   "S3_SECRET_KEY",
+  "S3_PUBLIC_ENDPOINT",
   "R2_ENDPOINT",
   "R2_BUCKET_DERIVED",
   "R2_ACCESS_KEY",
@@ -142,6 +143,16 @@ export const envSchema = z.object({
   S3_BUCKET_RAW: nonEmpty("S3_BUCKET_RAW"),
   S3_ACCESS_KEY: nonEmpty("S3_ACCESS_KEY"),
   S3_SECRET_KEY: nonEmpty("S3_SECRET_KEY"),
+  // The origin BROWSERS PUT/GET raw media through (presigned multipart uploads,
+  // CONTRACTS §6 — the upload never goes through the API). Falls back to
+  // S3_ENDPOINT when unset. Internal head/tag/delete calls keep using
+  // S3_ENDPOINT directly — same split as R2_PUBLIC_ENDPOINT below, added after
+  // production's internal stat calls were found round-tripping through a
+  // public tunnel and hitting transient failures (2026-09-06).
+  S3_PUBLIC_ENDPOINT: optionalSecret().refine(
+    (value) => value === undefined || /^https?:\/\/[^\s]+$/.test(value),
+    "S3_PUBLIC_ENDPOINT must be an http(s) URL, for example https://uploads.example.com",
+  ),
 
   // --- Derived object storage (Cloudflare R2 in production, MinIO locally) ---
   R2_ENDPOINT: httpOrigin("R2_ENDPOINT"),
@@ -368,10 +379,12 @@ export function crossFieldProblems(
           "every derived media object. Point R2_PUBLIC_ENDPOINT at an https origin.",
       );
     }
-    if (env.S3_ENDPOINT.startsWith("http://")) {
+    const rawPublic = env.S3_PUBLIC_ENDPOINT ?? env.S3_ENDPOINT;
+    if (rawPublic.startsWith("http://")) {
       problems.push(
-        `S3_ENDPOINT is plain http ("${env.S3_ENDPOINT}") while WEB_ORIGIN is https ` +
-          "— browser uploads will be blocked. Use an https origin.",
+        `S3_PUBLIC_ENDPOINT (or S3_ENDPOINT as its fallback) is plain http ` +
+          `("${rawPublic}") while WEB_ORIGIN is https — browser uploads will be ` +
+          "blocked. Point S3_PUBLIC_ENDPOINT at an https origin.",
       );
     }
   }

@@ -47,21 +47,29 @@ import type { NextConfig } from "next";
  * `connect-src` also never covered the raw-media object store: the browser
  * upload (`GET /projects/{id}/media/init` then a direct presigned
  * multipart `PUT` from the browser straight to S3/MinIO, CONTRACTS §6 — the
- * upload never goes through the API) targets `S3_ENDPOINT` directly, and in
- * dev/e2e that is a plain `http://localhost:9000`, which nothing in the
- * source list matched. Every such `PUT` was silently blocked (CSP console
- * error, no network entry — the same failure mode `API_ORIGIN`'s own gap
- * above had), so zero bytes ever reached storage and no `media.probe` job
- * was ever created — Gate A's "sign-up through cloud render" journey failed
- * at `expect(probeJob).toBeDefined()` for exactly this reason, not a
- * worker or throughput issue. Production's object store sits behind a real
- * `https://` CDN/R2 origin, already covered by the `https:` keyword;
- * `S3_ENDPOINT` is added the same way `API_ORIGIN` is, so only the
- * dev/e2e `http://` case needs the explicit origin.
+ * upload never goes through the API) targets `S3_PUBLIC_ENDPOINT` (falling
+ * back to `S3_ENDPOINT`) directly, and in dev/e2e that is a plain
+ * `http://localhost:9000`, which nothing in the source list matched. Every
+ * such `PUT` was silently blocked (CSP console error, no network entry — the
+ * same failure mode `API_ORIGIN`'s own gap above had), so zero bytes ever
+ * reached storage and no `media.probe` job was ever created — Gate A's
+ * "sign-up through cloud render" journey failed at
+ * `expect(probeJob).toBeDefined()` for exactly this reason, not a worker or
+ * throughput issue. `S3_PUBLIC_ENDPOINT` is added the same way `API_ORIGIN`
+ * is, so only the dev/e2e `http://` case needs the explicit origin; a real
+ * `https://` production origin is already covered by the `https:` keyword
+ * (the split itself exists so the API's own internal head/stat calls can
+ * keep using a different, local `S3_ENDPOINT` instead of round-tripping
+ * through the same public origin — see `packages/config/src/env.ts`).
  */
 const API_ORIGIN = process.env["API_ORIGIN"]?.trim() ?? "";
 const API_WS_ORIGIN = API_ORIGIN.replace(/^http/, "ws");
-const S3_ENDPOINT = process.env["S3_ENDPOINT"]?.trim() ?? "";
+// Browser-facing raw-store origin: the multipart PUT the upload flow issues
+// straight to the store. Falls back to S3_ENDPOINT so an all-http local dev
+// setup keeps working; the config package refuses the truly broken
+// combination (https page + http store) at API boot.
+const S3_PUBLIC_ENDPOINT =
+  process.env["S3_PUBLIC_ENDPOINT"]?.trim() || (process.env["S3_ENDPOINT"]?.trim() ?? "");
 // Browser-facing derived-store origin (FIX-01). Falls back to R2_ENDPOINT so an
 // all-http local dev setup keeps working; the config package refuses the truly
 // broken combination (https page + http store) at API boot.
@@ -78,7 +86,7 @@ const SECURITY_HEADERS = [
       ["img-src 'self' data: blob: https:", R2_PUBLIC_ENDPOINT].filter(Boolean).join(" "),
       ["media-src 'self' blob: https:", R2_PUBLIC_ENDPOINT].filter(Boolean).join(" "),
       "font-src 'self' data:",
-      ["connect-src 'self' https: wss:", API_ORIGIN, API_WS_ORIGIN, S3_ENDPOINT, R2_PUBLIC_ENDPOINT]
+      ["connect-src 'self' https: wss:", API_ORIGIN, API_WS_ORIGIN, S3_PUBLIC_ENDPOINT, R2_PUBLIC_ENDPOINT]
         .filter(Boolean)
         .join(" "),
       "frame-ancestors 'none'",

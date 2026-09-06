@@ -37,9 +37,11 @@ export interface S3ObjectStoreConfig {
   readonly bucket: string;
   readonly endpoint: string;
   /**
-   * Origin used ONLY for presigned GET URLs handed to browsers. Internal reads
-   * and writes keep using `endpoint`. SigV4 binds the signature to the host, so
-   * this must be the exact origin (scheme, host, port) the browser will hit.
+   * Origin used for every presigned URL handed to a browser: GETs, single-shot
+   * PUTs and multipart upload parts. Direct, unsigned SDK calls the API makes
+   * for itself (head, tag, delete, create/complete multipart) always keep
+   * using `endpoint`. SigV4 binds the signature to the host, so this must be
+   * the exact origin (scheme, host, port) the browser will hit.
    */
   readonly publicEndpoint?: string;
   readonly region: string;
@@ -135,7 +137,7 @@ export class S3ObjectStore implements ObjectStore {
     const parts: PresignedPart[] = [];
     for (let partNumber = 1; partNumber <= partCount; partNumber += 1) {
       const url = await getSignedUrl(
-        this.client,
+        this.presignClient,
         new UploadPartCommand({
           Bucket: this.bucket,
           Key: input.key,
@@ -209,7 +211,7 @@ export class S3ObjectStore implements ObjectStore {
 
   async presignPut(key: string, expiresInSeconds: number, contentType?: string): Promise<string> {
     return getSignedUrl(
-      this.client,
+      this.presignClient,
       new PutObjectCommand({
         Bucket: this.bucket,
         Key: key,

@@ -253,4 +253,34 @@ describe("S3ObjectStore presign origins (FIX-01)", () => {
     const url = await store.presignGet("ws/p/m/proxy540.mp4", 300);
     expect(new URL(url).origin).toBe("http://localhost:9000");
   });
+
+  // The raw store's real upload path (createMultipartUpload's part URLs, and
+  // presignPut for objects small enough to skip multipart) is a browser PUT,
+  // not a GET — a public/private split that only covered GET left every such
+  // upload signed against the internal endpoint, unreachable from a real
+  // browser once that endpoint stopped being public (2026-09-06).
+  it("signs a single-shot PUT against the public endpoint when one is configured", async () => {
+    const store = new S3ObjectStore({
+      ...BASE,
+      endpoint: "http://localhost:9000",
+      publicEndpoint: "https://uploads.example.com",
+    });
+    const url = await store.presignPut("ws/a/small.json", 60, "application/json");
+    expect(new URL(url).origin).toBe("https://uploads.example.com");
+  });
+
+  it("signs multipart upload parts against the public endpoint when one is configured", async () => {
+    const store = new S3ObjectStore({
+      ...BASE,
+      endpoint: "http://localhost:9000",
+      publicEndpoint: "https://uploads.example.com",
+    });
+    (store as unknown as { client: { send: unknown } }).client.send = vi
+      .fn()
+      .mockResolvedValueOnce({ UploadId: "upload-1" });
+    const upload = await store.createMultipartUpload({ key: "ws/a/raw.mp4", sizeBytes: 10 });
+    for (const part of upload.parts) {
+      expect(new URL(part.url).origin).toBe("https://uploads.example.com");
+    }
+  });
 });
