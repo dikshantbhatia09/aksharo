@@ -224,7 +224,7 @@ export function ScriptTabs({
           </label>
           <select
             id="translation-target"
-            className="border-border rounded-sm border bg-transparent px-2 py-1 text-sm"
+            className="border-border bg-bg-1 text-fg-0 rounded-sm border px-2 py-1 text-sm [color-scheme:dark]"
             defaultValue=""
             onChange={(event) => {
               if (event.target.value) requestTranslation(event.target.value);
@@ -234,7 +234,7 @@ export function ScriptTabs({
               Choose a language…
             </option>
             {TRANSLATION_LANGUAGE_OPTIONS.map((option) => (
-              <option key={option.tag} value={option.tag}>
+              <option key={option.tag} value={option.tag} className="bg-bg-1 text-fg-0">
                 {option.label}
               </option>
             ))}
