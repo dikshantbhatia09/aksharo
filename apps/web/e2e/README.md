@@ -67,13 +67,19 @@ Three preconditions the product now enforces. A spec that skips one does not
 fail with a helpful message — it hangs on a tray row that never moves, which
 is exactly how `upload.spec.ts` and `gate-a.spec.ts` came to be red at base.
 
-- **Pick a language before `dropFile` (F04).** The funnel ends in a paid
-  transcription, so Home refuses a drop that has no explicit language: it
-  raises the toast "Choose the spoken language first" and focuses the picker
-  instead of uploading anything (`home-view.tsx:118-130`). Every journey
-  clicks `quick-pick-language-hi-Latn` first. A project that does reach the
-  server without one is what the read model calls `awaiting_language`, and its
-  tray row reads "Needs attention — open the project".
+- **Pick a language in "Prepare Your Media" after `dropFile` (F04, moved into
+  the modal by K02).** The funnel ends in a paid transcription, so a single
+  file dropped opens the `prepare-media-modal` dialog and does not upload
+  until `Generate Transcription` is used — that button stays disabled without
+  an explicit language (`home-view.tsx`'s `PrepareMediaModal` wiring;
+  `prepare-media-modal.tsx`). Every journey opens the dialog, clicks
+  `quick-pick-language-trigger`, then `quick-pick-language-hi-Latn` inside it,
+  then `prepare-media-generate` (see `upload.spec.ts`/`gate-a.spec.ts`'s
+  `prepareAndUpload` helper). Two or more files at once still goes through the
+  old pre-drop gate on the quick-pick row instead (`BatchApplyToAllSheet`'s
+  path, unchanged). A project that does reach the server without a language is
+  what the read model calls `awaiting_language`, and its tray row reads
+  "Needs attention — open the project".
 - **Grant credits before anything that transcribes or renders (B01).** A
   freshly signed-up workspace has a real, enforced **zero** balance: its first
   monthly grant comes from a scheduled job that `playwright.config.ts` turns

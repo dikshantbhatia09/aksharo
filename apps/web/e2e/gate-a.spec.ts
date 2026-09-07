@@ -74,6 +74,21 @@ function dropFile(page: Page, path: string): Promise<void> {
 }
 
 /**
+ * K02: a single file dropped now opens "Prepare Your Media" instead of
+ * uploading on the spot — the language pick (still the F04 cost-control
+ * gate: `Generate Transcription` stays disabled without one) moved from a
+ * pre-drop click on the quick-pick row into this dialog.
+ */
+async function prepareAndUpload(page: Page, path: string, language: string): Promise<void> {
+  await dropFile(page, path);
+  const modal = page.getByTestId("prepare-media-modal");
+  await expect(modal).toBeVisible();
+  await modal.getByTestId("quick-pick-language-trigger").click();
+  await modal.getByTestId(`quick-pick-language-${language}`).click();
+  await modal.getByTestId("prepare-media-generate").click();
+}
+
+/**
  * The upload has left the client's hands and the server pipeline owns the row
  * — the same contract `upload.spec.ts` waits on, and for the same reason.
  *
@@ -223,8 +238,7 @@ test.describe("Gate A journey", () => {
 
     // --- Upload the sample media (real multipart PUT to MinIO) -------------
     const clipPath = generateSampleClip();
-    await page.getByTestId("quick-pick-language-hi-Latn").click(); // F04: uploads are gated on an explicit language
-    await dropFile(page, clipPath);
+    await prepareAndUpload(page, clipPath, "hi-Latn"); // F04: uploads are gated on an explicit language (K02: now via the Prepare-Media modal)
     await expect(page.getByTestId("upload-tray-item")).toBeVisible();
     await expectUploadSettled(page);
 
