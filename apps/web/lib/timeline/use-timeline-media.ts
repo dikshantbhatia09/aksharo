@@ -20,6 +20,15 @@ export interface MediaUrls {
   readonly mediaId: string;
   readonly proxy?: string;
   readonly waveform?: string;
+  /**
+   * K03: `media_assets.thumb_keys`, presigned — worker-media's evenly-spaced
+   * filmstrip (`apps/worker-media/src/ffmpeg/derive.ts`'s `THUMBNAIL_COUNT`),
+   * already returned by this same endpoint (`@montaj/api-client`'s own
+   * canonical `MediaUrls` type has carried `thumbs` since A06) but dropped by
+   * this file's local duplicate of that type until the timeline had a lane
+   * that needed it.
+   */
+  readonly thumbs?: readonly string[];
   readonly expiresAt: string;
 }
 
@@ -32,6 +41,8 @@ const getMediaUrls = defineEndpoint<void, MediaUrls>({
 export interface TimelineMedia {
   readonly proxyUrl: string | undefined;
   readonly waveform: WaveformLike | undefined;
+  /** K03: presigned thumbnail URLs, for `Timeline.tsx`'s filmstrip lane. */
+  readonly thumbs: readonly string[] | undefined;
   readonly loading: boolean;
   readonly error: string | undefined;
   readonly refresh: () => void;
@@ -46,6 +57,7 @@ export function useTimelineMedia(projectId: string, mediaId: string | undefined)
   const client = useRawApiClient();
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(undefined);
   const [waveform, setWaveform] = useState<WaveformLike | undefined>(undefined);
+  const [thumbs, setThumbs] = useState<readonly string[] | undefined>(undefined);
   const [loading, setLoading] = useState(mediaId !== undefined);
   const [error, setError] = useState<string | undefined>(undefined);
 
@@ -55,6 +67,7 @@ export function useTimelineMedia(projectId: string, mediaId: string | undefined)
     if (mediaId === undefined) {
       setProxyUrl(undefined);
       setWaveform(undefined);
+      setThumbs(undefined);
       setLoading(false);
       return;
     }
@@ -67,6 +80,7 @@ export function useTimelineMedia(projectId: string, mediaId: string | undefined)
         const urls = await client.call(getMediaUrls, { params: { projectId, mediaId } });
         if (cancelled) return;
         setProxyUrl(urls.proxy);
+        setThumbs(urls.thumbs);
         if (urls.waveform !== undefined) {
           const response = await fetch(urls.waveform);
           if (!response.ok) throw new Error(`waveform fetch failed: ${String(response.status)}`);
@@ -110,5 +124,5 @@ export function useTimelineMedia(projectId: string, mediaId: string | undefined)
     };
   }, [client, projectId, mediaId, nonce]);
 
-  return { proxyUrl, waveform, loading, error, refresh: () => setNonce((n) => n + 1) };
+  return { proxyUrl, waveform, thumbs, loading, error, refresh: () => setNonce((n) => n + 1) };
 }
