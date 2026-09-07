@@ -8,6 +8,38 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **K01: the Style/Colors/Look panels expose schema `render-core` already
+  supported, plus a new 3D Depth effect.** Font Family (a searchable picker
+  sourced from `@montaj/fonts`'s bundled catalogue), Font Face (weight +
+  italic), a Bold/Italic/Underline/Align "Format" row, Position X, and Letter
+  Spacing all had working schema fields and renderer support with no panel
+  control (`packages/caption-styles/src/schema.ts`,
+  `packages/render-core/src/layout/layout.ts`) — each is now wired in the
+  Look tab, live and round-tripping. Drop Shadow gets a full control group
+  (enabled/colour/opacity/offset/blur) on a new **Effects** tab; `render-core`
+  was already painting it (`animate.ts`'s `style.shadow.enabled` branch), so
+  this was UI-only. Glow is now also a one-click Effects toggle, reusing
+  `animation.wordHighlight.type: "glow"` — the exact code the Anim tab's own
+  dropdown already drove, so there is nothing to duplicate. A 3-way Emphasis
+  selector (Emphasis/Spotlight/Solid) on the Colors tab sets which `effect` the
+  style's default emphasis preset (`emphasisPresets[0]`) draws with; it reads
+  and writes the same entry `SegmentCard.tsx`'s right-click "Emphasise word"
+  cycle already applies to a word, so the two can never drift out of sync.
+  New, additive schema fields (existing style JSON loads and renders
+  unchanged without them): `typography.underline?: boolean` (a static
+  per-word underline, wired through `animate.ts`'s word-ink path) and
+  `depth3d?: { enabled, color, offsetPct, layers? }` — a small stack of
+  offset, tinted copies of the glyph run drawn behind the real type, the
+  classic faux-3D-extrusion look, capped at 8 layers for per-frame cost. The
+  30 system-style golden hashes are byte-identical before and after (both
+  fields are optional and off by default). "Save as template" is wired at
+  last: `StylePicker.tsx`'s button now opens a name prompt, serialises the
+  current effective style, D64-checks the name via `StyleDocSchema` itself,
+  and stores it client-local (`my-presets.ts`, `localStorage`, scoped per
+  project — no new API route, per the wave's golden-rule addendum) — saved
+  presets show under a new "My Presets" sub-tab, selectable and deletable
+  like any system style.
+
 - **Stage-5 integration (orchestrator) — the audit-repair and OpenCut-port
   program is complete.** Merged OC-04 + S-06 + S-07. Undo after "Delete word"
   crashed the editor on every project (`not a word id: <ULID>`, OC-04's finding,
