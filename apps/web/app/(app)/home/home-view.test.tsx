@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -56,23 +56,74 @@ afterEach(() => {
   localStorage.clear();
 });
 
-describe("<HomeView /> — the language is asked, never assumed (FIX-04)", () => {
+/** Opens the (background, always-visible) quick-pick row's language combobox and picks `tag`. */
+async function pickQuickLanguage(
+  user: ReturnType<typeof userEvent.setup>,
+  tag: string,
+): Promise<void> {
+  await user.click(screen.getByTestId("quick-pick-language-trigger"));
+  await user.click(await screen.findByTestId(`quick-pick-language-${tag}`));
+}
+
+describe("<HomeView /> — the language is asked, never assumed (FIX-04, modal flow since K02)", () => {
   it("opens with no language selected", async () => {
     renderWithProviders(<HomeView />, { routes: ROUTES });
     await screen.findByTestId("quickpick-language");
     expect(screen.getByTestId("quickpick-language")).toHaveAttribute("data-language", "");
   });
 
-  // The cost-control invariant: the funnel that ends in a paid transcription
-  // does not open on a guess.
-  it("refuses a drop until one is chosen, and uploads nothing", async () => {
+  // K02: a single file no longer uploads (or refuses) on the spot — it opens
+  // "Prepare Your Media", and THAT dialog is where an unanswered language now
+  // blocks the upload (`Generate Transcription` stays disabled). The
+  // cost-control invariant (no transcription credits spent without an
+  // explicit language) is unchanged; only where it is enforced moved.
+  it("opens Prepare Your Media on a drop, and uploads nothing until Generate Transcription is used", async () => {
     const user = userEvent.setup();
     renderWithProviders(<HomeView />, { routes: ROUTES });
     await screen.findByTestId("quickpick-language");
 
     await user.upload(screen.getByTestId("drop-zone-input"), clip());
 
+    const modal = within(await screen.findByTestId("prepare-media-modal"));
     expect(addFiles).not.toHaveBeenCalled();
+    expect(modal.getByTestId("prepare-media-generate")).toBeDisabled();
+  });
+
+  it("uploads once a language has been picked in the modal, and carries it", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<HomeView />, { routes: ROUTES });
+
+    await user.upload(screen.getByTestId("drop-zone-input"), clip());
+    const modal = within(await screen.findByTestId("prepare-media-modal"));
+
+    await user.click(modal.getByTestId("quick-pick-language-trigger"));
+    await user.click(await modal.findByTestId("quick-pick-language-en"));
+    expect(modal.getByTestId("prepare-media-generate")).toBeEnabled();
+
+    await user.click(modal.getByTestId("prepare-media-generate"));
+
+    await waitFor(() => {
+      expect(addFiles).toHaveBeenCalledTimes(1);
+    });
+    expect(addFiles.mock.calls[0]?.[0]).toHaveLength(1);
+    expect(addFiles.mock.calls[0]?.[1]).toMatchObject({ language: "en" });
+    expect(toastInfo).not.toHaveBeenCalled();
+    // The pick is remembered exactly as the pre-K02 pre-drop pick was.
+    expect(localStorage.getItem("montaj.quickpick.language")).toBe("en");
+  });
+
+  // The batch ("2+ files at once") path is untouched by K02 — it still gates
+  // on the background row's language before opening the "apply to all" sheet,
+  // since `BatchApplyToAllSheet` is outside this WP's file boundary.
+  it("still refuses a batch drop until the background row has a language", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<HomeView />, { routes: ROUTES });
+    await screen.findByTestId("quickpick-language");
+
+    await user.upload(screen.getByTestId("drop-zone-input"), [clip(), clip()]);
+
+    expect(addFiles).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("prepare-media-modal")).not.toBeInTheDocument();
     expect(toastInfo).toHaveBeenCalledWith(
       "Choose the spoken language first",
       expect.objectContaining({
@@ -81,24 +132,10 @@ describe("<HomeView /> — the language is asked, never assumed (FIX-04)", () =>
     );
   });
 
-  it("uploads once a language has been picked, and carries it", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<HomeView />, { routes: ROUTES });
-    await user.click(await screen.findByTestId("quick-pick-language-en"));
-
-    await user.upload(screen.getByTestId("drop-zone-input"), clip());
-
-    await waitFor(() => {
-      expect(addFiles).toHaveBeenCalledTimes(1);
-    });
-    expect(addFiles.mock.calls[0]?.[1]).toMatchObject({ language: "en" });
-    expect(toastInfo).not.toHaveBeenCalled();
-  });
-
-  it("remembers an explicit pick for the next visit", async () => {
+  it("remembers an explicit pick made on the background row for the next visit", async () => {
     const user = userEvent.setup();
     const first = renderWithProviders(<HomeView />, { routes: ROUTES });
-    await user.click(await screen.findByTestId("quick-pick-language-en"));
+    await pickQuickLanguage(user, "en");
     expect(localStorage.getItem("montaj.quickpick.language")).toBe("en");
     first.unmount();
 
@@ -123,11 +160,10 @@ describe("<HomeView /> — the language is asked, never assumed (FIX-04)", () =>
     renderWithProviders(<HomeView />, {
       routes: { ...ROUTES, "/me": { ...ME, onboarding: { languages: ["ta"] } } },
     });
-    await screen.findByTestId("quickpick-language");
     // Give the adoption effect every chance to run before asserting it did not.
     await waitFor(() => {
-      expect(screen.getByTestId("quick-pick-language-en")).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByTestId("quickpick-language")).toHaveAttribute("data-language", "en");
     });
-    expect(screen.getByTestId("quickpick-language")).toHaveAttribute("data-language", "en");
+    expect(screen.getByTestId("quick-pick-language-trigger")).toHaveTextContent("English");
   });
 });

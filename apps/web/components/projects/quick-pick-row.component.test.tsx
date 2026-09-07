@@ -11,7 +11,10 @@ import { renderWithProviders } from "@/test/harness";
 /**
  * FIX-04: the language half of this row is now {@link LanguagePicker}, and the
  * fixtures below no longer start from a pre-selected `hi-Latn` — an unanswered
- * language is the row's honest opening state.
+ * language is the row's honest opening state. K02 upgraded that picker from a
+ * segmented-button row to a searchable combobox (`language-picker.tsx`), so a
+ * pick here now goes through the trigger + popover rather than a direct click
+ * on a per-language button.
  */
 describe("<QuickPickRow />", () => {
   it("shows nothing selected for the language until someone picks one", () => {
@@ -20,9 +23,8 @@ describe("<QuickPickRow />", () => {
       routes: { "/styles": [] },
     });
     expect(screen.getByTestId("quickpick-language")).toHaveAttribute("data-language", "");
-    expect(screen.getByTestId("quick-pick-language-hi-Latn")).toHaveAttribute(
-      "aria-pressed",
-      "false",
+    expect(screen.getByTestId("quick-pick-language-trigger")).toHaveTextContent(
+      "Choose spoken language",
     );
     expect(screen.getByTestId("quick-pick-aspect")).toHaveTextContent("9:16");
   });
@@ -32,10 +34,8 @@ describe("<QuickPickRow />", () => {
     renderWithProviders(<QuickPickRow value={value} onChange={vi.fn()} />, {
       routes: { "/styles": [] },
     });
-    expect(screen.getByTestId("quick-pick-language-hi-Latn")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(screen.getByTestId("quickpick-language")).toHaveAttribute("data-language", "hi-Latn");
+    expect(screen.getByTestId("quick-pick-language-trigger")).toHaveTextContent("Hinglish (Roman)");
   });
 
   it("changes the language from the picker", async () => {
@@ -45,7 +45,7 @@ describe("<QuickPickRow />", () => {
     renderWithProviders(<QuickPickRow value={value} onChange={onChange} />, {
       routes: { "/styles": [] },
     });
-    await user.click(screen.getByTestId("quick-pick-language-more"));
+    await user.click(screen.getByTestId("quick-pick-language-trigger"));
     await user.click(await screen.findByTestId("quick-pick-language-ta"));
     expect(onChange).toHaveBeenCalledWith({ ...value, language: "ta" });
   });

@@ -16,6 +16,8 @@ import { useRawApiClient } from "@montaj/api-client";
 import { Button, Card, JobProgress } from "@montaj/ui";
 import type { JobStage } from "@montaj/ui";
 
+import { DidYouKnow, PROCESSING_TIPS, useRotatingTip } from "./processing-tips";
+
 import type { UploadItemState, UploadStatus } from "@/lib/upload/types";
 
 import { getTranscriptionState, type TranscriptionStateView } from "@/lib/edg/transcription-state";
@@ -127,6 +129,17 @@ function RowPipelineStatus({
       {label ?? fallback}
     </p>
   );
+}
+
+/**
+ * K02: the same "Did you know?" rotator the full-screen states use
+ * (`processing-tips.tsx`), scaled down for a tray row. Mounted only while the
+ * row is server-owned, same as {@link RowPipelineStatus} above — a finished
+ * or still-uploading row has no tip to show and no timer running.
+ */
+function RowTip(): React.JSX.Element {
+  const tip = useRotatingTip(PROCESSING_TIPS, 6_000);
+  return <DidYouKnow tip={tip} className="mt-1" />;
 }
 
 export function UploadTray({
@@ -254,12 +267,15 @@ export function UploadTray({
                       })}
                 />
                 {serverOwned(item.status) ? (
-                  <RowPipelineStatus
-                    projectId={item.projectId}
-                    fallback={
-                      item.status === "processing" ? "Processing on the server…" : "Transcribing…"
-                    }
-                  />
+                  <>
+                    <RowPipelineStatus
+                      projectId={item.projectId}
+                      fallback={
+                        item.status === "processing" ? "Processing on the server…" : "Transcribing…"
+                      }
+                    />
+                    <RowTip />
+                  </>
                 ) : null}
               </>
             )}

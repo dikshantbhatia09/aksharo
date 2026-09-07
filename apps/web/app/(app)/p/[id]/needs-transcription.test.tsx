@@ -75,14 +75,16 @@ describe("<NeedsTranscription />", () => {
     // the removed `started` boolean. The state model's truth is that a queued
     // project offers no start at all.
     await waitFor(() => {
-      expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent("Transcribing");
+      expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent(
+        "Generating your captions",
+      );
     });
     expect(screen.queryByTestId("editor-start-transcription")).toBeNull();
   });
 
   // The audit's headline defect from the user's side: a transcription that IS
   // running must never be presented as work waiting to be commissioned.
-  it("shows the transcribing spinner and no start button while a job runs", async () => {
+  it("shows the full-screen generating state and no start button while a job runs", async () => {
     renderWithProviders(<NeedsTranscription projectId="01PROJECT" />, {
       routes: {
         "/projects/01PROJECT": PROJECT,
@@ -91,11 +93,40 @@ describe("<NeedsTranscription />", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent("Transcribing");
+      expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent(
+        "Generating your captions",
+      );
     });
     expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent(
       "This page updates by itself",
     );
+    expect(screen.queryByTestId("editor-start-transcription")).toBeNull();
+    // K02 acceptance criterion 3: full-screen, with a rotating tip, honestly
+    // reflecting the real state (no progress percentage claimed for a job the
+    // pipeline reports no bytes-level progress for).
+    expect(screen.getByTestId("processing-screen")).toBeInTheDocument();
+    expect(screen.getByTestId("processing-tip")).toBeInTheDocument();
+  });
+
+  // K02: `processing_media` (FIX-03's read model) is the full-screen
+  // "Analyzing your media" state — probe/proxy running, transcription not
+  // started yet. Distinct copy from `queued`/`running` so the state never
+  // claims work that has not begun.
+  it("shows the full-screen analyzing state for processing_media", async () => {
+    renderWithProviders(<NeedsTranscription projectId="01PROJECT" />, {
+      routes: {
+        "/projects/01PROJECT": PROJECT,
+        [STATE_ROUTE]: { status: "processing_media" },
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent(
+        "Analyzing your media",
+      );
+    });
+    expect(screen.getByTestId("processing-screen")).toBeInTheDocument();
+    expect(screen.getByTestId("processing-tip")).toBeInTheDocument();
     expect(screen.queryByTestId("editor-start-transcription")).toBeNull();
   });
 
@@ -374,6 +405,10 @@ describe("<NeedsTranscription />", () => {
       expect(screen.queryByTestId("editor-start-transcription")).toBeNull();
     });
 
+    // K02: the picker is now a searchable combobox (`language-picker.tsx`) — a
+    // pick opens the trigger first rather than clicking a per-language button
+    // directly.
+
     it("records the language and starts the work on one gesture", async () => {
       const user = userEvent.setup();
       const { fetchMock } = renderWithProviders(<NeedsTranscription projectId="01PROJECT" />, {
@@ -395,7 +430,8 @@ describe("<NeedsTranscription />", () => {
         return Promise.resolve(json({ ...PROJECT, sourceLanguage: "hi" }));
       });
 
-      await user.click(screen.getByTestId("quick-pick-language-hi"));
+      await user.click(screen.getByTestId("quick-pick-language-trigger"));
+      await user.click(await screen.findByTestId("quick-pick-language-hi"));
 
       // The project carries the choice...
       const patch = await waitFor(() => {
@@ -421,7 +457,9 @@ describe("<NeedsTranscription />", () => {
 
       // ...and the screen falls into the queued poll path it already had.
       await waitFor(() => {
-        expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent("Transcribing");
+        expect(screen.getByTestId("editor-needs-transcription")).toHaveTextContent(
+          "Generating your captions",
+        );
       });
     });
 
@@ -448,7 +486,8 @@ describe("<NeedsTranscription />", () => {
         return Promise.resolve(json(NO_LANGUAGE));
       });
 
-      await user.click(screen.getByTestId("quick-pick-language-hi"));
+      await user.click(screen.getByTestId("quick-pick-language-trigger"));
+      await user.click(await screen.findByTestId("quick-pick-language-hi"));
 
       await waitFor(() => {
         expect(
