@@ -117,6 +117,14 @@ export const TypographySchema = z.object({
    * without it renders exactly as before, so no migration is needed.
    */
   scriptScale: ScriptScaleSchema.optional(),
+  /**
+   * A quick-format underline, independent of the word-highlight `underline`
+   * type and of an emphasis preset's own `underline` effect: those two mark
+   * one word at a time, this marks the caption's type itself, the whole time
+   * it is on screen (K01). Additive in StyleDoc v2 — omitted means `false`,
+   * so every document written before this field renders exactly as before.
+   */
+  underline: z.boolean().optional(),
 });
 
 export const ColorsSchema = z.object({
@@ -157,6 +165,21 @@ export const ShadowSchema = z.object({
   offsetYPct: z.number().min(-50).max(50),
   blurPct: z.number().min(0).max(100),
   opacity: z.number().min(0).max(1),
+});
+
+/**
+ * The classic faux-3D-extrusion effect (K01): a small stack of offset copies
+ * of the caption's type, stepping diagonally from `offsetPct` and tinted with
+ * `color`, drawn behind the main glyph run. Absent entirely on every style
+ * written before this field — StyleDoc v2 stays generation 2, no migration.
+ */
+export const Depth3dSchema = z.object({
+  enabled: z.boolean(),
+  color: ColorSchema,
+  /** Percentage of the font size each layer steps diagonally by. */
+  offsetPct: z.number().min(0).max(30),
+  /** Copies drawn behind the type; capped for perf (a frame draws this every time). */
+  layers: z.number().int().min(1).max(8).optional(),
 });
 
 export const LayoutSchema = z.object({
@@ -241,6 +264,11 @@ export const StyleDocSchema = z
     box: BoxSchema,
     stroke: StrokeSchema,
     shadow: ShadowSchema,
+    /**
+     * Faux-3D text extrusion (K01). Additive and optional: absent means
+     * disabled, exactly like a style drawn before this field existed.
+     */
+    depth3d: Depth3dSchema.optional(),
     layout: LayoutSchema,
     animation: AnimationSchema,
     emphasisPresets: z.array(EmphasisPresetSchema).max(12),
@@ -277,6 +305,7 @@ export type Colors = z.infer<typeof ColorsSchema>;
 export type Box = z.infer<typeof BoxSchema>;
 export type Stroke = z.infer<typeof StrokeSchema>;
 export type Shadow = z.infer<typeof ShadowSchema>;
+export type Depth3d = z.infer<typeof Depth3dSchema>;
 export type Layout = z.infer<typeof LayoutSchema>;
 export type CueAnimationType = z.infer<typeof CueAnimationTypeSchema>;
 export type CueAnimation = z.infer<typeof CueAnimationSchema>;
