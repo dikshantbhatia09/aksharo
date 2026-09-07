@@ -29,6 +29,12 @@ import type { PassItem, Segment, Word } from "@montaj/edg";
 import type { TimeMap } from "@montaj/timemap";
 
 import {
+  BulkActionsBar,
+  type ResegmentParams,
+} from "@/components/editor/transcript/BulkActionsBar";
+import { type DisplayScript } from "@/components/editor/transcript/WordChip";
+import { findMatches } from "@/lib/edg/find-replace";
+import {
   clampScroll,
   msToPx,
   pxToMs,
@@ -75,6 +81,8 @@ import { cn } from "@/lib/utils";
 // ---------------------------------------------------------------------------
 
 const RULER_HEIGHT = 24;
+/** K03: the video filmstrip lane, drawn above the waveform (Kalakar's "Video 1" track). */
+const THUMB_LANE_HEIGHT = 32;
 const WAVEFORM_HEIGHT = 64;
 const WORD_LANE_HEIGHT = 28;
 const SEGMENT_LANE_HEIGHT = 36;
@@ -82,6 +90,26 @@ const PASS_LANE_HEIGHT = 20;
 const LANE_GAP = 2;
 const EDGE_HIT_PX = 6;
 const MIN_PX_PER_WORD_LABEL = 28;
+/** K03: below this chip width a LINE-granularity caption's text is skipped, same rule as a word chip's label. */
+const MIN_PX_PER_LINE_LABEL = 28;
+
+/** K03: caption-lane granularity — one chip per word, or one merged chip per segment. */
+export type TimelineGranularity = "word" | "line";
+
+/**
+ * K03: the Caption Tools dropdown's resegment dialog needs *some* starting
+ * params when the caller (`editor-client.tsx`) does not pass its own — this
+ * mirrors that page's `DEFAULT_RESEGMENT_PARAMS` so the timeline's second
+ * entry point behaves the same as the transcript column's even if a future
+ * caller forgets to thread `resegmentDefaultParams` through.
+ */
+const FALLBACK_RESEGMENT_PARAMS: ResegmentParams = {
+  maxChars: 32,
+  maxLines: 2,
+  minMs: 800,
+  maxMs: 4500,
+  dropFillers: false,
+};
 
 /** One user-marked protected range, as stored on `EdgHot.protected` (CONTRACTS §2). */
 export interface ProtectedRange {
@@ -156,6 +184,21 @@ export interface TimelineProps {
   readonly onSelectPassItem?: (item: LaneItem) => void;
   /** B20b: drag-to-adjust a proposed/accepted cut/zoom/reframe item's edge. */
   readonly onEditPassItem?: (op: PassItemBoundsOp) => void;
+  /**
+   * K03: presigned thumbnail URLs for the source video, `media_assets.thumb_keys`
+   * order (worker-media's evenly-spaced filmstrip, `apps/worker-media/src/ffmpeg/derive.ts`'s
+   * `THUMBNAIL_COUNT`) — undefined/empty draws no filmstrip (audio-only media,
+   * or not derived yet).
+   */
+  readonly thumbnails?: readonly string[];
+  /** K03: which per-word text the search box matches against; same default as `editor-client.tsx`'s `wordScript`. */
+  readonly wordScript?: DisplayScript;
+  /** K03: Caption Tools dropdown — same three actions `BulkActionsBar.tsx` exposes in the transcript column. */
+  readonly onMergeShortCaptions?: () => void;
+  readonly onSplitLongCaptions?: () => void;
+  readonly onResegmentCaptions?: (params: ResegmentParams) => void;
+  readonly resegmentDefaultParams?: ResegmentParams;
+  readonly bulkActionsBusy?: boolean;
   readonly className?: string;
 }
 
@@ -170,14 +213,16 @@ interface DragState {
   readonly endMs?: number;
 }
 
+/** A word id's document-order sort key: chunk first, then its position inside the chunk. */
+function wordOrderKey(wid: string): number {
+  const p = parseWordId(wid);
+  return p.chunkIdx * 1_000_000 + p.n;
+}
+
 /** `true` when `wid` falls in `[startWordId, endWordId]` by chunk/sequence order, not string order. */
 function wordIdWithin(wid: string, startWordId: string, endWordId: string): boolean {
-  const target = parseWordId(wid);
-  const start = parseWordId(startWordId);
-  const end = parseWordId(endWordId);
-  const key = (p: { chunkIdx: number; n: number }): number => p.chunkIdx * 1_000_000 + p.n;
-  const k = key(target);
-  return k >= key(start) && k <= key(end);
+  const k = wordOrderKey(wid);
+  return k >= wordOrderKey(startWordId) && k <= wordOrderKey(endWordId);
 }
 
 export function Timeline(props: TimelineProps): React.JSX.Element {
@@ -208,6 +253,13 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     onHoverPassItem,
     onSelectPassItem,
     onEditPassItem,
+    thumbnails,
+    wordScript = "roman",
+    onMergeShortCaptions,
+    onSplitLongCaptions,
+    onResegmentCaptions,
+    resegmentDefaultParams = FALLBACK_RESEGMENT_PARAMS,
+    bulkActionsBusy = false,
     className,
   } = props;
 
@@ -236,6 +288,18 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   const [selectedWordEdge, setSelectedWordEdge] = useState<"start" | "end" | undefined>(undefined);
   const [hoveredPassItemId, setHoveredPassItemId] = useState<string | undefined>(undefined);
   const [, forceRedraw] = useState(0);
+
+  // K03: caption-lane granularity (word chips vs. one merged chip per
+  // segment), the search box's query, and the Caption Tools dropdown's own
+  // open state — all purely local UI state, never round-tripped through
+  // `editor-client.tsx` (brief §1: "do not add a prop round-trip ... unless
+  // the toggle needs to affect something outside the timeline").
+  const [granularity, setGranularity] = useState<TimelineGranularity>("word");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [captionToolsOpen, setCaptionToolsOpen] = useState(false);
+  const captionToolsRef = useRef<HTMLDivElement | null>(null);
+  /** K03: `Image` objects for the thumbnail filmstrip, keyed by URL so a scroll/zoom redraw never re-decodes one. */
+  const thumbImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
   useLayoutEffect(() => {
     const element = containerRef.current;
@@ -273,6 +337,77 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     [liveWords],
   );
 
+  // K03: LINE granularity's merged chip text, one pass over `liveWords` per
+  // `[segments, liveWords]` change (not per draw) — both arrays are already in
+  // document order (`WordIndex`'s Map preserves insertion order, `segments` is
+  // `orderedSegments(state)`), so a single two-pointer sweep keyed by
+  // `wordOrderKey` correctly buckets every live word into its owning segment
+  // in O(words + segments) instead of an O(words × segments) filter per chip.
+  const segmentTextById = useMemo(() => {
+    const map = new Map<string, string>();
+    let index = 0;
+    for (const segment of segments) {
+      const startKey = wordOrderKey(segment.startWordId);
+      const endKey = wordOrderKey(segment.endWordId);
+      const parts: string[] = [];
+      while (index < liveWords.length) {
+        // eslint-disable-next-line security/detect-object-injection -- bracket access on a loop-bounded numeric index, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
+        const word = liveWords[index];
+        if (word === undefined || wordOrderKey(word.wid) > endKey) break;
+        if (wordOrderKey(word.wid) >= startKey) parts.push(word.t);
+        index += 1;
+      }
+      map.set(segment.id, parts.join(" "));
+    }
+    return map;
+  }, [segments, liveWords]);
+
+  // K03: the search box's matches, reusing `FindReplaceDialog.tsx`'s own
+  // matcher (`lib/edg/find-replace.ts`'s `findMatches`) rather than
+  // reimplementing substring matching — an empty query is the same "nothing
+  // to search" no-op `findMatches` itself already returns.
+  const searchMatches = useMemo(
+    () =>
+      searchQuery === ""
+        ? []
+        : findMatches(liveWords, searchQuery, wordScript, { caseSensitive: false }),
+    [liveWords, searchQuery, wordScript],
+  );
+  const searchMatchWordIds = useMemo(
+    () => new Set(searchMatches.map((match) => match.wordId)),
+    [searchMatches],
+  );
+
+  // K03: jump the viewport to the first match, centred, whenever the query
+  // text itself changes — deliberately *not* whenever `searchMatches` is
+  // merely recomputed (e.g. an unrelated edit elsewhere re-renders this
+  // component while a search is active), which would otherwise fight a user
+  // who has since scrolled or zoomed away from the jump.
+  useEffect(() => {
+    if (searchQuery === "") return;
+    const first = searchMatches[0];
+    if (first === undefined) return;
+    const word = liveWords.find((w) => w.wid === first.wordId);
+    if (word === undefined) return;
+    setScrollMs(
+      clampScroll(Math.max(0, word.s - (widthPx / 2) * msPerPx), { msPerPx, widthPx }, durationMs),
+    );
+    // Only the query text should trigger a jump; see comment above — `searchMatches`,
+    // `liveWords`, `widthPx`, `msPerPx` and `durationMs` are read, not depended on.
+  }, [searchQuery]);
+
+  /** K03: an `HTMLImageElement` for a thumbnail URL, decoded once and cached across redraws. */
+  const getThumbImage = useCallback((url: string): HTMLImageElement => {
+    const cache = thumbImagesRef.current;
+    const cached = cache.get(url);
+    if (cached !== undefined) return cached;
+    const img = new Image();
+    img.onload = () => forceRedraw((n) => n + 1);
+    img.src = url;
+    cache.set(url, img);
+    return img;
+  }, []);
+
   const lanes: readonly LaneRow[] = useMemo(() => buildLanes(passItems), [passItems]);
   /** B20b: full pass items by id — `LaneItem` strips `payload`, but the zoom
    * lane's mini-plot needs the item's own keyframe curve to decode. */
@@ -283,6 +418,12 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
 
   const laneTops = useMemo(() => {
     let y = RULER_HEIGHT;
+    // K03: the video filmstrip sits above the waveform (Kalakar's Video/Audio
+    // track order) — reserved unconditionally, like every other lane, so the
+    // layout does not jump once thumbnails finish loading (same convention
+    // `WAVEFORM_HEIGHT` already sets for a waveform that has not arrived yet).
+    const thumbTop = y;
+    y += THUMB_LANE_HEIGHT + LANE_GAP;
     const waveformTop = y;
     y += WAVEFORM_HEIGHT + LANE_GAP;
     const wordTop = y;
@@ -294,7 +435,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       passTops.push(y);
       y += PASS_LANE_HEIGHT + LANE_GAP;
     }
-    return { waveformTop, wordTop, segmentTop, passTops, totalHeight: y };
+    return { thumbTop, waveformTop, wordTop, segmentTop, passTops, totalHeight: y };
   }, [lanes]);
 
   const displayDuration = displayDurationMs(durationMs, displayMode, timeMap);
@@ -364,6 +505,40 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       ctx.globalAlpha = 1;
     }
 
+    // K03: video filmstrip — up to `THUMBNAIL_COUNT` (worker-media,
+    // evenly-spaced midpoints of the whole clip) presigned JPEGs, each
+    // stretched across its own `1/count` slice of the timeline. Virtualised
+    // the same way the waveform is: a slice outside `[startMs, endMs]` is
+    // skipped, so drawing never costs more than the (at most ten) slices
+    // actually on screen, regardless of zoom.
+    if (thumbnails !== undefined && thumbnails.length > 0) {
+      ctx.fillStyle = "#0f0f16";
+      ctx.fillRect(0, laneTops.thumbTop, widthPx, THUMB_LANE_HEIGHT);
+      const count = thumbnails.length;
+      for (const [index, url] of thumbnails.entries()) {
+        const sliceStartMs = Math.floor((durationMs * index) / count);
+        const sliceEndMs = Math.floor((durationMs * (index + 1)) / count);
+        if (sliceEndMs < startMs || sliceStartMs > endMs) continue;
+        const x0 = msToPx(sliceStartMs, viewport);
+        const x1 = msToPx(sliceEndMs, viewport);
+        const w = Math.max(1, x1 - x0);
+        const img = getThumbImage(url);
+        if (img.complete && img.naturalWidth > 0) {
+          ctx.drawImage(img, x0, laneTops.thumbTop, w, THUMB_LANE_HEIGHT);
+        } else {
+          ctx.fillStyle = "rgba(255,255,255,0.06)";
+          ctx.fillRect(x0, laneTops.thumbTop, w, THUMB_LANE_HEIGHT);
+        }
+        if (index > 0) {
+          ctx.strokeStyle = "rgba(0,0,0,0.4)";
+          ctx.beginPath();
+          ctx.moveTo(x0 + 0.5, laneTops.thumbTop);
+          ctx.lineTo(x0 + 0.5, laneTops.thumbTop + THUMB_LANE_HEIGHT);
+          ctx.stroke();
+        }
+      }
+    }
+
     // Waveform
     if (waveform !== undefined) {
       const buckets = reduceWaveform(
@@ -391,39 +566,83 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       }
     }
 
-    // Word lane
-    for (const word of liveWords) {
-      const preview =
-        dragRef.current?.kind === "word-edge" && dragRef.current.wordId === word.wid
-          ? dragPreviewRef.current
-          : undefined;
-      const wordStartMs = preview?.startMs ?? word.s;
-      const wordEndMs = preview?.endMs ?? word.e;
-      if (wordEndMs < startMs || wordStartMs > endMs) continue;
-      const x0 = msToPx(wordStartMs, viewport);
-      const x1 = msToPx(wordEndMs, viewport);
-      const w = Math.max(1, x1 - x0);
-      const selected = word.wid === selectedWordId;
-      const lowConfidence = word.c !== undefined && word.c < 0.6;
-      ctx.fillStyle = selected
-        ? "#ffffff"
-        : word.filler === true
-          ? "rgba(255,255,255,0.15)"
-          : "rgba(255,255,255,0.3)";
-      ctx.fillRect(x0, laneTops.wordTop, w, WORD_LANE_HEIGHT);
-      if (lowConfidence) {
-        ctx.fillStyle = "#f59e0b";
-        ctx.fillRect(x0, laneTops.wordTop + WORD_LANE_HEIGHT - 2, w, 2);
+    // Caption lane: one chip per word (WORD) or one merged chip per segment
+    // (LINE, brief §1) — a purely visual switch, `words`/`segments` are never
+    // touched, so toggling back to WORD always shows the exact same
+    // words/timings it did before.
+    if (granularity === "word") {
+      for (const word of liveWords) {
+        const preview =
+          dragRef.current?.kind === "word-edge" && dragRef.current.wordId === word.wid
+            ? dragPreviewRef.current
+            : undefined;
+        const wordStartMs = preview?.startMs ?? word.s;
+        const wordEndMs = preview?.endMs ?? word.e;
+        if (wordEndMs < startMs || wordStartMs > endMs) continue;
+        const x0 = msToPx(wordStartMs, viewport);
+        const x1 = msToPx(wordEndMs, viewport);
+        const w = Math.max(1, x1 - x0);
+        const selected = word.wid === selectedWordId;
+        const lowConfidence = word.c !== undefined && word.c < 0.6;
+        ctx.fillStyle = selected
+          ? "#ffffff"
+          : word.filler === true
+            ? "rgba(255,255,255,0.15)"
+            : "rgba(255,255,255,0.3)";
+        ctx.fillRect(x0, laneTops.wordTop, w, WORD_LANE_HEIGHT);
+        if (lowConfidence) {
+          ctx.fillStyle = "#f59e0b";
+          ctx.fillRect(x0, laneTops.wordTop + WORD_LANE_HEIGHT - 2, w, 2);
+        }
+        if (selected) {
+          ctx.fillStyle = "#7c8ff0";
+          ctx.fillRect(x0 - 1, laneTops.wordTop, 2, WORD_LANE_HEIGHT);
+          ctx.fillRect(x1 - 1, laneTops.wordTop, 2, WORD_LANE_HEIGHT);
+        }
+        if (searchMatchWordIds.has(word.wid)) {
+          ctx.strokeStyle = "#facc15";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x0 + 1, laneTops.wordTop + 1, Math.max(0, w - 2), WORD_LANE_HEIGHT - 2);
+          ctx.lineWidth = 1;
+        }
+        if (w >= MIN_PX_PER_WORD_LABEL) {
+          ctx.fillStyle = selected ? "#0b0b12" : "rgba(255,255,255,0.9)";
+          ctx.font = "11px sans-serif";
+          ctx.fillText(word.t, x0 + 2, laneTops.wordTop + WORD_LANE_HEIGHT - 9, w - 4);
+        }
       }
-      if (selected) {
-        ctx.fillStyle = "#7c8ff0";
-        ctx.fillRect(x0 - 1, laneTops.wordTop, 2, WORD_LANE_HEIGHT);
-        ctx.fillRect(x1 - 1, laneTops.wordTop, 2, WORD_LANE_HEIGHT);
-      }
-      if (w >= MIN_PX_PER_WORD_LABEL) {
-        ctx.fillStyle = selected ? "#0b0b12" : "rgba(255,255,255,0.9)";
-        ctx.font = "11px sans-serif";
-        ctx.fillText(word.t, x0 + 2, laneTops.wordTop + WORD_LANE_HEIGHT - 9, w - 4);
+    } else {
+      for (const segment of segments) {
+        if (segment.endMs < startMs || segment.startMs > endMs) continue;
+        const x0 = msToPx(segment.startMs, viewport);
+        const x1 = msToPx(segment.endMs, viewport);
+        const w = Math.max(1, x1 - x0);
+        const selected = segment.id === selectedSegmentId;
+        const hasMatch = liveWords.some(
+          (word) =>
+            word.s >= segment.startMs - 1 &&
+            word.e <= segment.endMs + 1 &&
+            searchMatchWordIds.has(word.wid),
+        );
+        ctx.fillStyle = selected ? "#ffffff" : "rgba(255,255,255,0.3)";
+        ctx.fillRect(x0, laneTops.wordTop, w, WORD_LANE_HEIGHT);
+        if (selected) {
+          ctx.fillStyle = "#7c8ff0";
+          ctx.fillRect(x0 - 1, laneTops.wordTop, 2, WORD_LANE_HEIGHT);
+          ctx.fillRect(x1 - 1, laneTops.wordTop, 2, WORD_LANE_HEIGHT);
+        }
+        if (hasMatch) {
+          ctx.strokeStyle = "#facc15";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x0 + 1, laneTops.wordTop + 1, Math.max(0, w - 2), WORD_LANE_HEIGHT - 2);
+          ctx.lineWidth = 1;
+        }
+        if (w >= MIN_PX_PER_LINE_LABEL) {
+          const text = segmentTextById.get(segment.id) ?? "";
+          ctx.fillStyle = selected ? "#0b0b12" : "rgba(255,255,255,0.9)";
+          ctx.font = "11px sans-serif";
+          ctx.fillText(text, x0 + 2, laneTops.wordTop + WORD_LANE_HEIGHT - 9, w - 4);
+        }
       }
     }
 
@@ -582,6 +801,11 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     msPerPx,
     hoveredPassItemId,
     passItemsById,
+    granularity,
+    segmentTextById,
+    searchMatchWordIds,
+    thumbnails,
+    getThumbImage,
   ]);
 
   // ---------------------------------------------------------------------
@@ -699,6 +923,10 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
 
   const hitTestWordEdge = useCallback(
     (px: number, py: number): { word: Word; edge: "start" | "end" } | undefined => {
+      // K03: a LINE chip is a merged segment, not a word — its resize
+      // handles are the segment lane's below, so word-edge dragging is a
+      // WORD-granularity-only affordance.
+      if (granularity !== "word") return undefined;
       if (py < laneTops.wordTop || py > laneTops.wordTop + WORD_LANE_HEIGHT) return undefined;
       for (const word of liveWords) {
         const x0 = msToPx(word.s, viewport);
@@ -708,7 +936,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       }
       return undefined;
     },
-    [liveWords, viewport, laneTops.wordTop],
+    [granularity, liveWords, viewport, laneTops.wordTop],
   );
 
   const hitTestSegmentBody = useCallback(
@@ -723,11 +951,23 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
 
   const hitTestWord = useCallback(
     (px: number, py: number): Word | undefined => {
+      if (granularity !== "word") return undefined;
       if (py < laneTops.wordTop || py > laneTops.wordTop + WORD_LANE_HEIGHT) return undefined;
       const ms = pxToMs(px, viewport);
       return liveWords.find((w) => ms >= w.s && ms <= w.e);
     },
-    [liveWords, viewport, laneTops.wordTop],
+    [granularity, liveWords, viewport, laneTops.wordTop],
+  );
+
+  /** K03: LINE granularity's merged chip under `(px, py)` — the word lane's Y-range, hit-tested against segments. */
+  const hitTestLineChip = useCallback(
+    (px: number, py: number): Segment | undefined => {
+      if (granularity !== "line") return undefined;
+      if (py < laneTops.wordTop || py > laneTops.wordTop + WORD_LANE_HEIGHT) return undefined;
+      const ms = pxToMs(px, viewport);
+      return segments.find((s) => ms >= s.startMs && ms <= s.endMs);
+    },
+    [granularity, segments, viewport, laneTops.wordTop],
   );
 
   function neighboursOf(segment: Segment): { prev?: Neighbour; next?: Neighbour } {
@@ -815,6 +1055,16 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         return;
       }
 
+      // K03: a LINE chip click selects and seeks to its segment — the same
+      // outcome a segment-lane click below it already produces, so the two
+      // lanes agree once a caption is showing as a merged line.
+      const lineChip = hitTestLineChip(px, py);
+      if (lineChip !== undefined) {
+        onSelectSegment?.(lineChip.id);
+        onSeek(lineChip.startMs);
+        return;
+      }
+
       const segment = hitTestSegmentBody(px, py);
       if (segment !== undefined) {
         onSelectSegment?.(segment.id);
@@ -828,6 +1078,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       hitTestPassItemEdge,
       hitTestWordEdge,
       hitTestWord,
+      hitTestLineChip,
       hitTestSegmentBody,
       onSeek,
       onSelectSegment,
@@ -1164,6 +1415,34 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     ],
   );
 
+  // K03: the Caption Tools panel is a hand-rolled floating menu (matching
+  // `BulkActionsBar.tsx`'s and `FindReplaceDialog.tsx`'s own conditional-div
+  // dialogs, not `@montaj/ui`'s `DropdownMenu` — that primitive traps focus
+  // and manages its own outside-click logic, which would fight the resegment
+  // dialog's `<input type="number">` fields it wraps), so it owns its own
+  // outside-click/Escape dismissal the same way those two do.
+  useEffect(() => {
+    if (!captionToolsOpen) return;
+    function onDocumentPointerDown(event: PointerEvent): void {
+      if (captionToolsRef.current === null) return;
+      if (!captionToolsRef.current.contains(event.target as Node)) setCaptionToolsOpen(false);
+    }
+    function onDocumentKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") setCaptionToolsOpen(false);
+    }
+    document.addEventListener("pointerdown", onDocumentPointerDown);
+    document.addEventListener("keydown", onDocumentKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onDocumentPointerDown);
+      document.removeEventListener("keydown", onDocumentKeyDown);
+    };
+  }, [captionToolsOpen]);
+
+  const captionToolsAvailable =
+    onMergeShortCaptions !== undefined &&
+    onSplitLongCaptions !== undefined &&
+    onResegmentCaptions !== undefined;
+
   const ariaDescription = useMemo(() => {
     const parts: string[] = [];
     if (selectedSegmentId !== undefined) {
@@ -1234,6 +1513,113 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         >
           Zoom out
         </button>
+        <div
+          className="ml-2 flex items-center gap-0.5 rounded bg-white/10 p-0.5"
+          role="group"
+          aria-label="Caption granularity"
+        >
+          <button
+            type="button"
+            data-testid="timeline-granularity-word"
+            aria-pressed={granularity === "word"}
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
+              granularity === "word"
+                ? "bg-white/25 text-white"
+                : "text-white/50 hover:text-white/80",
+            )}
+            onClick={() => setGranularity("word")}
+          >
+            Word
+          </button>
+          <button
+            type="button"
+            data-testid="timeline-granularity-line"
+            aria-pressed={granularity === "line"}
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
+              granularity === "line"
+                ? "bg-white/25 text-white"
+                : "text-white/50 hover:text-white/80",
+            )}
+            onClick={() => setGranularity("line")}
+          >
+            Line
+          </button>
+        </div>
+        <div className="flex items-center gap-1">
+          <input
+            type="text"
+            data-testid="timeline-search"
+            placeholder="Search captions"
+            aria-label="Search captions"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            className="w-32 rounded bg-white/10 px-2 py-0.5 text-white placeholder:text-white/40 focus:ring-1 focus:ring-white/40 focus:outline-none"
+          />
+          {searchQuery !== "" ? (
+            <>
+              <span data-testid="timeline-search-count" className="tabular-nums text-white/50">
+                {searchMatches.length} match{searchMatches.length === 1 ? "" : "es"}
+              </span>
+              <button
+                type="button"
+                data-testid="timeline-search-clear"
+                aria-label="Clear search"
+                className="rounded px-1 text-white/50 hover:text-white/80"
+                onClick={() => setSearchQuery("")}
+              >
+                ×
+              </button>
+            </>
+          ) : null}
+        </div>
+        {captionToolsAvailable ? (
+          <div className="relative" ref={captionToolsRef}>
+            <button
+              type="button"
+              data-testid="timeline-caption-tools-trigger"
+              aria-haspopup="true"
+              aria-expanded={captionToolsOpen}
+              className="rounded bg-white/10 px-2 py-0.5"
+              onClick={() => setCaptionToolsOpen((open) => !open)}
+            >
+              Caption Tools ▾
+            </button>
+            {captionToolsOpen ? (
+              <div
+                role="menu"
+                aria-label="Caption Tools"
+                data-testid="timeline-caption-tools-menu"
+                className="border-white/10 bg-bg-1 absolute top-full left-0 z-40 mt-1 rounded-lg border p-2 shadow-xl"
+              >
+                {/*
+                 * K03 brief §3: "call the same underlying handlers/store actions
+                 * `BulkActionsBar.tsx` uses, do not duplicate the logic" — this
+                 * renders that exact component (not a reimplementation) as a
+                 * second entry point, so its three actions are guaranteed to
+                 * produce identical results to the transcript column's own copy.
+                 */}
+                <BulkActionsBar
+                  onMergeShort={() => {
+                    onMergeShortCaptions?.();
+                    setCaptionToolsOpen(false);
+                  }}
+                  onSplitLong={() => {
+                    onSplitLongCaptions?.();
+                    setCaptionToolsOpen(false);
+                  }}
+                  onResegment={(params) => {
+                    onResegmentCaptions?.(params);
+                    setCaptionToolsOpen(false);
+                  }}
+                  defaultParams={resegmentDefaultParams}
+                  busy={bulkActionsBusy}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {outputModeAvailable(timeMap) ? (
           <label className="ml-2 flex items-center gap-1">
             <input

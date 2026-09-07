@@ -1,7 +1,8 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import type { PassItem } from "@montaj/edg";
+import { makeWordId } from "@montaj/edg";
+import type { PassItem, Segment, Word } from "@montaj/edg";
 
 import { Timeline } from "./Timeline";
 
@@ -12,13 +13,14 @@ import { renderWithProviders } from "@/test/harness";
 /**
  * The initial zoom is `msPerPx = 30`, `scrollMs = 0` (`Timeline.tsx`'s
  * `useState` defaults), so pixel math for a hit test is `px = ms / 30`. Lane
- * geometry is `RULER_HEIGHT + WAVEFORM_HEIGHT + WORD_LANE_HEIGHT +
- * SEGMENT_LANE_HEIGHT + gaps` before the first pass lane
- * (`24 + 64+2 + 28+2 + 36+2 = 158`); `buildLanes` always returns four lanes
+ * geometry is `RULER_HEIGHT + THUMB_LANE_HEIGHT + WAVEFORM_HEIGHT +
+ * WORD_LANE_HEIGHT + SEGMENT_LANE_HEIGHT + gaps` before the first pass lane
+ * (`24 + 32+2 + 64+2 + 28+2 + 36+2 = 192`; K03 added the `THUMB_LANE_HEIGHT`
+ * filmstrip lane above the waveform); `buildLanes` always returns four lanes
  * in order `cuts, zoom, reframe, audio`, each `PASS_LANE_HEIGHT=20` tall with
- * a 2px gap, so the cuts lane spans y in `[158, 178)`.
+ * a 2px gap, so the cuts lane spans y in `[192, 212)`.
  */
-const CUTS_LANE_Y = 158 + 10;
+const CUTS_LANE_Y = 192 + 10;
 
 function cutItem(overrides: Partial<PassItem> = {}): PassItem {
   return {
@@ -32,6 +34,28 @@ function cutItem(overrides: Partial<PassItem> = {}): PassItem {
     payload: {},
     ...overrides,
   } as PassItem;
+}
+
+function wordFixture(overrides: Partial<Word> = {}): Word {
+  return {
+    wid: makeWordId(0, 0),
+    s: 0,
+    e: 500,
+    t: "word",
+    ...overrides,
+  } as Word;
+}
+
+function segmentFixture(overrides: Partial<Segment> = {}): Segment {
+  return {
+    id: "seg-a",
+    seq: "a",
+    startWordId: makeWordId(0, 0),
+    endWordId: makeWordId(0, 0),
+    startMs: 0,
+    endMs: 500,
+    ...overrides,
+  } as Segment;
 }
 
 beforeAll(() => {
@@ -181,5 +205,239 @@ describe("<Timeline /> B20b drag-to-adjust", () => {
         endMs: 4_000,
       }),
     );
+  });
+});
+
+/** The word lane's own Y-band: `wordTop` (124, see the geometry note above) + a few px. */
+const WORD_LANE_Y = 124 + 10;
+
+describe("<Timeline /> K03 WORD/LINE granularity", () => {
+  const words: Word[] = [
+    wordFixture({ wid: makeWordId(0, 0), s: 0, e: 500, t: "hello" }),
+    wordFixture({ wid: makeWordId(0, 1), s: 600, e: 1_200, t: "world" }),
+    wordFixture({ wid: makeWordId(0, 2), s: 3_000, e: 3_600, t: "far" }),
+  ];
+  const segments: Segment[] = [
+    segmentFixture({
+      id: "seg-a",
+      startWordId: makeWordId(0, 0),
+      endWordId: makeWordId(0, 1),
+      startMs: 0,
+      endMs: 1_200,
+    }),
+    segmentFixture({
+      id: "seg-b",
+      startWordId: makeWordId(0, 2),
+      endWordId: makeWordId(0, 2),
+      startMs: 3_000,
+      endMs: 3_600,
+    }),
+  ];
+
+  it("defaults to WORD, and toggling never touches the underlying words or segments", () => {
+    const onSetWordTiming = vi.fn();
+    const onSetSegmentBounds = vi.fn();
+    renderTimeline({ words, segments, onSetWordTiming, onSetSegmentBounds });
+
+    expect(screen.getByTestId("timeline-granularity-word")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("timeline-granularity-line")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+
+    fireEvent.click(screen.getByTestId("timeline-granularity-line"));
+    expect(screen.getByTestId("timeline-granularity-line")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("timeline-granularity-word"));
+    expect(screen.getByTestId("timeline-granularity-word")).toHaveAttribute("aria-pressed", "true");
+
+    // Toggling granularity is purely a render switch — it never emits an op.
+    expect(onSetWordTiming).not.toHaveBeenCalled();
+    expect(onSetSegmentBounds).not.toHaveBeenCalled();
+  });
+
+  it("WORD granularity: a click in the caption lane selects the word under it", () => {
+    const onSelectWord = vi.fn();
+    const onSelectSegment = vi.fn();
+    const onSeek = vi.fn();
+    renderTimeline({ words, segments, onSelectWord, onSelectSegment, onSeek });
+
+    // Word/segment selection is resolved on `pointerdown` (`Timeline.tsx`'s
+    // `onPointerDown`), not the canvas's `click` handler — that one only
+    // covers the read-only pass-item lanes (see the B20 describe block above).
+    fireCanvasPointerEvent("pointerdown", 100 / 30, WORD_LANE_Y); // inside "hello", [0,500)ms
+    expect(onSelectWord).toHaveBeenCalledWith("seg-a", makeWordId(0, 0));
+    expect(onSeek).toHaveBeenCalledWith(0);
+  });
+
+  it("LINE granularity: a click in the caption lane selects the segment, not a word", () => {
+    const onSelectWord = vi.fn();
+    const onSelectSegment = vi.fn();
+    const onSeek = vi.fn();
+    renderTimeline({ words, segments, onSelectWord, onSelectSegment, onSeek });
+
+    fireEvent.click(screen.getByTestId("timeline-granularity-line"));
+    fireCanvasPointerEvent("pointerdown", 100 / 30, WORD_LANE_Y); // still inside seg-a's [0,1200)ms
+
+    expect(onSelectSegment).toHaveBeenCalledWith("seg-a");
+    expect(onSeek).toHaveBeenCalledWith(0);
+    expect(onSelectWord).not.toHaveBeenCalled();
+  });
+});
+
+describe("<Timeline /> K03 search box", () => {
+  const words: Word[] = [
+    wordFixture({ wid: makeWordId(0, 0), s: 0, e: 500, t: "hello" }),
+    wordFixture({ wid: makeWordId(0, 1), s: 600, e: 1_200, t: "zzzunique" }),
+  ];
+
+  it("reports a live match count, and clearing the query removes it", () => {
+    renderTimeline({ words });
+
+    expect(screen.queryByTestId("timeline-search-count")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("timeline-search"), { target: { value: "uniq" } });
+    expect(screen.getByTestId("timeline-search-count")).toHaveTextContent("1 match");
+
+    fireEvent.click(screen.getByTestId("timeline-search-clear"));
+    expect(screen.queryByTestId("timeline-search-count")).not.toBeInTheDocument();
+  });
+
+  it("is case-insensitive and counts every match", () => {
+    renderTimeline({
+      words: [...words, wordFixture({ wid: makeWordId(0, 2), s: 1_300, e: 1_800, t: "UNIQUELY" })],
+    });
+
+    fireEvent.change(screen.getByTestId("timeline-search"), { target: { value: "unique" } });
+    expect(screen.getByTestId("timeline-search-count")).toHaveTextContent("2 matches");
+  });
+
+  it("jumps the viewport so the first match is centred, then a click lands on it", () => {
+    const farWord = wordFixture({ wid: makeWordId(0, 9), s: 200_000, e: 200_800, t: "farword" });
+    const owner = segmentFixture({
+      id: "seg-far",
+      startWordId: farWord.wid,
+      endWordId: farWord.wid,
+      startMs: 200_000,
+      endMs: 200_800,
+    });
+    const onSelectWord = vi.fn();
+    const onSeek = vi.fn();
+    renderTimeline({
+      words: [...words, farWord],
+      segments: [owner],
+      durationMs: 300_000,
+      onSelectWord,
+      onSeek,
+    });
+
+    // Before searching, ms=200_000 is far outside the initial [0, 60_000)ms
+    // view (msPerPx=30, widthPx=2000) — nothing is at px=1000 yet.
+    fireCanvasPointerEvent("pointerdown", 1_000, WORD_LANE_Y);
+    expect(onSeek).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByTestId("timeline-search"), { target: { value: "farword" } });
+
+    // `scrollMs` should now centre the match: 200_000 - (2000/2)*30 = 170_000,
+    // putting its start back at px = (200_000-170_000)/30 = 1000.
+    fireCanvasPointerEvent("pointerdown", 1_000, WORD_LANE_Y);
+    expect(onSelectWord).toHaveBeenCalledWith("seg-far", farWord.wid);
+    expect(onSeek).toHaveBeenCalledWith(200_000);
+  });
+
+  it("clearing the search restores the normal, unhighlighted view (no match count, no crash)", () => {
+    renderTimeline({ words });
+    fireEvent.change(screen.getByTestId("timeline-search"), { target: { value: "unique" } });
+    expect(screen.getByTestId("timeline-search-count")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("timeline-search"), { target: { value: "" } });
+    expect(screen.queryByTestId("timeline-search-count")).not.toBeInTheDocument();
+    expect(screen.getByTestId("timeline-search")).toHaveValue("");
+  });
+});
+
+describe("<Timeline /> K03 Caption Tools dropdown", () => {
+  const resegmentDefaultParams = {
+    maxChars: 32,
+    maxLines: 2,
+    minMs: 800,
+    maxMs: 4_500,
+    dropFillers: false,
+  };
+
+  it("does not render when no bulk-action handlers are passed", () => {
+    renderTimeline();
+    expect(screen.queryByTestId("timeline-caption-tools-trigger")).not.toBeInTheDocument();
+  });
+
+  it("Merge short / Split long / Resegment call the exact props the transcript column's BulkActionsBar calls — same component, not a reimplementation", () => {
+    const onMergeShortCaptions = vi.fn();
+    const onSplitLongCaptions = vi.fn();
+    const onResegmentCaptions = vi.fn();
+    renderTimeline({
+      onMergeShortCaptions,
+      onSplitLongCaptions,
+      onResegmentCaptions,
+      resegmentDefaultParams,
+    });
+
+    // Merge short.
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    const menu1 = screen.getByTestId("timeline-caption-tools-menu");
+    expect(within(menu1).getByTestId("bulk-actions-bar")).toBeInTheDocument();
+    fireEvent.click(within(menu1).getByTestId("bulk-merge-short"));
+    expect(onMergeShortCaptions).toHaveBeenCalledTimes(1);
+    // The dropdown closes itself after an action, mirroring a typical menu.
+    expect(screen.queryByTestId("timeline-caption-tools-menu")).not.toBeInTheDocument();
+
+    // Split long.
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    const menu2 = screen.getByTestId("timeline-caption-tools-menu");
+    fireEvent.click(within(menu2).getByTestId("bulk-split-long"));
+    expect(onSplitLongCaptions).toHaveBeenCalledTimes(1);
+
+    // Resegment — opens the real `BulkActionsBar` dialog, same testids and
+    // same param shape as the transcript column's own copy.
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    const menu3 = screen.getByTestId("timeline-caption-tools-menu");
+    fireEvent.click(within(menu3).getByTestId("bulk-resegment-open"));
+    expect(screen.getByTestId("resegment-dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("resegment-confirm"));
+    expect(onResegmentCaptions).toHaveBeenCalledWith(resegmentDefaultParams);
+  });
+
+  it("closes on Escape without firing any action", () => {
+    const onMergeShortCaptions = vi.fn();
+    const onSplitLongCaptions = vi.fn();
+    const onResegmentCaptions = vi.fn();
+    renderTimeline({ onMergeShortCaptions, onSplitLongCaptions, onResegmentCaptions });
+
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    expect(screen.getByTestId("timeline-caption-tools-menu")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("timeline-caption-tools-menu")).not.toBeInTheDocument();
+    expect(onMergeShortCaptions).not.toHaveBeenCalled();
+    expect(onSplitLongCaptions).not.toHaveBeenCalled();
+    expect(onResegmentCaptions).not.toHaveBeenCalled();
+  });
+});
+
+describe("<Timeline /> K03 thumbnail track", () => {
+  it("accepts thumbnail URLs and renders without error alongside the other lanes", () => {
+    const { unmount } = renderTimeline({
+      thumbnails: [
+        "https://cdn.test/thumb-0.jpg",
+        "https://cdn.test/thumb-1.jpg",
+        "https://cdn.test/thumb-2.jpg",
+      ],
+      durationMs: 30_000,
+    });
+    expect(screen.getByTestId("timeline-canvas")).toBeInTheDocument();
+    unmount();
+  });
+
+  it("renders with no thumbnails (audio-only media) without error", () => {
+    renderTimeline({ thumbnails: [] });
+    expect(screen.getByTestId("timeline-canvas")).toBeInTheDocument();
   });
 });

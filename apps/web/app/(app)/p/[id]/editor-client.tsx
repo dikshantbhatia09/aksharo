@@ -1123,6 +1123,10 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                   {...(timelineMedia.waveform === undefined
                     ? {}
                     : { waveform: timelineMedia.waveform })}
+                  {...(timelineMedia.thumbs === undefined
+                    ? {}
+                    : { thumbnails: timelineMedia.thumbs })}
+                  wordScript={wordScript}
                   durationMs={primaryMedia?.durationMs ?? 0}
                   playheadMs={playheadSnapshot.ms}
                   playing={playheadSnapshot.playing}
@@ -1144,6 +1148,11 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                   displayMode={timelineDisplayMode}
                   onDisplayModeChange={setTimelineDisplayMode}
                   nudgeSink={noopNudgeSink}
+                  onMergeShortCaptions={onMergeShort}
+                  onSplitLongCaptions={onSplitLong}
+                  onResegmentCaptions={(params) => void onResegment(params)}
+                  resegmentDefaultParams={DEFAULT_RESEGMENT_PARAMS}
+                  bulkActionsBusy={reflowBusy}
                 />
               </div>
             </ContextMenuTrigger>

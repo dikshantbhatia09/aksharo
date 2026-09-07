@@ -8,6 +8,33 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **K03: the timeline gets a caption-lane granularity toggle, an in-lane
+  search, a second Caption Tools entry point, and a real video filmstrip.**
+  Kalakar-parity wave (`_orchestration/kalakar-styling`). `Timeline.tsx`'s
+  caption lane now switches between one chip per word (unchanged default) and
+  one merged chip per segment via a local WORD/LINE toggle — purely a render
+  switch, `words`/`segments` are never touched, so flipping back to WORD always
+  shows the exact same words/timings. A search box reuses `lib/edg/find-replace.ts`'s
+  `findMatches` (the same matcher `FindReplaceDialog.tsx`/Ctrl+F already uses,
+  not reimplemented), highlights every match in amber and centres the viewport
+  on the first one as the query changes; clearing it clears the highlight.
+  Caption Tools is a new toolbar dropdown that renders the actual
+  `BulkActionsBar` component (not a reimplementation) as a second entry point
+  next to the one that stays in the transcript column — both call the exact
+  same `onMergeShort`/`onSplitLong`/`onResegment` handlers `editor-client.tsx`
+  already had. A new filmstrip lane above the waveform draws worker-media's
+  existing (up to ten, evenly-spaced) thumbnails — `media_assets.thumb_keys`,
+  presigned by the already-existing `GET .../media/{mediaId}/urls` — stretched
+  across their slice and virtualised the same way the waveform is; the
+  lane-layout math (`laneTops`, a new `THUMB_LANE_HEIGHT`) shifted every lane
+  below it down by 34px accordingly. Two small diffs landed outside
+  `timeline/**` to carry real data to a component that never fetches its own:
+  `lib/timeline/use-timeline-media.ts`'s local `MediaUrls` type had silently
+  dropped the `thumbs` field `@montaj/api-client`'s canonical one already
+  carries, and `editor-client.tsx` gained the prop wiring both the dropdown and
+  the filmstrip need (no new endpoint, no schema change — see the work
+  package's `REPORT.md`).
+
 - **Stage-5 integration (orchestrator) — the audit-repair and OpenCut-port
   program is complete.** Merged OC-04 + S-06 + S-07. Undo after "Delete word"
   crashed the editor on every project (`not a word id: <ULID>`, OC-04's finding,
