@@ -243,3 +243,21 @@ export create already jobKey-deduped per manifest.
 | S-05 | Export rows exist from POST: `rendering` status, failure marking, history without the jobs crutch | F06, S-02 | merged 2026-09-05 (stage 4) |
 | S-06 | Terminal outcomes reach the surface: cancel/timeout run handleFailure; read model sees ai.align; aligning settles on failure; shell announces failures | S-03, S-05 | merged 2026-09-05 (stage 5) |
 | S-07 | The e2e upload journey green again (upload.spec + gate-a): credits for e2e workspaces, spec contract drift | stage 4 | merged 2026-09-05 (stage 5) |
+
+## K-wave — Kalakar reference-video parity (planned 2026-09-07)
+
+Source: a fresh 5m39s screen recording of the live Kalakar editor (2026-09-07),
+audited frame-by-frame (339/339 frames, 1 fps) against our own codebase. Most
+gaps found are UI controls missing for schema/renderer support that already
+exists, not new engineering. Briefs live outside the repo at
+`..\..\_orchestrationlakar-styling\` (README.md is the master guide: setup,
+ports table, the full recon report). A follow-up full-frame audit after
+dispatch found further gaps not in the original briefs — recorded in that
+folder's `ADDENDUM-full-frame-audit.md` for K05+.
+
+| WP | Title | Depends on | Status |
+|---|---|---|---|
+| K01 | Style/Effects panel: expose existing schema fields (Font Family/Face, Position X, Letter Spacing, Drop Shadow), add Emphasis control, promote Glow, add 3D Depth, wire Save-template/My Presets | — | in progress |
+| K02 | Prepare-Media modal: searchable grouped language + writing-script pickers, full-screen analyzing/generating states | — | in progress |
+| K03 | Timeline: WORD/LINE toggle, search box, Caption Tools dropdown (v1 — see K05+ for the real Display Settings/Actions/Timing structure), video thumbnail track | — | merged 2026-09-08 (stage 6) |
+| K04 | Editor chrome: left icon rail, Safe Zone toggle, Replace-media, resolution indicator, sidebar usage counters | — | in progress |
