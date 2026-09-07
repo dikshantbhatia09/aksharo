@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { initials, ProfileMenu } from "./profile-menu";
-import { Sidebar, UpgradeButton } from "./sidebar";
+import { formatStorageBytes, Sidebar, sumStorageBytes, UpgradeButton } from "./sidebar";
 import { TopBar } from "./top-bar";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
@@ -72,6 +72,90 @@ describe("<Sidebar />", () => {
       expect(screen.getByTestId("credit-meter")).toBeInTheDocument();
     });
     expect(screen.queryByTestId("credit-meter-streak")).toBeNull();
+  });
+
+  // K04: Storage and Audio-Clean counters alongside the transcription meter.
+  describe("usage counters (K04)", () => {
+    it("shows an Audio Clean row drawing on the same credit balance as transcription", async () => {
+      renderWithProviders(<Sidebar />, { routes: ENTITLEMENT });
+      // Same "/entitlement" mismatch as the transcription meter's own test above
+      // (that route is not `useEntitlement`'s real one) — the honest zero, for
+      // both meters, since they read the very same balance.
+      expect(await screen.findByTestId("audio-clean-meter-balance")).toHaveTextContent("0 left");
+      expect(screen.getByText("Audio Clean")).toBeInTheDocument();
+      // No minute-equivalence clause from the transcription meter's own
+      // `formatMinutes` — this row's unit clause is audio-clean-specific.
+      expect(screen.getByTestId("audio-clean-meter-balance")).toHaveTextContent("audio clean");
+    });
+
+    it("shows a Storage row with no bar and no reset date (no plan quota exists to draw one against)", async () => {
+      renderWithProviders(<Sidebar />, { routes: ENTITLEMENT });
+      await waitFor(() => {
+        expect(screen.getByTestId("storage-meter-balance")).toHaveTextContent("used");
+      });
+      expect(screen.getByText("Storage")).toBeInTheDocument();
+      expect(screen.queryByTestId("storage-meter-reset")).toBeNull();
+      expect(within(screen.getByTestId("storage-meter")).queryByRole("progressbar")).toBeNull();
+    });
+  });
+});
+
+describe("sumStorageBytes (K04)", () => {
+  it("adds media and font bytes together, treating null sizes as zero", () => {
+    expect(
+      sumStorageBytes([{ sizeBytes: 1_000 }, { sizeBytes: null }, { sizeBytes: 500 }], []),
+    ).toBe(1_500);
+  });
+
+  it("counts both a font's original and its subset WOFF2 bytes", () => {
+    const font = {
+      id: "f1",
+      workspaceId: "w1",
+      family: "Test",
+      style: "regular",
+      status: "ready" as const,
+      sanitised: true,
+      weight: 400,
+      italic: false,
+      scripts: [],
+      sizeBytes: 200_000,
+      woff2SizeBytes: 50_000,
+      filename: "test.ttf",
+      licenceAttestedBy: null,
+      attestedAt: null,
+      attestationVersion: null,
+      licenceNote: null,
+      servedOnlyToWorkspace: true,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    };
+    expect(sumStorageBytes([], [font])).toBe(250_000);
+  });
+
+  it("is zero for an empty workspace", () => {
+    expect(sumStorageBytes([], [])).toBe(0);
+  });
+});
+
+describe("formatStorageBytes (K04)", () => {
+  it("shows KB below one MB", () => {
+    expect(formatStorageBytes(500 * 1024)).toBe("500 KB");
+  });
+
+  it("shows whole MB below one GB", () => {
+    expect(formatStorageBytes(250 * 1024 * 1024)).toBe("250 MB");
+  });
+
+  it("shows GB with one decimal once it crosses a gigabyte", () => {
+    expect(formatStorageBytes(2.5 * 1024 * 1024 * 1024)).toBe("2.5 GB");
+  });
+
+  it("drops the decimal for a whole number of GB", () => {
+    expect(formatStorageBytes(3 * 1024 * 1024 * 1024)).toBe("3 GB");
+  });
+
+  it("floors at 0 B", () => {
+    expect(formatStorageBytes(0)).toBe("0 B");
+    expect(formatStorageBytes(-5)).toBe("0 B");
   });
 });
 

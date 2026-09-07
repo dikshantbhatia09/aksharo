@@ -52,6 +52,9 @@ import { ExportButton } from "@/components/editor/export/ExportButton";
 import { type PanelOp, type PanelScope } from "@/components/editor/panels/ops";
 import { RightPanel } from "@/components/editor/panels/RightPanel";
 import { SYSTEM_STYLE_MAP, SYSTEM_STYLES } from "@/components/editor/panels/system-styles";
+import { CustomFontsPanel } from "@/components/editor/rail/CustomFontsPanel";
+import { EditorRail, type EditorRailTab } from "@/components/editor/rail/EditorRail";
+import { LibraryPanel } from "@/components/editor/rail/LibraryPanel";
 import { RetranscribeDialog } from "@/components/editor/RetranscribeDialog";
 import { ShareDialog } from "@/components/editor/ShareDialog";
 import {
@@ -60,6 +63,7 @@ import {
   type SegmentBoundsOp,
   type WordTimingOp,
 } from "@/components/editor/timeline/Timeline";
+import { PlayerToolbar } from "@/components/editor/toolbar/PlayerToolbar";
 import {
   BulkActionsBar,
   type ResegmentParams,
@@ -347,6 +351,11 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   const [shareOpen, setShareOpen] = useState(openShareOnMount);
   const [retranscribeOpen, setRetranscribeOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // K04: the left rail's active tab, and the player's Safe Zone toggle —
+  // `true` matches `CaptionStage`'s own previous hardcoded default, so a
+  // freshly opened editor looks exactly as it did before this toggle existed.
+  const [railTab, setRailTab] = useState<EditorRailTab>("captions");
+  const [safeZonesOn, setSafeZonesOn] = useState(true);
   const workspaceLayout = usePersistedLayout("montaj-editor-workspace-v1");
   const columnsLayout = usePersistedLayout("montaj-editor-columns-v1");
   const resetWorkspace = useCallback(() => {
@@ -926,39 +935,51 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
               defaultSize={percent(COLUMNS_DEFAULT.transcript)}
               minSize={percent(16)}
             >
-              <div
-                className="flex h-full min-w-0 flex-col gap-2 border-r border-white/10 p-3"
-                data-coach-mark="transcript"
-              >
-                <BulkActionsBar
-                  onMergeShort={onMergeShort}
-                  onSplitLong={onSplitLong}
-                  onResegment={(params) => void onResegment(params)}
-                  defaultParams={DEFAULT_RESEGMENT_PARAMS}
-                />
-                <TranscriptList
-                  className="flex-1"
-                  segments={segments}
-                  wordsOf={wordsOf}
-                  script={script}
-                  hideFillers={hideFillers}
-                  follow={follow}
-                  {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
-                  {...(selectedWordId === undefined ? {} : { selectedWordId })}
-                  {...(activeSegment === undefined ? {} : { activeSegmentId: activeSegment.id })}
-                  {...(activeWordId === undefined ? {} : { activeWordId })}
-                  onSelectSegment={setSelectedSegmentId}
-                  onSelectWord={(segmentId, wordId) => {
-                    setSelectedSegmentId(segmentId);
-                    setSelectedWordId(wordId);
-                  }}
-                  onSeek={(ms) => playhead.seek(ms)}
-                  onEditWord={onEditWord}
-                  onFixSpellingEverywhere={onFixSpellingEverywhere}
-                  onMergeWithNext={(segmentId) => onMergeWithNext(segmentId)}
-                  onHideToggle={onHideToggle}
-                  onInsertWordAfter={onInsertWordAfter}
-                  onRequestAction={onSegmentCardAction}
+              <div className="h-full min-w-0 border-r border-white/10" data-coach-mark="transcript">
+                {/* K04: the left icon rail (Captions/Custom Fonts/Library) — the
+                    Captions tab's content below is byte-for-byte what this column
+                    rendered directly before the rail existed. */}
+                <EditorRail
+                  active={railTab}
+                  onActiveChange={setRailTab}
+                  captions={
+                    <div className="flex h-full min-w-0 flex-col gap-2 p-3">
+                      <BulkActionsBar
+                        onMergeShort={onMergeShort}
+                        onSplitLong={onSplitLong}
+                        onResegment={(params) => void onResegment(params)}
+                        defaultParams={DEFAULT_RESEGMENT_PARAMS}
+                      />
+                      <TranscriptList
+                        className="flex-1"
+                        segments={segments}
+                        wordsOf={wordsOf}
+                        script={script}
+                        hideFillers={hideFillers}
+                        follow={follow}
+                        {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
+                        {...(selectedWordId === undefined ? {} : { selectedWordId })}
+                        {...(activeSegment === undefined
+                          ? {}
+                          : { activeSegmentId: activeSegment.id })}
+                        {...(activeWordId === undefined ? {} : { activeWordId })}
+                        onSelectSegment={setSelectedSegmentId}
+                        onSelectWord={(segmentId, wordId) => {
+                          setSelectedSegmentId(segmentId);
+                          setSelectedWordId(wordId);
+                        }}
+                        onSeek={(ms) => playhead.seek(ms)}
+                        onEditWord={onEditWord}
+                        onFixSpellingEverywhere={onFixSpellingEverywhere}
+                        onMergeWithNext={(segmentId) => onMergeWithNext(segmentId)}
+                        onHideToggle={onHideToggle}
+                        onInsertWordAfter={onInsertWordAfter}
+                        onRequestAction={onSegmentCardAction}
+                      />
+                    </div>
+                  }
+                  fonts={<CustomFontsPanel className="p-3" />}
+                  library={<LibraryPanel className="p-3" />}
                 />
               </div>
             </ResizablePanel>
@@ -971,55 +992,67 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
               minSize={percent(30)}
             >
               <div
-                className="min-w-0 h-full bg-black/40 p-4 flex items-center justify-center"
+                className="min-w-0 h-full bg-black/40 p-4 flex flex-col"
                 style={{ containerType: "size" }}
               >
-                {/* FIX-05: the stage box takes the DOCUMENT's aspect, so a 9:16 project
-                    is a tall frame in a centered column, not a strip lost in a
-                    landscape void. CaptionStage still letterboxes internally, so a
-                    mid-migration mismatch degrades gracefully instead of cropping. */}
-                <div
-                  className="relative max-h-full max-w-full"
-                  style={{
-                    aspectRatio: aspectRatioOf(projection.canvas),
-                    width: containWidth(projection.canvas, "100cqw", "100cqh"),
-                  }}
-                  data-testid="editor-stage-box"
-                >
-                  <CaptionStage
-                    src={timelineMedia.proxyUrl}
-                    playing={playheadSnapshot.playing}
-                    seekMs={playheadSnapshot.ms}
-                    seekSeq={playheadSnapshot.seekSeq}
-                    onTimeUpdate={(ms) => playhead.syncFromMedia(ms)}
-                    onEnded={() => playhead.setPlaying(false)}
-                    onPlayBlocked={(reason) => {
-                      playhead.setPlaying(false);
-                      toast.error("Could not start playback", { description: reason });
+                {/* K04: resolution indicator, Safe Zone toggle and Replace-media —
+                    all "near the player" rather than buried in a menu. */}
+                <PlayerToolbar
+                  canvas={state.hot.canvas}
+                  safeZonesOn={safeZonesOn}
+                  onSafeZonesChange={setSafeZonesOn}
+                  projectId={projectId}
+                  mediaId={primaryMedia?.mediaId}
+                />
+                <div className="min-h-0 flex-1 flex items-center justify-center">
+                  {/* FIX-05: the stage box takes the DOCUMENT's aspect, so a 9:16 project
+                      is a tall frame in a centered column, not a strip lost in a
+                      landscape void. CaptionStage still letterboxes internally, so a
+                      mid-migration mismatch degrades gracefully instead of cropping. */}
+                  <div
+                    className="relative max-h-full max-w-full"
+                    style={{
+                      aspectRatio: aspectRatioOf(projection.canvas),
+                      width: containWidth(projection.canvas, "100cqw", "100cqh"),
                     }}
-                    onMediaError={() => timelineMedia.refresh()}
-                    projection={projection}
-                    catalogue={SYSTEM_STYLE_MAP}
-                    script={script}
-                    {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
-                    onOp={(op) => {
-                      // The stage's drag op arrives with the panel module's
-                      // `panel-${n}` placeholder id (see `submitPanelOp`); the
-                      // server rejects it, so every drag 400'd and no caption
-                      // position was ever saved (S04 finding). Mint the real id
-                      // here exactly as `submitPanelOp` does.
-                      store.submitOp({
-                        type: "SetSegmentPosition",
-                        opId: newId(),
-                        segmentId: op.segmentId,
-                        position: op.position,
-                      });
-                    }}
+                    data-testid="editor-stage-box"
                   >
-                    {({ fit, canvas }) => (
-                      <CropWindowOverlay cropRect={currentCrop} canvas={canvas} fit={fit} />
-                    )}
-                  </CaptionStage>
+                    <CaptionStage
+                      src={timelineMedia.proxyUrl}
+                      playing={playheadSnapshot.playing}
+                      seekMs={playheadSnapshot.ms}
+                      seekSeq={playheadSnapshot.seekSeq}
+                      onTimeUpdate={(ms) => playhead.syncFromMedia(ms)}
+                      onEnded={() => playhead.setPlaying(false)}
+                      onPlayBlocked={(reason) => {
+                        playhead.setPlaying(false);
+                        toast.error("Could not start playback", { description: reason });
+                      }}
+                      onMediaError={() => timelineMedia.refresh()}
+                      projection={projection}
+                      catalogue={SYSTEM_STYLE_MAP}
+                      script={script}
+                      showSafeZones={safeZonesOn}
+                      {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
+                      onOp={(op) => {
+                        // The stage's drag op arrives with the panel module's
+                        // `panel-${n}` placeholder id (see `submitPanelOp`); the
+                        // server rejects it, so every drag 400'd and no caption
+                        // position was ever saved (S04 finding). Mint the real id
+                        // here exactly as `submitPanelOp` does.
+                        store.submitOp({
+                          type: "SetSegmentPosition",
+                          opId: newId(),
+                          segmentId: op.segmentId,
+                          position: op.position,
+                        });
+                      }}
+                    >
+                      {({ fit, canvas }) => (
+                        <CropWindowOverlay cropRect={currentCrop} canvas={canvas} fit={fit} />
+                      )}
+                    </CaptionStage>
+                  </div>
                 </div>
               </div>
             </ResizablePanel>
