@@ -13,6 +13,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { ApiError, useProject, useRecordSpellingFixMemory } from "@montaj/api-client";
+import type { StyleDoc } from "@montaj/caption-styles";
 import { newId, orderedSegments, wordsBetween } from "@montaj/edg";
 import type { Segment } from "@montaj/edg";
 import { resolveStyle } from "@montaj/render-core";
@@ -49,6 +50,12 @@ import { FirstRunCoachMarks } from "@/components/editor/coach-marks/FirstRunCoac
 import { EditorCommandPalette } from "@/components/editor/EditorCommandPalette";
 import { EditorMenubar } from "@/components/editor/EditorMenubar";
 import { ExportButton } from "@/components/editor/export/ExportButton";
+import {
+  buildPresetDoc,
+  deleteMyPreset,
+  loadMyPresets,
+  saveMyPreset,
+} from "@/components/editor/panels/my-presets";
 import { type PanelOp, type PanelScope } from "@/components/editor/panels/ops";
 import { RightPanel } from "@/components/editor/panels/RightPanel";
 import { SYSTEM_STYLE_MAP, SYSTEM_STYLES } from "@/components/editor/panels/system-styles";
@@ -391,14 +398,38 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     [state.words],
   );
 
+  // K01: "My Presets" — `StylePicker.tsx`'s "Save as template" button
+  // (`style-picker-save-template`) was never wired to anything
+  // (`editor-client.tsx` never passed `onSaveTemplate`). Per the wave
+  // README's golden-rule addendum this stays client-local rather than a new
+  // `POST /workspaces/{id}/style-presets` route: scoped per **project**
+  // (`my-presets.ts`'s own doc comment explains why, not per workspace —
+  // `projectId` is the only stable id already in scope here), read once on
+  // mount/project-switch and kept in state so a save is reflected immediately.
+  const [myPresets, setMyPresets] = useState<StyleDoc[]>([]);
+  useEffect(() => {
+    setMyPresets(loadMyPresets(projectId));
+  }, [projectId]);
+
   const scope: PanelScope =
     selectedSegmentId === undefined
       ? { kind: "doc" }
       : { kind: "segment", segmentId: selectedSegmentId };
   const selectedSegment = segments.find((segment) => segment.id === selectedSegmentId);
   const timelineMenu = timelineMenuState(selectedSegmentId);
+  // K01: "My Presets" is a client-local catalogue on top of the system one —
+  // no new API route (wave README's golden-rule addendum) — so a segment or
+  // the document can point `styleRef` at a saved preset's id and still
+  // resolve, the exact path `resolveStyle` already uses for a system style.
+  const catalogue = useMemo(() => {
+    if (myPresets.length === 0) return SYSTEM_STYLE_MAP;
+    return new Map([
+      ...SYSTEM_STYLE_MAP,
+      ...myPresets.map((preset) => [preset.id, preset] as const),
+    ]);
+  }, [myPresets]);
   const catalogueSource = {
-    catalogue: SYSTEM_STYLE_MAP,
+    catalogue,
     defaultStyleId: state.hot.styles.defaultStyleId,
     ...((state.hot.styles.inline as { doc?: Record<string, unknown> } | undefined)?.doc ===
     undefined
@@ -454,6 +485,28 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     // every panel gets a real id without each control needing to thread a
     // factory through.
     store.submitOp(panelOpToEdgOp({ ...op, opId: newId() }, state));
+  }
+
+  // --- My Presets (K01) ----------------------------------------------------
+  // "Save as template" → name prompt → serialize the current effective style
+  // → `my-presets.ts`'s client-local store → appears in the Style tab's My
+  // Presets sub-tab, selectable like any system style (`catalogue` above
+  // merges it in). `window.prompt`/`window.alert` rather than a new dialog
+  // component: the brief's own wording for this flow is "name prompt", and a
+  // one-field prompt is all this needs.
+  function onSaveTemplate(): void {
+    const name = window.prompt("Name this preset");
+    if (name === null) return;
+    const result = buildPresetDoc(name, effectiveStyle);
+    if (!result.ok || result.doc === undefined) {
+      window.alert(result.error ?? "Could not save that preset.");
+      return;
+    }
+    setMyPresets(saveMyPreset(projectId, result.doc));
+  }
+
+  function onDeletePreset(id: string): void {
+    setMyPresets(deleteMyPreset(projectId, id));
   }
 
   // --- Audio (B10b) -------------------------------------------------------
@@ -1050,6 +1103,9 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                   scope={scope}
                   canvas={projection.canvas}
                   onOp={submitPanelOp}
+                  onSaveTemplate={onSaveTemplate}
+                  myPresets={myPresets}
+                  onDeletePreset={onDeletePreset}
                   audio={{
                     projectId,
                     ...(primaryMedia?.mediaId === undefined
