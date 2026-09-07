@@ -272,6 +272,20 @@ function karaokeOverlay(word: LayoutWord, style: StyleDoc, tMs: number): DrawCom
   ];
 }
 
+/**
+ * `typography.underline`'s rule under one word (K01) — a static, always-on
+ * underline for the caption's own type, distinct from the word-highlight
+ * `underline` type (one word, only while it is being spoken) and from an
+ * emphasis preset's `underline` effect (one marked word). Coloured like the
+ * word's own ink so a multi-colour caption (speaker colours, karaoke fill)
+ * keeps a matching rule under each word rather than one flat colour.
+ */
+function typeUnderline(word: LayoutWord, colour: string, layout: Layout): DrawCommand[] {
+  const thickness = ofFontSize(6, layout.fontSizePx);
+  const top = word.box[3] + thickness * 0.4;
+  return [makeRect([word.box[0], top, word.box[2], top + thickness], { fill: makeFill(colour) })];
+}
+
 /** The ground drawn behind the word being spoken, per `animation.wordHighlight`. */
 function highlightGround(
   word: LayoutWord,
@@ -420,7 +434,9 @@ function wordCommands(
         ]
       : wordInk(word, makeFill(textPaint(style, layout, colour)), stroke);
 
-  const children = [...ground, ...ink];
+  const underline = style.typography.underline === true ? typeUnderline(word, colour, layout) : [];
+
+  const children = [...ground, ...ink, ...underline];
 
   // Per-word scale: the highlight's own growth multiplied by the emphasis scale.
   const highlightScale =
@@ -476,6 +492,45 @@ function blockGround(style: StyleDoc, layout: Layout): DrawCommand[] {
   return [blur({ sigmaX: sigma, sigmaY: sigma, backdrop: true, bounds: box }, [panel])];
 }
 
+/** The default number of extrusion layers when a style enables `depth3d` but omits `layers`. */
+const DEPTH3D_DEFAULT_LAYERS = 6;
+
+/**
+ * K01's faux-3D extrusion: a small stack of flat, single-colour copies of
+ * every word's glyphs, stepping diagonally away from the reader and drawn
+ * behind the real (stroked, highlighted, per-word-coloured) type the rest of
+ * `animate` draws on top. Each copy reuses `wordInk` — the same primitive the
+ * main ink and the karaoke overlay already draw with — rather than a new text
+ * primitive, so a depth layer shapes exactly like the glyphs it sits behind.
+ *
+ * Layers are capped (schema: 1-8, default 6) because this runs every frame;
+ * the farthest layer is drawn first so nearer layers correctly paint over it.
+ */
+function depth3dCommands(style: StyleDoc, layout: Layout): DrawCommand[] {
+  const depth = style.depth3d;
+  if (depth === undefined || !depth.enabled || depth.offsetPct <= 0) return [];
+  const layers = Math.max(1, Math.min(depth.layers ?? DEPTH3D_DEFAULT_LAYERS, 8));
+  const stepPx = ofFontSize(depth.offsetPct, layout.fontSizePx) / layers;
+  const fill = makeFill(depth.color);
+
+  const glyphs: DrawCommand[] = [];
+  for (const line of layout.lines) {
+    for (const word of line.words) glyphs.push(...wordInk(word, fill, undefined));
+  }
+  if (glyphs.length === 0) return [];
+
+  const commands: DrawCommand[] = [];
+  for (let layer = layers; layer >= 1; layer -= 1) {
+    const offset = q(stepPx * layer);
+    commands.push(
+      transform(scaleTranslateMatrix(1, 0, 0, offset, offset), [
+        group(glyphs, `depth3d:${String(layer)}`),
+      ]),
+    );
+  }
+  return commands;
+}
+
 /** Deterministic RGB-split / warble copies for the raster styles. */
 function rasterCopies(
   style: StyleDoc,
@@ -502,7 +557,7 @@ export function animate(options: AnimateOptions): DrawCommand[] {
   const phase = cueTiming(layout, style, tMs);
   if (phase.opacity <= 0) return [];
 
-  const body: DrawCommand[] = [...blockGround(style, layout)];
+  const body: DrawCommand[] = [...blockGround(style, layout), ...depth3dCommands(style, layout)];
   const totalWidth = layout.lines.reduce((sum, line) => sum + rectWidth(line.box), 0);
   let revealedBefore = 0;
 

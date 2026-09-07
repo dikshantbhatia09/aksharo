@@ -289,6 +289,128 @@ describe("animate", () => {
     expect(shadows.length).toBeGreaterThan(0);
   });
 
+  describe("typography.underline (K01)", () => {
+    it("draws no extra rect when unset — every existing style is unaffected", () => {
+      const doc = style("vertical-clean");
+      expect(doc.typography.underline).toBeUndefined();
+      const before = hashCommands(draw(doc, 1500));
+      const explicitlyOff = style("vertical-clean", {
+        typography: { ...doc.typography, underline: false },
+      });
+      expect(hashCommands(draw(explicitlyOff, 1500))).toBe(before);
+    });
+
+    it("draws a rect under every word when set", () => {
+      const base = style("vertical-clean");
+      const doc = style("vertical-clean", {
+        typography: { ...base.typography, underline: true },
+      });
+      const without = [...walkCommands(draw(base, 1500))].filter((c) => c.kind === "rect").length;
+      const withUnderline = [...walkCommands(draw(doc, 1500))].filter(
+        (c) => c.kind === "rect",
+      ).length;
+      expect(withUnderline).toBe(without + lay(doc, 1500).words.length);
+    });
+
+    it("sits under the word, below its baseline box", () => {
+      const base = style("vertical-clean");
+      const doc = style("vertical-clean", {
+        typography: { ...base.typography, underline: true },
+      });
+      const layout = lay(doc, 1500);
+      const word = layout.words[0];
+      expect(word).toBeDefined();
+      if (word === undefined) return;
+      const rect = [...walkCommands(draw(doc, 1500))].find(
+        (c) => c.kind === "rect" && c.rect[0] === word.box[0] && c.rect[2] === word.box[2],
+      );
+      expect(rect?.kind).toBe("rect");
+      if (rect?.kind !== "rect") return;
+      expect(rect.rect[1]).toBeGreaterThanOrEqual(word.box[3]);
+    });
+  });
+
+  describe("depth3d (K01)", () => {
+    it("draws nothing when absent, disabled, or offsetPct is zero", () => {
+      const base = style("vertical-clean");
+      expect(base.depth3d).toBeUndefined();
+      const disabled = style("vertical-clean", {
+        depth3d: { enabled: false, color: "#101014", offsetPct: 6, layers: 4 },
+      });
+      const zeroOffset = style("vertical-clean", {
+        depth3d: { enabled: true, color: "#101014", offsetPct: 0, layers: 4 },
+      });
+      const before = hashCommands(draw(base, 1500));
+      expect(hashCommands(draw(disabled, 1500))).toBe(before);
+      expect(hashCommands(draw(zeroOffset, 1500))).toBe(before);
+    });
+
+    it("draws `layers` transformed copies of the word ink, behind the real type", () => {
+      const doc = style("vertical-clean", {
+        depth3d: { enabled: true, color: "#101014", offsetPct: 6, layers: 4 },
+      });
+      const flat = kinds(draw(doc, 1500));
+      const groups = [...walkCommands(draw(doc, 1500))].filter(
+        (c) => c.kind === "group" && c.id?.startsWith("depth3d:") === true,
+      );
+      expect(groups).toHaveLength(4);
+      // The first depth-layer transform (farthest back) is drawn before any text.
+      expect(flat.indexOf("transform")).toBeLessThan(flat.indexOf("text"));
+    });
+
+    it("defaults to 6 layers when `layers` is omitted", () => {
+      const doc = style("vertical-clean", {
+        depth3d: { enabled: true, color: "#101014", offsetPct: 6 },
+      });
+      const groups = [...walkCommands(draw(doc, 1500))].filter(
+        (c) => c.kind === "group" && c.id?.startsWith("depth3d:") === true,
+      );
+      expect(groups).toHaveLength(6);
+    });
+
+    it("caps layers at 8 even if a hand-authored document asks for more", () => {
+      const doc = style("vertical-clean", {
+        depth3d: { enabled: true, color: "#101014", offsetPct: 6, layers: 8 },
+      });
+      const groups = [...walkCommands(draw(doc, 1500))].filter(
+        (c) => c.kind === "group" && c.id?.startsWith("depth3d:") === true,
+      );
+      expect(groups).toHaveLength(8);
+    });
+
+    it("steps each layer diagonally by offsetPct / layers", () => {
+      const doc = style("vertical-clean", {
+        depth3d: { enabled: true, color: "#101014", offsetPct: 8, layers: 2 },
+      });
+      const layout = lay(doc, 1500);
+      const stepPx = ((8 / 100) * layout.fontSizePx) / 2;
+      const transforms = [...walkCommands(draw(doc, 1500))]
+        .filter((c) => c.kind === "transform")
+        .slice(0, 2);
+      expect(transforms).toHaveLength(2);
+      const offsets = transforms
+        .map((c) => (c.kind === "transform" ? c.matrix[4] : 0))
+        .sort((a, b) => a - b);
+      expect(offsets[0]).toBeCloseTo(stepPx, 1);
+      expect(offsets[1]).toBeCloseTo(stepPx * 2, 1);
+    });
+
+    it("tints the depth layers with depth3d.color, not the word's own colour", () => {
+      const doc = style("vertical-clean", {
+        depth3d: { enabled: true, color: "#ff00ff", offsetPct: 6, layers: 1 },
+      });
+      const group = [...walkCommands(draw(doc, 1500))].find(
+        (c) => c.kind === "group" && c.id === "depth3d:1",
+      );
+      expect(group?.kind).toBe("group");
+      if (group?.kind !== "group") return;
+      const text = group.children.find((c) => c.kind === "text");
+      expect(text?.kind).toBe("text");
+      if (text?.kind !== "text") return;
+      expect(text.fill?.paint).toMatchObject({ type: "solid", color: "#ff00ffff" });
+    });
+  });
+
   it("reveals a typewriter caption progressively", () => {
     const doc = style("typewriter-mono");
     const revealed = (tMs: number): number =>

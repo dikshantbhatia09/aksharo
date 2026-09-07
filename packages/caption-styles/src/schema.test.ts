@@ -151,3 +151,90 @@ describe("typography.scriptScale", () => {
     ).toBe(2);
   });
 });
+
+describe("typography.underline", () => {
+  const base = draft() as StyleDocInput;
+
+  it("is optional, so a document written before the field still parses", () => {
+    const { underline: _dropped, ...typography } = { underline: undefined, ...base.typography };
+    const older = { ...base, typography };
+    expect(StyleDocSchema.safeParse(older).success).toBe(true);
+    expect(StyleDocSchema.parse(older).typography.underline).toBeUndefined();
+  });
+
+  it("accepts true and false", () => {
+    expect(
+      StyleDocSchema.parse({ ...base, typography: { ...base.typography, underline: true } })
+        .typography.underline,
+    ).toBe(true);
+    expect(
+      StyleDocSchema.parse({ ...base, typography: { ...base.typography, underline: false } })
+        .typography.underline,
+    ).toBe(false);
+  });
+
+  it("rejects a non-boolean", () => {
+    expect(
+      StyleDocSchema.safeParse({
+        ...base,
+        typography: { ...base.typography, underline: "yes" as never },
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("depth3d", () => {
+  const base = draft() as StyleDocInput;
+
+  it("is absent by default — every existing style JSON parses unchanged", () => {
+    expect(StyleDocSchema.safeParse(base).success).toBe(true);
+    expect(StyleDocSchema.parse(base).depth3d).toBeUndefined();
+  });
+
+  it("accepts a full depth3d document", () => {
+    const parsed = StyleDocSchema.parse({
+      ...base,
+      depth3d: { enabled: true, color: "#101014", offsetPct: 6, layers: 6 },
+    });
+    expect(parsed.depth3d).toEqual({ enabled: true, color: "#101014", offsetPct: 6, layers: 6 });
+  });
+
+  it("makes layers optional", () => {
+    const parsed = StyleDocSchema.parse({
+      ...base,
+      depth3d: { enabled: true, color: "#101014", offsetPct: 6 },
+    });
+    expect(parsed.depth3d?.layers).toBeUndefined();
+  });
+
+  it("rejects a non-hex colour and an out-of-range offset or layer count", () => {
+    expect(
+      StyleDocSchema.safeParse({
+        ...base,
+        depth3d: { enabled: true, color: "black", offsetPct: 6 },
+      }).success,
+    ).toBe(false);
+    expect(
+      StyleDocSchema.safeParse({
+        ...base,
+        depth3d: { enabled: true, color: "#101014", offsetPct: 99 },
+      }).success,
+    ).toBe(false);
+    expect(
+      StyleDocSchema.safeParse({
+        ...base,
+        depth3d: { enabled: true, color: "#101014", offsetPct: 6, layers: 20 },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps the schema at generation 2 — the field is additive, not a migration", () => {
+    expect(STYLE_DOC_VERSION).toBe(2);
+    expect(
+      StyleDocSchema.parse({
+        ...base,
+        depth3d: { enabled: true, color: "#101014", offsetPct: 6 },
+      }).version,
+    ).toBe(2);
+  });
+});

@@ -10,6 +10,8 @@
  * than about React.
  */
 
+import { useEffect, useState } from "react";
+
 import { type PanelScope, setStyleField, type SetStyleOp } from "./ops";
 
 import { cn } from "@/lib/utils";
@@ -134,6 +136,78 @@ export function SelectField<T extends string>({
           </option>
         ))}
       </select>
+    </label>
+  );
+}
+
+export interface SearchSelectFieldProps extends FieldProps<string> {
+  readonly options: readonly { readonly value: string; readonly label: string }[];
+  readonly placeholder?: string;
+}
+
+/**
+ * A searchable dropdown: a text input with a native `<datalist>`, so typing
+ * filters the option list (browser-built autocomplete, no extra JS state
+ * machine) while the field still only ever commits a value from `options` —
+ * K01's Font Family picker, whose catalogue is too long for a plain
+ * `<select>` to browse comfortably.
+ *
+ * The typed text is local state so a partial, not-yet-matching keystroke
+ * does not get clobbered by the last committed `value` on every render; it
+ * resyncs to `value` on blur (if what's typed never matched) and whenever
+ * `value` changes from outside (switching the selected style, undo).
+ */
+export function SearchSelectField({
+  label,
+  path,
+  value,
+  scope,
+  onOp,
+  options,
+  placeholder,
+  className,
+}: SearchSelectFieldProps): React.JSX.Element {
+  const id = `field-${path.replace(/\./g, "-")}`;
+  const listId = `${id}-options`;
+  const [text, setText] = useState(value);
+
+  useEffect(() => {
+    setText(value);
+  }, [value]);
+
+  function commit(next: string): void {
+    const match = options.find(
+      (option) => option.value.toLowerCase() === next.trim().toLowerCase(),
+    );
+    if (match !== undefined) onOp(setStyleField(scope, path, match.value));
+  }
+
+  return (
+    <label className={cn("flex flex-col gap-1 text-sm", className)} htmlFor={id}>
+      <span className="text-white/80">{label}</span>
+      <input
+        id={id}
+        type="text"
+        list={listId}
+        value={text}
+        placeholder={placeholder}
+        onChange={(event) => {
+          setText(event.target.value);
+          commit(event.target.value);
+        }}
+        onBlur={(event) => {
+          if (!options.some((option) => option.value === event.target.value)) setText(value);
+        }}
+        className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm"
+        data-testid={id}
+      />
+      <datalist id={listId}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </datalist>
     </label>
   );
 }

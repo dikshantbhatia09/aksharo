@@ -12,6 +12,8 @@
  * segment's own `overrides`.
  */
 
+import type { EmphasisPreset, WordHighlightType } from "@montaj/caption-styles";
+
 import type { SegmentPosition } from "../canvas/stage-geometry";
 
 /** Client-generated op id; the editor swaps in a real ULID. */
@@ -184,4 +186,37 @@ export function stylePresetDraft(
   const trimmed = name.trim();
   if (trimmed.length < 2) throw new Error("a template needs a name of at least two characters");
   return { name: trimmed, baseStyleId, overrides };
+}
+
+/**
+ * K01's Effects-tab Glow toggle: sugar over `animation.wordHighlight.type`,
+ * the same field the Anim tab's own "Word highlight" dropdown already
+ * writes, so the two UI paths share one implementation with nothing to
+ * duplicate or drift. Toggling on sets the type to `"glow"`; toggling off —
+ * from glow or from any other highlight type — clears it to `"none"`, the
+ * same "off" every other word-highlight type already shares.
+ */
+export function toggleWordHighlightGlow(current: WordHighlightType): WordHighlightType {
+  return current === "glow" ? "none" : "glow";
+}
+
+/**
+ * K01's Emphasis panel control: which `effect` the style's *default*
+ * emphasis preset (`emphasisPresets[0]` — the entry the right-click
+ * "Emphasise word" cycle in `SegmentCard.tsx`/`editor-client.tsx`'s
+ * `onEmphasize` reads and applies) uses once a word carries it. This reuses
+ * the exact array entry the cycle already keys off — the panel picks the
+ * effect, the cycle picks whether the current word gets it — rather than
+ * inventing a second "default emphasis" concept the schema has no field for.
+ * A style with no emphasis presets has nothing to default, so the array
+ * comes back unchanged; the panel disables the control in that case, the
+ * same guard `onEmphasize` already has.
+ */
+export function withDefaultEmphasisEffect(
+  presets: readonly EmphasisPreset[],
+  effect: EmphasisPreset["effect"],
+): EmphasisPreset[] {
+  const [first, ...rest] = presets;
+  if (first === undefined) return [...presets];
+  return [{ ...first, effect }, ...rest];
 }

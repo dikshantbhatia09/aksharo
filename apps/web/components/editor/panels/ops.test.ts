@@ -8,6 +8,8 @@ import {
   setStyleFields,
   setStyleRef,
   stylePresetDraft,
+  toggleWordHighlightGlow,
+  withDefaultEmphasisEffect,
 } from "./ops";
 
 const DOC = { kind: "doc" } as const;
@@ -151,5 +153,40 @@ describe("stylePresetDraft", () => {
   it("refuses a name too short to find again", () => {
     expect(() => stylePresetDraft(" a ", "punch-pop", {})).toThrow(/at least two characters/);
     expect(() => stylePresetDraft("   ", "punch-pop", {})).toThrow();
+  });
+});
+
+describe("toggleWordHighlightGlow", () => {
+  it("turns glow on from any other highlight type, including none", () => {
+    for (const current of ["none", "color", "scale", "box", "underline", "karaoke-fill"] as const) {
+      expect(toggleWordHighlightGlow(current)).toBe("glow");
+    }
+  });
+
+  it("turns glow back off to none", () => {
+    expect(toggleWordHighlightGlow("glow")).toBe("none");
+  });
+});
+
+describe("withDefaultEmphasisEffect", () => {
+  const presets = [
+    { id: "pop", label: "Pop", color: "#ffd400", scale: 1.25, effect: "none" as const },
+    { id: "shout", label: "Shout", color: "#ff2e63", scale: 1.35, effect: "shake" as const },
+  ];
+
+  it("changes only the first preset's effect, keeping the rest untouched", () => {
+    expect(withDefaultEmphasisEffect(presets, "glow")).toEqual([
+      { ...presets[0], effect: "glow" },
+      presets[1],
+    ]);
+  });
+
+  it("leaves everything else about the first preset alone", () => {
+    const [first] = withDefaultEmphasisEffect(presets, "highlight");
+    expect(first).toMatchObject({ id: "pop", label: "Pop", color: "#ffd400", scale: 1.25 });
+  });
+
+  it("returns an empty array unchanged — nothing to default", () => {
+    expect(withDefaultEmphasisEffect([], "glow")).toEqual([]);
   });
 });
