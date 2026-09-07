@@ -13,6 +13,7 @@ import {
 import { BRAND } from "@montaj/config";
 import { Button, Card, cn, Field, Input, ProgressBar, toast } from "@montaj/ui";
 
+import { ALL_LANGUAGES } from "@/components/projects/languages";
 import { SampleProjectButton } from "@/components/projects/project-grid";
 import { messageForError } from "@/lib/errors";
 import { useT } from "@/lib/i18n/locale-provider";
@@ -50,20 +51,13 @@ const MAKE_DEFAULTS: Record<
 
 const MAKES = ["reels", "youtube", "podcast", "client", "gaming"] as const;
 
-const LANGUAGES = [
-  { key: "hi-Latn", label: "Hinglish (Roman)" },
-  { key: "hi", label: "हिन्दी" },
-  { key: "en-IN", label: "English (India)" },
-  { key: "en", label: "English" },
-  { key: "bn", label: "বাংলা" },
-  { key: "ta", label: "தமிழ்" },
-  { key: "te", label: "తెలుగు" },
-  { key: "mr", label: "मराठी" },
-  { key: "kn", label: "ಕನ್ನಡ" },
-  { key: "ml", label: "മലയాളం" },
-  { key: "gu", label: "ગુજરાતી" },
-  { key: "pa", label: "ਪੰਜਾਬੀ" },
-] as const;
+/**
+ * K02: this used to be its own hand-kept copy of the language list — the
+ * exact duplication `language-picker.tsx` warned about. Both screens now read
+ * `./languages.ts`'s `ALL_LANGUAGES`, so adding a language (Nepali, Urdu,
+ * Pushto) only ever means touching one file.
+ */
+const LANGUAGES = ALL_LANGUAGES;
 
 const SOURCES = ["friend", "youtube", "instagram", "search", "creator", "other"] as const;
 
