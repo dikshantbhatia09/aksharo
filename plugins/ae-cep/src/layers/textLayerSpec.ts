@@ -10,7 +10,7 @@
  * pixels using the target comp's own width/height, matching what an AE `TextLayer`/
  * `AVLayer#transform.position` actually wants (absolute pixel coordinates, top-left origin).
  */
-import type { StyleDoc } from "@montaj/caption-styles";
+import { resolveColour, type StyleDoc } from "@montaj/caption-styles";
 
 import type { TextLayerSpec } from "../host/ae.js";
 
@@ -73,7 +73,10 @@ export function buildTextLayerSpecs(options: BuildTextLayerSpecsOptions): TextLa
   const { compWidthPx, compHeightPx, style, segments } = options;
   const position = resolvePositionPx(style, compWidthPx, compHeightPx);
   const fontSizePx = resolveFontSizePx(style, compHeightPx);
-  const colorRgb = hexToRgb(style.colors.text);
+  // An AE text layer's fill is one flat colour; a `Gradient` `colors.text`
+  // (K08) resolves to its first stop, same as every other solid-only export
+  // path (`@montaj/ass-exporter`'s `style-map.ts`).
+  const colorRgb = hexToRgb(resolveColour(style.colors.text));
 
   const strokeColorRgb =
     style.stroke.enabled && style.stroke.color ? hexToRgb(style.stroke.color) : undefined;

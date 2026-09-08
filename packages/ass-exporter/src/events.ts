@@ -13,7 +13,7 @@
  * expects.
  */
 
-import type { StyleDoc } from "@montaj/caption-styles";
+import { resolveColour, type StyleDoc } from "@montaj/caption-styles";
 import type { TimeQuery } from "@montaj/timemap";
 
 import { toAssColourNoAlpha } from "./colour.js";
@@ -203,8 +203,10 @@ function perWordEvents(
   const highlight = style.animation.wordHighlight.type;
   const restColour =
     style.colors.upcomingText !== undefined ? toAssColourNoAlpha(style.colors.upcomingText) : null;
+  // A `Gradient` `colors.text` (K08) resolves to its first stop — see
+  // `style-map.ts`'s `buildStyleLine` for the same fallback and why.
   const activeColour = toAssColourNoAlpha(
-    style.colors.activeText ?? style.colors.accent ?? style.colors.text,
+    resolveColour(style.colors.activeText ?? style.colors.accent ?? style.colors.text),
   );
 
   return words.map((word) => {

@@ -4,7 +4,15 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { STYLES_DIR } from "./registry.js";
-import { STYLE_DOC_VERSION, StyleDocSchema, type StyleDocInput } from "./schema.js";
+import {
+  GradientSchema,
+  isGradient,
+  resolveColour,
+  STYLE_DOC_VERSION,
+  StyleDocSchema,
+  type Gradient,
+  type StyleDocInput,
+} from "./schema.js";
 
 const punchPop = JSON.parse(
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
@@ -420,5 +428,127 @@ describe("depth3d", () => {
         depth3d: { enabled: true, color: "#101014", offsetPct: 6 },
       }).version,
     ).toBe(2);
+  });
+});
+
+describe("colors.text / emphasisPresets[].color: string | Gradient (K08)", () => {
+  const base = draft() as StyleDocInput;
+  const gradient: Gradient = {
+    stops: [
+      { offset: 0, color: "#ff2e63" },
+      { offset: 0.5, color: "#ffd400" },
+      { offset: 1, color: "#3fa7d6" },
+    ],
+    angleDeg: 45,
+  };
+
+  it("still accepts a plain hex string — every existing style JSON parses unchanged", () => {
+    expect(StyleDocSchema.safeParse(base).success).toBe(true);
+    expect(StyleDocSchema.parse(base).colors.text).toBe(punchPop.colors.text);
+  });
+
+  it("accepts a Gradient in colors.text", () => {
+    const parsed = StyleDocSchema.parse({
+      ...base,
+      colors: { ...base.colors, text: gradient },
+    });
+    expect(parsed.colors.text).toEqual(gradient);
+  });
+
+  it("accepts a Gradient in emphasisPresets[].color, alongside a preset that keeps a plain string", () => {
+    const parsed = StyleDocSchema.parse({
+      ...base,
+      emphasisPresets: [
+        { id: "grad", color: gradient },
+        { id: "flat", color: "#ffffff" },
+      ],
+    });
+    expect(parsed.emphasisPresets[0]?.color).toEqual(gradient);
+    expect(parsed.emphasisPresets[1]?.color).toBe("#ffffff");
+  });
+
+  it("rejects fewer than two stops", () => {
+    expect(
+      StyleDocSchema.safeParse({
+        ...base,
+        colors: { ...base.colors, text: { stops: [{ offset: 0, color: "#ffffff" }], angleDeg: 0 } },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects more than six stops", () => {
+    const tooMany = {
+      stops: Array.from({ length: 7 }, (_unused, index) => ({
+        offset: index / 6,
+        color: "#ffffff",
+      })),
+      angleDeg: 0,
+    };
+    expect(
+      StyleDocSchema.safeParse({ ...base, colors: { ...base.colors, text: tooMany } }).success,
+    ).toBe(false);
+  });
+
+  it("rejects a stop offset outside 0-1 and an angle outside 0-360", () => {
+    expect(
+      GradientSchema.safeParse({
+        stops: [
+          { offset: -0.1, color: "#ffffff" },
+          { offset: 1, color: "#000000" },
+        ],
+        angleDeg: 0,
+      }).success,
+    ).toBe(false);
+    expect(
+      GradientSchema.safeParse({
+        stops: [
+          { offset: 0, color: "#ffffff" },
+          { offset: 1, color: "#000000" },
+        ],
+        angleDeg: 361,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects a non-hex stop colour", () => {
+    expect(
+      GradientSchema.safeParse({
+        stops: [
+          { offset: 0, color: "white" },
+          { offset: 1, color: "#000000" },
+        ],
+        angleDeg: 0,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps the schema at generation 2 — the field is additive, not a migration", () => {
+    expect(STYLE_DOC_VERSION).toBe(2);
+    expect(
+      StyleDocSchema.parse({ ...base, colors: { ...base.colors, text: gradient } }).version,
+    ).toBe(2);
+  });
+});
+
+describe("isGradient / resolveColour (K08)", () => {
+  const gradient: Gradient = {
+    stops: [
+      { offset: 0, color: "#ff2e63" },
+      { offset: 1, color: "#3fa7d6" },
+    ],
+    angleDeg: 90,
+  };
+
+  it("isGradient narrows a string | Gradient value", () => {
+    expect(isGradient("#ffffff")).toBe(false);
+    expect(isGradient(gradient)).toBe(true);
+  });
+
+  it("resolveColour passes a plain string through unchanged", () => {
+    expect(resolveColour("#123456")).toBe("#123456");
+  });
+
+  it("resolveColour reads a Gradient's first stop", () => {
+    expect(resolveColour(gradient)).toBe("#ff2e63");
   });
 });

@@ -15,7 +15,7 @@
  * keyframes.
  */
 
-import { type StyleDoc } from "@montaj/caption-styles";
+import { resolveColour, type StyleDoc } from "@montaj/caption-styles";
 import { type TimeQuery } from "@montaj/timemap";
 
 import { countUpText } from "./count.js";
@@ -203,7 +203,12 @@ export function renderTitleFrame(options: RenderTitlesOptions): DrawCommand[] {
         box: placement.box,
         phase,
         glyphRun: positionedRun,
-        textColor: style.colors.text,
+        // A title borrows the caption style's own text colour (module doc
+        // comment above); `drawTextFxTitle`'s `textColor` is a flat `Color`
+        // (`commands/types.ts`), so a `Gradient` `colors.text` (K08) resolves
+        // to its first stop — titles are out of this WP's scope (word ink
+        // only), matching every other solid-only reader of this field.
+        textColor: resolveColour(style.colors.text),
         ...(style.colors.accent === undefined ? {} : { accentColor: style.colors.accent }),
         showUnderline: title.motionPreset === "underline",
       }),
