@@ -1502,6 +1502,14 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     };
   }, [captionToolsOpen]);
 
+  // K06: whenever the panel closes — Escape, a click outside, or an action
+  // that closes it itself — any un-applied Caption Delay preview is dropped
+  // too, so a shift the user only dragged (never hit Apply on) never lingers
+  // as a visual artifact on a timeline the panel is no longer open over.
+  useEffect(() => {
+    if (!captionToolsOpen) setDelayPreviewMs(0);
+  }, [captionToolsOpen]);
+
   const captionToolsAvailable =
     onMergeShortCaptions !== undefined &&
     onSplitLongCaptions !== undefined &&
