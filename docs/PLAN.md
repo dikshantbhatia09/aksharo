@@ -262,19 +262,31 @@ folder's `ADDENDUM-full-frame-audit.md` for K05+.
 | K03 | Timeline: WORD/LINE toggle, search box, Caption Tools dropdown (v1 — see K05+ for the real Display Settings/Actions/Timing structure), video thumbnail track | — | merged 2026-09-08 (stage 6) |
 | K04 | Editor chrome: left icon rail, Safe Zone toggle, Replace-media, resolution indicator, sidebar usage counters | — | merged 2026-09-08 (stage 6) |
 | K05 | Transitions parity (Zoom/Scale/Slide-L-R/Rise/Hide + Line/Word + Dynamic speed), Format Strikethrough, Emphasis per-word typography override | K01 | merged 2026-09-08 (stage 6) |
-| K06 | The real Caption Tools structure: Display Settings/Actions/Timing (corrects K03's initial merge/split/resegment-only dropdown) | K03 | in progress |
+| K06 | The real Caption Tools structure: Display Settings/Actions/Timing (corrects K03's initial merge/split/resegment-only dropdown) | K03 | merged 2026-09-08 (stage 6) |
 | K07 | Export platform presets (Instagram Story/Feed), caption-opacity control (browser exports only; cloud export deferred — flagged) | — | merged 2026-09-08 (stage 6) |
 
-Stage 6 verified as one integration: `pnpm --filter "./packages/*" build`,
-`@montaj/web` typecheck/lint/test (170 files / 1221 tests), `@montaj/render-core`
-(538 tests, golden hashes byte-identical across all 30 styles), `@montaj/caption-styles`
-(47 tests), `@montaj/ui` (95 tests), and `format-changed --check` against the
-pre-K-wave base — all clean. Two CHANGELOG.md merge conflicts resolved
-(pure entry-stacking, no content changes); `editor-client.tsx` auto-merged
-cleanly across all three WPs that touch it (K01/K03/K04), inspected by hand.
+All seven K-wave work packages are merged into stage-6 and verified together
+as one integration after every merge (not just once at the end): `pnpm
+--filter "./packages/*" build`, `@montaj/web` typecheck/lint/test (172 files /
+1275 tests, final count), `@montaj/render-core` (580 tests, golden hashes
+byte-identical across all 30 shipped styles throughout — no style was ever
+touched by any K0x), `@montaj/caption-styles` (68 tests), `@montaj/render-manifest`
+(50 tests), `@montaj/ui` (95 tests), and `format-changed --check` against the
+pre-K-wave base (`1a86686d`) — all clean at every stage. Every CHANGELOG.md
+merge conflict (K01, K02, K04, K05, K06 each landed one) was pure entry-
+stacking with no content changes, resolved by hand. `editor-client.tsx`
+auto-merged cleanly across the four WPs that touch it (K01/K03/K04, plus one
+follow-up commit wiring K06's `onCaptionToolsAction` — the one place a WP
+correctly stopped at its file boundary and left a one-line callback for the
+orchestrator to close, exactly as the wave's golden rules intend).
 
-K05+ (Transitions parity, Format Strikethrough, Emphasis per-word typography
-override, the real Caption Tools Display-Settings/Actions/Timing structure,
-timeline caption-block text labels, an export platform/aspect preset picker)
-are planned from `ADDENDUM-full-frame-audit.md`'s findings, to be briefed
-against this merged state and dispatched next.
+Remaining, deliberately deferred, not silently dropped: Color Gradient (a
+real feature confirmed by both K01's and K05's investigations, schema-
+breaking, needs its own WP); cloud-render support for K07's caption-opacity
+control (browser export only today); the "Words" Display Setting in K06's
+Caption Tools (no backing concept in this app's data model yet); an "Edit"
+tab / per-clip properties panel (architecturally distinct — this is a
+caption/pass-driven single-source editor, not a multi-clip NLE timeline, see
+the addendum's §8); a real workspace-wide Storage aggregate (K04 shipped a
+disclosed bounded estimate instead, no server-side aggregate exists to read
+one from).
