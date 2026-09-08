@@ -183,6 +183,190 @@ describe("typography.underline", () => {
   });
 });
 
+describe("K05: new cue animation types", () => {
+  const base = draft() as StyleDocInput;
+
+  it.each(["zoom", "scale", "slide-left", "slide-right", "rise", "hide"] as const)(
+    "accepts %s as an in/out cue type, additive to the original eight",
+    (type) => {
+      const parsed = StyleDocSchema.safeParse({
+        ...base,
+        animation: {
+          ...base.animation,
+          in: { type, durationMs: 200 },
+          out: { type, durationMs: 200 },
+        },
+      });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect(parsed.data.animation.in.type).toBe(type);
+        expect(parsed.data.animation.out.type).toBe(type);
+      }
+    },
+  );
+
+  it("still rejects a type that isn't in the (now fourteen-value) enum", () => {
+    const style = draft();
+    (style["animation"] as { in: { type: string } }).in.type = "explode";
+    expect(StyleDocSchema.safeParse(style).success).toBe(false);
+  });
+});
+
+describe("animation.cueScope", () => {
+  const base = draft() as StyleDocInput;
+
+  it("is optional, so a document written before the field still parses", () => {
+    expect(StyleDocSchema.safeParse(base).success).toBe(true);
+    expect(StyleDocSchema.parse(base).animation.cueScope).toBeUndefined();
+  });
+
+  it("accepts line and word", () => {
+    expect(
+      StyleDocSchema.parse({ ...base, animation: { ...base.animation, cueScope: "line" } })
+        .animation.cueScope,
+    ).toBe("line");
+    expect(
+      StyleDocSchema.parse({ ...base, animation: { ...base.animation, cueScope: "word" } })
+        .animation.cueScope,
+    ).toBe("word");
+  });
+
+  it("rejects anything else", () => {
+    expect(
+      StyleDocSchema.safeParse({
+        ...base,
+        animation: { ...base.animation, cueScope: "paragraph" as never },
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("animation.dynamicSpeed", () => {
+  const base = draft() as StyleDocInput;
+
+  it("is optional and defaults to undefined (fixed duration), so old documents parse unchanged", () => {
+    expect(StyleDocSchema.safeParse(base).success).toBe(true);
+    expect(StyleDocSchema.parse(base).animation.dynamicSpeed).toBeUndefined();
+  });
+
+  it("accepts true and false", () => {
+    expect(
+      StyleDocSchema.parse({ ...base, animation: { ...base.animation, dynamicSpeed: true } })
+        .animation.dynamicSpeed,
+    ).toBe(true);
+    expect(
+      StyleDocSchema.parse({ ...base, animation: { ...base.animation, dynamicSpeed: false } })
+        .animation.dynamicSpeed,
+    ).toBe(false);
+  });
+
+  it("rejects a non-boolean", () => {
+    expect(
+      StyleDocSchema.safeParse({
+        ...base,
+        animation: { ...base.animation, dynamicSpeed: "yes" as never },
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("typography.strikethrough", () => {
+  const base = draft() as StyleDocInput;
+
+  it("is optional, so a document written before the field still parses", () => {
+    const { strikethrough: _dropped, ...typography } = {
+      strikethrough: undefined,
+      ...base.typography,
+    };
+    const older = { ...base, typography };
+    expect(StyleDocSchema.safeParse(older).success).toBe(true);
+    expect(StyleDocSchema.parse(older).typography.strikethrough).toBeUndefined();
+  });
+
+  it("accepts true and false", () => {
+    expect(
+      StyleDocSchema.parse({ ...base, typography: { ...base.typography, strikethrough: true } })
+        .typography.strikethrough,
+    ).toBe(true);
+    expect(
+      StyleDocSchema.parse({ ...base, typography: { ...base.typography, strikethrough: false } })
+        .typography.strikethrough,
+    ).toBe(false);
+  });
+
+  it("rejects a non-boolean", () => {
+    expect(
+      StyleDocSchema.safeParse({
+        ...base,
+        typography: { ...base.typography, strikethrough: "yes" as never },
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("emphasisPresets[].fontFamily/.italic/.underline (K05)", () => {
+  const base = draft() as StyleDocInput;
+
+  it("are absent by default — every existing style JSON parses unchanged", () => {
+    expect(StyleDocSchema.safeParse(base).success).toBe(true);
+    for (const preset of StyleDocSchema.parse(base).emphasisPresets) {
+      expect(preset.fontFamily).toBeUndefined();
+      expect(preset.italic).toBeUndefined();
+      expect(preset.underline).toBeUndefined();
+    }
+  });
+
+  it("accepts a full typography override alongside the existing weight", () => {
+    const parsed = StyleDocSchema.parse({
+      ...base,
+      emphasisPresets: [
+        { id: "mark", fontFamily: "Poppins", weight: 800, italic: true, underline: true },
+      ],
+    });
+    expect(parsed.emphasisPresets[0]).toMatchObject({
+      id: "mark",
+      fontFamily: "Poppins",
+      weight: 800,
+      italic: true,
+      underline: true,
+    });
+  });
+
+  it("rejects an empty font family", () => {
+    expect(
+      StyleDocSchema.safeParse({
+        ...base,
+        emphasisPresets: [{ id: "mark", fontFamily: "" }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects a non-boolean italic or underline", () => {
+    expect(
+      StyleDocSchema.safeParse({
+        ...base,
+        emphasisPresets: [{ id: "mark", italic: "yes" as never }],
+      }).success,
+    ).toBe(false);
+    expect(
+      StyleDocSchema.safeParse({
+        ...base,
+        emphasisPresets: [{ id: "mark", underline: "yes" as never }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps the schema at generation 2 — every K05 field is additive, not a migration", () => {
+    expect(STYLE_DOC_VERSION).toBe(2);
+    expect(
+      StyleDocSchema.parse({
+        ...base,
+        emphasisPresets: [{ id: "mark", fontFamily: "Poppins", italic: true, underline: true }],
+      }).version,
+    ).toBe(2);
+  });
+});
+
 describe("depth3d", () => {
   const base = draft() as StyleDocInput;
 

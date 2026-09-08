@@ -47,7 +47,17 @@ export const StyleCategorySchema = z.enum([
 /** Lowest plan that may use the style (04 §Plans). */
 export const MinPlanSchema = z.enum(["free", "starter", "creator", "studio", "agency"]);
 
-/** Entry and exit animations `render-core` implements; A16 extends the list. */
+/**
+ * Entry and exit animations `render-core` implements; A16 extends the list.
+ *
+ * `zoom`/`scale`/`slide-left`/`slide-right`/`rise`/`hide` are K05's addition,
+ * matching Kalakar's own nine named transitions (None/Fade/Pop/Zoom/Scale/
+ * Slide Left/Slide Right/Slide Up/Slide Down/Rise/Hide — our list also keeps
+ * `typewriter`/`bounce`/`blur`, which Kalakar does not name but our styles
+ * already ship). Additive only: appended after the original eight so no
+ * existing style's serialized `in.type`/`out.type` moves, and `animate.ts`'s
+ * `cuePhase` documents each new type's exact motion.
+ */
 export const CueAnimationTypeSchema = z.enum([
   "none",
   "fade",
@@ -57,6 +67,12 @@ export const CueAnimationTypeSchema = z.enum([
   "typewriter",
   "bounce",
   "blur",
+  "zoom",
+  "scale",
+  "slide-left",
+  "slide-right",
+  "rise",
+  "hide",
 ]);
 
 /** How the word being spoken is marked. */
@@ -125,6 +141,13 @@ export const TypographySchema = z.object({
    * so every document written before this field renders exactly as before.
    */
   underline: z.boolean().optional(),
+  /**
+   * The Format row's fourth button (K05, alongside K01's `underline`): a
+   * strike line through the middle of every word's glyph run, the whole
+   * time the caption is on screen. Additive — omitted means `false`, so
+   * every document written before this field renders exactly as before.
+   */
+  strikethrough: z.boolean().optional(),
 });
 
 export const ColorsSchema = z.object({
@@ -226,6 +249,36 @@ export const AnimationSchema = z.object({
   wordHighlight: WordHighlightSchema,
   /** One word on screen at a time (word-pop styles). */
   perWord: z.boolean(),
+  /**
+   * K05: whether the `in`/`out` cue animates the whole caption as one block
+   * (`"line"`, the long-standing behaviour) or each word independently
+   * (`"word"`) — Kalakar's Transitions tab's "Transitions will be Applied on
+   * Line"/"on Word" toggle. Genuinely distinct from `perWord`: `perWord`
+   * controls which words are *visible* at all (one at a time, word-pop
+   * styles); `cueScope` controls how the already-visible word(s) animate
+   * in/out. The two compose — `perWord: true` styles only ever have one word
+   * in `layout.words`, so `cueScope: "word"` on top of them changes nothing
+   * new.
+   *
+   * In "word" scope each word's `in` cue starts on the word's own
+   * `startMs` — words cascade in one after another as the caption first
+   * appears — but every word shares the caption's own `out` cue and `endMs`:
+   * a word does not fade back out just because it has stopped being the
+   * *active* word (`animate.ts`'s `wordCuePhase` documents why that would be
+   * wrong). Additive and optional: absent means `"line"`, so every document
+   * written before this field renders exactly as before.
+   */
+  cueScope: z.enum(["line", "word"]).optional(),
+  /**
+   * K05: Kalakar's "Speed Mode: Dynamic" toggle — when `true`, `render-core`
+   * derives the `in`/`out` cue's effective duration from the caption's own
+   * on-screen span instead of the fixed `in.durationMs`/`out.durationMs`
+   * values (see `animate.ts`'s `dynamicCueDurationMs`). Additive and
+   * optional: absent means `false` (the fixed duration always used before
+   * this field existed), so every document written before it renders
+   * exactly as before.
+   */
+  dynamicSpeed: z.boolean().optional(),
 });
 
 /**
@@ -245,6 +298,22 @@ export const EmphasisPresetSchema = z.object({
   scale: z.number().min(0.5).max(2.5).optional(),
   weight: z.number().int().min(100).max(900).optional(),
   effect: z.enum(["none", "glow", "shake", "outline", "highlight", "underline"]).optional(),
+  /**
+   * K05: the Emphasis section's own, independent Font/Font Face/Styles
+   * control group (frames 0140-0157 of the addendum) — an emphasised word
+   * can use a different font family, slant and underline than the base
+   * caption's own `typography`, alongside the `weight` override already
+   * above. Each is read by `render-core`'s layout/paint path only when
+   * present, falling back to the base caption's typography when absent, so
+   * a preset with none of these renders byte-identical to before this WP.
+   * `fontFamily` and `italic` are resolved like `typography.fontFamily`/
+   * `.italic` — at shaping time, per word, not as a paint-time trick — since
+   * a different family or slant is a different font file, not just a
+   * different colour.
+   */
+  fontFamily: z.string().min(1).max(120).optional(),
+  italic: z.boolean().optional(),
+  underline: z.boolean().optional(),
 });
 
 /** The StyleDoc schema generation, exactly as `EdgHot.meta.schemaVersion` gates the EDG. */
