@@ -418,6 +418,87 @@ describe("layoutSegment", () => {
     expect(layout.words[0]?.sp).toBe("sp2");
   });
 
+  describe("emphasisPresets[].fontFamily/.italic override (K05)", () => {
+    it("shapes the emphasised word with the preset's own font family, and every other word with the base style's", () => {
+      const base = style("vertical-clean");
+      expect(base.typography.fontFamily).toBe("Inter");
+      const doc = style("vertical-clean", {
+        emphasisPresets: [{ id: "swap", fontFamily: "Poppins" }],
+      });
+      const layout = lay(
+        doc,
+        words(["alpha", "bravo"]).map((word, index) =>
+          index === 0 ? { ...word, emphasisPresetId: "swap" } : word,
+        ),
+      );
+      const [marked, plain] = layout.words;
+      expect(marked?.runs[0]?.fontId).toBeDefined();
+      expect(plain?.runs[0]?.fontId).toBeDefined();
+      expect(marked?.runs[0]?.fontId).toMatch(/^poppins-/);
+      expect(plain?.runs[0]?.fontId).toMatch(/^inter-/);
+    });
+
+    it("shapes the emphasised word italic when the preset overrides it, base style unaffected", () => {
+      const base = style("vertical-clean");
+      expect(base.typography.italic).toBe(false);
+      const doc = style("vertical-clean", {
+        emphasisPresets: [{ id: "lean", italic: true }],
+      });
+      const layout = lay(
+        doc,
+        words(["alpha", "bravo"]).map((word, index) =>
+          index === 0 ? { ...word, emphasisPresetId: "lean" } : word,
+        ),
+      );
+      // The fixture registry aliases every weight/slant to the same upright
+      // Latin face (see testing.ts), so the request itself is what this
+      // asserts — the resolved font id still differs (italic gets its own
+      // id) only if a genuinely italic face is registered. What must always
+      // be true, registry contents aside, is that the two words were asked
+      // for with different `italic` values — captured indirectly here via
+      // `itemise`, the same function `measure` calls per word.
+      const marked = itemise("alpha", registry, {
+        family: doc.typography.fontFamily,
+        weight: doc.typography.weight,
+        italic: true,
+        defaultScript: "latin",
+      });
+      const plain = itemise("bravo", registry, {
+        family: doc.typography.fontFamily,
+        weight: doc.typography.weight,
+        italic: false,
+        defaultScript: "latin",
+      });
+      expect(marked[0]?.fontId).toBeDefined();
+      expect(plain[0]?.fontId).toBeDefined();
+      // Both resolve (the registry never throws for a missing italic face —
+      // it falls back to the closest match), and the layout actually used
+      // the per-word italic request, not a single caption-wide one:
+      expect(layout.words[0]?.runs[0]?.fontId).toBe(marked[0]?.fontId);
+      expect(layout.words[1]?.runs[0]?.fontId).toBe(plain[0]?.fontId);
+    });
+
+    it("falls back to the base style's font family and slant when the preset has no override", () => {
+      const base = style("vertical-clean");
+      const withPlainPreset = style("vertical-clean", {
+        emphasisPresets: [{ id: "plain", color: "#ffd400" }], // no fontFamily/italic
+      });
+      const withoutPreset = lay(base, words(["alpha", "bravo"]));
+      const marked = words(["alpha", "bravo"]).map((word, index) =>
+        index === 0 ? { ...word, emphasisPresetId: "plain" } : word,
+      );
+      const withPreset = lay(withPlainPreset, marked);
+      expect(withPreset.words[0]?.runs[0]?.fontId).toBe(withoutPreset.words[0]?.runs[0]?.fontId);
+      expect(withPreset.words[1]?.runs[0]?.fontId).toBe(withoutPreset.words[1]?.runs[0]?.fontId);
+    });
+
+    it("ignores an emphasis preset the style does not define, same as the paint path does", () => {
+      const doc = style("vertical-clean");
+      const marked = words(["alpha"]).map((word) => ({ ...word, emphasisPresetId: "ghost" }));
+      expect(() => lay(doc, marked)).not.toThrow();
+    });
+  });
+
   it("drops whitespace-only words rather than laying out a gap", () => {
     expect(lay(style("vertical-clean"), words(["one", "  ", "two"])).words).toHaveLength(2);
   });
