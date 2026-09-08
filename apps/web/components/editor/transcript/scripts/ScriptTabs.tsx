@@ -42,6 +42,10 @@ import {
 } from "@montaj/api-client";
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Tabs,
   TabsContent,
   TabsList,
@@ -222,23 +226,33 @@ export function ScriptTabs({
           <label htmlFor="translation-target" className="text-fg-2 text-xs">
             Translate to
           </label>
-          <select
-            id="translation-target"
-            className="border-border rounded-sm border bg-transparent px-2 py-1 text-sm"
-            defaultValue=""
-            onChange={(event) => {
-              if (event.target.value) requestTranslation(event.target.value);
-            }}
-          >
-            <option value="" disabled>
-              Choose a language…
-            </option>
-            {TRANSLATION_LANGUAGE_OPTIONS.map((option) => (
-              <option key={option.tag} value={option.tag}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          {/*
+           * A native `<select>` used to sit here; its dropdown popup is
+           * painted by OS chrome rather than this page, so it ignored the
+           * design system's colour tokens and rendered white-on-white
+           * regardless of `color-scheme`. This menu is regular DOM the page
+           * paints itself, so it inherits the tokens correctly.
+           */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                id="translation-target"
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="translation-target"
+              >
+                Choose a language…
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {TRANSLATION_LANGUAGE_OPTIONS.map((option) => (
+                <DropdownMenuItem key={option.tag} onSelect={() => requestTranslation(option.tag)}>
+                  {option.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             type="button"
             variant="ghost"

@@ -720,3 +720,50 @@ describe("<Timeline /> K03 thumbnail track", () => {
     expect(screen.getByTestId("timeline-canvas")).toBeInTheDocument();
   });
 });
+
+describe("<Timeline /> FIX-03 transcript reference column", () => {
+  const words: Word[] = [
+    { wid: "0:0", s: 0, e: 400, t: "hello", scripts: { native: "हैलो" } },
+    { wid: "0:1", s: 400, e: 1_000, t: "world" },
+    { wid: "0:2", s: 2_000, e: 2_500, t: "second" },
+    { wid: "0:3", s: 2_500, e: 3_000, t: "line" },
+  ];
+  const segments: Segment[] = [
+    { id: "s1", seq: "a0", startWordId: "0:0", endWordId: "0:1", startMs: 0, endMs: 1_000 },
+    { id: "s2", seq: "a1", startWordId: "0:2", endWordId: "0:3", startMs: 2_000, endMs: 3_000 },
+  ];
+
+  it("shows a quiet empty state when there is no transcript yet", () => {
+    renderTimeline();
+    expect(screen.getByText("No transcript yet.")).toBeInTheDocument();
+  });
+
+  it("renders each segment's plain text, joined from its own words in order", () => {
+    renderTimeline({ words, segments });
+    expect(screen.getByTestId("timeline-transcript-row-s1")).toHaveTextContent("hello world");
+    expect(screen.getByTestId("timeline-transcript-row-s2")).toHaveTextContent("second line");
+  });
+
+  it("uses the requested script's word text when the word has one", () => {
+    renderTimeline({ words, segments, script: "native" });
+    // Only the first word has a `native` override; the second falls back to `t`.
+    expect(screen.getByTestId("timeline-transcript-row-s1")).toHaveTextContent("हैलो world");
+  });
+
+  it("highlights the segment the playhead is currently over, not the others", () => {
+    renderTimeline({ words, segments, playheadMs: 2_200 });
+    expect(screen.getByTestId("timeline-transcript-row-s2").className).toMatch(/bg-white\/10/);
+    expect(screen.getByTestId("timeline-transcript-row-s1").className).not.toMatch(/bg-white\/10/);
+  });
+
+  it("seeks to and selects a segment when its transcript row is clicked", () => {
+    const onSelectSegment = vi.fn();
+    const onSeek = vi.fn();
+    renderTimeline({ words, segments, onSelectSegment, onSeek });
+
+    fireEvent.click(screen.getByTestId("timeline-transcript-row-s2"));
+
+    expect(onSelectSegment).toHaveBeenCalledWith("s2");
+    expect(onSeek).toHaveBeenCalledWith(2_000);
+  });
+});

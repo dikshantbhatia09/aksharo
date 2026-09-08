@@ -5,6 +5,8 @@
  * or how long the source media — the "virtualised drawing" the brief and
  * acceptance criteria ask for.
  */
+import type { Viewport } from "./coords";
+
 export interface WaveformLike {
   readonly peakRate: number;
   readonly peaks: readonly number[];
@@ -44,6 +46,50 @@ export function reduceWaveform(
     };
   }
   return buckets;
+}
+
+export interface WaveformDrawWindow {
+  /** Canvas x (px) where the waveform starts — `reduceWaveform`'s bucket 0. */
+  readonly pxStart: number;
+  /** How many buckets/pixels wide the drawn waveform is. */
+  readonly widthPx: number;
+  readonly startMs: number;
+  readonly endMs: number;
+}
+
+/**
+ * The pixel-aligned window `reduceWaveform` should reduce over, bounded to
+ * `[0, durationMs]` rather than the caller's full canvas width.
+ *
+ * A viewport routinely shows more than the media's duration — a 20 s clip at
+ * the default 30 ms/px zoom already shows ~35 s of ruler (`Timeline.tsx`'s
+ * own `rulerEndMs` comment) — so asking `reduceWaveform` for `widthPx`
+ * buckets over a *narrower*, duration-clamped ms range while still drawing
+ * bucket `i` at canvas x = `i` silently stretches that narrower slice of
+ * audio across the whole canvas: the waveform then visibly runs past where
+ * the media (and the ruler) actually end. Reducing over only the pixel span
+ * `[0, durationMs]` maps to, and drawing at that span's own offset, keeps
+ * one bucket per pixel end to end and ends the waveform exactly on the
+ * media's duration. Returns `undefined` when nothing of `[0, durationMs]`
+ * falls inside `visible`.
+ */
+export function waveformDrawWindow(
+  viewport: Viewport,
+  durationMs: number,
+  visible: { readonly startMs: number; readonly endMs: number },
+): WaveformDrawWindow | undefined {
+  if (durationMs <= 0) return undefined;
+  const startMs = Math.max(0, visible.startMs);
+  const endMs = Math.min(durationMs, visible.endMs);
+  if (endMs <= startMs) return undefined;
+  const pxStart = Math.max(0, Math.floor((startMs - viewport.scrollMs) / viewport.msPerPx));
+  const pxEnd = Math.min(
+    viewport.widthPx,
+    Math.ceil((endMs - viewport.scrollMs) / viewport.msPerPx),
+  );
+  const widthPx = pxEnd - pxStart;
+  if (widthPx <= 0) return undefined;
+  return { pxStart, widthPx, startMs, endMs };
 }
 
 function reduceMax(

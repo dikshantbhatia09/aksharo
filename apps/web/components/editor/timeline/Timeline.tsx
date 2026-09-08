@@ -81,7 +81,11 @@ import {
 import { resolvePassItemDrag, type PassItemNeighbour } from "@/lib/timeline/pass-item-drag";
 import { resolveSegmentDrag, resolveWordEdgeDrag, type Neighbour } from "@/lib/timeline/snapping";
 import { useMemoryNudgeSink } from "@/lib/timeline/use-memory-nudge-sink";
-import { reduceWaveform, type WaveformLike } from "@/lib/timeline/waveform-view";
+import {
+  reduceWaveform,
+  waveformDrawWindow,
+  type WaveformLike,
+} from "@/lib/timeline/waveform-view";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -230,6 +234,18 @@ export interface TimelineProps {
    * does nothing would be exactly the "no-op UI element" the brief forbids.
    */
   readonly onCaptionToolsAction?: (ops: readonly EdgOp[], label: string) => void;
+  /**
+   * FIX-03: which per-word text the transcript reference column reads —
+   * `SegmentCard`'s own `displayText` rule (A22's `ScriptTabs`), so switching
+   * the editor's script tab is reflected here without a second lookup table.
+   * Defaults to `"roman"`, `TranscriptList`'s own initial script. Distinct
+   * from `wordScript` above (that one drives the search box's matching) --
+   * kept as two props rather than merged into one, since a caller may
+   * legitimately want the reference column and the search box on different
+   * scripts (e.g. search stays Roman while the reference follows the active
+   * script tab).
+   */
+  readonly script?: string;
   readonly className?: string;
 }
 
@@ -254,6 +270,18 @@ function wordOrderKey(wid: string): number {
 function wordIdWithin(wid: string, startWordId: string, endWordId: string): boolean {
   const k = wordOrderKey(wid);
   return k >= wordOrderKey(startWordId) && k <= wordOrderKey(endWordId);
+}
+
+/**
+ * The text a transcript-column row shows for one word — `SegmentCard`'s own
+ * `displayText` rule, spelled out per script so this needs no bracket access
+ * on a variable key (`word.scripts` is keyed by the same three scripts).
+ */
+function wordDisplayText(word: Word, script: string): string {
+  if (script === "roman") return word.scripts?.roman ?? word.t;
+  if (script === "native") return word.scripts?.native ?? word.t;
+  if (script === "en") return word.scripts?.en ?? word.t;
+  return word.t;
 }
 
 export function Timeline(props: TimelineProps): React.JSX.Element {
@@ -292,6 +320,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     resegmentDefaultParams = FALLBACK_RESEGMENT_PARAMS,
     bulkActionsBusy = false,
     onCaptionToolsAction,
+    script = "roman",
     className,
   } = props;
 
@@ -304,9 +333,17 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   const resolvedNudgeSink = nudgeSink === noopNudgeSink ? memoryNudgeSink : nudgeSink;
 
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // FIX-03: the transcript reference column docks beside the canvas, inside
+  // `containerRef`'s own flex row — measuring `containerRef` for `widthPx`
+  // would hand the canvas the whole row's width, including the space the
+  // docked column actually occupies. This ref is the canvas's own column, so
+  // `widthPx` (and every `msToPx`/`pxToMs` derived from it) only ever
+  // describes pixels the canvas truly owns.
+  const canvasColumnRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<DragState | undefined>(undefined);
   const dragPreviewRef = useRef<{ startMs: number; endMs: number } | undefined>(undefined);
+  const transcriptRowRefs = useRef(new Map<string, HTMLLIElement>());
 
   const [widthPx, setWidthPx] = useState(0);
   const [msPerPx, setMsPerPx] = useState(30);
@@ -353,7 +390,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   const thumbImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
   useLayoutEffect(() => {
-    const element = containerRef.current;
+    const element = canvasColumnRef.current;
     if (element === null) return;
     const measure = (): void => setWidthPx(element.clientWidth);
     measure();
@@ -458,6 +495,53 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     cache.set(url, img);
     return img;
   }, []);
+
+  // FIX-03: each segment's plain transcript text, for the reference column.
+  // `segments` and `liveWords` are both already in document order (every
+  // other consumer in this file — `wordNeighbours`, `onDoubleClick`'s
+  // "nearest word" scan — relies on the same assumption), so one linear
+  // merge finds every segment's words in O(segments + words) rather than
+  // filtering the full word list per segment: with a multi-hour transcript
+  // (`TranscriptList.tsx`'s own ~9,000-segment/54,000-word stress case) an
+  // O(segments * words) scan here would be a real, user-visible freeze.
+  const segmentTexts = useMemo(() => {
+    const texts = new Map<string, string>();
+    let wordIndex = 0;
+    for (const segment of segments) {
+      const startKey = wordOrderKey(segment.startWordId);
+      const endKey = wordOrderKey(segment.endWordId);
+      const segmentWords: string[] = [];
+      while (wordIndex < liveWords.length) {
+        // eslint-disable-next-line security/detect-object-injection -- wordIndex is a numeric loop counter bounded by liveWords.length above, not attacker-controlled
+        const word = liveWords[wordIndex];
+        if (word === undefined) break;
+        const key = wordOrderKey(word.wid);
+        if (key > endKey) break;
+        wordIndex += 1;
+        // A word between two segments' ranges (not owned by either) is
+        // skipped rather than attributed to whichever segment's turn it is.
+        if (key < startKey) continue;
+        segmentWords.push(wordDisplayText(word, script));
+      }
+      texts.set(segment.id, segmentWords.join(" "));
+    }
+    return texts;
+  }, [segments, liveWords, script]);
+
+  // Which segment the playhead is over right now — cheap off props this
+  // component already has, so the reference column can follow playback
+  // without any new cross-component plumbing (a "selected" segment is a
+  // separate, user-driven thing and not what this highlights).
+  const activeSegmentId = useMemo(
+    () => segments.find((s) => playheadMs >= s.startMs && playheadMs <= s.endMs)?.id,
+    [segments, playheadMs],
+  );
+
+  useEffect(() => {
+    if (activeSegmentId === undefined) return;
+    const row = transcriptRowRefs.current.get(activeSegmentId);
+    row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [activeSegmentId]);
 
   const lanes: readonly LaneRow[] = useMemo(() => buildLanes(passItems), [passItems]);
   /** B20b: full pass items by id — `LaneItem` strips `payload`, but the zoom
@@ -590,21 +674,29 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       }
     }
 
-    // Waveform
-    if (waveform !== undefined) {
+    // Waveform: bounded to the media's own `durationMs`, in canvas pixels —
+    // see `waveformDrawWindow`'s own doc for why a plain `Math.min(durationMs,
+    // endMs)` clamp on the *time* range alone (FIX-04) still let the drawn
+    // waveform run past the media's end.
+    const waveformWindow =
+      waveform === undefined
+        ? undefined
+        : waveformDrawWindow(viewport, durationMs, { startMs, endMs });
+    if (waveform !== undefined && waveformWindow !== undefined) {
       const buckets = reduceWaveform(
         waveform,
-        Math.max(0, startMs),
-        Math.min(durationMs, endMs),
-        widthPx,
+        waveformWindow.startMs,
+        waveformWindow.endMs,
+        waveformWindow.widthPx,
       );
       const midY = laneTops.waveformTop + WAVEFORM_HEIGHT / 2;
       ctx.fillStyle = "rgba(124,143,240,0.25)";
       ctx.strokeStyle = "#7c8ff0";
-      for (let px = 0; px < buckets.length; px++) {
+      for (let i = 0; i < buckets.length; i++) {
         // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
-        const bucket = buckets[px];
+        const bucket = buckets[i];
         if (bucket === undefined) continue;
+        const px = waveformWindow.pxStart + i;
         const sourceMs = pxToMs(px, viewport);
         const cutAway = isCutAway(sourceMs, timeMap);
         const peakH = bucket.peak * (WAVEFORM_HEIGHT / 2);
@@ -1619,7 +1711,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   return (
     <div
       ref={containerRef}
-      className={cn("relative w-full select-none", className)}
+      className={cn("flex w-full select-none items-start gap-2", className)}
       data-testid="timeline-root"
       role="application"
       aria-label="Caption timeline"
@@ -1627,384 +1719,435 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       tabIndex={0}
       onKeyDown={onKeyDown}
     >
-      <div className="flex items-center gap-2 px-1 pb-1 text-xs text-white/60">
-        <button
-          type="button"
-          data-testid="timeline-play-pause"
-          className="rounded bg-white/10 px-2 py-0.5"
-          onClick={onTogglePlay}
-        >
-          {playing ? "Pause" : "Play"}
-        </button>
-        <button
-          type="button"
-          data-testid="timeline-zoom-in"
-          className="rounded bg-white/10 px-2 py-0.5"
-          onClick={() => {
-            const next = zoomAround({ msPerPx, scrollMs }, widthPx / 2, "in");
-            setMsPerPx(next.msPerPx);
-            setScrollMs(clampScroll(next.scrollMs, { msPerPx: next.msPerPx, widthPx }, durationMs));
-          }}
-        >
-          Zoom in
-        </button>
-        <button
-          type="button"
-          data-testid="timeline-zoom-out"
-          className="rounded bg-white/10 px-2 py-0.5"
-          onClick={() => {
-            const next = zoomAround({ msPerPx, scrollMs }, widthPx / 2, "out");
-            setMsPerPx(next.msPerPx);
-            setScrollMs(clampScroll(next.scrollMs, { msPerPx: next.msPerPx, widthPx }, durationMs));
-          }}
-        >
-          Zoom out
-        </button>
-        <div
-          className="ml-2 flex items-center gap-0.5 rounded bg-white/10 p-0.5"
-          role="group"
-          aria-label="Caption granularity"
-        >
+      <div ref={canvasColumnRef} className="relative min-w-0 flex-1">
+        <div className="flex items-center gap-2 px-1 pb-1 text-xs text-white/60">
           <button
             type="button"
-            data-testid="timeline-granularity-word"
-            aria-pressed={granularity === "word"}
-            className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
-              granularity === "word"
-                ? "bg-white/25 text-white"
-                : "text-white/50 hover:text-white/80",
-            )}
-            onClick={() => setGranularity("word")}
+            data-testid="timeline-play-pause"
+            className="rounded bg-white/10 px-2 py-0.5"
+            onClick={onTogglePlay}
           >
-            Word
+            {playing ? "Pause" : "Play"}
           </button>
           <button
             type="button"
-            data-testid="timeline-granularity-line"
-            aria-pressed={granularity === "line"}
-            className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
-              granularity === "line"
-                ? "bg-white/25 text-white"
-                : "text-white/50 hover:text-white/80",
-            )}
-            onClick={() => setGranularity("line")}
-          >
-            Line
-          </button>
-        </div>
-        <div className="flex items-center gap-1">
-          <input
-            type="text"
-            data-testid="timeline-search"
-            placeholder="Search captions"
-            aria-label="Search captions"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            className="w-32 rounded bg-white/10 px-2 py-0.5 text-white placeholder:text-white/40 focus:ring-1 focus:ring-white/40 focus:outline-none"
-          />
-          {searchQuery !== "" ? (
-            <>
-              <span data-testid="timeline-search-count" className="tabular-nums text-white/50">
-                {searchMatches.length} match{searchMatches.length === 1 ? "" : "es"}
-              </span>
-              <button
-                type="button"
-                data-testid="timeline-search-clear"
-                aria-label="Clear search"
-                className="rounded px-1 text-white/50 hover:text-white/80"
-                onClick={() => setSearchQuery("")}
-              >
-                ×
-              </button>
-            </>
-          ) : null}
-        </div>
-        {captionToolsAvailable ? (
-          <div className="relative" ref={captionToolsRef}>
-            <button
-              type="button"
-              data-testid="timeline-caption-tools-trigger"
-              aria-haspopup="true"
-              aria-expanded={captionToolsOpen}
-              className="rounded bg-white/10 px-2 py-0.5"
-              onClick={() => setCaptionToolsOpen((open) => !open)}
-            >
-              Caption Tools ▾
-            </button>
-            {captionToolsOpen ? (
-              <div
-                role="menu"
-                aria-label="Caption Tools"
-                data-testid="timeline-caption-tools-menu"
-                className="border-white/10 bg-bg-1 absolute top-full left-0 z-40 mt-1 flex w-72 max-h-[75vh] flex-col gap-3 overflow-y-auto rounded-lg border p-3 text-left shadow-xl"
-              >
-                {/*
-                 * K06 (`ADDENDUM-full-frame-audit.md` "New gap 4"): the real
-                 * Kalakar Caption Tools dropdown is Display Settings / Actions
-                 * / Timing — not merge/split/resegment, which K03 was briefed
-                 * from an incomplete sample. Kalakar has no equivalent of our
-                 * auto-resegmentation concept at all, so it is kept below
-                 * under its own "Structure" heading (option (a) from the
-                 * brief) rather than dropped: it is a real, working feature
-                 * of this app's own captioning model, and keeping it here —
-                 * unchanged, still `BulkActionsBar` itself, not a
-                 * reimplementation — costs nothing and regresses nothing, the
-                 * transcript column's own entry point included.
-                 */}
-                <div data-testid="caption-tools-display-settings" className="flex flex-col gap-1.5">
-                  <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
-                    Display Settings
-                  </div>
-                  <label className="flex items-center justify-between gap-2 text-xs text-white/80">
-                    Words
-                    <select
-                      data-testid="caption-tools-words"
-                      disabled
-                      title="No other grouping exists yet in this app's data model — Default is the only real option."
-                      className="w-28 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-right disabled:opacity-50"
-                      defaultValue="default"
-                    >
-                      <option value="default">Default</option>
-                    </select>
-                  </label>
-                  <label className="flex items-center justify-between gap-2 text-xs text-white/80">
-                    Max Chars
-                    <input
-                      type="number"
-                      min={8}
-                      max={60}
-                      data-testid="caption-tools-max-chars"
-                      value={maxCharsDraft}
-                      disabled={onResegmentCaptions === undefined}
-                      onChange={(event) => {
-                        const value = Number(event.target.value);
-                        if (Number.isFinite(value)) setMaxCharsDraft(value);
-                      }}
-                      onBlur={() => commitDisplaySettings()}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") commitDisplaySettings();
-                      }}
-                      className="w-20 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-right disabled:opacity-50"
-                    />
-                  </label>
-                  <label className="flex items-center justify-between gap-2 text-xs text-white/80">
-                    Lines
-                    <select
-                      data-testid="caption-tools-lines"
-                      value={maxLinesDraft}
-                      disabled={onResegmentCaptions === undefined}
-                      onChange={(event) => {
-                        const value = Number(event.target.value);
-                        setMaxLinesDraft(value);
-                        commitDisplaySettings({ maxLines: value });
-                      }}
-                      className="w-28 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-right disabled:opacity-50"
-                    >
-                      <option value={1}>1 Line</option>
-                      <option value={2}>2 Lines</option>
-                      <option value={3}>3 Lines</option>
-                    </select>
-                  </label>
-                  <p className="text-[10px] text-white/40">
-                    Re-cuts every caption from the transcript — manual splits, merges and hidden
-                    captions are replaced.
-                  </p>
-                </div>
-
-                <div data-testid="caption-tools-actions" className="flex flex-col gap-1.5">
-                  <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
-                    Actions
-                  </div>
-                  <button
-                    type="button"
-                    data-testid="caption-tools-remove-punctuation"
-                    disabled={onCaptionToolsAction === undefined}
-                    className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
-                    onClick={runRemovePunctuation}
-                  >
-                    Remove Punctuation
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="caption-tools-remove-emphasis"
-                    disabled={onCaptionToolsAction === undefined}
-                    className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
-                    onClick={runRemoveEmphasis}
-                  >
-                    Remove Emphasis
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="caption-tools-remove-gaps"
-                    disabled={onCaptionToolsAction === undefined}
-                    className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
-                    onClick={runRemoveGaps}
-                  >
-                    Remove Gaps in Captions
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="caption-tools-remove-emojis"
-                    disabled={onCaptionToolsAction === undefined}
-                    className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
-                    onClick={runRemoveEmojis}
-                  >
-                    Remove Emojis
-                  </button>
-                </div>
-
-                <div data-testid="caption-tools-timing" className="flex flex-col gap-1.5">
-                  <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
-                    Timing
-                  </div>
-                  <label className="flex flex-col gap-1 text-xs text-white/80">
-                    <span className="flex items-center justify-between">
-                      Caption Delay
-                      <span
-                        data-testid="caption-tools-delay-value"
-                        className="tabular-nums text-white/50"
-                      >
-                        {delayPreviewMs > 0 ? "+" : ""}
-                        {(delayPreviewMs / 1000).toFixed(2)}s
-                      </span>
-                    </span>
-                    <input
-                      type="range"
-                      data-testid="caption-tools-delay-slider"
-                      min={-CAPTION_DELAY_RANGE_MS}
-                      max={CAPTION_DELAY_RANGE_MS}
-                      step={CAPTION_DELAY_STEP_MS}
-                      value={delayPreviewMs}
-                      onChange={(event) => onDelaySliderChange(Number(event.target.value))}
-                    />
-                  </label>
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      data-testid="caption-tools-delay-reset"
-                      disabled={delayPreviewMs === 0}
-                      className="text-fg-3 px-2 py-1 text-xs hover:underline disabled:opacity-40"
-                      onClick={resetCaptionDelay}
-                    >
-                      Reset
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="caption-tools-delay-apply"
-                      disabled={delayPreviewMs === 0 || onCaptionToolsAction === undefined}
-                      className="rounded-md bg-lime-400 px-2 py-1 text-xs font-medium text-black disabled:opacity-40"
-                      onClick={applyCaptionDelay}
-                    >
-                      Apply
-                    </button>
-                  </div>
-                </div>
-
-                <div className="h-px bg-white/10" />
-
-                {/*
-                 * K03 brief §3: "call the same underlying handlers/store actions
-                 * `BulkActionsBar.tsx` uses, do not duplicate the logic" — this
-                 * renders that exact component (not a reimplementation) as a
-                 * second entry point, so its three actions are guaranteed to
-                 * produce identical results to the transcript column's own copy.
-                 */}
-                <div data-testid="caption-tools-structure" className="flex flex-col gap-1.5">
-                  <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
-                    Structure
-                  </div>
-                  <BulkActionsBar
-                    onMergeShort={() => {
-                      onMergeShortCaptions?.();
-                      setCaptionToolsOpen(false);
-                    }}
-                    onSplitLong={() => {
-                      onSplitLongCaptions?.();
-                      setCaptionToolsOpen(false);
-                    }}
-                    onResegment={(params) => {
-                      onResegmentCaptions?.(params);
-                      setCaptionToolsOpen(false);
-                    }}
-                    defaultParams={resegmentDefaultParams}
-                    busy={bulkActionsBusy}
-                    className="flex-wrap"
-                  />
-                </div>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        {outputModeAvailable(timeMap) ? (
-          <label className="ml-2 flex items-center gap-1">
-            <input
-              type="checkbox"
-              data-testid="timeline-output-mode-toggle"
-              checked={displayMode === "output"}
-              onChange={(event) =>
-                onDisplayModeChange?.(event.target.checked ? "output" : "source")
-              }
-            />
-            Output time
-          </label>
-        ) : null}
-        {onToggleProtection !== undefined &&
-        (selectedSegmentId !== undefined || selectedWordId !== undefined) ? (
-          <button
-            type="button"
-            data-testid="timeline-toggle-protection"
+            data-testid="timeline-zoom-in"
             className="rounded bg-white/10 px-2 py-0.5"
             onClick={() => {
-              const selectedSegment = segments.find((s) => s.id === selectedSegmentId);
-              const selectedWord = liveWords.find((w) => w.wid === selectedWordId);
-              const range =
-                selectedSegment !== undefined
-                  ? { s: selectedSegment.startMs, e: selectedSegment.endMs }
-                  : selectedWord !== undefined
-                    ? { s: selectedWord.s, e: selectedWord.e }
-                    : undefined;
-              if (range !== undefined) onToggleProtection(range.s, range.e);
+              const next = zoomAround({ msPerPx, scrollMs }, widthPx / 2, "in");
+              setMsPerPx(next.msPerPx);
+              setScrollMs(
+                clampScroll(next.scrollMs, { msPerPx: next.msPerPx, widthPx }, durationMs),
+              );
             }}
           >
-            Protect (P)
+            Zoom in
           </button>
-        ) : null}
-        {selectedSegmentId !== undefined && onMergeSegments !== undefined ? (
           <button
             type="button"
-            data-testid="timeline-merge"
-            className="ml-auto rounded bg-white/10 px-2 py-0.5"
+            data-testid="timeline-zoom-out"
+            className="rounded bg-white/10 px-2 py-0.5"
             onClick={() => {
-              const index = segments.findIndex((s) => s.id === selectedSegmentId);
-              const next = segments[index + 1];
-              if (next !== undefined) onMergeSegments([selectedSegmentId, next.id]);
+              const next = zoomAround({ msPerPx, scrollMs }, widthPx / 2, "out");
+              setMsPerPx(next.msPerPx);
+              setScrollMs(
+                clampScroll(next.scrollMs, { msPerPx: next.msPerPx, widthPx }, durationMs),
+              );
             }}
           >
-            Merge with next
+            Zoom out
           </button>
-        ) : null}
-        <span data-testid="timeline-display-clock" className="ml-auto tabular-nums">
-          {formatMs(displayPlayheadMs)} / {formatMs(displayDuration)}
-        </span>
+          <div
+            className="ml-2 flex items-center gap-0.5 rounded bg-white/10 p-0.5"
+            role="group"
+            aria-label="Caption granularity"
+          >
+            <button
+              type="button"
+              data-testid="timeline-granularity-word"
+              aria-pressed={granularity === "word"}
+              className={cn(
+                "rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
+                granularity === "word"
+                  ? "bg-white/25 text-white"
+                  : "text-white/50 hover:text-white/80",
+              )}
+              onClick={() => setGranularity("word")}
+            >
+              Word
+            </button>
+            <button
+              type="button"
+              data-testid="timeline-granularity-line"
+              aria-pressed={granularity === "line"}
+              className={cn(
+                "rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
+                granularity === "line"
+                  ? "bg-white/25 text-white"
+                  : "text-white/50 hover:text-white/80",
+              )}
+              onClick={() => setGranularity("line")}
+            >
+              Line
+            </button>
+          </div>
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              data-testid="timeline-search"
+              placeholder="Search captions"
+              aria-label="Search captions"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="w-32 rounded bg-white/10 px-2 py-0.5 text-white placeholder:text-white/40 focus:ring-1 focus:ring-white/40 focus:outline-none"
+            />
+            {searchQuery !== "" ? (
+              <>
+                <span data-testid="timeline-search-count" className="tabular-nums text-white/50">
+                  {searchMatches.length} match{searchMatches.length === 1 ? "" : "es"}
+                </span>
+                <button
+                  type="button"
+                  data-testid="timeline-search-clear"
+                  aria-label="Clear search"
+                  className="rounded px-1 text-white/50 hover:text-white/80"
+                  onClick={() => setSearchQuery("")}
+                >
+                  ×
+                </button>
+              </>
+            ) : null}
+          </div>
+          {captionToolsAvailable ? (
+            <div className="relative" ref={captionToolsRef}>
+              <button
+                type="button"
+                data-testid="timeline-caption-tools-trigger"
+                aria-haspopup="true"
+                aria-expanded={captionToolsOpen}
+                className="rounded bg-white/10 px-2 py-0.5"
+                onClick={() => setCaptionToolsOpen((open) => !open)}
+              >
+                Caption Tools ▾
+              </button>
+              {captionToolsOpen ? (
+                <div
+                  role="menu"
+                  aria-label="Caption Tools"
+                  data-testid="timeline-caption-tools-menu"
+                  className="border-white/10 bg-bg-1 absolute top-full left-0 z-40 mt-1 flex w-72 max-h-[75vh] flex-col gap-3 overflow-y-auto rounded-lg border p-3 text-left shadow-xl"
+                >
+                  {/*
+                   * K06 (`ADDENDUM-full-frame-audit.md` "New gap 4"): the real
+                   * Kalakar Caption Tools dropdown is Display Settings / Actions
+                   * / Timing — not merge/split/resegment, which K03 was briefed
+                   * from an incomplete sample. Kalakar has no equivalent of our
+                   * auto-resegmentation concept at all, so it is kept below
+                   * under its own "Structure" heading (option (a) from the
+                   * brief) rather than dropped: it is a real, working feature
+                   * of this app's own captioning model, and keeping it here —
+                   * unchanged, still `BulkActionsBar` itself, not a
+                   * reimplementation — costs nothing and regresses nothing, the
+                   * transcript column's own entry point included.
+                   */}
+                  <div
+                    data-testid="caption-tools-display-settings"
+                    className="flex flex-col gap-1.5"
+                  >
+                    <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
+                      Display Settings
+                    </div>
+                    <label className="flex items-center justify-between gap-2 text-xs text-white/80">
+                      Words
+                      <select
+                        data-testid="caption-tools-words"
+                        disabled
+                        title="No other grouping exists yet in this app's data model — Default is the only real option."
+                        className="w-28 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-right disabled:opacity-50"
+                        defaultValue="default"
+                      >
+                        <option value="default">Default</option>
+                      </select>
+                    </label>
+                    <label className="flex items-center justify-between gap-2 text-xs text-white/80">
+                      Max Chars
+                      <input
+                        type="number"
+                        min={8}
+                        max={60}
+                        data-testid="caption-tools-max-chars"
+                        value={maxCharsDraft}
+                        disabled={onResegmentCaptions === undefined}
+                        onChange={(event) => {
+                          const value = Number(event.target.value);
+                          if (Number.isFinite(value)) setMaxCharsDraft(value);
+                        }}
+                        onBlur={() => commitDisplaySettings()}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") commitDisplaySettings();
+                        }}
+                        className="w-20 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-right disabled:opacity-50"
+                      />
+                    </label>
+                    <label className="flex items-center justify-between gap-2 text-xs text-white/80">
+                      Lines
+                      <select
+                        data-testid="caption-tools-lines"
+                        value={maxLinesDraft}
+                        disabled={onResegmentCaptions === undefined}
+                        onChange={(event) => {
+                          const value = Number(event.target.value);
+                          setMaxLinesDraft(value);
+                          commitDisplaySettings({ maxLines: value });
+                        }}
+                        className="w-28 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-right disabled:opacity-50"
+                      >
+                        <option value={1}>1 Line</option>
+                        <option value={2}>2 Lines</option>
+                        <option value={3}>3 Lines</option>
+                      </select>
+                    </label>
+                    <p className="text-[10px] text-white/40">
+                      Re-cuts every caption from the transcript — manual splits, merges and hidden
+                      captions are replaced.
+                    </p>
+                  </div>
+
+                  <div data-testid="caption-tools-actions" className="flex flex-col gap-1.5">
+                    <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
+                      Actions
+                    </div>
+                    <button
+                      type="button"
+                      data-testid="caption-tools-remove-punctuation"
+                      disabled={onCaptionToolsAction === undefined}
+                      className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
+                      onClick={runRemovePunctuation}
+                    >
+                      Remove Punctuation
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="caption-tools-remove-emphasis"
+                      disabled={onCaptionToolsAction === undefined}
+                      className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
+                      onClick={runRemoveEmphasis}
+                    >
+                      Remove Emphasis
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="caption-tools-remove-gaps"
+                      disabled={onCaptionToolsAction === undefined}
+                      className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
+                      onClick={runRemoveGaps}
+                    >
+                      Remove Gaps in Captions
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="caption-tools-remove-emojis"
+                      disabled={onCaptionToolsAction === undefined}
+                      className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
+                      onClick={runRemoveEmojis}
+                    >
+                      Remove Emojis
+                    </button>
+                  </div>
+
+                  <div data-testid="caption-tools-timing" className="flex flex-col gap-1.5">
+                    <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
+                      Timing
+                    </div>
+                    <label className="flex flex-col gap-1 text-xs text-white/80">
+                      <span className="flex items-center justify-between">
+                        Caption Delay
+                        <span
+                          data-testid="caption-tools-delay-value"
+                          className="tabular-nums text-white/50"
+                        >
+                          {delayPreviewMs > 0 ? "+" : ""}
+                          {(delayPreviewMs / 1000).toFixed(2)}s
+                        </span>
+                      </span>
+                      <input
+                        type="range"
+                        data-testid="caption-tools-delay-slider"
+                        min={-CAPTION_DELAY_RANGE_MS}
+                        max={CAPTION_DELAY_RANGE_MS}
+                        step={CAPTION_DELAY_STEP_MS}
+                        value={delayPreviewMs}
+                        onChange={(event) => onDelaySliderChange(Number(event.target.value))}
+                      />
+                    </label>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        data-testid="caption-tools-delay-reset"
+                        disabled={delayPreviewMs === 0}
+                        className="text-fg-3 px-2 py-1 text-xs hover:underline disabled:opacity-40"
+                        onClick={resetCaptionDelay}
+                      >
+                        Reset
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="caption-tools-delay-apply"
+                        disabled={delayPreviewMs === 0 || onCaptionToolsAction === undefined}
+                        className="rounded-md bg-lime-400 px-2 py-1 text-xs font-medium text-black disabled:opacity-40"
+                        onClick={applyCaptionDelay}
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-white/10" />
+
+                  {/*
+                   * K03 brief §3: "call the same underlying handlers/store actions
+                   * `BulkActionsBar.tsx` uses, do not duplicate the logic" — this
+                   * renders that exact component (not a reimplementation) as a
+                   * second entry point, so its three actions are guaranteed to
+                   * produce identical results to the transcript column's own copy.
+                   */}
+                  <div data-testid="caption-tools-structure" className="flex flex-col gap-1.5">
+                    <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
+                      Structure
+                    </div>
+                    <BulkActionsBar
+                      onMergeShort={() => {
+                        onMergeShortCaptions?.();
+                        setCaptionToolsOpen(false);
+                      }}
+                      onSplitLong={() => {
+                        onSplitLongCaptions?.();
+                        setCaptionToolsOpen(false);
+                      }}
+                      onResegment={(params) => {
+                        onResegmentCaptions?.(params);
+                        setCaptionToolsOpen(false);
+                      }}
+                      defaultParams={resegmentDefaultParams}
+                      busy={bulkActionsBusy}
+                      className="flex-wrap"
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {outputModeAvailable(timeMap) ? (
+            <label className="ml-2 flex items-center gap-1">
+              <input
+                type="checkbox"
+                data-testid="timeline-output-mode-toggle"
+                checked={displayMode === "output"}
+                onChange={(event) =>
+                  onDisplayModeChange?.(event.target.checked ? "output" : "source")
+                }
+              />
+              Output time
+            </label>
+          ) : null}
+          {onToggleProtection !== undefined &&
+          (selectedSegmentId !== undefined || selectedWordId !== undefined) ? (
+            <button
+              type="button"
+              data-testid="timeline-toggle-protection"
+              className="rounded bg-white/10 px-2 py-0.5"
+              onClick={() => {
+                const selectedSegment = segments.find((s) => s.id === selectedSegmentId);
+                const selectedWord = liveWords.find((w) => w.wid === selectedWordId);
+                const range =
+                  selectedSegment !== undefined
+                    ? { s: selectedSegment.startMs, e: selectedSegment.endMs }
+                    : selectedWord !== undefined
+                      ? { s: selectedWord.s, e: selectedWord.e }
+                      : undefined;
+                if (range !== undefined) onToggleProtection(range.s, range.e);
+              }}
+            >
+              Protect (P)
+            </button>
+          ) : null}
+          {selectedSegmentId !== undefined && onMergeSegments !== undefined ? (
+            <button
+              type="button"
+              data-testid="timeline-merge"
+              className="ml-auto rounded bg-white/10 px-2 py-0.5"
+              onClick={() => {
+                const index = segments.findIndex((s) => s.id === selectedSegmentId);
+                const next = segments[index + 1];
+                if (next !== undefined) onMergeSegments([selectedSegmentId, next.id]);
+              }}
+            >
+              Merge with next
+            </button>
+          ) : null}
+          <span data-testid="timeline-display-clock" className="ml-auto tabular-nums">
+            {formatMs(displayPlayheadMs)} / {formatMs(displayDuration)}
+          </span>
+        </div>
+        <canvas
+          ref={canvasRef}
+          data-testid="timeline-canvas"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onMouseMove={onCanvasMouseMove}
+          onMouseLeave={onCanvasMouseLeave}
+          onClick={onCanvasClick}
+          onDoubleClick={onDoubleClick}
+          onWheel={onWheel}
+        />
+        <p className="sr-only" data-testid="timeline-aria-description" aria-live="polite">
+          {ariaDescription}
+        </p>
       </div>
-      <canvas
-        ref={canvasRef}
-        data-testid="timeline-canvas"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onMouseMove={onCanvasMouseMove}
-        onMouseLeave={onCanvasMouseLeave}
-        onClick={onCanvasClick}
-        onDoubleClick={onDoubleClick}
-        onWheel={onWheel}
-      />
-      <p className="sr-only" data-testid="timeline-aria-description" aria-live="polite">
-        {ariaDescription}
-      </p>
+
+      {/*
+       * FIX-03: a plain, always-visible transcript reference column — not a
+       * second `TranscriptList` (that stays the one place word/segment text
+       * is edited). Height matches the canvas exactly (`laneTops.totalHeight`)
+       * so it scrolls on its own rather than stretching the whole timeline
+       * row; `editor-timeline-row`'s own scroll (M18, `editor-client.tsx`)
+       * still governs the page when the canvas itself is tall.
+       */}
+      <div
+        data-testid="timeline-transcript-panel"
+        className="w-64 shrink-0 overflow-y-auto border-l border-white/10 pl-2 text-xs leading-snug text-white/70"
+        style={{ height: laneTops.totalHeight }}
+      >
+        {segments.length === 0 ? (
+          <p className="p-2 text-white/40">No transcript yet.</p>
+        ) : (
+          <ul className="flex flex-col gap-0.5 py-1">
+            {segments.map((segment) => (
+              <li
+                key={segment.id}
+                ref={(element) => {
+                  if (element === null) transcriptRowRefs.current.delete(segment.id);
+                  else transcriptRowRefs.current.set(segment.id, element);
+                }}
+                data-testid={`timeline-transcript-row-${segment.id}`}
+                className={cn(
+                  "cursor-pointer rounded px-1.5 py-1",
+                  segment.id === activeSegmentId ? "bg-white/10 text-white" : "hover:bg-white/5",
+                  segment.hidden === true && "text-white/30 line-through",
+                )}
+                onClick={() => {
+                  onSelectSegment?.(segment.id);
+                  onSeek(segment.startMs);
+                }}
+              >
+                {segmentTexts.get(segment.id)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

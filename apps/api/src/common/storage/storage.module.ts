@@ -34,6 +34,9 @@ import { ENV } from "../../config/config.module.js";
           kind: "s3",
           bucket: env.S3_BUCKET_RAW,
           endpoint: env.S3_ENDPOINT,
+          ...(env.S3_PUBLIC_ENDPOINT === undefined
+            ? {}
+            : { publicEndpoint: env.S3_PUBLIC_ENDPOINT }),
           region: env.S3_REGION,
           accessKeyId: env.S3_ACCESS_KEY,
           secretAccessKey: env.S3_SECRET_KEY,

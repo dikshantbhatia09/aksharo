@@ -242,6 +242,36 @@ describe("loadEnv", () => {
         loadEnv({ source: validEnv({ R2_PUBLIC_ENDPOINT: "media.example.com" }) }),
       ).toThrow(/R2_PUBLIC_ENDPOINT must be an http\(s\) URL/);
     });
+
+    it("rejects a plain-http raw store behind an https web origin", () => {
+      expect(() =>
+        loadEnv({
+          source: validEnv({
+            ...HTTPS_WEB,
+            // Isolates this case to the raw-store rule: an https derived store
+            // so only the S3 side is under test.
+            R2_PUBLIC_ENDPOINT: "https://media.example.com",
+          }),
+        }),
+      ).toThrow(/browser uploads will be blocked/);
+    });
+
+    it("accepts a plain-http S3_ENDPOINT once S3_PUBLIC_ENDPOINT is https", () => {
+      const env = loadEnv({
+        source: validEnv({
+          ...HTTPS_WEB,
+          R2_PUBLIC_ENDPOINT: "https://media.example.com",
+          S3_PUBLIC_ENDPOINT: "https://uploads.example.com",
+        }),
+      });
+      expect(env.S3_PUBLIC_ENDPOINT).toBe("https://uploads.example.com");
+    });
+
+    it("treats the blank S3_PUBLIC_ENDPOINT .env.example ships as unset", () => {
+      expect(loadEnv({ source: validEnv({ S3_PUBLIC_ENDPOINT: "" }) }).S3_PUBLIC_ENDPOINT).toBe(
+        undefined,
+      );
+    });
   });
 
   it("parses FEATURE_FLAGS_JSON and rejects non-objects", () => {

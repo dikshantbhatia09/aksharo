@@ -423,6 +423,28 @@ describe("animate", () => {
     expect(commands[0]).toMatchObject({ kind: "group", id: "segment:seg" });
   });
 
+  // `cueTiming` is exercised directly above, but CaptionStage/CanvasKit only ever
+  // see the serialized `DrawCommand`s `renderFrame` hands them — `group()` drops
+  // the opacity key entirely once it rounds to 1 (build.ts). This pins the fade
+  // down to that command, for "vertical-clean" (DEFAULT_STYLE_REF,
+  // apps/api/src/edg/init/transcript-init.ts), so a caption new projects start
+  // with is never blunt by default.
+  it("carries a fractional group opacity mid-fade for the production default style", () => {
+    const doc = style("vertical-clean");
+    expect(doc.animation.in.type).not.toBe("none");
+    expect(doc.animation.out.type).not.toBe("none");
+
+    const entering = draw(doc, 60); // half-way through the 120ms entry
+    const enteringOpacity = (entering[0] as { opacity?: number }).opacity;
+    expect(enteringOpacity).toBeGreaterThan(0);
+    expect(enteringOpacity).toBeLessThan(1);
+
+    const leaving = draw(doc, 2950); // inside the 120ms exit before endMs 3000
+    const leavingOpacity = (leaving[0] as { opacity?: number }).opacity;
+    expect(leavingOpacity).toBeGreaterThan(0);
+    expect(leavingOpacity).toBeLessThan(1);
+  });
+
   it("draws the stroke under the fill for every word", () => {
     const commands = draw(style("punch-pop"), 1500);
     const texts = [...walkCommands(commands)].filter((command) => command.kind === "text");

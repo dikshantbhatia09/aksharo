@@ -3,7 +3,7 @@
  * Wave verification script (A23 brief item 5; `docs/PLAN.md`'s "Verification
  * gate procedure"): fresh clone -> install -> compose up -> migrate/seed ->
  * unit tests -> e2e -> parity gate -> collect screenshots -> write
- * `docs/verification/<date>-<wave>.md`.
+ * `docs/verification/verify-wave-<date>.md`.
  *
  * Cross-platform (Node, not bash — `05-build`'s Windows-host rule). Every
  * step runs from the temp clone except the two whose whole point is to
@@ -14,7 +14,8 @@
  *
  * Usage: node scripts/verify-wave.mjs --wave <n> [--keep-clone] [--skip <step,step>]
  */
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
+import { generateKeyPairSync } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -88,30 +89,56 @@ function writeCloneEnv(cloneDir) {
   const examplePath = join(cloneDir, ".env.example");
   let env = readFileSync(examplePath, "utf8");
 
-  const privateKey = execFileSync("openssl", [
-    "genpkey",
-    "-algorithm",
-    "RSA",
-    "-pkeyopt",
-    "rsa_keygen_bits:2048",
-  ]).toString();
-  const publicKey = execFileSync("openssl", ["rsa", "-pubout"], { input: privateKey }).toString();
+  // Node is already a hard requirement for this script; an `openssl` CLI is
+  // not present on a stock Windows host. Generate the same PKCS#8 private key
+  // and SPKI public key in-process so the advertised cross-platform entrypoint
+  // remains true.
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    publicKeyEncoding: { type: "spki", format: "pem" },
+  });
 
   const replacements = {
     DATABASE_URL: "postgresql://montaj:montaj@127.0.0.1:59432/montaj_e2e?schema=public",
+    // The API test harness deliberately keys off TEST_* rather than the app's
+    // runtime URLs. Without these two values it starts another pgvector + Redis
+    // Testcontainers pair alongside the already-running compose stack. On this
+    // 16 GB host that redundant pair was killed mid-suite during the first full
+    // Wave 7 run (ECONNRESET / "Can't reach database server"), cascading into
+    // dozens of unrelated 500/404/timeouts. The harness still creates one
+    // isolated database and queue/key prefix per suite on these shared servers.
+    TEST_DATABASE_URL: "postgresql://montaj:montaj@127.0.0.1:59432/montaj_e2e?schema=public",
     REDIS_URL: "redis://127.0.0.1:59379",
+    TEST_REDIS_URL: "redis://127.0.0.1:59379",
     S3_ENDPOINT: "http://127.0.0.1:59000",
     R2_ENDPOINT: "http://127.0.0.1:59000",
     S3_ACCESS_KEY: "montaj-e2e",
     S3_SECRET_KEY: "montaj-e2e-secret",
     R2_ACCESS_KEY: "montaj-e2e",
     R2_SECRET_KEY: "montaj-e2e-secret",
-    API_ORIGIN: "http://127.0.0.1:59923",
-    WEB_ORIGIN: "http://127.0.0.1:59924",
-    API_PORT: "59923",
-    WEB_PORT: "59924",
     INTERNAL_CALLBACK_SECRET: "verify-wave-internal-callback-secret",
     LLM_PROVIDER: "mock",
+    // NOT the compose stack's exposed ports (59923/59924): `apps/web/e2e`
+    // (the "e2e" step below) reuses an already-healthy `API_ORIGIN` but
+    // *always* builds and starts its own fresh web server
+    // (`webServer[1].reuseExistingServer` is hardcoded `false` in
+    // `playwright.config.ts` — the suite must never test a stale `.next`
+    // build). Pointing these at the compose api/web's own ports made that
+    // fresh web server collide on the port the compose `web` container was
+    // already listening on ("...is already used"), and even a free port
+    // wouth have failed CORS against the *compose* api container, which is
+    // hard-coded at container build time to allow only `http://web:3000`
+    // (`app.enableCors({ origin: [env.WEB_ORIGIN] })` in `apps/api/src/main.ts`)
+    // — found running `verify-wave.mjs --wave 7` end to end for the first
+    // time (M17). Distinct, unused ports let the suite build and run its own
+    // API + web pair against the compose stack's shared Postgres/Redis/MinIO
+    // (via `DATABASE_URL`/`REDIS_URL`/`S3_*` above) exactly as
+    // `pnpm --filter @montaj/web test:e2e` does from a cold shell.
+    API_ORIGIN: "http://127.0.0.1:59925",
+    WEB_ORIGIN: "http://127.0.0.1:59926",
+    API_PORT: "59925",
+    WEB_PORT: "59926",
   };
   for (const [key, value] of Object.entries(replacements)) {
     const pattern = new RegExp(`^${key}=.*$`, "m");
@@ -173,6 +200,21 @@ async function main() {
   // the JWT keypair and callback secret every step downstream reads.
   writeCloneEnv(cloneDir);
 
+  // --- 2.6. Build workspace packages -----------------------------------------
+  // `db:seed`/`db:seed:sample` (step 4, run on the HOST against the clone's
+  // own source via `tsx`) import compiled workspace packages such as
+  // `@montaj/config` (`apps/api/prisma/seed.ts` imports `BRAND` from it) —
+  // `pnpm install` alone does not build them, only `postinstall`'s
+  // `prisma generate`. Without this, `db:seed` fails to resolve those
+  // packages' `dist/` on a fresh clone (2026-09-03 attempt, see
+  // `GATE-B-CHECKLIST.md`).
+  const build = runInClone("pnpm build", "pnpm", ["-w", "build"]);
+  if (build.status !== 0) {
+    await writeSummary(overallStart, cloneDir);
+    if (!args.keepClone) rmSync(cloneDir, { recursive: true, force: true });
+    process.exit(1);
+  }
+
   // --- 3. Compose up ---------------------------------------------------------
   // Uses the clone's own copy of the compose file (the fresh clone is what
   // is being verified) against the shared Docker daemon.
@@ -191,6 +233,13 @@ async function main() {
 
   // --- 7. Parity gate --------------------------------------------------------
   runInClone("parity gate", "pnpm", ["parity"]);
+
+  // --- 7.5. Compose down -----------------------------------------------------
+  // The stack is shared Docker state, unlike the disposable clone. Tear it down
+  // (including volumes) after every complete gate, whether an earlier step
+  // passed or failed, so a verification run does not leak services or gigabytes
+  // of database/object-store data into the next run.
+  runInClone("docker compose down", "node", [join(cloneDir, "scripts", "e2e-stack.mjs"), "down"]);
 
   // --- 8. Collect screenshots -----------------------------------------------
   const date = new Date().toISOString().slice(0, 10);
@@ -244,7 +293,7 @@ async function writeSummary(overallStart, cloneDir, screenshotDir) {
   const date = new Date().toISOString().slice(0, 10);
   const reportDir = join(REPO_ROOT, "docs", "verification");
   mkdirSync(reportDir, { recursive: true });
-  const reportPath = join(reportDir, `${date}-wave${args.wave}.md`);
+  const reportPath = join(reportDir, `verify-wave-${date}.md`);
 
   const rows = results
     .map(

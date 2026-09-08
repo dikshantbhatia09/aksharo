@@ -56,7 +56,18 @@ export async function bootstrap(): Promise<INestApplication> {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   app.enableShutdownHooks();
-  app.enableCors({ origin: [env.WEB_ORIGIN], credentials: true });
+  // WEB_ORIGIN is the one origin real users load the app from (e.g. a Cloudflare
+  // Tunnel hostname), but outside production that is often not the only place a
+  // browser legitimately talks to this API from -- a developer or a local test
+  // script hitting the web app directly at 127.0.0.1/localhost needs the same
+  // access, or every client-side fetch (including magic-link consume) fails
+  // CORS with no visible server-side error.
+  const corsOrigins = [env.WEB_ORIGIN];
+  const localWebPort = process.env["WEB_PORT"];
+  if (process.env["NODE_ENV"] !== "production" && localWebPort !== undefined) {
+    corsOrigins.push(`http://127.0.0.1:${localWebPort}`, `http://localhost:${localWebPort}`);
+  }
+  app.enableCors({ origin: corsOrigins, credentials: true });
   setupOpenApi(app);
 
   const port = Number(process.env["API_PORT"] ?? new URL(env.API_ORIGIN).port) || 3001;
