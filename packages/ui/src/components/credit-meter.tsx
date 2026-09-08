@@ -7,6 +7,8 @@ import { cn } from "../lib/cn";
 import { ProgressBar } from "../primitives/surface";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../primitives/tooltip";
 
+import type { LucideIcon } from "lucide-react";
+
 /**
  * Credits are stored as integer tenths (CONTRACTS §0). One credit is one minute
  * of transcription at the base rate, and 08 §6 forbids saying "credits" without
@@ -31,6 +33,37 @@ export interface CreditMeterProps {
   /** Rendered as a button when given — the sidebar links it to Subscription. */
   onTopUp?: () => void;
   className?: string;
+  // --- K04: additive props so the sidebar's Storage and Audio-Clean rows can
+  // reuse this component instead of a second, near-identical one. Every prop
+  // below defaults to the original transcription-credits behaviour, so every
+  // existing call site (the sidebar's own transcription meter, `TopupCard`,
+  // `overview-panel`, the UI kit) renders byte-for-byte unchanged. ------------
+  /** The row label next to the icon. Defaults to "Credits". */
+  label?: string;
+  /** Icon shown before `label`. Defaults to the lightning bolt. */
+  icon?: LucideIcon;
+  /** Formats the headline figure (`remainingTenths`). Defaults to `formatCredits`. */
+  formatValue?: (tenths: number) => string;
+  /** The word after the headline figure ("205 **left**"). Defaults to "left". */
+  valueSuffix?: string;
+  /**
+   * Formats the "· Y unit" clause after the headline figure (defaults to
+   * `formatMinutes`, the credits→minutes equivalence). Pass `null` to omit the
+   * clause entirely — a meter with no natural minute equivalence (Storage).
+   */
+  formatUnit?: ((tenths: number) => string) | null;
+  /**
+   * Hides the progress bar and the reset-date row. A metric with no real cap
+   * (Storage has no plan quota to draw a bar against) sets this `false`;
+   * everything else keeps the bar. Defaults to `true`.
+   */
+  showProgress?: boolean;
+  /**
+   * Overrides the `data-testid` root ("credit-meter" by default, suffixed the
+   * same way for `-balance`/`-reset`/`-streak`) so more than one meter can sit
+   * on the same page without colliding test ids.
+   */
+  testId?: string;
 }
 
 /** Tenths → a human string. 205 tenths is "20.5", 200 tenths is "20". */
@@ -74,23 +107,31 @@ export function CreditMeter({
   showStreak = false,
   onTopUp,
   className,
+  label = "Credits",
+  icon: Icon = Zap,
+  formatValue = formatCredits,
+  valueSuffix = "left",
+  formatUnit = formatMinutes,
+  showProgress = true,
+  testId = "credit-meter",
 }: CreditMeterProps): React.JSX.Element {
   const percent = includedTenths > 0 ? (remainingTenths / includedTenths) * 100 : 0;
   const tone = percent <= 10 ? "rejected" : percent <= 25 ? "warning" : "accent";
   const reset = formatResetDate(resetsAt);
   const runway = daysOfRunway(remainingTenths, burnRateTenthsPerDay);
+  const burnId = `${testId}-burn`;
 
   const body = (
-    <div className={cn("flex flex-col gap-2", className)} data-testid="credit-meter">
+    <div className={cn("flex flex-col gap-2", className)} data-testid={testId}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-fg-2 flex items-center gap-1.5 text-2xs font-medium tracking-wide uppercase">
-          <Zap className="size-3.5" aria-hidden="true" />
-          Credits
+          <Icon className="size-3.5" aria-hidden="true" />
+          {label}
         </span>
         {showStreak && streakDays !== undefined && streakDays > 0 ? (
           <span
             className="text-proposed flex items-center gap-1 text-2xs font-medium"
-            data-testid="credit-meter-streak"
+            data-testid={`${testId}-streak`}
           >
             <Flame className="size-3.5" aria-hidden="true" />
             {streakDays}-day streak
@@ -98,20 +139,26 @@ export function CreditMeter({
         ) : null}
       </div>
 
-      <p className="text-fg-0 text-sm font-medium" data-testid="credit-meter-balance">
-        {formatCredits(remainingTenths)} left
-        <span className="text-fg-2 font-normal"> · {formatMinutes(remainingTenths)}</span>
+      <p className="text-fg-0 text-sm font-medium" data-testid={`${testId}-balance`}>
+        {formatValue(remainingTenths)} {valueSuffix}
+        {formatUnit === null ? null : (
+          <span className="text-fg-2 font-normal"> · {formatUnit(remainingTenths)}</span>
+        )}
       </p>
 
-      <ProgressBar
-        value={percent}
-        tone={tone}
-        label={`${formatCredits(remainingTenths)} of ${formatCredits(includedTenths)} credits left`}
-      />
+      {showProgress ? (
+        <>
+          <ProgressBar
+            value={percent}
+            tone={tone}
+            label={`${formatValue(remainingTenths)} of ${formatValue(includedTenths)} ${label.toLowerCase()} left`}
+          />
 
-      <p className="text-fg-2 text-2xs" data-testid="credit-meter-reset">
-        {reset === undefined ? "No reset scheduled" : `Resets ${reset}`}
-      </p>
+          <p className="text-fg-2 text-2xs" data-testid={`${testId}-reset`}>
+            {reset === undefined ? "No reset scheduled" : `Resets ${reset}`}
+          </p>
+        </>
+      ) : null}
 
       {onTopUp === undefined ? null : (
         <button
@@ -130,11 +177,11 @@ export function CreditMeter({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div tabIndex={0} aria-describedby="credit-meter-burn">
+        <div tabIndex={0} aria-describedby={burnId}>
           {body}
         </div>
       </TooltipTrigger>
-      <TooltipContent id="credit-meter-burn" side="right">
+      <TooltipContent id={burnId} side="right">
         <p className="font-medium">
           You are using about {formatCredits(burnRateTenthsPerDay)} credits a day
         </p>

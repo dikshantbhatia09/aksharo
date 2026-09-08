@@ -1,11 +1,20 @@
 "use client";
 
-import { Monitor } from "lucide-react";
+import { useQueries } from "@tanstack/react-query";
+import { AudioLines, HardDrive, Monitor } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 
-import { useEntitlement, useWorkspaceCredits } from "@montaj/api-client";
+import {
+  endpoints,
+  isApiError,
+  useApiClient,
+  useEntitlement,
+  useProjects,
+  useWorkspaceCredits,
+  useWorkspaceId,
+} from "@montaj/api-client";
 import { BRAND } from "@montaj/config";
 import {
   Badge,
@@ -19,10 +28,93 @@ import {
 
 import { ProfileMenu } from "./profile-menu";
 import { WorkspaceSwitcher } from "./workspace-switcher";
+import { fontEndpoints, type WorkspaceFontView } from "../editor/rail/fonts-endpoints";
 
 import { useRuntimeConfig } from "@/components/providers";
 import { StreakChip } from "@/components/streak/streak-chip";
 import { isActivePath, PRIMARY_NAV } from "@/lib/nav";
+
+/**
+ * K04: Storage used, best-effort and bounded.
+ *
+ * No workspace-wide storage aggregate exists anywhere server-side (checked
+ * `apps/api/prisma/schema.prisma`: no `storageBytes`/`totalBytes` on
+ * `Workspace`/`Plan`/`Entitlement`; `projectSchema` carries `mediaCount` but
+ * no bytes). Computing an exhaustive total would mean paging through every
+ * project and every project's media on every sidebar render — an unbounded
+ * fan-out this shell should not be doing. This sums bytes across the
+ * workspace's most recently active `PROJECT_SAMPLE_LIMIT` projects' media
+ * plus its custom fonts (all real numbers, all from endpoints that already
+ * exist) and says so via the row's tooltip — correct outright for any
+ * workspace with fewer projects than the sample, an honest estimate beyond
+ * that. A server-side running total (incremented alongside upload/delete,
+ * the way `CreditAccount.balanceTenths` is) is the real fix and is flagged as
+ * a follow-up in the work package's report rather than improvised here.
+ */
+const PROJECT_SAMPLE_LIMIT = 20;
+
+export function formatStorageBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const gb = bytes / (1024 * 1024 * 1024);
+  if (gb >= 1) return `${gb % 1 === 0 ? gb.toFixed(0) : gb.toFixed(1)} GB`;
+  const mb = bytes / (1024 * 1024);
+  if (mb >= 1) return `${Math.round(mb)} MB`;
+  return `${Math.round(bytes / 1024)} KB`;
+}
+
+/** Pure so the summing rule is unit-testable without mounting the sidebar's network hooks. */
+export function sumStorageBytes(
+  media: readonly { readonly sizeBytes: number | null }[],
+  fonts: readonly WorkspaceFontView[],
+): number {
+  const mediaBytes = media.reduce((sum, item) => sum + (item.sizeBytes ?? 0), 0);
+  const fontBytes = fonts.reduce(
+    (sum, font) => sum + (font.sizeBytes ?? 0) + (font.woff2SizeBytes ?? 0),
+    0,
+  );
+  return mediaBytes + fontBytes;
+}
+
+function useStorageUsage(): { bytes: number; sampled: boolean; loading: boolean } {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  const projects = useProjects({ limit: PROJECT_SAMPLE_LIMIT });
+  const projectIds = projects.data?.pages[0]?.items.map((project) => project.id) ?? [];
+
+  const mediaQueries = useQueries({
+    queries: projectIds.map((projectId) => ({
+      queryKey: ["ws", workspaceId ?? "none", "projects", projectId, "media", "storage-sum"],
+      enabled: workspaceId !== null,
+      retry: (failureCount: number, error: Error) =>
+        !(isApiError(error) && error.status >= 400 && error.status < 500) && failureCount < 2,
+      queryFn: () => client.call(endpoints.media.list, { params: { projectId } }),
+    })),
+  });
+
+  const fontsQuery = useQueries({
+    queries: [
+      {
+        queryKey: ["ws", workspaceId ?? "none", "fonts"],
+        enabled: workspaceId !== null,
+        retry: false,
+        queryFn: () => client.call(fontEndpoints.list, { params: { id: workspaceId ?? "" } }),
+      },
+    ],
+  })[0];
+
+  const media = mediaQueries.flatMap((query) => query.data ?? []);
+  const fonts = fontsQuery?.data ?? [];
+  const loading =
+    projects.isPending ||
+    mediaQueries.some((query) => query.isPending) ||
+    fontsQuery?.isPending === true;
+
+  return {
+    bytes: sumStorageBytes(media, fonts),
+    sampled: projectIds.length >= PROJECT_SAMPLE_LIMIT,
+    loading,
+  };
+}
 
 /**
  * The sidebar of 08 §3.
@@ -38,6 +130,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
   const credits = useWorkspaceCredits();
   const included = entitlement.data?.creditsPerMonthTenths ?? 0;
   const isProductionOrigin = isBrandOrigin(config.webOrigin);
+  const storage = useStorageUsage();
 
   return (
     <div className="flex h-full flex-col gap-4 p-3">
@@ -123,6 +216,70 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
             {...(credits.data?.grantResetAt == null ? {} : { resetsAt: credits.data.grantResetAt })}
             showStreak={config.flags["growth.streakWidget"] === true}
           />
+        </div>
+
+        {/*
+          K04: Storage and Audio-Clean-credits, alongside the transcription
+          meter above (README recon §1 — Kalakar's sidebar shows all three,
+          ours showed only one). Audio Clean draws from the SAME credit
+          ledger as transcription (`packages/config/src/credits.ts`:
+          `audioClean` costs exactly 1 credit per media minute, the identical
+          rate `transcribe` uses) — this app has one unified credit pool, not
+          a separate audio-clean balance, so relabelling the same numbers is
+          the honest answer, not a second (fictional) balance. Storage has no
+          real balance to draw from at all (see `useStorageUsage`'s doc
+          comment) — its meter shows a bytes figure with the bar and reset
+          row hidden rather than inventing a quota.
+        */}
+        <div className="px-2">
+          <CreditMeter
+            testId="audio-clean-meter"
+            label="Audio Clean"
+            icon={AudioLines}
+            remainingTenths={credits.data?.balanceTenths ?? included}
+            includedTenths={credits.data?.monthlyGrantTenths ?? included}
+            valueSuffix="left"
+            formatUnit={(tenths) => `≈ ${(tenths / 10).toFixed(1)} min of audio clean`}
+            {...(credits.data?.grantResetAt == null ? {} : { resetsAt: credits.data.grantResetAt })}
+          />
+        </div>
+
+        <div className="px-2" data-testid="storage-meter-wrapper">
+          {storage.sampled ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div tabIndex={0}>
+                  <CreditMeter
+                    testId="storage-meter"
+                    label="Storage"
+                    icon={HardDrive}
+                    remainingTenths={storage.bytes}
+                    includedTenths={storage.bytes}
+                    formatValue={() => (storage.loading ? "…" : formatStorageBytes(storage.bytes))}
+                    valueSuffix="used"
+                    formatUnit={null}
+                    showProgress={false}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                Estimated from your most recently active {PROJECT_SAMPLE_LIMIT} projects, plus your
+                custom fonts.
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <CreditMeter
+              testId="storage-meter"
+              label="Storage"
+              icon={HardDrive}
+              remainingTenths={storage.bytes}
+              includedTenths={storage.bytes}
+              formatValue={() => (storage.loading ? "…" : formatStorageBytes(storage.bytes))}
+              valueSuffix="used"
+              formatUnit={null}
+              showProgress={false}
+            />
+          )}
         </div>
 
         <StreakChip />

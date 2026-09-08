@@ -94,6 +94,46 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   the new interaction (pick the language inside the modal, after the drop,
   not before it).
 
+- **K04: editor chrome — a left icon rail, Safe Zone toggle, Replace-media,
+  resolution indicator, sidebar usage counters.** The transcript column now
+  sits under a vertical icon rail (`EditorRail.tsx`) with three tabs —
+  Captions (byte-for-byte the same `BulkActionsBar`/`TranscriptList` that used
+  to render directly), Custom Fonts and Library — instead of rendering the
+  transcript directly with no way to reach anything else. Custom Fonts
+  (`CustomFontsPanel.tsx`) is a genuinely working upload-to-list flow, not a
+  placeholder: `apps/api/src/fonts` already shipped the whole pipeline (plan
+  check → presigned PUT → licence attestation → validate/sanitise/subset to
+  WOFF2 → workspace-scoped list/delete) with zero frontend callers before this
+  panel. Library (`LibraryPanel.tsx`) surfaces two existing reusable-asset
+  concepts as-is — brand-asset watermarks/logos
+  (`apps/api/src/exports/brand-assets.controller.ts`, likewise uncalled from
+  the web app until now) and recent projects (`useProjects`, the same hook
+  Home's grid uses) — rather than inventing a general media library the
+  backend has no concept of.
+  A new player toolbar (`PlayerToolbar.tsx`) puts a Safe Zone on/off switch, a
+  resolution/aspect readout (the project's own EDG canvas geometry, display
+  only) and a Replace-media button directly above the stage. Replace-media
+  (`ReplaceMediaButton.tsx`) is fully wired: `POST /projects/{id}/media/
+{mediaId}/replace` already existed server-side (`MediaService.replace`,
+  covered by `replace-media.e2e-spec.ts`) with no UI anywhere, so this button
+  drives the same `MultipartUpload` engine the first-time upload flow uses and
+  completes through the existing `useCompleteMediaUpload` hook — the words
+  survive, only their timings re-align to the new bytes.
+  The sidebar's usage footer (`sidebar.tsx`) gained Storage and Audio-Clean
+  rows alongside the existing transcription-credits meter. Audio Clean draws
+  on the _same_ credit balance as transcription — this product has one
+  unified credit pool (`packages/config/src/credits.ts`: `audioClean` and
+  `transcribe` cost the identical rate), so relabelling that shared number is
+  the honest answer rather than inventing a second, fictional balance.
+  Storage sums real `sizeBytes` across a bounded sample of the workspace's
+  most recently active projects' media plus its custom fonts (no workspace-
+  wide storage aggregate exists anywhere server-side to read one from
+  instead) — correct for any workspace under the sample size, an honest
+  estimate beyond it, and the row says so. `CreditMeter` (`@montaj/ui`)
+  gained additive-only props (`label`, `icon`, `formatValue`, `valueSuffix`,
+  `formatUnit`, `showProgress`, `testId`) so both new rows could reuse it
+  without touching its existing callers or their tests.
+
 - **Stage-5 integration (orchestrator) — the audit-repair and OpenCut-port
   program is complete.** Merged OC-04 + S-06 + S-07. Undo after "Delete word"
   crashed the editor on every project (`not a word id: <ULID>`, OC-04's finding,

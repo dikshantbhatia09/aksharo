@@ -103,4 +103,48 @@ describe("<CreditMeter />", () => {
     await user.click(screen.getByRole("button", { name: "Top up" }));
     expect(onTopUp).toHaveBeenCalledOnce();
   });
+
+  // K04: additive props (label/icon/value formatting/testId/showProgress) so
+  // the sidebar's Storage and Audio-Clean rows can reuse this component.
+  describe("additive props (K04)", () => {
+    it("keeps every default exactly as before when no new prop is passed", () => {
+      renderMeter();
+      expect(screen.getByTestId("credit-meter")).toBeInTheDocument();
+      expect(screen.getByTestId("credit-meter-balance")).toHaveTextContent("205 left");
+      expect(screen.getByTestId("credit-meter-balance")).toHaveTextContent("205 min");
+      expect(screen.getByText("Credits")).toBeInTheDocument();
+    });
+
+    it("relabels the row and swaps the value/unit formatters", () => {
+      renderMeter({
+        label: "Storage",
+        formatValue: () => "2.3 GB",
+        valueSuffix: "used",
+        formatUnit: null,
+        showProgress: false,
+      });
+      expect(screen.getByText("Storage")).toBeInTheDocument();
+      expect(screen.getByTestId("credit-meter-balance")).toHaveTextContent("2.3 GB used");
+      // No minute-equivalence clause, no bar, no reset row.
+      expect(screen.queryByText(/min/)).toBeNull();
+      expect(screen.queryByRole("progressbar")).toBeNull();
+      expect(screen.queryByTestId("credit-meter-reset")).toBeNull();
+    });
+
+    it("namespaces test ids so two meters can render on the same page", () => {
+      render(
+        <TooltipProvider>
+          <CreditMeter
+            remainingTenths={100}
+            includedTenths={100}
+            testId="audio-clean-meter"
+            label="Audio Clean"
+          />
+        </TooltipProvider>,
+      );
+      expect(screen.getByTestId("audio-clean-meter")).toBeInTheDocument();
+      expect(screen.getByTestId("audio-clean-meter-balance")).toBeInTheDocument();
+      expect(screen.queryByTestId("credit-meter")).toBeNull();
+    });
+  });
 });
