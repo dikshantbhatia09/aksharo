@@ -11,7 +11,7 @@
 
 import { useState } from "react";
 
-import type { Depth3d, StyleDoc } from "@montaj/caption-styles";
+import type { Depth3d, EmphasisPreset, StyleDoc } from "@montaj/caption-styles";
 import { CATALOGUE } from "@montaj/fonts";
 
 import { ColourField, SearchSelectField, SelectField, SliderField, ToggleField } from "./controls";
@@ -21,6 +21,7 @@ import {
   type SetStyleOp,
   toggleWordHighlightGlow,
   withDefaultEmphasisEffect,
+  withDefaultEmphasisField,
 } from "./ops";
 import { DEFAULT_PREVIEW_CANVAS, StylePicker } from "./StylePicker";
 import { AudioPanel, type AudioPanelProps } from "../audio/AudioPanel";
@@ -290,6 +291,126 @@ function EmphasisField({ style, scope, onOp }: TabProps): React.JSX.Element | nu
   );
 }
 
+/**
+ * Reads one leaf a `emphasisPresets.<key>` control just wrote, out of the
+ * dotted partial `setStyleField` built for it (`{ emphasisPresets: { <key>:
+ * value } }`) — the same trick `EffectsPanel`'s `depth3dLeaf` uses for the
+ * optional `depth3d` object, applied here to `emphasisPresets[0]` (an array
+ * element, so `setStyleField`'s dotted-path expansion cannot address it
+ * directly). This is what lets `SearchSelectField` (hard-wired to call
+ * `onOp(setStyleField(scope, path, value))` with its own single-field
+ * `path`) still drive one field of the *first* emphasis preset without a
+ * bespoke input.
+ */
+function emphasisPresetLeaf<K extends keyof EmphasisPreset>(
+  op: SetStyleOp,
+  key: K,
+): EmphasisPreset[K] {
+  const overrides = op.overrides as { emphasisPresets?: Partial<EmphasisPreset> } | undefined;
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed generic key, not attacker-controlled
+  return overrides?.emphasisPresets?.[key] as EmphasisPreset[K];
+}
+
+/** Element id for the Emphasis Font Face select, which reuses `FONT_WEIGHT_OPTIONS` — the same list as the base style's `WeightField`. */
+const EMPHASIS_FONT_WEIGHT_ID = "field-emphasis-weight";
+
+/**
+ * K05 item 5: the Emphasis section's own, independent Font/Font Face/Styles
+ * group (addendum gap 3, frames 0140-0157) — an emphasised word can use a
+ * different font family, weight, slant and underline than the base caption's
+ * own `typography`/Format row, applied to `emphasisPresets[0]` (the same
+ * entry `EmphasisField` above already reads and writes). Every value shown
+ * here falls back to the base style's own typography when the preset has no
+ * override yet, matching exactly what `render-core`'s `emphasisTypographyFor`
+ * (layout) and `wordCommands` (paint) do — the panel's "effective value" is
+ * never out of sync with what the canvas actually draws.
+ */
+function EmphasisTypographyFields({ style, scope, onOp }: TabProps): React.JSX.Element | null {
+  const defaultPreset = style.emphasisPresets[0];
+  if (defaultPreset === undefined) return null;
+
+  const effectiveWeight = defaultPreset.weight ?? style.typography.weight;
+  const effectiveItalic = defaultPreset.italic ?? style.typography.italic;
+  const effectiveUnderline = defaultPreset.underline ?? style.typography.underline === true;
+
+  function setField<K extends keyof EmphasisPreset>(key: K, value: EmphasisPreset[K]): void {
+    onOp(
+      setStyleField(
+        scope,
+        "emphasisPresets",
+        withDefaultEmphasisField(style.emphasisPresets, key, value),
+      ),
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2" data-testid="emphasis-typography-fields">
+      <SearchSelectField
+        label="Font"
+        path="emphasisPresets.fontFamily"
+        value={defaultPreset.fontFamily ?? style.typography.fontFamily}
+        options={FONT_FAMILY_OPTIONS}
+        placeholder="Search fonts…"
+        scope={scope}
+        onOp={(op) => {
+          setField("fontFamily", emphasisPresetLeaf(op, "fontFamily"));
+        }}
+      />
+      <label
+        className="flex items-center justify-between gap-3 text-sm"
+        htmlFor={EMPHASIS_FONT_WEIGHT_ID}
+      >
+        <span className="text-white/80">Font Face</span>
+        <select
+          id={EMPHASIS_FONT_WEIGHT_ID}
+          value={String(effectiveWeight)}
+          onChange={(event) => {
+            setField("weight", Number(event.target.value));
+          }}
+          className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm"
+          data-testid={EMPHASIS_FONT_WEIGHT_ID}
+        >
+          {FONT_WEIGHT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="flex gap-1" role="group" aria-label="Emphasis styles">
+        <button
+          type="button"
+          aria-pressed={effectiveItalic}
+          onClick={() => {
+            setField("italic", !effectiveItalic);
+          }}
+          className={cn(
+            "flex-1 rounded-md px-2 py-1 text-sm italic",
+            effectiveItalic ? "bg-white text-black" : "bg-white/10 text-white/80",
+          )}
+          data-testid="emphasis-italic-toggle"
+        >
+          I
+        </button>
+        <button
+          type="button"
+          aria-pressed={effectiveUnderline}
+          onClick={() => {
+            setField("underline", !effectiveUnderline);
+          }}
+          className={cn(
+            "flex-1 rounded-md px-2 py-1 text-sm underline",
+            effectiveUnderline ? "bg-white text-black" : "bg-white/10 text-white/80",
+          )}
+          data-testid="emphasis-underline-toggle"
+        >
+          U
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ColorsPanel({ style, scope, onOp }: TabProps): React.JSX.Element {
   return (
     <div className="flex flex-col gap-3" data-testid="colors-panel">
@@ -317,6 +438,7 @@ export function ColorsPanel({ style, scope, onOp }: TabProps): React.JSX.Element
       />
       <SectionHeading>Emphasis</SectionHeading>
       <EmphasisField style={style} scope={scope} onOp={onOp} />
+      <EmphasisTypographyFields style={style} scope={scope} onOp={onOp} />
       <SectionHeading>Stroke &amp; background</SectionHeading>
       <ToggleField
         label="Stroke"
@@ -394,10 +516,15 @@ function WeightField({ style, scope, onOp }: TabProps): React.JSX.Element {
  * and `BOLD_WEIGHT` (brief item 3: "bold can just set weight to the boldest
  * available value"), reading its pressed state as `weight >= BOLD_WEIGHT` so
  * it agrees with whatever the weight select or a system style already set.
+ *
+ * K05 adds the fourth button, Strikethrough (frames 0145/0157/0337's B/I/U/S
+ * group), the same quick-toggle shape as the other three, writing
+ * `typography.strikethrough`.
  */
 function FormatToggleRow({ style, scope, onOp }: TabProps): React.JSX.Element {
   const bold = style.typography.weight >= BOLD_WEIGHT;
   const underline = style.typography.underline === true;
+  const strikethrough = style.typography.strikethrough === true;
   return (
     <div className="flex gap-1" role="group" aria-label="Quick format">
       <button
@@ -441,6 +568,20 @@ function FormatToggleRow({ style, scope, onOp }: TabProps): React.JSX.Element {
         data-testid="format-underline-toggle"
       >
         U
+      </button>
+      <button
+        type="button"
+        aria-pressed={strikethrough}
+        onClick={() => {
+          onOp(setStyleField(scope, "typography.strikethrough", !strikethrough));
+        }}
+        className={cn(
+          "flex-1 rounded-md px-2 py-1 text-sm line-through",
+          strikethrough ? "bg-white text-black" : "bg-white/10 text-white/80",
+        )}
+        data-testid="format-strikethrough-toggle"
+      >
+        S
       </button>
     </div>
   );
@@ -753,25 +894,39 @@ export function EffectsPanel({ style, scope, onOp }: TabProps): React.JSX.Elemen
   );
 }
 
-export function AnimPanel({ style, scope, onOp }: TabProps): React.JSX.Element {
-  const cueOptions = [
-    { value: "none", label: "None" },
-    { value: "fade", label: "Fade" },
-    { value: "pop", label: "Pop" },
-    { value: "slide-up", label: "Slide up" },
-    { value: "slide-down", label: "Slide down" },
-    { value: "typewriter", label: "Typewriter" },
-    { value: "bounce", label: "Bounce" },
-    { value: "blur", label: "Blur" },
-  ] as const;
+/**
+ * K05: the nine transitions Kalakar names (frames 0251/0253) plus the three
+ * our own styles already ship (`typewriter`/`bounce`/`blur`) that Kalakar's
+ * list does not name — additive to K01's original eight, appended after them
+ * so nothing already wired to an index or a fixture moves. `cuePhase` in
+ * `packages/render-core/src/animate/animate.ts` documents each new type's
+ * exact motion.
+ */
+const CUE_OPTIONS = [
+  { value: "none", label: "None" },
+  { value: "fade", label: "Fade" },
+  { value: "pop", label: "Pop" },
+  { value: "slide-up", label: "Slide up" },
+  { value: "slide-down", label: "Slide down" },
+  { value: "typewriter", label: "Typewriter" },
+  { value: "bounce", label: "Bounce" },
+  { value: "blur", label: "Blur" },
+  { value: "zoom", label: "Zoom" },
+  { value: "scale", label: "Scale" },
+  { value: "slide-left", label: "Slide left" },
+  { value: "slide-right", label: "Slide right" },
+  { value: "rise", label: "Rise" },
+  { value: "hide", label: "Hide" },
+] as const;
 
+export function AnimPanel({ style, scope, onOp }: TabProps): React.JSX.Element {
   return (
     <div className="flex flex-col gap-3" data-testid="anim-panel">
       <SelectField
         label="In"
         path="animation.in.type"
         value={style.animation.in.type}
-        options={cueOptions}
+        options={CUE_OPTIONS}
         scope={scope}
         onOp={onOp}
       />
@@ -790,7 +945,40 @@ export function AnimPanel({ style, scope, onOp }: TabProps): React.JSX.Element {
         label="Out"
         path="animation.out.type"
         value={style.animation.out.type}
-        options={cueOptions}
+        options={CUE_OPTIONS}
+        scope={scope}
+        onOp={onOp}
+      />
+      {/*
+        K05 item 2: Kalakar's "Transitions will be Applied on Line"/"on
+        Word" toggle. Genuinely distinct from "One word at a time" below —
+        that flag (`perWord`) controls which words are *visible* at all;
+        this one (`cueScope`) controls whether the already-visible word(s)
+        animate in/out together as one block or each on its own timing. See
+        `AnimationSchema.cueScope`'s doc comment for how the two compose.
+      */}
+      <SelectField
+        label="Applied on"
+        path="animation.cueScope"
+        value={style.animation.cueScope ?? "line"}
+        options={[
+          { value: "line", label: "Line" },
+          { value: "word", label: "Word" },
+        ]}
+        scope={scope}
+        onOp={onOp}
+      />
+      {/*
+        K05 item 3: Kalakar's "Speed Mode: Dynamic" ("Automatically
+        calculated based on timing") — when on, `render-core` derives the
+        in/out duration from the caption's own on-screen span instead of
+        the fixed sliders above (`dynamicCueDurationMs`); off (the default)
+        behaves exactly as before this WP.
+      */}
+      <ToggleField
+        label="Speed Mode: Dynamic"
+        path="animation.dynamicSpeed"
+        value={style.animation.dynamicSpeed === true}
         scope={scope}
         onOp={onOp}
       />

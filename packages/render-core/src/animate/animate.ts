@@ -51,8 +51,16 @@ import {
 } from "../commands/types.js";
 import { type Layout, type LayoutLine, type LayoutWord, type PlacedRun } from "../layout/types.js";
 import { capabilitiesOf, gradientOf } from "../styles/capabilities.js";
-import { blurRadiusToSigma, clamp01, ofFontSize, q } from "../units.js";
-import { easeOutBack, easeOutBounce, easeOutCubic, lerp, progress, shakeOffset } from "./easing.js";
+import { blurRadiusToSigma, clamp, clamp01, ofFontSize, q } from "../units.js";
+import {
+  easeOutBack,
+  easeOutBounce,
+  easeOutCubic,
+  easeOutQuad,
+  lerp,
+  progress,
+  shakeOffset,
+} from "./easing.js";
 
 export interface AnimateOptions {
   readonly layout: Layout;
@@ -101,18 +109,44 @@ interface Phase {
   readonly opacity: number;
   readonly scale: number;
   readonly dy: number;
+  /** Horizontal counterpart of `dy` (K05: slide-left/slide-right). */
+  readonly dx: number;
   readonly sigma: number;
   /** Fraction of the caption a typewriter has revealed; 1 means "all of it". */
   readonly reveal: number;
 }
 
-const FULL: Phase = { opacity: 1, scale: 1, dy: 0, sigma: 0, reveal: 1 };
+const FULL: Phase = { opacity: 1, scale: 1, dy: 0, dx: 0, sigma: 0, reveal: 1 };
 
 /**
  * One end of the cue animation as a set of transforms. `presence` is 1 when the
  * caption is fully on screen and 0 when it is fully absent, so the same
  * function describes the entry (presence rising) and the exit (presence
  * falling).
+ *
+ * K05 added `zoom`/`scale`/`slide-left`/`slide-right`/`rise`/`hide`, matching
+ * Kalakar's nine named transitions; none of them are specified byte-for-byte
+ * by the reference (only by name and category), so each is a documented,
+ * deliberate interpretation:
+ *
+ * - `zoom` scales in from nothing (0 → 1) with a clean `easeOutCubic` — no
+ *   overshoot — reading as a bigger, snappier entrance than `pop`.
+ * - `scale` is a smaller pop than `pop` itself: the same `easeOutBack`
+ *   overshoot curve, started from 0.85 instead of `pop`'s 0.72, so the
+ *   overshoot bump is visibly subtler.
+ * - `slide-left`/`slide-right` are the horizontal counterparts of
+ *   `slide-up`/`slide-down`: the same travel distance and `easeOutCubic`
+ *   easing, on `dx` instead of `dy` — `slide-left` enters from the right and
+ *   settles moving left (mirroring `slide-up`'s "starts positive, eases to
+ *   0" convention), `slide-right` the reverse.
+ * - `rise` is a gentle upward drift: the same direction as `slide-up`, a
+ *   little over a third of its travel distance, eased with the softer
+ *   `easeOutQuad` instead of `easeOutCubic`.
+ * - `hide` is an instant/near-instant cut: opaque the moment any progress
+ *   begins, invisible before it, with no fade or easing in between —
+ *   `durationMs` still nominally applies (a `SetStyle` write can still set
+ *   it) but the presence step ignores its ramp, "clamping" it to zero-effect
+ *   rather than reinterpreting the field.
  */
 export function cuePhase(
   type: StyleDoc["animation"]["in"]["type"],
@@ -125,16 +159,28 @@ export function cuePhase(
       return { ...FULL, opacity: p };
     case "pop":
       return { ...FULL, opacity: clamp01(p * 2), scale: lerp(0.72, 1, easeOutBack(p)) };
+    case "zoom":
+      return { ...FULL, opacity: p, scale: lerp(0, 1, easeOutCubic(p)) };
+    case "scale":
+      return { ...FULL, opacity: p, scale: lerp(0.85, 1, easeOutBack(p)) };
     case "slide-up":
       return { ...FULL, opacity: p, dy: lerp(lineHeightPx * 0.55, 0, easeOutCubic(p)) };
     case "slide-down":
       return { ...FULL, opacity: p, dy: lerp(-lineHeightPx * 0.55, 0, easeOutCubic(p)) };
+    case "slide-left":
+      return { ...FULL, opacity: p, dx: lerp(lineHeightPx * 0.55, 0, easeOutCubic(p)) };
+    case "slide-right":
+      return { ...FULL, opacity: p, dx: lerp(-lineHeightPx * 0.55, 0, easeOutCubic(p)) };
+    case "rise":
+      return { ...FULL, opacity: p, dy: lerp(lineHeightPx * 0.2, 0, easeOutQuad(p)) };
     case "bounce":
       return { ...FULL, opacity: clamp01(p * 3), scale: lerp(0.6, 1, easeOutBounce(p)) };
     case "blur":
       return { ...FULL, opacity: p, sigma: lerp(lineHeightPx * 0.18, 0, easeOutCubic(p)) };
     case "typewriter":
       return { ...FULL, reveal: p };
+    case "hide":
+      return { ...FULL, opacity: p > 0 ? 1 : 0 };
     default:
       return FULL;
   }
@@ -145,9 +191,57 @@ function combine(a: Phase, b: Phase): Phase {
     opacity: a.opacity * b.opacity,
     scale: a.scale * b.scale,
     dy: a.dy + b.dy,
+    dx: a.dx + b.dx,
     sigma: a.sigma + b.sigma,
     reveal: Math.min(a.reveal, b.reveal),
   };
+}
+
+/**
+ * K05: Speed Mode "Dynamic" — the effective in/out duration when
+ * `animation.dynamicSpeed` is on, derived from the caption's own on-screen
+ * span (`spanMs`) instead of the fixed `durationMs` the style declares.
+ * Kalakar's copy for this ("Automatically calculated based on timing") names
+ * no formula, so this is a documented interpretation: a fifth of the span,
+ * clamped so a flashed-by caption still gets a perceptible transition and a
+ * long-held one does not crawl.
+ */
+const DYNAMIC_SPEED_FRACTION = 0.2;
+const DYNAMIC_SPEED_MIN_MS = 120;
+const DYNAMIC_SPEED_MAX_MS = 600;
+
+function dynamicCueDurationMs(spanMs: number): number {
+  return clamp(spanMs * DYNAMIC_SPEED_FRACTION, DYNAMIC_SPEED_MIN_MS, DYNAMIC_SPEED_MAX_MS);
+}
+
+function cueDurationMs(configuredMs: number, spanMs: number, dynamic: boolean): number {
+  return dynamic ? dynamicCueDurationMs(spanMs) : configuredMs;
+}
+
+/**
+ * The cue phase for one on-screen window `[startMs, endMs)` — the whole
+ * caption's own span for the default "line" cue scope, or one word's own
+ * span for K05's "word" cue scope (`animateWordScope`). Factored out of
+ * `cueTiming` so both scopes, and Speed Mode Dynamic's duration override,
+ * share one implementation.
+ */
+function cuePhaseWindow(
+  startMs: number,
+  endMs: number,
+  style: StyleDoc,
+  tMs: number,
+  lineHeightPx: number,
+): Phase {
+  const dynamic = style.animation.dynamicSpeed === true;
+  const spanMs = Math.max(0, endMs - startMs);
+  const inDuration = cueDurationMs(style.animation.in.durationMs, spanMs, dynamic);
+  const outDuration = cueDurationMs(style.animation.out.durationMs, spanMs, dynamic);
+
+  const enter = cuePhase(style.animation.in.type, progress(tMs, startMs, inDuration), lineHeightPx);
+  const leaving =
+    outDuration > 0 ? clamp01((tMs - (endMs - outDuration)) / outDuration) : tMs >= endMs ? 1 : 0;
+  const exit = cuePhase(style.animation.out.type, 1 - leaving, lineHeightPx);
+  return combine(enter, exit);
 }
 
 /** Where the caption is in its own life at `tMs`. */
@@ -156,17 +250,29 @@ export function cueTiming(layout: Layout, style: StyleDoc, tMs: number): Phase {
   const first = layout.words[0];
   const startMs = perWord && first !== undefined ? first.startMs : layout.startMs;
   const endMs = perWord && first !== undefined ? first.endMs : layout.endMs;
+  return cuePhaseWindow(startMs, endMs, style, tMs, layout.lineHeightPx);
+}
 
-  const enter = cuePhase(
-    style.animation.in.type,
-    progress(tMs, startMs, style.animation.in.durationMs),
-    layout.lineHeightPx,
-  );
-  const outDuration = style.animation.out.durationMs;
-  const leaving =
-    outDuration > 0 ? clamp01((tMs - (endMs - outDuration)) / outDuration) : tMs >= endMs ? 1 : 0;
-  const exit = cuePhase(style.animation.out.type, 1 - leaving, layout.lineHeightPx);
-  return combine(enter, exit);
+/**
+ * K05: one word's own cue phase, for `animation.cueScope === "word"`.
+ *
+ * The window is `[word.startMs, layout.endMs]`, **not** `[word.startMs,
+ * word.endMs]` — a word's own `startMs`/`endMs` is how long it is the *word
+ * being spoken* (what drives `wordHighlight`), which for a normal multi-word
+ * caption is a short slice near the front of the caption's life. Using that
+ * slice as the cue window would make each word's `out` cue finish, and the
+ * word vanish, the moment it stops being the active word — so a caption
+ * would visibly shed its earlier words as playback moved on, which is not
+ * what "Applied on Word" means in the reference product or in any caption
+ * tool. The word enters on its own schedule (`word.startMs`, so words
+ * cascade in one after another as the caption first appears) and then holds
+ * — same as line scope — until the caption's own `endMs`, where every word
+ * still on screen leaves together. Only the entrance staggers; the exit is
+ * shared. Documented interpretation: the addendum's evidence names the
+ * toggle but not this detail.
+ */
+function wordCuePhase(word: LayoutWord, layout: Layout, style: StyleDoc, tMs: number): Phase {
+  return cuePhaseWindow(word.startMs, layout.endMs, style, tMs, layout.lineHeightPx);
 }
 
 /** `sung | speaking | upcoming` for one word at `tMs`. */
@@ -297,6 +403,23 @@ function typeUnderline(word: LayoutWord, colour: string, layout: Layout): DrawCo
   const thickness = ofFontSize(6, layout.fontSizePx);
   const top = word.box[3] + thickness * 0.4;
   return [makeRect([word.box[0], top, word.box[2], top + thickness], { fill: makeFill(colour) })];
+}
+
+/**
+ * `typography.strikethrough`'s rule under one word (K05) — the Format row's
+ * fourth button (B/I/U/S). Mirrors `typeUnderline` exactly, except the rule
+ * sits through the middle of the word's own em box (halfway between its
+ * ascent-line top and its descent-line bottom) instead of underneath it, so
+ * it reads as a strike through the glyphs rather than a rule under them.
+ */
+function typeStrikethrough(word: LayoutWord, colour: string, layout: Layout): DrawCommand[] {
+  const thickness = ofFontSize(6, layout.fontSizePx);
+  const middle = (word.box[1] + word.box[3]) / 2;
+  return [
+    makeRect([word.box[0], middle - thickness / 2, word.box[2], middle + thickness / 2], {
+      fill: makeFill(colour),
+    }),
+  ];
 }
 
 /** The ground drawn behind the word being spoken, per `animation.wordHighlight`. */
@@ -447,9 +570,16 @@ function wordCommands(
         ]
       : wordInk(word, makeFill(textPaint(style, layout, colour)), stroke);
 
-  const underline = style.typography.underline === true ? typeUnderline(word, colour, layout) : [];
+  // K05: an emphasis preset's own `underline` overrides the base caption's
+  // `typography.underline` for this word only; absent, it falls back to the
+  // base caption's own setting, so a preset with no typography override
+  // renders byte-identical to before this WP.
+  const underlineOn = preset?.underline ?? style.typography.underline === true;
+  const underline = underlineOn ? typeUnderline(word, colour, layout) : [];
+  const strikethrough =
+    style.typography.strikethrough === true ? typeStrikethrough(word, colour, layout) : [];
 
-  const children = [...ground, ...ink, ...underline];
+  const children = [...ground, ...ink, ...underline, ...strikethrough];
 
   // Per-word scale: the highlight's own growth multiplied by the emphasis scale.
   const highlightScale =
@@ -567,6 +697,13 @@ function rasterCopies(
 
 export function animate(options: AnimateOptions): DrawCommand[] {
   const { layout, style, tMs } = options;
+  // K05: `cueScope: "word"` is a completely separate code path
+  // (`animateWordScope`) rather than a branch threaded through this
+  // function, specifically so the "line" scope below — every existing
+  // style's behaviour, since `cueScope` is additive and absent on all of
+  // them — is untouched line for line and the golden hashes cannot move.
+  if (style.animation.cueScope === "word") return animateWordScope(options);
+
   const phase = cueTiming(layout, style, tMs);
   if (phase.opacity <= 0) return [];
 
@@ -608,10 +745,10 @@ export function animate(options: AnimateOptions): DrawCommand[] {
     content = [blur({ sigmaX: phase.sigma, sigmaY: phase.sigma }, content)];
   }
 
-  if (phase.scale !== 1 || phase.dy !== 0) {
+  if (phase.scale !== 1 || phase.dy !== 0 || phase.dx !== 0) {
     const cx = (layout.box[0] + layout.box[2]) / 2;
     const cy = (layout.box[1] + layout.box[3]) / 2;
-    content = [transform(scaleTranslateMatrix(phase.scale, cx, cy, 0, phase.dy), content)];
+    content = [transform(scaleTranslateMatrix(phase.scale, cx, cy, phase.dx, phase.dy), content)];
   }
 
   // K07: the export-time caption-opacity slider multiplies into the same
@@ -623,6 +760,82 @@ export function animate(options: AnimateOptions): DrawCommand[] {
   const commands: DrawCommand[] = [
     group(content, `segment:${layout.segmentId}`, clamp01(phase.opacity * overlayOpacity)),
   ];
+  if (options.watermarkAssetId !== undefined) {
+    commands.push(watermarkCommand(options.watermarkAssetId, layout));
+  }
+  return commands;
+}
+
+/**
+ * K05: `animation.cueScope === "word"` — the in/out cue animates each word
+ * independently, using that word's own start/end as its window
+ * (`wordCuePhase`), instead of the whole caption entering/leaving as one
+ * block. Kalakar's Transitions tab calls this "Applied on Word"; the block
+ * ground (a `block`-mode box), 3D depth and the style's own drop shadow are
+ * still keyed off the caption's own envelope (`cueTiming`) — they are
+ * properties of the caption as a whole, not of any one word, so only the
+ * per-word ground+ink (`wordCommands`) gets its own phase here.
+ */
+function animateWordScope(options: AnimateOptions): DrawCommand[] {
+  const { layout, style, tMs } = options;
+  const envelope = cueTiming(layout, style, tMs);
+  if (envelope.opacity <= 0) return [];
+
+  const body: DrawCommand[] = [...blockGround(style, layout), ...depth3dCommands(style, layout)];
+
+  for (const line of layout.lines) {
+    if (style.box.enabled && style.box.mode === "line") {
+      const box = inflate(line.box, ofFontSize(style.box.paddingPct, layout.fontSizePx));
+      body.push(
+        roundRect(box, boxRadius(box, style.box.radiusPct), boxRadius(box, style.box.radiusPct), {
+          fill: boxFill(style, box),
+        }),
+      );
+    }
+
+    for (const word of line.words) {
+      const phase = wordCuePhase(word, layout, style, tMs);
+      if (phase.opacity <= 0) continue;
+
+      let wordContent = wordCommands(word, style, layout, tMs, options);
+
+      if (phase.reveal < 1) {
+        const revealed = phase.reveal * rectWidth(word.box);
+        if (revealed <= 0) continue;
+        const right = Math.min(word.box[2], word.box[0] + revealed);
+        wordContent = [clipRect([word.box[0], word.box[1], right, word.box[3]], wordContent)];
+      }
+      if (phase.sigma > 0) {
+        wordContent = [blur({ sigmaX: phase.sigma, sigmaY: phase.sigma }, wordContent)];
+      }
+      if (phase.scale !== 1 || phase.dy !== 0 || phase.dx !== 0) {
+        const cx = (word.box[0] + word.box[2]) / 2;
+        const cy = (word.box[1] + word.box[3]) / 2;
+        wordContent = [
+          transform(scaleTranslateMatrix(phase.scale, cx, cy, phase.dx, phase.dy), wordContent),
+        ];
+      }
+      body.push(group(wordContent, undefined, phase.opacity));
+    }
+  }
+
+  let content: DrawCommand[] = rasterCopies(style, layout, tMs, body);
+
+  if (style.shadow.enabled && style.shadow.opacity > 0) {
+    content = [
+      makeShadow(
+        {
+          dx: ofFontSize(style.shadow.offsetXPct, layout.fontSizePx),
+          dy: ofFontSize(style.shadow.offsetYPct, layout.fontSizePx),
+          sigma: blurRadiusToSigma(ofFontSize(style.shadow.blurPct, layout.fontSizePx)),
+          color: withAlpha(style.shadow.color ?? "#000000", style.shadow.opacity),
+        },
+        content,
+      ),
+    ];
+  }
+
+  const commands: DrawCommand[] = [group(content, `segment:${layout.segmentId}`)];
   if (options.watermarkAssetId !== undefined) {
     commands.push(watermarkCommand(options.watermarkAssetId, layout));
   }
@@ -647,4 +860,7 @@ export const __testing = {
   wordCommands,
   rasterCopies,
   boxRadius,
+  wordCuePhase,
+  dynamicCueDurationMs,
+  animateWordScope,
 };

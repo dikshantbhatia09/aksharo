@@ -13,6 +13,7 @@ import {
   animate,
   cuePhase,
   cueTiming,
+  __testing,
   toGlyphRun,
   watermarkCommand,
   wordColour,
@@ -129,11 +130,18 @@ describe("cuePhase", () => {
     "blur",
     "typewriter",
     "none",
+    "zoom",
+    "scale",
+    "slide-left",
+    "slide-right",
+    "rise",
+    "hide",
   ] as const)("%s is fully present at 1", (type) => {
     const phase = cuePhase(type, 1, 100);
     expect(phase.opacity).toBe(1);
     expect(phase.scale).toBeCloseTo(1, 6);
     expect(phase.dy).toBeCloseTo(0, 6);
+    expect(phase.dx).toBeCloseTo(0, 6);
     expect(phase.reveal).toBe(1);
   });
 
@@ -144,6 +152,67 @@ describe("cuePhase", () => {
     expect(cuePhase("blur", 0, 100).sigma).toBeGreaterThan(0);
     expect(cuePhase("typewriter", 0, 100).reveal).toBe(0);
     expect(cuePhase("none", 0, 100).opacity).toBe(1);
+  });
+
+  describe("K05: zoom, scale, slide-left, slide-right, rise, hide", () => {
+    it("zoom scales in from nothing, with no overshoot", () => {
+      const at0 = cuePhase("zoom", 0, 100);
+      expect(at0.opacity).toBe(0);
+      expect(at0.scale).toBeCloseTo(0, 6);
+      // easeOutCubic never overshoots 1, unlike pop's easeOutBack.
+      for (const p of [0.1, 0.3, 0.5, 0.7, 0.9]) {
+        expect(cuePhase("zoom", p, 100).scale).toBeLessThanOrEqual(1);
+      }
+    });
+
+    it("scale is a smaller pop than pop itself — same overshoot shape, shallower start", () => {
+      const p = 0.65; // near pop's/easeOutBack's overshoot peak
+      const popPhase = cuePhase("pop", p, 100);
+      const scalePhase = cuePhase("scale", p, 100);
+      expect(scalePhase.scale).toBeGreaterThan(1); // still overshoots...
+      expect(scalePhase.scale - 1).toBeLessThan(popPhase.scale - 1); // ...just less than pop
+    });
+
+    it("zoom and scale are visibly distinct from pop and from each other", () => {
+      const p = 0.5;
+      const pop = cuePhase("pop", p, 100).scale;
+      const zoom = cuePhase("zoom", p, 100).scale;
+      const scale = cuePhase("scale", p, 100).scale;
+      expect(new Set([pop, zoom, scale]).size).toBe(3);
+    });
+
+    it("slide-left/slide-right are the horizontal counterparts of slide-up/slide-down", () => {
+      const left = cuePhase("slide-left", 0, 100);
+      const right = cuePhase("slide-right", 0, 100);
+      expect(left.dx).toBeGreaterThan(0); // enters from the right, settles moving left
+      expect(right.dx).toBeLessThan(0); // enters from the left, settles moving right
+      expect(left.dy).toBeCloseTo(0, 6);
+      expect(right.dy).toBeCloseTo(0, 6);
+      // Same travel magnitude as slide-up/slide-down, just on the other axis.
+      const up = cuePhase("slide-up", 0, 100);
+      expect(Math.abs(left.dx)).toBeCloseTo(Math.abs(up.dy), 6);
+    });
+
+    it("rise drifts upward like slide-up, but a smaller distance", () => {
+      const rise = cuePhase("rise", 0, 100);
+      const slideUp = cuePhase("slide-up", 0, 100);
+      expect(rise.dy).toBeGreaterThan(0); // same direction: below, easing up to 0
+      expect(rise.dy).toBeLessThan(slideUp.dy); // smaller travel
+    });
+
+    it("hide is an instant cut: opaque the moment any progress begins, invisible before it", () => {
+      expect(cuePhase("hide", 0, 100).opacity).toBe(0);
+      expect(cuePhase("hide", 0.0001, 100).opacity).toBe(1);
+      expect(cuePhase("hide", 0.5, 100).opacity).toBe(1);
+      expect(cuePhase("hide", 1, 100).opacity).toBe(1);
+    });
+
+    it("hide is distinct from none at the very start of the window", () => {
+      // "none" ignores presence entirely (always full); "hide" is invisible
+      // until progress begins, then snaps to full — a real, visible difference.
+      expect(cuePhase("none", 0, 100).opacity).toBe(1);
+      expect(cuePhase("hide", 0, 100).opacity).toBe(0);
+    });
   });
 
   it("times the entry from the caption, and from the word for a per-word style", () => {
@@ -645,5 +714,290 @@ describe("animate", () => {
       const doc = style(id);
       expect(hashCommands(draw(doc, 1234))).toBe(hashCommands(draw(doc, 1234)));
     }
+  });
+});
+
+describe("K05: Speed Mode Dynamic (animation.dynamicSpeed)", () => {
+  it("dynamicCueDurationMs clamps a fifth of the span between a floor and a ceiling", () => {
+    expect(__testing.dynamicCueDurationMs(100)).toBe(120); // floor
+    expect(__testing.dynamicCueDurationMs(1000)).toBe(200); // 20% of 1000
+    expect(__testing.dynamicCueDurationMs(10_000)).toBe(600); // ceiling
+  });
+
+  it("off (default) behaves exactly as before — duration is span-independent", () => {
+    const base = style("vertical-clean");
+    const fixed = style("vertical-clean", {
+      animation: {
+        ...base.animation,
+        in: { type: "fade", durationMs: 200 },
+        out: { type: "fade", durationMs: 200 },
+      },
+    });
+    const short = layoutSegment({
+      style: fixed,
+      segment: { id: "s", startMs: 0, endMs: 300 },
+      words: [{ wid: "0:0", t: "hi", s: 0, e: 300 }],
+      canvas: GOLDEN_CANVAS,
+      registry,
+      shaper,
+      tMs: 100,
+    });
+    const long = layoutSegment({
+      style: fixed,
+      segment: { id: "s", startMs: 0, endMs: 6000 },
+      words: [{ wid: "0:0", t: "hi", s: 0, e: 6000 }],
+      canvas: GOLDEN_CANVAS,
+      registry,
+      shaper,
+      tMs: 100,
+    });
+    expect(fixed.animation.dynamicSpeed).toBeUndefined();
+    expect(cueTiming(short, fixed, 100).opacity).toBe(cueTiming(long, fixed, 100).opacity);
+  });
+
+  it("on, a shorter on-screen caption transitions faster than a longer one", () => {
+    const base = style("vertical-clean");
+    const dynamic = style("vertical-clean", {
+      animation: {
+        ...base.animation,
+        dynamicSpeed: true,
+        in: { type: "fade", durationMs: 200 },
+        out: { type: "fade", durationMs: 200 },
+      },
+    });
+    const short = layoutSegment({
+      style: dynamic,
+      segment: { id: "s", startMs: 0, endMs: 300 },
+      words: [{ wid: "0:0", t: "hi", s: 0, e: 300 }],
+      canvas: GOLDEN_CANVAS,
+      registry,
+      shaper,
+      tMs: 100,
+    });
+    const long = layoutSegment({
+      style: dynamic,
+      segment: { id: "s", startMs: 0, endMs: 6000 },
+      words: [{ wid: "0:0", t: "hi", s: 0, e: 6000 }],
+      canvas: GOLDEN_CANVAS,
+      registry,
+      shaper,
+      tMs: 100,
+    });
+    // Short span → clamped to the 120ms floor, so 100ms in is 83% done.
+    // Long span → clamped to the 600ms ceiling, so 100ms in is 17% done.
+    expect(cueTiming(short, dynamic, 100).opacity).toBeGreaterThan(
+      cueTiming(long, dynamic, 100).opacity,
+    );
+  });
+});
+
+describe("K05: animation.cueScope 'word'", () => {
+  it("is absent by default — every existing style renders through the untouched line-scope path", () => {
+    expect(style("vertical-clean").animation.cueScope).toBeUndefined();
+  });
+
+  it("wraps each drawn word in its own (unnamed) group instead of one segment-level transform", () => {
+    const base = style("vertical-clean");
+    const wordScoped = style("vertical-clean", {
+      animation: {
+        ...base.animation,
+        cueScope: "word",
+        in: { type: "fade", durationMs: 300 },
+        out: { type: "fade", durationMs: 300 },
+      },
+    });
+    const wordGroups = [...walkCommands(draw(wordScoped, 100))].filter(
+      (c) => c.kind === "group" && c.id === undefined,
+    );
+    expect(wordGroups.length).toBeGreaterThan(0);
+  });
+
+  it("gives each word a different opacity while it enters independently", () => {
+    const base = style("vertical-clean");
+    const wordScoped = style("vertical-clean", {
+      animation: {
+        ...base.animation,
+        cueScope: "word",
+        in: { type: "fade", durationMs: 300 },
+        out: { type: "fade", durationMs: 300 },
+      },
+    });
+    // WORDS: "one" 0-750 (long done), "two" 750-1500 (mid entrance at 800).
+    const opacities = [...walkCommands(draw(wordScoped, 800))]
+      .filter((c) => c.kind === "group" && c.id === undefined)
+      .map((c) => (c.kind === "group" ? (c.opacity ?? 1) : 1));
+    expect(new Set(opacities).size).toBeGreaterThan(1);
+  });
+
+  it("differs from the default line scope at the same instant", () => {
+    const base = style("vertical-clean");
+    const shared = {
+      ...base.animation,
+      in: { type: "fade" as const, durationMs: 300 },
+      out: { type: "fade" as const, durationMs: 300 },
+    };
+    const line = style("vertical-clean", { animation: { ...shared, cueScope: "line" } });
+    const word = style("vertical-clean", { animation: { ...shared, cueScope: "word" } });
+    expect(hashCommands(draw(line, 800))).not.toBe(hashCommands(draw(word, 800)));
+  });
+
+  it("still draws the block box keyed off the caption's own envelope, not per word", () => {
+    const base = style("box-block");
+    const wordScoped = style("box-block", {
+      animation: {
+        ...base.animation,
+        cueScope: "word",
+        in: { type: "fade", durationMs: 300 },
+        out: { type: "fade", durationMs: 300 },
+      },
+    });
+    const boxes = [...walkCommands(draw(wordScoped, 800))].filter((c) => c.kind === "roundRect");
+    expect(boxes.length).toBeGreaterThan(0);
+  });
+
+  it("draws nothing before the caption's own envelope starts or after it ends", () => {
+    const base = style("vertical-clean");
+    const wordScoped = style("vertical-clean", {
+      animation: { ...base.animation, cueScope: "word" },
+    });
+    expect(draw(wordScoped, 5000)).toEqual([]);
+  });
+
+  it("is a pure function of time", () => {
+    const base = style("vertical-clean");
+    const wordScoped = style("vertical-clean", {
+      animation: {
+        ...base.animation,
+        cueScope: "word",
+        in: { type: "slide-left", durationMs: 250 },
+      },
+    });
+    expect(hashCommands(draw(wordScoped, 900))).toBe(hashCommands(draw(wordScoped, 900)));
+  });
+});
+
+describe("typography.strikethrough (K05)", () => {
+  it("draws no extra rect when unset — every existing style is unaffected", () => {
+    const doc = style("vertical-clean");
+    expect(doc.typography.strikethrough).toBeUndefined();
+    const before = hashCommands(draw(doc, 1500));
+    const explicitlyOff = style("vertical-clean", {
+      typography: { ...doc.typography, strikethrough: false },
+    });
+    expect(hashCommands(draw(explicitlyOff, 1500))).toBe(before);
+  });
+
+  it("draws a rect through every word when set", () => {
+    const base = style("vertical-clean");
+    const doc = style("vertical-clean", {
+      typography: { ...base.typography, strikethrough: true },
+    });
+    const without = [...walkCommands(draw(base, 1500))].filter((c) => c.kind === "rect").length;
+    const withStrike = [...walkCommands(draw(doc, 1500))].filter((c) => c.kind === "rect").length;
+    expect(withStrike).toBe(without + lay(doc, 1500).words.length);
+  });
+
+  it("sits through the middle of the word, not underneath it like typography.underline", () => {
+    const base = style("vertical-clean");
+    const doc = style("vertical-clean", {
+      typography: { ...base.typography, strikethrough: true },
+    });
+    const layout = lay(doc, 1500);
+    const word = layout.words[0];
+    expect(word).toBeDefined();
+    if (word === undefined) return;
+    const rect = [...walkCommands(draw(doc, 1500))].find(
+      (c) => c.kind === "rect" && c.rect[0] === word.box[0] && c.rect[2] === word.box[2],
+    );
+    expect(rect?.kind).toBe("rect");
+    if (rect?.kind !== "rect") return;
+    expect(rect.rect[1]).toBeLessThan(word.box[3]);
+    expect(rect.rect[3]).toBeGreaterThan(word.box[1]);
+    const middle = (word.box[1] + word.box[3]) / 2;
+    expect(Math.abs((rect.rect[1] + rect.rect[3]) / 2 - middle)).toBeLessThan(0.5);
+  });
+
+  it("coexists with typography.underline — both draw, at different heights", () => {
+    const base = style("vertical-clean");
+    const doc = style("vertical-clean", {
+      typography: { ...base.typography, strikethrough: true, underline: true },
+    });
+    const layout = lay(doc, 1500);
+    const word = layout.words[0];
+    expect(word).toBeDefined();
+    if (word === undefined) return;
+    const rects = [...walkCommands(draw(doc, 1500))].filter(
+      (c) => c.kind === "rect" && c.rect[0] === word.box[0] && c.rect[2] === word.box[2],
+    );
+    expect(rects).toHaveLength(2);
+  });
+});
+
+describe("emphasisPresets[].underline override (K05)", () => {
+  it("overrides the base caption's typography.underline for the marked word only", () => {
+    const base = style("vertical-clean");
+    const doc = style("vertical-clean", {
+      typography: { ...base.typography, underline: false },
+      emphasisPresets: [{ id: "mark", underline: true }],
+    });
+    const marked = WORDS.map((word, index) =>
+      index === 0 ? { ...word, emphasisPresetId: "mark" } : word,
+    );
+    const layout = lay(doc, 1500, marked);
+    const commands = draw(doc, 1500, marked);
+    const [markedWord, otherWord] = layout.words;
+    expect(markedWord).toBeDefined();
+    expect(otherWord).toBeDefined();
+    if (markedWord === undefined || otherWord === undefined) return;
+    const hasUnderlineAt = (word: { box: readonly number[] }): boolean =>
+      [...walkCommands(commands)].some(
+        (c) => c.kind === "rect" && c.rect[0] === word.box[0] && c.rect[2] === word.box[2],
+      );
+    expect(hasUnderlineAt(markedWord)).toBe(true);
+    expect(hasUnderlineAt(otherWord)).toBe(false);
+  });
+
+  it("an explicit underline: false override turns the marked word's underline off even when the base style has it on", () => {
+    const base = style("vertical-clean");
+    const doc = style("vertical-clean", {
+      typography: { ...base.typography, underline: true },
+      emphasisPresets: [{ id: "quiet", underline: false }],
+    });
+    const marked = WORDS.map((word, index) =>
+      index === 0 ? { ...word, emphasisPresetId: "quiet" } : word,
+    );
+    const layout = lay(doc, 1500, marked);
+    const commands = draw(doc, 1500, marked);
+    const [markedWord, otherWord] = layout.words;
+    expect(markedWord).toBeDefined();
+    expect(otherWord).toBeDefined();
+    if (markedWord === undefined || otherWord === undefined) return;
+    const hasUnderlineAt = (word: { box: readonly number[] }): boolean =>
+      [...walkCommands(commands)].some(
+        (c) => c.kind === "rect" && c.rect[0] === word.box[0] && c.rect[2] === word.box[2],
+      );
+    expect(hasUnderlineAt(markedWord)).toBe(false);
+    expect(hasUnderlineAt(otherWord)).toBe(true);
+  });
+
+  it("falls back to the base typography.underline when the preset has no override of its own", () => {
+    const base = style("vertical-clean");
+    const withoutPreset = style("vertical-clean", {
+      typography: { ...base.typography, underline: true },
+    });
+    const withPlainPreset = style("vertical-clean", {
+      typography: { ...base.typography, underline: true },
+      emphasisPresets: [{ id: "plain", color: "#ffd400" }],
+    });
+    const marked = WORDS.map((word, index) =>
+      index === 0 ? { ...word, emphasisPresetId: "plain" } : word,
+    );
+    const before = [...walkCommands(draw(withoutPreset, 1500))].filter(
+      (c) => c.kind === "rect",
+    ).length;
+    const after = [...walkCommands(draw(withPlainPreset, 1500, marked))].filter(
+      (c) => c.kind === "rect",
+    ).length;
+    expect(after).toBe(before);
   });
 });

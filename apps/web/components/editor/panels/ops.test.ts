@@ -10,6 +10,7 @@ import {
   stylePresetDraft,
   toggleWordHighlightGlow,
   withDefaultEmphasisEffect,
+  withDefaultEmphasisField,
 } from "./ops";
 
 const DOC = { kind: "doc" } as const;
@@ -188,5 +189,36 @@ describe("withDefaultEmphasisEffect", () => {
 
   it("returns an empty array unchanged — nothing to default", () => {
     expect(withDefaultEmphasisEffect([], "glow")).toEqual([]);
+  });
+});
+
+describe("withDefaultEmphasisField (K05)", () => {
+  const presets = [
+    { id: "pop", label: "Pop", color: "#ffd400", scale: 1.25, effect: "none" as const },
+    { id: "shout", label: "Shout", color: "#ff2e63", scale: 1.35, effect: "shake" as const },
+  ];
+
+  it("writes one field of the first preset only, keeping the rest untouched", () => {
+    expect(withDefaultEmphasisField(presets, "fontFamily", "Poppins")).toEqual([
+      { ...presets[0], fontFamily: "Poppins" },
+      presets[1],
+    ]);
+  });
+
+  it("works for any of the K05 typography fields", () => {
+    expect(withDefaultEmphasisField(presets, "italic", true)[0]).toMatchObject({ italic: true });
+    expect(withDefaultEmphasisField(presets, "underline", true)[0]).toMatchObject({
+      underline: true,
+    });
+    expect(withDefaultEmphasisField(presets, "weight", 800)[0]).toMatchObject({ weight: 800 });
+  });
+
+  it("leaves everything else about the first preset alone", () => {
+    const [first] = withDefaultEmphasisField(presets, "italic", true);
+    expect(first).toMatchObject({ id: "pop", label: "Pop", color: "#ffd400", scale: 1.25 });
+  });
+
+  it("returns an empty array unchanged — nothing to default", () => {
+    expect(withDefaultEmphasisField([], "fontFamily", "Poppins")).toEqual([]);
   });
 });

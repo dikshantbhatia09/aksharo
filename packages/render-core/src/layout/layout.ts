@@ -133,6 +133,31 @@ function indexAt(words: readonly RenderWord[], tMs: number): number {
   return index;
 }
 
+/**
+ * K05: the family/slant one word actually shapes with — the emphasis preset's
+ * own `fontFamily`/`italic` when the word carries a matching
+ * `emphasisPresetId` and the preset sets them, otherwise the base caption's
+ * own `typography`. A different family or slant is a different font file
+ * (glyph ids are not portable across faces), so — unlike the emphasis
+ * preset's `weight`, which stays a paint-time faux-bold stroke in
+ * `animate.ts` because the run cannot be re-shaped after the fact — this has
+ * to be resolved here, at shaping time, per word, the same way
+ * `typography.fontFamily`/`.italic` already are for the whole caption.
+ * Falling back to the base values when the preset has no override (or the
+ * word has none) keeps every style without this WP's new fields byte-
+ * identical to before it.
+ */
+function emphasisTypographyFor(
+  style: StyleDoc,
+  word: RenderWord,
+): { readonly family: string; readonly italic: boolean } {
+  const { fontFamily, italic } = style.typography;
+  if (word.emphasisPresetId === undefined) return { family: fontFamily, italic };
+  const preset = style.emphasisPresets.find((entry) => entry.id === word.emphasisPresetId);
+  if (preset === undefined) return { family: fontFamily, italic };
+  return { family: preset.fontFamily ?? fontFamily, italic: preset.italic ?? italic };
+}
+
 function measure(
   words: readonly RenderWord[],
   style: StyleDoc,
@@ -140,10 +165,11 @@ function measure(
   registry: FontRegistry,
   shaper: Shaper,
 ): Measured[] {
-  const { fontFamily, fallbacks, weight, italic, letterSpacingEm } = style.typography;
+  const { fallbacks, weight, letterSpacingEm } = style.typography;
   return words.map((word) => {
+    const { family, italic } = emphasisTypographyFor(style, word);
     const runs = itemise(word.t, registry, {
-      family: fontFamily,
+      family,
       fallbacks,
       weight,
       italic,
