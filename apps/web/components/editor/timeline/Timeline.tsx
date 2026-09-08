@@ -24,10 +24,18 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { parseWordId } from "@montaj/edg";
-import type { PassItem, Segment, Word } from "@montaj/edg";
+import { newId, parseWordId } from "@montaj/edg";
+import type { EdgOp, PassItem, Segment, Word } from "@montaj/edg";
 import type { TimeMap } from "@montaj/timemap";
 
+import {
+  buildCaptionDelayOps,
+  buildRemoveEmojiOps,
+  buildRemoveEmphasisOps,
+  buildRemoveGapsOps,
+  buildRemovePunctuationOps,
+  clampCaptionDelayMs,
+} from "@/components/editor/timeline/caption-tools";
 import {
   BulkActionsBar,
   type ResegmentParams,
@@ -110,6 +118,15 @@ const FALLBACK_RESEGMENT_PARAMS: ResegmentParams = {
   maxMs: 4500,
   dropFillers: false,
 };
+
+/**
+ * K06: the Caption Delay Control's slider range, before `clampCaptionDelayMs`
+ * further restricts it to what actually fits the media duration — plus or
+ * minus five seconds is enough room to fix a typical sync drift without the
+ * slider being mostly dead space.
+ */
+const CAPTION_DELAY_RANGE_MS = 5_000;
+const CAPTION_DELAY_STEP_MS = 50;
 
 /** One user-marked protected range, as stored on `EdgHot.protected` (CONTRACTS §2). */
 export interface ProtectedRange {
@@ -199,6 +216,20 @@ export interface TimelineProps {
   readonly onResegmentCaptions?: (params: ResegmentParams) => void;
   readonly resegmentDefaultParams?: ResegmentParams;
   readonly bulkActionsBusy?: boolean;
+  /**
+   * K06: Caption Tools' Display Settings/Actions/Timing sections (the real
+   * Kalakar-parity structure — `ADDENDUM-full-frame-audit.md` "New gap 4").
+   * Every Action and the Delay Control's Apply button build a real, already-
+   * batched `EdgOp[]` themselves (`caption-tools.ts`) — Timeline.tsx never
+   * submits an op to any store, same contract as `onSetSegmentBounds`/
+   * `onResegmentCaptions` above, so this callback only has to forward the
+   * batch (e.g. `store.submitOps(ops, { label })`). `label` is a short,
+   * human-readable description of the batch, for a queue/undo-stack entry.
+   * `undefined` does not hide the section (the structure still matches the
+   * reference frames) but disables its mutating controls, since a click that
+   * does nothing would be exactly the "no-op UI element" the brief forbids.
+   */
+  readonly onCaptionToolsAction?: (ops: readonly EdgOp[], label: string) => void;
   readonly className?: string;
 }
 
@@ -260,6 +291,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     onResegmentCaptions,
     resegmentDefaultParams = FALLBACK_RESEGMENT_PARAMS,
     bulkActionsBusy = false,
+    onCaptionToolsAction,
     className,
   } = props;
 
@@ -298,6 +330,25 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   const [searchQuery, setSearchQuery] = useState("");
   const [captionToolsOpen, setCaptionToolsOpen] = useState(false);
   const captionToolsRef = useRef<HTMLDivElement | null>(null);
+
+  // K06: Display Settings' Max Chars/Lines draft — local until the user
+  // commits (Enter/blur on the number field, immediately on the Lines
+  // select), never on every keystroke: `Resegment` replaces every segment id
+  // and discards manual edits (A15's decision D78, "never resegment
+  // silently"), so this only fires on a deliberate commit, and `lastAppliedRef`
+  // skips a redundant call when blur fires without the value having changed.
+  const [maxCharsDraft, setMaxCharsDraft] = useState(resegmentDefaultParams.maxChars);
+  const [maxLinesDraft, setMaxLinesDraft] = useState(resegmentDefaultParams.maxLines);
+  const lastAppliedDisplaySettingsRef = useRef({
+    maxChars: resegmentDefaultParams.maxChars,
+    maxLines: resegmentDefaultParams.maxLines,
+  });
+
+  // K06: the Caption Delay Control's live-preview offset — purely local state
+  // (same convention as `granularity`/`searchQuery` above), redrawn straight
+  // into the word/segment lanes below so dragging the slider visibly shifts
+  // every caption on the timeline immediately, before any op is ever built.
+  const [delayPreviewMs, setDelayPreviewMs] = useState(0);
   /** K03: `Image` objects for the thumbnail filmstrip, keyed by URL so a scroll/zoom redraw never re-decodes one. */
   const thumbImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
@@ -576,8 +627,13 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
           dragRef.current?.kind === "word-edge" && dragRef.current.wordId === word.wid
             ? dragPreviewRef.current
             : undefined;
-        const wordStartMs = preview?.startMs ?? word.s;
-        const wordEndMs = preview?.endMs ?? word.e;
+        // K06: the Caption Delay Control's live preview — added only for the
+        // caption lanes' draw position, never to `word.s`/`e` themselves (the
+        // underlying data is untouched until Apply), so a non-zero preview
+        // visibly shifts every chip without moving anything the waveform,
+        // thumbnails or a concurrent edge-drag still read from.
+        const wordStartMs = (preview?.startMs ?? word.s) + delayPreviewMs;
+        const wordEndMs = (preview?.endMs ?? word.e) + delayPreviewMs;
         if (wordEndMs < startMs || wordStartMs > endMs) continue;
         const x0 = msToPx(wordStartMs, viewport);
         const x1 = msToPx(wordEndMs, viewport);
@@ -613,9 +669,12 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       }
     } else {
       for (const segment of segments) {
-        if (segment.endMs < startMs || segment.startMs > endMs) continue;
-        const x0 = msToPx(segment.startMs, viewport);
-        const x1 = msToPx(segment.endMs, viewport);
+        // K06: same live-preview shift as the WORD branch above.
+        const segStartMs = segment.startMs + delayPreviewMs;
+        const segEndMs = segment.endMs + delayPreviewMs;
+        if (segEndMs < startMs || segStartMs > endMs) continue;
+        const x0 = msToPx(segStartMs, viewport);
+        const x1 = msToPx(segEndMs, viewport);
         const w = Math.max(1, x1 - x0);
         const selected = segment.id === selectedSegmentId;
         const hasMatch = liveWords.some(
@@ -652,8 +711,12 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         dragRef.current?.kind === "segment-edge" && dragRef.current.segmentId === segment.id
           ? dragPreviewRef.current
           : undefined;
-      const startMsS = preview?.startMs ?? segment.startMs;
-      const endMsS = preview?.endMs ?? segment.endMs;
+      // K06: the Caption Delay Control's live preview, same as the caption
+      // lane above — an active edge-drag preview wins over it (a user is not
+      // doing both at once, but the drag's own in-progress value must never
+      // be second-guessed by a stale slider position).
+      const startMsS = (preview?.startMs ?? segment.startMs) + delayPreviewMs;
+      const endMsS = (preview?.endMs ?? segment.endMs) + delayPreviewMs;
       if (endMsS < startMs || startMsS > endMs) continue;
       const x0 = msToPx(startMsS, viewport);
       const x1 = msToPx(endMsS, viewport);
@@ -806,6 +869,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     searchMatchWordIds,
     thumbnails,
     getThumbImage,
+    delayPreviewMs,
   ]);
 
   // ---------------------------------------------------------------------
@@ -1443,6 +1507,70 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     onSplitLongCaptions !== undefined &&
     onResegmentCaptions !== undefined;
 
+  // ---------------------------------------------------------------------
+  // K06: Caption Tools' Display Settings / Actions / Timing (the real
+  // Kalakar-parity structure — `ADDENDUM-full-frame-audit.md` "New gap 4").
+  // ---------------------------------------------------------------------
+
+  /**
+   * Display Settings' Max Chars/Lines: both feed the *existing* `Resegment`
+   * op via the *existing* `onResegmentCaptions` callback (already required by
+   * `captionToolsAvailable` above) — this is exactly the "Max Chars strongly
+   * resembles an existing Resegment param" investigation the brief asks for
+   * (`A15-web-editor-transcript.md`'s `fitBudget`/`maxChars`), not a new op.
+   * `minMs`/`maxMs`/`dropFillers` carry over from `resegmentDefaultParams`
+   * unchanged. A no-op commit (values unchanged since the last one) is
+   * skipped so tabbing through the fields without editing them never
+   * triggers a silent resegment (A15's decision D78).
+   */
+  function commitDisplaySettings(
+    patch: Partial<{ maxChars: number; maxLines: number }> = {},
+  ): void {
+    if (onResegmentCaptions === undefined) return;
+    const maxChars = patch.maxChars ?? maxCharsDraft;
+    const maxLines = patch.maxLines ?? maxLinesDraft;
+    const last = lastAppliedDisplaySettingsRef.current;
+    if (maxChars === last.maxChars && maxLines === last.maxLines) return;
+    lastAppliedDisplaySettingsRef.current = { maxChars, maxLines };
+    onResegmentCaptions({ ...resegmentDefaultParams, maxChars, maxLines });
+  }
+
+  /** Actions: one-shot batch text-cleanup/timing passes (brief §3 — see the report for why these are buttons, not persisted toggles). */
+  function runRemovePunctuation(): void {
+    if (onCaptionToolsAction === undefined) return;
+    const ops = buildRemovePunctuationOps(liveWords, wordScript, newId);
+    if (ops.length > 0) onCaptionToolsAction(ops, "Remove punctuation");
+  }
+  function runRemoveEmojis(): void {
+    if (onCaptionToolsAction === undefined) return;
+    const ops = buildRemoveEmojiOps(liveWords, wordScript, newId);
+    if (ops.length > 0) onCaptionToolsAction(ops, "Remove emojis");
+  }
+  function runRemoveEmphasis(): void {
+    if (onCaptionToolsAction === undefined) return;
+    const ops = buildRemoveEmphasisOps(segments, newId);
+    if (ops.length > 0) onCaptionToolsAction(ops, "Remove emphasis");
+  }
+  function runRemoveGaps(): void {
+    if (onCaptionToolsAction === undefined) return;
+    const ops = buildRemoveGapsOps(segments, newId);
+    if (ops.length > 0) onCaptionToolsAction(ops, "Remove gaps in captions");
+  }
+
+  /** Timing: the slider only ever updates local preview state — see the draw loop above for the live shift. */
+  function onDelaySliderChange(rawMs: number): void {
+    setDelayPreviewMs(clampCaptionDelayMs(segments, rawMs, durationMs));
+  }
+  function applyCaptionDelay(): void {
+    if (onCaptionToolsAction === undefined || delayPreviewMs === 0) return;
+    const ops = buildCaptionDelayOps(segments, delayPreviewMs, newId);
+    if (ops.length > 0) onCaptionToolsAction(ops, "Shift caption timing");
+    setDelayPreviewMs(0);
+  }
+  function resetCaptionDelay(): void {
+    setDelayPreviewMs(0);
+  }
+
   const ariaDescription = useMemo(() => {
     const parts: string[] = [];
     if (selectedSegmentId !== undefined) {
@@ -1591,8 +1719,172 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                 role="menu"
                 aria-label="Caption Tools"
                 data-testid="timeline-caption-tools-menu"
-                className="border-white/10 bg-bg-1 absolute top-full left-0 z-40 mt-1 rounded-lg border p-2 shadow-xl"
+                className="border-white/10 bg-bg-1 absolute top-full left-0 z-40 mt-1 flex w-72 max-h-[75vh] flex-col gap-3 overflow-y-auto rounded-lg border p-3 text-left shadow-xl"
               >
+                {/*
+                 * K06 (`ADDENDUM-full-frame-audit.md` "New gap 4"): the real
+                 * Kalakar Caption Tools dropdown is Display Settings / Actions
+                 * / Timing — not merge/split/resegment, which K03 was briefed
+                 * from an incomplete sample. Kalakar has no equivalent of our
+                 * auto-resegmentation concept at all, so it is kept below
+                 * under its own "Structure" heading (option (a) from the
+                 * brief) rather than dropped: it is a real, working feature
+                 * of this app's own captioning model, and keeping it here —
+                 * unchanged, still `BulkActionsBar` itself, not a
+                 * reimplementation — costs nothing and regresses nothing, the
+                 * transcript column's own entry point included.
+                 */}
+                <div data-testid="caption-tools-display-settings" className="flex flex-col gap-1.5">
+                  <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
+                    Display Settings
+                  </div>
+                  <label className="flex items-center justify-between gap-2 text-xs text-white/80">
+                    Words
+                    <select
+                      data-testid="caption-tools-words"
+                      disabled
+                      title="No other grouping exists yet in this app's data model — Default is the only real option."
+                      className="w-28 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-right disabled:opacity-50"
+                      defaultValue="default"
+                    >
+                      <option value="default">Default</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center justify-between gap-2 text-xs text-white/80">
+                    Max Chars
+                    <input
+                      type="number"
+                      min={8}
+                      max={60}
+                      data-testid="caption-tools-max-chars"
+                      value={maxCharsDraft}
+                      disabled={onResegmentCaptions === undefined}
+                      onChange={(event) => {
+                        const value = Number(event.target.value);
+                        if (Number.isFinite(value)) setMaxCharsDraft(value);
+                      }}
+                      onBlur={() => commitDisplaySettings()}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") commitDisplaySettings();
+                      }}
+                      className="w-20 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-right disabled:opacity-50"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2 text-xs text-white/80">
+                    Lines
+                    <select
+                      data-testid="caption-tools-lines"
+                      value={maxLinesDraft}
+                      disabled={onResegmentCaptions === undefined}
+                      onChange={(event) => {
+                        const value = Number(event.target.value);
+                        setMaxLinesDraft(value);
+                        commitDisplaySettings({ maxLines: value });
+                      }}
+                      className="w-28 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-right disabled:opacity-50"
+                    >
+                      <option value={1}>1 Line</option>
+                      <option value={2}>2 Lines</option>
+                      <option value={3}>3 Lines</option>
+                    </select>
+                  </label>
+                  <p className="text-[10px] text-white/40">
+                    Re-cuts every caption from the transcript — manual splits, merges and hidden
+                    captions are replaced.
+                  </p>
+                </div>
+
+                <div data-testid="caption-tools-actions" className="flex flex-col gap-1.5">
+                  <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
+                    Actions
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="caption-tools-remove-punctuation"
+                    disabled={onCaptionToolsAction === undefined}
+                    className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
+                    onClick={runRemovePunctuation}
+                  >
+                    Remove Punctuation
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="caption-tools-remove-emphasis"
+                    disabled={onCaptionToolsAction === undefined}
+                    className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
+                    onClick={runRemoveEmphasis}
+                  >
+                    Remove Emphasis
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="caption-tools-remove-gaps"
+                    disabled={onCaptionToolsAction === undefined}
+                    className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
+                    onClick={runRemoveGaps}
+                  >
+                    Remove Gaps in Captions
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="caption-tools-remove-emojis"
+                    disabled={onCaptionToolsAction === undefined}
+                    className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
+                    onClick={runRemoveEmojis}
+                  >
+                    Remove Emojis
+                  </button>
+                </div>
+
+                <div data-testid="caption-tools-timing" className="flex flex-col gap-1.5">
+                  <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
+                    Timing
+                  </div>
+                  <label className="flex flex-col gap-1 text-xs text-white/80">
+                    <span className="flex items-center justify-between">
+                      Caption Delay
+                      <span
+                        data-testid="caption-tools-delay-value"
+                        className="tabular-nums text-white/50"
+                      >
+                        {delayPreviewMs > 0 ? "+" : ""}
+                        {(delayPreviewMs / 1000).toFixed(2)}s
+                      </span>
+                    </span>
+                    <input
+                      type="range"
+                      data-testid="caption-tools-delay-slider"
+                      min={-CAPTION_DELAY_RANGE_MS}
+                      max={CAPTION_DELAY_RANGE_MS}
+                      step={CAPTION_DELAY_STEP_MS}
+                      value={delayPreviewMs}
+                      onChange={(event) => onDelaySliderChange(Number(event.target.value))}
+                    />
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      data-testid="caption-tools-delay-reset"
+                      disabled={delayPreviewMs === 0}
+                      className="text-fg-3 px-2 py-1 text-xs hover:underline disabled:opacity-40"
+                      onClick={resetCaptionDelay}
+                    >
+                      Reset
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="caption-tools-delay-apply"
+                      disabled={delayPreviewMs === 0 || onCaptionToolsAction === undefined}
+                      className="rounded-md bg-lime-400 px-2 py-1 text-xs font-medium text-black disabled:opacity-40"
+                      onClick={applyCaptionDelay}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+
+                <div className="h-px bg-white/10" />
+
                 {/*
                  * K03 brief §3: "call the same underlying handlers/store actions
                  * `BulkActionsBar.tsx` uses, do not duplicate the logic" — this
@@ -1600,22 +1892,28 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                  * second entry point, so its three actions are guaranteed to
                  * produce identical results to the transcript column's own copy.
                  */}
-                <BulkActionsBar
-                  onMergeShort={() => {
-                    onMergeShortCaptions?.();
-                    setCaptionToolsOpen(false);
-                  }}
-                  onSplitLong={() => {
-                    onSplitLongCaptions?.();
-                    setCaptionToolsOpen(false);
-                  }}
-                  onResegment={(params) => {
-                    onResegmentCaptions?.(params);
-                    setCaptionToolsOpen(false);
-                  }}
-                  defaultParams={resegmentDefaultParams}
-                  busy={bulkActionsBusy}
-                />
+                <div data-testid="caption-tools-structure" className="flex flex-col gap-1.5">
+                  <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
+                    Structure
+                  </div>
+                  <BulkActionsBar
+                    onMergeShort={() => {
+                      onMergeShortCaptions?.();
+                      setCaptionToolsOpen(false);
+                    }}
+                    onSplitLong={() => {
+                      onSplitLongCaptions?.();
+                      setCaptionToolsOpen(false);
+                    }}
+                    onResegment={(params) => {
+                      onResegmentCaptions?.(params);
+                      setCaptionToolsOpen(false);
+                    }}
+                    defaultParams={resegmentDefaultParams}
+                    busy={bulkActionsBusy}
+                    className="flex-wrap"
+                  />
+                </div>
               </div>
             ) : null}
           </div>

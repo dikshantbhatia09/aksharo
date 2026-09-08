@@ -422,6 +422,285 @@ describe("<Timeline /> K03 Caption Tools dropdown", () => {
   });
 });
 
+describe("<Timeline /> K06 Caption Tools — Display Settings / Actions / Timing", () => {
+  const resegmentDefaultParams = {
+    maxChars: 32,
+    maxLines: 2,
+    minMs: 800,
+    maxMs: 4_500,
+    dropFillers: false,
+  };
+
+  /** The three props `captionToolsAvailable` gates on — unchanged by K06, so the trigger keeps rendering exactly as K03 left it. */
+  const baseBulkProps = {
+    onMergeShortCaptions: vi.fn(),
+    onSplitLongCaptions: vi.fn(),
+    onResegmentCaptions: vi.fn(),
+    resegmentDefaultParams,
+  };
+
+  const words: Word[] = [
+    wordFixture({ wid: makeWordId(0, 0), s: 0, e: 500, t: "Hello!!!" }),
+    wordFixture({ wid: makeWordId(0, 1), s: 600, e: 1_200, t: "world" }),
+  ];
+  const segments: Segment[] = [
+    segmentFixture({
+      id: "seg-a",
+      startWordId: makeWordId(0, 0),
+      endWordId: makeWordId(0, 0),
+      startMs: 0,
+      endMs: 500,
+      emphasis: [{ wordId: makeWordId(0, 0), presetId: "glow" }],
+    }),
+    segmentFixture({
+      id: "seg-b",
+      startWordId: makeWordId(0, 1),
+      endWordId: makeWordId(0, 1),
+      // A 100ms gap after seg-a's endMs (500) — for the "Remove Gaps" test.
+      startMs: 600,
+      endMs: 1_200,
+    }),
+  ];
+
+  it("shows the real Display Settings / Actions / Timing structure, plus Structure for merge/split/resegment", () => {
+    renderTimeline({ ...baseBulkProps, words, segments });
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    const menu = screen.getByTestId("timeline-caption-tools-menu");
+
+    expect(within(menu).getByTestId("caption-tools-display-settings")).toBeInTheDocument();
+    expect(within(menu).getByTestId("caption-tools-words")).toBeDisabled();
+    expect(within(menu).getByTestId("caption-tools-words")).toHaveValue("default");
+    expect(within(menu).getByTestId("caption-tools-max-chars")).toHaveValue(32);
+    expect(within(menu).getByTestId("caption-tools-lines")).toHaveValue("2");
+
+    expect(within(menu).getByTestId("caption-tools-actions")).toBeInTheDocument();
+    expect(within(menu).getByTestId("caption-tools-remove-punctuation")).toBeInTheDocument();
+    expect(within(menu).getByTestId("caption-tools-remove-emphasis")).toBeInTheDocument();
+    expect(within(menu).getByTestId("caption-tools-remove-gaps")).toBeInTheDocument();
+    expect(within(menu).getByTestId("caption-tools-remove-emojis")).toBeInTheDocument();
+
+    expect(within(menu).getByTestId("caption-tools-timing")).toBeInTheDocument();
+    expect(within(menu).getByTestId("caption-tools-delay-slider")).toBeInTheDocument();
+
+    // Structure (this app's own merge/split/resegment concept, kept — see report)
+    // still renders the real, untouched `BulkActionsBar`.
+    expect(within(menu).getByTestId("caption-tools-structure")).toBeInTheDocument();
+    expect(within(menu).getByTestId("bulk-actions-bar")).toBeInTheDocument();
+  });
+
+  it("Actions and the Delay Apply button are disabled (not hidden) until onCaptionToolsAction is wired", () => {
+    renderTimeline({ ...baseBulkProps, words, segments });
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    const menu = screen.getByTestId("timeline-caption-tools-menu");
+
+    expect(within(menu).getByTestId("caption-tools-remove-punctuation")).toBeDisabled();
+    expect(within(menu).getByTestId("caption-tools-remove-emphasis")).toBeDisabled();
+    expect(within(menu).getByTestId("caption-tools-remove-gaps")).toBeDisabled();
+    expect(within(menu).getByTestId("caption-tools-remove-emojis")).toBeDisabled();
+  });
+
+  it("Remove Punctuation: emits a real EditWord batch that only touches the word(s) with punctuation", () => {
+    const onCaptionToolsAction = vi.fn();
+    renderTimeline({ ...baseBulkProps, words, segments, onCaptionToolsAction });
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    fireEvent.click(screen.getByTestId("caption-tools-remove-punctuation"));
+
+    expect(onCaptionToolsAction).toHaveBeenCalledTimes(1);
+    const [ops, label] = onCaptionToolsAction.mock.calls[0] as [
+      { type: string; wordId: string; text: string }[],
+      string,
+    ];
+    expect(label).toBe("Remove punctuation");
+    expect(ops).toHaveLength(1);
+    expect(ops[0]).toMatchObject({
+      type: "EditWord",
+      wordId: makeWordId(0, 0),
+      text: "Hello",
+      script: "roman",
+    });
+  });
+
+  it("Remove Emojis: emits a real EditWord batch stripping emoji glyphs", () => {
+    const onCaptionToolsAction = vi.fn();
+    const emojiWords: Word[] = [
+      wordFixture({ wid: makeWordId(0, 0), s: 0, e: 500, t: "\u{1F525}fire\u{1F525}" }),
+    ];
+    renderTimeline({ ...baseBulkProps, words: emojiWords, segments, onCaptionToolsAction });
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    fireEvent.click(screen.getByTestId("caption-tools-remove-emojis"));
+
+    expect(onCaptionToolsAction).toHaveBeenCalledWith(
+      [expect.objectContaining({ type: "EditWord", wordId: makeWordId(0, 0), text: "fire" })],
+      "Remove emojis",
+    );
+  });
+
+  it("Remove Emphasis: emits SetEmphasis(null) for every entry in every segment's emphasis array", () => {
+    const onCaptionToolsAction = vi.fn();
+    renderTimeline({ ...baseBulkProps, words, segments, onCaptionToolsAction });
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    fireEvent.click(screen.getByTestId("caption-tools-remove-emphasis"));
+
+    expect(onCaptionToolsAction).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          type: "SetEmphasis",
+          segmentId: "seg-a",
+          wordId: makeWordId(0, 0),
+          presetId: null,
+        }),
+      ],
+      "Remove emphasis",
+    );
+  });
+
+  it("Remove Gaps in Captions: emits SetSegmentBounds closing the dead air between consecutive captions", () => {
+    const onCaptionToolsAction = vi.fn();
+    renderTimeline({ ...baseBulkProps, words, segments, onCaptionToolsAction });
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    fireEvent.click(screen.getByTestId("caption-tools-remove-gaps"));
+
+    expect(onCaptionToolsAction).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          type: "SetSegmentBounds",
+          segmentId: "seg-a",
+          startMs: 0,
+          endMs: 600,
+        }),
+      ],
+      "Remove gaps in captions",
+    );
+  });
+
+  it("an Action that would change nothing never calls onCaptionToolsAction", () => {
+    const onCaptionToolsAction = vi.fn();
+    const cleanWords: Word[] = [wordFixture({ wid: makeWordId(0, 0), s: 0, e: 500, t: "clean" })];
+    renderTimeline({
+      ...baseBulkProps,
+      words: cleanWords,
+      segments: [],
+      onCaptionToolsAction,
+    });
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    fireEvent.click(screen.getByTestId("caption-tools-remove-punctuation"));
+    fireEvent.click(screen.getByTestId("caption-tools-remove-emphasis"));
+    fireEvent.click(screen.getByTestId("caption-tools-remove-gaps"));
+    fireEvent.click(screen.getByTestId("caption-tools-remove-emojis"));
+    expect(onCaptionToolsAction).not.toHaveBeenCalled();
+  });
+
+  it("Max Chars commits a Resegment on Enter (not on every keystroke)", () => {
+    const onResegmentCaptions = vi.fn();
+    renderTimeline({ ...baseBulkProps, onResegmentCaptions, words, segments });
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    const input = screen.getByTestId("caption-tools-max-chars");
+
+    fireEvent.change(input, { target: { value: "24" } });
+    expect(onResegmentCaptions).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onResegmentCaptions).toHaveBeenCalledWith({ ...resegmentDefaultParams, maxChars: 24 });
+  });
+
+  it("Max Chars commits on blur too, but skips a redundant commit when nothing changed", () => {
+    const onResegmentCaptions = vi.fn();
+    renderTimeline({ ...baseBulkProps, onResegmentCaptions, words, segments });
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    const input = screen.getByTestId("caption-tools-max-chars");
+
+    fireEvent.blur(input); // nothing was edited — the value still matches the default.
+    expect(onResegmentCaptions).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: "20" } });
+    fireEvent.blur(input);
+    expect(onResegmentCaptions).toHaveBeenCalledTimes(1);
+    expect(onResegmentCaptions).toHaveBeenCalledWith({ ...resegmentDefaultParams, maxChars: 20 });
+  });
+
+  it("Lines commits a Resegment immediately on change", () => {
+    const onResegmentCaptions = vi.fn();
+    renderTimeline({ ...baseBulkProps, onResegmentCaptions, words, segments });
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+
+    fireEvent.change(screen.getByTestId("caption-tools-lines"), { target: { value: "1" } });
+    expect(onResegmentCaptions).toHaveBeenCalledWith({ ...resegmentDefaultParams, maxLines: 1 });
+  });
+
+  it("Caption Delay: dragging the slider updates the live-preview label and clamps to the media duration", () => {
+    renderTimeline({ ...baseBulkProps, words, segments, durationMs: 1_000 });
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    const slider = screen.getByTestId("caption-tools-delay-slider");
+
+    // segments span [0, 1_200] here, past durationMs=1_000, so even a small
+    // positive request has no room — clamped to 0 (returns "-0.00s" territory
+    // normalised to "0.00s" by `clampCaptionDelayMs`'s own -0 guard).
+    fireEvent.change(slider, { target: { value: "500" } });
+    expect(screen.getByTestId("caption-tools-delay-value")).toHaveTextContent("0.00s");
+
+    // A duration with real headroom clamps to what actually fits, not to 0.
+    fireEvent.click(screen.getByTestId("caption-tools-delay-reset"));
+  });
+
+  it("Caption Delay: Apply emits one SetSegmentBounds per segment, shifted by the clamped preview, then resets to 0", () => {
+    const onCaptionToolsAction = vi.fn();
+    renderTimeline({
+      ...baseBulkProps,
+      words,
+      segments,
+      durationMs: 10_000,
+      onCaptionToolsAction,
+    });
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    const slider = screen.getByTestId("caption-tools-delay-slider");
+
+    fireEvent.change(slider, { target: { value: "500" } });
+    expect(screen.getByTestId("caption-tools-delay-value")).toHaveTextContent("+0.50s");
+
+    fireEvent.click(screen.getByTestId("caption-tools-delay-apply"));
+    expect(onCaptionToolsAction).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          type: "SetSegmentBounds",
+          segmentId: "seg-a",
+          startMs: 500,
+          endMs: 1_000,
+        }),
+        expect.objectContaining({
+          type: "SetSegmentBounds",
+          segmentId: "seg-b",
+          startMs: 1_100,
+          endMs: 1_700,
+        }),
+      ],
+      "Shift caption timing",
+    );
+    // The preview resets once applied — dragging again starts from 0, not from
+    // the just-applied offset (the segments prop itself will carry the real
+    // shift once the caller re-renders with the mutated document).
+    expect(screen.getByTestId("caption-tools-delay-value")).toHaveTextContent("0.00s");
+  });
+
+  it("Caption Delay: Reset clears the preview without ever calling onCaptionToolsAction", () => {
+    const onCaptionToolsAction = vi.fn();
+    renderTimeline({
+      ...baseBulkProps,
+      words,
+      segments,
+      durationMs: 10_000,
+      onCaptionToolsAction,
+    });
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    fireEvent.change(screen.getByTestId("caption-tools-delay-slider"), {
+      target: { value: "500" },
+    });
+    fireEvent.click(screen.getByTestId("caption-tools-delay-reset"));
+
+    expect(screen.getByTestId("caption-tools-delay-value")).toHaveTextContent("0.00s");
+    expect(onCaptionToolsAction).not.toHaveBeenCalled();
+  });
+});
+
 describe("<Timeline /> K03 thumbnail track", () => {
   it("accepts thumbnail URLs and renders without error alongside the other lanes", () => {
     const { unmount } = renderTimeline({

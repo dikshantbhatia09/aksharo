@@ -8,6 +8,51 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **K06: the timeline's Caption Tools dropdown becomes the real thing —
+  Display Settings / Actions / Timing, not a merge/split/resegment menu.**
+  Kalakar-parity wave follow-up (`_orchestration/kalakar-styling/K06-real-caption-tools.md`),
+  correcting K03's Caption Tools content against a full 339-frame reference
+  audit done after K03 was briefed (`ADDENDUM-full-frame-audit.md` "New gap
+  4"). The dropdown now shows: **Display Settings** — Words (a "Default"-only
+  select; no other grouping exists in this app's data model, so it stays
+  display-only rather than inventing backend behaviour), Max Chars and Lines,
+  both wired to the _existing_ `Resegment` op via the _existing_
+  `onResegmentCaptions` callback K03 already threaded through (the same
+  investigation `A15-web-editor-transcript.md`'s `fitBudget`/`maxChars` asked
+  for — no new op, no new plumbing); **Actions** — four one-shot buttons
+  (Remove Punctuation, Remove Emphasis, Remove Gaps in Captions, Remove
+  Emojis), each a real batch of the smallest existing `EdgOp` (`EditWord` for
+  the two text-cleanup actions, `SetEmphasis{presetId:null}` for emphasis,
+  `SetSegmentBounds` for gaps — closing a gap extends the earlier caption's
+  `endMs` up to the next one's `startMs`, word timings untouched), computed
+  by a new pure module `apps/web/components/editor/timeline/caption-tools.ts`
+  and unit-tested by running the batch through `@montaj/edg`'s own `applyOps`
+  against a fixture document, not just asserting a callback fired; **Timing**
+  — a Caption Delay Control slider that live-previews a timing shift directly
+  in the canvas draw loop (local component state, same convention as the
+  WORD/LINE toggle) and, on Apply, batches one `SetSegmentBounds` per segment
+  shifted by the offset, clamped client-side so no caption goes negative or
+  past the media duration. Word-level `s`/`e` are deliberately left alone by
+  the delay shift — caption visibility is governed entirely by
+  `Segment.startMs`/`endMs` (`render-core`'s `visibleSegments`), and a
+  document-wide word retime risks crossing a transcript chunk's own bounds
+  for words near a chunk edge, for no benefit. `BulkActionsBar`'s merge
+  short/split long/auto-resegment stay exactly as K03 shipped them — both the
+  transcript column's own entry point and the timeline dropdown's copy — kept
+  under a new "Structure" heading rather than dropped, since Kalakar's
+  reference product has no equivalent of this app's auto-resegmentation
+  concept at all and removing a working feature from the dropdown would have
+  needed a change to `editor-client.tsx`'s existing prop wiring, outside this
+  work package's file boundary. New `onCaptionToolsAction` prop batches every
+  Action/Apply's ops as real, fully-formed `EdgOp[]` ready for
+  `store.submitOps` — Timeline.tsx never talks to the store directly, same
+  contract as `onSetSegmentBounds` — but `editor-client.tsx` was not wired to
+  it (that file is outside this WP's file boundary); the Actions/Delay-Apply
+  controls render and stay visible (matching the reference structure) but sit
+  disabled until a trivial one-line follow-up forwards the callback to
+  `store.submitOps(ops, { label })` — see the work package's final report for
+  the exact line.
+
 - **K03: the timeline gets a caption-lane granularity toggle, an in-lane
   search, a second Caption Tools entry point, and a real video filmstrip.**
   Kalakar-parity wave (`_orchestration/kalakar-styling`). `Timeline.tsx`'s
