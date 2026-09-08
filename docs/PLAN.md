@@ -257,7 +257,21 @@ folder's `ADDENDUM-full-frame-audit.md` for K05+.
 
 | WP | Title | Depends on | Status |
 |---|---|---|---|
-| K01 | Style/Effects panel: expose existing schema fields (Font Family/Face, Position X, Letter Spacing, Drop Shadow), add Emphasis control, promote Glow, add 3D Depth, wire Save-template/My Presets | — | in progress |
-| K02 | Prepare-Media modal: searchable grouped language + writing-script pickers, full-screen analyzing/generating states | — | in progress |
+| K01 | Style/Effects panel: expose existing schema fields (Font Family/Face, Position X, Letter Spacing, Drop Shadow), add Emphasis control, promote Glow, add 3D Depth, wire Save-template/My Presets | — | merged 2026-09-08 (stage 6) |
+| K02 | Prepare-Media modal: searchable grouped language + writing-script pickers, full-screen analyzing/generating states | — | merged 2026-09-08 (stage 6) |
 | K03 | Timeline: WORD/LINE toggle, search box, Caption Tools dropdown (v1 — see K05+ for the real Display Settings/Actions/Timing structure), video thumbnail track | — | merged 2026-09-08 (stage 6) |
-| K04 | Editor chrome: left icon rail, Safe Zone toggle, Replace-media, resolution indicator, sidebar usage counters | — | in progress |
+| K04 | Editor chrome: left icon rail, Safe Zone toggle, Replace-media, resolution indicator, sidebar usage counters | — | merged 2026-09-08 (stage 6) |
+
+Stage 6 verified as one integration: `pnpm --filter "./packages/*" build`,
+`@montaj/web` typecheck/lint/test (170 files / 1221 tests), `@montaj/render-core`
+(538 tests, golden hashes byte-identical across all 30 styles), `@montaj/caption-styles`
+(47 tests), `@montaj/ui` (95 tests), and `format-changed --check` against the
+pre-K-wave base — all clean. Two CHANGELOG.md merge conflicts resolved
+(pure entry-stacking, no content changes); `editor-client.tsx` auto-merged
+cleanly across all three WPs that touch it (K01/K03/K04), inspected by hand.
+
+K05+ (Transitions parity, Format Strikethrough, Emphasis per-word typography
+override, the real Caption Tools Display-Settings/Actions/Timing structure,
+timeline caption-block text labels, an export platform/aspect preset picker)
+are planned from `ADDENDUM-full-frame-audit.md`'s findings, to be briefed
+against this merged state and dispatched next.
