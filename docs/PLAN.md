@@ -264,6 +264,33 @@ folder's `ADDENDUM-full-frame-audit.md` for K05+.
 | K05 | Transitions parity (Zoom/Scale/Slide-L-R/Rise/Hide + Line/Word + Dynamic speed), Format Strikethrough, Emphasis per-word typography override | K01 | merged 2026-09-08 (stage 6) |
 | K06 | The real Caption Tools structure: Display Settings/Actions/Timing (corrects K03's initial merge/split/resegment-only dropdown) | K03 | merged 2026-09-08 (stage 6) |
 | K07 | Export platform presets (Instagram Story/Feed), caption-opacity control (browser exports only; cloud export deferred — flagged) | — | merged 2026-09-08 (stage 6) |
+| K08 | Color Gradient: wires render-core's existing linear-gradient paint support (D33) into a real StyleDoc field (colors.text, emphasis presets), Stops/Angle editor, solid-fallback for ASS/MOGRT/AE export | K01 | merged 2026-09-08 (stage 6) |
+
+All eight K-wave work packages are now merged and verified together: build
+clean across every package and plugin, `@montaj/caption-styles` (79),
+`@montaj/render-core` (587, golden hashes unchanged across all 30 shipped
+styles), `@montaj/ass-exporter` (67), `@montaj/ae-cep` (69),
+`@montaj/premiere-uxp` (156), `@montaj/web` typecheck/lint/test (174 files /
+1290 tests), `format-changed --check` against the pre-K-wave base — all clean.
+Color Gradient (the one item every earlier WP had explicitly deferred as
+"real but schema-breaking") is done: it turned out to be additive after all
+— a schema union widening, not a breaking change — because render-core's
+renderer already supported gradient paints and only the StyleDoc↔renderer
+wiring was missing.
+
+A full live-browser QA pass (stage-6 run as a real app: API/web/worker-ai/
+worker-media, a fresh sign-up, real transcription via local Whisper, a real
+upload) confirmed live in the running product: the Prepare-Media modal and
+grouped/searchable language picker (K02), the full-screen processing states
+with rotating tips (K02), the left icon rail incl. a real Custom Fonts/
+Library (K04), Safe Zone/Replace-media/resolution indicator (K04), the
+Style/Colors/Look/Effects/Anim/Audio tabs (K01/K05), the Effects tab's Drop
+Shadow/Glow/3D Depth controls with their exact documented behaviour (K01),
+and the Templates gallery with real rendered previews (K01). See the
+session's QA notes for the two dev-environment bugs found and fixed along
+the way (a dead Cloudflare-tunnel S3 endpoint in the wrong env template; a
+missing CanvasKit/style-preview asset-copy step) — both environment-only,
+not product defects.
 
 All seven K-wave work packages are merged into stage-6 and verified together
 as one integration after every merge (not just once at the end): `pnpm
