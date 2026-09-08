@@ -8,6 +8,49 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **K05: Transitions parity (six new cue types, a Line/Word cue scope, Speed
+  Mode Dynamic), a Strikethrough format toggle, and a per-emphasis typography
+  override.** Kalakar-parity wave follow-up
+  (`_orchestration/kalakar-styling`), sequenced after K01 merged. The Anim
+  tab's in/out cue dropdowns (`RightPanel.tsx`'s `AnimPanel`) gain `zoom`,
+  `scale`, `slide-left`, `slide-right`, `rise` and `hide`, additive to the
+  existing eight (`CueAnimationTypeSchema`, `packages/caption-styles/src/
+schema.ts`) so none of the 30 shipped styles' golden hashes move; each new
+  motion is implemented and documented in `animate.ts`'s `cuePhase` (zoom:
+  scale-in from 0 with no overshoot; scale: a shallower, smaller-overshoot pop
+  than `pop`; slide-left/right: the horizontal counterparts of slide-up/down,
+  a new `Phase.dx`; rise: a gentler, shorter upward drift than slide-up; hide:
+  an instant cut — opaque the moment any progress begins). A new "Applied on
+  Line/Word" toggle (`animation.cueScope`, optional, default `"line"`) lets
+  the in/out cue animate the whole caption as one block (unchanged) or each
+  word independently — genuinely distinct from the existing `perWord` flag,
+  which gates _visibility_ (one word shown at a time), not per-word cue
+  timing; in "word" scope each word's entrance starts on its own `startMs`
+  (a cascading reveal) while every word shares the caption's own exit, so a
+  word never fades back out just because it stopped being the active one
+  (`animate.ts`'s `animateWordScope`/`wordCuePhase`). A new "Speed Mode:
+  Dynamic" toggle (`animation.dynamicSpeed`, optional, default off) derives
+  the cue's effective duration from the caption's own on-screen span instead
+  of the fixed `durationMs` sliders (`dynamicCueDurationMs`: a fifth of the
+  span, clamped 120–600ms).
+  The Format row gains a fourth button, Strikethrough (`typography.
+strikethrough?: boolean`, additive, mirroring K01's `underline`), painted
+  by a new `typeStrikethrough` alongside `typeUnderline` in the same word-ink
+  path. `EmphasisPresetSchema` gains `fontFamily?`, `italic?` and
+  `underline?` (additive, alongside the existing `weight`) so one emphasised
+  word can use a different font, slant and underline than the base caption —
+  `fontFamily`/`italic` are resolved at shaping time, per word
+  (`layout.ts`'s `emphasisTypographyFor`), because a different family or
+  slant is a different font file, not a paint-time trick; `underline` is a
+  paint-time override of the base caption's own `typography.underline` for
+  that word only. Every new field falls back to today's behaviour when
+  absent, so every existing style renders byte-identical; a new Font/Font
+  Face/Styles control group on the Colors tab's Emphasis section
+  (`EmphasisTypographyFields`, reusing `SearchSelectField`) writes them,
+  scoped to `emphasisPresets[0]` the same way K01's Emphasis selector already
+  does. Out of scope, flagged for a future work package: Color Gradient (a
+  real feature per the addendum's evidence, but schema-breaking).
+
 - **K03: the timeline gets a caption-lane granularity toggle, an in-lane
   search, a second Caption Tools entry point, and a real video filmstrip.**
   Kalakar-parity wave (`_orchestration/kalakar-styling`). `Timeline.tsx`'s
