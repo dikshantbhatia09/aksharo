@@ -1242,6 +1242,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                   onResegmentCaptions={(params) => void onResegment(params)}
                   resegmentDefaultParams={DEFAULT_RESEGMENT_PARAMS}
                   bulkActionsBusy={reflowBusy}
+                  onCaptionToolsAction={(ops, label) => store.submitOps(ops, { label })}
                 />
               </div>
             </ContextMenuTrigger>
