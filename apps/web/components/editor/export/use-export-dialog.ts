@@ -213,9 +213,30 @@ async function fetchWatermarkBytes(url: string): Promise<Uint8Array> {
   return new Uint8Array(await response.arrayBuffer());
 }
 
+/**
+ * K07: browser-render-time-only options `startExport` accepts alongside the
+ * wire request. Deliberately **not** merged into `CreateExportRequest`: that
+ * type is `POST /projects/{id}/exports`'s literal body (`requestExportManifest`
+ * sends it verbatim, `apps/web/lib/export/manifest.ts`), and this WP's file
+ * boundary excludes `apps/api/**`/the render manifest schema — so there is no
+ * server-side field to receive a "caption opacity" property, and no cloud
+ * render can honour it today. Keeping it as a sibling parameter (rather than
+ * a request field the server would silently strip, which Zod's default
+ * `z.object()` behaviour would do harmlessly but confusingly) makes that
+ * limitation visible in the type signature instead of hidden in a dropped
+ * property. Read `apps/web/lib/export/engine.ts`'s `RunExportOptions.captionOpacity`
+ * for where it actually takes effect (the browser render path only).
+ */
+export interface BrowserRenderOptions {
+  readonly captionOpacity?: number;
+}
+
 export function useExportDialog(deps: ExportDialogDeps): {
   readonly state: ExportDialogState;
-  readonly startExport: (request: CreateExportRequest) => Promise<void>;
+  readonly startExport: (
+    request: CreateExportRequest,
+    browserOptions?: BrowserRenderOptions,
+  ) => Promise<void>;
   readonly cancel: () => void;
   readonly reset: () => void;
 } {
@@ -296,7 +317,7 @@ export function useExportDialog(deps: ExportDialogDeps): {
   );
 
   const startExport = React.useCallback(
-    async (request: CreateExportRequest): Promise<void> => {
+    async (request: CreateExportRequest, browserOptions?: BrowserRenderOptions): Promise<void> => {
       // Re-entrancy guard: a second call while one export is in flight is always
       // a bug upstream (double-click, an effect misfiring) — refuse it instead
       // of double-spending credits.
@@ -459,6 +480,11 @@ export function useExportDialog(deps: ExportDialogDeps): {
             fetchWatermarkAsset:
               watermarkUrl === undefined ? undefined : () => fetchWatermarkBytes(watermarkUrl),
             onProgress: (progress) => setState((s) => ({ ...s, progress })),
+            // K07: browser-render-time-only, see `BrowserRenderOptions`'s doc
+            // comment above for why this never travels through `request`.
+            ...(browserOptions?.captionOpacity === undefined
+              ? {}
+              : { captionOpacity: browserOptions.captionOpacity }),
           });
           setState((s) => ({ ...s, phase: "completing", result }));
           await completeExportManifest(client, manifest.manifestId, {

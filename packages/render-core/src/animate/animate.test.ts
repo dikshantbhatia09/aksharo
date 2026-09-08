@@ -61,8 +61,18 @@ function lay(doc: StyleDoc, tMs: number, list: readonly RenderWord[] = WORDS): L
   });
 }
 
-function draw(doc: StyleDoc, tMs: number, list: readonly RenderWord[] = WORDS): DrawCommand[] {
-  return animate({ layout: lay(doc, tMs, list), style: doc, tMs });
+function draw(
+  doc: StyleDoc,
+  tMs: number,
+  list: readonly RenderWord[] = WORDS,
+  captionOpacity?: number,
+): DrawCommand[] {
+  return animate({
+    layout: lay(doc, tMs, list),
+    style: doc,
+    tMs,
+    ...(captionOpacity === undefined ? {} : { captionOpacity }),
+  });
 }
 
 function kinds(commands: readonly DrawCommand[]): string[] {
@@ -327,6 +337,78 @@ describe("animate", () => {
       expect(rect?.kind).toBe("rect");
       if (rect?.kind !== "rect") return;
       expect(rect.rect[1]).toBeGreaterThanOrEqual(word.box[3]);
+    });
+  });
+
+  describe("captionOpacity (K07)", () => {
+    // `commands/build.ts`'s `group()` omits `opacity` entirely at 1 (fully
+    // opaque is the implicit default, not a literal `1` on the wire) — this
+    // reads a group's effective opacity the same way a backend does.
+    function groupOpacity(command: DrawCommand | undefined): number {
+      if (command === undefined || command.kind !== "group") throw new Error("expected a group");
+      return command.opacity ?? 1;
+    }
+
+    it("renders byte-identical when unset — every caller before this field existed is unaffected", () => {
+      const doc = style("vertical-clean");
+      const before = hashCommands(draw(doc, 1500));
+      expect(hashCommands(draw(doc, 1500, WORDS, undefined))).toBe(before);
+    });
+
+    it("is the same as leaving it unset when set to 1 (fully opaque)", () => {
+      const doc = style("vertical-clean");
+      expect(hashCommands(draw(doc, 1500))).toBe(hashCommands(draw(doc, 1500, WORDS, 1)));
+    });
+
+    it("multiplies straight into the segment's own top-level group opacity", () => {
+      // 1500 ms sits well inside [0, 3000] with `vertical-clean`'s default cue
+      // animation, so the cue's own fade contributes exactly 1 here — this
+      // isolates the caption-opacity factor from the entry/exit fade math
+      // `cuePhase`'s own tests already cover.
+      const full = draw(style("vertical-clean"), 1500);
+      expect(groupOpacity(full[0])).toBe(1);
+
+      const half = draw(style("vertical-clean"), 1500, WORDS, 0.5);
+      expect(half[0]).toMatchObject({ kind: "group", opacity: 0.5 });
+
+      const quarter = draw(style("vertical-clean"), 1500, WORDS, 0.25);
+      expect(quarter[0]).toMatchObject({ kind: "group", opacity: 0.25 });
+
+      const zero = draw(style("vertical-clean"), 1500, WORDS, 0);
+      expect(zero[0]).toMatchObject({ kind: "group", opacity: 0 });
+    });
+
+    it("composes with an in-progress cue fade rather than overriding it", () => {
+      // `fade`'s entry animation at half progress: `cuePhase` returns
+      // `opacity: p` directly (see `cuePhase`'s `"fade"` case), so the cue's
+      // own contribution here is a known, exact 0.5 — captionOpacity must
+      // multiply into that, not replace it.
+      const doc = style("vertical-clean", {
+        animation: {
+          in: { type: "fade", durationMs: 1000 },
+          out: { type: "none", durationMs: 0 },
+          wordHighlight: { type: "none", durationMs: 0 },
+          perWord: false,
+        },
+      });
+      const midFadeFullOpacity = draw(doc, 500);
+      expect(midFadeFullOpacity[0]).toMatchObject({ kind: "group", opacity: 0.5 });
+
+      const midFadeHalfOpacity = draw(doc, 500, WORDS, 0.5);
+      expect(midFadeHalfOpacity[0]).toMatchObject({ kind: "group", opacity: 0.25 });
+    });
+
+    it("draws nothing extra — only the existing group's opacity changes, not the command tree shape", () => {
+      const doc = style("vertical-clean");
+      const opaqueKinds = kinds(draw(doc, 1500));
+      const fadedKinds = kinds(draw(doc, 1500, WORDS, 0.3));
+      expect(fadedKinds).toEqual(opaqueKinds);
+    });
+
+    it("clamps an out-of-range value rather than producing an invalid opacity", () => {
+      const doc = style("vertical-clean");
+      expect(groupOpacity(draw(doc, 1500, WORDS, 1.5)[0])).toBe(1);
+      expect(groupOpacity(draw(doc, 1500, WORDS, -0.5)[0])).toBe(0);
     });
   });
 

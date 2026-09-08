@@ -41,8 +41,32 @@ export type Aspect = z.infer<typeof AspectSchema>;
 /**
  * Export presets of `05 §5.2`. `custom` carries its own width and height; the
  * rest are named so an operator reading a job payload knows what was asked for.
+ *
+ * `instagram-story` and `instagram-feed` (K07) are additive: both are
+ * distinct values even though `instagram-story`'s dimensions equal `reels`'s
+ * (1080×1920, 9:16) byte-for-byte — the same precedent `reels`/`shorts`
+ * already set (identical dimensions, separate values) so a manifest's own
+ * `preset` field keeps naming which platform destination was actually asked
+ * for, and so the export dialog's `<select>` never needs two options that
+ * share one value (see `VideoTab.tsx`). `instagram-feed` additionally carries
+ * a genuinely different aspect (4:5, 1080×1350) `PRESET_DIMENSIONS` did not
+ * serve before this. TikTok stays folded into `reels`'s combined "Reels /
+ * TikTok" label rather than getting its own value — no technical difference
+ * (dimensions, crf/encoderPreset tier, safe-area treatment) was found between
+ * the two, and `RenderPreset` today drives only aspect+label+dimensions, no
+ * platform-specific bitrate or safe-margin logic a split would need to key
+ * off (see `apps/web/components/editor/export/VideoTab.tsx`'s header comment
+ * for the full reasoning).
  */
-export const RENDER_PRESETS = ["reels", "shorts", "youtube-4k", "square", "custom"] as const;
+export const RENDER_PRESETS = [
+  "reels",
+  "shorts",
+  "youtube-4k",
+  "square",
+  "instagram-story",
+  "instagram-feed",
+  "custom",
+] as const;
 export const RenderPresetSchema = z.enum(RENDER_PRESETS);
 export type RenderPreset = z.infer<typeof RenderPresetSchema>;
 

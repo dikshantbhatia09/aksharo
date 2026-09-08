@@ -46,6 +46,15 @@ export interface RenderFrameOptions {
    * Compute it once per session and cache it — it costs one layout per caption.
    */
   readonly trackShrink?: TrackShrink;
+  /**
+   * K07: overall opacity (`0`-`1`) of the whole caption overlay, passed
+   * straight through to every visible segment's `animate()` call — see
+   * `AnimateOptions.captionOpacity`'s doc comment for how it composites with
+   * a cue's own fade in/out. `undefined` (every caller before this field
+   * existed, including every fixture and golden-hash test) renders exactly
+   * as before: `animate` defaults it to fully opaque.
+   */
+  readonly captionOpacity?: number;
 }
 
 /** The layouts that make up one frame; `renderFrame` is this plus `animate`. */
@@ -105,6 +114,7 @@ export function renderFrame(options: RenderFrameOptions): DrawCommand[] {
         ...(projection.speakerColours === undefined
           ? {}
           : { speakerColours: projection.speakerColours }),
+        ...(options.captionOpacity === undefined ? {} : { captionOpacity: options.captionOpacity }),
       }),
     );
   }

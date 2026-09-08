@@ -149,6 +149,18 @@ export interface RunExportOptions {
   readonly suggestedFileName?: string;
   readonly preferFileSystemAccess?: boolean;
   readonly saveFilePicker?: SaveFilePickerLike;
+  /**
+   * K07: overall opacity (`0`-`1`) of the caption/subtitle overlay this
+   * export burns in, threaded straight into every frame's `renderFrame` call
+   * below as `captionOpacity`. `undefined` (every caller before this field
+   * existed) renders exactly as before — `@montaj/render-core`'s own default
+   * is fully opaque. Browser-path only: the signed `RenderManifest` this
+   * function otherwise reads everything from carries no such field (adding
+   * one is a manifest-schema change outside this WP's file boundary), so a
+   * cloud render does not see this value — see `use-export-dialog.ts`'s
+   * `BrowserRenderOptions` doc comment.
+   */
+  readonly captionOpacity?: number;
   /** AAC availability, decided by the probe; threaded through so the audio tree does not re-probe. */
   readonly aacEncodable: boolean;
   readonly aacPolyfillAvailable: boolean;
@@ -764,6 +776,7 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
       shaper: options.shaper,
       outputMs,
       trackShrink,
+      ...(options.captionOpacity === undefined ? {} : { captionOpacity: options.captionOpacity }),
     });
 
     if (titles.length > 0 && titleStyle !== undefined) {

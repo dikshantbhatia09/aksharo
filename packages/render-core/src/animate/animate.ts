@@ -62,6 +62,19 @@ export interface AnimateOptions {
   readonly speakerColours?: Readonly<Record<string, string>>;
   /** Asset id of a watermark image; `renderFrame` passes it through. */
   readonly watermarkAssetId?: string;
+  /**
+   * K07: overall opacity of the whole caption overlay (type, box, stroke,
+   * shadow, depth3d — everything this segment draws), `0`-`1`, multiplied
+   * into the cue's own entry/exit fade (`phase.opacity`) rather than
+   * replacing it, so a caption still fades in/out under a partial overlay
+   * opacity exactly as it does at full opacity. `undefined` (every caller
+   * before this field existed) behaves as `1` — fully opaque, byte-for-byte
+   * identical to the pre-K07 command tree. Distinct from an individual
+   * colour's own `#RRGGBBAA` alpha (`ColorSchema`): this is a single
+   * export-time multiplier over the *composited* layer, not a per-colour
+   * value baked into the style document.
+   */
+  readonly captionOpacity?: number;
 }
 
 /** Turns a placed run into the flat arrays a backend hands straight to Skia. */
@@ -601,7 +614,15 @@ export function animate(options: AnimateOptions): DrawCommand[] {
     content = [transform(scaleTranslateMatrix(phase.scale, cx, cy, 0, phase.dy), content)];
   }
 
-  const commands: DrawCommand[] = [group(content, `segment:${layout.segmentId}`, phase.opacity)];
+  // K07: the export-time caption-opacity slider multiplies into the same
+  // group opacity the cue's own fade in/out already sets — `clamp01` both
+  // guards against an out-of-range caller value and keeps the product in
+  // range even though each factor already is (a defensive habit this file
+  // already follows for `phase.opacity` at the top of this function).
+  const overlayOpacity = clamp01(options.captionOpacity ?? 1);
+  const commands: DrawCommand[] = [
+    group(content, `segment:${layout.segmentId}`, clamp01(phase.opacity * overlayOpacity)),
+  ];
   if (options.watermarkAssetId !== undefined) {
     commands.push(watermarkCommand(options.watermarkAssetId, layout));
   }

@@ -28,6 +28,25 @@ export const PRESET_DIMENSIONS: Readonly<
   shorts: { width: 1080, height: 1920, aspect: "9:16", label: "Shorts 1080×1920" },
   "youtube-4k": { width: 3840, height: 2160, aspect: "16:9", label: "YouTube 4K 3840×2160" },
   square: { width: 1080, height: 1080, aspect: "1:1", label: "Square 1080×1080" },
+  // K07: same 1080×1920/9:16 canvas as `reels` — Instagram Story has no
+  // technical difference from a Reel today (no platform-specific safe-area
+  // or bitrate logic exists at this layer), it is a distinct value purely so
+  // the export dialog can offer it as its own selectable, correctly-labelled
+  // option (see `RENDER_PRESETS`'s doc comment).
+  "instagram-story": {
+    width: 1080,
+    height: 1920,
+    aspect: "9:16",
+    label: "Instagram Story 1080×1920",
+  },
+  // K07: the standard Instagram feed post aspect, 4:5 — `ASPECT_RATIOS`
+  // already carried `"4:5"` before this WP; this is the first preset to use it.
+  "instagram-feed": {
+    width: 1080,
+    height: 1350,
+    aspect: "4:5",
+    label: "Instagram Feed 1080×1350",
+  },
 });
 
 /** Dimensions for a preset, or `null` for `custom`. */

@@ -8,6 +8,43 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **K07: export dialog gains Instagram Story/Feed presets and a caption-opacity
+  slider.** Kalakar-parity wave (`_orchestration/kalakar-styling`), "New gap
+  6". `VideoTab.tsx`'s preset picker gains two entries backed by two new
+  `RenderPreset` values in `@montaj/render-manifest`: `instagram-story`
+  (1080×1920, 9:16 — the same canvas as `reels`, added as its own value rather
+  than a `reels` label alias so the `<select>` never has two options sharing
+  one value) and `instagram-feed` (1080×1350, 4:5 — the first preset to use
+  the `4:5` aspect `ASPECT_RATIOS` already carried). TikTok stays folded into
+  the existing "Reels / TikTok" combined option — investigation found
+  `RenderPreset` drives only aspect/label/dimensions today, no
+  platform-specific safe-area or bitrate logic a split would need to key off,
+  and no acceptance criterion named it as a required distinct option the way
+  Instagram Story/Feed were. Both new presets flow through
+  `apps/api/src/exports/manifest-builder.ts`'s existing `dimensionsFor(preset)`
+  call with no `apps/api` changes needed — dimensions come from the shared
+  `PRESET_DIMENSIONS` map, and `decision.ts`'s `requestedWidth` already
+  buckets every non-`youtube-4k`/`custom` preset to 1080px.
+  A new caption-opacity slider (0-100%, default 100% matching the reference
+  frame) controls the rendered opacity of the whole caption/subtitle overlay
+  at export time — investigated first whether an opacity concept already
+  existed beyond individual colours' own `#RRGGBBAA` alpha (`ColorSchema`):
+  it did not, but `render-core`'s `animate.ts` already wraps every caption
+  segment in exactly one top-level `group(...)` command whose `opacity` the
+  cue's own entry/exit fade already drives (`phase.opacity`) — the new
+  `AnimateOptions.captionOpacity`/`RenderFrameOptions.captionOpacity` fields
+  (both optional, `undefined` byte-identical to before) multiply straight into
+  that same value, composing with an in-progress fade rather than replacing
+  it. Wired end-to-end through the browser export path
+  (`apps/web/lib/export/engine.ts`'s `RunExportOptions.captionOpacity` →
+  `renderFrame`); deliberately kept out of `CreateExportRequest`/the signed
+  `RenderManifest` (both outside this WP's file boundary), so a cloud render
+  does not yet see the slider — an open question for a future WP, not
+  silently improvised as a manifest-schema change. Proven with `render-core`
+  unit tests asserting the exact composited group opacity for several slider
+  values, including composition with an active cue fade, plus a
+  `renderFrame` end-to-end test — not just that a prop is threaded through.
+
 - **K03: the timeline gets a caption-lane granularity toggle, an in-lane
   search, a second Caption Tools entry point, and a real video filmstrip.**
   Kalakar-parity wave (`_orchestration/kalakar-styling`). `Timeline.tsx`'s
