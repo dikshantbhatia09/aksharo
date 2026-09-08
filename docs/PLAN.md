@@ -261,6 +261,9 @@ folder's `ADDENDUM-full-frame-audit.md` for K05+.
 | K02 | Prepare-Media modal: searchable grouped language + writing-script pickers, full-screen analyzing/generating states | — | merged 2026-09-08 (stage 6) |
 | K03 | Timeline: WORD/LINE toggle, search box, Caption Tools dropdown (v1 — see K05+ for the real Display Settings/Actions/Timing structure), video thumbnail track | — | merged 2026-09-08 (stage 6) |
 | K04 | Editor chrome: left icon rail, Safe Zone toggle, Replace-media, resolution indicator, sidebar usage counters | — | merged 2026-09-08 (stage 6) |
+| K05 | Transitions parity (Zoom/Scale/Slide-L-R/Rise/Hide + Line/Word + Dynamic speed), Format Strikethrough, Emphasis per-word typography override | K01 | in progress |
+| K06 | The real Caption Tools structure: Display Settings/Actions/Timing (corrects K03's initial merge/split/resegment-only dropdown) | K03 | in progress |
+| K07 | Export platform presets (Instagram Story/Feed), caption-opacity control (browser exports only; cloud export deferred — flagged) | — | merged 2026-09-08 (stage 6) |
 
 Stage 6 verified as one integration: `pnpm --filter "./packages/*" build`,
 `@montaj/web` typecheck/lint/test (170 files / 1221 tests), `@montaj/render-core`
