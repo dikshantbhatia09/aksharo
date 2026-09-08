@@ -30,9 +30,14 @@ import { BatchApplyToAllSheet, type BatchConfirmed } from "@/components/batch/Ba
 import { BatchProgressView } from "@/components/batch/BatchProgressView";
 import { DropZone } from "@/components/projects/drop-zone";
 import { rememberedLanguage, rememberLanguage } from "@/components/projects/language-picker";
+import { PrepareMediaModal } from "@/components/projects/prepare-media-modal";
 import { ProjectGrid, SampleProjectButton } from "@/components/projects/project-grid";
 import { defaultQuickPickLanguage, QuickPickRow } from "@/components/projects/quick-pick-row";
 import { UploadTray } from "@/components/projects/upload-tray";
+import {
+  rememberedWritingScript,
+  rememberWritingScript,
+} from "@/components/projects/writing-script-picker";
 import { useUploadQueue } from "@/lib/upload/use-upload-queue";
 
 function firstName(fullName: string | null): string | undefined {
@@ -50,6 +55,15 @@ export function HomeView(): React.JSX.Element {
     undefined,
   );
   const [activeBatchId, setActiveBatchId] = React.useState<string | undefined>(undefined);
+
+  // K02: a single file dropped opens "Prepare Your Media" instead of uploading
+  // straight away — `localId` fills in once `queue.addFiles` has registered the
+  // row (see the effect below), at which point the SAME dialog switches from
+  // the language/script form to narrating that row's real upload/analyze/
+  // transcribe progress. `undefined` throughout means "nothing pending".
+  const [pendingMedia, setPendingMedia] = React.useState<
+    { readonly file: File; readonly localId: string | undefined } | undefined
+  >(undefined);
 
   // FIX-04 precedence: an explicit pick (this session, or one this browser
   // remembers) beats the server's onboarding default, which beats empty. The
@@ -117,6 +131,12 @@ export function HomeView(): React.JSX.Element {
    * FIX-04's cost-control invariant: nothing enters the upload funnel without a
    * language, because the funnel ends in a paid transcription. Returns true when
    * the drop may proceed; otherwise it says why and puts the picker on screen.
+   *
+   * K02: a single file no longer goes through this gate at all — "Prepare Your
+   * Media" is now that gate (`Generate Transcription` stays disabled until a
+   * language is chosen). The batch ("apply to all") path still calls this
+   * directly, since `BatchApplyToAllSheet` is outside this WP's file
+   * boundary and keeps its own pre-drop expectation of `quickPick.language`.
    */
   const requireLanguage = React.useCallback((): boolean => {
     if (quickPick.language !== undefined) return true;
@@ -139,6 +159,31 @@ export function HomeView(): React.JSX.Element {
     setActiveBatchId(result.batchId);
   };
 
+  // K02: once `queue.addFiles` has registered `pendingMedia.file`'s row, adopt
+  // its id so the modal can start narrating the row's real status. Matched by
+  // name+size rather than returned from `addFiles` (which stays `void` —
+  // `useUploadQueue` is outside this WP's file boundary, see REPORT.md) —
+  // `Object.values` preserves insertion order for the UUID keys `addFiles`
+  // generates, so the last match is the one this drop just created even if an
+  // identical file is mid-upload elsewhere in the tray.
+  React.useEffect(() => {
+    if (pendingMedia === undefined || pendingMedia.localId !== undefined) return;
+    const matches = queue.items.filter(
+      (candidate) =>
+        candidate.fileName === pendingMedia.file.name &&
+        candidate.fileSize === pendingMedia.file.size,
+    );
+    const match = matches[matches.length - 1];
+    if (match !== undefined) {
+      setPendingMedia({ file: pendingMedia.file, localId: match.id });
+    }
+  }, [queue.items, pendingMedia]);
+
+  const pendingMediaItem =
+    pendingMedia?.localId === undefined
+      ? undefined
+      : queue.items.find((candidate) => candidate.id === pendingMedia.localId);
+
   return (
     <div className="flex flex-col gap-8" data-testid="home-view">
       <div>
@@ -151,12 +196,19 @@ export function HomeView(): React.JSX.Element {
         <div className="flex flex-col gap-3" ref={dropZoneRef} tabIndex={-1}>
           <DropZone
             onFiles={(files) => {
-              if (!requireLanguage()) return;
               if (files.length >= 2) {
+                if (!requireLanguage()) return;
                 setPendingBatchFiles(files);
                 return;
               }
-              queue.addFiles(files, quickPick);
+              const file = files[0];
+              if (file === undefined) return;
+              // K02: "Prepare Your Media" replaces the pre-drop language gate for
+              // a single file — it opens regardless of whether `quickPick.language`
+              // is already set (pre-filling it when it is), and is itself where an
+              // unanswered language now blocks the upload (`Generate Transcription`
+              // stays disabled).
+              setPendingMedia({ file, localId: undefined });
             }}
           />
           <QuickPickRow
@@ -183,6 +235,26 @@ export function HomeView(): React.JSX.Element {
       )}
 
       {activeBatchId === undefined ? null : <BatchProgressView batchId={activeBatchId} />}
+
+      <PrepareMediaModal
+        open={pendingMedia !== undefined}
+        file={pendingMedia?.file}
+        item={pendingMediaItem}
+        initialLanguage={quickPick.language}
+        initialScript={rememberedWritingScript()}
+        onOpenChange={(open) => {
+          if (!open) setPendingMedia(undefined);
+        }}
+        onGenerate={(language, script) => {
+          if (pendingMedia === undefined) return;
+          const next: UploadQuickPick = { ...quickPick, language };
+          setLanguageTouched(true);
+          rememberLanguage(language);
+          rememberWritingScript(script);
+          setQuickPick(next);
+          queue.addFiles([pendingMedia.file], next);
+        }}
+      />
 
       <UploadTray
         items={queue.items}

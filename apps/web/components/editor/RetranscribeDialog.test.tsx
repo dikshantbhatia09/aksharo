@@ -48,7 +48,12 @@ describe("<RetranscribeDialog />", () => {
     await user.click(screen.getByTestId("retranscribe-open"));
 
     expect(await screen.findByTestId("retranscribe-dialog")).toBeInTheDocument();
-    expect(screen.getByTestId("quick-pick-language-hi")).toHaveAttribute("aria-pressed", "true");
+    // K02 upgraded the shared `LanguagePicker` to a searchable combobox
+    // (`language-picker.tsx`) — the persistent, always-visible proof of the
+    // current pick is now the trigger's own text and `data-language`, not a
+    // per-language button's `aria-pressed`.
+    expect(screen.getByTestId("quickpick-language")).toHaveAttribute("data-language", "hi");
+    expect(screen.getByTestId("quick-pick-language-trigger")).toHaveTextContent("हिन्दी");
     expect(screen.getByTestId("retranscribe-warning")).toHaveTextContent(
       "Re-transcribing replaces every word id. Captions you have retimed, split or retyped will lose those edits.",
     );
@@ -62,6 +67,7 @@ describe("<RetranscribeDialog />", () => {
     );
 
     await user.click(screen.getByTestId("retranscribe-open"));
+    await user.click(screen.getByTestId("quick-pick-language-trigger"));
     await user.click(await screen.findByTestId("quick-pick-language-en"));
     await user.click(screen.getByTestId("retranscribe-confirm"));
 
@@ -90,6 +96,7 @@ describe("<RetranscribeDialog />", () => {
     });
 
     await user.click(screen.getByTestId("retranscribe-open"));
+    await user.click(screen.getByTestId("quick-pick-language-trigger"));
     await user.click(await screen.findByTestId("quick-pick-language-en"));
     await user.click(screen.getByTestId("retranscribe-confirm"));
 

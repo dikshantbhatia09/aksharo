@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -7,45 +7,78 @@ import { LanguagePicker, rememberedLanguage, rememberLanguage } from "./language
 import { renderWithProviders } from "@/test/harness";
 
 describe("<LanguagePicker />", () => {
-  it("selects nothing at all when it has no value", () => {
+  it("shows a placeholder and no selection when it has no value", () => {
     renderWithProviders(<LanguagePicker value={undefined} onChange={vi.fn()} />);
-    expect(screen.getByTestId("quickpick-language")).toHaveAttribute(
-      "aria-label",
-      "Spoken language",
+    expect(screen.getByTestId("quickpick-language")).toHaveAttribute("data-language", "");
+    expect(screen.getByTestId("quick-pick-language-trigger")).toHaveTextContent(
+      "Choose spoken language",
     );
-    for (const button of screen.getAllByRole("button")) {
-      expect(button).toHaveAttribute("aria-pressed", "false");
-    }
+    expect(screen.getByTestId("quick-pick-language-trigger")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
   });
 
-  it("marks the chosen segment as pressed", () => {
+  it("shows the chosen language's label on the trigger", () => {
     renderWithProviders(<LanguagePicker value="en" onChange={vi.fn()} />);
-    expect(screen.getByTestId("quick-pick-language-en")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("quick-pick-language-hi")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("quick-pick-language-trigger")).toHaveTextContent("English");
+    expect(screen.getByTestId("quickpick-language")).toHaveAttribute("data-language", "en");
   });
 
-  it("reports a segmented pick by its tag", async () => {
+  it("opens a searchable, grouped list and reports a pick by its tag", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     renderWithProviders(<LanguagePicker value={undefined} onChange={onChange} />);
-    await user.click(screen.getByTestId("quick-pick-language-hi"));
+
+    await user.click(screen.getByTestId("quick-pick-language-trigger"));
+    const popover = within(await screen.findByTestId("quick-pick-language-popover"));
+
+    // "Desi & Regional" first (K02 acceptance criterion 1), the brief's own
+    // example set, in order.
+    expect(popover.getByText("Desi & Regional")).toBeInTheDocument();
+    expect(popover.getByTestId("quick-pick-language-hi-Latn")).toBeInTheDocument();
+
+    await user.click(popover.getByTestId("quick-pick-language-hi"));
     expect(onChange).toHaveBeenCalledWith("hi");
+    // Selecting closes the popover and returns focus to the trigger.
+    expect(screen.queryByTestId("quick-pick-language-popover")).not.toBeInTheDocument();
+    expect(screen.getByTestId("quick-pick-language-trigger")).toHaveFocus();
   });
 
-  it("offers the rest of the onboarding list under More…, and names the pick once made", async () => {
+  it("includes Nepali, Urdu and Pushto — the languages this WP adds", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<LanguagePicker value={undefined} onChange={vi.fn()} />);
+    await user.click(screen.getByTestId("quick-pick-language-trigger"));
+    const popover = within(await screen.findByTestId("quick-pick-language-popover"));
+
+    expect(popover.getByTestId("quick-pick-language-ne")).toBeInTheDocument();
+    expect(popover.getByTestId("quick-pick-language-ur")).toBeInTheDocument();
+    expect(popover.getByTestId("quick-pick-language-ps")).toBeInTheDocument();
+  });
+
+  it("narrows the list by typing — the brief's search view", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<LanguagePicker value={undefined} onChange={vi.fn()} />);
+    await user.click(screen.getByTestId("quick-pick-language-trigger"));
+    const popover = within(await screen.findByTestId("quick-pick-language-popover"));
+
+    await user.type(screen.getByTestId("quick-pick-language-search"), "urdu");
+
+    expect(popover.getByTestId("quick-pick-language-ur")).toBeInTheDocument();
+    expect(popover.queryByTestId("quick-pick-language-hi-Latn")).not.toBeInTheDocument();
+  });
+
+  it("closes on Escape without picking anything", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    const { rerender } = renderWithProviders(
-      <LanguagePicker value={undefined} onChange={onChange} />,
-    );
-    expect(screen.getByTestId("quick-pick-language-more")).toHaveTextContent("More…");
+    renderWithProviders(<LanguagePicker value={undefined} onChange={onChange} />);
+    await user.click(screen.getByTestId("quick-pick-language-trigger"));
+    await screen.findByTestId("quick-pick-language-popover");
 
-    await user.click(screen.getByTestId("quick-pick-language-more"));
-    await user.click(await screen.findByTestId("quick-pick-language-ta"));
-    expect(onChange).toHaveBeenCalledWith("ta");
+    await user.keyboard("{Escape}");
 
-    rerender(<LanguagePicker value="ta" onChange={onChange} />);
-    expect(screen.getByTestId("quick-pick-language-more")).toHaveTextContent("தமிழ்");
+    expect(screen.queryByTestId("quick-pick-language-popover")).not.toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
 

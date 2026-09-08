@@ -1,10 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { UploadTray } from "./upload-tray";
 
 import type { UploadItemState } from "@/lib/upload/types";
+
+import { renderWithProviders } from "@/test/harness";
 
 function item(overrides: Partial<UploadItemState> = {}): UploadItemState {
   return {
@@ -104,5 +106,25 @@ describe("<UploadTray />", () => {
       />,
     );
     expect(screen.getByText("The upload failed.")).toBeInTheDocument();
+  });
+
+  // K02: a server-owned row (bytes up, the pipeline now owns the rest) gets
+  // the same rotating "Did you know?" the full-screen states show — a
+  // presentational addition over the real, already-polled pipeline status,
+  // never a second source of truth for it.
+  it("shows a rotating tip once a row is server-owned", async () => {
+    renderWithProviders(
+      <UploadTray
+        items={[item({ status: "processing", projectId: "01PROJECT" })]}
+        pause={noop}
+        resume={noop}
+        cancel={noop}
+        dismiss={noop}
+      />,
+      { routes: { "/projects/01PROJECT/transcription-state": { status: "processing_media" } } },
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("processing-tip")).toBeInTheDocument();
+    });
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Captions, Loader2, ScanSearch } from "lucide-react";
 import * as React from "react";
 
 import {
@@ -14,6 +14,11 @@ import { Button, toast } from "@montaj/ui";
 
 import { ImportSubtitles } from "@/components/editor/ImportSubtitles";
 import { LanguagePicker, rememberLanguage } from "@/components/projects/language-picker";
+import {
+  PROCESSING_TIPS,
+  ProcessingScreen,
+  useRotatingTip,
+} from "@/components/projects/processing-tips";
 import {
   announceTranscriptReady,
   getTranscriptionState,
@@ -96,6 +101,12 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
   const [chosenLanguage, setChosenLanguage] = React.useState<string | undefined>(undefined);
   const [choosing, setChoosing] = React.useState(false);
   const announced = React.useRef(false);
+  // K02: the same rotating "Did you know?" this WP's Prepare-Media modal
+  // shows on Home — this screen is the full-screen "Analyzing content" /
+  // "Generating subtitles" half of the same trip (reference frames
+  // `frame_0055.png`/`frame_0060.png`), reached whenever a person opens the
+  // project directly instead of watching from the modal.
+  const tip = useRotatingTip(PROCESSING_TIPS);
 
   const language = project.data?.sourceLanguage ?? null;
   const status = view?.status;
@@ -339,22 +350,28 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
       </>
     );
   } else if (status === "processing_media") {
+    // K02: the full-screen "Analyzing content" state (`frame_0055.png`) — the
+    // real underlying status is still `processing_media` from FIX-03's read
+    // model, this only changes how it is narrated. No progress percentage is
+    // shown because none exists yet at this stage (the pulsing indeterminate
+    // bar says "working", never a number the pipeline cannot back up).
     content = (
-      <>
-        {spinner}
-        <h2 className="text-fg-0 text-lg font-semibold">Preparing your media…</h2>
-        <p className="text-fg-2 max-w-md text-sm">
-          Transcription starts by itself as soon as the media is ready.
-        </p>
-      </>
+      <ProcessingScreen
+        icon={<ScanSearch className="size-7" aria-hidden="true" />}
+        headline="Analyzing your media"
+        subtext="Transcription starts by itself as soon as the media is ready. This page updates on its own."
+        tip={tip}
+      />
     );
   } else if (status === "queued" || status === "running") {
+    // K02: the full-screen "Generating subtitles" state (`frame_0060.png`).
     content = (
-      <>
-        {spinner}
-        <h2 className="text-fg-0 text-lg font-semibold">Transcribing…</h2>
-        <p className="text-fg-2 max-w-md text-sm">This page updates by itself.</p>
-      </>
+      <ProcessingScreen
+        icon={<Captions className="size-7" aria-hidden="true" />}
+        headline="Generating your captions"
+        subtext="This page updates by itself."
+        tip={tip}
+      />
     );
   } else if (status === "ready") {
     content = (

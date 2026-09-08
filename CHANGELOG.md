@@ -67,6 +67,33 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
   presets show under a new "My Presets" sub-tab, selectable and deletable
   like any system style.
 
+- **K02: "Prepare Your Media" replaces the pre-drop language gate, full-screen
+  Uploading/Analyzing/Generating states with a rotating tip.** Kalakar-parity
+  work: Home's flat 12-language button list is a searchable, grouped combobox
+  now (`language-picker.tsx`, built on `@montaj/ui`'s `Command`/`cmdk`
+  primitive — "Desi & Regional" first, matching the reference frames), and it
+  gained Nepali, Urdu and Pushto. The list itself was quietly duplicated
+  between `language-picker.tsx` and `onboarding-flow.tsx`; both now import one
+  source, `components/projects/languages.ts`. Dropping a single file on Home
+  opens a new `PrepareMediaModal` — language + a writing-script field, then
+  "Generate Transcription" kicks off the existing upload pipeline unchanged —
+  and the same dialog narrates Uploading (real byte percentage) → Analyzing →
+  Generating with an icon, headline, progress indicator and a "Did you know?"
+  tip that rotates every few seconds (`processing-tips.tsx`, reused by the
+  upload tray's server-owned rows and by the editor's `NeedsTranscription`
+  screen for the same wait reached independently). The writing-script field is
+  a client-side default only: the transcribe request contract
+  (`TranscribeRequestDto`) has no script parameter and none was added: the
+  pick is remembered in `localStorage`
+  (`montaj.quickpick.writingScript`) for the editor's script tabs to read as
+  their starting default, a small follow-up outside this WP's file boundary
+  (`editor-client.tsx`'s `useState<string>("roman")`) — see the WP's
+  `REPORT.md` for the exact one-line change that finishes the wiring. Two or
+  more files at once still goes through the pre-existing "apply to all" batch
+  sheet unchanged. `e2e/upload.spec.ts` and `e2e/gate-a.spec.ts` updated for
+  the new interaction (pick the language inside the modal, after the drop,
+  not before it).
+
 - **Stage-5 integration (orchestrator) — the audit-repair and OpenCut-port
   program is complete.** Merged OC-04 + S-06 + S-07. Undo after "Delete word"
   crashed the editor on every project (`not a word id: <ULID>`, OC-04's finding,

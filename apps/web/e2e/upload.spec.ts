@@ -22,6 +22,21 @@ async function dropFile(page: Page, path: string): Promise<void> {
 }
 
 /**
+ * K02: a single file dropped now opens "Prepare Your Media" instead of
+ * uploading on the spot — the language pick (still the F04 cost-control
+ * gate: `Generate Transcription` stays disabled without one) moved from a
+ * pre-drop click on the quick-pick row into this dialog.
+ */
+async function prepareAndUpload(page: Page, path: string, language: string): Promise<void> {
+  await dropFile(page, path);
+  const modal = page.getByTestId("prepare-media-modal");
+  await expect(modal).toBeVisible();
+  await modal.getByTestId("quick-pick-language-trigger").click();
+  await modal.getByTestId(`quick-pick-language-${language}`).click();
+  await modal.getByTestId("prepare-media-generate").click();
+}
+
+/**
  * The row has left the client's hands: the bytes are up, `complete` has been
  * called and the server pipeline owns what happens next.
  *
@@ -76,8 +91,7 @@ test("uploading a small real clip creates a project and completes the multipart 
   await signUpAndSkipOnboarding(page, "upload");
 
   const clipPath = generateWavFile({ filename: "hinglish-clip.wav", seconds: 3 });
-  await page.getByTestId("quick-pick-language-hi-Latn").click(); // F04: uploads are gated on an explicit language
-  await dropFile(page, clipPath);
+  await prepareAndUpload(page, clipPath, "hi-Latn"); // F04: uploads are gated on an explicit language (K02: now via the Prepare-Media modal)
 
   await expect(page.getByTestId("upload-tray-item")).toBeVisible();
   await expect(page.getByTestId("upload-tray-item")).toContainText("hinglish-clip.wav");
@@ -100,8 +114,7 @@ test("a duplicate upload (same content hash) is detected and not re-uploaded", a
   await signUpAndSkipOnboarding(page, "dup");
   const clipPath = generateWavFile({ filename: "same-clip.wav", seconds: 2 });
 
-  await page.getByTestId("quick-pick-language-hi-Latn").click(); // F04: uploads are gated on an explicit language
-  await dropFile(page, clipPath);
+  await prepareAndUpload(page, clipPath, "hi-Latn"); // F04: uploads are gated on an explicit language (K02: now via the Prepare-Media modal)
   await expectUploadSettled(page);
   // The first row is not dismissed: since F03-5 a settled row stays
   // server-owned, so the tray offers Cancel rather than Dismiss
@@ -112,8 +125,7 @@ test("a duplicate upload (same content hash) is detected and not re-uploaded", a
   // the "already in your workspace" answer below is the server's, which is
   // what this case is about.
 
-  await page.getByTestId("quick-pick-language-hi-Latn").click(); // F04: uploads are gated on an explicit language
-  await dropFile(page, clipPath);
+  await prepareAndUpload(page, clipPath, "hi-Latn"); // F04: uploads are gated on an explicit language (K02: now via the Prepare-Media modal)
   await expect(page.getByText("Already in your workspace.")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("duplicate-open-original")).toBeVisible();
 });
@@ -220,8 +232,7 @@ test("a project card's status updates when its job completes through the interna
 test("the upload flow is axe-clean while a file is in flight", async ({ page }) => {
   await signUpAndSkipOnboarding(page, "uploadaxe");
   const clipPath = generateWavFile({ filename: "axe-clip.wav", seconds: 2 });
-  await page.getByTestId("quick-pick-language-hi-Latn").click(); // F04: uploads are gated on an explicit language
-  await dropFile(page, clipPath);
+  await prepareAndUpload(page, clipPath, "hi-Latn"); // F04: uploads are gated on an explicit language (K02: now via the Prepare-Media modal)
   await expect(page.getByTestId("upload-tray-item")).toBeVisible();
   await expectNoSeriousA11yViolations(page, "Home (upload in progress)");
 });
