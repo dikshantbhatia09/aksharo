@@ -375,4 +375,60 @@ describe("renderFrame", () => {
       .map((paint) => (paint?.type === "solid" ? paint.color : ""));
     expect(fills).toContain("#f2a541ff");
   });
+
+  describe("captionOpacity (K07)", () => {
+    it("renders byte-identical when unset — every existing export/preview call is unaffected", () => {
+      const before = hashCommands(
+        renderFrame({
+          projection: projection(),
+          timemap: null,
+          catalogue,
+          registry,
+          shaper,
+          outputMs: 1500,
+        }),
+      );
+      const explicitlyFull = hashCommands(
+        renderFrame({
+          projection: projection(),
+          timemap: null,
+          catalogue,
+          registry,
+          shaper,
+          outputMs: 1500,
+          captionOpacity: 1,
+        }),
+      );
+      expect(explicitlyFull).toBe(before);
+    });
+
+    it("threads the export-time slider through to the segment's own composited alpha", () => {
+      const full = renderFrame({
+        projection: projection(),
+        timemap: null,
+        catalogue,
+        registry,
+        shaper,
+        outputMs: 1500,
+      });
+      const dimmed = renderFrame({
+        projection: projection(),
+        timemap: null,
+        catalogue,
+        registry,
+        shaper,
+        outputMs: 1500,
+        captionOpacity: 0.3,
+      });
+      // `commands/build.ts`'s `group()` omits `opacity` entirely at 1 (fully
+      // opaque is the implicit default, not a literal `1` on the wire).
+      const fullGroup = full[0];
+      expect(fullGroup?.kind).toBe("group");
+      expect(fullGroup?.kind === "group" ? (fullGroup.opacity ?? 1) : undefined).toBe(1);
+      expect(dimmed[0]).toMatchObject({ kind: "group", opacity: 0.3 });
+      // Nothing else about the frame changes — same command tree shape, only
+      // the top-level group's own alpha differs.
+      expect(hashCommands(full)).not.toBe(hashCommands(dimmed));
+    });
+  });
 });

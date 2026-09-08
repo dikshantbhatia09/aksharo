@@ -13,9 +13,24 @@
  */
 
 import { defineEndpoint } from "@montaj/api-client";
-import type { RenderManifest } from "@montaj/render-manifest";
+import type { RenderManifest, RenderPreset } from "@montaj/render-manifest";
 
 import type { ExportCapabilitiesRequest } from "./types";
+
+/**
+ * K07 deviation: `CreateExportRequest.preset` used to be a hand-rolled
+ * literal union duplicating `@montaj/render-manifest`'s `RenderPreset`
+ * values. K07 adds "instagram-story"/"instagram-feed" to that shared enum
+ * (see `VideoTab.tsx`'s preset picker); left as a local duplicate, this type
+ * would reject the two new values the moment `VideoTabValue.preset` (typed
+ * `RenderPreset`) is handed to `startExport`, failing `pnpm typecheck`.
+ * Reusing the canonical type below (this file sits outside K07's listed file
+ * boundary, `apps/web/components/editor/export/**` only, but the alternative
+ * is a broken build) is purely type-level: no runtime or wire-contract
+ * change, since `apps/api/src/exports/exports.dto.ts`'s own
+ * `z.enum(RENDER_PRESETS)` already accepts every value via the same shared
+ * array this type now reuses.
+ */
 
 export interface ExportOptionsRequest {
   readonly brandAssetId?: string;
@@ -30,7 +45,7 @@ export interface SubtitleOptionsRequest {
 
 export interface CreateExportRequest {
   readonly kind?: "video" | "subtitle";
-  readonly preset?: "reels" | "shorts" | "youtube-4k" | "square" | "custom";
+  readonly preset?: RenderPreset;
   readonly outputKind?: "video" | "alpha" | "greenscreen";
   readonly customWidth?: number;
   readonly customHeight?: number;

@@ -450,8 +450,43 @@ describe("presets", () => {
     expect(dimensionsFor("custom")).toBeNull();
   });
 
+  // K07: Instagram Story shares reels' exact canvas; Instagram Feed is the
+  // first preset to use the 4:5 aspect `ASPECT_RATIOS` already carried.
+  it("knows the K07 Instagram Story and Instagram Feed sizes", () => {
+    expect(dimensionsFor("instagram-story")).toMatchObject({
+      width: 1080,
+      height: 1920,
+      aspect: "9:16",
+    });
+    // Same canvas as `reels` (width/height/aspect) — the label is
+    // deliberately different (see `RENDER_PRESETS`'s doc comment), so this
+    // compares only the pixel-relevant fields, not the whole object.
+    const story = dimensionsFor("instagram-story");
+    const reels = dimensionsFor("reels");
+    expect(story).not.toBeNull();
+    expect(reels).not.toBeNull();
+    expect({ width: story?.width, height: story?.height, aspect: story?.aspect }).toEqual({
+      width: reels?.width,
+      height: reels?.height,
+      aspect: reels?.aspect,
+    });
+    expect(story?.label).not.toBe(reels?.label);
+    expect(dimensionsFor("instagram-feed")).toMatchObject({
+      width: 1080,
+      height: 1350,
+      aspect: "4:5",
+    });
+  });
+
   it("ships only even dimensions, because 4:2:0 halves both axes", () => {
-    for (const preset of ["reels", "shorts", "youtube-4k", "square"] as const) {
+    for (const preset of [
+      "reels",
+      "shorts",
+      "youtube-4k",
+      "square",
+      "instagram-story",
+      "instagram-feed",
+    ] as const) {
       const dimensions = dimensionsFor(preset);
       expect(dimensions).not.toBeNull();
       expect((dimensions?.width ?? 1) % 2).toBe(0);

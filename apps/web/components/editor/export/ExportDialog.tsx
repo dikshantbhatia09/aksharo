@@ -61,7 +61,14 @@ export interface ExportDialogProps {
   readonly uploadingToCloud?: boolean;
 }
 
-const DEFAULT_VIDEO: VideoTabValue = { preset: "reels", script: "roman", dropFillers: false };
+const DEFAULT_VIDEO: VideoTabValue = {
+  preset: "reels",
+  script: "roman",
+  dropFillers: false,
+  // K07: 100%, matching the reference frame's default — every export before
+  // this field existed is unaffected (see VideoTabValue's doc comment).
+  captionOpacity: 1,
+};
 const DEFAULT_SUBTITLES: SubtitlesTabValue = { formats: ["srt"], scripts: ["roman"] };
 
 export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
@@ -126,13 +133,19 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
   const reasons = state.response?.reasons;
 
   const onExportVideo = React.useCallback(() => {
-    void startExport({
-      kind: "video",
-      preset: video.preset,
-      script: video.script,
-      dropFillers: video.dropFillers,
-      mode: "auto",
-    });
+    void startExport(
+      {
+        kind: "video",
+        preset: video.preset,
+        script: video.script,
+        dropFillers: video.dropFillers,
+        mode: "auto",
+      },
+      // K07: caption opacity is a browser-render-time-only option, deliberately
+      // kept out of `CreateExportRequest` — see `use-export-dialog.ts`'s
+      // `startExport` doc comment for why it is not part of the wire request.
+      { captionOpacity: video.captionOpacity },
+    );
   }, [startExport, video]);
 
   // A19c ruling (2): `auto` defaults 1080p-and-up to the cloud when this
@@ -150,13 +163,16 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
     (state.response.reasons ?? []).some((reason) => /hardware/i.test(reason));
 
   const onExportVideoBrowserAnyway = React.useCallback(() => {
-    void startExport({
-      kind: "video",
-      preset: video.preset,
-      script: video.script,
-      dropFillers: video.dropFillers,
-      mode: "browser",
-    });
+    void startExport(
+      {
+        kind: "video",
+        preset: video.preset,
+        script: video.script,
+        dropFillers: video.dropFillers,
+        mode: "browser",
+      },
+      { captionOpacity: video.captionOpacity },
+    );
   }, [startExport, video]);
 
   const onExportSubtitles = React.useCallback(() => {
