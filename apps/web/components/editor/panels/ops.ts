@@ -220,3 +220,19 @@ export function withDefaultEmphasisEffect(
   if (first === undefined) return [...presets];
   return [{ ...first, effect }, ...rest];
 }
+
+/**
+ * K05's Emphasis Font/Font Face/Styles group: the same "write one field of
+ * `emphasisPresets[0]`" shape as `withDefaultEmphasisEffect`, generalised to
+ * any of the preset's own fields (`fontFamily`, `weight`, `italic`,
+ * `underline`) so the panel does not need one bespoke helper per control.
+ */
+export function withDefaultEmphasisField<K extends keyof EmphasisPreset>(
+  presets: readonly EmphasisPreset[],
+  key: K,
+  value: EmphasisPreset[K],
+): EmphasisPreset[] {
+  const [first, ...rest] = presets;
+  if (first === undefined) return [...presets];
+  return [{ ...first, [key]: value }, ...rest];
+}
