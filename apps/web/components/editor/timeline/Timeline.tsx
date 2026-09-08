@@ -750,6 +750,17 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         ctx.fillRect(x0 - 1, laneTops.segmentTop, 2, SEGMENT_LANE_HEIGHT);
         ctx.fillRect(x1 - 1, laneTops.segmentTop, 2, SEGMENT_LANE_HEIGHT);
       }
+      // Reference-video parity (addendum "New gap 5"): once a block is wide
+      // enough to hold a real label, show the caption's own text instead of
+      // just a colour bar -- same threshold and lookup the LINE-mode word
+      // lane above already uses, so a caption reads consistently wherever it
+      // appears on the timeline.
+      if (segment.hidden !== true && w >= MIN_PX_PER_LINE_LABEL) {
+        const text = segmentTextById.get(segment.id) ?? "";
+        ctx.fillStyle = selected ? "#0b0b12" : "rgba(255,255,255,0.9)";
+        ctx.font = "11px sans-serif";
+        ctx.fillText(text, x0 + 2, laneTops.segmentTop + SEGMENT_LANE_HEIGHT - 9, w - 4);
+      }
     }
 
     // Pass lanes: dimmed+struck-through when accepted, dashed when proposed
